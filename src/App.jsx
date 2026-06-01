@@ -6,7 +6,7 @@ import {
   Store, Coins, Loader2, LogOut, TrendingUp, Users, Package,
   ArrowDownToLine, ArrowUpFromLine, UtilityPole, Utensils, Filter,
   Truck
-} from 'lucide-react';
+} from 'lucide-react'; // IKON EDIT TELAH DICABUT AGAR TIDAK CRASH
 
 // =====================================================================
 // === GANTI URL DI BAWAH INI DENGAN URL WEB APP GOOGLE SCRIPT ANDA ===
@@ -14,11 +14,14 @@ import {
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqSM572mbUIGozcghhh8LHNMNw2e83O7Wkyu-SkjdVTO3zpTb64PA/exec'; 
 // =====================================================================
 
-// --- PENGAMAN 1: OPTIMASI FORMAT (ANTI-CRASH) ---
+// --- UTILITIES (OPTIMASI FORMAT & ANTI-CRASH) ---
+const rpFormatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
+const dateFormatter = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+
 const formatRp = (angka) => {
   const num = Number(angka);
   if (isNaN(num) || num === 0) return 'Rp 0';
-  return 'Rp ' + num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return rpFormatter.format(num);
 };
 
 const parseRp = (str) => {
@@ -48,7 +51,7 @@ const formatDate = (date) => {
   if(!date) return '-';
   const d = new Date(date);
   if(isNaN(d.getTime())) return String(date).split('T')[0]; 
-  return new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }).format(d);
+  return dateFormatter.format(d);
 };
 
 const generateId = (prefix, date) => {
@@ -137,7 +140,6 @@ export default function App() {
       const result = await response.json();
       if (result.status === 'success') {
         const data = result.data || [];
-        // PENGAMAN 2: Cek data dan item aman sebelum sort
         setOrders(data.filter(item => item && item.table === 'orders' && !item.isDeleted).sort(safeSort));
         setExpenses(data.filter(item => item && item.table === 'expenses' && !item.isDeleted).sort(safeSort));
         setPiutangPayments(data.filter(item => item && item.table === 'payments' && !item.isDeleted).sort(safeSort));
@@ -197,27 +199,27 @@ export default function App() {
     const piutangGroups = {};
     const hutangGroups = {};
 
-    orders.forEach(o => {
-      if(!o.id) return;
+    (orders || []).forEach(o => {
+      if(!o?.id) return;
       if(!piutangGroups[o.id]) piutangGroups[o.id] = { total: 0, paid: 0 };
       piutangGroups[o.id].total += Number(o.total) || 0;
       piutangGroups[o.id].paid = Number(o.paidAmount) || 0; 
     });
 
-    purchases.forEach(p => {
-      if(!p.id) return;
+    (purchases || []).forEach(p => {
+      if(!p?.id) return;
       if(!hutangGroups[p.id]) hutangGroups[p.id] = { total: 0, paid: 0 };
       hutangGroups[p.id].total += Number(p.total) || 0;
       hutangGroups[p.id].paid = Number(p.paidAmount) || 0;
     });
 
     const piutang = Object.keys(piutangGroups).filter(id => {
-      const cicilan = piutangPayments.filter(p => p.orderId === id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+      const cicilan = (piutangPayments || []).filter(p => p.orderId === id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
       return (piutangGroups[id].total - piutangGroups[id].paid - cicilan) > 0;
     }).length;
 
     const hutang = Object.keys(hutangGroups).filter(id => {
-      const cicilan = piutangPayments.filter(p => p.orderId === id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+      const cicilan = (piutangPayments || []).filter(p => p.orderId === id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
       return (hutangGroups[id].total - hutangGroups[id].paid - cicilan) > 0;
     }).length;
 
@@ -352,11 +354,11 @@ function TabDashboard({ orders, expenses, purchases, piutangPayments, pemalangRe
     const isPeriod = (dateStr) => getLocalYMD(dateStr) && getLocalYMD(dateStr) >= dateFrom && getLocalYMD(dateStr) <= dateTo;
 
     // Filter Cumulative
-    const cumOrdersPusat = orders.filter(o => isCumulative(o.date) && o.category !== 'Pemalang');
-    const cumPurchases = purchases.filter(p => isCumulative(p.date));
-    const cumExpenses = expenses.filter(e => isCumulative(e.date));
-    const cumPayments = piutangPayments.filter(p => isCumulative(p.date));
-    const cumPemalangReports = pemalangReports.filter(p => isCumulative(p.date));
+    const cumOrdersPusat = (orders || []).filter(o => isCumulative(o.date) && o.category !== 'Pemalang');
+    const cumPurchases = (purchases || []).filter(p => isCumulative(p.date));
+    const cumExpenses = (expenses || []).filter(e => isCumulative(e.date));
+    const cumPayments = (piutangPayments || []).filter(p => isCumulative(p.date));
+    const cumPemalangReports = (pemalangReports || []).filter(p => isCumulative(p.date));
 
     let kasMasukCash = 0, kasMasukTF = 0, kasKeluarCash = 0, kasKeluarTF = 0;
     let totalBebanTunai = 0, totalClosingTunai = 0;
@@ -454,33 +456,33 @@ function TabDashboard({ orders, expenses, purchases, piutangPayments, pemalangRe
     const topCustomersList = Object.values(customerMap).sort((a,b) => b.total - a.total);
 
     const groupOrdersAll = {};
-    orders.filter(o => o?.category !== 'Pemalang').forEach(o => {
+    (orders || []).filter(o => o?.category !== 'Pemalang').forEach(o => {
         if(!o?.id) return;
         if(!groupOrdersAll[o.id]) groupOrdersAll[o.id] = { ...o, items: [], totalTagihan: 0, totalDibayar: Number(o.paidAmount)||0 };
         groupOrdersAll[o.id].items.push(`${o.qty} Pcs`);
         groupOrdersAll[o.id].totalTagihan += Number(o.total)||0;
     });
     const listPiutangBerjalan = Object.values(groupOrdersAll).map(grp => {
-        const cicilan = piutangPayments.filter(p => p.orderId === grp.id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+        const cicilan = (piutangPayments || []).filter(p => p.orderId === grp.id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
         return { ...grp, cicilanTerbayar: cicilan, sisaHutang: grp.totalTagihan - grp.totalDibayar - cicilan };
     }).filter(o => o.sisaHutang > 0);
 
     const groupPurAll = {};
-    purchases.forEach(p => {
+    (purchases || []).forEach(p => {
         if(!p?.id) return;
         if(!groupPurAll[p.id]) groupPurAll[p.id] = { ...p, items: [], totalTagihan: 0, totalDibayar: Number(p.paidAmount)||0 };
         groupPurAll[p.id].items.push(`${p.itemName} (${p.qty} ${p.satuan})`);
         groupPurAll[p.id].totalTagihan += Number(p.total)||0;
     });
     const listHutangBerjalan = Object.values(groupPurAll).map(grp => {
-        const cicilan = piutangPayments.filter(p => p.orderId === grp.id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+        const cicilan = (piutangPayments || []).filter(p => p.orderId === grp.id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
         return { ...grp, cicilanTerbayar: cicilan, sisaHutang: grp.totalTagihan - grp.totalDibayar - cicilan };
     }).filter(p => p.sisaHutang > 0);
 
     const listPembayaranSemua = cumPayments.filter(p => isPeriod(p.date)).map(pay => {
-        const isHutang = String(pay.orderId || '').startsWith('BUY-');
+        const isHutang = String(pay?.orderId || '').startsWith('BUY-');
         const relData = isHutang ? groupPurAll[pay.orderId] : groupOrdersAll[pay.orderId];
-        const cicilan = piutangPayments.filter(p=>p.orderId===pay.orderId).reduce((s,p)=>s+(Number(p.amount)||0), 0);
+        const cicilan = (piutangPayments || []).filter(p=>p.orderId===pay.orderId).reduce((s,p)=>s+(Number(p.amount)||0), 0);
         const sisa = (Number(relData?.totalTagihan)||0) - (Number(relData?.totalDibayar)||0) - cicilan;
         return { ...pay, customer: relData ? (isHutang ? relData.supplier : relData.customer) : '-', statusNota: sisa <= 0 ? 'LUNAS' : 'BELUM LUNAS', tipe: isHutang ? 'HUTANG' : 'PIUTANG' };
     });
@@ -652,7 +654,7 @@ function TabDashboard({ orders, expenses, purchases, piutangPayments, pemalangRe
                 <h3 className="font-bold text-lg mb-4 flex gap-2"><Truck size={20} className="text-slate-500"/> Pembelian Bahan (Periode Ini)</h3>
                 <div className="mb-4">
                     <span className="text-4xl font-bold text-orange-600">{formatRp(rekap.listPembelianDetail.reduce((a,b) => a + Number(b.total), 0))}</span>
-                    <div className="text-xs text-slate-400 mt-1">Total Transaksi Pembelian: {[...new Set(rekap.listPembelianDetail.map(x=>x.id))].length} Trx</div>
+                    <div className="text-xs text-slate-400 mt-1">Total Transaksi Pembelian: {[...new Set((rekap.listPembelianDetail || []).map(x=>x?.id))].length} Trx</div>
                 </div>
             </div>
             <div className="border-t pt-4 flex justify-between p-3 bg-orange-50 rounded border border-orange-100">
@@ -675,8 +677,8 @@ function TabDashboardBranch({ orders, pemalangReports, setPrintData, user, stokD
 
   const stokAktual = useMemo(() => {
     const calc = {};
-    stokData.forEach(s => {
-      const nama = String(s.itemName||'').toUpperCase();
+    (stokData || []).forEach(s => {
+      const nama = String(s?.itemName||'').toUpperCase();
       if(!calc[nama]) calc[nama] = { masuk: 0, keluar: 0, terpakai: 0, sisa: 0, satuan: s.satuan || 'PCS' };
       if(s.type === 'MASUK') calc[nama].masuk += Number(s.qty) || 0;
       else if(s.type === 'KELUAR') calc[nama].keluar += Number(s.qty) || 0;
@@ -694,8 +696,8 @@ function TabDashboardBranch({ orders, pemalangReports, setPrintData, user, stokD
         return ymd >= dateFrom && ymd <= dateTo;
     };
 
-    const filteredOrders = orders.filter(o => isDateInRange(o.date) && o.category === 'Pemalang');
-    const filteredReports = pemalangReports.filter(p => isDateInRange(p.date));
+    const filteredOrders = (orders || []).filter(o => isDateInRange(o?.date) && o?.category === 'Pemalang');
+    const filteredReports = (pemalangReports || []).filter(p => isDateInRange(p?.date));
 
     let totalPenjualanKotor = 0;
     let setoranKePusat = 0;
@@ -749,7 +751,7 @@ function TabDashboardBranch({ orders, pemalangReports, setPrintData, user, stokD
     Object.values(orderGroups).forEach(g => { if(g.total - g.paid > 0) totalPiutangBaru += (g.total - g.paid); });
 
     filteredReports.forEach(p => {
-        setoranKePusat += (Number(p.nominal) || 0); 
+        setoranKePusat += (Number(p?.nominal) || 0); 
     });
 
     const finalChartData = Object.keys(chartDataMap).map(key => ({ label: key, value: chartDataMap[key] }));
@@ -944,9 +946,9 @@ function TabOrders({ orders, sendToSheet, setPrintData, requestDelete, role }) {
   const [filterFrom, setFilterFrom] = useState(todayStr);
   const [filterTo, setFilterTo] = useState(todayStr);
 
-  const listPelangganUnik = [...new Set(orders.map(s => String(s.customer||'').toUpperCase()))];
+  const listPelangganUnik = [...new Set((orders||[]).map(s => String(s?.customer||'').toUpperCase()))];
 
-  const cartTotal = cart.reduce((sum, item) => sum + ((Number(item.qty)||0) * (Number(item.price)||0)), 0);
+  const cartTotal = (cart||[]).reduce((sum, item) => sum + ((Number(item?.qty)||0) * (Number(item?.price)||0)), 0);
 
   const updateCartItem = (index, field, value) => {
       const newCart = [...cart];
@@ -956,7 +958,7 @@ function TabOrders({ orders, sendToSheet, setPrintData, requestDelete, role }) {
       }
       setCart(newCart);
       
-      const newTot = newCart.reduce((sum, item) => sum + ((Number(item.qty)||0) * (Number(item.price)||0)), 0);
+      const newTot = newCart.reduce((sum, item) => sum + ((Number(item?.qty)||0) * (Number(item?.price)||0)), 0);
       if(paymentMethod !== 'Pending / DP') setPaidAmount(newTot);
   };
 
@@ -964,7 +966,7 @@ function TabOrders({ orders, sendToSheet, setPrintData, requestDelete, role }) {
   const removeCartRow = (index) => {
       const newCart = cart.filter((_, i) => i !== index);
       setCart(newCart);
-      const newTot = newCart.reduce((sum, item) => sum + ((Number(item.qty)||0) * (Number(item.price)||0)), 0);
+      const newTot = newCart.reduce((sum, item) => sum + ((Number(item?.qty)||0) * (Number(item?.price)||0)), 0);
       if(paymentMethod !== 'Pending / DP') setPaidAmount(newTot);
   };
 
@@ -983,7 +985,7 @@ function TabOrders({ orders, sendToSheet, setPrintData, requestDelete, role }) {
   };
 
   const handleEdit = (item) => {
-    const relatedItems = orders.filter(p => p.id === item.id);
+    const relatedItems = (orders||[]).filter(p => p.id === item.id);
     setDate(String(item.date).split('T')[0]);
     setCustomer(item.customer); 
     setPaymentMethod(item.paymentMethod); 
@@ -999,8 +1001,8 @@ function TabOrders({ orders, sendToSheet, setPrintData, requestDelete, role }) {
     
     if(isEdit) sendToSheet('delete', { id: editId }, 'orders');
     
-    cart.forEach((item, index) => {
-        if(Number(item.qty) > 0) {
+    (cart||[]).forEach((item, index) => {
+        if(Number(item?.qty) > 0) {
             const newOrder = {
                 id: invoiceId, date, customer: customer.toUpperCase(), 
                 category: item.category, qty: Number(item.qty)||0, price: Number(item.price)||0, 
@@ -1012,19 +1014,20 @@ function TabOrders({ orders, sendToSheet, setPrintData, requestDelete, role }) {
             setTimeout(() => sendToSheet('insert', newOrder, 'orders'), index * 300);
         }
     });
-    setTimeout(() => resetForm(), cart.length * 300);
+    setTimeout(() => resetForm(), (cart||[]).length * 300);
   };
 
   const displayOrders = useMemo(() => {
-    let filtered = role === 'branch' ? orders.filter(o => o.category === 'Pemalang') : orders;
+    let filtered = role === 'branch' ? (orders||[]).filter(o => o?.category === 'Pemalang') : (orders||[]);
     filtered = filtered.filter(o => {
-        const ymd = getLocalYMD(o.date);
-        return ymd && ymd >= filterFrom && ymd <= filterTo;
+        const ymd = getLocalYMD(o?.date);
+        if(!ymd) return false;
+        return ymd >= filterFrom && ymd <= filterTo;
     });
 
     const groups = {};
     filtered.forEach(p => {
-        if(!p.id) return;
+        if(!p?.id) return;
         if(!groups[p.id]) groups[p.id] = { ...p, items: [], totalAll: 0 };
         groups[p.id].items.push(`${p.qty} Pcs`);
         groups[p.id].totalAll += Number(p.total);
@@ -1063,7 +1066,7 @@ function TabOrders({ orders, sendToSheet, setPrintData, requestDelete, role }) {
                  <button type="button" onClick={addCartRow} className="bg-white px-3 py-1 text-xs font-bold text-red-600 border border-red-300 rounded shadow-sm">+ Tambah Barang</button>
              </div>
              <div className="space-y-3">
-                 {cart.map((item, index) => (
+                 {(cart||[]).map((item, index) => (
                      <div key={index} className="flex flex-wrap md:flex-nowrap gap-2 items-center bg-white p-2 rounded-lg border shadow-sm relative pr-8">
                          <div className="w-full md:w-4/12 space-y-1">
                              <select value={item.category} onChange={e=>updateCartItem(index, 'category', e.target.value)} disabled={role === 'branch'} className="w-full p-2 border rounded text-xs uppercase font-bold">
@@ -1076,7 +1079,7 @@ function TabOrders({ orders, sendToSheet, setPrintData, requestDelete, role }) {
                          <div className="w-1/2 md:w-5/12 space-y-1">
                              <input type="text" required placeholder="Harga per Pcs" value={formatRp(item.price)} onChange={e=>updateCartItem(index, 'price', parseRp(e.target.value))} className="w-full p-2 border rounded text-xs font-bold" />
                          </div>
-                         {cart.length > 1 && <button type="button" onClick={()=>removeCartRow(index)} className="absolute right-2 top-3 text-red-400 hover:text-red-600"><Trash2 size={16}/></button>}
+                         {(cart||[]).length > 1 && <button type="button" onClick={()=>removeCartRow(index)} className="absolute right-2 top-3 text-red-400 hover:text-red-600"><Trash2 size={16}/></button>}
                      </div>
                  ))}
              </div>
@@ -1120,14 +1123,14 @@ function TabOrders({ orders, sendToSheet, setPrintData, requestDelete, role }) {
         <table className="w-full text-sm text-left block md:table">
           <thead className="bg-red-50 text-red-800 text-xs uppercase border-b"><tr><th className="px-4 py-3">No. Invoice & Tgl</th><th className="px-4 py-3">Pelanggan</th><th className="px-4 py-3 text-center">Daftar Qty</th><th className="px-4 py-3 text-center">Via</th><th className="px-4 py-3 text-right">Total</th><th className="px-4 py-3 text-center">Status</th><th className="px-4 py-3 text-center">Aksi</th></tr></thead>
           <tbody className="divide-y divide-slate-100">
-            {displayOrders.length === 0 ? <tr><td colSpan="7" className="text-center py-12 text-slate-400">Tidak ada transaksi ditemukan.</td></tr> : displayOrders.map((ord) => (
+            {displayOrders.length === 0 ? <tr><td colSpan="7" className="text-center py-12 text-slate-400">Tidak ada transaksi ditemukan pada tanggal filter tersebut.</td></tr> : displayOrders.map((ord) => (
               <tr key={ord.id} className="hover:bg-slate-50">
                 <td className="px-4 py-3">
                   <div className="font-mono text-xs font-bold text-slate-700">{ord.id}</div>
                   <div className="text-xs text-slate-500">{formatDate(ord.date)}</div>
                 </td>
                 <td className="px-4 py-3 font-bold text-slate-800 uppercase">{ord.customer}</td>
-                <td className="px-4 py-3 text-center"><ul className="list-disc pl-3 text-xs text-left">{ord.items.map((it,idx)=><li key={idx}>{it}</li>)}</ul></td>
+                <td className="px-4 py-3 text-center"><ul className="list-disc pl-3 text-xs text-left">{(ord.items||[]).map((it,idx)=><li key={idx}>{it}</li>)}</ul></td>
                 <td className="px-4 py-3 text-center font-medium text-slate-600">{ord.paymentMethod}</td>
                 <td className="px-4 py-3 text-right font-bold text-emerald-600">{formatRp(ord.totalAll)}</td>
                 <td className="px-4 py-3 text-center">
@@ -1137,7 +1140,7 @@ function TabOrders({ orders, sendToSheet, setPrintData, requestDelete, role }) {
                   <div className="flex justify-center gap-2">
                     <button onClick={() => setPrintData({ type: 'invoice', data: ord })} className="text-slate-600 bg-slate-100 p-2 rounded-lg transition" title="Cetak"><Printer size={16} /></button>
                     {/* ICON GANTI JADI TEKS AGAR ANTI-CRASH */}
-                    <button onClick={() => handleEdit(ord)} className="text-blue-600 bg-blue-50 p-2 rounded-lg font-bold text-[10px] transition" title="Edit Data">EDIT</button>
+                    <button onClick={() => handleEdit(ord)} className="text-blue-600 bg-blue-50 px-2 py-1 rounded-lg font-bold text-[10px] transition" title="Edit Data">EDIT</button>
                     <button onClick={() => requestDelete(ord.id)} className="text-red-500 bg-red-50 p-2 rounded-lg transition" title="Hapus Data"><Trash2 size={16} /></button>
                   </div>
                 </td>
@@ -1169,17 +1172,17 @@ function TabPurchases({ purchases, sendToSheet, requestDelete, setPrintData }) {
   const [filterFrom, setFilterFrom] = useState(todayStr);
   const [filterTo, setFilterTo] = useState(todayStr);
 
-  const listSupplierUnik = [...new Set(purchases.map(s => String(s?.supplier||'').toUpperCase()))];
-  const listBarangUnik = [...new Set(purchases.map(s => String(s?.itemName||'').toUpperCase()))];
+  const listSupplierUnik = [...new Set((purchases||[]).map(s => String(s?.supplier||'').toUpperCase()))];
+  const listBarangUnik = [...new Set((purchases||[]).map(s => String(s?.itemName||'').toUpperCase()))];
 
-  const cartTotal = cart.reduce((sum, item) => sum + ((Number(item.qty)||0) * (Number(item.price)||0)), 0);
+  const cartTotal = (cart||[]).reduce((sum, item) => sum + ((Number(item?.qty)||0) * (Number(item?.price)||0)), 0);
 
   const updateCartItem = (index, field, value) => {
       const newCart = [...cart];
       newCart[index][field] = value;
       setCart(newCart);
       
-      const newTot = newCart.reduce((sum, item) => sum + ((Number(item.qty)||0) * (Number(item.price)||0)), 0);
+      const newTot = newCart.reduce((sum, item) => sum + ((Number(item?.qty)||0) * (Number(item?.price)||0)), 0);
       if(paymentMethod !== 'Pending / DP') setPaidAmount(newTot);
   };
 
@@ -1187,7 +1190,7 @@ function TabPurchases({ purchases, sendToSheet, requestDelete, setPrintData }) {
   const removeCartRow = (index) => {
       const newCart = cart.filter((_, i) => i !== index);
       setCart(newCart);
-      const newTot = newCart.reduce((sum, item) => sum + ((Number(item.qty)||0) * (Number(item.price)||0)), 0);
+      const newTot = newCart.reduce((sum, item) => sum + ((Number(item?.qty)||0) * (Number(item?.price)||0)), 0);
       if(paymentMethod !== 'Pending / DP') setPaidAmount(newTot);
   };
 
@@ -1198,7 +1201,7 @@ function TabPurchases({ purchases, sendToSheet, requestDelete, setPrintData }) {
   };
 
   const handleEdit = (item) => {
-    const relatedItems = purchases.filter(p => p.id === item.id);
+    const relatedItems = (purchases||[]).filter(p => p.id === item.id);
     setDate(String(item.date).split('T')[0]);
     setSupplier(item.supplier); 
     setPaymentMethod(item.paymentMethod); 
@@ -1214,11 +1217,11 @@ function TabPurchases({ purchases, sendToSheet, requestDelete, setPrintData }) {
     
     if(isEdit) sendToSheet('delete', { id: editId }, 'purchases');
     
-    cart.forEach((item, index) => {
-        if(item.itemName.trim() !== '') {
+    (cart||[]).forEach((item, index) => {
+        if(String(item?.itemName).trim() !== '') {
             const newPurchase = {
                 id: invoiceId, date, supplier: supplier.toUpperCase(), 
-                itemName: item.itemName.toUpperCase(), satuan: item.satuan.toUpperCase(), 
+                itemName: String(item.itemName).toUpperCase(), satuan: String(item.satuan).toUpperCase(), 
                 qty: Number(item.qty)||0, price: Number(item.price)||0, 
                 total: (Number(item.qty)||0)*(Number(item.price)||0), 
                 paymentMethod, 
@@ -1228,11 +1231,11 @@ function TabPurchases({ purchases, sendToSheet, requestDelete, setPrintData }) {
             setTimeout(() => sendToSheet('insert', newPurchase, 'purchases'), index * 300);
         }
     });
-    setTimeout(() => resetForm(), cart.length * 300);
+    setTimeout(() => resetForm(), (cart||[]).length * 300);
   };
 
   const displayPurchases = useMemo(() => {
-    const filtered = purchases.filter(p => {
+    const filtered = (purchases||[]).filter(p => {
         const ymd = getLocalYMD(p?.date);
         return ymd && ymd >= filterFrom && ymd <= filterTo;
     });
@@ -1279,9 +1282,9 @@ function TabPurchases({ purchases, sendToSheet, requestDelete, setPrintData }) {
                  <button type="button" onClick={addCartRow} className="bg-white px-3 py-1 text-xs font-bold text-orange-600 border border-orange-300 rounded shadow-sm">+ Tambah Barang</button>
              </div>
              <div className="space-y-3">
-                 {cart.map((item, index) => {
-                     const isAyam = String(item.itemName).toUpperCase().includes('AYAM');
-                     const isKg = String(item.satuan).toUpperCase() === 'KG';
+                 {(cart||[]).map((item, index) => {
+                     const isAyam = String(item?.itemName || '').toUpperCase().includes('AYAM');
+                     const isKg = String(item?.satuan || '').toUpperCase() === 'KG';
                      const infoAyam = (isAyam && isKg && item.qty) ? `(Setara ${Number(item.qty)/10} Kantong)` : '';
 
                      return (
@@ -1301,14 +1304,14 @@ function TabPurchases({ purchases, sendToSheet, requestDelete, setPrintData }) {
                          <div className="w-full md:w-3/12 space-y-1">
                              <input type="text" required placeholder="Harga Satuan" value={formatRp(item.price)} onChange={e=>updateCartItem(index, 'price', parseRp(e.target.value))} className="w-full p-2 border rounded text-xs font-bold" />
                          </div>
-                         {cart.length > 1 && <button type="button" onClick={()=>removeCartRow(index)} className="absolute right-2 top-3 text-red-400 hover:text-red-600"><Trash2 size={16}/></button>}
+                         {(cart||[]).length > 1 && <button type="button" onClick={()=>removeCartRow(index)} className="absolute right-2 top-3 text-red-400 hover:text-red-600"><Trash2 size={16}/></button>}
                      </div>
                  )})}
              </div>
           </div>
 
           <div className="space-y-1 bg-orange-100 p-3 rounded-lg border border-orange-200 lg:col-span-3">
-            <label className="text-xs font-bold text-orange-900 uppercase">Total Seluruh Belanjaan (Otomatis)</label>
+            <label className="text-xs font-bold text-orange-900 uppercase">Total Seluruh Belanjaan</label>
             <input type="text" readOnly value={formatRp(cartTotal)} className="w-full p-3 border border-orange-300 rounded-lg font-bold text-lg bg-white mt-1 text-orange-900 cursor-not-allowed" />
           </div>
 
@@ -1333,10 +1336,11 @@ function TabPurchases({ purchases, sendToSheet, requestDelete, setPrintData }) {
         </form>
       )}
 
-      <div className="flex items-center gap-3 bg-white p-3 rounded-xl border mt-4">
-         <Filter size={16} className="text-slate-400"/><span className="text-sm font-bold">Filter:</span>
-         <input type="date" value={filterFrom} onChange={e=>setFilterFrom(e.target.value)} className="p-1.5 text-sm border rounded" /> - 
-         <input type="date" value={filterTo} onChange={e=>setFilterTo(e.target.value)} className="p-1.5 text-sm border rounded" />
+      <div className="flex flex-wrap items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-sm mt-4">
+         <div className="flex items-center gap-2"><Filter size={16} className="text-slate-400"/><span className="text-sm font-bold text-slate-700">Filter Data:</span></div>
+         <input type="date" value={filterFrom} onChange={e=>setFilterFrom(e.target.value)} className="p-1.5 text-sm border rounded focus:ring-2 focus:ring-orange-200" />
+         <span className="text-slate-400">-</span>
+         <input type="date" value={filterTo} onChange={e=>setFilterTo(e.target.value)} className="p-1.5 text-sm border rounded focus:ring-2 focus:ring-orange-200" />
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm mt-4 overflow-hidden">
@@ -1358,7 +1362,7 @@ function TabPurchases({ purchases, sendToSheet, requestDelete, setPrintData }) {
                 <td className="px-4 py-3"><div className="font-mono text-xs font-bold text-slate-700">{pur.id}</div><div className="text-xs text-slate-500">{formatDate(pur.date)}</div></td>
                 <td className="px-4 py-3">
                     <div className="font-bold uppercase text-slate-800">{pur.supplier}</div>
-                    <ul className="list-disc pl-3 text-[10px] text-slate-500 mt-1">{pur.items.map((it, idx) => <li key={idx}>{it}</li>)}</ul>
+                    <ul className="list-disc pl-3 text-[10px] text-slate-500 mt-1">{(pur.items||[]).map((it, idx) => <li key={idx}>{it}</li>)}</ul>
                 </td>
                 <td className="px-4 py-3 text-center font-medium text-slate-600">{pur.paymentMethod}</td>
                 <td className="px-4 py-3 text-right font-bold text-orange-600">{formatRp(pur.totalAll)}</td>
@@ -1368,7 +1372,7 @@ function TabPurchases({ purchases, sendToSheet, requestDelete, setPrintData }) {
                 <td className="px-4 py-3 text-center">
                   <div className="flex justify-center gap-2">
                     <button onClick={() => setPrintData({ type: 'purchase', data: pur })} className="text-slate-600 bg-slate-100 p-2 rounded-lg transition" title="Cetak Bukti"><Printer size={16} /></button>
-                    <button onClick={() => handleEdit(pur)} className="text-blue-600 bg-blue-50 p-2 rounded-lg font-bold text-[10px] transition" title="Edit Data">EDIT</button>
+                    <button onClick={() => handleEdit(pur)} className="text-blue-600 bg-blue-50 px-2 py-1 rounded-lg font-bold text-[10px] transition" title="Edit Data">EDIT</button>
                     <button onClick={() => requestDelete(pur.id)} className="text-red-500 bg-red-50 p-2 rounded-lg transition" title="Hapus Permanen"><Trash2 size={16} /></button>
                   </div>
                 </td>
@@ -1394,7 +1398,7 @@ function TabStok({ stokData, sendToSheet, requestDelete }) {
   
   const [cart, setCart] = useState([{ itemName: '', satuan: 'Kg', qty: '' }]);
 
-  const listBarangUnik = [...new Set(stokData.map(s => String(s?.itemName||'').toUpperCase()))];
+  const listBarangUnik = [...new Set((stokData||[]).map(s => String(s?.itemName||'').toUpperCase()))];
 
   const updateCartItem = (index, field, value) => {
       const newCart = [...cart];
@@ -1402,7 +1406,7 @@ function TabStok({ stokData, sendToSheet, requestDelete }) {
       setCart(newCart);
   };
   const addCartRow = () => setCart([...cart, { itemName: '', satuan: 'Kg', qty: '' }]);
-  const removeCartRow = (index) => setCart(cart.filter((_, i) => i !== index));
+  const removeCartRow = (index) => setCart((cart||[]).filter((_, i) => i !== index));
 
   const resetForm = () => {
     setShowForm(false); setIsEdit(false); setEditId(null); setEditCount(0);
@@ -1410,7 +1414,7 @@ function TabStok({ stokData, sendToSheet, requestDelete }) {
   };
 
   const handleEdit = (item) => {
-    const relatedItems = stokData.filter(p => p.id === item.id);
+    const relatedItems = (stokData||[]).filter(p => p.id === item.id);
     setDate(String(item.date).split('T')[0]); setType(item.type); setNotes(item.notes || '');
     setCart(relatedItems.map(p => ({ itemName: p.itemName, satuan: p.satuan || 'Kg', qty: p.qty })));
     setEditId(item.id); setEditCount(Number(item.editCount)||0); setIsEdit(true); setShowForm(true);
@@ -1421,18 +1425,18 @@ function TabStok({ stokData, sendToSheet, requestDelete }) {
     const batchId = isEdit ? editId : generateId('STK', date);
     if(isEdit) sendToSheet('delete', { id: editId }, 'stok');
 
-    cart.forEach((item, index) => {
-        if(item.itemName.trim() !== '' && item.satuan.trim() !== '') {
-            const newStok = { id: batchId, date, itemName: item.itemName.toUpperCase(), satuan: item.satuan.toUpperCase(), type, qty: Number(item.qty)||0, notes, editCount: isEdit ? editCount + 1 : 0 };
+    (cart||[]).forEach((item, index) => {
+        if(String(item?.itemName).trim() !== '' && String(item?.satuan).trim() !== '') {
+            const newStok = { id: batchId, date, itemName: String(item.itemName).toUpperCase(), satuan: String(item.satuan).toUpperCase(), type, qty: Number(item.qty)||0, notes, editCount: isEdit ? editCount + 1 : 0 };
             setTimeout(() => sendToSheet('insert', newStok, 'stok'), index * 300);
         }
     });
-    setTimeout(() => resetForm(), cart.length * 300);
+    setTimeout(() => resetForm(), (cart||[]).length * 300);
   };
 
   const stokAktual = useMemo(() => {
     const calc = {};
-    stokData.forEach(s => {
+    (stokData||[]).forEach(s => {
       if(!s?.itemName) return;
       const nama = String(s.itemName).toUpperCase();
       if(!calc[nama]) calc[nama] = { masuk: 0, keluar: 0, terpakai: 0, sisa: 0, satuan: s.satuan || 'PCS' };
@@ -1446,7 +1450,7 @@ function TabStok({ stokData, sendToSheet, requestDelete }) {
 
   const displayStok = useMemo(() => {
     const groups = {};
-    stokData.forEach(p => {
+    (stokData||[]).forEach(p => {
         if(!p?.id) return;
         if(!groups[p.id]) groups[p.id] = { ...p, items: [] };
         groups[p.id].items.push(`${p.itemName} (${p.qty} ${p.satuan})`);
@@ -1478,16 +1482,16 @@ function TabStok({ stokData, sendToSheet, requestDelete }) {
                  <button type="button" onClick={addCartRow} className="bg-white px-3 py-1 text-xs font-bold text-blue-600 border border-blue-300 rounded shadow-sm">+ Tambah</button>
              </div>
              <div className="space-y-2">
-                 {cart.map((item, index) => {
-                     const isAyam = String(item.itemName).toUpperCase().includes('AYAM');
-                     const isKg = String(item.satuan).toUpperCase() === 'KG';
+                 {(cart||[]).map((item, index) => {
+                     const isAyam = String(item?.itemName || '').toUpperCase().includes('AYAM');
+                     const isKg = String(item?.satuan || '').toUpperCase() === 'KG';
                      const infoAyam = (isAyam && isKg && item.qty) ? `(Setara ${Number(item.qty)/10} Kantong)` : '';
                      return(
                      <div key={index} className="flex flex-wrap md:flex-nowrap gap-2 items-start bg-white p-2 rounded border relative pr-8">
                          <div className="w-full md:w-5/12"><input type="text" list="suggestions-item" required placeholder="Nama Barang" value={item.itemName} onChange={e=>updateCartItem(index,'itemName',e.target.value)} className="w-full p-2 border rounded text-xs uppercase font-bold" /><datalist id="suggestions-item">{listBarangUnik.map(b => <option key={b} value={b} />)}</datalist></div>
                          <div className="w-1/2 md:w-3/12"><input type="number" min="1" required placeholder="Qty" value={item.qty} onChange={e=>updateCartItem(index,'qty',e.target.value)} className="w-full p-2 border rounded text-xs text-center font-bold" />{infoAyam && <div className="text-[9px] font-bold text-emerald-600 mt-1">{infoAyam}</div>}</div>
                          <div className="w-1/2 md:w-4/12"><input type="text" list="satuan-list" required placeholder="Satuan (Kg/Pcs)" value={item.satuan} onChange={e=>updateCartItem(index,'satuan',e.target.value)} className="w-full p-2 border rounded text-xs uppercase" /><datalist id="satuan-list">{SATUAN_BARANG.map(b=><option key={b} value={b}/>)}</datalist></div>
-                         {cart.length > 1 && <button type="button" onClick={()=>removeCartRow(index)} className="absolute right-2 top-3 text-red-400 hover:text-red-600"><Trash2 size={16}/></button>}
+                         {(cart||[]).length > 1 && <button type="button" onClick={()=>removeCartRow(index)} className="absolute right-2 top-3 text-red-400 hover:text-red-600"><Trash2 size={16}/></button>}
                      </div>
                  )})}
              </div>
@@ -1500,10 +1504,10 @@ function TabStok({ stokData, sendToSheet, requestDelete }) {
         {displayStok.length === 0 ? <tr><td colSpan="5" className="text-center py-12 text-slate-400">Belum ada riwayat stok.</td></tr> : displayStok.map((s) => (
           <tr key={s.id} className="hover:bg-slate-50">
             <td className="px-4 py-3"><div className="font-medium">{formatDate(s.date)}</div><div className="text-[10px] text-slate-400 font-mono">{s.id}</div></td>
-            <td className="px-4 py-3"><ul className="list-disc pl-3 text-xs font-bold text-slate-800 uppercase">{s.items.map((it,idx)=><li key={idx}>{it}</li>)}</ul></td>
+            <td className="px-4 py-3"><ul className="list-disc pl-3 text-xs font-bold text-slate-800 uppercase">{(s.items||[]).map((it,idx)=><li key={idx}>{it}</li>)}</ul></td>
             <td className="px-4 py-3 text-center"><span className={`px-2 py-1 rounded text-[10px] font-bold ${s.type === 'MASUK' ? 'bg-emerald-100 text-emerald-700' : s.type === 'TERPAKAI' ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'}`}>{s.type}</span></td>
             <td className="px-4 py-3 text-xs">{s.notes || '-'}</td>
-            <td className="px-4 py-3 text-center"><div className="flex justify-center gap-2"><button onClick={() => handleEdit(s)} className="text-blue-600 bg-blue-50 p-2 rounded-lg font-bold text-[10px]">EDIT</button><button onClick={() => requestDelete(s.id)} className="text-red-500 bg-red-50 p-2 rounded-lg"><Trash2 size={16} /></button></div></td>
+            <td className="px-4 py-3 text-center"><div className="flex justify-center gap-2"><button onClick={() => handleEdit(s)} className="text-blue-600 bg-blue-50 px-2 py-1 rounded-lg font-bold text-[10px]">EDIT</button><button onClick={() => requestDelete(s.id)} className="text-red-500 bg-red-50 p-2 rounded-lg"><Trash2 size={16} /></button></div></td>
           </tr>
         ))}
       </tbody></table></div>
@@ -1545,13 +1549,13 @@ function TabExpenses({ expenses, sendToSheet, setPrintData, requestDelete }) {
   const handleSimpan = (e) => {
     e.preventDefault();
     const prefix = type === 'IN' ? 'IN' : 'OUT';
-    const newExpense = { id: isEdit ? editId : generateId(prefix, date), date, recipient: recipient.toUpperCase(), category: type === 'IN' ? 'Modal Awal / Tambahan Saldo' : category, description, qty: Number(qty)||0, price: Number(price)||0, total, type, paymentMethod, editCount: isEdit ? editCount + 1 : 0 };
+    const newExpense = { id: isEdit ? editId : generateId(prefix, date), date, recipient: String(recipient||'').toUpperCase(), category: type === 'IN' ? 'Modal Awal / Tambahan Saldo' : category, description, qty: Number(qty)||0, price: Number(price)||0, total, type, paymentMethod, editCount: isEdit ? editCount + 1 : 0 };
     sendToSheet(isEdit ? 'update' : 'insert', newExpense, 'expenses'); 
     resetForm();
   };
 
-  const displayExpenses = useMemo(() => expenses.filter(e => {
-      const y = getLocalYMD(e.date);
+  const displayExpenses = useMemo(() => (expenses||[]).filter(e => {
+      const y = getLocalYMD(e?.date);
       return y && y >= filterFrom && y <= filterTo;
   }), [expenses, filterFrom, filterTo]);
 
@@ -1582,13 +1586,153 @@ function TabExpenses({ expenses, sendToSheet, setPrintData, requestDelete }) {
               <td className="px-4 py-3 text-center">
                   <div className="flex justify-center gap-2">
                       {exp.type === 'OUT' && <button onClick={() => setPrintData({ type: 'voucher', data: exp })} className="text-slate-600 bg-slate-100 p-2 rounded-lg"><Printer size={16} /></button>}
-                      <button onClick={() => handleEdit(exp)} className="text-blue-600 bg-blue-50 p-2 rounded-lg font-bold text-[10px]">EDIT</button>
+                      <button onClick={() => handleEdit(exp)} className="text-blue-600 bg-blue-50 px-2 py-1 rounded-lg font-bold text-[10px]">EDIT</button>
                       <button onClick={() => requestDelete(exp.id)} className="text-red-500 bg-red-50 p-2 rounded-lg"><Trash2 size={16} /></button>
                   </div>
               </td>
             </tr>
           ))}
       </tbody></table></div>
+    </div>
+  );
+}
+
+function TabPiutang({ orders, purchases, payments, sendToSheet, requestDelete, setPrintData, role }) {
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [bayarAmount, setBayarAmount] = useState(0);
+  const [paymentMethod, setPaymentMethod] = useState('Transfer');
+  const [viewTab, setViewTab] = useState('piutang'); 
+
+  const visibleOrders = useMemo(() => role === 'branch' ? (orders||[]).filter(o => o?.category === 'Pemalang') : (orders||[]).filter(o => o?.category !== 'Pemalang'), [orders, role]);
+
+  const daftarPiutang = useMemo(() => {
+    const groups = {};
+    visibleOrders.forEach(o => {
+        if(!o?.id) return;
+        if(!groups[o.id]) groups[o.id] = { ...o, totalAll: 0, paidAll: Number(o.paidAmount)||0 };
+        groups[o.id].totalAll += Number(o.total) || 0;
+    });
+
+    return Object.values(groups).map(order => {
+      const orderPayments = (payments||[]).filter(p => p?.orderId === order.id);
+      const cicilan = orderPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+      const sisa = order.totalAll - order.paidAll - cicilan;
+      return { ...order, tipe: 'PIUTANG', cicilanTerbayar: cicilan, sisaHutang: sisa, orderPayments };
+    }).filter(o => o.sisaHutang > 0 || (o.orderPayments && o.orderPayments.length > 0)); 
+  }, [visibleOrders, payments]);
+
+  const daftarHutang = useMemo(() => {
+    const groups = {};
+    (purchases||[]).forEach(p => {
+        if(!p?.id) return;
+        if(!groups[p.id]) groups[p.id] = { ...p, totalAll: 0, paidAll: Number(p.paidAmount)||0 };
+        groups[p.id].totalAll += Number(p.total) || 0;
+    });
+
+    return Object.values(groups).map(pur => {
+      const purPayments = (payments||[]).filter(p => p?.orderId === pur.id);
+      const cicilan = purPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+      const sisa = pur.totalAll - pur.paidAll - cicilan;
+      return { ...pur, tipe: 'HUTANG', customer: pur.supplier, cicilanTerbayar: cicilan, sisaHutang: sisa, orderPayments: purPayments };
+    }).filter(p => p.sisaHutang > 0 || (p.orderPayments && p.orderPayments.length > 0)); 
+  }, [purchases, payments]);
+
+  const handleBayar = (e) => {
+    e.preventDefault();
+    if(bayarAmount <= 0 || bayarAmount > selectedItem?.sisaHutang) return; 
+    const tgl = new Date();
+    const newPayment = {
+        id: generateId('PAY', tgl.toISOString().split('T')[0]),
+        orderId: selectedItem.id, date: tgl.toISOString().split('T')[0],
+        amount: Number(bayarAmount)||0, paymentMethod 
+    };
+    sendToSheet('insert', newPayment, 'payments');
+    setBayarAmount(0); 
+  };
+
+  const listToRender = viewTab === 'piutang' ? (daftarPiutang || []) : (daftarHutang || []);
+  const activeItem = selectedItem ? listToRender.find(o=>o.id===selectedItem.id) : null;
+
+  return (
+    <div className="space-y-4 animate-in fade-in">
+        {activeItem && (
+            <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+                <div className="bg-white rounded-xl w-full max-w-lg p-6 max-h-[90vh] overflow-auto">
+                    <div className="flex justify-between items-start mb-4">
+                        <h3 className="font-bold text-lg">Kelola Cicilan {activeItem.tipe === 'HUTANG' ? 'ke Supplier' : 'dari Pelanggan'}</h3>
+                        <button onClick={() => setSelectedItem(null)} className="p-1.5 bg-slate-100 rounded-full"><X size={20}/></button>
+                    </div>
+                    
+                    <div className="bg-slate-50 p-4 rounded-xl mb-6">
+                        <div className="flex justify-between mb-2 pb-2 border-b"><span className="text-slate-500 text-sm">Ref ID</span><span className="font-mono text-sm font-bold">{activeItem.id}</span></div>
+                        <div className="flex justify-between mb-2 pb-2 border-b"><span className="text-slate-500 text-sm">{activeItem.tipe === 'HUTANG' ? 'Supplier' : 'Pelanggan'}</span><span className="font-bold text-sm uppercase">{activeItem.customer}</span></div>
+                        <div className="flex justify-between pt-2"><span className="font-bold text-red-600">SISA HUTANG AKTUAL</span><span className="font-bold text-red-700 text-lg">{formatRp(activeItem?.sisaHutang)}</span></div>
+                    </div>
+
+                    {(activeItem?.sisaHutang > 0) && (
+                        <form onSubmit={handleBayar} className="space-y-4 mb-8 bg-blue-50 p-4 rounded-xl border border-blue-200">
+                            <h4 className="font-bold text-sm text-blue-800">Input Pembayaran Cicilan</h4>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div><label className="text-xs font-bold text-blue-700">Metode</label><select value={paymentMethod} onChange={e=>setPaymentMethod(e.target.value)} className="w-full p-2 border rounded-lg mt-1 text-sm"><option value="Transfer">Transfer Bank</option><option value="Cash">Tunai (Cash)</option></select></div>
+                                <div><label className="text-xs font-bold text-blue-700">Nominal (Maks {formatRp(activeItem.sisaHutang)})</label><input type="text" required value={formatRp(bayarAmount)} onChange={e => {let v=parseRp(e.target.value); if(v>activeItem.sisaHutang) v=activeItem.sisaHutang; setBayarAmount(v);}} className="w-full p-2 border rounded-lg mt-1 text-sm font-bold" /></div>
+                            </div>
+                            <div className="flex justify-end mt-2"><button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm">Simpan Cicilan</button></div>
+                        </form>
+                    )}
+
+                    <div>
+                        <h4 className="font-bold text-sm text-slate-700 mb-3 border-b pb-1">Riwayat Cicilan</h4>
+                        {(!activeItem?.orderPayments || activeItem.orderPayments.length === 0) && <p className="text-sm text-slate-400 italic">Belum ada riwayat cicilan.</p>}
+                        {(activeItem?.orderPayments || []).map(pay => (
+                            <div key={pay.id} className="flex justify-between items-center bg-white border p-3 rounded-lg mb-2">
+                                <div><div className="text-[10px] font-mono text-slate-400">{pay.id}</div><div className="text-sm font-medium">{formatDate(pay.date)}</div></div>
+                                <div className="text-xs font-bold text-slate-500 px-2 bg-slate-100 rounded py-0.5">{pay.paymentMethod}</div>
+                                <div className="font-bold text-emerald-600 flex-1 text-right mr-4">{formatRp(pay.amount)}</div>
+                                <div className="flex gap-2">
+                                    <button onClick={() => setPrintData({ type: 'receipt', data: { payment: pay, order: activeItem }})} className="p-1.5 bg-slate-100 rounded text-slate-600"><Printer size={16} /></button>
+                                    <button onClick={() => requestDelete(pay.id)} className="p-1.5 bg-red-50 text-red-500 rounded"><Trash2 size={16} /></button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        )}
+
+      {role === 'admin' && (
+      <div className="flex bg-slate-200 p-1 rounded-xl max-w-md">
+         <button onClick={()=>setViewTab('piutang')} className={`flex-1 py-2 font-bold rounded-lg text-sm transition ${viewTab==='piutang'?'bg-white shadow text-slate-800':'text-slate-500'}`}>Piutang (Pelanggan Ngutang)</button>
+         <button onClick={()=>setViewTab('hutang')} className={`flex-1 py-2 font-bold rounded-lg text-sm transition ${viewTab==='hutang'?'bg-white shadow text-red-600':'text-slate-500'}`}>Hutang (Kita Ngutang Supplier)</button>
+      </div>
+      )}
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+        {listToRender.filter(o => o?.sisaHutang > 0).length === 0 ? (
+          <div className="text-center p-12 bg-white rounded-xl border border-dashed text-slate-500 col-span-full">
+              <CheckCircle size={48} className="mx-auto text-emerald-400 mb-3" />
+              <p>Hore! Semua nota {viewTab} telah lunas.</p>
+          </div>
+        ) : (
+          listToRender.filter(o => o?.sisaHutang > 0).map((item) => (
+            <div key={item.id} className={`bg-white p-5 rounded-xl border-2 relative ${viewTab==='piutang'?'border-slate-200':'border-orange-200'}`}>
+                <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg">BELUM LUNAS</div>
+                <div className="text-sm text-slate-500 mb-1">{formatDate(item.date)}</div>
+                <div className="font-bold text-lg mb-1 uppercase">{item.customer}</div>
+                <div className="text-[10px] font-mono text-slate-400 mb-4">{item.id}</div>
+                
+                <div className="space-y-2 text-sm mb-4">
+                    <div className="flex justify-between border-b pb-1"><span className="text-slate-500">Total Tagihan</span><span className="font-medium">{formatRp(item.totalAll)}</span></div>
+                    <div className="flex justify-between border-b pb-1"><span className="text-slate-500">Telah Dicicil</span><span className="font-bold text-emerald-600">{formatRp((Number(item.paidAll)||0)+(Number(item.cicilanTerbayar)||0))}</span></div>
+                    <div className="flex justify-between pt-1"><span className="font-bold text-red-600">Sisa Hutang</span><span className="font-bold text-red-700 text-base">{formatRp(item.sisaHutang)}</span></div>
+                </div>
+                
+                <button onClick={() => {setSelectedItem(item); setBayarAmount(item.sisaHutang)}} className={`w-full text-white py-2.5 rounded-lg font-bold text-sm transition ${viewTab==='piutang'?'bg-blue-600 hover:bg-blue-700':'bg-orange-600 hover:bg-orange-700'}`}>
+                    Kelola Cicilan
+                </button>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 }
@@ -1626,8 +1770,8 @@ function TabPemalang({ reports, sendToSheet, requestDelete }) {
     resetForm();
   };
 
-  const displayReports = useMemo(() => reports.filter(p => {
-      const y = getLocalYMD(p.date);
+  const displayReports = useMemo(() => (reports||[]).filter(p => {
+      const y = getLocalYMD(p?.date);
       return y && y >= filterFrom && y <= filterTo;
   }), [reports, filterFrom, filterTo]);
 
@@ -1650,7 +1794,7 @@ function TabPemalang({ reports, sendToSheet, requestDelete }) {
       )}
       <div className="flex items-center gap-3 bg-white p-3 rounded-xl border mt-4"><Filter size={16} className="text-slate-400"/><input type="date" value={filterFrom} onChange={e=>setFilterFrom(e.target.value)} className="p-1.5 text-sm border rounded" /> - <input type="date" value={filterTo} onChange={e=>setFilterTo(e.target.value)} className="p-1.5 text-sm border rounded" /></div>
       <div className="bg-white rounded-xl border mt-4 overflow-hidden"><table className="w-full text-sm text-left block md:table"><thead className="bg-amber-50 text-amber-800 border-b"><tr><th className="px-4 py-3">Tanggal Laporan</th><th className="px-4 py-3 text-center">Pesanan (M/P)</th><th className="px-4 py-3 text-center">Produksi (M/P)</th><th className="px-4 py-3">STOK FREEZER</th><th className="px-4 py-3 text-center">Disetor Ke</th><th className="px-4 py-3 text-right">Uang Disetor</th><th className="px-4 py-3 text-center">Aksi</th></tr></thead><tbody className="divide-y">
-          {displayReports.length === 0 ? <tr><td colSpan="7" className="text-center py-12 text-slate-400">Tidak ada laporan ditemukan pada tanggal filter tersebut.</td></tr> : displayReports.map((rep) => (
+          {displayReports.length === 0 ? <tr><td colSpan="7" className="text-center py-12 text-slate-400">Tidak ada laporan ditemukan.</td></tr> : displayReports.map((rep) => (
             <tr key={rep.id} className="hover:bg-slate-50">
               <td className="px-4 py-3"><div className="font-medium">{formatDate(rep.date)}</div><div className="text-[10px] text-slate-400 font-mono">{rep.id}</div></td>
               <td className="px-4 py-3 text-center bg-slate-50/50"><div className="font-bold">{rep.pesananMika} M</div><div className="text-xs text-slate-500">{rep.pesananPorsi} Prs</div></td>
@@ -1658,10 +1802,332 @@ function TabPemalang({ reports, sendToSheet, requestDelete }) {
               <td className="px-4 py-3 bg-blue-50/30 font-bold text-blue-700 uppercase">{rep.stokFreezer || '-'}</td>
               <td className="px-4 py-3 text-center"><span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-[10px] font-bold">{rep.transferDestination || 'Pusat'}</span></td>
               <td className="px-4 py-3 text-right font-bold text-emerald-600">+{formatRp(rep.nominal)}</td>
-              <td className="px-4 py-3 text-center"><div className="flex justify-center gap-2"><button onClick={() => handleEdit(rep)} className="text-blue-600 bg-blue-50 p-2 rounded-lg font-bold text-[10px]">EDIT</button><button onClick={() => requestDelete(rep.id)} className="text-red-500 bg-red-50 p-2 rounded-lg"><Trash2 size={16} /></button></div></td>
+              <td className="px-4 py-3 text-center"><div className="flex justify-center gap-2"><button onClick={() => handleEdit(rep)} className="text-blue-600 bg-blue-50 px-2 py-1 rounded-lg font-bold text-[10px]">EDIT</button><button onClick={() => requestDelete(rep.id)} className="text-red-500 bg-red-50 p-2 rounded-lg"><Trash2 size={16} /></button></div></td>
             </tr>
           ))}
       </tbody></table></div>
+    </div>
+  );
+}
+
+// ==========================================================
+// --- LAYOUT CETAK (DIPERCEPAT & DITAMBAHKAN LOGO & SATUAN) ---
+// ==========================================================
+function PrintReport({ data, onBack }) {
+  useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
+  const { rekap, dateFrom, dateTo } = data;
+  return (
+    <>
+    <style dangerouslySetInnerHTML={{__html: `@media print { @page { size: A4 portrait; margin: 10mm; } body { margin: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; font-size: 11px; color: black; background: white; zoom: 0.75; } .hide-on-print { display: none !important; } table { width: 100%; border-collapse: collapse; } th, td { padding: 4px 6px !important; font-size: 10px !important; border: 1px solid black !important; } h1 { font-size: 16px !important; margin-bottom: 4px !important; } h3 { font-size: 12px !important; margin-top: 12px !important; margin-bottom: 4px !important; } .p-8 { padding: 0 !important; } .mb-8 { margin-bottom: 12px !important; } .mb-6 { margin-bottom: 8px !important; } .mt-8 { margin-top: 12px !important; } .mt-12 { margin-top: 16px !important; } .gap-4 { gap: 12px !important; } .grid-cols-2 { display: flex !important; justify-content: space-between !important; } .grid-cols-2 > div { width: 48% !important; margin-bottom: 8px !important; border: 1px solid black; padding: 6px !important; } * { box-shadow: none !important; border-radius: 0 !important; } }`}} />
+    <div className="bg-white min-h-screen text-black print:bg-white print:p-0 p-8 w-full max-w-[800px] mx-auto">
+      <button onClick={onBack} className="hide-on-print mb-4 bg-slate-800 text-white px-4 py-2 rounded flex items-center gap-2">Kembali ke Aplikasi</button>
+      <div className="print:p-0 text-sm font-sans" style={{ fontFamily: 'Arial, sans-serif' }}>
+        
+        <div className="flex justify-center mb-2">
+            <img src="https://dimsumaditya.id/wp-content/uploads/2024/10/Dimsum-Aditya.png" alt="Logo" style={{height: '60px'}} />
+        </div>
+
+        <div className="text-center mb-6 border-b-2 border-black pb-4"><h1 className="font-bold text-xl uppercase mt-2">Laporan Keuangan & Penjualan</h1><p className="text-slate-600">Periode: {formatDate(dateFrom)} s/d {formatDate(dateTo)}</p></div>
+        
+        <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="border border-black p-3"><h3 className="font-bold text-sm border-b border-black pb-1 mb-2">RINGKASAN SALDO AKTUAL (TERAKUMULASI)</h3><div className="flex justify-between mb-1"><span>Saldo Tunai Bersih (CASH):</span> <span className="font-medium text-emerald-700">{formatRp(rekap?.saldoCash)}</span></div><div className="flex justify-between mb-1"><span>Saldo Rekening Bersih (TF):</span> <span className="font-medium text-indigo-700">{formatRp(rekap?.saldoTF)}</span></div><div className="flex justify-between pt-1 border-t border-dotted border-black mt-1"><span className="font-bold">TOTAL SALDO AKTUAL:</span> <span className="font-bold text-blue-700">{formatRp(rekap?.saldoAkhir)}</span></div></div>
+            <div className="border border-black p-3"><h3 className="font-bold text-sm border-b border-black pb-1 mb-2">RINGKASAN OMSET PUSAT (PERIODE FILTER)</h3><div className="flex justify-between mb-1"><span>Total Penjualan Kotor:</span> <span className="font-medium">{formatRp(rekap?.totalPenjualanKotor)}</span></div><div className="flex justify-between mb-1"><span>Total Porsi Terjual:</span> <span className="font-medium">{rekap?.totalPorsi} Porsi</span></div><div className="flex justify-between mb-1"><span>Total Piutang Berjalan:</span> <span className="font-medium text-red-600">{formatRp(rekap?.totalPiutangBaru)}</span></div></div>
+        </div>
+
+        <h3 className="font-bold text-md mb-2 mt-8">A. RINCIAN TRANSAKSI & OMSET PENJUALAN (PUSAT)</h3>
+        <table className="w-full border-collapse border border-black text-sm text-left mb-8">
+          <thead className="bg-gray-100"><tr><th className="border border-black p-2 text-center w-8">NO</th><th className="border border-black p-2">NO. INVOICE</th><th className="border border-black p-2">PELANGGAN</th><th className="border border-black p-2">KATEGORI</th><th className="border border-black p-2">VIA</th><th className="border border-black p-2 text-center">QTY (PORSI)</th><th className="border border-black p-2 text-right">TOTAL OMSET</th></tr></thead>
+          <tbody>
+              {(rekap?.listTransaksiDetail || []).map((c, i) => (<tr key={i}><td className="border border-black p-2 text-center">{i + 1}</td><td className="border border-black p-2 font-mono text-xs">{c.id}</td><td className="border border-black p-2 font-bold uppercase">{c.customer}</td><td className="border border-black p-2">{c.category}</td><td className="border border-black p-2">{c.paymentMethod}</td><td className="border border-black p-2 text-center"><ul className="list-disc pl-3 text-left">{(c?.items || []).map((it,idx)=><li key={idx}>{it}</li>)}</ul></td><td className="border border-black p-2 text-right font-medium">{formatRp(c.total)}</td></tr>))}
+              {(!rekap?.listTransaksiDetail || rekap.listTransaksiDetail.length === 0) && <tr><td colSpan="7" className="border border-black p-4 text-center italic">Tidak ada transaksi.</td></tr>}
+          </tbody>
+        </table>
+
+        {(rekap?.listExpenses || []).length > 0 && (
+            <>
+                <h3 className="font-bold text-md mb-2 mt-4">B. RINCIAN BUKU KAS (PENGELUARAN & CLOSING)</h3>
+                <table className="w-full border-collapse border border-black text-sm text-left mb-8">
+                    <thead className="bg-gray-100"><tr><th className="border border-black p-2 text-center w-8">NO</th><th className="border border-black p-2">TANGGAL</th><th className="border border-black p-2">KATEGORI</th><th className="border border-black p-2">KETERANGAN</th><th className="border border-black p-2 text-center">VIA</th><th className="border border-black p-2 text-right">NOMINAL KELUAR/MASUK</th></tr></thead>
+                    <tbody>
+                        {rekap.listExpenses.map((o, i) => (
+                            <tr key={i}><td className="border border-black p-2 text-center">{i + 1}</td><td className="border border-black p-2">{formatDate(o.date)}</td><td className="border border-black p-2 font-bold uppercase">{o.category}</td><td className="border border-black p-2">{o.description}</td><td className="border border-black p-2 text-center">{o.paymentMethod}</td><td className={`border border-black p-2 text-right font-bold ${o.type==='IN'?'text-emerald-600':'text-red-600'}`}>{o.type==='IN'?'+':'-'}{formatRp(o.total)}</td></tr>
+                        ))}
+                    </tbody>
+                </table>
+            </>
+        )}
+
+        {(rekap?.listHutangBerjalan || []).length > 0 && (
+            <>
+                <h3 className="font-bold text-md mb-2 mt-4">C. DAFTAR HUTANG BAHAN BAKU (BELUM LUNAS KE SUPPLIER)</h3>
+                <table className="w-full border-collapse border border-black text-sm text-left mb-8">
+                    <thead className="bg-gray-100"><tr><th className="border border-black p-2 text-center w-8">NO</th><th className="border border-black p-2">TANGGAL & INVOICE</th><th className="border border-black p-2">SUPPLIER</th><th className="border border-black p-2">BARANG (SATUAN)</th><th className="border border-black p-2 text-right">TOTAL TAGIHAN</th><th className="border border-black p-2 text-right">TELAH DIBAYAR</th><th className="border border-black p-2 text-right text-red-600">SISA HUTANG</th></tr></thead>
+                    <tbody>
+                        {rekap.listHutangBerjalan.map((o, i) => (
+                            <tr key={i}>
+                                <td className="border border-black p-2 text-center">{i + 1}</td>
+                                <td className="border border-black p-2"><div className="font-bold">{formatDate(o.date)}</div><div className="font-mono text-[9px]">{o.id}</div></td>
+                                <td className="border border-black p-2 font-bold uppercase">{o.supplier}</td>
+                                <td className="border border-black p-2 uppercase"><ul className="list-disc pl-3 text-xs">{(o?.items || []).map((it,idx)=><li key={idx}>{it}</li>)}</ul></td>
+                                <td className="border border-black p-2 text-right font-medium">{formatRp(o.totalTagihan)}</td>
+                                <td className="border border-black p-2 text-right text-emerald-600">{formatRp((Number(o.totalDibayar)||0) + (Number(o.cicilanTerbayar)||0))}</td>
+                                <td className="border border-black p-2 text-right font-bold text-red-600">{formatRp(o.sisaHutang)}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </>
+        )}
+
+        {(rekap?.listPiutangBerjalan || []).length > 0 && (
+            <>
+                <h3 className="font-bold text-md mb-2 mt-4">D. DAFTAR PIUTANG BERJALAN SAAT INI (BELUM LUNAS)</h3>
+                <table className="w-full border-collapse border border-black text-sm text-left mb-8">
+                    <thead className="bg-gray-100"><tr><th className="border border-black p-2 text-center w-8">NO</th><th className="border border-black p-2">NO. INVOICE / TGL</th><th className="border border-black p-2">PELANGGAN</th><th className="border border-black p-2 text-center">PESANAN</th><th className="border border-black p-2 text-right">TOTAL TAGIHAN</th><th className="border border-black p-2 text-right">TELAH DIBAYAR</th><th className="border border-black p-2 text-right text-red-600">SISA HUTANG</th></tr></thead>
+                    <tbody>
+                        {rekap.listPiutangBerjalan.map((o, i) => (
+                            <tr key={i}><td className="border border-black p-2 text-center">{i + 1}</td><td className="border border-black p-2"><div className="font-mono text-xs font-bold">{o.id}</div><div className="text-xs text-gray-600">{formatDate(o.date)}</div></td><td className="border border-black p-2 font-bold uppercase">{o.customer}</td><td className="border border-black p-2 text-center"><ul className="list-disc pl-3 text-left">{(o?.items || []).map((it,idx)=><li key={idx}>{it}</li>)}</ul></td><td className="border border-black p-2 text-right font-medium">{formatRp(o.totalTagihan)}</td><td className="border border-black p-2 text-right text-emerald-600">{formatRp((Number(o.totalDibayar)||0) + (Number(o.cicilanTerbayar)||0))}</td><td className="border border-black p-2 text-right font-bold text-red-600">{formatRp(o.sisaHutang)}</td></tr>
+                        ))}
+                    </tbody>
+                </table>
+            </>
+        )}
+
+        {(rekap?.listPembayaranSemua || []).length > 0 && (
+            <>
+                <h3 className="font-bold text-md mb-2 mt-4">E. RINCIAN UANG MASUK & KELUAR DARI CICILAN</h3>
+                <table className="w-full border-collapse border border-black text-sm text-left mb-8">
+                    <thead className="bg-gray-100"><tr><th className="border border-black p-2 text-center w-8">NO</th><th className="border border-black p-2">TANGGAL</th><th className="border border-black p-2">JENIS</th><th className="border border-black p-2">PELANGGAN/SUPPLIER</th><th className="border border-black p-2">VIA</th><th className="border border-black p-2 text-right">NOMINAL CICILAN</th><th className="border border-black p-2 text-center">STATUS NOTA</th></tr></thead>
+                    <tbody>
+                        {rekap.listPembayaranSemua.map((p, i) => (
+                            <tr key={i}>
+                              <td className="border border-black p-2 text-center">{i + 1}</td>
+                              <td className="border border-black p-2">{formatDate(p.date)}</td>
+                              <td className="border border-black p-2 font-bold">{p.tipe === 'HUTANG' ? 'Bayar Hutang' : 'Terima Piutang'}</td>
+                              <td className="border border-black p-2 font-bold uppercase">{p.customer}</td>
+                              <td className="border border-black p-2">{p.paymentMethod}</td>
+                              <td className={`border border-black p-2 text-right font-bold ${p.tipe === 'HUTANG'?'text-red-600':'text-emerald-600'}`}>{p.tipe === 'HUTANG'?'-':'+'}{formatRp(p.amount)}</td>
+                              <td className="border border-black p-2 text-center text-[10px] font-bold">{p.statusNota === 'LUNAS' ? <span className="text-emerald-600">LUNAS</span> : <span className="text-red-600">BELUM LUNAS</span>}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </>
+        )}
+
+        {(rekap?.listPemalang || []).length > 0 && (
+            <>
+                <h3 className="font-bold text-md mb-2 mt-4">F. RINCIAN LAPORAN & SETORAN CABANG PEMALANG</h3>
+                <table className="w-full border-collapse border border-black text-sm text-left mb-8">
+                    <thead className="bg-gray-100"><tr><th className="border border-black p-2 text-center w-8">NO</th><th className="border border-black p-2">TANGGAL</th><th className="border border-black p-2 text-center">PRODUKSI / PESANAN</th><th className="border border-black p-2">STOK FREEZER</th><th className="border border-black p-2 text-center">TUJUAN TF</th><th className="border border-black p-2 text-right">UANG DISETOR</th></tr></thead>
+                    <tbody>
+                        {rekap.listPemalang.map((p, i) => (
+                            <tr key={i}><td className="border border-black p-2 text-center">{i + 1}</td><td className="border border-black p-2">{formatDate(p.date)}</td><td className="border border-black p-2 text-center">{p.produksiMika} M / {p.pesananMika} M</td><td className="border border-black p-2 font-bold uppercase">{p.stokFreezer}</td><td className="border border-black p-2 text-center font-bold text-indigo-700">{p.transferDestination || 'BCA (WASTAM)'}</td><td className="border border-black p-2 text-right font-bold text-emerald-700">{formatRp(p.nominal)}</td></tr>
+                        ))}
+                    </tbody>
+                </table>
+            </>
+        )}
+
+        <div className="flex justify-end mt-12">
+            <div className="text-center w-48">
+                <div className="text-sm mb-12 text-center">Dicetak oleh,</div><div className="border-b border-dotted border-black h-4 mb-1"></div><div className="text-xs uppercase">Admin Pusat</div><div className="text-xs italic text-gray-500 mt-1">{formatDate(new Date())}</div>
+            </div>
+        </div>
+      </div>
+    </div>
+    </>
+  );
+}
+
+function PrintReportBranch({ data, onBack, user }) {
+  useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
+  const { rekap, dateFrom, dateTo } = data;
+  return (
+    <>
+    <style dangerouslySetInnerHTML={{__html: `@media print { @page { size: A4 portrait; margin: 10mm; } body { margin: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; font-size: 11px; color: black; background: white; zoom: 0.8; } .hide-on-print { display: none !important; } table { width: 100%; border-collapse: collapse; } th, td { padding: 4px 6px !important; font-size: 10px !important; border: 1px solid black !important; } h1 { font-size: 16px !important; margin-bottom: 4px !important; } h3 { font-size: 12px !important; margin-top: 12px !important; margin-bottom: 4px !important; } .p-8 { padding: 0 !important; } .mb-8 { margin-bottom: 12px !important; } .mb-6 { margin-bottom: 8px !important; } .mt-8 { margin-top: 12px !important; } .mt-12 { margin-top: 16px !important; } .gap-4 { gap: 12px !important; } .grid-cols-2 { display: flex !important; justify-content: space-between !important; } .grid-cols-2 > div { width: 48% !important; margin-bottom: 8px !important; border: 1px solid black; padding: 6px !important; } * { box-shadow: none !important; border-radius: 0 !important; } }`}} />
+    <div className="bg-white min-h-screen text-black print:bg-white print:p-0 p-8 w-full max-w-[800px] mx-auto">
+      <button onClick={onBack} className="hide-on-print mb-4 bg-slate-800 text-white px-4 py-2 rounded flex items-center gap-2">Kembali ke Aplikasi</button>
+      <div className="print:p-0 text-sm font-sans" style={{ fontFamily: 'Arial, sans-serif' }}>
+        
+        <div className="flex justify-center mb-2">
+            <img src="https://dimsumaditya.id/wp-content/uploads/2024/10/Dimsum-Aditya.png" alt="Logo" style={{height: '60px'}} />
+        </div>
+
+        <div className="text-center mb-6 border-b-2 border-black pb-4"><h1 className="font-bold text-xl uppercase mt-2">Laporan Operasional {user?.name}</h1><p className="text-slate-600">Periode: {formatDate(dateFrom)} s/d {formatDate(dateTo)}</p></div>
+        <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="border border-black p-3"><h3 className="font-bold text-sm border-b border-black pb-1 mb-2">RINGKASAN PENJUALAN CABANG</h3><div className="flex justify-between mb-1"><span>Total Omset Kotor:</span> <span className="font-medium text-emerald-700">{formatRp(rekap?.totalPenjualanKotor)}</span></div><div className="flex justify-between mb-1"><span>Total Porsi Terjual:</span> <span className="font-medium text-indigo-700">{rekap?.totalPorsi} Prs ({rekap?.totalPcs} Pcs)</span></div></div>
+            <div className="border border-black p-3"><h3 className="font-bold text-sm border-b border-black pb-1 mb-2">RINGKASAN KAS / SETORAN</h3><div className="flex justify-between mb-1"><span>Total Setoran Kas ke Pusat:</span> <span className="font-medium text-blue-700">{formatRp(rekap?.setoranKePusat)}</span></div><div className="flex justify-between mb-1"><span>Status Uang Disetor:</span> <span className="font-medium text-slate-500">Full Transfer Bank</span></div></div>
+        </div>
+        <h3 className="font-bold text-md mb-2 mt-8">A. RINCIAN TRANSAKSI INVOICE CABANG</h3>
+        <table className="w-full border-collapse border border-black text-sm text-left mb-8">
+          <thead className="bg-gray-100"><tr><th className="border border-black p-2 text-center w-8">NO</th><th className="border border-black p-2">NO. INVOICE</th><th className="border border-black p-2">PELANGGAN</th><th className="border border-black p-2 text-center">METODE BAYAR</th><th className="border border-black p-2 text-center">QTY (PORSI)</th><th className="border border-black p-2 text-right">TOTAL OMSET</th></tr></thead>
+          <tbody>
+              {(rekap?.listOrders || []).map((c, i) => (<tr key={i}><td className="border border-black p-2 text-center">{i + 1}</td><td className="border border-black p-2 font-mono text-xs">{c.id}</td><td className="border border-black p-2 font-bold uppercase">{c.customer}</td><td className="border border-black p-2 text-center">{c.paymentMethod}</td><td className="border border-black p-2 text-center"><ul className="list-disc pl-3 text-left">{(c?.items||[]).map((it,idx)=><li key={idx}>{it}</li>)}</ul></td><td className="border border-black p-2 text-right font-medium">{formatRp(c.total)}</td></tr>))}
+              {(!rekap?.listOrders || rekap.listOrders.length === 0) && <tr><td colSpan="6" className="border border-black p-4 text-center italic">Tidak ada transaksi.</td></tr>}
+          </tbody>
+        </table>
+        <h3 className="font-bold text-md mb-2 mt-4">B. RINCIAN LAPORAN HARIAN & STOK FREEZER</h3>
+        <table className="w-full border-collapse border border-black text-sm text-left mb-8">
+            <thead className="bg-gray-100"><tr><th className="border border-black p-2 text-center w-8">NO</th><th className="border border-black p-2">TANGGAL</th><th className="border border-black p-2 text-center">PRODUKSI / PESANAN</th><th className="border border-black p-2">STOK FREEZER AKHIR</th><th className="border border-black p-2 text-center">TUJUAN TF</th><th className="border border-black p-2 text-right">UANG DISETOR</th></tr></thead>
+            <tbody>
+                {(rekap?.listReports || []).map((p, i) => (<tr key={i}><td className="border border-black p-2 text-center">{i + 1}</td><td className="border border-black p-2">{formatDate(p.date)}</td><td className="border border-black p-2 text-center">{p.produksiMika} M / {p.pesananMika} M</td><td className="border border-black p-2 font-bold uppercase">{p.stokFreezer}</td><td className="border border-black p-2 text-center font-bold">{p.transferDestination || 'BCA (WASTAM)'}</td><td className="border border-black p-2 text-right font-bold text-emerald-700">{formatRp(p.nominal)}</td></tr>))}
+                {(!rekap?.listReports || rekap.listReports.length === 0) && <tr><td colSpan="6" className="border border-black p-4 text-center italic">Tidak ada laporan harian.</td></tr>}
+            </tbody>
+        </table>
+        <div className="flex justify-end mt-12"><div className="text-center w-48"><div className="text-sm mb-12 text-center">Dicetak oleh,</div><div className="border-b border-dotted border-black h-4 mb-1"></div><div className="text-xs uppercase">Admin {user?.name}</div><div className="text-xs italic text-gray-500 mt-1">{formatDate(new Date())}</div></div></div>
+      </div>
+    </div>
+    </>
+  );
+}
+
+function PrintInvoiceDotMatrix({ data, onBack }) {
+  useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
+  return (
+    <>
+    <style dangerouslySetInnerHTML={{__html: `@media print { @page { size: 9.5in 11in; margin: 0; } body { margin: 0.5in; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } .hide-on-print { display: none !important; } }`}} />
+    <div className="bg-white min-h-screen text-black print:bg-white print:p-0 p-8 w-full max-w-[800px] mx-auto font-mono text-sm" style={{ fontFamily: '"Courier New", Courier, monospace' }}>
+      <button onClick={onBack} className="hide-on-print mb-8 bg-slate-800 text-white px-5 py-2.5 rounded flex items-center gap-2">Kembali ke Aplikasi</button>
+      <div className="border border-black p-6 print:border-none print:p-0 relative">
+        {(data?.editCount > 0) && <div className="absolute top-0 right-0 font-bold text-xs bg-black text-white px-2 py-1">CETAKAN KE-{data.editCount + 1}</div>}
+        <div className="flex justify-between items-start mb-6 border-b-2 border-black pb-4 mt-6">
+            <div>
+                <h1 className="font-bold text-2xl tracking-widest uppercase mb-2">INVOICE DIMSUM ADITYA</h1>
+                <p className="text-xs">Jl. Thamrin, RT.001/RW.003, Ketapang</p>
+                <p className="text-xs">Kec. Cipondoh, Tangerang 15147</p>
+                <p className="text-xs">Telp/Wa : 087809020931</p>
+            </div>
+            <div className="text-right"><h2 className="font-bold text-xl uppercase mt-2">DIMSUM ADITYA</h2><p className="text-xs">Pusat Produksi</p></div>
+        </div>
+        <div className="flex justify-between items-end mb-6">
+            <table className="w-[50%] text-sm"><tbody><tr><td className="w-24 pb-1">NO. INVOICE</td><td className="w-4 pb-1">:</td><td className="font-bold pb-1">{data?.id}</td></tr><tr><td className="w-24 pb-1">KEPADA</td><td className="w-4 pb-1">:</td><td className="font-bold uppercase pb-1">{data?.customer}</td></tr></tbody></table>
+            <table className="w-[40%] text-sm"><tbody><tr><td className="w-28 pb-1">TANGGAL</td><td className="w-4 pb-1">:</td><td className="text-right font-bold pb-1">{formatDate(data?.date)}</td></tr><tr><td className="w-28 pb-1">METODE BAYAR</td><td className="w-4 pb-1">:</td><td className="text-right font-bold pb-1">{data?.paymentMethod}</td></tr></tbody></table>
+        </div>
+        <table className="w-full border-collapse text-sm mb-4 border border-black">
+            <thead><tr className="border-b border-black"><th className="p-2 border-r border-black text-left w-1/4">KATEGORI</th><th className="p-2 border-r border-black text-left w-2/5">DESKRIPSI KETERANGAN</th><th className="p-2 border-r border-black text-center">QTY</th><th className="p-2 border-r border-black text-right">HARGA (Rp)</th><th className="p-2 text-right w-1/4">TOTAL (Rp)</th></tr></thead>
+            <tbody>
+                {(data?.items || []).length > 0 ? (data.items.map((it, idx) => (
+                    <tr key={idx} className="border-b border-black border-dashed"><td className="p-2 border-r border-black border-dashed uppercase">{data.category}</td><td className="p-2 border-r border-black border-dashed uppercase">Pembelian Dimsum {data.notes ? `- ${data.notes}` : ''}</td><td className="p-2 border-r border-black border-dashed text-center font-bold">{it}</td><td className="p-2 border-r border-black border-dashed text-right">{formatRp(data.price).replace('Rp', '')}</td><td className="p-2 text-right font-bold">{formatRp(data.total).replace('Rp', '')}</td></tr>
+                ))) : (
+                    <tr className="border-b border-black border-dashed"><td className="p-2 border-r border-black border-dashed uppercase">{data?.category}</td><td className="p-2 border-r border-black border-dashed uppercase">Pembelian Dimsum {data?.notes ? `- ${data.notes}` : ''}</td><td className="p-2 border-r border-black border-dashed text-center font-bold">{data?.qty} PCS</td><td className="p-2 border-r border-black border-dashed text-right">{formatRp(data?.price).replace('Rp', '')}</td><td className="p-2 text-right font-bold">{formatRp(data?.total).replace('Rp', '')}</td></tr>
+                )}
+                {[...Array(2)].map((_, i) => (<tr key={`empty-${i}`} className="border-b border-black border-dashed"><td className="p-3 border-r border-black border-dashed"></td><td className="p-3 border-r border-black border-dashed"></td><td className="p-3 border-r border-black border-dashed"></td><td className="p-3 border-r border-black border-dashed"></td><td className="p-3"></td></tr>))}
+                <tr className="border-t-2 border-black"><td colSpan="3" className="p-2 border-r border-black border-dashed text-right italic text-xs">{terbilang(data?.totalAll || data?.total)} Rupiah</td><td className="p-2 border-r border-black border-dashed font-bold text-right">GRAND TOTAL</td><td className="p-2 text-right font-bold text-lg">{formatRp(data?.totalAll || data?.total)}</td></tr>
+                {(Number(data?.totalAll || data?.total)||0) > (Number(data?.paidAmount)||0) && (
+                    <><tr><td colSpan="4" className="p-1 border-r border-black border-dashed font-bold text-right text-xs">TELAH DIBAYAR (DP)</td><td className="p-1 text-right font-bold text-xs">{formatRp(data?.paidAmount)}</td></tr><tr className="border-t border-black border-dashed"><td colSpan="4" className="p-1.5 border-r border-black border-dashed font-bold text-right uppercase">Sisa Tagihan (Piutang)</td><td className="p-1.5 text-right font-bold">{formatRp((Number(data?.totalAll || data?.total)||0) - (Number(data?.paidAmount)||0))}</td></tr></>
+                )}
+            </tbody>
+        </table>
+        <div className="flex justify-between items-end mt-12 mb-4"><div className="text-center w-48"><div className="border-b border-black border-dashed h-16 mb-1"></div><div className="text-xs uppercase">PENERIMA / PELANGGAN</div></div><div className="text-center w-48"><div className="text-xs mb-16 text-center italic">Hormat Kami,</div><div className="border-b border-black border-dashed h-4 mb-1"></div><div className="text-xs uppercase">DIMSUM ADITYA</div></div></div>
+        <div className="flex justify-between items-end mt-8 text-[10px] border-t border-black pt-2"><div><p className="font-bold">BCA : 1320552261 (WASTAM) | BRI : 775301006132536 (WASTAM)</p><p>Barang yang sudah dibeli tidak dapat ditukar/dikembalikan.</p></div><div className="font-bold">WWW.DIMSUMADITYA.ID</div></div>
+      </div>
+    </div>
+    </>
+  );
+}
+
+function PrintPurchase({ data, onBack }) {
+  useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
+  return (
+    <>
+    <style dangerouslySetInnerHTML={{__html: `@media print { @page { size: A4 portrait; margin: 10mm; } body { margin: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; font-size: 11px;} .hide-on-print { display: none !important; } }`}} />
+    <div className="bg-white min-h-screen text-black print:bg-white print:p-0 p-8 w-full max-w-[800px] mx-auto">
+      <button onClick={onBack} className="print:hidden mb-4 bg-slate-800 text-white px-4 py-2 rounded flex items-center gap-2">Kembali</button>
+      <div className="p-8 border border-slate-200 print:border-none print:p-0 text-sm font-sans relative" style={{ fontFamily: 'Arial, sans-serif' }}>
+        {(data?.editCount > 0) && <div className="absolute top-0 right-0 font-bold text-xs bg-black text-white px-2 py-1">CETAKAN KE-{data.editCount + 1}</div>}
+        <div className="flex justify-between items-center mb-10 mt-6"><h1 className="font-bold text-xl uppercase border-b-2 border-black pb-2 inline-block">BUKTI PEMBELIAN BAHAN BAKU</h1></div>
+        <div className="space-y-4 text-base">
+            <div className="flex"><div className="w-48 font-bold">ID Transaksi</div><div className="w-4">:</div><div className="font-mono font-medium">{data?.id}</div></div>
+            <div className="flex"><div className="w-48 font-bold">Tanggal Pembelian</div><div className="w-4">:</div><div>{formatDate(data?.date)}</div></div>
+            <div className="flex"><div className="w-48 font-bold">Nama Supplier</div><div className="w-4">:</div><div className="uppercase font-bold border-b border-dotted border-black flex-1">{data?.supplier}</div></div>
+            <div className="flex"><div className="w-48 font-bold">Daftar Barang</div><div className="w-4">:</div><div className="uppercase"><ul className="list-disc pl-4 text-xs font-bold">{(data?.items || []).map((it, idx) => <li key={idx}>{it}</li>)}</ul></div></div>
+            <div className="flex"><div className="w-48 font-bold">Metode Bayar</div><div className="w-4">:</div><div className="font-bold">{data?.paymentMethod}</div></div>
+            <div className="flex items-center"><div className="w-48 font-bold">Total Nilai Transaksi</div><div className="w-4">:</div><div className="font-bold text-lg bg-gray-100 px-4 py-1 border border-black inline-block">{formatRp(data?.totalAll || data?.total)}</div></div>
+            <div className="flex"><div className="w-48 font-bold">Uang Dibayarkan (DP)</div><div className="w-4">:</div><div className="font-bold">{formatRp(data?.paidAmount)}</div></div>
+        </div>
+        <div className="mt-16 flex justify-between items-end">
+            <div className="text-sm p-4 border border-black bg-gray-50"><p className="font-bold mb-1">Informasi Transaksi:</p><p>Total Nilai Faktur : {formatRp(data?.totalAll || data?.total)}</p><p>Hutang Berjalan : {formatRp((Number(data?.totalAll || data?.total)||0)-(Number(data?.paidAmount)||0))}</p></div>
+            <div className="text-center w-48"><div className="text-sm mb-16 text-left italic">Penerima (Kasir),</div><div className="border-b border-dotted border-black h-4 mb-1"></div><div className="text-xs uppercase text-center">Dimsum Aditya</div></div>
+        </div>
+      </div>
+    </div>
+    </>
+  );
+}
+
+function PrintVoucher({ data, onBack }) {
+    useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
+    return (
+      <>
+      <style dangerouslySetInnerHTML={{__html: `@media print { @page { size: A4 portrait; margin: 10mm; } body { margin: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; font-size: 11px; } .hide-on-print { display: none !important; } * { box-shadow: none !important; border-radius: 0 !important; } table { border-collapse: collapse; } td, th { border: 1px solid black; padding: 6px !important;} }`}} />
+      <div className="bg-white min-h-screen text-black print:bg-white print:p-0 p-8 w-full max-w-[800px] mx-auto relative">
+        <button onClick={onBack} className="print:hidden mb-4 bg-slate-800 text-white px-4 py-2 rounded flex items-center gap-2">Kembali</button>
+        <div className="p-8 border border-slate-200 print:border-none print:p-0 text-sm font-sans" style={{ fontFamily: 'Arial, sans-serif' }}>
+          {(data?.editCount > 0) && <div className="absolute top-0 right-0 font-bold text-xs bg-black text-white px-2 py-1">CETAKAN KE-{data.editCount + 1}</div>}
+          <div className="flex justify-between items-center mb-8"><h1 className="font-bold text-xl uppercase">BUKTI PENGELUARAN KAS - DIMSUM ADITYA</h1></div>
+          <div className="flex justify-between items-end mb-6">
+              <table className="w-[50%] text-sm" style={{border: 'none'}}><tbody><tr><td className="font-bold w-24 pb-2" style={{border: 'none'}}>ID Voucher</td><td className="w-4 pb-2" style={{border: 'none'}}>:</td><td className="border-b border-dotted border-black pb-2" style={{border: 'none'}}>{data?.id}</td></tr><tr><td className="font-bold w-24 pb-2" style={{border: 'none'}}>Kepada</td><td className="w-4 pb-2" style={{border: 'none'}}>:</td><td className="border-b border-dotted border-black pb-2 uppercase" style={{border: 'none'}}>{data?.recipient}</td></tr></tbody></table>
+              <table className="w-[35%] text-sm" style={{border: 'none'}}><tbody><tr><td className="font-bold w-20 pb-2" style={{border: 'none'}}>Tanggal</td><td className="w-4 pb-2" style={{border: 'none'}}>:</td><td className="border-b border-dotted border-black text-right pb-2" style={{border: 'none'}}>{formatDate(data?.date)}</td></tr><tr><td className="font-bold w-20 pb-2" style={{border: 'none'}}>Metode</td><td className="w-4 pb-2" style={{border: 'none'}}>:</td><td className="border-b border-dotted border-black text-right pb-2" style={{border: 'none'}}>{data?.paymentMethod}</td></tr></tbody></table>
+          </div>
+          <table className="w-full border-collapse border border-black text-center mb-2 text-sm">
+              <thead><tr><th className="border border-black p-2 bg-gray-50 w-1/4">KATEGORI</th><th className="border border-black p-2 bg-gray-50 w-2/5">KETERANGAN</th><th className="border border-black p-2 bg-gray-50 w-16">QTY</th><th className="border border-black p-2 bg-gray-50">HARGA</th><th className="border border-black p-2 bg-gray-50">TOTAL (KAS KELUAR)</th></tr></thead>
+              <tbody><tr><td className="border border-black p-2">{data?.category}</td><td className="border border-black p-2 uppercase">{data?.description}</td><td className="border border-black p-2">{data?.qty}</td><td className="border border-black p-2">{formatRp(data?.price)}</td><td className="border border-black p-2 font-bold">{formatRp(data?.total)}</td></tr></tbody>
+          </table>
+          <div className="italic text-sm font-serif mb-16 pt-2">TERBILANG : {terbilang(data?.total)} Rupiah</div>
+          <div className="flex justify-between items-end mb-4"><div className="text-center w-48 mt-12"><div className="border-b border-dotted border-black h-8 mb-1"></div><div className="text-xs">Penerima / Pelanggan</div></div><div className="text-center w-48"><div className="text-sm mb-16 text-left italic">Hormat kami,</div><div className="border-b border-dotted border-black h-4 mb-1"></div><div className="text-xs">Admin / Kasir</div></div></div>
+        </div>
+      </div>
+      </>
+    );
+}
+
+function PrintReceipt({ data, onBack }) {
+    useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
+    const { payment, order } = data;
+    return (
+      <>
+      <style dangerouslySetInnerHTML={{__html: `@media print { @page { size: A4 portrait; margin: 10mm; } body { margin: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; font-size: 11px;} .hide-on-print { display: none !important; } }`}} />
+      <div className="bg-white min-h-screen text-black print:bg-white print:p-0 p-8 w-full max-w-[800px] mx-auto">
+        <button onClick={onBack} className="print:hidden mb-4 bg-slate-800 text-white px-4 py-2 rounded flex items-center gap-2">Kembali</button>
+        <div className="p-8 border border-slate-200 print:border-none print:p-0 text-sm font-sans" style={{ fontFamily: 'Arial, sans-serif' }}>
+          <div className="flex justify-between items-center mb-10"><h1 className="font-bold text-xl uppercase border-b-2 border-black pb-2 inline-block">BUKTI PEMBAYARAN PIUTANG / CICILAN</h1></div>
+          <div className="space-y-4 text-base">
+              <div className="flex"><div className="w-48 font-bold">ID Pembayaran</div><div className="w-4">:</div><div className="font-mono font-medium">{payment?.id}</div></div>
+              <div className="flex"><div className="w-48 font-bold">Tanggal Pembayaran</div><div className="w-4">:</div><div>{formatDate(payment?.date)}</div></div>
+              <div className="flex"><div className="w-48 font-bold">Telah Diterima Dari</div><div className="w-4">:</div><div className="uppercase font-bold border-b border-dotted border-black flex-1">{order?.customer}</div></div>
+              <div className="flex"><div className="w-48 font-bold">Metode Bayar</div><div className="w-4">:</div><div className="font-bold">{payment?.paymentMethod}</div></div>
+              <div className="flex items-center"><div className="w-48 font-bold">Sejumlah Uang</div><div className="w-4">:</div><div className="font-bold text-lg bg-gray-100 px-4 py-1 border border-black inline-block">{formatRp(payment?.amount)}</div></div>
+              <div className="flex"><div className="w-48 font-bold">Terbilang</div><div className="w-4">:</div><div className="italic font-serif flex-1 capitalize border-b border-dotted border-black">{terbilang(payment?.amount)} Rupiah</div></div>
+              <div className="flex"><div className="w-48 font-bold">Untuk Pembayaran</div><div className="w-4">:</div><div className="flex-1">Cicilan / Pelunasan tagihan untuk No. Invoice: <strong>{order?.id}</strong></div></div>
+          </div>
+          <div className="mt-16 flex justify-between items-end">
+              <div className="text-sm p-4 border border-black bg-gray-50"><p className="font-bold mb-1">Informasi Invoice (Referensi):</p><p>Total Tagihan Awal : {formatRp(order?.totalAll || order?.total)}</p><p>Sisa Hutang Terakhir : {formatRp(order?.sisaHutang)}</p></div>
+              <div className="text-center w-48"><div className="text-sm mb-16 text-left italic">Penerima (Kasir),</div><div className="border-b border-dotted border-black h-4 mb-1"></div><div className="text-xs uppercase text-center">Dimsum Aditya</div></div>
+          </div>
+        </div>
+      </div>
+      </>
+    );
+}
+
+function NavItem({ icon, label, active, onClick, badge }) {
+  return (
+    <button onClick={onClick} className={`w-full flex items-center justify-between p-3 rounded-xl transition-all duration-200 ${active ? 'bg-red-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
+      <div className="flex items-center gap-3">{icon}<span className="font-medium text-sm">{label}</span></div>
+      {badge > 0 && <span className="bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{badge}</span>}
+    </button>
+  );
+}
+
+function StatCard({ title, amount, icon, color }) {
+  return (
+    <div className={`p-5 rounded-xl border flex flex-col justify-between ${color}`}>
+      <div className="flex justify-between items-start mb-4">
+        <h3 className="font-medium text-sm opacity-90">{title}</h3>
+        <div className="p-2 bg-white/50 rounded-lg backdrop-blur-sm">{icon}</div>
+      </div>
+      <div className="text-2xl font-bold tracking-tight">{formatRp(amount)}</div>
     </div>
   );
 }
