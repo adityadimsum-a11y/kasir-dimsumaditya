@@ -5,7 +5,7 @@ import {
   Clock, X, FileText, ArrowRightLeft, Trash2, Calendar,
   Store, Coins, Loader2, LogOut, TrendingUp, Users, Package,
   ArrowDownToLine, ArrowUpFromLine, UtilityPole, Utensils, Filter,
-  Truck, Edit
+  Truck
 } from 'lucide-react';
 
 // =====================================================================
@@ -14,7 +14,7 @@ import {
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqSM572mbUIGozcghhh8LHNMNw2e83O7Wkyu-SkjdVTO3zpTb64PA/exec'; 
 // =====================================================================
 
-// --- UTILITIES (OPTIMASI FORMAT) ---
+// --- PENGAMAN 1: OPTIMASI FORMAT (ANTI-CRASH) ---
 const formatRp = (angka) => {
   const num = Number(angka);
   if (isNaN(num) || num === 0) return 'Rp 0';
@@ -23,7 +23,7 @@ const formatRp = (angka) => {
 
 const parseRp = (str) => {
   if (typeof str === 'number') return str;
-  const num = Number(String(str).replace(/[^0-9]/g, ''));
+  const num = Number(String(str || '').replace(/[^0-9]/g, ''));
   return isNaN(num) ? 0 : num;
 };
 
@@ -59,8 +59,8 @@ const generateId = (prefix, date) => {
 };
 
 const safeSort = (a, b) => {
-    const da = new Date(a.date || 0).getTime();
-    const db = new Date(b.date || 0).getTime();
+    const da = new Date(a?.date || 0).getTime();
+    const db = new Date(b?.date || 0).getTime();
     if(isNaN(da) || isNaN(db)) return -1;
     return db - da;
 };
@@ -137,15 +137,16 @@ export default function App() {
       const result = await response.json();
       if (result.status === 'success') {
         const data = result.data || [];
-        setOrders(data.filter(item => item.table === 'orders' && !item.isDeleted).sort(safeSort));
-        setExpenses(data.filter(item => item.table === 'expenses' && !item.isDeleted).sort(safeSort));
-        setPiutangPayments(data.filter(item => item.table === 'payments' && !item.isDeleted).sort(safeSort));
-        setPemalangReports(data.filter(item => item.table === 'pemalang' && !item.isDeleted).sort(safeSort));
-        setStokData(data.filter(item => item.table === 'stok' && !item.isDeleted).sort(safeSort));
-        setPurchases(data.filter(item => item.table === 'purchases' && !item.isDeleted).sort(safeSort));
+        // PENGAMAN 2: Cek data dan item aman sebelum sort
+        setOrders(data.filter(item => item && item.table === 'orders' && !item.isDeleted).sort(safeSort));
+        setExpenses(data.filter(item => item && item.table === 'expenses' && !item.isDeleted).sort(safeSort));
+        setPiutangPayments(data.filter(item => item && item.table === 'payments' && !item.isDeleted).sort(safeSort));
+        setPemalangReports(data.filter(item => item && item.table === 'pemalang' && !item.isDeleted).sort(safeSort));
+        setStokData(data.filter(item => item && item.table === 'stok' && !item.isDeleted).sort(safeSort));
+        setPurchases(data.filter(item => item && item.table === 'purchases' && !item.isDeleted).sort(safeSort));
       }
     } catch (error) {
-      console.error("Gagal ambil data:", error); alert("Gagal terhubung ke DB.");
+      console.error("Gagal ambil data:", error); alert("Gagal terhubung ke Database Google Sheet.");
     } finally {
       setIsLoading(false);
     }
@@ -155,7 +156,6 @@ export default function App() {
     if (!SCRIPT_URL || SCRIPT_URL === 'TARUH_LINK_GOOGLE_SCRIPT_DISINI') {
         alert("SIMULASI: Data tersimpan di layar sementara. Harap masukkan link Script Google yang benar."); return;
     }
-
     if (action === 'insert') {
         if (table === 'orders') setOrders(prev => [data, ...prev]);
         if (table === 'expenses') setExpenses(prev => [data, ...prev]);
@@ -351,6 +351,7 @@ function TabDashboard({ orders, expenses, purchases, piutangPayments, pemalangRe
     const isCumulative = (dateStr) => getLocalYMD(dateStr) && getLocalYMD(dateStr) <= dateTo;
     const isPeriod = (dateStr) => getLocalYMD(dateStr) && getLocalYMD(dateStr) >= dateFrom && getLocalYMD(dateStr) <= dateTo;
 
+    // Filter Cumulative
     const cumOrdersPusat = orders.filter(o => isCumulative(o.date) && o.category !== 'Pemalang');
     const cumPurchases = purchases.filter(p => isCumulative(p.date));
     const cumExpenses = expenses.filter(e => isCumulative(e.date));
@@ -362,7 +363,7 @@ function TabDashboard({ orders, expenses, purchases, piutangPayments, pemalangRe
 
     const groupedOrdersCum = {};
     cumOrdersPusat.forEach(o => {
-        if(!o.id) return;
+        if(!o?.id) return;
         if(!groupedOrdersCum[o.id]) groupedOrdersCum[o.id] = { method: o.paymentMethod, paid: Number(o.paidAmount)||0 };
     });
     Object.values(groupedOrdersCum).forEach(o => {
@@ -371,7 +372,7 @@ function TabDashboard({ orders, expenses, purchases, piutangPayments, pemalangRe
 
     const groupedPurCum = {};
     cumPurchases.forEach(p => {
-        if(!p.id) return;
+        if(!p?.id) return;
         if(!groupedPurCum[p.id]) groupedPurCum[p.id] = { method: p.paymentMethod, paid: Number(p.paidAmount)||0 };
     });
     Object.values(groupedPurCum).forEach(p => {
@@ -395,7 +396,7 @@ function TabDashboard({ orders, expenses, purchases, piutangPayments, pemalangRe
 
     cumPayments.forEach(pay => {
         const amt = Number(pay.amount) || 0;
-        const isMembayarHutangBeli = String(pay.orderId || '').startsWith('BUY-');
+        const isMembayarHutangBeli = String(pay?.orderId || '').startsWith('BUY-');
         if(isMembayarHutangBeli) {
             if (pay.paymentMethod === 'Cash') kasKeluarCash += amt; else kasKeluarTF += amt;
         } else {
@@ -404,7 +405,7 @@ function TabDashboard({ orders, expenses, purchases, piutangPayments, pemalangRe
     });
 
     let setoranPemalangTF = 0;
-    cumPemalangReports.forEach(p => { setoranPemalangTF += (Number(p.nominal) || 0); });
+    cumPemalangReports.forEach(p => { setoranPemalangTF += (Number(p?.nominal) || 0); });
 
     const saldoCash = kasMasukCash - kasKeluarCash;
     const saldoTF = (kasMasukTF + setoranPemalangTF) - kasKeluarTF;
@@ -419,10 +420,11 @@ function TabDashboard({ orders, expenses, purchases, piutangPayments, pemalangRe
     const breakdownPorsi = {}; const chartDataMap = {}; const customerMap = {};
 
     periodOrdersPusat.forEach(o => {
-        if(!o.id) return;
+        if(!o?.id) return;
         const qty = Number(o.qty) || 0; const total = Number(o.total) || 0;
         totalPcs += qty; totalPorsi += (qty / 4); totalPenjualanKotor += total;
-        breakdownPorsi[o.category] = (breakdownPorsi[o.category] || 0) + (qty / 4);
+        
+        if (o.category) breakdownPorsi[o.category] = (breakdownPorsi[o.category] || 0) + (qty / 4);
 
         const cName = String(o.customer || '').toUpperCase();
         if(!customerMap[cName]) customerMap[cName] = { name: cName, qty: 0, porsi: 0, total: 0, frequency: 0 };
@@ -434,7 +436,7 @@ function TabDashboard({ orders, expenses, purchases, piutangPayments, pemalangRe
 
     const orderGroups = {};
     periodOrdersPusat.forEach(o => {
-        if(!o.id) return;
+        if(!o?.id) return;
         if(!orderGroups[o.id]) orderGroups[o.id] = { total:0, paid: Number(o.paidAmount)||0, method: o.paymentMethod };
         orderGroups[o.id].total += Number(o.total)||0;
     });
@@ -442,7 +444,7 @@ function TabDashboard({ orders, expenses, purchases, piutangPayments, pemalangRe
 
     const purGroups = {};
     periodPurchases.forEach(p => {
-        if(!p.id) return;
+        if(!p?.id) return;
         if(!purGroups[p.id]) purGroups[p.id] = { total:0, paid: Number(p.paidAmount)||0, method: p.paymentMethod };
         purGroups[p.id].total += Number(p.total)||0;
     });
@@ -452,8 +454,8 @@ function TabDashboard({ orders, expenses, purchases, piutangPayments, pemalangRe
     const topCustomersList = Object.values(customerMap).sort((a,b) => b.total - a.total);
 
     const groupOrdersAll = {};
-    orders.filter(o => o.category !== 'Pemalang').forEach(o => {
-        if(!o.id) return;
+    orders.filter(o => o?.category !== 'Pemalang').forEach(o => {
+        if(!o?.id) return;
         if(!groupOrdersAll[o.id]) groupOrdersAll[o.id] = { ...o, items: [], totalTagihan: 0, totalDibayar: Number(o.paidAmount)||0 };
         groupOrdersAll[o.id].items.push(`${o.qty} Pcs`);
         groupOrdersAll[o.id].totalTagihan += Number(o.total)||0;
@@ -465,7 +467,7 @@ function TabDashboard({ orders, expenses, purchases, piutangPayments, pemalangRe
 
     const groupPurAll = {};
     purchases.forEach(p => {
-        if(!p.id) return;
+        if(!p?.id) return;
         if(!groupPurAll[p.id]) groupPurAll[p.id] = { ...p, items: [], totalTagihan: 0, totalDibayar: Number(p.paidAmount)||0 };
         groupPurAll[p.id].items.push(`${p.itemName} (${p.qty} ${p.satuan})`);
         groupPurAll[p.id].totalTagihan += Number(p.total)||0;
@@ -505,11 +507,11 @@ function TabDashboard({ orders, expenses, purchases, piutangPayments, pemalangRe
     });
 
     let setorPemalangPeriode = 0;
-    cumPemalangReports.filter(p => isPeriod(p.date)).forEach(p => { setorPemalangPeriode += (Number(p.nominal) || 0); });
+    cumPemalangReports.filter(p => isPeriod(p.date)).forEach(p => { setorPemalangPeriode += (Number(p?.nominal) || 0); });
     inTfPeriode += setorPemalangPeriode;
 
     const groupedTransaksiPusat = Object.values(periodOrdersPusat.reduce((acc, o) => {
-        if(!o.id) return acc;
+        if(!o?.id) return acc;
         if(!acc[o.id]) acc[o.id] = { ...o, items: [], total: 0 };
         acc[o.id].items.push(`${o.qty} Pcs`);
         acc[o.id].total += Number(o.total)||0;
@@ -706,16 +708,17 @@ function TabDashboardBranch({ orders, pemalangReports, setPrintData, user, stokD
     const chartDataMap = {}; 
 
     filteredOrders.forEach(order => {
-      if(!order.id) return;
+      if(!order?.id) return;
       const qtyNum = Number(order.qty) || 0;
       const totalNum = Number(order.total) || 0;
-      
+      const paidNum = Number(order.paidAmount) || 0; 
+
       totalPcs += qtyNum;
       const porsiOrder = (qtyNum / 4);
       totalPorsi += porsiOrder; 
       totalPenjualanKotor += totalNum;
       
-      breakdownPorsi[order.category] = (breakdownPorsi[order.category] || 0) + porsiOrder;
+      if(order.category) breakdownPorsi[order.category] = (breakdownPorsi[order.category] || 0) + porsiOrder;
 
       const custName = String(order.customer || '').toUpperCase();
       if(!customerMap[custName]) customerMap[custName] = { name: custName, qty: 0, porsi: 0, total: 0, frequency: 0 };
@@ -739,7 +742,7 @@ function TabDashboardBranch({ orders, pemalangReports, setPrintData, user, stokD
     
     const orderGroups = {};
     filteredOrders.forEach(o => {
-        if(!o.id) return;
+        if(!o?.id) return;
         if(!orderGroups[o.id]) orderGroups[o.id] = { total:0, paid: Number(o.paidAmount)||0 };
         orderGroups[o.id].total += Number(o.total)||0;
     });
@@ -753,7 +756,7 @@ function TabDashboardBranch({ orders, pemalangReports, setPrintData, user, stokD
     const topCustomersList = Object.values(customerMap).sort((a,b) => b.total - a.total);
 
     const groupedTransaksiPusat = Object.values(filteredOrders.reduce((acc, o) => {
-        if(!o.id) return acc;
+        if(!o?.id) return acc;
         if(!acc[o.id]) acc[o.id] = { ...o, items: [], total: 0 };
         acc[o.id].items.push(`${o.qty} Pcs`);
         acc[o.id].total += Number(o.total)||0;
@@ -929,89 +932,104 @@ function TabOrders({ orders, sendToSheet, setPrintData, requestDelete, role }) {
   const todayStr = getTodayStr();
   const [date, setDate] = useState(todayStr);
   const [customer, setCustomer] = useState('');
-  const [category, setCategory] = useState(role === 'branch' ? 'Pemalang' : 'Reseller');
-  const [qty, setQty] = useState('');
-  const [price, setPrice] = useState(KATEGORI_HARGA[role === 'branch' ? 'Pemalang' : 'Reseller']);
-  const [total, setTotal] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [paidAmount, setPaidAmount] = useState(0);
   const [notes, setNotes] = useState('');
+
+  // SISTEM KERANJANG MULTI-ITEM
+  const defaultPrice = KATEGORI_HARGA[role === 'branch' ? 'Pemalang' : 'Reseller'];
+  const defaultCat = role === 'branch' ? 'Pemalang' : 'Reseller';
+  const [cart, setCart] = useState([{ category: defaultCat, qty: '', price: defaultPrice }]);
 
   const [filterFrom, setFilterFrom] = useState(todayStr);
   const [filterTo, setFilterTo] = useState(todayStr);
 
   const listPelangganUnik = [...new Set(orders.map(s => String(s.customer||'').toUpperCase()))];
 
-  const handleCategoryChange = (e) => {
-    const newCat = e.target.value;
-    setCategory(newCat);
-    const newPrice = KATEGORI_HARGA[newCat] || 0;
-    setPrice(newPrice);
-    const newTotal = Number(qty) * newPrice;
-    setTotal(newTotal);
-    if(paymentMethod !== 'Pending / DP') setPaidAmount(newTotal);
+  const cartTotal = cart.reduce((sum, item) => sum + ((Number(item.qty)||0) * (Number(item.price)||0)), 0);
+
+  const updateCartItem = (index, field, value) => {
+      const newCart = [...cart];
+      newCart[index][field] = value;
+      if (field === 'category') {
+          newCart[index].price = KATEGORI_HARGA[value] || 0;
+      }
+      setCart(newCart);
+      
+      const newTot = newCart.reduce((sum, item) => sum + ((Number(item.qty)||0) * (Number(item.price)||0)), 0);
+      if(paymentMethod !== 'Pending / DP') setPaidAmount(newTot);
   };
 
-  const handleQtyChange = (e) => {
-    const newQty = e.target.value;
-    setQty(newQty);
-    const newTotal = Number(newQty) * price;
-    setTotal(newTotal);
-    if(paymentMethod !== 'Pending / DP') setPaidAmount(newTotal);
-  };
-
-  const handlePriceChange = (val) => {
-    setPrice(val);
-    const newTotal = Number(qty) * val;
-    setTotal(newTotal);
-    if(paymentMethod !== 'Pending / DP') setPaidAmount(newTotal);
-  };
-
-  const handleTotalChange = (val) => {
-    setTotal(val);
-    if(paymentMethod !== 'Pending / DP') setPaidAmount(val);
+  const addCartRow = () => setCart([...cart, { category: defaultCat, qty: '', price: defaultPrice }]);
+  const removeCartRow = (index) => {
+      const newCart = cart.filter((_, i) => i !== index);
+      setCart(newCart);
+      const newTot = newCart.reduce((sum, item) => sum + ((Number(item.qty)||0) * (Number(item.price)||0)), 0);
+      if(paymentMethod !== 'Pending / DP') setPaidAmount(newTot);
   };
 
   const handlePaymentMethodChange = (e) => {
     const method = e.target.value;
     setPaymentMethod(method);
-    if (method !== 'Pending / DP') setPaidAmount(total); 
+    if (method !== 'Pending / DP') setPaidAmount(cartTotal); 
     else setPaidAmount(0); 
   };
 
   const resetForm = () => {
     setShowForm(false); setIsEdit(false); setEditId(null); setEditCount(0);
-    setDate(todayStr); setCustomer(''); setQty(''); setNotes('');
-    setCategory(role === 'branch' ? 'Pemalang' : 'Reseller');
-    setPrice(KATEGORI_HARGA[role === 'branch' ? 'Pemalang' : 'Reseller']);
-    setTotal(0); setPaidAmount(0); setPaymentMethod('Cash');
+    setDate(todayStr); setCustomer(''); setNotes('');
+    setPaymentMethod('Cash'); setPaidAmount(0);
+    setCart([{ category: defaultCat, qty: '', price: defaultPrice }]);
   };
 
   const handleEdit = (item) => {
+    const relatedItems = orders.filter(p => p.id === item.id);
     setDate(String(item.date).split('T')[0]);
-    setCustomer(item.customer); setCategory(item.category); setQty(item.qty); setPrice(item.price);
-    setTotal(item.total); setPaymentMethod(item.paymentMethod); setPaidAmount(item.paidAmount); setNotes(item.notes || '');
+    setCustomer(item.customer); 
+    setPaymentMethod(item.paymentMethod); 
+    setPaidAmount(item.paidAmount); 
+    setNotes(item.notes || '');
+    setCart(relatedItems.map(p => ({ category: p.category, qty: p.qty, price: p.price })));
     setEditId(item.id); setEditCount(Number(item.editCount) || 0); setIsEdit(true); setShowForm(true);
   };
 
   const handleSimpan = (e) => {
     e.preventDefault();
-    const payload = {
-      id: isEdit ? editId : generateId('INV', date),
-      date, customer: customer.toUpperCase(), category, qty: Number(qty)||0, price: Number(price)||0, total: Number(total)||0, paymentMethod, paidAmount: Number(paidAmount)||0, notes,
-      editCount: isEdit ? editCount + 1 : 0
-    };
-    sendToSheet(isEdit ? 'update' : 'insert', payload, 'orders'); 
-    resetForm();
+    const invoiceId = isEdit ? editId : generateId('INV', date);
+    
+    if(isEdit) sendToSheet('delete', { id: editId }, 'orders');
+    
+    cart.forEach((item, index) => {
+        if(Number(item.qty) > 0) {
+            const newOrder = {
+                id: invoiceId, date, customer: customer.toUpperCase(), 
+                category: item.category, qty: Number(item.qty)||0, price: Number(item.price)||0, 
+                total: (Number(item.qty)||0)*(Number(item.price)||0), 
+                paymentMethod, 
+                paidAmount: index === 0 ? (Number(paidAmount)||0) : 0, 
+                notes, editCount: isEdit ? editCount + 1 : 0
+            };
+            setTimeout(() => sendToSheet('insert', newOrder, 'orders'), index * 300);
+        }
+    });
+    setTimeout(() => resetForm(), cart.length * 300);
   };
 
   const displayOrders = useMemo(() => {
     let filtered = role === 'branch' ? orders.filter(o => o.category === 'Pemalang') : orders;
-    return filtered.filter(o => {
+    filtered = filtered.filter(o => {
         const ymd = getLocalYMD(o.date);
-        if(!ymd) return false;
-        return ymd >= filterFrom && ymd <= filterTo;
+        return ymd && ymd >= filterFrom && ymd <= filterTo;
     });
+
+    const groups = {};
+    filtered.forEach(p => {
+        if(!p.id) return;
+        if(!groups[p.id]) groups[p.id] = { ...p, items: [], totalAll: 0 };
+        groups[p.id].items.push(`${p.qty} Pcs`);
+        groups[p.id].totalAll += Number(p.total);
+    });
+    return Object.values(groups).sort(safeSort);
   }, [orders, role, filterFrom, filterTo]);
 
   return (
@@ -1028,22 +1046,67 @@ function TabOrders({ orders, sendToSheet, setPrintData, requestDelete, role }) {
       {showForm && (
         <form onSubmit={handleSimpan} className="bg-white p-6 rounded-xl border border-red-200 shadow-sm grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-3 mb-2 border-b border-slate-100 pb-2"><h4 className="font-bold text-red-800 text-sm flex gap-2"><ShoppingCart size={16}/> Form {isEdit ? 'Edit' : 'Input'} Pesanan</h4></div>
-          <div className="space-y-1"><label className="text-sm font-medium">Tanggal Transaksi</label><input type="date" required value={date} onChange={e => setDate(e.target.value)} className="w-full p-2 border rounded-lg" /></div>
           
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-slate-700">Tanggal Transaksi</label>
+            <input type="date" required value={date} onChange={e => setDate(e.target.value)} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-red-200" />
+          </div>
           <div className="space-y-1 lg:col-span-2">
-            <label className="text-sm font-medium">Nama Pelanggan / Agen</label>
-            <input type="text" list="cust-list" required placeholder="Contoh: Budi, ADE..." value={customer} onChange={e => setCustomer(e.target.value)} className="w-full p-2 border rounded-lg uppercase" />
+            <label className="text-sm font-medium text-slate-700">Nama Pelanggan / Agen</label>
+            <input type="text" list="cust-list" required placeholder="Contoh: Budi, ADE..." value={customer} onChange={e => setCustomer(e.target.value)} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-red-200 uppercase" />
             <datalist id="cust-list">{listPelangganUnik.map(b => <option key={b} value={b} />)}</datalist>
           </div>
 
-          <div className="space-y-1"><label className="text-sm font-medium">Kategori</label><select value={category} onChange={handleCategoryChange} disabled={role === 'branch'} className="w-full p-2 border rounded-lg">{Object.keys(KATEGORI_HARGA).map(k => <option key={k} value={k}>{k}</option>)}</select></div>
-          <div className="space-y-1"><label className="text-sm font-medium">Jumlah (Pcs)</label><input type="number" min="1" required value={qty} onChange={handleQtyChange} className="w-full p-2 border rounded-lg" /></div>
-          <div className="space-y-1"><label className="text-sm font-medium">Harga per Pcs (Rp)</label><input type="text" required value={formatRp(price)} onChange={e => handlePriceChange(parseRp(e.target.value))} className="w-full p-2 border rounded-lg font-bold" /></div>
-          <div className="space-y-1 bg-amber-50 p-3 rounded-lg border border-amber-200 lg:col-span-3"><label className="text-xs font-bold text-amber-800">Total Harga</label><input type="text" required value={formatRp(total)} onChange={e => handleTotalChange(parseRp(e.target.value))} className="w-full p-3 border rounded-lg font-bold text-lg bg-white mt-1 text-amber-900" /></div>
-          <div className="space-y-1"><label className="text-sm font-medium">Metode Bayar</label><select value={paymentMethod} onChange={handlePaymentMethodChange} className="w-full p-2 border rounded-lg"><option value="Cash">Cash / Tunai</option><option value="Transfer">Transfer Bank</option><option value="Pending / DP">Pending (Piutang) / DP</option></select></div>
-          <div className="space-y-1"><label className="text-sm font-medium">Uang Diterima / DP (Rp)</label><input type="text" required value={formatRp(paidAmount)} onChange={e => setPaidAmount(parseRp(e.target.value))} className="w-full p-2 border rounded-lg font-bold" /></div>
-          <div className="space-y-1 lg:col-span-3"><label className="text-sm font-medium">Catatan Opsional</label><input type="text" value={notes} onChange={e => setNotes(e.target.value)} className="w-full p-2 border rounded-lg" /></div>
-          <div className="lg:col-span-3 flex justify-end mt-2 pt-4 border-t"><button type="submit" className="bg-red-600 text-white px-6 py-2.5 rounded-lg font-medium">Simpan {isEdit ? 'Perubahan' : 'Transaksi'}</button></div>
+          <div className="lg:col-span-3 bg-red-50 p-4 rounded-xl border border-red-100">
+             <div className="flex justify-between items-center mb-3">
+                 <h4 className="font-bold text-sm text-red-900">Daftar Barang (Item)</h4>
+                 <button type="button" onClick={addCartRow} className="bg-white px-3 py-1 text-xs font-bold text-red-600 border border-red-300 rounded shadow-sm">+ Tambah Barang</button>
+             </div>
+             <div className="space-y-3">
+                 {cart.map((item, index) => (
+                     <div key={index} className="flex flex-wrap md:flex-nowrap gap-2 items-center bg-white p-2 rounded-lg border shadow-sm relative pr-8">
+                         <div className="w-full md:w-4/12 space-y-1">
+                             <select value={item.category} onChange={e=>updateCartItem(index, 'category', e.target.value)} disabled={role === 'branch'} className="w-full p-2 border rounded text-xs uppercase font-bold">
+                                {Object.keys(KATEGORI_HARGA).map(k => <option key={k} value={k}>{k}</option>)}
+                             </select>
+                         </div>
+                         <div className="w-1/2 md:w-3/12 space-y-1">
+                             <input type="number" min="1" required placeholder="Qty (Pcs)" value={item.qty} onChange={e=>updateCartItem(index, 'qty', e.target.value)} className="w-full p-2 border rounded text-xs font-bold text-center" />
+                         </div>
+                         <div className="w-1/2 md:w-5/12 space-y-1">
+                             <input type="text" required placeholder="Harga per Pcs" value={formatRp(item.price)} onChange={e=>updateCartItem(index, 'price', parseRp(e.target.value))} className="w-full p-2 border rounded text-xs font-bold" />
+                         </div>
+                         {cart.length > 1 && <button type="button" onClick={()=>removeCartRow(index)} className="absolute right-2 top-3 text-red-400 hover:text-red-600"><Trash2 size={16}/></button>}
+                     </div>
+                 ))}
+             </div>
+          </div>
+
+          <div className="space-y-1 bg-amber-50 p-3 rounded-lg border border-amber-200 lg:col-span-3">
+            <label className="text-xs font-bold text-amber-800 uppercase">Total Seluruh Pesanan (Otomatis)</label>
+            <input type="text" readOnly value={formatRp(cartTotal)} className="w-full p-3 border border-amber-300 rounded-lg font-bold text-lg bg-white mt-1 text-amber-900 cursor-not-allowed" />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-slate-700">Metode Pembayaran</label>
+            <select value={paymentMethod} onChange={handlePaymentMethodChange} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-red-200">
+              <option value="Cash">Cash / Tunai</option>
+              <option value="Transfer">Transfer Bank</option>
+              <option value="Pending / DP">Pending (Piutang) / DP</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-slate-700">Uang Diterima / DP (Rp)</label>
+            <input type="text" required value={formatRp(paidAmount)} onChange={e => setPaidAmount(parseRp(e.target.value))} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-red-200 font-bold" />
+          </div>
+          <div className="space-y-1 lg:col-span-3">
+            <label className="text-sm font-medium text-slate-700">Catatan Tambahan (Opsional)</label>
+            <input type="text" placeholder="Catatan invoice..." value={notes} onChange={e => setNotes(e.target.value)} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-red-200" />
+          </div>
+          
+          <div className="lg:col-span-3 flex justify-end mt-2 pt-4 border-t border-slate-100">
+            <button type="submit" className="bg-red-600 hover:bg-red-700 text-white px-6 py-2.5 rounded-lg font-medium shadow-sm transition">Simpan {isEdit ? 'Perubahan' : 'Transaksi'}</button>
+          </div>
         </form>
       )}
 
@@ -1055,26 +1118,27 @@ function TabOrders({ orders, sendToSheet, setPrintData, requestDelete, role }) {
 
       <div className="bg-white rounded-xl border overflow-hidden mt-4">
         <table className="w-full text-sm text-left block md:table">
-          <thead className="bg-red-50 text-red-800 text-xs uppercase border-b"><tr><th className="px-4 py-3">No. Invoice & Tgl</th><th className="px-4 py-3">Pelanggan</th><th className="px-4 py-3 text-center">Qty</th><th className="px-4 py-3 text-center">Via</th><th className="px-4 py-3 text-right">Total</th><th className="px-4 py-3 text-center">Status</th><th className="px-4 py-3 text-center">Aksi</th></tr></thead>
+          <thead className="bg-red-50 text-red-800 text-xs uppercase border-b"><tr><th className="px-4 py-3">No. Invoice & Tgl</th><th className="px-4 py-3">Pelanggan</th><th className="px-4 py-3 text-center">Daftar Qty</th><th className="px-4 py-3 text-center">Via</th><th className="px-4 py-3 text-right">Total</th><th className="px-4 py-3 text-center">Status</th><th className="px-4 py-3 text-center">Aksi</th></tr></thead>
           <tbody className="divide-y divide-slate-100">
-            {displayOrders.length === 0 ? <tr><td colSpan="7" className="text-center py-12 text-slate-400">Tidak ada transaksi.</td></tr> : displayOrders.map((ord) => (
+            {displayOrders.length === 0 ? <tr><td colSpan="7" className="text-center py-12 text-slate-400">Tidak ada transaksi ditemukan.</td></tr> : displayOrders.map((ord) => (
               <tr key={ord.id} className="hover:bg-slate-50">
                 <td className="px-4 py-3">
                   <div className="font-mono text-xs font-bold text-slate-700">{ord.id}</div>
                   <div className="text-xs text-slate-500">{formatDate(ord.date)}</div>
                 </td>
                 <td className="px-4 py-3 font-bold text-slate-800 uppercase">{ord.customer}</td>
-                <td className="px-4 py-3 text-center"><div className="font-medium">{ord.qty} Pcs</div><div className="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded inline-block mt-0.5">{ord.category}</div></td>
+                <td className="px-4 py-3 text-center"><ul className="list-disc pl-3 text-xs text-left">{ord.items.map((it,idx)=><li key={idx}>{it}</li>)}</ul></td>
                 <td className="px-4 py-3 text-center font-medium text-slate-600">{ord.paymentMethod}</td>
-                <td className="px-4 py-3 text-right font-bold text-emerald-600">{formatRp(ord.total)}</td>
+                <td className="px-4 py-3 text-right font-bold text-emerald-600">{formatRp(ord.totalAll)}</td>
                 <td className="px-4 py-3 text-center">
-                  {(Number(ord.total)||0) > (Number(ord.paidAmount)||0) ? <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded text-[10px] font-bold">PIUTANG</span> : <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-[10px] font-bold">LUNAS</span>}
+                  {(Number(ord.totalAll)||0) > (Number(ord.paidAmount)||0) ? <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded text-[10px] font-bold">PIUTANG</span> : <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-[10px] font-bold">LUNAS</span>}
                 </td>
                 <td className="px-4 py-3 text-center">
                   <div className="flex justify-center gap-2">
-                    <button onClick={() => setPrintData({ type: 'invoice', data: ord })} className="text-slate-600 bg-slate-100 p-2 rounded-lg" title="Cetak"><Printer size={16} /></button>
-                    <button onClick={() => handleEdit(ord)} className="text-blue-500 bg-blue-50 p-2 rounded-lg" title="Edit Data"><Edit size={16} /></button>
-                    <button onClick={() => requestDelete(ord.id)} className="text-red-500 bg-red-50 p-2 rounded-lg" title="Hapus"><Trash2 size={16} /></button>
+                    <button onClick={() => setPrintData({ type: 'invoice', data: ord })} className="text-slate-600 bg-slate-100 p-2 rounded-lg transition" title="Cetak"><Printer size={16} /></button>
+                    {/* ICON GANTI JADI TEKS AGAR ANTI-CRASH */}
+                    <button onClick={() => handleEdit(ord)} className="text-blue-600 bg-blue-50 p-2 rounded-lg font-bold text-[10px] transition" title="Edit Data">EDIT</button>
+                    <button onClick={() => requestDelete(ord.id)} className="text-red-500 bg-red-50 p-2 rounded-lg transition" title="Hapus Data"><Trash2 size={16} /></button>
                   </div>
                 </td>
               </tr>
@@ -1105,8 +1169,8 @@ function TabPurchases({ purchases, sendToSheet, requestDelete, setPrintData }) {
   const [filterFrom, setFilterFrom] = useState(todayStr);
   const [filterTo, setFilterTo] = useState(todayStr);
 
-  const listSupplierUnik = [...new Set(purchases.map(s => String(s.supplier||'').toUpperCase()))];
-  const listBarangUnik = [...new Set(purchases.map(s => String(s.itemName||'').toUpperCase()))];
+  const listSupplierUnik = [...new Set(purchases.map(s => String(s?.supplier||'').toUpperCase()))];
+  const listBarangUnik = [...new Set(purchases.map(s => String(s?.itemName||'').toUpperCase()))];
 
   const cartTotal = cart.reduce((sum, item) => sum + ((Number(item.qty)||0) * (Number(item.price)||0)), 0);
 
@@ -1169,13 +1233,13 @@ function TabPurchases({ purchases, sendToSheet, requestDelete, setPrintData }) {
 
   const displayPurchases = useMemo(() => {
     const filtered = purchases.filter(p => {
-        const ymd = getLocalYMD(p.date);
+        const ymd = getLocalYMD(p?.date);
         return ymd && ymd >= filterFrom && ymd <= filterTo;
     });
 
     const groups = {};
     filtered.forEach(p => {
-        if(!p.id) return;
+        if(!p?.id) return;
         if(!groups[p.id]) groups[p.id] = { ...p, items: [], totalAll: 0 };
         groups[p.id].items.push(`${p.itemName} (${p.qty} ${p.satuan})`);
         groups[p.id].totalAll += Number(p.total);
@@ -1244,7 +1308,7 @@ function TabPurchases({ purchases, sendToSheet, requestDelete, setPrintData }) {
           </div>
 
           <div className="space-y-1 bg-orange-100 p-3 rounded-lg border border-orange-200 lg:col-span-3">
-            <label className="text-xs font-bold text-orange-900 uppercase">Total Seluruh Belanjaan</label>
+            <label className="text-xs font-bold text-orange-900 uppercase">Total Seluruh Belanjaan (Otomatis)</label>
             <input type="text" readOnly value={formatRp(cartTotal)} className="w-full p-3 border border-orange-300 rounded-lg font-bold text-lg bg-white mt-1 text-orange-900 cursor-not-allowed" />
           </div>
 
@@ -1275,13 +1339,21 @@ function TabPurchases({ purchases, sendToSheet, requestDelete, setPrintData }) {
          <input type="date" value={filterTo} onChange={e=>setFilterTo(e.target.value)} className="p-1.5 text-sm border rounded" />
       </div>
 
-      <div className="bg-white rounded-xl border shadow-sm mt-4 overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm mt-4 overflow-hidden">
         <table className="w-full text-sm text-left block md:table overflow-x-auto">
-          <thead className="bg-orange-50 text-orange-800 text-xs uppercase border-b">
-            <tr><th className="px-4 py-3">ID & Tanggal</th><th className="px-4 py-3">Supplier & Barang</th><th className="px-4 py-3 text-center">Via</th><th className="px-4 py-3 text-right">Total Belanja</th><th className="px-4 py-3 text-center">Status</th><th className="px-4 py-3 text-center">Aksi</th></tr>
+          <thead className="bg-orange-50 text-orange-800 text-xs uppercase border-b border-orange-100">
+            <tr>
+              <th className="px-4 py-3 min-w-[120px]">ID & Tanggal</th>
+              <th className="px-4 py-3 min-w-[150px]">Supplier & Barang</th>
+              <th className="px-4 py-3 text-center">Via</th>
+              <th className="px-4 py-3 text-right">Total Belanja</th>
+              <th className="px-4 py-3 text-center">Status</th>
+              <th className="px-4 py-3 text-center">Aksi</th>
+            </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {displayPurchases.length === 0 ? <tr><td colSpan="6" className="text-center py-12 text-slate-400">Tidak ada pembelian.</td></tr> : displayPurchases.map((pur) => (
+            {displayPurchases.length === 0 && <tr><td colSpan="6" className="text-center py-8 text-slate-400">Tidak ada pembelian.</td></tr>}
+            {displayPurchases.map((pur) => (
               <tr key={pur.id} className="hover:bg-slate-50">
                 <td className="px-4 py-3"><div className="font-mono text-xs font-bold text-slate-700">{pur.id}</div><div className="text-xs text-slate-500">{formatDate(pur.date)}</div></td>
                 <td className="px-4 py-3">
@@ -1290,12 +1362,14 @@ function TabPurchases({ purchases, sendToSheet, requestDelete, setPrintData }) {
                 </td>
                 <td className="px-4 py-3 text-center font-medium text-slate-600">{pur.paymentMethod}</td>
                 <td className="px-4 py-3 text-right font-bold text-orange-600">{formatRp(pur.totalAll)}</td>
-                <td className="px-4 py-3 text-center">{(Number(pur.totalAll)||0) > (Number(pur.paidAmount)||0) ? <span className="bg-red-100 text-red-700 px-2 py-1 rounded text-[10px] font-bold">HUTANG</span> : <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-[10px] font-bold">LUNAS</span>}</td>
+                <td className="px-4 py-3 text-center">
+                  {(Number(pur.totalAll)||0) > (Number(pur.paidAmount)||0) ? <span className="bg-red-100 text-red-700 px-2 py-1 rounded text-[10px] font-bold">HUTANG</span> : <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-[10px] font-bold">LUNAS</span>}
+                </td>
                 <td className="px-4 py-3 text-center">
                   <div className="flex justify-center gap-2">
-                    <button onClick={() => setPrintData({ type: 'purchase', data: pur })} className="text-slate-600 bg-slate-100 p-2 rounded-lg" title="Cetak Bukti"><Printer size={16} /></button>
-                    <button onClick={() => handleEdit(pur)} className="text-blue-500 bg-blue-50 p-2 rounded-lg" title="Edit"><Edit size={16} /></button>
-                    <button onClick={() => requestDelete(pur.id)} className="text-red-500 bg-red-50 p-2 rounded-lg"><Trash2 size={16} /></button>
+                    <button onClick={() => setPrintData({ type: 'purchase', data: pur })} className="text-slate-600 bg-slate-100 p-2 rounded-lg transition" title="Cetak Bukti"><Printer size={16} /></button>
+                    <button onClick={() => handleEdit(pur)} className="text-blue-600 bg-blue-50 p-2 rounded-lg font-bold text-[10px] transition" title="Edit Data">EDIT</button>
+                    <button onClick={() => requestDelete(pur.id)} className="text-red-500 bg-red-50 p-2 rounded-lg transition" title="Hapus Permanen"><Trash2 size={16} /></button>
                   </div>
                 </td>
               </tr>
@@ -1320,7 +1394,7 @@ function TabStok({ stokData, sendToSheet, requestDelete }) {
   
   const [cart, setCart] = useState([{ itemName: '', satuan: 'Kg', qty: '' }]);
 
-  const listBarangUnik = [...new Set(stokData.map(s => String(s.itemName||'').toUpperCase()))];
+  const listBarangUnik = [...new Set(stokData.map(s => String(s?.itemName||'').toUpperCase()))];
 
   const updateCartItem = (index, field, value) => {
       const newCart = [...cart];
@@ -1359,7 +1433,8 @@ function TabStok({ stokData, sendToSheet, requestDelete }) {
   const stokAktual = useMemo(() => {
     const calc = {};
     stokData.forEach(s => {
-      const nama = String(s.itemName||'').toUpperCase();
+      if(!s?.itemName) return;
+      const nama = String(s.itemName).toUpperCase();
       if(!calc[nama]) calc[nama] = { masuk: 0, keluar: 0, terpakai: 0, sisa: 0, satuan: s.satuan || 'PCS' };
       if(s.type === 'MASUK') calc[nama].masuk += Number(s.qty) || 0;
       else if(s.type === 'KELUAR') calc[nama].keluar += Number(s.qty) || 0;
@@ -1372,7 +1447,7 @@ function TabStok({ stokData, sendToSheet, requestDelete }) {
   const displayStok = useMemo(() => {
     const groups = {};
     stokData.forEach(p => {
-        if(!p.id) return;
+        if(!p?.id) return;
         if(!groups[p.id]) groups[p.id] = { ...p, items: [] };
         groups[p.id].items.push(`${p.itemName} (${p.qty} ${p.satuan})`);
     });
@@ -1411,7 +1486,7 @@ function TabStok({ stokData, sendToSheet, requestDelete }) {
                      <div key={index} className="flex flex-wrap md:flex-nowrap gap-2 items-start bg-white p-2 rounded border relative pr-8">
                          <div className="w-full md:w-5/12"><input type="text" list="suggestions-item" required placeholder="Nama Barang" value={item.itemName} onChange={e=>updateCartItem(index,'itemName',e.target.value)} className="w-full p-2 border rounded text-xs uppercase font-bold" /><datalist id="suggestions-item">{listBarangUnik.map(b => <option key={b} value={b} />)}</datalist></div>
                          <div className="w-1/2 md:w-3/12"><input type="number" min="1" required placeholder="Qty" value={item.qty} onChange={e=>updateCartItem(index,'qty',e.target.value)} className="w-full p-2 border rounded text-xs text-center font-bold" />{infoAyam && <div className="text-[9px] font-bold text-emerald-600 mt-1">{infoAyam}</div>}</div>
-                         <div className="w-1/2 md:w-4/12"><input type="text" list="satuan-list" required placeholder="Satuan" value={item.satuan} onChange={e=>updateCartItem(index,'satuan',e.target.value)} className="w-full p-2 border rounded text-xs uppercase" /><datalist id="satuan-list">{SATUAN_BARANG.map(b=><option key={b} value={b}/>)}</datalist></div>
+                         <div className="w-1/2 md:w-4/12"><input type="text" list="satuan-list" required placeholder="Satuan (Kg/Pcs)" value={item.satuan} onChange={e=>updateCartItem(index,'satuan',e.target.value)} className="w-full p-2 border rounded text-xs uppercase" /><datalist id="satuan-list">{SATUAN_BARANG.map(b=><option key={b} value={b}/>)}</datalist></div>
                          {cart.length > 1 && <button type="button" onClick={()=>removeCartRow(index)} className="absolute right-2 top-3 text-red-400 hover:text-red-600"><Trash2 size={16}/></button>}
                      </div>
                  )})}
@@ -1428,7 +1503,7 @@ function TabStok({ stokData, sendToSheet, requestDelete }) {
             <td className="px-4 py-3"><ul className="list-disc pl-3 text-xs font-bold text-slate-800 uppercase">{s.items.map((it,idx)=><li key={idx}>{it}</li>)}</ul></td>
             <td className="px-4 py-3 text-center"><span className={`px-2 py-1 rounded text-[10px] font-bold ${s.type === 'MASUK' ? 'bg-emerald-100 text-emerald-700' : s.type === 'TERPAKAI' ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'}`}>{s.type}</span></td>
             <td className="px-4 py-3 text-xs">{s.notes || '-'}</td>
-            <td className="px-4 py-3 text-center"><div className="flex justify-center gap-2"><button onClick={() => handleEdit(s)} className="text-blue-500 bg-blue-50 p-2 rounded-lg"><Edit size={16}/></button><button onClick={() => requestDelete(s.id)} className="text-red-500 bg-red-50 p-2 rounded-lg"><Trash2 size={16} /></button></div></td>
+            <td className="px-4 py-3 text-center"><div className="flex justify-center gap-2"><button onClick={() => handleEdit(s)} className="text-blue-600 bg-blue-50 p-2 rounded-lg font-bold text-[10px]">EDIT</button><button onClick={() => requestDelete(s.id)} className="text-red-500 bg-red-50 p-2 rounded-lg"><Trash2 size={16} /></button></div></td>
           </tr>
         ))}
       </tbody></table></div>
@@ -1496,7 +1571,7 @@ function TabExpenses({ expenses, sendToSheet, setPrintData, requestDelete }) {
           <div className="col-span-full flex justify-end"><button type="submit" className="bg-emerald-600 text-white px-6 py-2 rounded-lg font-medium">Simpan {isEdit ? 'Perubahan' : 'Kas'}</button></div>
         </form>
       )}
-      <div className="flex items-center gap-3 bg-white p-3 rounded-xl border mt-4"><Filter size={16} className="text-slate-400"/><input type="date" value={filterFrom} onChange={e=>setFilterFrom(e.target.value)} className="p-1 border rounded text-sm" /> - <input type="date" value={filterTo} onChange={e=>setFilterTo(e.target.value)} className="p-1 border rounded text-sm" /></div>
+      <div className="flex items-center gap-3 bg-white p-3 rounded-xl border mt-4"><Filter size={16} className="text-slate-400"/><input type="date" value={filterFrom} onChange={e=>setFilterFrom(e.target.value)} className="p-1.5 text-sm border rounded" /> - <input type="date" value={filterTo} onChange={e=>setFilterTo(e.target.value)} className="p-1.5 text-sm border rounded" /></div>
       <div className="bg-white rounded-xl border mt-4 overflow-hidden"><table className="w-full text-sm text-left block md:table"><thead className="bg-slate-50 border-b"><tr><th className="px-4 py-3">Tgl & ID</th><th className="px-4 py-3">Keterangan</th><th className="px-4 py-3 text-center">Via</th><th className="px-4 py-3 text-right">Nominal</th><th className="px-4 py-3 text-center">Aksi</th></tr></thead><tbody className="divide-y">
           {displayExpenses.length === 0 ? <tr><td colSpan="5" className="text-center py-12 text-slate-400">Tidak ada data.</td></tr> : displayExpenses.map((exp) => (
             <tr key={exp.id} className="hover:bg-slate-50">
@@ -1507,153 +1582,13 @@ function TabExpenses({ expenses, sendToSheet, setPrintData, requestDelete }) {
               <td className="px-4 py-3 text-center">
                   <div className="flex justify-center gap-2">
                       {exp.type === 'OUT' && <button onClick={() => setPrintData({ type: 'voucher', data: exp })} className="text-slate-600 bg-slate-100 p-2 rounded-lg"><Printer size={16} /></button>}
-                      <button onClick={() => handleEdit(exp)} className="text-blue-500 bg-blue-50 p-2 rounded-lg"><Edit size={16}/></button>
+                      <button onClick={() => handleEdit(exp)} className="text-blue-600 bg-blue-50 p-2 rounded-lg font-bold text-[10px]">EDIT</button>
                       <button onClick={() => requestDelete(exp.id)} className="text-red-500 bg-red-50 p-2 rounded-lg"><Trash2 size={16} /></button>
                   </div>
               </td>
             </tr>
           ))}
       </tbody></table></div>
-    </div>
-  );
-}
-
-function TabPiutang({ orders, purchases, payments, sendToSheet, requestDelete, setPrintData, role }) {
-  const [selectedItem, setSelectedItem] = useState(null);
-  const [bayarAmount, setBayarAmount] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState('Transfer');
-  const [viewTab, setViewTab] = useState('piutang'); 
-
-  const visibleOrders = useMemo(() => role === 'branch' ? orders.filter(o => o.category === 'Pemalang') : orders.filter(o => o.category !== 'Pemalang'), [orders, role]);
-
-  const daftarPiutang = useMemo(() => {
-    const groups = {};
-    visibleOrders.forEach(o => {
-        if(!o.id) return;
-        if(!groups[o.id]) groups[o.id] = { ...o, totalAll: 0, paidAll: Number(o.paidAmount)||0 };
-        groups[o.id].totalAll += Number(o.total) || 0;
-    });
-
-    return Object.values(groups).map(order => {
-      const orderPayments = payments.filter(p => p.orderId === order.id);
-      const cicilan = orderPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-      const sisa = order.totalAll - order.paidAll - cicilan;
-      return { ...order, tipe: 'PIUTANG', cicilanTerbayar: cicilan, sisaHutang: sisa, orderPayments };
-    }).filter(o => o.sisaHutang > 0 || o.orderPayments.length > 0); 
-  }, [visibleOrders, payments]);
-
-  const daftarHutang = useMemo(() => {
-    const groups = {};
-    purchases.forEach(p => {
-        if(!p.id) return;
-        if(!groups[p.id]) groups[p.id] = { ...p, totalAll: 0, paidAll: Number(p.paidAmount)||0 };
-        groups[p.id].totalAll += Number(p.total) || 0;
-    });
-
-    return Object.values(groups).map(pur => {
-      const purPayments = payments.filter(p => p.orderId === pur.id);
-      const cicilan = purPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-      const sisa = pur.totalAll - pur.paidAll - cicilan;
-      return { ...pur, tipe: 'HUTANG', customer: pur.supplier, cicilanTerbayar: cicilan, sisaHutang: sisa, orderPayments: purPayments };
-    }).filter(p => p.sisaHutang > 0 || p.orderPayments.length > 0); 
-  }, [purchases, payments]);
-
-  const handleBayar = (e) => {
-    e.preventDefault();
-    if(bayarAmount <= 0 || bayarAmount > selectedItem?.sisaHutang) return; 
-    const tgl = new Date();
-    const newPayment = {
-        id: generateId('PAY', tgl.toISOString().split('T')[0]),
-        orderId: selectedItem.id, date: tgl.toISOString().split('T')[0],
-        amount: Number(bayarAmount)||0, paymentMethod 
-    };
-    sendToSheet('insert', newPayment, 'payments');
-    setBayarAmount(0); 
-  };
-
-  const listToRender = viewTab === 'piutang' ? (daftarPiutang || []) : (daftarHutang || []);
-  const activeItem = selectedItem ? listToRender.find(o=>o.id===selectedItem.id) : null;
-
-  return (
-    <div className="space-y-4 animate-in fade-in">
-        {activeItem && (
-            <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-                <div className="bg-white rounded-xl w-full max-w-lg p-6 max-h-[90vh] overflow-auto">
-                    <div className="flex justify-between items-start mb-4">
-                        <h3 className="font-bold text-lg">Kelola Cicilan {activeItem.tipe === 'HUTANG' ? 'ke Supplier' : 'dari Pelanggan'}</h3>
-                        <button onClick={() => setSelectedItem(null)} className="p-1.5 bg-slate-100 rounded-full"><X size={20}/></button>
-                    </div>
-                    
-                    <div className="bg-slate-50 p-4 rounded-xl mb-6">
-                        <div className="flex justify-between mb-2 pb-2 border-b"><span className="text-slate-500 text-sm">Ref ID</span><span className="font-mono text-sm font-bold">{activeItem.id}</span></div>
-                        <div className="flex justify-between mb-2 pb-2 border-b"><span className="text-slate-500 text-sm">{activeItem.tipe === 'HUTANG' ? 'Supplier' : 'Pelanggan'}</span><span className="font-bold text-sm uppercase">{activeItem.customer}</span></div>
-                        <div className="flex justify-between pt-2"><span className="font-bold text-red-600">SISA HUTANG AKTUAL</span><span className="font-bold text-red-700 text-lg">{formatRp(activeItem?.sisaHutang)}</span></div>
-                    </div>
-
-                    {(activeItem?.sisaHutang > 0) && (
-                        <form onSubmit={handleBayar} className="space-y-4 mb-8 bg-blue-50 p-4 rounded-xl border border-blue-200">
-                            <h4 className="font-bold text-sm text-blue-800">Input Pembayaran Cicilan</h4>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div><label className="text-xs font-bold text-blue-700">Metode</label><select value={paymentMethod} onChange={e=>setPaymentMethod(e.target.value)} className="w-full p-2 border rounded-lg mt-1 text-sm"><option value="Transfer">Transfer Bank</option><option value="Cash">Tunai (Cash)</option></select></div>
-                                <div><label className="text-xs font-bold text-blue-700">Nominal (Maks {formatRp(activeItem.sisaHutang)})</label><input type="text" required value={formatRp(bayarAmount)} onChange={e => {let v=parseRp(e.target.value); if(v>activeItem.sisaHutang) v=activeItem.sisaHutang; setBayarAmount(v);}} className="w-full p-2 border rounded-lg mt-1 text-sm font-bold" /></div>
-                            </div>
-                            <div className="flex justify-end mt-2"><button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm">Simpan Cicilan</button></div>
-                        </form>
-                    )}
-
-                    <div>
-                        <h4 className="font-bold text-sm text-slate-700 mb-3 border-b pb-1">Riwayat Cicilan</h4>
-                        {(!activeItem?.orderPayments || activeItem.orderPayments.length === 0) && <p className="text-sm text-slate-400 italic">Belum ada riwayat cicilan.</p>}
-                        {(activeItem?.orderPayments || []).map(pay => (
-                            <div key={pay.id} className="flex justify-between items-center bg-white border p-3 rounded-lg mb-2">
-                                <div><div className="text-[10px] font-mono text-slate-400">{pay.id}</div><div className="text-sm font-medium">{formatDate(pay.date)}</div></div>
-                                <div className="text-xs font-bold text-slate-500 px-2 bg-slate-100 rounded py-0.5">{pay.paymentMethod}</div>
-                                <div className="font-bold text-emerald-600 flex-1 text-right mr-4">{formatRp(pay.amount)}</div>
-                                <div className="flex gap-2">
-                                    <button onClick={() => setPrintData({ type: 'receipt', data: { payment: pay, order: activeItem }})} className="p-1.5 bg-slate-100 rounded text-slate-600"><Printer size={16} /></button>
-                                    <button onClick={() => requestDelete(pay.id)} className="p-1.5 bg-red-50 text-red-500 rounded"><Trash2 size={16} /></button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </div>
-        )}
-
-      {role === 'admin' && (
-      <div className="flex bg-slate-200 p-1 rounded-xl max-w-md">
-         <button onClick={()=>setViewTab('piutang')} className={`flex-1 py-2 font-bold rounded-lg text-sm transition ${viewTab==='piutang'?'bg-white shadow text-slate-800':'text-slate-500'}`}>Piutang (Pelanggan Ngutang)</button>
-         <button onClick={()=>setViewTab('hutang')} className={`flex-1 py-2 font-bold rounded-lg text-sm transition ${viewTab==='hutang'?'bg-white shadow text-red-600':'text-slate-500'}`}>Hutang (Kita Ngutang Supplier)</button>
-      </div>
-      )}
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-        {listToRender.filter(o => o.sisaHutang > 0).length === 0 ? (
-          <div className="text-center p-12 bg-white rounded-xl border border-dashed text-slate-500 col-span-full">
-              <CheckCircle size={48} className="mx-auto text-emerald-400 mb-3" />
-              <p>Hore! Semua nota {viewTab} telah lunas.</p>
-          </div>
-        ) : (
-          listToRender.filter(o => o.sisaHutang > 0).map((item) => (
-            <div key={item.id} className={`bg-white p-5 rounded-xl border-2 relative ${viewTab==='piutang'?'border-slate-200':'border-orange-200'}`}>
-                <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg">BELUM LUNAS</div>
-                <div className="text-sm text-slate-500 mb-1">{formatDate(item.date)}</div>
-                <div className="font-bold text-lg mb-1 uppercase">{item.customer}</div>
-                <div className="text-[10px] font-mono text-slate-400 mb-4">{item.id}</div>
-                
-                <div className="space-y-2 text-sm mb-4">
-                    <div className="flex justify-between border-b pb-1"><span className="text-slate-500">Total Tagihan</span><span className="font-medium">{formatRp(item.totalAll)}</span></div>
-                    <div className="flex justify-between border-b pb-1"><span className="text-slate-500">Telah Dicicil</span><span className="font-bold text-emerald-600">{formatRp((Number(item.paidAll)||0)+(Number(item.cicilanTerbayar)||0))}</span></div>
-                    <div className="flex justify-between pt-1"><span className="font-bold text-red-600">Sisa Hutang</span><span className="font-bold text-red-700 text-base">{formatRp(item.sisaHutang)}</span></div>
-                </div>
-                
-                <button onClick={() => {setSelectedItem(item); setBayarAmount(item.sisaHutang)}} className={`w-full text-white py-2.5 rounded-lg font-bold text-sm transition ${viewTab==='piutang'?'bg-blue-600 hover:bg-blue-700':'bg-orange-600 hover:bg-orange-700'}`}>
-                    Kelola Cicilan
-                </button>
-            </div>
-          ))
-        )}
-      </div>
     </div>
   );
 }
@@ -1698,7 +1633,7 @@ function TabPemalang({ reports, sendToSheet, requestDelete }) {
 
   return (
     <div className="space-y-4 animate-in fade-in">
-      <div className="flex justify-between items-center"><h3 className="font-bold text-lg text-slate-800">Laporan Operasional Harian</h3><button onClick={() => { if(showForm) resetForm(); else setShowForm(true); }} className={`px-4 py-2 rounded-lg flex items-center gap-2 text-sm text-white ${showForm ? 'bg-slate-500' : 'bg-amber-600'}`}>{showForm ? <X size={16} /> : <Plus size={16} />} {showForm ? 'Batal' : 'Buat Laporan Baru'}</button></div>
+      <div className="flex justify-between items-center"><h3 className="font-bold text-lg text-slate-800">Laporan Operasional Harian</h3><button onClick={() => { if(showForm) resetForm(); else setShowForm(true); }} className={`px-4 py-2 rounded-lg flex items-center gap-2 text-sm text-white ${showForm ? 'bg-slate-500' : 'bg-amber-600'}`}>{showForm ? <X size={16} /> : <Plus size={16} />} Batal / Baru</button></div>
       {showForm && (
         <form onSubmit={handleSimpan} className="bg-white p-6 rounded-xl border border-amber-200 grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="space-y-1 lg:col-span-4"><label className="text-sm font-medium">Tanggal</label><input type="date" required value={date} onChange={e => setDate(e.target.value)} className="w-full lg:w-1/4 p-2 border rounded-lg" /></div>
@@ -1723,7 +1658,7 @@ function TabPemalang({ reports, sendToSheet, requestDelete }) {
               <td className="px-4 py-3 bg-blue-50/30 font-bold text-blue-700 uppercase">{rep.stokFreezer || '-'}</td>
               <td className="px-4 py-3 text-center"><span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-[10px] font-bold">{rep.transferDestination || 'Pusat'}</span></td>
               <td className="px-4 py-3 text-right font-bold text-emerald-600">+{formatRp(rep.nominal)}</td>
-              <td className="px-4 py-3 text-center"><div className="flex justify-center gap-2"><button onClick={() => handleEdit(rep)} className="text-blue-500 bg-blue-50 p-2 rounded-lg"><Edit size={16}/></button><button onClick={() => requestDelete(rep.id)} className="text-red-500 bg-red-50 p-2 rounded-lg"><Trash2 size={16} /></button></div></td>
+              <td className="px-4 py-3 text-center"><div className="flex justify-center gap-2"><button onClick={() => handleEdit(rep)} className="text-blue-600 bg-blue-50 p-2 rounded-lg font-bold text-[10px]">EDIT</button><button onClick={() => requestDelete(rep.id)} className="text-red-500 bg-red-50 p-2 rounded-lg"><Trash2 size={16} /></button></div></td>
             </tr>
           ))}
       </tbody></table></div>
