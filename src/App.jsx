@@ -4,13 +4,13 @@ import {
   Plus, Printer, Search, ChevronDown, CheckCircle, 
   Clock, X, FileText, ArrowRightLeft, Trash2, Calendar,
   Store, Coins, Loader2, LogOut, TrendingUp, Users, Package,
-  ArrowDownToLine, ArrowUpFromLine
+  ArrowDownToLine, ArrowUpFromLine, UtilityPole, Utensils
 } from 'lucide-react';
 
 // =====================================================================
 // === GANTI URL DI BAWAH INI DENGAN URL WEB APP GOOGLE SCRIPT ANDA ===
 // =====================================================================
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqSM572mbUIGozcghhh8LHNMNw2e83O7Wkyu-SkjdVTO3zpTb64PA/exec'; 
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycb.../exec'; 
 // =====================================================================
 
 // --- UTILITIES ---
@@ -71,7 +71,7 @@ export default function App() {
   const [expenses, setExpenses] = useState([]);
   const [piutangPayments, setPiutangPayments] = useState([]);
   const [pemalangReports, setPemalangReports] = useState([]);
-  const [stokData, setStokData] = useState([]); // TAMBAHAN STOK
+  const [stokData, setStokData] = useState([]); 
 
   // --- FUNGSI LOGIN ---
   const handleLogin = (e) => {
@@ -85,7 +85,7 @@ export default function App() {
     } 
     else if (username === 'pemalang' && password === 'pemalang123') {
       setUser({ role: 'branch', name: 'Cabang Pemalang', branchId: 'Pemalang' });
-      setActiveTab('dashboard'); // Sekarang cabang dilempar ke dashboard
+      setActiveTab('dashboard'); 
       setLoginError('');
       fetchData();
     } 
@@ -304,7 +304,7 @@ export default function App() {
 
         <div className="flex-1 overflow-auto p-6 bg-slate-50 relative">
           {activeTab === 'dashboard' && user.role === 'admin' && <TabDashboard orders={orders} expenses={expenses} piutangPayments={piutangPayments} pemalangReports={pemalangReports} setPrintData={setPrintData} />}
-          {activeTab === 'dashboard' && user.role === 'branch' && <TabDashboardBranch orders={orders} pemalangReports={pemalangReports} setPrintData={setPrintData} user={user} />}
+          {activeTab === 'dashboard' && user.role === 'branch' && <TabDashboardBranch orders={orders} pemalangReports={pemalangReports} setPrintData={setPrintData} user={user} stokData={stokData} />}
           
           {activeTab === 'orders' && <TabOrders orders={orders} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'order', id})} role={user.role} />}
           
@@ -528,7 +528,7 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
                           <span className="font-bold text-indigo-600">+{formatRp(rekap.kasMasukTF)}</span>
                       </div>
                       <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-                          <span className="font-medium text-amber-700">Setoran Pemalang (Otomatis TF)</span>
+                          <span className="font-medium text-amber-700">Setoran Pemalang (TF Ke Pusat)</span>
                           <span className="font-bold text-amber-600">+{formatRp(rekap.setoranPemalangTF)}</span>
                       </div>
                       <div className="flex justify-between items-center pb-2 border-b border-slate-100 text-red-600">
@@ -567,7 +567,7 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
         </div>
 
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col max-h-96">
-            <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><ShoppingCart size={20} className="text-slate-500"/> Ringkasan Penjualan Porsi</h3>
+            <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><ShoppingCart size={20} className="text-slate-500"/> Ringkasan Penjualan Porsi & Info</h3>
             <div className="mb-4">
                 <span className="text-4xl font-bold text-red-600">{rekap.totalPorsi}</span>
                 <span className="text-slate-500 ml-2 font-medium">Porsi Terjual</span>
@@ -604,14 +604,28 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
   );
 }
 
-// --- TAB DASHBOARD CABANG (KHUSUS PEMALANG) ---
-function TabDashboardBranch({ orders, pemalangReports, setPrintData, user }) {
+// --- TAB DASHBOARD CABANG (KHUSUS PEMALANG) DENGAN MONITORING STOK ---
+function TabDashboardBranch({ orders, pemalangReports, setPrintData, user, stokData }) {
   const today = new Date();
   const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
   
   const [dateFrom, setDateFrom] = useState(firstDay.toISOString().split('T')[0]);
   const [dateTo, setDateTo] = useState(today.toISOString().split('T')[0]);
   const [chartView, setChartView] = useState('daily'); 
+
+  // Kalkulasi Sisa Stok Khusus untuk Widget Dashboard
+  const stokAktual = useMemo(() => {
+    const calc = {};
+    stokData.forEach(s => {
+      if(!calc[s.itemName]) calc[s.itemName] = { masuk: 0, keluar: 0, terpakai: 0, sisa: 0 };
+      if(s.type === 'MASUK') calc[s.itemName].masuk += Number(s.qty);
+      else if(s.type === 'KELUAR') calc[s.itemName].keluar += Number(s.qty);
+      else if(s.type === 'TERPAKAI') calc[s.itemName].terpakai += Number(s.qty);
+
+      calc[s.itemName].sisa = calc[s.itemName].masuk - calc[s.itemName].keluar - calc[s.itemName].terpakai;
+    });
+    return calc;
+  }, [stokData]);
 
   const rekap = useMemo(() => {
     const dFrom = new Date(dateFrom); dFrom.setHours(0, 0, 0, 0);
@@ -623,7 +637,6 @@ function TabDashboardBranch({ orders, pemalangReports, setPrintData, user }) {
         return d >= dFrom && d <= dTo;
     };
 
-    // Filter khusus cabang mereka saja
     const filteredOrders = orders.filter(o => isDateInRange(o.date) && o.category === 'Pemalang');
     const filteredReports = pemalangReports.filter(p => isDateInRange(p.date));
 
@@ -698,6 +711,24 @@ function TabDashboardBranch({ orders, pemalangReports, setPrintData, user }) {
             <div className="text-2xl font-bold tracking-tight text-slate-800">{rekap.totalPorsi} <span className="text-sm font-normal text-slate-500">Porsi ({rekap.totalPcs} Pcs)</span></div>
           </div>
           <StatCard title="Total Setoran Kas ke Pusat" amount={rekap.setoranKePusat} icon={<Wallet />} color="bg-blue-50 text-blue-700 border-blue-200" />
+      </div>
+
+      {/* WIDGET MONITORING STOK CABANG */}
+      <div className="bg-white p-6 rounded-xl border border-blue-200 shadow-sm relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
+          <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-blue-800"><Package size={20} /> Monitoring Sisa Stok Freezer Aktual</h3>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
+              {Object.keys(stokAktual).length === 0 && <div className="text-sm text-slate-500 italic col-span-full">Stok kosong atau belum ada pencatatan barang.</div>}
+              {Object.entries(stokAktual).map(([nama, data]) => (
+                  <div key={nama} className={`p-4 rounded-xl border flex flex-col justify-between ${data.sisa <= 0 ? 'bg-red-50 border-red-200' : 'bg-white border-blue-100 shadow-sm'}`}>
+                      <div className="text-sm font-bold text-slate-700 mb-2 truncate" title={nama}>{nama}</div>
+                      <div className={`text-2xl font-black ${data.sisa <= 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                          {data.sisa} <span className="text-xs font-medium text-slate-500">Pcs</span>
+                      </div>
+                  </div>
+              ))}
+          </div>
       </div>
 
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
@@ -971,36 +1002,46 @@ function TabOrders({ orders, sendToSheet, setPrintData, requestDelete, role }) {
   );
 }
 
-// --- TAB STOK FREEZER CABANG ---
+// --- TAB STOK FREEZER CABANG DENGAN AUTO-SUGGEST & FITUR TERPAKAI ---
 function TabStok({ stokData, sendToSheet, requestDelete }) {
   const [showForm, setShowForm] = useState(false);
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [itemName, setItemName] = useState('Dimsum Mix');
+  const [itemName, setItemName] = useState('');
   const [type, setType] = useState('MASUK');
   const [qty, setQty] = useState(0);
   const [notes, setNotes] = useState('');
 
-  const listBarang = ['Dimsum Mix', 'Dimsum Nori', 'Dimsum Udang', 'Dimsum Puyuh', 'Lainnya'];
+  // Auto-suggest unik dari data yang sudah pernah diinput sebelumnya
+  const listBarangUnik = [...new Set(stokData.map(s => s.itemName.toUpperCase()))];
 
   const handleSimpan = (e) => {
     e.preventDefault();
+    if(!itemName.trim()) { alert('Nama barang wajib diisi!'); return; }
+    
     const newStok = {
       id: generateId('STK', date),
-      date, itemName, type, qty: Number(qty), notes
+      date, 
+      itemName: itemName.toUpperCase(), 
+      type, 
+      qty: Number(qty), 
+      notes
     };
     sendToSheet('insert', newStok, 'stok');
     setShowForm(false);
-    setQty(0); setNotes('');
+    setQty(0); setNotes(''); setItemName('');
   };
 
-  // Kalkulasi Stok Aktual per Barang
   const stokAktual = useMemo(() => {
     const calc = {};
     stokData.forEach(s => {
-      if(!calc[s.itemName]) calc[s.itemName] = { masuk: 0, keluar: 0, sisa: 0 };
-      if(s.type === 'MASUK') calc[s.itemName].masuk += Number(s.qty);
-      else calc[s.itemName].keluar += Number(s.qty);
-      calc[s.itemName].sisa = calc[s.itemName].masuk - calc[s.itemName].keluar;
+      const nama = s.itemName.toUpperCase();
+      if(!calc[nama]) calc[nama] = { masuk: 0, keluar: 0, terpakai: 0, sisa: 0 };
+      
+      if(s.type === 'MASUK') calc[nama].masuk += Number(s.qty);
+      else if(s.type === 'KELUAR') calc[nama].keluar += Number(s.qty);
+      else if(s.type === 'TERPAKAI') calc[nama].terpakai += Number(s.qty);
+
+      calc[nama].sisa = calc[nama].masuk - calc[nama].keluar - calc[nama].terpakai;
     });
     return calc;
   }, [stokData]);
@@ -1010,23 +1051,26 @@ function TabStok({ stokData, sendToSheet, requestDelete }) {
       <div className="flex justify-between items-center">
         <div>
            <h3 className="font-bold text-lg text-slate-800">Manajemen Stok Freezer</h3>
-           <p className="text-sm text-slate-500">Catat keluar/masuk barang untuk mengetahui sisa aktual di freezer.</p>
+           <p className="text-sm text-slate-500">Catat keluar, masuk, dan pemakaian barang untuk produksi.</p>
         </div>
         <button onClick={() => setShowForm(!showForm)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium transition shadow-sm">
           {showForm ? <X size={16} /> : <Plus size={16} />} {showForm ? 'Batal' : 'Catat Stok'}
         </button>
       </div>
 
+      {/* Tampilan Monitoring Stok Atas */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 mb-6">
         {Object.keys(stokAktual).length === 0 && <div className="text-sm text-slate-500 italic col-span-full">Belum ada data barang. Silakan catat stok pertama Anda.</div>}
         {Object.entries(stokAktual).map(([nama, data]) => (
             <div key={nama} className={`p-4 rounded-xl border flex flex-col justify-between ${data.sisa <= 0 ? 'bg-red-50 border-red-200' : 'bg-white border-blue-200 shadow-sm'}`}>
-                <div className="text-sm font-bold text-slate-700 mb-2 truncate">{nama}</div>
+                <div className="text-sm font-bold text-slate-700 mb-2 truncate" title={nama}>{nama}</div>
                 <div className={`text-2xl font-black ${data.sisa <= 0 ? 'text-red-600' : 'text-blue-600'}`}>
                     {data.sisa} <span className="text-xs font-medium text-slate-500">Pcs</span>
                 </div>
-                <div className="text-[10px] text-slate-400 mt-2 flex justify-between">
-                    <span>In: {data.masuk}</span> <span>Out: {data.keluar}</span>
+                <div className="text-[9px] text-slate-400 mt-2 flex justify-between uppercase font-bold">
+                    <span className="text-emerald-500">In: {data.masuk}</span> 
+                    <span className="text-orange-500">Pakai: {data.terpakai}</span> 
+                    <span className="text-red-500">Out: {data.keluar}</span>
                 </div>
             </div>
         ))}
@@ -1035,9 +1079,10 @@ function TabStok({ stokData, sendToSheet, requestDelete }) {
       {showForm && (
         <form onSubmit={handleSimpan} className="bg-white p-6 rounded-xl border border-blue-200 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-4 animate-in slide-in-from-top-4">
           <div className="col-span-full mb-2">
-             <div className="flex bg-slate-100 p-1 rounded-lg w-full max-w-sm">
-                <button type="button" onClick={() => setType('MASUK')} className={`flex-1 py-2 text-sm font-bold rounded-md transition ${type === 'MASUK' ? 'bg-white shadow text-emerald-600' : 'text-slate-500'}`}><ArrowDownToLine size={16} className="inline mr-1"/> Stok Masuk</button>
-                <button type="button" onClick={() => setType('KELUAR')} className={`flex-1 py-2 text-sm font-bold rounded-md transition ${type === 'KELUAR' ? 'bg-white shadow text-red-600' : 'text-slate-500'}`}><ArrowUpFromLine size={16} className="inline mr-1"/> Stok Keluar</button>
+             <div className="flex bg-slate-100 p-1 rounded-lg w-full">
+                <button type="button" onClick={() => setType('MASUK')} className={`flex-1 py-2 text-sm font-bold rounded-md transition ${type === 'MASUK' ? 'bg-white shadow text-emerald-600' : 'text-slate-500'}`}><ArrowDownToLine size={16} className="inline mb-0.5 mr-1"/> Masuk</button>
+                <button type="button" onClick={() => setType('TERPAKAI')} className={`flex-1 py-2 text-sm font-bold rounded-md transition ${type === 'TERPAKAI' ? 'bg-white shadow text-orange-500' : 'text-slate-500'}`}><Utensils size={16} className="inline mb-0.5 mr-1"/> Dipakai Produksi</button>
+                <button type="button" onClick={() => setType('KELUAR')} className={`flex-1 py-2 text-sm font-bold rounded-md transition ${type === 'KELUAR' ? 'bg-white shadow text-red-600' : 'text-slate-500'}`}><ArrowUpFromLine size={16} className="inline mb-0.5 mr-1"/> Keluar (Rusak/dll)</button>
              </div>
           </div>
           <div className="space-y-1">
@@ -1045,10 +1090,11 @@ function TabStok({ stokData, sendToSheet, requestDelete }) {
             <input type="date" required value={date} onChange={e => setDate(e.target.value)} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-200" />
           </div>
           <div className="space-y-1">
-            <label className="text-sm font-medium text-slate-700">Nama Barang</label>
-            <select value={itemName} onChange={e => setItemName(e.target.value)} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-200 uppercase font-medium text-slate-700">
-                {listBarang.map(b => <option key={b} value={b}>{b}</option>)}
-            </select>
+            <label className="text-sm font-medium text-slate-700">Nama Barang (Ketik/Pilih dari saran)</label>
+            <input type="text" list="suggestions-item" required placeholder="Ketik nama bahan/barang..." value={itemName} onChange={e => setItemName(e.target.value)} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-200 uppercase font-medium text-slate-700" />
+            <datalist id="suggestions-item">
+                {listBarangUnik.map(b => <option key={b} value={b} />)}
+            </datalist>
           </div>
           <div className="space-y-1">
             <label className="text-sm font-medium text-slate-700">Jumlah / Qty (Pcs)</label>
@@ -1059,7 +1105,7 @@ function TabStok({ stokData, sendToSheet, requestDelete }) {
             <input type="text" placeholder="Cth: Dropping Pusat, Terjual, Rusak..." value={notes} onChange={e => setNotes(e.target.value)} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-200" />
           </div>
           <div className="col-span-full flex justify-end mt-2">
-            <button type="submit" className={`text-white px-6 py-2 rounded-lg font-medium shadow-sm transition ${type === 'MASUK' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'}`}>Simpan Log Stok</button>
+            <button type="submit" className={`text-white px-6 py-2 rounded-lg font-medium shadow-sm transition ${type === 'MASUK' ? 'bg-emerald-600 hover:bg-emerald-700' : type === 'TERPAKAI' ? 'bg-orange-500 hover:bg-orange-600' : 'bg-red-600 hover:bg-red-700'}`}>Simpan Log Stok</button>
           </div>
         </form>
       )}
@@ -1085,11 +1131,11 @@ function TabStok({ stokData, sendToSheet, requestDelete }) {
                 </td>
                 <td className="px-4 py-3 font-bold text-slate-800 uppercase">{s.itemName}</td>
                 <td className="px-4 py-3 text-center">
-                    <span className={`px-2 py-1 rounded text-[10px] font-bold tracking-wide ${s.type === 'MASUK' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                    <span className={`px-2 py-1 rounded text-[10px] font-bold tracking-wide ${s.type === 'MASUK' ? 'bg-emerald-100 text-emerald-700' : s.type === 'TERPAKAI' ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'}`}>
                         {s.type}
                     </span>
                 </td>
-                <td className={`px-4 py-3 text-center font-bold ${s.type === 'MASUK' ? 'text-emerald-600' : 'text-red-600'}`}>
+                <td className={`px-4 py-3 text-center font-bold ${s.type === 'MASUK' ? 'text-emerald-600' : s.type === 'TERPAKAI' ? 'text-orange-500' : 'text-red-600'}`}>
                     {s.type === 'MASUK' ? '+' : '-'}{s.qty}
                 </td>
                 <td className="px-4 py-3 text-slate-600 text-xs">{s.notes || '-'}</td>
@@ -1117,6 +1163,7 @@ function TabPemalang({ reports, sendToSheet, requestDelete, role }) {
   const [produksiPorsi, setProduksiPorsi] = useState(0);
   const [stokFreezer, setStokFreezer] = useState(''); 
   const [nominal, setNominal] = useState(0);
+  const [transferDestination, setTransferDestination] = useState('BCA (WASTAM)'); // Tambahan Tujuan TF
   const [notes, setNotes] = useState('');
 
   const handleSimpan = (e) => {
@@ -1125,7 +1172,7 @@ function TabPemalang({ reports, sendToSheet, requestDelete, role }) {
       id: generateId('PML', date),
       date, pesananMika: Number(pesananMika), pesananPorsi: Number(pesananPorsi),
       produksiMika: Number(produksiMika), produksiPorsi: Number(produksiPorsi),
-      stokFreezer, nominal: Number(nominal), notes
+      stokFreezer, transferDestination, nominal: Number(nominal), notes
     };
     sendToSheet('insert', newReport, 'pemalang');
     setShowForm(false);
@@ -1179,11 +1226,18 @@ function TabPemalang({ reports, sendToSheet, requestDelete, role }) {
           <div className="space-y-1 lg:col-span-2 mt-2">
             <label className="text-sm font-medium text-slate-700">Total Nominal Disetor ke Pusat (Rp)</label>
             <input type="number" min="0" required value={nominal} onChange={e => setNominal(Number(e.target.value))} className="w-full p-3 border-2 border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-400 font-bold text-lg text-amber-700" placeholder="Rp 0" />
-            <p className="text-xs text-amber-600 font-medium">*Otomatis tercatat sebagai Kas Masuk (Transfer / TF)</p>
           </div>
-          <div className="space-y-1 lg:col-span-2 mt-2">
-            <label className="text-sm font-medium text-slate-700">Keterangan Tambahan Laporan</label>
-            <input type="text" required placeholder="Cth: Laporan Harian Lunas..." value={notes} onChange={e => setNotes(e.target.value)} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-amber-200" />
+          <div className="space-y-1 lg:col-span-1 mt-2">
+            <label className="text-sm font-medium text-slate-700">Tujuan Transfer (Bank)</label>
+            <input type="text" list="bank-list" required value={transferDestination} onChange={e => setTransferDestination(e.target.value)} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-amber-200 font-bold" />
+            <datalist id="bank-list">
+               <option value="BCA (WASTAM)" />
+               <option value="BRI (WASTAM)" />
+            </datalist>
+          </div>
+          <div className="space-y-1 lg:col-span-1 mt-2">
+            <label className="text-sm font-medium text-slate-700">Keterangan Laporan</label>
+            <input type="text" placeholder="Opsional..." value={notes} onChange={e => setNotes(e.target.value)} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-amber-200" />
           </div>
           
           <div className="lg:col-span-4 flex justify-end mt-2 pt-4 border-t border-slate-100">
@@ -1200,7 +1254,8 @@ function TabPemalang({ reports, sendToSheet, requestDelete, role }) {
               <th className="px-4 py-3 text-center bg-slate-50 min-w-[100px]">Pesanan (M/P)</th>
               <th className="px-4 py-3 text-center min-w-[100px]">Produksi (M/P)</th>
               <th className="px-4 py-3 bg-blue-50 text-blue-800 font-bold min-w-[150px]">STOK FREEZER</th>
-              <th className="px-4 py-3 text-right min-w-[120px]">Uang Disetor (TF)</th>
+              <th className="px-4 py-3 text-center min-w-[120px]">Disetor Ke</th>
+              <th className="px-4 py-3 text-right min-w-[120px]">Uang Disetor</th>
               <th className="px-4 py-3 text-center min-w-[80px]">Aksi</th>
             </tr>
           </thead>
@@ -1222,6 +1277,9 @@ function TabPemalang({ reports, sendToSheet, requestDelete, role }) {
                 <td className="px-4 py-3 bg-blue-50/30 font-bold text-blue-700 uppercase">
                   {rep.stokFreezer || '-'}
                 </td>
+                <td className="px-4 py-3 text-center">
+                    <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-[10px] font-bold tracking-wide">{rep.transferDestination || 'Pusat'}</span>
+                </td>
                 <td className="px-4 py-3 text-right font-bold text-emerald-600">
                   <div className="text-xs text-slate-400 font-normal mb-0.5">{rep.notes}</div>
                   +{formatRp(rep.nominal)}
@@ -1237,7 +1295,7 @@ function TabPemalang({ reports, sendToSheet, requestDelete, role }) {
                 </td>
               </tr>
             ))}
-            {reports.length === 0 && <tr><td colSpan="6" className="text-center py-12 text-slate-400">Belum ada laporan dari cabang.</td></tr>}
+            {reports.length === 0 && <tr><td colSpan="7" className="text-center py-12 text-slate-400">Belum ada laporan dari cabang.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -1387,7 +1445,7 @@ function PrintInvoiceDotMatrix({ data, onBack }) {
     );
 }
 
-// Layout Cetak Rekap Laporan Cabang (KHUSUS PEMALANG)
+// Layout Cetak Rekap Laporan Cabang (KHUSUS PEMALANG) DENGAN TUJUAN TF
 function PrintReportBranch({ data, onBack, user }) {
   useEffect(() => {
       const timer = setTimeout(() => { window.print(); }, 500);
@@ -1457,7 +1515,8 @@ function PrintReportBranch({ data, onBack, user }) {
                     <th className="border border-black p-2">TANGGAL</th>
                     <th className="border border-black p-2 text-center">PRODUKSI / PESANAN</th>
                     <th className="border border-black p-2">STOK FREEZER AKHIR</th>
-                    <th className="border border-black p-2 text-right">UANG DISETOR (TF)</th>
+                    <th className="border border-black p-2 text-center">TUJUAN TF</th>
+                    <th className="border border-black p-2 text-right">UANG DISETOR</th>
                 </tr>
             </thead>
             <tbody>
@@ -1469,10 +1528,11 @@ function PrintReportBranch({ data, onBack, user }) {
                             {p.produksiMika} M / {p.pesananMika} M
                         </td>
                         <td className="border border-black p-2 font-bold uppercase">{p.stokFreezer}</td>
-                        <td className="border border-black p-2 text-right font-bold">{formatRp(p.nominal)}</td>
+                        <td className="border border-black p-2 text-center font-bold">{p.transferDestination || 'BCA (WASTAM)'}</td>
+                        <td className="border border-black p-2 text-right font-bold text-emerald-700">{formatRp(p.nominal)}</td>
                     </tr>
                 ))}
-                {rekap.listReports.length === 0 && <tr><td colSpan="5" className="border border-black p-4 text-center italic">Tidak ada laporan harian.</td></tr>}
+                {rekap.listReports.length === 0 && <tr><td colSpan="6" className="border border-black p-4 text-center italic">Tidak ada laporan harian.</td></tr>}
             </tbody>
         </table>
 
@@ -1551,6 +1611,7 @@ function PrintReceipt({ data, onBack }) {
       </div>
     );
 }
+
 // Laporan Detail Update 
 function PrintReport({ data, onBack }) {
     useEffect(() => {
@@ -1617,10 +1678,10 @@ function PrintReport({ data, onBack }) {
               <>
                   <h3 className="font-bold text-md mb-2 mt-4">D. RINCIAN LAPORAN & SETORAN CABANG PEMALANG</h3>
                   <table className="w-full border-collapse border border-black text-sm text-left mb-8">
-                      <thead className="bg-gray-100"><tr><th className="border border-black p-2 text-center w-8">NO</th><th className="border border-black p-2">TANGGAL</th><th className="border border-black p-2 text-center">PRODUKSI / PESANAN</th><th className="border border-black p-2">STOK FREEZER</th><th className="border border-black p-2">METODE BAYAR</th><th className="border border-black p-2 text-right">UANG DISETOR (TF)</th></tr></thead>
+                      <thead className="bg-gray-100"><tr><th className="border border-black p-2 text-center w-8">NO</th><th className="border border-black p-2">TANGGAL</th><th className="border border-black p-2 text-center">PRODUKSI / PESANAN</th><th className="border border-black p-2">STOK FREEZER</th><th className="border border-black p-2 text-center">TUJUAN TF</th><th className="border border-black p-2 text-right">UANG DISETOR</th></tr></thead>
                       <tbody>
                           {rekap.listPemalang.map((p, i) => (
-                              <tr key={i}><td className="border border-black p-2 text-center">{i + 1}</td><td className="border border-black p-2">{formatDate(p.date)}</td><td className="border border-black p-2 text-center">{p.produksiMika} M / {p.pesananMika} M</td><td className="border border-black p-2 font-bold uppercase">{p.stokFreezer}</td><td className="border border-black p-2 font-bold text-indigo-700">Transfer (TF)</td><td className="border border-black p-2 text-right font-bold">{formatRp(p.nominal)}</td></tr>
+                              <tr key={i}><td className="border border-black p-2 text-center">{i + 1}</td><td className="border border-black p-2">{formatDate(p.date)}</td><td className="border border-black p-2 text-center">{p.produksiMika} M / {p.pesananMika} M</td><td className="border border-black p-2 font-bold uppercase">{p.stokFreezer}</td><td className="border border-black p-2 text-center font-bold text-indigo-700">{p.transferDestination || 'BCA (WASTAM)'}</td><td className="border border-black p-2 text-right font-bold text-emerald-700">{formatRp(p.nominal)}</td></tr>
                           ))}
                       </tbody>
                   </table>
