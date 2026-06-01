@@ -14,6 +14,7 @@ import {
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqSM572mbUIGozcghhh8LHNMNw2e83O7Wkyu-SkjdVTO3zpTb64PA/exec'; 
 // =====================================================================
 
+// --- UTILITIES (ANTI-CRASH, ZONA WAKTU, & TERBILANG) ---
 const rpFormatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
 const dateFormatter = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
 
@@ -104,6 +105,8 @@ export default function App() {
   const [piutangPayments, setPiutangPayments] = useState([]);
   const [pemalangReports, setPemalangReports] = useState([]);
   const [stokData, setStokData] = useState([]); 
+  
+  // FIX: Keranjang Purchases ditambahkan agar layar tidak blank putih!
   const [purchases, setPurchases] = useState([]);
 
   const handleLogin = (e) => {
@@ -149,7 +152,7 @@ export default function App() {
 
   const sendToSheet = async (action, data, table) => {
     if (!SCRIPT_URL || SCRIPT_URL === 'TARUH_LINK_GOOGLE_SCRIPT_DISINI') {
-        alert("SIMULASI: Data tersimpan di layar sementara."); return;
+        alert("SIMULASI: Data tersimpan di layar sementara. Masukkan URL Spreadsheet."); return;
     }
     if (action === 'insert') {
         if (table === 'orders') setOrders([data, ...orders]);
@@ -254,7 +257,7 @@ export default function App() {
             <>
               <NavItem icon={<LayoutDashboard size={20} />} label="Dashboard & Rekap" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
               <NavItem icon={<ShoppingCart size={20} />} label="Order & Penjualan" active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} />
-              <NavItem icon={<Truck size={20} />} label="Pembelian Bahan Baku" active={activeTab === 'purchases'} onClick={() => setActiveTab('purchases')} />
+              <NavItem icon={<Truck size={20} />} label="Pembelian Bahan" active={activeTab === 'purchases'} onClick={() => setActiveTab('purchases')} />
               <NavItem icon={<Wallet size={20} />} label="Kas Umum (Lainnya)" active={activeTab === 'expenses'} onClick={() => setActiveTab('expenses')} />
               <NavItem icon={<Clock size={20} />} label="Hutang & Piutang" active={activeTab === 'piutang'} onClick={() => setActiveTab('piutang')} badge={pendingHutangPiutang} />
               <div className="pt-4 mt-2 border-t border-slate-800"><NavItem icon={<Package size={20} />} label="Stok Freezer Cabang" active={activeTab === 'stok'} onClick={() => setActiveTab('stok')} /></div>
@@ -612,7 +615,7 @@ function TabPurchases({ purchases, sendToSheet, requestDelete }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {displayPurchases.length === 0 && <tr><td colSpan="6" className="text-center py-8 text-slate-400">Tidak ada pembelian di tanggal ini.</td></tr>}
+            {displayPurchases.length === 0 && <tr><td colSpan="6" className="text-center py-8 text-slate-400">Tidak ada pembelian.</td></tr>}
             {displayPurchases.map((pur) => (
               <tr key={pur.id} className="hover:bg-slate-50">
                 <td className="px-4 py-3"><div className="font-mono text-xs font-bold text-slate-700">{pur.id}</div><div className="text-xs text-slate-500">{formatDate(pur.date)}</div></td>
@@ -757,7 +760,7 @@ function TabPiutang({ orders, purchases, payments, sendToSheet, requestDelete, s
 }
 
 // --- TAB YANG LAIN (Orders, Stok, Expenses, Pemalang) SAMA DENGAN SEBELUMNYA ---
-// HANYA MENGGUNAKAN formatRp BARU YANG SUPER NGEBUT
+// KHUSUS PENCEGAHAN RENDER:
 
 function TabOrders({ orders, sendToSheet, setPrintData, requestDelete, role }) {
   const [showForm, setShowForm] = useState(false);
@@ -895,15 +898,19 @@ function TabOrders({ orders, sendToSheet, setPrintData, requestDelete, role }) {
         </form>
       )}
 
-      <div className="flex items-center gap-3 bg-white p-3 rounded-xl border mt-4">
-         <Filter size={16}/><span className="text-sm font-bold">Filter:</span>
+      <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 mt-4">
+         <Filter size={16} className="text-slate-400"/><span className="text-sm font-bold">Filter:</span>
          <input type="date" value={filterFrom} onChange={e=>setFilterFrom(e.target.value)} className="p-1.5 text-sm border rounded" /> - 
          <input type="date" value={filterTo} onChange={e=>setFilterTo(e.target.value)} className="p-1.5 text-sm border rounded" />
       </div>
 
       <div className="bg-white rounded-xl border overflow-hidden mt-4">
-        <table className="w-full text-sm text-left block md:table"><thead className="bg-red-50 text-red-800 text-xs uppercase border-b"><tr><th className="px-4 py-3">No. Invoice & Tgl</th><th className="px-4 py-3">Pelanggan</th><th className="px-4 py-3 text-center">Qty</th><th className="px-4 py-3 text-center">Via</th><th className="px-4 py-3 text-right">Total</th><th className="px-4 py-3 text-center">Status</th><th className="px-4 py-3 text-center">Aksi</th></tr></thead>
-        <tbody className="divide-y divide-slate-100">{renderedTableRows}</tbody></table>
+        <table className="w-full text-sm text-left block md:table overflow-x-auto">
+          <thead className="bg-red-50 text-red-800 text-xs uppercase border-b">
+            <tr><th className="px-4 py-3">No. Invoice & Tgl</th><th className="px-4 py-3">Pelanggan</th><th className="px-4 py-3 text-center">Qty</th><th className="px-4 py-3 text-center">Via</th><th className="px-4 py-3 text-right">Total</th><th className="px-4 py-3 text-center">Status</th><th className="px-4 py-3 text-center">Aksi</th></tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">{renderedTableRows}</tbody>
+        </table>
       </div>
     </div>
   );
@@ -1133,7 +1140,6 @@ function SimpleSVGLineChart({ data }) {
   )
 }
 
-
 function PrintInvoiceDotMatrix({ data, onBack }) {
   useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
   return (
@@ -1278,6 +1284,7 @@ function PrintReportBranch({ data, onBack, user }) {
   const { rekap, dateFrom, dateTo } = data;
   return (
     <>
+    {/* KUNCI KE UKURAN A4 PORTRAIT */}
     <style dangerouslySetInnerHTML={{__html: `@media print { @page { size: A4 portrait; margin: 10mm; } body { margin: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; font-size: 11px; color: black; background: white; zoom: 0.8; } .hide-on-print { display: none !important; } table { width: 100%; border-collapse: collapse; } th, td { padding: 4px 6px !important; font-size: 10px !important; border: 1px solid black !important; } h1 { font-size: 16px !important; margin-bottom: 4px !important; } h3 { font-size: 12px !important; margin-top: 12px !important; margin-bottom: 4px !important; } .p-8 { padding: 0 !important; } .mb-8 { margin-bottom: 12px !important; } .mb-6 { margin-bottom: 8px !important; } .mt-8 { margin-top: 12px !important; } .mt-12 { margin-top: 16px !important; } .gap-4 { gap: 12px !important; } .grid-cols-2 { display: flex !important; justify-content: space-between !important; } .grid-cols-2 > div { width: 48% !important; margin-bottom: 8px !important; border: 1px solid black; padding: 6px !important; } * { box-shadow: none !important; border-radius: 0 !important; } }`}} />
     <div className="bg-white min-h-screen text-black print:bg-white print:p-0 p-8 w-full max-w-[800px] mx-auto">
       <button onClick={onBack} className="hide-on-print mb-4 bg-slate-800 text-white px-4 py-2 rounded flex items-center gap-2">Kembali ke Aplikasi</button>
@@ -1307,5 +1314,80 @@ function PrintReportBranch({ data, onBack, user }) {
       </div>
     </div>
     </>
+  );
+}
+
+function PrintVoucher({ data, onBack }) {
+    useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
+    return (
+      <>
+      <style dangerouslySetInnerHTML={{__html: `@media print { @page { size: A4 portrait; margin: 10mm; } body { margin: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; font-size: 11px; } .hide-on-print { display: none !important; } * { box-shadow: none !important; border-radius: 0 !important; } table { border-collapse: collapse; } td, th { border: 1px solid black; padding: 6px !important;} }`}} />
+      <div className="bg-white min-h-screen text-black print:bg-white print:p-0 p-8 w-full max-w-[800px] mx-auto">
+        <button onClick={onBack} className="print:hidden mb-4 bg-slate-800 text-white px-4 py-2 rounded flex items-center gap-2">Kembali</button>
+        <div className="p-8 border border-slate-200 print:border-none print:p-0 text-sm font-sans" style={{ fontFamily: 'Arial, sans-serif' }}>
+          <div className="flex justify-between items-center mb-8"><h1 className="font-bold text-xl uppercase">BUKTI PENGELUARAN KAS - DIMSUM ADITYA</h1></div>
+          <div className="flex justify-between items-end mb-6">
+              <table className="w-[50%] text-sm" style={{border: 'none'}}><tbody><tr><td className="font-bold w-24 pb-2" style={{border: 'none'}}>ID Voucher</td><td className="w-4 pb-2" style={{border: 'none'}}>:</td><td className="border-b border-dotted border-black pb-2" style={{border: 'none'}}>{data.id}</td></tr><tr><td className="font-bold w-24 pb-2" style={{border: 'none'}}>Kepada</td><td className="w-4 pb-2" style={{border: 'none'}}>:</td><td className="border-b border-dotted border-black pb-2 uppercase" style={{border: 'none'}}>{data.recipient}</td></tr></tbody></table>
+              <table className="w-[35%] text-sm" style={{border: 'none'}}><tbody><tr><td className="font-bold w-20 pb-2" style={{border: 'none'}}>Tanggal</td><td className="w-4 pb-2" style={{border: 'none'}}>:</td><td className="border-b border-dotted border-black text-right pb-2" style={{border: 'none'}}>{formatDate(data.date)}</td></tr><tr><td className="font-bold w-20 pb-2" style={{border: 'none'}}>Metode</td><td className="w-4 pb-2" style={{border: 'none'}}>:</td><td className="border-b border-dotted border-black text-right pb-2" style={{border: 'none'}}>{data.paymentMethod}</td></tr></tbody></table>
+          </div>
+          <table className="w-full border-collapse border border-black text-center mb-2 text-sm">
+              <thead><tr><th className="border border-black p-2 bg-gray-50 w-1/4">KATEGORI</th><th className="border border-black p-2 bg-gray-50 w-2/5">KETERANGAN</th><th className="border border-black p-2 bg-gray-50 w-16">QTY</th><th className="border border-black p-2 bg-gray-50">HARGA</th><th className="border border-black p-2 bg-gray-50">TOTAL (KAS KELUAR)</th></tr></thead>
+              <tbody><tr><td className="border border-black p-2">{data.category}</td><td className="border border-black p-2 uppercase">{data.description}</td><td className="border border-black p-2">{data.qty}</td><td className="border border-black p-2">{formatRp(data.price)}</td><td className="border border-black p-2 font-bold">{formatRp(data.total)}</td></tr></tbody>
+          </table>
+          <div className="italic text-sm font-serif mb-16 pt-2">TERBILANG : {terbilang(data.total)} Rupiah</div>
+          <div className="flex justify-between items-end mb-4"><div className="text-center w-48 mt-12"><div className="border-b border-dotted border-black h-8 mb-1"></div><div className="text-xs">Penerima / Pelanggan</div></div><div className="text-center w-48"><div className="text-sm mb-16 text-left italic">Hormat kami,</div><div className="border-b border-dotted border-black h-4 mb-1"></div><div className="text-xs">Admin / Kasir</div></div></div>
+        </div>
+      </div>
+      </>
+    );
+}
+function PrintReceipt({ data, onBack }) {
+    useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
+    const { payment, order } = data;
+    return (
+      <>
+      <style dangerouslySetInnerHTML={{__html: `@media print { @page { size: A4 portrait; margin: 10mm; } body { margin: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; font-size: 11px;} .hide-on-print { display: none !important; } }`}} />
+      <div className="bg-white min-h-screen text-black print:bg-white print:p-0 p-8 w-full max-w-[800px] mx-auto">
+        <button onClick={onBack} className="print:hidden mb-4 bg-slate-800 text-white px-4 py-2 rounded flex items-center gap-2">Kembali</button>
+        <div className="p-8 border border-slate-200 print:border-none print:p-0 text-sm font-sans" style={{ fontFamily: 'Arial, sans-serif' }}>
+          <div className="flex justify-between items-center mb-10"><h1 className="font-bold text-xl uppercase border-b-2 border-black pb-2 inline-block">BUKTI PEMBAYARAN PIUTANG / CICILAN</h1></div>
+          <div className="space-y-4 text-base">
+              <div className="flex"><div className="w-48 font-bold">ID Pembayaran</div><div className="w-4">:</div><div className="font-mono font-medium">{payment.id}</div></div>
+              <div className="flex"><div className="w-48 font-bold">Tanggal Pembayaran</div><div className="w-4">:</div><div>{formatDate(payment.date)}</div></div>
+              <div className="flex"><div className="w-48 font-bold">Telah Diterima Dari</div><div className="w-4">:</div><div className="uppercase font-bold border-b border-dotted border-black flex-1">{order.customer}</div></div>
+              <div className="flex"><div className="w-48 font-bold">Metode Bayar</div><div className="w-4">:</div><div className="font-bold">{payment.paymentMethod}</div></div>
+              <div className="flex items-center"><div className="w-48 font-bold">Sejumlah Uang</div><div className="w-4">:</div><div className="font-bold text-lg bg-gray-100 px-4 py-1 border border-black inline-block">{formatRp(payment.amount)}</div></div>
+              <div className="flex"><div className="w-48 font-bold">Terbilang</div><div className="w-4">:</div><div className="italic font-serif flex-1 capitalize border-b border-dotted border-black">{terbilang(payment.amount)} Rupiah</div></div>
+              <div className="flex"><div className="w-48 font-bold">Untuk Pembayaran</div><div className="w-4">:</div><div className="flex-1">Cicilan / Pelunasan tagihan untuk No. Invoice: <strong>{order.id}</strong></div></div>
+          </div>
+          <div className="mt-16 flex justify-between items-end">
+              <div className="text-sm p-4 border border-black bg-gray-50"><p className="font-bold mb-1">Informasi Invoice (Referensi):</p><p>Total Tagihan Awal : {formatRp(order.total)}</p><p>Sisa Hutang Terakhir : {formatRp(order.sisaHutang)}</p></div>
+              <div className="text-center w-48"><div className="text-sm mb-16 text-left italic">Penerima (Kasir),</div><div className="border-b border-dotted border-black h-4 mb-1"></div><div className="text-xs uppercase text-center">Dimsum Aditya</div></div>
+          </div>
+        </div>
+      </div>
+      </>
+    );
+}
+
+// --- MICRO COMPONENTS ---
+function NavItem({ icon, label, active, onClick, badge }) {
+  return (
+    <button onClick={onClick} className={`w-full flex items-center justify-between p-3 rounded-xl transition-all duration-200 ${active ? 'bg-red-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
+      <div className="flex items-center gap-3">{icon}<span className="font-medium text-sm">{label}</span></div>
+      {badge > 0 && <span className="bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{badge}</span>}
+    </button>
+  );
+}
+
+function StatCard({ title, amount, icon, color }) {
+  return (
+    <div className={`p-5 rounded-xl border flex flex-col justify-between ${color}`}>
+      <div className="flex justify-between items-start mb-4">
+        <h3 className="font-medium text-sm opacity-90">{title}</h3>
+        <div className="p-2 bg-white/50 rounded-lg backdrop-blur-sm">{icon}</div>
+      </div>
+      <div className="text-2xl font-bold tracking-tight">{formatRp(amount)}</div>
+    </div>
   );
 }
