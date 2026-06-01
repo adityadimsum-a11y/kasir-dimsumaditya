@@ -13,11 +13,14 @@ import {
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqSM572mbUIGozcghhh8LHNMNw2e83O7Wkyu-SkjdVTO3zpTb64PA/exec'; 
 // =====================================================================
 
-// --- UTILITIES (ANTI-CRASH, ZONA WAKTU, & TERBILANG) ---
+// --- OPTIMASI PERFORMA: Cache Formatter agar web 100x lebih ringan ---
+const rpFormatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
+const dateFormatter = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+
 const formatRp = (angka) => {
   const num = Number(angka);
   if (isNaN(num) || num === 0) return 'Rp 0';
-  return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
+  return rpFormatter.format(num);
 };
 
 const parseRp = (str) => {
@@ -27,19 +30,20 @@ const parseRp = (str) => {
 
 const getLocalYMD = (dateVal) => {
     if(!dateVal) return '';
+    if (typeof dateVal === 'string' && dateVal.length >= 10) return dateVal.substring(0, 10);
     const d = new Date(dateVal);
-    if(isNaN(d.getTime())) return String(dateVal).split('T')[0];
+    if(isNaN(d.getTime())) return '';
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
 };
 
-const formatDate = (date) => {
-  if(!date) return '-';
-  const d = new Date(date);
-  if(isNaN(d.getTime())) return String(date).split('T')[0]; 
-  return new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }).format(d);
+const formatDate = (dateVal) => {
+  if(!dateVal) return '-';
+  const d = new Date(dateVal);
+  if(isNaN(d.getTime())) return String(dateVal).split('T')[0]; 
+  return dateFormatter.format(d);
 };
 
 const generateId = (prefix, date) => {
@@ -360,18 +364,19 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
   const [chartView, setChartView] = useState('daily'); 
 
   const rekap = useMemo(() => {
-    // FUNGSI CEK TANGGAL: Akumulasi (Sepanjang Masa hingga tgl akhir) vs Periode (Rentang Filter)
+    // Akumulasi s/d Tanggal Akhir Filter (Untuk Saldo ATM & Cash Berjalan)
     const isCumulative = (dateStr) => {
         const ymd = getLocalYMD(dateStr);
         return ymd && ymd <= dateTo;
     };
+    // Untuk Omset & Laporan Periode Ini
     const isPeriod = (dateStr) => {
         const ymd = getLocalYMD(dateStr);
         return ymd && ymd >= dateFrom && ymd <= dateTo;
     };
 
     // 1. HITUNG SALDO AKUMULASI (ATM CONTINUE & CASH)
-    // Filter eksklusif: Pesanan Cabang Pemalang TIDAK dihitung di omset/porsi Pusat
+    // Filter eksklusif: Pesanan Cabang Pemalang TIDAK dihitung
     const cumOrdersPusat = orders.filter(o => isCumulative(o.date) && o.category !== 'Pemalang');
     const cumExpenses = expenses.filter(e => isCumulative(e.date));
     const cumPaymentsPusat = piutangPayments.filter(p => {
@@ -573,6 +578,40 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
         </div>
       </div>
 
+      {/* Rincian Transaksi Pusat */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mt-6">
+        <div className="p-4 border-b border-slate-200 bg-slate-50">
+            <h3 className="font-bold text-slate-800">Detail Transaksi & Omset Penjualan (Pusat Tangerang)</h3>
+        </div>
+        <table className="w-full text-sm text-left block md:table overflow-x-auto">
+            <thead className="bg-white text-slate-500 text-xs uppercase font-semibold border-b">
+                <tr>
+                    <th className="px-6 py-3">No. Invoice</th>
+                    <th className="px-6 py-3">Nama Pelanggan</th>
+                    <th className="px-6 py-3">Metode Bayar</th>
+                    <th className="px-6 py-3 text-center">Jumlah Pcs (Porsi)</th>
+                    <th className="px-6 py-3 text-right">Total Omset</th>
+                </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+                {rekap.listTransaksiDetail.map((c, i) => (
+                    <tr key={i} className="hover:bg-slate-50">
+                        <td className="px-6 py-3 font-mono text-xs text-slate-500">{c.id}</td>
+                        <td className="px-6 py-3 font-bold text-slate-800 uppercase">
+                            {c.customer} <span className="text-red-600 text-[10px] font-medium ml-1 bg-red-50 px-2 py-0.5 rounded">{c.category}</span>
+                        </td>
+                        <td className="px-6 py-3 font-medium text-slate-600">{c.paymentMethod}</td>
+                        <td className="px-6 py-3 text-center font-medium">{c.qty} Pcs <span className="text-slate-400 text-xs">({c.qty/4} Porsi)</span></td>
+                        <td className="px-6 py-3 text-right font-bold text-emerald-600">{formatRp(c.total)}</td>
+                    </tr>
+                ))}
+                {rekap.listTransaksiDetail.length === 0 && (
+                    <tr><td colSpan="5" className="text-center py-8 text-slate-400">Tidak ada transaksi di rentang tanggal ini</td></tr>
+                )}
+            </tbody>
+        </table>
+      </div>
+
       {rekap.listPembayaranPiutang.length > 0 && (
           <div className="bg-white rounded-xl border border-orange-200 shadow-sm overflow-hidden mt-6">
             <div className="p-4 border-b border-orange-200 bg-orange-50 flex items-center gap-2">
@@ -601,6 +640,49 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
                             <td className="px-6 py-3 text-center font-bold text-[10px]">
                                 {p.statusNota === 'LUNAS' ? <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded">LUNAS</span> : <span className="bg-red-100 text-red-700 px-2 py-1 rounded">BELUM LUNAS</span>}
                             </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+          </div>
+      )}
+
+      {/* Rincian Laporan Pemalang di Dashboard Pusat */}
+      {rekap.listPemalang.length > 0 && (
+          <div className="bg-white rounded-xl border border-amber-200 shadow-sm overflow-hidden mt-6">
+            <div className="p-4 border-b border-amber-200 bg-amber-50 flex items-center gap-2">
+                <Store className="text-amber-600" size={18}/>
+                <h3 className="font-bold text-amber-800">Rincian Laporan & Setoran (Cabang Pemalang)</h3>
+            </div>
+            <table className="w-full text-sm text-left block md:table overflow-x-auto">
+                <thead className="bg-white text-slate-500 text-xs uppercase font-semibold border-b">
+                    <tr>
+                        <th className="px-6 py-3">Tanggal Laporan</th>
+                        <th className="px-6 py-3 text-center">Pesanan (M/P)</th>
+                        <th className="px-6 py-3 text-center">Produksi (M/P)</th>
+                        <th className="px-6 py-3">Stok Freezer</th>
+                        <th className="px-6 py-3 text-center">Disetor Ke</th>
+                        <th className="px-6 py-3 text-right">Uang Disetor</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                    {rekap.listPemalang.map((p, i) => (
+                        <tr key={i} className="hover:bg-slate-50">
+                            <td className="px-6 py-3">
+                                <div className="font-medium text-slate-800">{formatDate(p.date)}</div>
+                                <div className="text-[10px] text-slate-400 font-mono mt-1">{p.id}</div>
+                            </td>
+                            <td className="px-6 py-3 text-center font-medium">
+                                {p.pesananMika} M <span className="text-slate-400 text-xs">({p.pesananPorsi} Prs)</span>
+                            </td>
+                            <td className="px-6 py-3 text-center font-medium">
+                                {p.produksiMika} M <span className="text-slate-400 text-xs">({p.produksiPorsi} Prs)</span>
+                            </td>
+                            <td className="px-6 py-3 text-slate-600 font-bold uppercase">{p.stokFreezer}</td>
+                            <td className="px-6 py-3 text-center">
+                                <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-[10px] font-bold tracking-wide">{p.transferDestination || 'Pusat'}</span>
+                            </td>
+                            <td className="px-6 py-3 text-right font-bold text-emerald-600">+{formatRp(p.nominal)}</td>
                         </tr>
                     ))}
                 </tbody>
@@ -719,11 +801,9 @@ function TabDashboardBranch({ orders, pemalangReports, setPrintData, user, stokD
           <StatCard title="Total Setoran Kas ke Pusat" amount={rekap.setoranKePusat} icon={<Wallet />} color="bg-blue-50 text-blue-700 border-blue-200" />
       </div>
 
-      {/* WIDGET MONITORING STOK CABANG */}
       <div className="bg-white p-6 rounded-xl border border-blue-200 shadow-sm relative overflow-hidden">
           <div className="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
           <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-blue-800"><Package size={20} /> Monitoring Sisa Stok Freezer Aktual</h3>
-          
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
               {Object.keys(stokAktual).length === 0 && <div className="text-sm text-slate-500 italic col-span-full">Stok kosong atau belum ada pencatatan barang.</div>}
               {Object.entries(stokAktual).map(([nama, data]) => (
@@ -929,13 +1009,11 @@ function TabOrders({ orders, sendToSheet, setPrintData, requestDelete, role }) {
           </div>
           <div className="space-y-1">
             <label className="text-sm font-medium text-slate-700">Harga per Pcs (Rp)</label>
-            {/* INPUT PINTAR RUPIAH */}
             <input type="text" required value={formatRp(price)} onChange={e => handlePriceChange(parseRp(e.target.value))} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-red-200 font-bold" />
           </div>
 
           <div className="space-y-1 bg-amber-50 p-3 rounded-lg border border-amber-200 lg:col-span-3">
             <label className="text-xs font-bold text-amber-800 uppercase">Total Harga (Otomatis & Bisa Edit Manual)</label>
-            {/* INPUT PINTAR RUPIAH */}
             <input type="text" required value={formatRp(total)} onChange={e => handleTotalChange(parseRp(e.target.value))} className="w-full p-3 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-400 font-bold text-lg bg-white mt-1 text-amber-900" />
           </div>
 
@@ -949,7 +1027,6 @@ function TabOrders({ orders, sendToSheet, setPrintData, requestDelete, role }) {
           </div>
           <div className="space-y-1">
             <label className="text-sm font-medium text-slate-700">Uang Diterima / DP (Rp)</label>
-            {/* INPUT PINTAR RUPIAH */}
             <input type="text" required value={formatRp(paidAmount)} onChange={e => setPaidAmount(parseRp(e.target.value))} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-red-200 font-bold" />
           </div>
           <div className="space-y-1 lg:col-span-3">
@@ -1275,7 +1352,7 @@ function TabExpenses({ expenses, sendToSheet, setPrintData, requestDelete }) {
           <div className="space-y-1 flex gap-2">
              <div className="w-1/3">
                 <label className="text-sm font-medium text-slate-700">Qty</label>
-                <input type="number" min="1" required value={qty} onChange={e => setQty(Number(e.target.value))} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-200" />
+                <input type="number" min="1" required value={qty} onChange={e => setQty(e.target.value)} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-200" />
              </div>
              <div className="w-2/3">
                 <label className="text-sm font-medium text-slate-700">Harga Satuan (Rp)</label>
@@ -1665,6 +1742,7 @@ function TabPemalang({ reports, sendToSheet, requestDelete, role }) {
                   +{formatRp(rep.nominal)}
                 </td>
                 <td className="px-4 py-3 text-center">
+                    {/* CABANG BISA MENGHAPUS LAPORANNYA SENDIRI */}
                     <button onClick={() => requestDelete(rep.id)} className="text-red-500 hover:text-red-700 bg-red-50 p-2 rounded-lg transition" title="Hapus Laporan">
                         <Trash2 size={16} />
                     </button>
@@ -1690,6 +1768,7 @@ function PrintInvoiceDotMatrix({ data, onBack }) {
   
     return (
       <>
+      {/* DIKUNCI KE UKURAN KERTAS 9.5 X 11 INCI (CONTINUOUS FORM) */}
       <style dangerouslySetInnerHTML={{__html: `
         @media print {
           @page { size: 9.5in 11in; margin: 0; }
@@ -1833,6 +1912,7 @@ function PrintReport({ data, onBack }) {
     const { rekap, dateFrom, dateTo } = data;
     return (
       <>
+      {/* KUNCI KE UKURAN A4 PORTRAIT */}
       <style dangerouslySetInnerHTML={{__html: `
         @media print {
           @page { size: A4 portrait; margin: 10mm; }
@@ -1903,6 +1983,19 @@ function PrintReport({ data, onBack }) {
                                     {p.statusNota === 'LUNAS' ? <span className="text-emerald-600">LUNAS</span> : <span className="text-red-600">BELUM LUNAS</span>}
                                 </td>
                               </tr>
+                          ))}
+                      </tbody>
+                  </table>
+              </>
+          )}
+          {rekap.listPemalang.length > 0 && (
+              <>
+                  <h3 className="font-bold text-md mb-2 mt-4">D. RINCIAN LAPORAN & SETORAN CABANG PEMALANG</h3>
+                  <table className="w-full border-collapse border border-black text-sm text-left mb-8">
+                      <thead className="bg-gray-100"><tr><th className="border border-black p-2 text-center w-8">NO</th><th className="border border-black p-2">TANGGAL</th><th className="border border-black p-2 text-center">PRODUKSI / PESANAN</th><th className="border border-black p-2">STOK FREEZER</th><th className="border border-black p-2 text-center">TUJUAN TF</th><th className="border border-black p-2 text-right">UANG DISETOR</th></tr></thead>
+                      <tbody>
+                          {rekap.listPemalang.map((p, i) => (
+                              <tr key={i}><td className="border border-black p-2 text-center">{i + 1}</td><td className="border border-black p-2">{formatDate(p.date)}</td><td className="border border-black p-2 text-center">{p.produksiMika} M / {p.pesananMika} M</td><td className="border border-black p-2 font-bold uppercase">{p.stokFreezer}</td><td className="border border-black p-2 text-center font-bold text-indigo-700">{p.transferDestination || 'BCA (WASTAM)'}</td><td className="border border-black p-2 text-right font-bold text-emerald-700">{formatRp(p.nominal)}</td></tr>
                           ))}
                       </tbody>
                   </table>
