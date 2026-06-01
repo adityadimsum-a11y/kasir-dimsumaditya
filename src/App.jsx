@@ -438,7 +438,6 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
 
   return (
     <div className="space-y-6 animate-in fade-in">
-      {/* Header Filter */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
               <h3 className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2"><Calendar size={16}/> Filter Periode Laporan & Grafik</h3>
@@ -453,7 +452,6 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
           </button>
       </div>
 
-      {/* --- MODUL GRAFIK PENJUALAN --- */}
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
          <div className="flex justify-between items-center mb-6">
             <h3 className="font-bold text-lg flex items-center gap-2 text-slate-800"><TrendingUp size={20} className="text-red-500"/> Metrik Pergerakan Omset</h3>
@@ -472,7 +470,6 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
          </div>
       </div>
 
-      {/* Modul Saldo */}
       <div>
           <h2 className="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2"><Wallet size={20}/> Status Saldo Aktual</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -482,7 +479,6 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-              {/* Breakdown Arus Kas CASH */}
               <div className="bg-white p-6 rounded-xl border border-emerald-200 shadow-sm relative overflow-hidden">
                   <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
                   <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-emerald-800"><Coins size={20} /> Rincian Arus Kas Tunai (Cash)</h3>
@@ -510,7 +506,6 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
                   </div>
               </div>
 
-              {/* Breakdown Arus Kas TRANSFER */}
               <div className="bg-white p-6 rounded-xl border border-indigo-200 shadow-sm relative overflow-hidden">
                   <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
                   <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-indigo-800"><CreditCard size={20} /> Rincian Arus Kas Bank (Transfer)</h3>
@@ -617,12 +612,13 @@ function TabDashboardBranch({ orders, pemalangReports, setPrintData, user, stokD
   const stokAktual = useMemo(() => {
     const calc = {};
     stokData.forEach(s => {
-      if(!calc[s.itemName]) calc[s.itemName] = { masuk: 0, keluar: 0, terpakai: 0, sisa: 0 };
-      if(s.type === 'MASUK') calc[s.itemName].masuk += Number(s.qty);
-      else if(s.type === 'KELUAR') calc[s.itemName].keluar += Number(s.qty);
-      else if(s.type === 'TERPAKAI') calc[s.itemName].terpakai += Number(s.qty);
+      const nama = s.itemName.toUpperCase();
+      if(!calc[nama]) calc[nama] = { masuk: 0, keluar: 0, terpakai: 0, sisa: 0, satuan: s.satuan || 'PCS' };
+      if(s.type === 'MASUK') calc[nama].masuk += Number(s.qty);
+      else if(s.type === 'KELUAR') calc[nama].keluar += Number(s.qty);
+      else if(s.type === 'TERPAKAI') calc[nama].terpakai += Number(s.qty);
 
-      calc[s.itemName].sisa = calc[s.itemName].masuk - calc[s.itemName].keluar - calc[s.itemName].terpakai;
+      calc[nama].sisa = calc[nama].masuk - calc[nama].keluar - calc[nama].terpakai;
     });
     return calc;
   }, [stokData]);
@@ -637,6 +633,7 @@ function TabDashboardBranch({ orders, pemalangReports, setPrintData, user, stokD
         return d >= dFrom && d <= dTo;
     };
 
+    // Filter khusus cabang mereka saja
     const filteredOrders = orders.filter(o => isDateInRange(o.date) && o.category === 'Pemalang');
     const filteredReports = pemalangReports.filter(p => isDateInRange(p.date));
 
@@ -724,7 +721,7 @@ function TabDashboardBranch({ orders, pemalangReports, setPrintData, user, stokD
                   <div key={nama} className={`p-4 rounded-xl border flex flex-col justify-between ${data.sisa <= 0 ? 'bg-red-50 border-red-200' : 'bg-white border-blue-100 shadow-sm'}`}>
                       <div className="text-sm font-bold text-slate-700 mb-2 truncate" title={nama}>{nama}</div>
                       <div className={`text-2xl font-black ${data.sisa <= 0 ? 'text-red-600' : 'text-blue-600'}`}>
-                          {data.sisa} <span className="text-xs font-medium text-slate-500">Pcs</span>
+                          {data.sisa} <span className="text-xs font-medium text-slate-500">{data.satuan}</span>
                       </div>
                   </div>
               ))}
@@ -1002,26 +999,28 @@ function TabOrders({ orders, sendToSheet, setPrintData, requestDelete, role }) {
   );
 }
 
-// --- TAB STOK FREEZER CABANG DENGAN AUTO-SUGGEST & FITUR TERPAKAI ---
+// --- TAB STOK FREEZER CABANG DENGAN AUTO-SUGGEST, FITUR TERPAKAI, & SATUAN ---
 function TabStok({ stokData, sendToSheet, requestDelete }) {
   const [showForm, setShowForm] = useState(false);
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [itemName, setItemName] = useState('');
+  const [satuan, setSatuan] = useState('Kg'); // Default Satuan
   const [type, setType] = useState('MASUK');
   const [qty, setQty] = useState(0);
   const [notes, setNotes] = useState('');
 
-  // Auto-suggest unik dari data yang sudah pernah diinput sebelumnya
   const listBarangUnik = [...new Set(stokData.map(s => s.itemName.toUpperCase()))];
 
   const handleSimpan = (e) => {
     e.preventDefault();
     if(!itemName.trim()) { alert('Nama barang wajib diisi!'); return; }
+    if(!satuan.trim()) { alert('Satuan wajib diisi! (Cth: Kg, Kantong)'); return; }
     
     const newStok = {
       id: generateId('STK', date),
       date, 
       itemName: itemName.toUpperCase(), 
+      satuan: satuan.toUpperCase(),
       type, 
       qty: Number(qty), 
       notes
@@ -1035,7 +1034,7 @@ function TabStok({ stokData, sendToSheet, requestDelete }) {
     const calc = {};
     stokData.forEach(s => {
       const nama = s.itemName.toUpperCase();
-      if(!calc[nama]) calc[nama] = { masuk: 0, keluar: 0, terpakai: 0, sisa: 0 };
+      if(!calc[nama]) calc[nama] = { masuk: 0, keluar: 0, terpakai: 0, sisa: 0, satuan: s.satuan || 'PCS' };
       
       if(s.type === 'MASUK') calc[nama].masuk += Number(s.qty);
       else if(s.type === 'KELUAR') calc[nama].keluar += Number(s.qty);
@@ -1050,22 +1049,21 @@ function TabStok({ stokData, sendToSheet, requestDelete }) {
     <div className="space-y-4 animate-in fade-in">
       <div className="flex justify-between items-center">
         <div>
-           <h3 className="font-bold text-lg text-slate-800">Manajemen Stok Freezer</h3>
-           <p className="text-sm text-slate-500">Catat keluar, masuk, dan pemakaian barang untuk produksi.</p>
+           <h3 className="font-bold text-lg text-slate-800">Manajemen Stok Bahan & Freezer</h3>
+           <p className="text-sm text-slate-500">Catat keluar, masuk, dan pemakaian bahan untuk produksi.</p>
         </div>
         <button onClick={() => setShowForm(!showForm)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium transition shadow-sm">
           {showForm ? <X size={16} /> : <Plus size={16} />} {showForm ? 'Batal' : 'Catat Stok'}
         </button>
       </div>
 
-      {/* Tampilan Monitoring Stok Atas */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 mb-6">
         {Object.keys(stokAktual).length === 0 && <div className="text-sm text-slate-500 italic col-span-full">Belum ada data barang. Silakan catat stok pertama Anda.</div>}
         {Object.entries(stokAktual).map(([nama, data]) => (
             <div key={nama} className={`p-4 rounded-xl border flex flex-col justify-between ${data.sisa <= 0 ? 'bg-red-50 border-red-200' : 'bg-white border-blue-200 shadow-sm'}`}>
                 <div className="text-sm font-bold text-slate-700 mb-2 truncate" title={nama}>{nama}</div>
                 <div className={`text-2xl font-black ${data.sisa <= 0 ? 'text-red-600' : 'text-blue-600'}`}>
-                    {data.sisa} <span className="text-xs font-medium text-slate-500">Pcs</span>
+                    {data.sisa} <span className="text-xs font-medium text-slate-500">{data.satuan}</span>
                 </div>
                 <div className="text-[9px] text-slate-400 mt-2 flex justify-between uppercase font-bold">
                     <span className="text-emerald-500">In: {data.masuk}</span> 
@@ -1097,12 +1095,24 @@ function TabStok({ stokData, sendToSheet, requestDelete }) {
             </datalist>
           </div>
           <div className="space-y-1">
-            <label className="text-sm font-medium text-slate-700">Jumlah / Qty (Pcs)</label>
-            <input type="number" min="1" required value={qty} onChange={e => setQty(e.target.value)} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-200 font-bold" />
+            <label className="text-sm font-medium text-slate-700">Jumlah / Qty & Satuan</label>
+            <div className="flex gap-2">
+                <input type="number" min="1" required placeholder="Jml" value={qty} onChange={e => setQty(e.target.value)} className="w-2/3 p-2 border rounded-lg focus:ring-2 focus:ring-blue-200 font-bold" />
+                <input type="text" list="satuan-list" required placeholder="Satuan" value={satuan} onChange={e => setSatuan(e.target.value)} className="w-1/3 p-2 border rounded-lg focus:ring-2 focus:ring-blue-200 uppercase font-bold text-sm text-slate-600" />
+                <datalist id="satuan-list">
+                    <option value="Kg" />
+                    <option value="Kantong" />
+                    <option value="Pcs" />
+                    <option value="Bungkus" />
+                    <option value="Liter" />
+                    <option value="Dus" />
+                    <option value="Gram" />
+                </datalist>
+            </div>
           </div>
           <div className="space-y-1">
             <label className="text-sm font-medium text-slate-700">Keterangan Opsional</label>
-            <input type="text" placeholder="Cth: Dropping Pusat, Terjual, Rusak..." value={notes} onChange={e => setNotes(e.target.value)} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-200" />
+            <input type="text" placeholder="Cth: Dropping Pusat, Dipakai bikin Nori, Rusak..." value={notes} onChange={e => setNotes(e.target.value)} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-200" />
           </div>
           <div className="col-span-full flex justify-end mt-2">
             <button type="submit" className={`text-white px-6 py-2 rounded-lg font-medium shadow-sm transition ${type === 'MASUK' ? 'bg-emerald-600 hover:bg-emerald-700' : type === 'TERPAKAI' ? 'bg-orange-500 hover:bg-orange-600' : 'bg-red-600 hover:bg-red-700'}`}>Simpan Log Stok</button>
@@ -1117,7 +1127,7 @@ function TabStok({ stokData, sendToSheet, requestDelete }) {
               <th className="px-4 py-3 min-w-[120px]">Tanggal</th>
               <th className="px-4 py-3 min-w-[150px]">Nama Barang</th>
               <th className="px-4 py-3 text-center min-w-[100px]">Jenis Log</th>
-              <th className="px-4 py-3 text-center min-w-[100px]">Qty (Pcs)</th>
+              <th className="px-4 py-3 text-center min-w-[120px]">Qty & Satuan</th>
               <th className="px-4 py-3 min-w-[150px]">Keterangan</th>
               <th className="px-4 py-3 text-center min-w-[80px]">Aksi</th>
             </tr>
@@ -1136,7 +1146,7 @@ function TabStok({ stokData, sendToSheet, requestDelete }) {
                     </span>
                 </td>
                 <td className={`px-4 py-3 text-center font-bold ${s.type === 'MASUK' ? 'text-emerald-600' : s.type === 'TERPAKAI' ? 'text-orange-500' : 'text-red-600'}`}>
-                    {s.type === 'MASUK' ? '+' : '-'}{s.qty}
+                    {s.type === 'MASUK' ? '+' : '-'}{s.qty} <span className="text-xs uppercase font-medium">{s.satuan || 'PCS'}</span>
                 </td>
                 <td className="px-4 py-3 text-slate-600 text-xs">{s.notes || '-'}</td>
                 <td className="px-4 py-3 text-center">
@@ -1163,7 +1173,7 @@ function TabPemalang({ reports, sendToSheet, requestDelete, role }) {
   const [produksiPorsi, setProduksiPorsi] = useState(0);
   const [stokFreezer, setStokFreezer] = useState(''); 
   const [nominal, setNominal] = useState(0);
-  const [transferDestination, setTransferDestination] = useState('BCA (WASTAM)'); // Tambahan Tujuan TF
+  const [transferDestination, setTransferDestination] = useState('BCA (WASTAM)'); 
   const [notes, setNotes] = useState('');
 
   const handleSimpan = (e) => {
@@ -1413,7 +1423,7 @@ function PrintInvoiceDotMatrix({ data, onBack }) {
                       </tr>
                       <tr className="border-t border-black border-dashed">
                           <td colSpan="4" className="p-1.5 border-r border-black border-dashed font-bold text-right uppercase">Sisa Tagihan (Piutang)</td>
-                          <td className="p-1.5 text-right font-bold">{formatRp(Number(data.total) - Number(data.paidAmount))}</td>
+                          <td className="p-1.5 text-right font-bold">{formatRp(Number(data.total) - Number(data.paidAmount)))}</td>
                       </tr>
                       </>
                   )}
@@ -1549,7 +1559,6 @@ function PrintReportBranch({ data, onBack, user }) {
   );
 }
 
-// ... Sisa fungsi Print lainnya (Voucher, dll) tetap tidak berubah
 function PrintVoucher({ data, onBack }) {
     useEffect(() => {
         const timer = setTimeout(() => { window.print(); }, 500);
@@ -1583,6 +1592,7 @@ function PrintVoucher({ data, onBack }) {
       </div>
     );
 }
+
 function PrintReceipt({ data, onBack }) {
     useEffect(() => {
         const timer = setTimeout(() => { window.print(); }, 500);
@@ -1612,7 +1622,6 @@ function PrintReceipt({ data, onBack }) {
     );
 }
 
-// Laporan Detail Update 
 function PrintReport({ data, onBack }) {
     useEffect(() => {
         const timer = setTimeout(() => { window.print(); }, 500);
