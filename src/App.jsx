@@ -13,7 +13,7 @@ import {
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqSM572mbUIGozcghhh8LHNMNw2e83O7Wkyu-SkjdVTO3zpTb64PA/exec'; 
 // =====================================================================
 
-// --- OPTIMASI PERFORMA: Cache Formatter agar web 100x lebih ringan ---
+// --- OPTIMASI PERFORMA: Instansiasi Intl.NumberFormat dipindah ke luar agar 100x lebih cepat ---
 const rpFormatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
 const dateFormatter = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
 
@@ -24,25 +24,28 @@ const formatRp = (angka) => {
 };
 
 const parseRp = (str) => {
+  if (typeof str === 'number') return str;
   const num = Number(String(str).replace(/[^0-9]/g, ''));
   return isNaN(num) ? 0 : num;
 };
 
 const getLocalYMD = (dateVal) => {
     if(!dateVal) return '';
-    if (typeof dateVal === 'string' && dateVal.length >= 10) return dateVal.substring(0, 10);
+    const str = String(dateVal);
+    // Jalur cepat agar tidak membebani memori saat filter ribuan data
+    if(str.length >= 10 && str[4] === '-') return str.substring(0, 10);
     const d = new Date(dateVal);
-    if(isNaN(d.getTime())) return '';
+    if(isNaN(d.getTime())) return str.split('T')[0];
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
 };
 
-const formatDate = (dateVal) => {
-  if(!dateVal) return '-';
-  const d = new Date(dateVal);
-  if(isNaN(d.getTime())) return String(dateVal).split('T')[0]; 
+const formatDate = (date) => {
+  if(!date) return '-';
+  const d = new Date(date);
+  if(isNaN(d.getTime())) return String(date).split('T')[0]; 
   return dateFormatter.format(d);
 };
 
@@ -54,12 +57,16 @@ const generateId = (prefix, date) => {
   return `${prefix}-DMA-${mmyy}-${seq}`;
 };
 
-const safeSort = (a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime();
+const safeSort = (a, b) => {
+    const da = new Date(a.date || 0).getTime();
+    const db = new Date(b.date || 0).getTime();
+    if(isNaN(da) || isNaN(db)) return -1;
+    return db - da;
+};
 
 const terbilang = (angka) => {
   const num = Math.floor(Number(angka));
-  if (isNaN(num) || num < 0) return 'Nol';
-  if (num === 0) return 'Nol';
+  if (isNaN(num) || num <= 0) return 'Nol';
   
   const t = (n) => {
     if (n < 12) return ['', 'Satu', 'Dua', 'Tiga', 'Empat', 'Lima', 'Enam', 'Tujuh', 'Delapan', 'Sembilan', 'Sepuluh', 'Sebelas'][n];
@@ -133,7 +140,6 @@ export default function App() {
     setOrders([]); setExpenses([]); setPiutangPayments([]); setPemalangReports([]); setStokData([]);
   };
 
-  // --- FUNGSI DATABASE SPREADSHEET ---
   const fetchData = async () => {
     if (!SCRIPT_URL || SCRIPT_URL === 'TARUH_LINK_GOOGLE_SCRIPT_DISINI') return;
     setIsLoading(true);
@@ -158,7 +164,7 @@ export default function App() {
 
   const sendToSheet = async (action, data, table) => {
     if (!SCRIPT_URL || SCRIPT_URL === 'TARUH_LINK_GOOGLE_SCRIPT_DISINI') {
-        alert("SIMULASI: Data disimpan di layar sementara. Harap masukkan link Script Google yang benar.");
+        alert("SIMULASI: Data disimpan di layar sementara. Harap masukkan link Script Google yang benar di App.jsx.");
         return;
     }
     
@@ -297,7 +303,6 @@ export default function App() {
               <NavItem icon={<Clock size={20} />} label="Piutang / Pending" active={activeTab === 'piutang'} onClick={() => setActiveTab('piutang')} badge={daftarPiutangGlobal.length} />
               <div className="pt-4 mt-2 border-t border-slate-800">
                 <NavItem icon={<Package size={20} />} label="Stok Freezer (Pemalang)" active={activeTab === 'stok'} onClick={() => setActiveTab('stok')} />
-                <NavItem icon={<Store size={20} />} label="Laporan Pemalang" active={activeTab === 'pemalang'} onClick={() => setActiveTab('pemalang')} />
               </div>
             </>
           )}
@@ -356,7 +361,7 @@ export default function App() {
 }
 
 
-// --- TAB DASHBOARD ADMIN PUSAT (LOGIKA CUMULATIVE LANJUTAN) ---
+// --- TAB DASHBOARD ADMIN PUSAT ---
 function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setPrintData }) {
   const todayStr = new Date().toISOString().split('T')[0];
   const [dateFrom, setDateFrom] = useState(todayStr);
@@ -364,19 +369,17 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
   const [chartView, setChartView] = useState('daily'); 
 
   const rekap = useMemo(() => {
-    // Akumulasi s/d Tanggal Akhir Filter (Untuk Saldo ATM & Cash Berjalan)
     const isCumulative = (dateStr) => {
         const ymd = getLocalYMD(dateStr);
         return ymd && ymd <= dateTo;
     };
-    // Untuk Omset & Laporan Periode Ini
     const isPeriod = (dateStr) => {
         const ymd = getLocalYMD(dateStr);
         return ymd && ymd >= dateFrom && ymd <= dateTo;
     };
 
     // 1. HITUNG SALDO AKUMULASI (ATM CONTINUE & CASH)
-    // Filter eksklusif: Pesanan Cabang Pemalang TIDAK dihitung
+    // Filter eksklusif: Pesanan Cabang Pemalang TIDAK dihitung di omset/porsi Pusat
     const cumOrdersPusat = orders.filter(o => isCumulative(o.date) && o.category !== 'Pemalang');
     const cumExpenses = expenses.filter(e => isCumulative(e.date));
     const cumPaymentsPusat = piutangPayments.filter(p => {
@@ -578,40 +581,7 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
         </div>
       </div>
 
-      {/* Rincian Transaksi Pusat */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mt-6">
-        <div className="p-4 border-b border-slate-200 bg-slate-50">
-            <h3 className="font-bold text-slate-800">Detail Transaksi & Omset Penjualan (Pusat Tangerang)</h3>
-        </div>
-        <table className="w-full text-sm text-left block md:table overflow-x-auto">
-            <thead className="bg-white text-slate-500 text-xs uppercase font-semibold border-b">
-                <tr>
-                    <th className="px-6 py-3">No. Invoice</th>
-                    <th className="px-6 py-3">Nama Pelanggan</th>
-                    <th className="px-6 py-3">Metode Bayar</th>
-                    <th className="px-6 py-3 text-center">Jumlah Pcs (Porsi)</th>
-                    <th className="px-6 py-3 text-right">Total Omset</th>
-                </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-                {rekap.listTransaksiDetail.map((c, i) => (
-                    <tr key={i} className="hover:bg-slate-50">
-                        <td className="px-6 py-3 font-mono text-xs text-slate-500">{c.id}</td>
-                        <td className="px-6 py-3 font-bold text-slate-800 uppercase">
-                            {c.customer} <span className="text-red-600 text-[10px] font-medium ml-1 bg-red-50 px-2 py-0.5 rounded">{c.category}</span>
-                        </td>
-                        <td className="px-6 py-3 font-medium text-slate-600">{c.paymentMethod}</td>
-                        <td className="px-6 py-3 text-center font-medium">{c.qty} Pcs <span className="text-slate-400 text-xs">({c.qty/4} Porsi)</span></td>
-                        <td className="px-6 py-3 text-right font-bold text-emerald-600">{formatRp(c.total)}</td>
-                    </tr>
-                ))}
-                {rekap.listTransaksiDetail.length === 0 && (
-                    <tr><td colSpan="5" className="text-center py-8 text-slate-400">Tidak ada transaksi di rentang tanggal ini</td></tr>
-                )}
-            </tbody>
-        </table>
-      </div>
-
+      {/* RINCIAN UANG MASUK DARI PIUTANG (UI ADMIN) */}
       {rekap.listPembayaranPiutang.length > 0 && (
           <div className="bg-white rounded-xl border border-orange-200 shadow-sm overflow-hidden mt-6">
             <div className="p-4 border-b border-orange-200 bg-orange-50 flex items-center gap-2">
@@ -647,12 +617,12 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
           </div>
       )}
 
-      {/* Rincian Laporan Pemalang di Dashboard Pusat */}
+      {/* UI ADMIN: RINCIAN LAPORAN & SETORAN PEMALANG EKSKLUSIF */}
       {rekap.listPemalang.length > 0 && (
           <div className="bg-white rounded-xl border border-amber-200 shadow-sm overflow-hidden mt-6">
             <div className="p-4 border-b border-amber-200 bg-amber-50 flex items-center gap-2">
                 <Store className="text-amber-600" size={18}/>
-                <h3 className="font-bold text-amber-800">Rincian Laporan & Setoran (Cabang Pemalang)</h3>
+                <h3 className="font-bold text-amber-800">Rincian Laporan & Setoran Cabang Pemalang</h3>
             </div>
             <table className="w-full text-sm text-left block md:table overflow-x-auto">
                 <thead className="bg-white text-slate-500 text-xs uppercase font-semibold border-b">
@@ -660,35 +630,27 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
                         <th className="px-6 py-3">Tanggal Laporan</th>
                         <th className="px-6 py-3 text-center">Pesanan (M/P)</th>
                         <th className="px-6 py-3 text-center">Produksi (M/P)</th>
-                        <th className="px-6 py-3">Stok Freezer</th>
-                        <th className="px-6 py-3 text-center">Disetor Ke</th>
-                        <th className="px-6 py-3 text-right">Uang Disetor</th>
+                        <th className="px-6 py-3">Sisa Stok Freezer</th>
+                        <th className="px-6 py-3 text-center">Tujuan TF</th>
+                        <th className="px-6 py-3 text-right">Uang Disetor (TF)</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                     {rekap.listPemalang.map((p, i) => (
                         <tr key={i} className="hover:bg-slate-50">
-                            <td className="px-6 py-3">
-                                <div className="font-medium text-slate-800">{formatDate(p.date)}</div>
-                                <div className="text-[10px] text-slate-400 font-mono mt-1">{p.id}</div>
-                            </td>
-                            <td className="px-6 py-3 text-center font-medium">
-                                {p.pesananMika} M <span className="text-slate-400 text-xs">({p.pesananPorsi} Prs)</span>
-                            </td>
-                            <td className="px-6 py-3 text-center font-medium">
-                                {p.produksiMika} M <span className="text-slate-400 text-xs">({p.produksiPorsi} Prs)</span>
-                            </td>
-                            <td className="px-6 py-3 text-slate-600 font-bold uppercase">{p.stokFreezer}</td>
-                            <td className="px-6 py-3 text-center">
-                                <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-[10px] font-bold tracking-wide">{p.transferDestination || 'Pusat'}</span>
-                            </td>
-                            <td className="px-6 py-3 text-right font-bold text-emerald-600">+{formatRp(p.nominal)}</td>
+                            <td className="px-6 py-3 font-medium">{formatDate(p.date)}</td>
+                            <td className="px-6 py-3 text-center font-medium">{p.pesananMika} M <span className="text-slate-400 text-xs">({p.pesananPorsi} Prs)</span></td>
+                            <td className="px-6 py-3 text-center font-medium">{p.produksiMika} M <span className="text-slate-400 text-xs">({p.produksiPorsi} Prs)</span></td>
+                            <td className="px-6 py-3 font-bold uppercase">{p.stokFreezer}</td>
+                            <td className="px-6 py-3 text-center font-bold text-indigo-700">{p.transferDestination || 'BCA (WASTAM)'}</td>
+                            <td className="px-6 py-3 text-right font-bold text-emerald-700">{formatRp(p.nominal)}</td>
                         </tr>
                     ))}
                 </tbody>
             </table>
           </div>
       )}
+
     </div>
   );
 }
@@ -703,7 +665,7 @@ function TabDashboardBranch({ orders, pemalangReports, setPrintData, user, stokD
   const stokAktual = useMemo(() => {
     const calc = {};
     stokData.forEach(s => {
-      const nama = s.itemName.toUpperCase();
+      const nama = String(s.itemName||'').toUpperCase();
       if(!calc[nama]) calc[nama] = { masuk: 0, keluar: 0, terpakai: 0, sisa: 0, satuan: s.satuan || 'PCS' };
       if(s.type === 'MASUK') calc[nama].masuk += Number(s.qty) || 0;
       else if(s.type === 'KELUAR') calc[nama].keluar += Number(s.qty) || 0;
@@ -1087,7 +1049,6 @@ function TabOrders({ orders, sendToSheet, setPrintData, requestDelete, role }) {
                     <button onClick={() => setPrintData({ type: 'invoice', data: ord })} className="text-slate-600 hover:text-slate-900 bg-slate-100 p-2 rounded-lg transition border border-slate-200 shadow-sm" title="Cetak Epson LX-310">
                       <Printer size={16} />
                     </button>
-                    {/* CABANG BISA MENGHAPUS INVOICENYA SENDIRI */}
                     <button onClick={() => requestDelete(ord.id)} className="text-red-500 hover:text-red-700 bg-red-50 p-2 rounded-lg transition" title="Hapus Data">
                       <Trash2 size={16} />
                     </button>
@@ -1105,7 +1066,8 @@ function TabOrders({ orders, sendToSheet, setPrintData, requestDelete, role }) {
 
 function TabStok({ stokData, sendToSheet, requestDelete }) {
   const [showForm, setShowForm] = useState(false);
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const todayStr = new Date().toISOString().split('T')[0];
+  const [date, setDate] = useState(todayStr);
   const [itemName, setItemName] = useState('');
   const [satuan, setSatuan] = useState('Kg'); 
   const [type, setType] = useState('MASUK');
@@ -1357,7 +1319,7 @@ function TabExpenses({ expenses, sendToSheet, setPrintData, requestDelete }) {
              <div className="w-2/3">
                 <label className="text-sm font-medium text-slate-700">Harga Satuan (Rp)</label>
                 {/* INPUT PINTAR RUPIAH */}
-                <input type="text" required value={formatRp(price)} onChange={e => setPrice(parseRp(e.target.value))} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-200" />
+                <input type="text" required value={formatRp(price)} onChange={e => setPrice(parseRp(e.target.value))} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-200 font-bold" />
              </div>
           </div>
           <div className="space-y-1">
@@ -1742,7 +1704,6 @@ function TabPemalang({ reports, sendToSheet, requestDelete, role }) {
                   +{formatRp(rep.nominal)}
                 </td>
                 <td className="px-4 py-3 text-center">
-                    {/* CABANG BISA MENGHAPUS LAPORANNYA SENDIRI */}
                     <button onClick={() => requestDelete(rep.id)} className="text-red-500 hover:text-red-700 bg-red-50 p-2 rounded-lg transition" title="Hapus Laporan">
                         <Trash2 size={16} />
                     </button>
@@ -1768,7 +1729,6 @@ function PrintInvoiceDotMatrix({ data, onBack }) {
   
     return (
       <>
-      {/* DIKUNCI KE UKURAN KERTAS 9.5 X 11 INCI (CONTINUOUS FORM) */}
       <style dangerouslySetInnerHTML={{__html: `
         @media print {
           @page { size: 9.5in 11in; margin: 0; }
@@ -1912,7 +1872,6 @@ function PrintReport({ data, onBack }) {
     const { rekap, dateFrom, dateTo } = data;
     return (
       <>
-      {/* KUNCI KE UKURAN A4 PORTRAIT */}
       <style dangerouslySetInnerHTML={{__html: `
         @media print {
           @page { size: A4 portrait; margin: 10mm; }
@@ -2020,6 +1979,7 @@ function PrintReportBranch({ data, onBack, user }) {
   const { rekap, dateFrom, dateTo } = data;
   return (
     <>
+    {/* KUNCI KE UKURAN A4 PORTRAIT */}
     <style dangerouslySetInnerHTML={{__html: `
       @media print {
         @page { size: A4 portrait; margin: 10mm; }
@@ -2082,7 +2042,7 @@ function PrintVoucher({ data, onBack }) {
     }, []);
     return (
       <>
-      <style dangerouslySetInnerHTML={{__html: `@media print { @page { size: A4 portrait; margin: 10mm; } body { margin: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } .hide-on-print { display: none !important; } * { box-shadow: none !important; border-radius: 0 !important; } table { border-collapse: collapse; } td, th { border: 1px solid black; padding: 6px !important;} }`}} />
+      <style dangerouslySetInnerHTML={{__html: `@media print { @page { size: A4 portrait; margin: 10mm; } body { margin: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; font-size: 11px; } .hide-on-print { display: none !important; } * { box-shadow: none !important; border-radius: 0 !important; } table { border-collapse: collapse; } td, th { border: 1px solid black; padding: 6px !important;} }`}} />
       <div className="bg-white min-h-screen text-black print:bg-white print:p-0 p-8 w-full max-w-[800px] mx-auto">
         <button onClick={onBack} className="print:hidden mb-4 bg-slate-800 text-white px-4 py-2 rounded flex items-center gap-2"><ArrowRightLeft size={16} /> Kembali</button>
         <div className="p-8 border border-slate-200 print:border-none print:p-0 text-sm font-sans" style={{ fontFamily: 'Arial, sans-serif' }}>
@@ -2119,7 +2079,7 @@ function PrintReceipt({ data, onBack }) {
     const { payment, order } = data;
     return (
       <>
-      <style dangerouslySetInnerHTML={{__html: `@media print { @page { size: A4 portrait; margin: 10mm; } body { margin: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } .hide-on-print { display: none !important; } }`}} />
+      <style dangerouslySetInnerHTML={{__html: `@media print { @page { size: A4 portrait; margin: 10mm; } body { margin: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; font-size: 11px;} .hide-on-print { display: none !important; } }`}} />
       <div className="bg-white min-h-screen text-black print:bg-white print:p-0 p-8 w-full max-w-[800px] mx-auto">
         <button onClick={onBack} className="print:hidden mb-4 bg-slate-800 text-white px-4 py-2 rounded flex items-center gap-2"><ArrowRightLeft size={16} /> Kembali</button>
         <div className="p-8 border border-slate-200 print:border-none print:p-0 text-sm font-sans" style={{ fontFamily: 'Arial, sans-serif' }}>
