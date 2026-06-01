@@ -10,7 +10,7 @@ import {
 // =====================================================================
 // === GANTI URL DI BAWAH INI DENGAN URL WEB APP GOOGLE SCRIPT ANDA ===
 // =====================================================================
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycb.../exec'; 
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqSM572mbUIGozcghhh8LHNMNw2e83O7Wkyu-SkjdVTO3zpTb64PA/exec'; 
 // =====================================================================
 
 // --- UTILITIES ---
