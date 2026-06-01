@@ -3,7 +3,8 @@ import {
   LayoutDashboard, ShoppingCart, Wallet, CreditCard, 
   Plus, Printer, Search, ChevronDown, CheckCircle, 
   Clock, X, FileText, ArrowRightLeft, Trash2, Calendar,
-  Store, Coins, Loader2, LogOut, TrendingUp, Users, Package
+  Store, Coins, Loader2, LogOut, TrendingUp, Users, Package,
+  ArrowDownToLine, ArrowUpFromLine
 } from 'lucide-react';
 
 // =====================================================================
@@ -70,6 +71,7 @@ export default function App() {
   const [expenses, setExpenses] = useState([]);
   const [piutangPayments, setPiutangPayments] = useState([]);
   const [pemalangReports, setPemalangReports] = useState([]);
+  const [stokData, setStokData] = useState([]); // TAMBAHAN STOK
 
   // --- FUNGSI LOGIN ---
   const handleLogin = (e) => {
@@ -83,7 +85,7 @@ export default function App() {
     } 
     else if (username === 'pemalang' && password === 'pemalang123') {
       setUser({ role: 'branch', name: 'Cabang Pemalang', branchId: 'Pemalang' });
-      setActiveTab('orders'); 
+      setActiveTab('dashboard'); // Sekarang cabang dilempar ke dashboard
       setLoginError('');
       fetchData();
     } 
@@ -95,7 +97,7 @@ export default function App() {
   const handleLogout = () => {
     setUser(null);
     setLoginForm({ username: '', password: '' });
-    setOrders([]); setExpenses([]); setPiutangPayments([]); setPemalangReports([]);
+    setOrders([]); setExpenses([]); setPiutangPayments([]); setPemalangReports([]); setStokData([]);
   };
 
   // --- FUNGSI DATABASE SPREADSHEET ---
@@ -111,6 +113,7 @@ export default function App() {
         setExpenses(data.filter(item => item.table === 'expenses' && !item.isDeleted).sort((a,b) => new Date(b.date) - new Date(a.date)));
         setPiutangPayments(data.filter(item => item.table === 'payments' && !item.isDeleted).sort((a,b) => new Date(b.date) - new Date(a.date)));
         setPemalangReports(data.filter(item => item.table === 'pemalang' && !item.isDeleted).sort((a,b) => new Date(b.date) - new Date(a.date)));
+        setStokData(data.filter(item => item.table === 'stok' && !item.isDeleted).sort((a,b) => new Date(b.date) - new Date(a.date)));
       }
     } catch (error) {
       console.error("Gagal mengambil data:", error);
@@ -131,6 +134,7 @@ export default function App() {
         if (table === 'expenses') setExpenses([data, ...expenses]);
         if (table === 'payments') setPiutangPayments([data, ...piutangPayments]);
         if (table === 'pemalang') setPemalangReports([data, ...pemalangReports]);
+        if (table === 'stok') setStokData([data, ...stokData]);
     }
 
     try {
@@ -162,6 +166,9 @@ export default function App() {
     } else if (type === 'pemalang') {
         colName = 'pemalang';
         setPemalangReports(pemalangReports.filter(p => p.id !== id));
+    } else if (type === 'stok') {
+        colName = 'stok';
+        setStokData(stokData.filter(s => s.id !== id));
     }
 
     await sendToSheet('delete', { id }, colName);
@@ -220,6 +227,7 @@ export default function App() {
   if (printData?.type === 'voucher') return <PrintVoucher data={printData.data} onBack={() => setPrintData(null)} />;
   if (printData?.type === 'receipt') return <PrintReceipt data={printData.data} onBack={() => setPrintData(null)} />;
   if (printData?.type === 'report') return <PrintReport data={printData.data} onBack={() => setPrintData(null)} />;
+  if (printData?.type === 'reportBranch') return <PrintReportBranch data={printData.data} onBack={() => setPrintData(null)} user={user} />;
 
   return (
     <div className="min-h-screen bg-slate-50 flex font-sans text-slate-800">
@@ -263,7 +271,9 @@ export default function App() {
           {user.role === 'branch' && (
             <>
               <div className="text-xs font-bold text-slate-500 uppercase mb-2 px-3 tracking-wider">Akses Cabang</div>
+              <NavItem icon={<LayoutDashboard size={20} />} label="Dashboard Cabang" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
               <NavItem icon={<ShoppingCart size={20} />} label="Buat Invoice" active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} />
+              <NavItem icon={<Package size={20} />} label="Manajemen Stok" active={activeTab === 'stok'} onClick={() => setActiveTab('stok')} />
               <NavItem icon={<Store size={20} />} label="Laporan Harian" active={activeTab === 'pemalang'} onClick={() => setActiveTab('pemalang')} />
             </>
           )}
@@ -279,9 +289,14 @@ export default function App() {
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
         <header className="bg-white border-b border-slate-200 p-4 flex justify-between items-center z-10 shadow-sm">
           <h2 className="text-xl font-bold text-slate-800 capitalize">
-            {activeTab === 'dashboard' ? 'Dashboard Utama' : activeTab === 'piutang' ? 'Sistem Piutang' : activeTab === 'pemalang' ? `Area Laporan ${user.role === 'branch' ? user.name : 'Pemalang'}` : `Manajemen ${activeTab}`}
+            {activeTab === 'dashboard' && user.role === 'admin' ? 'Dashboard Utama' : 
+             activeTab === 'dashboard' && user.role === 'branch' ? 'Dashboard Cabang' : 
+             activeTab === 'piutang' ? 'Sistem Piutang' : 
+             activeTab === 'pemalang' ? `Area Laporan ${user.role === 'branch' ? user.name : 'Pemalang'}` : 
+             activeTab === 'stok' ? 'Manajemen Stok Freezer' : 
+             `Manajemen ${activeTab}`}
           </h2>
-          <div className="text-sm font-medium text-slate-500 bg-slate-100 px-4 py-2 rounded-full border border-slate-200 flex items-center gap-2">
+          <div className="text-sm font-medium text-slate-500 bg-slate-100 px-4 py-2 rounded-full border border-slate-200 flex items-center gap-2 hide-on-mobile">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             {new Intl.DateTimeFormat('id-ID', { dateStyle: 'full' }).format(new Date())}
           </div>
@@ -289,10 +304,17 @@ export default function App() {
 
         <div className="flex-1 overflow-auto p-6 bg-slate-50 relative">
           {activeTab === 'dashboard' && user.role === 'admin' && <TabDashboard orders={orders} expenses={expenses} piutangPayments={piutangPayments} pemalangReports={pemalangReports} setPrintData={setPrintData} />}
+          {activeTab === 'dashboard' && user.role === 'branch' && <TabDashboardBranch orders={orders} pemalangReports={pemalangReports} setPrintData={setPrintData} user={user} />}
+          
           {activeTab === 'orders' && <TabOrders orders={orders} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'order', id})} role={user.role} />}
+          
           {activeTab === 'expenses' && user.role === 'admin' && <TabExpenses expenses={expenses} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'expense', id})} />}
+          
           {activeTab === 'piutang' && user.role === 'admin' && <TabPiutang orders={orders} payments={piutangPayments} sendToSheet={sendToSheet} requestDelete={(id) => setConfirmDialog({type: 'payment', id})} setPrintData={setPrintData} />}
+          
           {activeTab === 'pemalang' && <TabPemalang reports={pemalangReports} sendToSheet={sendToSheet} requestDelete={(id) => setConfirmDialog({type: 'pemalang', id})} role={user.role} />}
+          
+          {activeTab === 'stok' && <TabStok stokData={stokData} sendToSheet={sendToSheet} requestDelete={(id) => setConfirmDialog({type: 'stok', id})} />}
         </div>
       </main>
     </div>
@@ -300,7 +322,7 @@ export default function App() {
 }
 
 
-// --- TAB DASHBOARD (KEMBALI FULL DETAIL) ---
+// --- TAB DASHBOARD ADMIN PUSAT ---
 function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setPrintData }) {
   const today = new Date();
   const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -310,7 +332,6 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
   const [chartView, setChartView] = useState('daily'); 
 
   const rekap = useMemo(() => {
-    // FIX BUG ZONA WAKTU SPREADSHEET: Gunakan konversi ke Date object untuk filtering
     const dFrom = new Date(dateFrom); dFrom.setHours(0, 0, 0, 0);
     const dTo = new Date(dateTo); dTo.setHours(23, 59, 59, 999);
 
@@ -417,7 +438,6 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
 
   return (
     <div className="space-y-6 animate-in fade-in">
-      
       {/* Header Filter */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
@@ -429,12 +449,12 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
               </div>
           </div>
           <button onClick={() => setPrintData({ type: 'report', data: { rekap, dateFrom, dateTo } })} className="bg-slate-800 hover:bg-slate-900 text-white px-5 py-2.5 rounded-lg flex items-center gap-2 text-sm font-medium transition shadow-sm w-full md:w-auto justify-center">
-              <Printer size={16} /> Cetak Rekap Laporan
+              <Printer size={16} /> Cetak Rekap Pusat
           </button>
       </div>
 
       {/* --- MODUL GRAFIK PENJUALAN --- */}
-      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
          <div className="flex justify-between items-center mb-6">
             <h3 className="font-bold text-lg flex items-center gap-2 text-slate-800"><TrendingUp size={20} className="text-red-500"/> Metrik Pergerakan Omset</h3>
             <div className="flex bg-slate-100 p-1 rounded-lg">
@@ -443,8 +463,7 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
                <button onClick={()=>setChartView('yearly')} className={`px-3 py-1 text-xs font-bold rounded ${chartView==='yearly'?'bg-white shadow text-red-600':'text-slate-500'}`}>Tahunan</button>
             </div>
          </div>
-         
-         <div className="w-full h-56 mt-4 relative">
+         <div className="w-full h-56 mt-4 relative min-w-[500px]">
              {rekap.finalChartData.length === 0 ? (
                 <div className="w-full h-full flex items-center justify-center text-slate-400 border border-dashed rounded-xl">Belum ada data di periode ini.</div>
              ) : (
@@ -469,15 +488,15 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
                   <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-emerald-800"><Coins size={20} /> Rincian Arus Kas Tunai (Cash)</h3>
                   <div className="space-y-3 text-sm">
                       <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-                          <span className="text-slate-600">Terima Penjualan Langsung (Cash)</span>
+                          <span className="text-slate-600">Terima Penjualan Langsung</span>
                           <span className="font-bold text-emerald-600">+{formatRp(rekap.penjualanCash)}</span>
                       </div>
                       <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-                          <span className="text-slate-600">Terima Pelunasan Piutang (Cash)</span>
+                          <span className="text-slate-600">Terima Pelunasan Piutang</span>
                           <span className="font-bold text-emerald-600">+{formatRp(rekap.piutangCash)}</span>
                       </div>
                       <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-                          <span className="text-slate-600">Modal / Kas Masuk Lainnya (Cash)</span>
+                          <span className="text-slate-600">Modal / Kas Masuk Lainnya</span>
                           <span className="font-bold text-emerald-600">+{formatRp(rekap.kasMasukCash)}</span>
                       </div>
                       <div className="flex justify-between items-center pb-2 border-b border-slate-100 text-red-600">
@@ -485,7 +504,7 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
                           <span className="font-bold">-{formatRp(rekap.kasKeluarCash)}</span>
                       </div>
                       <div className="flex justify-between items-center pt-2 text-emerald-800">
-                          <span className="font-bold">TOTAL SALDO CASH BERSIH</span>
+                          <span className="font-bold">TOTAL SALDO CASH</span>
                           <span className="font-bold text-lg">{formatRp(rekap.saldoCash)}</span>
                       </div>
                   </div>
@@ -497,15 +516,15 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
                   <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-indigo-800"><CreditCard size={20} /> Rincian Arus Kas Bank (Transfer)</h3>
                   <div className="space-y-3 text-sm">
                       <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-                          <span className="text-slate-600">Terima Penjualan Langsung (TF)</span>
+                          <span className="text-slate-600">Terima Penjualan Langsung</span>
                           <span className="font-bold text-indigo-600">+{formatRp(rekap.penjualanTF)}</span>
                       </div>
                       <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-                          <span className="text-slate-600">Terima Pelunasan Piutang (TF)</span>
+                          <span className="text-slate-600">Terima Pelunasan Piutang</span>
                           <span className="font-bold text-indigo-600">+{formatRp(rekap.piutangTF)}</span>
                       </div>
                       <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-                          <span className="text-slate-600">Modal / Kas Masuk Lainnya (TF)</span>
+                          <span className="text-slate-600">Modal / Kas Masuk Lainnya</span>
                           <span className="font-bold text-indigo-600">+{formatRp(rekap.kasMasukTF)}</span>
                       </div>
                       <div className="flex justify-between items-center pb-2 border-b border-slate-100">
@@ -517,7 +536,7 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
                           <span className="font-bold">-{formatRp(rekap.kasKeluarTF)}</span>
                       </div>
                       <div className="flex justify-between items-center pt-2 text-indigo-800">
-                          <span className="font-bold">TOTAL SALDO TRANSFER BERSIH</span>
+                          <span className="font-bold">TOTAL SALDO TRANSFER</span>
                           <span className="font-bold text-lg">{formatRp(rekap.saldoTF)}</span>
                       </div>
                   </div>
@@ -526,7 +545,6 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Leaderboard Pelanggan Teratas */}
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col max-h-96">
             <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Users size={20} className="text-slate-500"/> Top Pelanggan (Periode Terpilih)</h3>
             <div className="overflow-y-auto pr-2 flex-1 space-y-3">
@@ -549,7 +567,7 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
         </div>
 
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col max-h-96">
-            <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><ShoppingCart size={20} className="text-slate-500"/> Ringkasan Penjualan Porsi & Info</h3>
+            <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><ShoppingCart size={20} className="text-slate-500"/> Ringkasan Penjualan Porsi</h3>
             <div className="mb-4">
                 <span className="text-4xl font-bold text-red-600">{rekap.totalPorsi}</span>
                 <span className="text-slate-500 ml-2 font-medium">Porsi Terjual</span>
@@ -582,104 +600,143 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
             </div>
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Rincian Sumber Omset */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mt-6">
-        <div className="p-4 border-b border-slate-200 bg-slate-50">
-            <h3 className="font-bold text-slate-800">Detail Transaksi & Omset Penjualan (Pusat Tangerang)</h3>
-        </div>
-        <table className="w-full text-sm text-left block md:table overflow-x-auto">
-            <thead className="bg-white text-slate-500 text-xs uppercase font-semibold border-b">
-                <tr>
-                    <th className="px-6 py-3">No. Invoice</th>
-                    <th className="px-6 py-3">Nama Pelanggan</th>
-                    <th className="px-6 py-3">Metode Bayar</th>
-                    <th className="px-6 py-3 text-center">Jumlah Pcs (Porsi)</th>
-                    <th className="px-6 py-3 text-right">Total Omset</th>
-                </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-                {rekap.listTransaksiDetail.map((c, i) => (
-                    <tr key={i} className="hover:bg-slate-50">
-                        <td className="px-6 py-3 font-mono text-xs text-slate-500">{c.id}</td>
-                        <td className="px-6 py-3 font-bold text-slate-800 uppercase">
-                            {c.customer} <span className="text-red-600 text-[10px] font-medium ml-1 bg-red-50 px-2 py-0.5 rounded">{c.category}</span>
-                        </td>
-                        <td className="px-6 py-3 font-medium text-slate-600">{c.paymentMethod}</td>
-                        <td className="px-6 py-3 text-center font-medium">{c.qty} Pcs <span className="text-slate-400 text-xs">({c.qty/4} Porsi)</span></td>
-                        <td className="px-6 py-3 text-right font-bold text-emerald-600">{formatRp(c.total)}</td>
-                    </tr>
-                ))}
-                {rekap.listTransaksiDetail.length === 0 && (
-                    <tr><td colSpan="5" className="text-center py-8 text-slate-400">Tidak ada transaksi di rentang tanggal ini</td></tr>
-                )}
-            </tbody>
-        </table>
+// --- TAB DASHBOARD CABANG (KHUSUS PEMALANG) ---
+function TabDashboardBranch({ orders, pemalangReports, setPrintData, user }) {
+  const today = new Date();
+  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+  
+  const [dateFrom, setDateFrom] = useState(firstDay.toISOString().split('T')[0]);
+  const [dateTo, setDateTo] = useState(today.toISOString().split('T')[0]);
+  const [chartView, setChartView] = useState('daily'); 
+
+  const rekap = useMemo(() => {
+    const dFrom = new Date(dateFrom); dFrom.setHours(0, 0, 0, 0);
+    const dTo = new Date(dateTo); dTo.setHours(23, 59, 59, 999);
+
+    const isDateInRange = (dateStr) => {
+        if(!dateStr) return false;
+        const d = new Date(dateStr);
+        return d >= dFrom && d <= dTo;
+    };
+
+    // Filter khusus cabang mereka saja
+    const filteredOrders = orders.filter(o => isDateInRange(o.date) && o.category === 'Pemalang');
+    const filteredReports = pemalangReports.filter(p => isDateInRange(p.date));
+
+    let totalPenjualanKotor = 0;
+    let setoranKePusat = 0;
+    let totalPorsi = 0;
+    let totalPcs = 0;
+
+    const customerMap = {}; 
+    const chartDataMap = {}; 
+
+    filteredOrders.forEach(order => {
+      const qtyNum = Number(order.qty);
+      const totalNum = Number(order.total);
+
+      totalPcs += qtyNum;
+      totalPorsi += (qtyNum / 4); 
+      totalPenjualanKotor += totalNum;
+      
+      const custName = String(order.customer).toUpperCase();
+      if(!customerMap[custName]) customerMap[custName] = { name: custName, qty: 0, porsi: 0, total: 0, frequency: 0 };
+      customerMap[custName].qty += qtyNum;
+      customerMap[custName].porsi += (qtyNum / 4);
+      customerMap[custName].total += totalNum;
+      customerMap[custName].frequency += 1;
+
+      let chartKey = '';
+      const orderDate = new Date(order.date);
+      if(chartView === 'daily') chartKey = orderDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }); 
+      else if (chartView === 'monthly') chartKey = orderDate.toLocaleDateString('id-ID', { month: 'short', year: 'numeric' }); 
+      else chartKey = String(orderDate.getFullYear()); 
+
+      chartDataMap[chartKey] = (chartDataMap[chartKey] || 0) + totalNum;
+    });
+
+    filteredReports.forEach(p => {
+        setoranKePusat += Number(p.nominal); 
+    });
+
+    const finalChartData = Object.keys(chartDataMap).map(key => ({ label: key, value: chartDataMap[key] }));
+    const topCustomersList = Object.values(customerMap).sort((a,b) => b.total - a.total);
+
+    return {
+      totalPenjualanKotor, setoranKePusat, totalPorsi, totalPcs,
+      topCustomersList, finalChartData, listOrders: filteredOrders, listReports: filteredReports
+    };
+  }, [orders, pemalangReports, dateFrom, dateTo, chartView]);
+
+  return (
+    <div className="space-y-6 animate-in fade-in">
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+              <h3 className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2"><Calendar size={16}/> Filter Periode Laporan & Grafik</h3>
+              <div className="flex flex-wrap items-center gap-2">
+                  <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="p-2 text-sm border rounded-lg focus:ring-2 focus:ring-slate-300" />
+                  <span className="text-slate-400">s/d</span>
+                  <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="p-2 text-sm border rounded-lg focus:ring-2 focus:ring-slate-300" />
+              </div>
+          </div>
+          <button onClick={() => setPrintData({ type: 'reportBranch', data: { rekap, dateFrom, dateTo } })} className="bg-amber-600 hover:bg-amber-700 text-white px-5 py-2.5 rounded-lg flex items-center gap-2 text-sm font-medium transition shadow-sm w-full md:w-auto justify-center">
+              <Printer size={16} /> Cetak Laporan Cabang
+          </button>
       </div>
 
-      {/* Rincian Uang Masuk dari Piutang */}
-      {rekap.listPembayaranPiutang.length > 0 && (
-          <div className="bg-white rounded-xl border border-orange-200 shadow-sm overflow-hidden mt-6">
-            <div className="p-4 border-b border-orange-200 bg-orange-50 flex items-center gap-2">
-                <Clock className="text-orange-600" size={18}/>
-                <h3 className="font-bold text-orange-800">Rincian Uang Masuk dari Pelunasan/Cicilan Piutang</h3>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <StatCard title="Total Omset Cabang" amount={rekap.totalPenjualanKotor} icon={<ShoppingCart />} color="bg-orange-50 text-orange-700 border-orange-200" />
+          <div className="p-5 rounded-xl border flex flex-col justify-between bg-white border-slate-200">
+            <div className="flex justify-between items-start mb-4">
+              <h3 className="font-medium text-sm opacity-90 text-slate-600">Total Porsi Terjual</h3>
+              <div className="p-2 bg-slate-50 rounded-lg text-slate-400"><Package size={20}/></div>
             </div>
-            <table className="w-full text-sm text-left block md:table overflow-x-auto">
-                <thead className="bg-white text-slate-500 text-xs uppercase font-semibold border-b">
-                    <tr>
-                        <th className="px-6 py-3">Tanggal Bayar</th>
-                        <th className="px-6 py-3">ID Pembayaran</th>
-                        <th className="px-6 py-3">Referensi Invoice</th>
-                        <th className="px-6 py-3">Via</th>
-                        <th className="px-6 py-3 text-right">Nominal Masuk</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                    {rekap.listPembayaranPiutang.map((p, i) => (
-                        <tr key={i} className="hover:bg-slate-50">
-                            <td className="px-6 py-3 font-medium">{formatDate(p.date)}</td>
-                            <td className="px-6 py-3 font-mono text-xs text-slate-500">{p.id}</td>
-                            <td className="px-6 py-3 font-mono text-xs font-bold text-slate-700">{p.orderId}</td>
-                            <td className="px-6 py-3 text-xs font-medium text-slate-500">{p.paymentMethod}</td>
-                            <td className="px-6 py-3 text-right font-bold text-orange-600">{formatRp(p.amount)}</td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
+            <div className="text-2xl font-bold tracking-tight text-slate-800">{rekap.totalPorsi} <span className="text-sm font-normal text-slate-500">Porsi ({rekap.totalPcs} Pcs)</span></div>
           </div>
-      )}
+          <StatCard title="Total Setoran Kas ke Pusat" amount={rekap.setoranKePusat} icon={<Wallet />} color="bg-blue-50 text-blue-700 border-blue-200" />
+      </div>
 
-      {/* Rincian Setoran Pemalang */}
-      {rekap.listPemalang.length > 0 && (
-          <div className="bg-white rounded-xl border border-amber-200 shadow-sm overflow-hidden mt-6">
-            <div className="p-4 border-b border-amber-200 bg-amber-50 flex items-center gap-2">
-                <Store className="text-amber-600" size={18}/>
-                <h3 className="font-bold text-amber-800">Rincian Laporan & Setoran (Cabang Pemalang)</h3>
+      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
+         <div className="flex justify-between items-center mb-6">
+            <h3 className="font-bold text-lg flex items-center gap-2 text-slate-800"><TrendingUp size={20} className="text-red-500"/> Grafik Penjualan Cabang</h3>
+            <div className="flex bg-slate-100 p-1 rounded-lg">
+               <button onClick={()=>setChartView('daily')} className={`px-3 py-1 text-xs font-bold rounded ${chartView==='daily'?'bg-white shadow text-red-600':'text-slate-500'}`}>Harian</button>
+               <button onClick={()=>setChartView('monthly')} className={`px-3 py-1 text-xs font-bold rounded ${chartView==='monthly'?'bg-white shadow text-red-600':'text-slate-500'}`}>Bulanan</button>
             </div>
-            <table className="w-full text-sm text-left block md:table overflow-x-auto">
-                <thead className="bg-white text-slate-500 text-xs uppercase font-semibold border-b">
-                    <tr>
-                        <th className="px-6 py-3">Tanggal</th>
-                        <th className="px-6 py-3 text-center">Total Pesanan</th>
-                        <th className="px-6 py-3 text-center">Total Produksi</th>
-                        <th className="px-6 py-3">Keterangan</th>
-                        <th className="px-6 py-3 text-right">Uang Disetor (TF)</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                    {rekap.listPemalang.map((p, i) => (
-                        <tr key={i} className="hover:bg-slate-50">
-                            <td className="px-6 py-3 font-medium">{formatDate(p.date)}</td>
-                            <td className="px-6 py-3 text-center font-medium">{p.pesananMika} Mika <span className="text-slate-400 text-xs">({p.pesananPorsi} Prs)</span></td>
-                            <td className="px-6 py-3 text-center font-medium">{p.produksiMika} Mika <span className="text-slate-400 text-xs">({p.produksiPorsi} Prs)</span></td>
-                            <td className="px-6 py-3 text-slate-600 uppercase">{p.stokFreezer}</td>
-                            <td className="px-6 py-3 text-right font-bold text-amber-600">{formatRp(p.nominal)}</td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
+         </div>
+         <div className="w-full h-56 mt-4 relative min-w-[500px]">
+             {rekap.finalChartData.length === 0 ? (
+                <div className="w-full h-full flex items-center justify-center text-slate-400 border border-dashed rounded-xl">Belum ada data di periode ini.</div>
+             ) : (
+                <SimpleSVGLineChart data={rekap.finalChartData} />
+             )}
+         </div>
+      </div>
+
+      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col max-h-96">
+          <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Users size={20} className="text-slate-500"/> Top Pelanggan (Cabang Pemalang)</h3>
+          <div className="overflow-y-auto pr-2 flex-1 space-y-3">
+              {rekap.topCustomersList.map((cust, i) => (
+                <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100 hover:border-amber-200 transition">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shadow-sm ${i === 0 ? 'bg-amber-400 text-white' : i === 1 ? 'bg-slate-300 text-slate-700' : i === 2 ? 'bg-orange-300 text-white' : 'bg-white text-slate-400'}`}>
+                          #{i+1}
+                      </div>
+                      <div>
+                          <div className="font-bold text-slate-800">{cust.name}</div>
+                          <div className="text-xs text-slate-500">{cust.frequency}x Order • {cust.qty} Pcs ({cust.porsi} Prs)</div>
+                      </div>
+                    </div>
+                    <div className="font-bold text-amber-600">{formatRp(cust.total)}</div>
+                </div>
+              ))}
+              {rekap.topCustomersList.length === 0 && <div className="text-center text-slate-400 text-sm mt-8">Tidak ada data penjualan.</div>}
           </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -687,8 +744,6 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
 function SimpleSVGLineChart({ data }) {
     if(!data || data.length === 0) return null;
     const maxVal = Math.max(...data.map(d => d.value), 100); 
-    const minVal = 0;
-    
     const width = 800; const height = 200;
     const paddingX = 40; const paddingY = 20;
     const chartW = width - (paddingX * 2);
@@ -708,18 +763,14 @@ function SimpleSVGLineChart({ data }) {
                 const y = height - paddingY - (r * chartH);
                 return <line key={r} x1={paddingX} y1={y} x2={width-paddingX} y2={y} stroke="#e2e8f0" strokeDasharray="4" />
             })}
-            
             <polyline points={polylinePoints} fill="none" stroke="#ef4444" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-            
             {data.map((d, i) => {
                 const [cx, cy] = getPoint(d.value, i).split(',');
                 return (
                     <g key={i}>
                         <circle cx={cx} cy={cy} r="5" fill="#ef4444" className="hover:r-7 transition-all cursor-pointer" />
                         {data.length <= 10 && (
-                            <text x={cx} y={Number(cy) - 10} textAnchor="middle" fill="#64748b" className="text-[10px] font-bold">
-                                {formatRp(d.value).replace('Rp', '')}
-                            </text>
+                            <text x={cx} y={Number(cy) - 10} textAnchor="middle" fill="#64748b" className="text-[10px] font-bold">{formatRp(d.value).replace('Rp', '')}</text>
                         )}
                         <text x={cx} y={height} textAnchor="middle" fill="#94a3b8">{d.label}</text>
                     </g>
@@ -731,7 +782,6 @@ function SimpleSVGLineChart({ data }) {
 
 function TabOrders({ orders, sendToSheet, setPrintData, requestDelete, role }) {
   const [showForm, setShowForm] = useState(false);
-  
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [customer, setCustomer] = useState('');
   const [category, setCategory] = useState(role === 'branch' ? 'Pemalang' : 'Reseller');
@@ -747,7 +797,6 @@ function TabOrders({ orders, sendToSheet, setPrintData, requestDelete, role }) {
     setCategory(newCat);
     const newPrice = KATEGORI_HARGA[newCat] || 0;
     setPrice(newPrice);
-    
     const newTotal = qty * newPrice;
     setTotal(newTotal);
     if(paymentMethod !== 'Pending / DP') setPaidAmount(newTotal);
@@ -778,11 +827,8 @@ function TabOrders({ orders, sendToSheet, setPrintData, requestDelete, role }) {
   const handlePaymentMethodChange = (e) => {
     const method = e.target.value;
     setPaymentMethod(method);
-    if (method !== 'Pending / DP') {
-      setPaidAmount(total); 
-    } else {
-      setPaidAmount(0); 
-    }
+    if (method !== 'Pending / DP') setPaidAmount(total); 
+    else setPaidAmount(0); 
   };
 
   const handleSimpan = (e) => {
@@ -925,9 +971,145 @@ function TabOrders({ orders, sendToSheet, setPrintData, requestDelete, role }) {
   );
 }
 
+// --- TAB STOK FREEZER CABANG ---
+function TabStok({ stokData, sendToSheet, requestDelete }) {
+  const [showForm, setShowForm] = useState(false);
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [itemName, setItemName] = useState('Dimsum Mix');
+  const [type, setType] = useState('MASUK');
+  const [qty, setQty] = useState(0);
+  const [notes, setNotes] = useState('');
+
+  const listBarang = ['Dimsum Mix', 'Dimsum Nori', 'Dimsum Udang', 'Dimsum Puyuh', 'Lainnya'];
+
+  const handleSimpan = (e) => {
+    e.preventDefault();
+    const newStok = {
+      id: generateId('STK', date),
+      date, itemName, type, qty: Number(qty), notes
+    };
+    sendToSheet('insert', newStok, 'stok');
+    setShowForm(false);
+    setQty(0); setNotes('');
+  };
+
+  // Kalkulasi Stok Aktual per Barang
+  const stokAktual = useMemo(() => {
+    const calc = {};
+    stokData.forEach(s => {
+      if(!calc[s.itemName]) calc[s.itemName] = { masuk: 0, keluar: 0, sisa: 0 };
+      if(s.type === 'MASUK') calc[s.itemName].masuk += Number(s.qty);
+      else calc[s.itemName].keluar += Number(s.qty);
+      calc[s.itemName].sisa = calc[s.itemName].masuk - calc[s.itemName].keluar;
+    });
+    return calc;
+  }, [stokData]);
+
+  return (
+    <div className="space-y-4 animate-in fade-in">
+      <div className="flex justify-between items-center">
+        <div>
+           <h3 className="font-bold text-lg text-slate-800">Manajemen Stok Freezer</h3>
+           <p className="text-sm text-slate-500">Catat keluar/masuk barang untuk mengetahui sisa aktual di freezer.</p>
+        </div>
+        <button onClick={() => setShowForm(!showForm)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium transition shadow-sm">
+          {showForm ? <X size={16} /> : <Plus size={16} />} {showForm ? 'Batal' : 'Catat Stok'}
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 mb-6">
+        {Object.keys(stokAktual).length === 0 && <div className="text-sm text-slate-500 italic col-span-full">Belum ada data barang. Silakan catat stok pertama Anda.</div>}
+        {Object.entries(stokAktual).map(([nama, data]) => (
+            <div key={nama} className={`p-4 rounded-xl border flex flex-col justify-between ${data.sisa <= 0 ? 'bg-red-50 border-red-200' : 'bg-white border-blue-200 shadow-sm'}`}>
+                <div className="text-sm font-bold text-slate-700 mb-2 truncate">{nama}</div>
+                <div className={`text-2xl font-black ${data.sisa <= 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                    {data.sisa} <span className="text-xs font-medium text-slate-500">Pcs</span>
+                </div>
+                <div className="text-[10px] text-slate-400 mt-2 flex justify-between">
+                    <span>In: {data.masuk}</span> <span>Out: {data.keluar}</span>
+                </div>
+            </div>
+        ))}
+      </div>
+
+      {showForm && (
+        <form onSubmit={handleSimpan} className="bg-white p-6 rounded-xl border border-blue-200 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-4 animate-in slide-in-from-top-4">
+          <div className="col-span-full mb-2">
+             <div className="flex bg-slate-100 p-1 rounded-lg w-full max-w-sm">
+                <button type="button" onClick={() => setType('MASUK')} className={`flex-1 py-2 text-sm font-bold rounded-md transition ${type === 'MASUK' ? 'bg-white shadow text-emerald-600' : 'text-slate-500'}`}><ArrowDownToLine size={16} className="inline mr-1"/> Stok Masuk</button>
+                <button type="button" onClick={() => setType('KELUAR')} className={`flex-1 py-2 text-sm font-bold rounded-md transition ${type === 'KELUAR' ? 'bg-white shadow text-red-600' : 'text-slate-500'}`}><ArrowUpFromLine size={16} className="inline mr-1"/> Stok Keluar</button>
+             </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-slate-700">Tanggal</label>
+            <input type="date" required value={date} onChange={e => setDate(e.target.value)} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-200" />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-slate-700">Nama Barang</label>
+            <select value={itemName} onChange={e => setItemName(e.target.value)} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-200 uppercase font-medium text-slate-700">
+                {listBarang.map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-slate-700">Jumlah / Qty (Pcs)</label>
+            <input type="number" min="1" required value={qty} onChange={e => setQty(e.target.value)} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-200 font-bold" />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-slate-700">Keterangan Opsional</label>
+            <input type="text" placeholder="Cth: Dropping Pusat, Terjual, Rusak..." value={notes} onChange={e => setNotes(e.target.value)} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-200" />
+          </div>
+          <div className="col-span-full flex justify-end mt-2">
+            <button type="submit" className={`text-white px-6 py-2 rounded-lg font-medium shadow-sm transition ${type === 'MASUK' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'}`}>Simpan Log Stok</button>
+          </div>
+        </form>
+      )}
+
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mt-4">
+        <table className="w-full text-sm text-left block md:table overflow-x-auto">
+          <thead className="bg-blue-50 text-blue-800 text-xs uppercase font-semibold border-b border-blue-100">
+            <tr>
+              <th className="px-4 py-3 min-w-[120px]">Tanggal</th>
+              <th className="px-4 py-3 min-w-[150px]">Nama Barang</th>
+              <th className="px-4 py-3 text-center min-w-[100px]">Jenis Log</th>
+              <th className="px-4 py-3 text-center min-w-[100px]">Qty (Pcs)</th>
+              <th className="px-4 py-3 min-w-[150px]">Keterangan</th>
+              <th className="px-4 py-3 text-center min-w-[80px]">Aksi</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {stokData.map((s) => (
+              <tr key={s.id} className="hover:bg-slate-50">
+                <td className="px-4 py-3">
+                  <div className="font-medium text-slate-800">{formatDate(s.date)}</div>
+                  <div className="text-[10px] text-slate-400 font-mono mt-1">{s.id}</div>
+                </td>
+                <td className="px-4 py-3 font-bold text-slate-800 uppercase">{s.itemName}</td>
+                <td className="px-4 py-3 text-center">
+                    <span className={`px-2 py-1 rounded text-[10px] font-bold tracking-wide ${s.type === 'MASUK' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                        {s.type}
+                    </span>
+                </td>
+                <td className={`px-4 py-3 text-center font-bold ${s.type === 'MASUK' ? 'text-emerald-600' : 'text-red-600'}`}>
+                    {s.type === 'MASUK' ? '+' : '-'}{s.qty}
+                </td>
+                <td className="px-4 py-3 text-slate-600 text-xs">{s.notes || '-'}</td>
+                <td className="px-4 py-3 text-center">
+                    <button onClick={() => requestDelete(s.id)} className="text-red-500 hover:text-red-700 bg-red-50 p-2 rounded-lg transition" title="Hapus Log">
+                        <Trash2 size={16} />
+                    </button>
+                </td>
+              </tr>
+            ))}
+            {stokData.length === 0 && <tr><td colSpan="6" className="text-center py-12 text-slate-400">Belum ada riwayat stok.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function TabPemalang({ reports, sendToSheet, requestDelete, role }) {
   const [showForm, setShowForm] = useState(false);
-  
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [pesananMika, setPesananMika] = useState(0);
   const [pesananPorsi, setPesananPorsi] = useState(0);
@@ -941,11 +1123,9 @@ function TabPemalang({ reports, sendToSheet, requestDelete, role }) {
     e.preventDefault();
     const newReport = {
       id: generateId('PML', date),
-      date, 
-      pesananMika: Number(pesananMika), pesananPorsi: Number(pesananPorsi),
+      date, pesananMika: Number(pesananMika), pesananPorsi: Number(pesananPorsi),
       produksiMika: Number(produksiMika), produksiPorsi: Number(produksiPorsi),
-      stokFreezer, 
-      nominal: Number(nominal), notes
+      stokFreezer, nominal: Number(nominal), notes
     };
     sendToSheet('insert', newReport, 'pemalang');
     setShowForm(false);
@@ -956,8 +1136,8 @@ function TabPemalang({ reports, sendToSheet, requestDelete, role }) {
     <div className="space-y-4 animate-in fade-in">
       <div className="flex justify-between items-center">
         <div>
-           <h3 className="font-bold text-lg text-slate-800">Laporan Operasional (Cabang Pemalang)</h3>
-           <p className="text-sm text-slate-500">Pencatatan produksi harian, stok freezer, dan setor kas (Transfer).</p>
+           <h3 className="font-bold text-lg text-slate-800">Laporan Operasional Harian</h3>
+           <p className="text-sm text-slate-500">Pencatatan produksi harian, status freezer tutup toko, dan setor kas (TF).</p>
         </div>
         <button onClick={() => setShowForm(!showForm)} className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium transition shadow-sm">
           {showForm ? <X size={16} /> : <Plus size={16} />} {showForm ? 'Batal' : 'Buat Laporan Baru'}
@@ -992,8 +1172,8 @@ function TabPemalang({ reports, sendToSheet, requestDelete, role }) {
           </div>
 
           <div className="space-y-1 lg:col-span-4 bg-blue-50 p-4 rounded-lg border border-blue-200 mt-2">
-            <label className="text-sm font-bold text-blue-800 flex items-center gap-2"><Package size={16}/> Sisa Stok Freezer Aktual</label>
-            <input type="text" required placeholder="Cth: KOSONG / HABIS, atau 5 Mika, dsb..." value={stokFreezer} onChange={e => setStokFreezer(e.target.value)} className="w-full p-3 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-400 font-bold bg-white mt-1 uppercase" />
+            <label className="text-sm font-bold text-blue-800 flex items-center gap-2"><Package size={16}/> Sisa Stok Freezer Aktual Saat Tutup</label>
+            <input type="text" required placeholder="Cth: KOSONG / HABIS, atau Sisa 5 Mika Nori..." value={stokFreezer} onChange={e => setStokFreezer(e.target.value)} className="w-full p-3 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-400 font-bold bg-white mt-1 uppercase" />
           </div>
 
           <div className="space-y-1 lg:col-span-2 mt-2">
@@ -1065,312 +1245,6 @@ function TabPemalang({ reports, sendToSheet, requestDelete, role }) {
   );
 }
 
-function TabExpenses({ expenses, sendToSheet, setPrintData, requestDelete }) {
-  const [showForm, setShowForm] = useState(false);
-  const [type, setType] = useState('IN'); 
-  
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [recipient, setRecipient] = useState('');
-  const [category, setCategory] = useState(KATEGORI_PENGELUARAN[0]);
-  const [description, setDescription] = useState('');
-  const [qty, setQty] = useState(1);
-  const [price, setPrice] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState('Cash');
-
-  const total = qty * price;
-
-  const handleSimpan = (e) => {
-    e.preventDefault();
-    const prefix = type === 'IN' ? 'IN' : 'OUT';
-    const newExpense = {
-      id: generateId(prefix, date),
-      date, recipient, category: type === 'IN' ? 'Modal Awal / Tambahan Saldo' : category, description, qty, price, total, type, paymentMethod
-    };
-    sendToSheet('insert', newExpense, 'expenses');
-    setShowForm(false);
-    setRecipient(''); setDescription(''); setPrice(0); setQty(1);
-  };
-
-  return (
-    <div className="space-y-4 animate-in fade-in">
-      <div className="flex justify-between items-center">
-        <h3 className="font-bold text-lg">Buku Kas Umum</h3>
-        <button onClick={() => setShowForm(!showForm)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium transition">
-          {showForm ? <X size={16} /> : <Plus size={16} />} {showForm ? 'Batal' : 'Input Transaksi / Saldo Awal'}
-        </button>
-      </div>
-
-      {showForm && (
-        <form onSubmit={handleSimpan} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-4 animate-in slide-in-from-top-4">
-          <div className="col-span-full mb-2">
-             <div className="flex bg-slate-100 p-1 rounded-lg w-full max-w-sm">
-                <button type="button" onClick={() => setType('IN')} className={`flex-1 py-2 text-sm font-bold rounded-md transition ${type === 'IN' ? 'bg-white shadow text-emerald-600' : 'text-slate-500'}`}>Kas Masuk (Modal Awal)</button>
-                <button type="button" onClick={() => setType('OUT')} className={`flex-1 py-2 text-sm font-bold rounded-md transition ${type === 'OUT' ? 'bg-white shadow text-red-600' : 'text-slate-500'}`}>Kas Keluar (Beban)</button>
-             </div>
-          </div>
-          
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-slate-700">Sumber Saldo (Metode)</label>
-            <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-200 bg-slate-50 font-bold">
-              <option value="Cash">Tunai (Cash)</option>
-              <option value="Transfer">Bank (Transfer)</option>
-            </select>
-          </div>
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-slate-700">Tanggal</label>
-            <input type="date" required value={date} onChange={e => setDate(e.target.value)} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-200" />
-          </div>
-          
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-slate-700">Penerima / Dari (Kepada)</label>
-            <input type="text" required placeholder="Cth: TIA, Supplier, Pusat..." value={recipient} onChange={e => setRecipient(e.target.value)} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-200 uppercase" />
-          </div>
-          {type === 'OUT' ? (
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Kategori</label>
-              <select value={category} onChange={e => setCategory(e.target.value)} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-200">
-                {KATEGORI_PENGELUARAN.map(k => <option key={k} value={k}>{k}</option>)}
-              </select>
-            </div>
-          ) : (
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-slate-700">Kategori Kas Masuk</label>
-              <input type="text" disabled value="Modal Awal / Tambahan Saldo" className="w-full p-2 border rounded-lg bg-slate-100 text-slate-500" />
-            </div>
-          )}
-          <div className="space-y-1 col-span-full">
-            <label className="text-sm font-medium text-slate-700">Keterangan / Rincian Lengkap</label>
-            <input type="text" required placeholder="Cth: Saldo awal bulan, Servis Motor, Beli Daging..." value={description} onChange={e => setDescription(e.target.value)} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-200" />
-          </div>
-          <div className="space-y-1 flex gap-2">
-             <div className="w-1/3">
-                <label className="text-sm font-medium text-slate-700">Qty</label>
-                <input type="number" min="1" required value={qty} onChange={e => setQty(Number(e.target.value))} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-200" />
-             </div>
-             <div className="w-2/3">
-                <label className="text-sm font-medium text-slate-700">Harga Satuan (Rp)</label>
-                <input type="number" required value={price} onChange={e => setPrice(Number(e.target.value))} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-200" />
-             </div>
-          </div>
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-slate-700">Total {type === 'IN' ? 'Masuk' : 'Keluar'}</label>
-            <div className={`w-full p-2 bg-slate-100 border rounded-lg font-bold ${type==='IN'?'text-emerald-700':'text-red-700'}`}>{formatRp(total)}</div>
-          </div>
-          
-          <div className="col-span-full flex justify-end mt-2">
-            <button type="submit" className={`${type === 'IN' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'} text-white px-6 py-2 rounded-lg font-medium shadow-sm transition`}>
-              Simpan Transaksi Kas
-            </button>
-          </div>
-        </form>
-      )}
-
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <table className="w-full text-sm text-left block md:table overflow-x-auto">
-          <thead className="bg-slate-50 text-slate-600 text-xs uppercase font-semibold border-b">
-            <tr>
-              <th className="px-4 py-3 min-w-[120px]">Tgl & ID</th>
-              <th className="px-4 py-3 min-w-[200px]">Keterangan</th>
-              <th className="px-4 py-3 text-center min-w-[100px]">Via</th>
-              <th className="px-4 py-3 text-right min-w-[120px]">Nominal</th>
-              <th className="px-4 py-3 text-center min-w-[100px]">Aksi</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {expenses.map((exp) => (
-              <tr key={exp.id} className="hover:bg-slate-50">
-                <td className="px-4 py-3">
-                  <div className="font-medium">{formatDate(exp.date)}</div>
-                  <div className="text-[10px] text-slate-400 font-mono mt-0.5">{exp.id}</div>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="font-bold flex items-center gap-2">
-                    {exp.type === 'IN' ? <ArrowRightLeft size={14} className="text-emerald-500"/> : <ArrowRightLeft size={14} className="text-red-500"/>}
-                    {exp.category}
-                  </div>
-                  <div className="text-xs text-slate-600 mt-1">{exp.description} (Kpd: <span className="uppercase font-bold">{exp.recipient}</span>)</div>
-                </td>
-                <td className="px-4 py-3 text-center font-medium text-slate-500">{exp.paymentMethod}</td>
-                <td className={`px-4 py-3 text-right font-bold ${exp.type === 'IN' ? 'text-emerald-600' : 'text-red-600'}`}>
-                  {exp.type === 'IN' ? '+' : '-'}{formatRp(exp.total)}
-                </td>
-                <td className="px-4 py-3 text-center">
-                    <div className="flex justify-center gap-2">
-                        {exp.type === 'OUT' && (
-                            <button onClick={() => setPrintData({ type: 'voucher', data: exp })} className="text-slate-600 hover:text-slate-900 bg-slate-100 p-2 rounded-lg transition" title="Cetak Voucher">
-                            <Printer size={16} />
-                            </button>
-                        )}
-                        <button onClick={() => requestDelete(exp.id)} className="text-red-500 hover:text-red-700 bg-red-50 p-2 rounded-lg transition" title="Hapus Data">
-                            <Trash2 size={16} />
-                        </button>
-                    </div>
-                </td>
-              </tr>
-            ))}
-            {expenses.length === 0 && <tr><td colSpan="5" className="text-center py-12 text-slate-400">Database Kosong. Belum ada kas masuk/keluar.</td></tr>}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-function TabPiutang({ orders, payments, sendToSheet, requestDelete, setPrintData }) {
-  const [selectedOrder, setSelectedOrder] = useState(null);
-  const [bayarAmount, setBayarAmount] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState('Transfer');
-
-  const daftarPiutang = useMemo(() => {
-    return orders.map(order => {
-      const orderPayments = payments.filter(p => p.orderId === order.id);
-      const cicilan = orderPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-      const sisa = Number(order.total) - Number(order.paidAmount) - cicilan;
-      return { ...order, cicilanTerbayar: cicilan, sisaHutang: sisa, orderPayments };
-    }).filter(order => order.sisaHutang > 0 || order.orderPayments.length > 0); 
-  }, [orders, payments]);
-
-  const handleBayar = (e) => {
-    e.preventDefault();
-    if(bayarAmount <= 0 || bayarAmount > selectedOrder.sisaHutang) return; 
-    const tgl = new Date();
-    const newPayment = {
-        id: generateId('PAY', tgl.toISOString().split('T')[0]),
-        orderId: selectedOrder.id,
-        date: tgl.toISOString().split('T')[0],
-        amount: Number(bayarAmount),
-        paymentMethod 
-    };
-    sendToSheet('insert', newPayment, 'payments');
-    setBayarAmount(0); 
-  };
-
-  const activeOrder = selectedOrder ? daftarPiutang.find(o => o.id === selectedOrder.id) : null;
-
-  return (
-    <div className="space-y-4 animate-in fade-in">
-        
-        {activeOrder && (
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 animate-in zoom-in-95 max-h-[90vh] overflow-auto">
-                    <div className="flex justify-between items-start mb-4">
-                        <h3 className="font-bold text-lg">Kelola Piutang & Cicilan</h3>
-                        <button onClick={() => setSelectedOrder(null)} className="text-slate-400 hover:text-slate-700 bg-slate-100 p-1.5 rounded-full"><X size={20}/></button>
-                    </div>
-                    
-                    <div className="bg-slate-50 p-4 rounded-xl mb-6 border border-slate-200">
-                        <div className="flex justify-between mb-2 pb-2 border-b border-slate-200">
-                            <span className="text-slate-500 text-sm">No. Invoice Ref</span>
-                            <span className="font-mono text-sm font-bold text-slate-800">{activeOrder.id}</span>
-                        </div>
-                        <div className="flex justify-between mb-2 pb-2 border-b border-slate-200">
-                            <span className="text-slate-500 text-sm">Pelanggan</span>
-                            <span className="font-bold text-sm uppercase">{activeOrder.customer}</span>
-                        </div>
-                        <div className="flex justify-between pt-2">
-                            <span className="font-bold text-red-600">SISA HUTANG AKTUAL</span>
-                            <span className="font-bold text-red-700 text-lg">{formatRp(activeOrder.sisaHutang)}</span>
-                        </div>
-                    </div>
-
-                    {activeOrder.sisaHutang > 0 && (
-                        <form onSubmit={handleBayar} className="space-y-4 mb-8 bg-orange-50 p-4 rounded-xl border border-orange-200 shadow-inner">
-                            <h4 className="font-bold text-sm text-orange-800 flex items-center gap-2"><CreditCard size={16}/> Input Pembayaran Baru</h4>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="text-xs font-bold text-orange-700">Metode Bayar Masuk</label>
-                                    <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} className="w-full p-2 border border-orange-200 rounded-lg focus:ring-2 focus:ring-orange-400 mt-1 text-sm bg-white font-medium">
-                                        <option value="Transfer">Transfer Bank</option>
-                                        <option value="Cash">Tunai (Cash)</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="text-xs font-bold text-orange-700">Nominal (Maks {formatRp(activeOrder.sisaHutang)})</label>
-                                    <input type="number" max={activeOrder.sisaHutang} min="1" required value={bayarAmount} onChange={e => setBayarAmount(Number(e.target.value))} className="w-full p-2 border border-orange-200 rounded-lg focus:ring-2 focus:ring-orange-400 mt-1 text-sm font-bold" />
-                                </div>
-                            </div>
-                            <div className="flex justify-end mt-2">
-                                <button type="submit" className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-bold shadow-sm text-sm">Simpan Pelunasan</button>
-                            </div>
-                        </form>
-                    )}
-
-                    <div>
-                        <h4 className="font-bold text-sm text-slate-700 mb-3 border-b pb-1">Riwayat Pembayaran Cicilan Sebelumnya</h4>
-                        {activeOrder.orderPayments.length === 0 ? (
-                            <p className="text-sm text-slate-400 italic">Belum ada riwayat cicilan.</p>
-                        ) : (
-                            <div className="space-y-2">
-                                {activeOrder.orderPayments.map(pay => (
-                                    <div key={pay.id} className="flex justify-between items-center bg-white border border-slate-200 p-3 rounded-lg shadow-sm">
-                                        <div>
-                                            <div className="text-[10px] font-mono text-slate-400">{pay.id}</div>
-                                            <div className="text-sm font-medium">{formatDate(pay.date)}</div>
-                                        </div>
-                                        <div className="text-xs font-bold text-slate-500 px-2 bg-slate-100 rounded py-0.5">{pay.paymentMethod}</div>
-                                        <div className="font-bold text-emerald-600 flex-1 text-right mr-4">{formatRp(pay.amount)}</div>
-                                        <div className="flex gap-2">
-                                            <button onClick={() => setPrintData({ type: 'receipt', data: { payment: pay, order: activeOrder }})} className="p-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded" title="Cetak Bukti">
-                                                <Printer size={16} />
-                                            </button>
-                                            <button onClick={() => requestDelete(pay.id)} className="p-1.5 bg-red-50 text-red-500 hover:bg-red-100 rounded" title="Hapus">
-                                                <Trash2 size={16} />
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </div>
-        )}
-
-      <div className="flex justify-between items-center">
-        <h3 className="font-bold text-lg">Daftar Nota Piutang Berjalan</h3>
-      </div>
-      
-      {daftarPiutang.filter(o => o.sisaHutang > 0).length === 0 ? (
-          <div className="text-center p-12 bg-white rounded-xl border border-dashed border-slate-300 text-slate-500">
-              <CheckCircle size={48} className="mx-auto text-emerald-400 mb-3" />
-              <p>Hore! Semua nota telah lunas. Tidak ada piutang saat ini.</p>
-          </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {daftarPiutang.filter(o => o.sisaHutang > 0).map((order) => (
-                <div key={order.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden group hover:border-orange-300 transition-colors">
-                    <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg shadow">BELUM LUNAS</div>
-                    <div className="text-sm text-slate-500 mb-1">{formatDate(order.date)}</div>
-                    <div className="font-bold text-lg mb-1 uppercase">{order.customer}</div>
-                    <div className="text-[10px] font-mono text-slate-400 mb-4">{order.id}</div>
-                    
-                    <div className="space-y-2 text-sm mb-4">
-                        <div className="flex justify-between border-b border-slate-100 pb-1">
-                            <span className="text-slate-500">Total Invoice</span>
-                            <span className="font-medium">{formatRp(order.total)}</span>
-                        </div>
-                        <div className="flex justify-between border-b border-slate-100 pb-1">
-                            <span className="text-slate-500">Telah Dicicil</span>
-                            <span className="font-bold text-emerald-600">{formatRp(Number(order.paidAmount) + order.cicilanTerbayar)}</span>
-                        </div>
-                        <div className="flex justify-between pt-1">
-                            <span className="font-bold text-red-600">Sisa Hutang</span>
-                            <span className="font-bold text-red-700 text-base">{formatRp(order.sisaHutang)}</span>
-                        </div>
-                    </div>
-                    
-                    <button onClick={() => {setSelectedOrder(order); setBayarAmount(order.sisaHutang)}} className="w-full bg-orange-100 text-orange-800 hover:bg-orange-500 hover:text-white transition py-2.5 rounded-lg font-bold text-sm shadow-sm">
-                        Kelola Cicilan / Pelunasan
-                    </button>
-                </div>
-            ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-
 // ==========================================================
 // --- LAYOUT CETAK KHUSUS PRINTER DOT MATRIX EPSON LX-310 ---
 // ==========================================================
@@ -1384,26 +1258,17 @@ function PrintInvoiceDotMatrix({ data, onBack }) {
       <>
       <style dangerouslySetInnerHTML={{__html: `
         @media print {
-          @page {
-            size: 9.5in 11in; 
-            margin: 0; 
-          }
-          body {
-            margin: 0.5in; 
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
+          @page { size: 9.5in 11in; margin: 0; }
+          body { margin: 0.5in; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
           .hide-on-print { display: none !important; }
         }
       `}} />
       <div className="bg-white min-h-screen text-black print:bg-white print:p-0 p-8 w-full max-w-[800px] mx-auto font-mono text-sm" style={{ fontFamily: '"Courier New", Courier, monospace' }}>
-        
         <button onClick={onBack} className="hide-on-print mb-8 bg-slate-800 hover:bg-slate-900 text-white px-5 py-2.5 rounded flex items-center gap-2 font-sans font-medium">
           <ArrowRightLeft size={16} /> Kembali ke Aplikasi
         </button>
   
         <div className="border border-black p-6 print:border-none print:p-0">
-          
           <div className="flex justify-between items-start mb-6 border-b-2 border-black pb-4">
               <div>
                   <h1 className="font-bold text-2xl tracking-widest uppercase mb-2">INVOICE DIMSUM ADITYA</h1>
@@ -1516,203 +1381,194 @@ function PrintInvoiceDotMatrix({ data, onBack }) {
               </div>
               <div className="font-bold">WWW.DIMSUMADITYA.ID</div>
           </div>
-
         </div>
       </div>
       </>
     );
 }
 
-// Layout Cetak Lainnya
+// Layout Cetak Rekap Laporan Cabang (KHUSUS PEMALANG)
+function PrintReportBranch({ data, onBack, user }) {
+  useEffect(() => {
+      const timer = setTimeout(() => { window.print(); }, 500);
+      return () => clearTimeout(timer);
+  }, []);
+  
+  const { rekap, dateFrom, dateTo } = data;
+
+  return (
+    <div className="bg-white min-h-screen text-black print:bg-white print:p-0 p-8 w-full max-w-[800px] mx-auto">
+      <button onClick={onBack} className="print:hidden mb-4 bg-slate-800 text-white px-4 py-2 rounded flex items-center gap-2">
+        <ArrowRightLeft size={16} /> Kembali ke Aplikasi
+      </button>
+
+      <div className="print:p-0 text-sm font-sans" style={{ fontFamily: 'Arial, sans-serif' }}>
+        
+        <div className="text-center mb-6 border-b-2 border-black pb-4">
+            <h1 className="font-bold text-xl uppercase mt-2">Laporan Operasional {user.name}</h1>
+            <p className="text-slate-600">Periode: {formatDate(dateFrom)} s/d {formatDate(dateTo)}</p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="border border-black p-3">
+                <h3 className="font-bold text-sm border-b border-black pb-1 mb-2">RINGKASAN PENJUALAN CABANG</h3>
+                <div className="flex justify-between mb-1"><span>Total Omset Kotor:</span> <span className="font-medium text-emerald-700">{formatRp(rekap.totalPenjualanKotor)}</span></div>
+                <div className="flex justify-between mb-1"><span>Total Porsi Terjual:</span> <span className="font-medium text-indigo-700">{rekap.totalPorsi} Prs ({rekap.totalPcs} Pcs)</span></div>
+            </div>
+            <div className="border border-black p-3">
+                <h3 className="font-bold text-sm border-b border-black pb-1 mb-2">RINGKASAN KAS / SETORAN</h3>
+                <div className="flex justify-between mb-1"><span>Total Setoran Kas ke Pusat:</span> <span className="font-medium text-blue-700">{formatRp(rekap.setoranKePusat)}</span></div>
+                <div className="flex justify-between mb-1"><span>Status Uang Disetor:</span> <span className="font-medium text-slate-500">Full Transfer Bank</span></div>
+            </div>
+        </div>
+
+        <h3 className="font-bold text-md mb-2 mt-8">A. RINCIAN TRANSAKSI INVOICE CABANG</h3>
+        <table className="w-full border-collapse border border-black text-sm text-left mb-8">
+          <thead className="bg-gray-100">
+              <tr>
+                  <th className="border border-black p-2 text-center w-8">NO</th>
+                  <th className="border border-black p-2">NO. INVOICE</th>
+                  <th className="border border-black p-2">PELANGGAN</th>
+                  <th className="border border-black p-2 text-center">METODE BAYAR</th>
+                  <th className="border border-black p-2 text-center">QTY (PORSI)</th>
+                  <th className="border border-black p-2 text-right">TOTAL OMSET</th>
+              </tr>
+          </thead>
+          <tbody>
+              {rekap.listOrders.map((c, i) => (
+                  <tr key={i}>
+                      <td className="border border-black p-2 text-center">{i + 1}</td>
+                      <td className="border border-black p-2 font-mono text-xs">{c.id}</td>
+                      <td className="border border-black p-2 font-bold uppercase">{c.customer}</td>
+                      <td className="border border-black p-2 text-center">{c.paymentMethod}</td>
+                      <td className="border border-black p-2 text-center">{c.qty} Pcs <span className="text-xs">({c.qty/4} Prs)</span></td>
+                      <td className="border border-black p-2 text-right font-medium">{formatRp(c.total)}</td>
+                  </tr>
+              ))}
+              {rekap.listOrders.length === 0 && <tr><td colSpan="6" className="border border-black p-4 text-center italic">Tidak ada transaksi.</td></tr>}
+          </tbody>
+        </table>
+
+        <h3 className="font-bold text-md mb-2 mt-4">B. RINCIAN LAPORAN HARIAN & STOK FREEZER</h3>
+        <table className="w-full border-collapse border border-black text-sm text-left mb-8">
+            <thead className="bg-gray-100">
+                <tr>
+                    <th className="border border-black p-2 text-center w-8">NO</th>
+                    <th className="border border-black p-2">TANGGAL</th>
+                    <th className="border border-black p-2 text-center">PRODUKSI / PESANAN</th>
+                    <th className="border border-black p-2">STOK FREEZER AKHIR</th>
+                    <th className="border border-black p-2 text-right">UANG DISETOR (TF)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {rekap.listReports.map((p, i) => (
+                    <tr key={i}>
+                        <td className="border border-black p-2 text-center">{i + 1}</td>
+                        <td className="border border-black p-2">{formatDate(p.date)}</td>
+                        <td className="border border-black p-2 text-center">
+                            {p.produksiMika} M / {p.pesananMika} M
+                        </td>
+                        <td className="border border-black p-2 font-bold uppercase">{p.stokFreezer}</td>
+                        <td className="border border-black p-2 text-right font-bold">{formatRp(p.nominal)}</td>
+                    </tr>
+                ))}
+                {rekap.listReports.length === 0 && <tr><td colSpan="5" className="border border-black p-4 text-center italic">Tidak ada laporan harian.</td></tr>}
+            </tbody>
+        </table>
+
+        <div className="flex justify-end mt-12">
+            <div className="text-center w-48">
+                <div className="text-sm mb-12 text-center">Dicetak oleh,</div>
+                <div className="border-b border-dotted border-black h-4 mb-1"></div>
+                <div className="text-xs uppercase">Admin {user.name}</div>
+                <div className="text-xs italic text-gray-500 mt-1">{formatDate(new Date())}</div>
+            </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ... Sisa fungsi Print lainnya (Voucher, dll) tetap tidak berubah
 function PrintVoucher({ data, onBack }) {
     useEffect(() => {
         const timer = setTimeout(() => { window.print(); }, 500);
         return () => clearTimeout(timer);
     }, []);
-  
     return (
       <div className="bg-white min-h-screen text-black print:bg-white print:p-0 p-8 w-full max-w-[800px] mx-auto">
-        <button onClick={onBack} className="print:hidden mb-4 bg-slate-800 text-white px-4 py-2 rounded flex items-center gap-2">
-          <ArrowRightLeft size={16} /> Kembali
-        </button>
-  
+        <button onClick={onBack} className="print:hidden mb-4 bg-slate-800 text-white px-4 py-2 rounded flex items-center gap-2"><ArrowRightLeft size={16} /> Kembali</button>
         <div className="p-8 border border-slate-200 print:border-none print:p-0 text-sm font-sans" style={{ fontFamily: 'Arial, sans-serif' }}>
-          <div className="flex justify-between items-center mb-8">
-              <h1 className="font-bold text-xl uppercase">BUKTI PENGELUARAN KAS - DIMSUM ADITYA</h1>
-          </div>
-  
+          <div className="flex justify-between items-center mb-8"><h1 className="font-bold text-xl uppercase">BUKTI PENGELUARAN KAS - DIMSUM ADITYA</h1></div>
           <div className="flex justify-between items-end mb-6">
-              <table className="w-[50%] text-sm">
-                  <tbody>
-                      <tr>
-                          <td className="font-bold w-24 pb-2">ID Voucher</td><td className="w-4 pb-2">:</td>
-                          <td className="border-b border-dotted border-black pb-2">{data.id}</td>
-                      </tr>
-                      <tr>
-                          <td className="font-bold w-24 pb-2">Kepada</td><td className="w-4 pb-2">:</td>
-                          <td className="border-b border-dotted border-black pb-2 uppercase">{data.recipient}</td>
-                      </tr>
-                  </tbody>
-              </table>
-              <table className="w-[35%] text-sm">
-                  <tbody>
-                      <tr>
-                          <td className="font-bold w-20 pb-2">Tanggal</td><td className="w-4 pb-2">:</td>
-                          <td className="border-b border-dotted border-black text-right pb-2">{formatDate(data.date)}</td>
-                      </tr>
-                      <tr>
-                          <td className="font-bold w-20 pb-2">Metode</td><td className="w-4 pb-2">:</td>
-                          <td className="border-b border-dotted border-black text-right pb-2">{data.paymentMethod}</td>
-                      </tr>
-                  </tbody>
-              </table>
+              <table className="w-[50%] text-sm"><tbody>
+                      <tr><td className="font-bold w-24 pb-2">ID Voucher</td><td className="w-4 pb-2">:</td><td className="border-b border-dotted border-black pb-2">{data.id}</td></tr>
+                      <tr><td className="font-bold w-24 pb-2">Kepada</td><td className="w-4 pb-2">:</td><td className="border-b border-dotted border-black pb-2 uppercase">{data.recipient}</td></tr>
+              </tbody></table>
+              <table className="w-[35%] text-sm"><tbody>
+                      <tr><td className="font-bold w-20 pb-2">Tanggal</td><td className="w-4 pb-2">:</td><td className="border-b border-dotted border-black text-right pb-2">{formatDate(data.date)}</td></tr>
+                      <tr><td className="font-bold w-20 pb-2">Metode</td><td className="w-4 pb-2">:</td><td className="border-b border-dotted border-black text-right pb-2">{data.paymentMethod}</td></tr>
+              </tbody></table>
           </div>
-  
           <table className="w-full border-collapse border border-black text-center mb-2 text-sm">
-              <thead>
-                  <tr>
-                      <th className="border border-black p-2 bg-gray-50 w-1/4">KATEGORI</th>
-                      <th className="border border-black p-2 bg-gray-50 w-2/5">KETERANGAN</th>
-                      <th className="border border-black p-2 bg-gray-50 w-16">QTY</th>
-                      <th className="border border-black p-2 bg-gray-50">HARGA</th>
-                      <th className="border border-black p-2 bg-gray-50">TOTAL (KAS KELUAR)</th>
-                  </tr>
-              </thead>
-              <tbody>
-                  <tr>
-                      <td className="border border-black p-2">{data.category}</td>
-                      <td className="border border-black p-2 uppercase">{data.description}</td>
-                      <td className="border border-black p-2">{data.qty}</td>
-                      <td className="border border-black p-2">{formatRp(data.price)}</td>
-                      <td className="border border-black p-2 font-bold">{formatRp(data.total)}</td>
-                  </tr>
-              </tbody>
+              <thead><tr><th className="border border-black p-2 bg-gray-50 w-1/4">KATEGORI</th><th className="border border-black p-2 bg-gray-50 w-2/5">KETERANGAN</th><th className="border border-black p-2 bg-gray-50 w-16">QTY</th><th className="border border-black p-2 bg-gray-50">HARGA</th><th className="border border-black p-2 bg-gray-50">TOTAL (KAS KELUAR)</th></tr></thead>
+              <tbody><tr><td className="border border-black p-2">{data.category}</td><td className="border border-black p-2 uppercase">{data.description}</td><td className="border border-black p-2">{data.qty}</td><td className="border border-black p-2">{formatRp(data.price)}</td><td className="border border-black p-2 font-bold">{formatRp(data.total)}</td></tr></tbody>
           </table>
-  
           <div className="italic text-sm font-serif mb-16 pt-2">TERBILANG : {terbilang(data.total)} Rupiah</div>
-  
           <div className="flex justify-between items-end mb-4">
-              <div className="text-center w-48 mt-12">
-                  <div className="border-b border-dotted border-black h-8 mb-1"></div>
-                  <div className="text-xs">Penerima / Pelanggan</div>
-              </div>
-              <div className="text-center w-48">
-                  <div className="text-sm mb-16 text-left italic">Hormat kami,</div>
-                  <div className="border-b border-dotted border-black h-4 mb-1"></div>
-                  <div className="text-xs">Admin / Kasir</div>
-              </div>
+              <div className="text-center w-48 mt-12"><div className="border-b border-dotted border-black h-8 mb-1"></div><div className="text-xs">Penerima / Pelanggan</div></div>
+              <div className="text-center w-48"><div className="text-sm mb-16 text-left italic">Hormat kami,</div><div className="border-b border-dotted border-black h-4 mb-1"></div><div className="text-xs">Admin / Kasir</div></div>
           </div>
         </div>
       </div>
     );
 }
-
 function PrintReceipt({ data, onBack }) {
     useEffect(() => {
         const timer = setTimeout(() => { window.print(); }, 500);
         return () => clearTimeout(timer);
     }, []);
-    
     const { payment, order } = data;
-  
     return (
       <div className="bg-white min-h-screen text-black print:bg-white print:p-0 p-8 w-full max-w-[800px] mx-auto">
-        <button onClick={onBack} className="print:hidden mb-4 bg-slate-800 text-white px-4 py-2 rounded flex items-center gap-2">
-          <ArrowRightLeft size={16} /> Kembali
-        </button>
-  
+        <button onClick={onBack} className="print:hidden mb-4 bg-slate-800 text-white px-4 py-2 rounded flex items-center gap-2"><ArrowRightLeft size={16} /> Kembali</button>
         <div className="p-8 border border-slate-200 print:border-none print:p-0 text-sm font-sans" style={{ fontFamily: 'Arial, sans-serif' }}>
-          <div className="flex justify-between items-center mb-10">
-              <h1 className="font-bold text-xl uppercase border-b-2 border-black pb-2 inline-block">BUKTI PEMBAYARAN PIUTANG / CICILAN</h1>
-          </div>
-  
+          <div className="flex justify-between items-center mb-10"><h1 className="font-bold text-xl uppercase border-b-2 border-black pb-2 inline-block">BUKTI PEMBAYARAN PIUTANG / CICILAN</h1></div>
           <div className="space-y-4 text-base">
-              <div className="flex">
-                  <div className="w-48 font-bold">ID Pembayaran</div>
-                  <div className="w-4">:</div>
-                  <div className="font-mono font-medium">{payment.id}</div>
-              </div>
-              <div className="flex">
-                  <div className="w-48 font-bold">Tanggal Pembayaran</div>
-                  <div className="w-4">:</div>
-                  <div>{formatDate(payment.date)}</div>
-              </div>
-              <div className="flex">
-                  <div className="w-48 font-bold">Telah Diterima Dari</div>
-                  <div className="w-4">:</div>
-                  <div className="uppercase font-bold border-b border-dotted border-black flex-1">{order.customer}</div>
-              </div>
-              <div className="flex">
-                  <div className="w-48 font-bold">Metode Bayar</div>
-                  <div className="w-4">:</div>
-                  <div className="font-bold">{payment.paymentMethod}</div>
-              </div>
-              <div className="flex items-center">
-                  <div className="w-48 font-bold">Sejumlah Uang</div>
-                  <div className="w-4">:</div>
-                  <div className="font-bold text-lg bg-gray-100 px-4 py-1 border border-black inline-block">
-                      {formatRp(payment.amount)}
-                  </div>
-              </div>
-              <div className="flex">
-                  <div className="w-48 font-bold">Terbilang</div>
-                  <div className="w-4">:</div>
-                  <div className="italic font-serif flex-1 capitalize border-b border-dotted border-black">{terbilang(payment.amount)} Rupiah</div>
-              </div>
-              <div className="flex">
-                  <div className="w-48 font-bold">Untuk Pembayaran</div>
-                  <div className="w-4">:</div>
-                  <div className="flex-1">Cicilan / Pelunasan tagihan untuk No. Invoice: <strong>{order.id}</strong></div>
-              </div>
+              <div className="flex"><div className="w-48 font-bold">ID Pembayaran</div><div className="w-4">:</div><div className="font-mono font-medium">{payment.id}</div></div>
+              <div className="flex"><div className="w-48 font-bold">Tanggal Pembayaran</div><div className="w-4">:</div><div>{formatDate(payment.date)}</div></div>
+              <div className="flex"><div className="w-48 font-bold">Telah Diterima Dari</div><div className="w-4">:</div><div className="uppercase font-bold border-b border-dotted border-black flex-1">{order.customer}</div></div>
+              <div className="flex"><div className="w-48 font-bold">Metode Bayar</div><div className="w-4">:</div><div className="font-bold">{payment.paymentMethod}</div></div>
+              <div className="flex items-center"><div className="w-48 font-bold">Sejumlah Uang</div><div className="w-4">:</div><div className="font-bold text-lg bg-gray-100 px-4 py-1 border border-black inline-block">{formatRp(payment.amount)}</div></div>
+              <div className="flex"><div className="w-48 font-bold">Terbilang</div><div className="w-4">:</div><div className="italic font-serif flex-1 capitalize border-b border-dotted border-black">{terbilang(payment.amount)} Rupiah</div></div>
+              <div className="flex"><div className="w-48 font-bold">Untuk Pembayaran</div><div className="w-4">:</div><div className="flex-1">Cicilan / Pelunasan tagihan untuk No. Invoice: <strong>{order.id}</strong></div></div>
           </div>
-  
           <div className="mt-16 flex justify-between items-end">
-              <div className="text-sm p-4 border border-black bg-gray-50">
-                  <p className="font-bold mb-1">Informasi Invoice (Referensi):</p>
-                  <p>Total Tagihan Awal : {formatRp(order.total)}</p>
-                  <p>Sisa Hutang Terakhir : {formatRp(order.sisaHutang)}</p>
-              </div>
-              <div className="text-center w-48">
-                  <div className="text-sm mb-16 text-left italic">Penerima (Kasir),</div>
-                  <div className="border-b border-dotted border-black h-4 mb-1"></div>
-                  <div className="text-xs uppercase text-center">Dimsum Aditya</div>
-              </div>
+              <div className="text-sm p-4 border border-black bg-gray-50"><p className="font-bold mb-1">Informasi Invoice (Referensi):</p><p>Total Tagihan Awal : {formatRp(order.total)}</p><p>Sisa Hutang Terakhir : {formatRp(order.sisaHutang)}</p></div>
+              <div className="text-center w-48"><div className="text-sm mb-16 text-left italic">Penerima (Kasir),</div><div className="border-b border-dotted border-black h-4 mb-1"></div><div className="text-xs uppercase text-center">Dimsum Aditya</div></div>
           </div>
         </div>
       </div>
     );
 }
-
 // Laporan Detail Update 
 function PrintReport({ data, onBack }) {
     useEffect(() => {
         const timer = setTimeout(() => { window.print(); }, 500);
         return () => clearTimeout(timer);
     }, []);
-    
     const { rekap, dateFrom, dateTo } = data;
-  
     return (
       <div className="bg-white min-h-screen text-black print:bg-white print:p-0 p-8 w-full max-w-[800px] mx-auto">
-        <button onClick={onBack} className="print:hidden mb-4 bg-slate-800 text-white px-4 py-2 rounded flex items-center gap-2">
-          <ArrowRightLeft size={16} /> Kembali ke Aplikasi
-        </button>
-  
+        <button onClick={onBack} className="print:hidden mb-4 bg-slate-800 text-white px-4 py-2 rounded flex items-center gap-2"><ArrowRightLeft size={16} /> Kembali ke Aplikasi</button>
         <div className="print:p-0 text-sm font-sans" style={{ fontFamily: 'Arial, sans-serif' }}>
-          
-          <div className="text-center mb-6 border-b-2 border-black pb-4">
-              <h1 className="font-bold text-xl uppercase mt-2">Laporan Keuangan & Penjualan</h1>
-              <p className="text-slate-600">Periode: {formatDate(dateFrom)} s/d {formatDate(dateTo)}</p>
-          </div>
-
+          <div className="text-center mb-6 border-b-2 border-black pb-4"><h1 className="font-bold text-xl uppercase mt-2">Laporan Keuangan & Penjualan</h1><p className="text-slate-600">Periode: {formatDate(dateFrom)} s/d {formatDate(dateTo)}</p></div>
           <div className="grid grid-cols-2 gap-4 mb-6">
               <div className="border border-black p-3">
                   <h3 className="font-bold text-sm border-b border-black pb-1 mb-2">RINGKASAN SALDO KAS & BANK</h3>
                   <div className="flex justify-between mb-1"><span>Saldo Tunai Bersih (CASH):</span> <span className="font-medium text-emerald-700">{formatRp(rekap.saldoCash)}</span></div>
                   <div className="flex justify-between mb-1"><span>Saldo Rekening Bersih (TF):</span> <span className="font-medium text-indigo-700">{formatRp(rekap.saldoTF)}</span></div>
-                  <div className="flex justify-between pt-1 border-t border-dotted border-black mt-1">
-                      <span className="font-bold">TOTAL SALDO AKTUAL:</span> <span className="font-bold text-blue-700">{formatRp(rekap.saldoAkhir)}</span>
-                  </div>
+                  <div className="flex justify-between pt-1 border-t border-dotted border-black mt-1"><span className="font-bold">TOTAL SALDO AKTUAL:</span> <span className="font-bold text-blue-700">{formatRp(rekap.saldoAkhir)}</span></div>
               </div>
               <div className="border border-black p-3">
                   <h3 className="font-bold text-sm border-b border-black pb-1 mb-2">RINGKASAN OMSET & PIUTANG</h3>
@@ -1721,141 +1577,58 @@ function PrintReport({ data, onBack }) {
                   <div className="flex justify-between mb-1"><span>Total Piutang Berjalan:</span> <span className="font-medium text-red-600">{formatRp(rekap.totalPiutangBaru)}</span></div>
               </div>
           </div>
-
           <h3 className="font-bold text-md mb-2 mt-8">A. RINCIAN TRANSAKSI & OMSET PENJUALAN (PUSAT)</h3>
           <table className="w-full border-collapse border border-black text-sm text-left mb-8">
-            <thead className="bg-gray-100">
-                <tr>
-                    <th className="border border-black p-2 text-center w-8">NO</th>
-                    <th className="border border-black p-2">NO. INVOICE</th>
-                    <th className="border border-black p-2">PELANGGAN</th>
-                    <th className="border border-black p-2">KATEGORI</th>
-                    <th className="border border-black p-2">VIA (METODE)</th>
-                    <th className="border border-black p-2 text-center">QTY (PORSI)</th>
-                    <th className="border border-black p-2 text-right">TOTAL OMSET</th>
-                </tr>
-            </thead>
+            <thead className="bg-gray-100"><tr><th className="border border-black p-2 text-center w-8">NO</th><th className="border border-black p-2">NO. INVOICE</th><th className="border border-black p-2">PELANGGAN</th><th className="border border-black p-2">KATEGORI</th><th className="border border-black p-2">VIA (METODE)</th><th className="border border-black p-2 text-center">QTY (PORSI)</th><th className="border border-black p-2 text-right">TOTAL OMSET</th></tr></thead>
             <tbody>
                 {rekap.listTransaksiDetail.map((c, i) => (
-                    <tr key={i}>
-                        <td className="border border-black p-2 text-center">{i + 1}</td>
-                        <td className="border border-black p-2 font-mono text-xs">{c.id}</td>
-                        <td className="border border-black p-2 font-bold uppercase">{c.customer}</td>
-                        <td className="border border-black p-2">{c.category}</td>
-                        <td className="border border-black p-2">{c.paymentMethod}</td>
-                        <td className="border border-black p-2 text-center">{c.qty} Pcs <span className="text-xs">({c.qty/4} Prs)</span></td>
-                        <td className="border border-black p-2 text-right font-medium">{formatRp(c.total)}</td>
-                    </tr>
+                    <tr key={i}><td className="border border-black p-2 text-center">{i + 1}</td><td className="border border-black p-2 font-mono text-xs">{c.id}</td><td className="border border-black p-2 font-bold uppercase">{c.customer}</td><td className="border border-black p-2">{c.category}</td><td className="border border-black p-2">{c.paymentMethod}</td><td className="border border-black p-2 text-center">{c.qty} Pcs <span className="text-xs">({c.qty/4} Prs)</span></td><td className="border border-black p-2 text-right font-medium">{formatRp(c.total)}</td></tr>
                 ))}
                 {rekap.listTransaksiDetail.length === 0 && <tr><td colSpan="7" className="border border-black p-4 text-center italic">Tidak ada transaksi.</td></tr>}
             </tbody>
           </table>
-
           {rekap.listPiutangBerjalanLaporan.length > 0 && (
               <>
                   <h3 className="font-bold text-md mb-2 mt-4">B. DAFTAR PIUTANG BERJALAN SAAT INI (BELUM LUNAS)</h3>
                   <table className="w-full border-collapse border border-black text-sm text-left mb-8">
-                      <thead className="bg-gray-100">
-                          <tr>
-                              <th className="border border-black p-2 text-center w-8">NO</th>
-                              <th className="border border-black p-2">NO. INVOICE / TANGGAL</th>
-                              <th className="border border-black p-2">PELANGGAN</th>
-                              <th className="border border-black p-2 text-center">PESANAN</th>
-                              <th className="border border-black p-2 text-right">TOTAL TAGIHAN</th>
-                              <th className="border border-black p-2 text-right">TELAH DIBAYAR</th>
-                              <th className="border border-black p-2 text-right text-red-600">SISA HUTANG</th>
-                          </tr>
-                      </thead>
+                      <thead className="bg-gray-100"><tr><th className="border border-black p-2 text-center w-8">NO</th><th className="border border-black p-2">NO. INVOICE / TANGGAL</th><th className="border border-black p-2">PELANGGAN</th><th className="border border-black p-2 text-center">PESANAN</th><th className="border border-black p-2 text-right">TOTAL TAGIHAN</th><th className="border border-black p-2 text-right">TELAH DIBAYAR</th><th className="border border-black p-2 text-right text-red-600">SISA HUTANG</th></tr></thead>
                       <tbody>
                           {rekap.listPiutangBerjalanLaporan.map((o, i) => (
-                              <tr key={i}>
-                                  <td className="border border-black p-2 text-center">{i + 1}</td>
-                                  <td className="border border-black p-2">
-                                    <div className="font-mono text-xs font-bold">{o.id}</div>
-                                    <div className="text-xs text-gray-600">{formatDate(o.date)}</div>
-                                  </td>
-                                  <td className="border border-black p-2 font-bold uppercase">{o.customer}</td>
-                                  <td className="border border-black p-2 text-center">{o.qty} Pcs <span className="text-xs">({o.qty/4} Prs)</span></td>
-                                  <td className="border border-black p-2 text-right font-medium">{formatRp(o.total)}</td>
-                                  <td className="border border-black p-2 text-right text-emerald-600">{formatRp(Number(o.paidAmount) + o.cicilanTerbayar)}</td>
-                                  <td className="border border-black p-2 text-right font-bold text-red-600">{formatRp(o.sisaHutang)}</td>
-                              </tr>
+                              <tr key={i}><td className="border border-black p-2 text-center">{i + 1}</td><td className="border border-black p-2"><div className="font-mono text-xs font-bold">{o.id}</div><div className="text-xs text-gray-600">{formatDate(o.date)}</div></td><td className="border border-black p-2 font-bold uppercase">{o.customer}</td><td className="border border-black p-2 text-center">{o.qty} Pcs <span className="text-xs">({o.qty/4} Prs)</span></td><td className="border border-black p-2 text-right font-medium">{formatRp(o.total)}</td><td className="border border-black p-2 text-right text-emerald-600">{formatRp(Number(o.paidAmount) + o.cicilanTerbayar)}</td><td className="border border-black p-2 text-right font-bold text-red-600">{formatRp(o.sisaHutang)}</td></tr>
                           ))}
                       </tbody>
                   </table>
               </>
           )}
-
           {rekap.listPembayaranPiutang.length > 0 && (
               <>
                   <h3 className="font-bold text-md mb-2 mt-4">C. RINCIAN UANG MASUK DARI CICILAN PIUTANG (PERIODE INI)</h3>
                   <table className="w-full border-collapse border border-black text-sm text-left mb-8">
-                      <thead className="bg-gray-100">
-                          <tr>
-                              <th className="border border-black p-2 text-center w-8">NO</th>
-                              <th className="border border-black p-2">TANGGAL</th>
-                              <th className="border border-black p-2">ID PEMBAYARAN</th>
-                              <th className="border border-black p-2">REF. INVOICE</th>
-                              <th className="border border-black p-2">PELANGGAN</th>
-                              <th className="border border-black p-2">VIA</th>
-                              <th className="border border-black p-2 text-right">NOMINAL MASUK</th>
-                          </tr>
-                      </thead>
+                      <thead className="bg-gray-100"><tr><th className="border border-black p-2 text-center w-8">NO</th><th className="border border-black p-2">TANGGAL</th><th className="border border-black p-2">ID PEMBAYARAN</th><th className="border border-black p-2">REF. INVOICE</th><th className="border border-black p-2">PELANGGAN</th><th className="border border-black p-2">VIA</th><th className="border border-black p-2 text-right">NOMINAL MASUK</th></tr></thead>
                       <tbody>
                           {rekap.listPembayaranPiutang.map((p, i) => (
-                              <tr key={i}>
-                                  <td className="border border-black p-2 text-center">{i + 1}</td>
-                                  <td className="border border-black p-2">{formatDate(p.date)}</td>
-                                  <td className="border border-black p-2 font-mono text-xs">{p.id}</td>
-                                  <td className="border border-black p-2 font-mono text-xs font-bold">{p.orderId}</td>
-                                  <td className="border border-black p-2 font-bold uppercase">{p.customer}</td>
-                                  <td className="border border-black p-2">{p.paymentMethod}</td>
-                                  <td className="border border-black p-2 text-right font-bold">{formatRp(p.amount)}</td>
-                              </tr>
+                              <tr key={i}><td className="border border-black p-2 text-center">{i + 1}</td><td className="border border-black p-2">{formatDate(p.date)}</td><td className="border border-black p-2 font-mono text-xs">{p.id}</td><td className="border border-black p-2 font-mono text-xs font-bold">{p.orderId}</td><td className="border border-black p-2 font-bold uppercase">{p.customer}</td><td className="border border-black p-2">{p.paymentMethod}</td><td className="border border-black p-2 text-right font-bold">{formatRp(p.amount)}</td></tr>
                           ))}
                       </tbody>
                   </table>
               </>
           )}
-
           {rekap.listPemalang.length > 0 && (
               <>
                   <h3 className="font-bold text-md mb-2 mt-4">D. RINCIAN LAPORAN & SETORAN CABANG PEMALANG</h3>
                   <table className="w-full border-collapse border border-black text-sm text-left mb-8">
-                      <thead className="bg-gray-100">
-                          <tr>
-                              <th className="border border-black p-2 text-center w-8">NO</th>
-                              <th className="border border-black p-2">TANGGAL</th>
-                              <th className="border border-black p-2 text-center">PRODUKSI / PESANAN</th>
-                              <th className="border border-black p-2">STOK FREEZER</th>
-                              <th className="border border-black p-2">METODE BAYAR</th>
-                              <th className="border border-black p-2 text-right">UANG DISETOR (TF)</th>
-                          </tr>
-                      </thead>
+                      <thead className="bg-gray-100"><tr><th className="border border-black p-2 text-center w-8">NO</th><th className="border border-black p-2">TANGGAL</th><th className="border border-black p-2 text-center">PRODUKSI / PESANAN</th><th className="border border-black p-2">STOK FREEZER</th><th className="border border-black p-2">METODE BAYAR</th><th className="border border-black p-2 text-right">UANG DISETOR (TF)</th></tr></thead>
                       <tbody>
                           {rekap.listPemalang.map((p, i) => (
-                              <tr key={i}>
-                                  <td className="border border-black p-2 text-center">{i + 1}</td>
-                                  <td className="border border-black p-2">{formatDate(p.date)}</td>
-                                  <td className="border border-black p-2 text-center">
-                                      {p.produksiMika} M / {p.pesananMika} M
-                                  </td>
-                                  <td className="border border-black p-2 font-bold uppercase">{p.stokFreezer}</td>
-                                  <td className="border border-black p-2 font-bold text-indigo-700">Transfer (TF)</td>
-                                  <td className="border border-black p-2 text-right font-bold">{formatRp(p.nominal)}</td>
-                              </tr>
+                              <tr key={i}><td className="border border-black p-2 text-center">{i + 1}</td><td className="border border-black p-2">{formatDate(p.date)}</td><td className="border border-black p-2 text-center">{p.produksiMika} M / {p.pesananMika} M</td><td className="border border-black p-2 font-bold uppercase">{p.stokFreezer}</td><td className="border border-black p-2 font-bold text-indigo-700">Transfer (TF)</td><td className="border border-black p-2 text-right font-bold">{formatRp(p.nominal)}</td></tr>
                           ))}
                       </tbody>
                   </table>
               </>
           )}
-
           <div className="flex justify-end mt-12">
               <div className="text-center w-48">
-                  <div className="text-sm mb-12 text-center">Dicetak oleh,</div>
-                  <div className="border-b border-dotted border-black h-4 mb-1"></div>
-                  <div className="text-xs uppercase">Admin Pusat</div>
-                  <div className="text-xs italic text-gray-500 mt-1">{formatDate(new Date())}</div>
+                  <div className="text-sm mb-12 text-center">Dicetak oleh,</div><div className="border-b border-dotted border-black h-4 mb-1"></div><div className="text-xs uppercase">Admin Pusat</div><div className="text-xs italic text-gray-500 mt-1">{formatDate(new Date())}</div>
               </div>
           </div>
         </div>
