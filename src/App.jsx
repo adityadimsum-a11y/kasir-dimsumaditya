@@ -932,6 +932,45 @@ function TabOrders({ orders, sendToSheet, setPrintData, requestDelete, role }) {
     });
   }, [orders, role, filterFrom, filterTo]);
 
+  // --- MEMOIZED TABLE ROWS UTK MENCEGAH LAG SAAT MENGETIK DI FORM ---
+  const renderedTableRows = useMemo(() => {
+    if (displayOrders.length === 0) {
+      return <tr><td colSpan="7" className="text-center py-12 text-slate-400">Tidak ada transaksi ditemukan pada tanggal filter tersebut.</td></tr>;
+    }
+    return displayOrders.map((ord) => (
+      <tr key={ord.id} className="hover:bg-slate-50">
+        <td className="px-4 py-3">
+          <div className="font-mono text-xs font-bold text-slate-700">{ord.id}</div>
+          <div className="text-xs text-slate-500">{formatDate(ord.date)}</div>
+        </td>
+        <td className="px-4 py-3 font-bold text-slate-800 uppercase">{ord.customer}</td>
+        <td className="px-4 py-3 text-center">
+          <div className="font-medium">{ord.qty} Pcs</div>
+          <div className="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded inline-block mt-0.5">{ord.category}</div>
+        </td>
+        <td className="px-4 py-3 text-center font-medium text-slate-600">{ord.paymentMethod}</td>
+        <td className="px-4 py-3 text-right font-bold text-emerald-600">{formatRp(ord.total)}</td>
+        <td className="px-4 py-3 text-center">
+          {(Number(ord.total)||0) > (Number(ord.paidAmount)||0) ? (
+            <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded text-[10px] font-bold tracking-wide">PIUTANG</span>
+          ) : (
+            <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-[10px] font-bold tracking-wide">LUNAS</span>
+          )}
+        </td>
+        <td className="px-4 py-3 text-center">
+          <div className="flex justify-center gap-2">
+            <button onClick={() => setPrintData({ type: 'invoice', data: ord })} className="text-slate-600 hover:text-slate-900 bg-slate-100 p-2 rounded-lg transition border border-slate-200 shadow-sm" title="Cetak Epson LX-310">
+              <Printer size={16} />
+            </button>
+            <button onClick={() => requestDelete(ord.id)} className="text-red-500 hover:text-red-700 bg-red-50 p-2 rounded-lg transition" title="Hapus Data">
+              <Trash2 size={16} />
+            </button>
+          </div>
+        </td>
+      </tr>
+    ));
+  }, [displayOrders, setPrintData, requestDelete]);
+
   return (
     <div className="space-y-4 animate-in fade-in">
       <div className="flex justify-between items-center">
@@ -1024,39 +1063,7 @@ function TabOrders({ orders, sendToSheet, setPrintData, requestDelete, role }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {displayOrders.map((ord) => (
-              <tr key={ord.id} className="hover:bg-slate-50">
-                <td className="px-4 py-3">
-                  <div className="font-mono text-xs font-bold text-slate-700">{ord.id}</div>
-                  <div className="text-xs text-slate-500">{formatDate(ord.date)}</div>
-                </td>
-                <td className="px-4 py-3 font-bold text-slate-800 uppercase">{ord.customer}</td>
-                <td className="px-4 py-3 text-center">
-                  <div className="font-medium">{ord.qty} Pcs</div>
-                  <div className="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded inline-block mt-0.5">{ord.category}</div>
-                </td>
-                <td className="px-4 py-3 text-center font-medium text-slate-600">{ord.paymentMethod}</td>
-                <td className="px-4 py-3 text-right font-bold text-emerald-600">{formatRp(ord.total)}</td>
-                <td className="px-4 py-3 text-center">
-                  {(Number(ord.total)||0) > (Number(ord.paidAmount)||0) ? (
-                    <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded text-[10px] font-bold tracking-wide">PIUTANG</span>
-                  ) : (
-                    <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-[10px] font-bold tracking-wide">LUNAS</span>
-                  )}
-                </td>
-                <td className="px-4 py-3 text-center">
-                  <div className="flex justify-center gap-2">
-                    <button onClick={() => setPrintData({ type: 'invoice', data: ord })} className="text-slate-600 hover:text-slate-900 bg-slate-100 p-2 rounded-lg transition border border-slate-200 shadow-sm" title="Cetak Epson LX-310">
-                      <Printer size={16} />
-                    </button>
-                    <button onClick={() => requestDelete(ord.id)} className="text-red-500 hover:text-red-700 bg-red-50 p-2 rounded-lg transition" title="Hapus Data">
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {displayOrders.length === 0 && <tr><td colSpan="7" className="text-center py-12 text-slate-400">Tidak ada transaksi ditemukan pada tanggal filter tersebut.</td></tr>}
+            {renderedTableRows}
           </tbody>
         </table>
       </div>
@@ -1103,6 +1110,34 @@ function TabStok({ stokData, sendToSheet, requestDelete }) {
     });
     return calc;
   }, [stokData]);
+
+  // --- MEMOIZED TABLE ROWS UTK MENCEGAH LAG SAAT MENGETIK DI FORM ---
+  const renderedTableRows = useMemo(() => {
+    if (stokData.length === 0) return <tr><td colSpan="6" className="text-center py-12 text-slate-400">Belum ada riwayat stok.</td></tr>;
+    return stokData.map((s) => (
+      <tr key={s.id} className="hover:bg-slate-50">
+        <td className="px-4 py-3">
+          <div className="font-medium text-slate-800">{formatDate(s.date)}</div>
+          <div className="text-[10px] text-slate-400 font-mono mt-1">{s.id}</div>
+        </td>
+        <td className="px-4 py-3 font-bold text-slate-800 uppercase">{s.itemName}</td>
+        <td className="px-4 py-3 text-center">
+            <span className={`px-2 py-1 rounded text-[10px] font-bold tracking-wide ${s.type === 'MASUK' ? 'bg-emerald-100 text-emerald-700' : s.type === 'TERPAKAI' ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'}`}>
+                {s.type}
+            </span>
+        </td>
+        <td className={`px-4 py-3 text-center font-bold ${s.type === 'MASUK' ? 'text-emerald-600' : s.type === 'TERPAKAI' ? 'text-orange-500' : 'text-red-600'}`}>
+            {s.type === 'MASUK' ? '+' : '-'}{s.qty} <span className="text-xs uppercase font-medium">{s.satuan || 'PCS'}</span>
+        </td>
+        <td className="px-4 py-3 text-slate-600 text-xs">{s.notes || '-'}</td>
+        <td className="px-4 py-3 text-center">
+            <button onClick={() => requestDelete(s.id)} className="text-red-500 hover:text-red-700 bg-red-50 p-2 rounded-lg transition" title="Hapus Log">
+                <Trash2 size={16} />
+            </button>
+        </td>
+      </tr>
+    ));
+  }, [stokData, requestDelete]);
 
   return (
     <div className="space-y-4 animate-in fade-in">
@@ -1192,30 +1227,7 @@ function TabStok({ stokData, sendToSheet, requestDelete }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {stokData.map((s) => (
-              <tr key={s.id} className="hover:bg-slate-50">
-                <td className="px-4 py-3">
-                  <div className="font-medium text-slate-800">{formatDate(s.date)}</div>
-                  <div className="text-[10px] text-slate-400 font-mono mt-1">{s.id}</div>
-                </td>
-                <td className="px-4 py-3 font-bold text-slate-800 uppercase">{s.itemName}</td>
-                <td className="px-4 py-3 text-center">
-                    <span className={`px-2 py-1 rounded text-[10px] font-bold tracking-wide ${s.type === 'MASUK' ? 'bg-emerald-100 text-emerald-700' : s.type === 'TERPAKAI' ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'}`}>
-                        {s.type}
-                    </span>
-                </td>
-                <td className={`px-4 py-3 text-center font-bold ${s.type === 'MASUK' ? 'text-emerald-600' : s.type === 'TERPAKAI' ? 'text-orange-500' : 'text-red-600'}`}>
-                    {s.type === 'MASUK' ? '+' : '-'}{s.qty} <span className="text-xs uppercase font-medium">{s.satuan || 'PCS'}</span>
-                </td>
-                <td className="px-4 py-3 text-slate-600 text-xs">{s.notes || '-'}</td>
-                <td className="px-4 py-3 text-center">
-                    <button onClick={() => requestDelete(s.id)} className="text-red-500 hover:text-red-700 bg-red-50 p-2 rounded-lg transition" title="Hapus Log">
-                        <Trash2 size={16} />
-                    </button>
-                </td>
-              </tr>
-            ))}
-            {stokData.length === 0 && <tr><td colSpan="6" className="text-center py-12 text-slate-400">Belum ada riwayat stok.</td></tr>}
+            {renderedTableRows}
           </tbody>
         </table>
       </div>
@@ -1259,6 +1271,42 @@ function TabExpenses({ expenses, sendToSheet, setPrintData, requestDelete }) {
         return ymd >= filterFrom && ymd <= filterTo;
     });
   }, [expenses, filterFrom, filterTo]);
+
+  // --- MEMOIZED TABLE ROWS UTK MENCEGAH LAG SAAT MENGETIK DI FORM ---
+  const renderedTableRows = useMemo(() => {
+    if (displayExpenses.length === 0) return <tr><td colSpan="5" className="text-center py-12 text-slate-400">Tidak ada kas masuk/keluar di tanggal tersebut.</td></tr>;
+    return displayExpenses.map((exp) => (
+      <tr key={exp.id} className="hover:bg-slate-50">
+        <td className="px-4 py-3">
+          <div className="font-medium">{formatDate(exp.date)}</div>
+          <div className="text-[10px] text-slate-400 font-mono mt-0.5">{exp.id}</div>
+        </td>
+        <td className="px-4 py-3">
+          <div className="font-bold flex items-center gap-2">
+            {exp.type === 'IN' ? <ArrowRightLeft size={14} className="text-emerald-500"/> : <ArrowRightLeft size={14} className="text-red-500"/>}
+            {exp.category}
+          </div>
+          <div className="text-xs text-slate-600 mt-1">{exp.description} (Kpd: <span className="uppercase font-bold">{exp.recipient}</span>)</div>
+        </td>
+        <td className="px-4 py-3 text-center font-medium text-slate-500">{exp.paymentMethod}</td>
+        <td className={`px-4 py-3 text-right font-bold ${exp.type === 'IN' ? 'text-emerald-600' : 'text-red-600'}`}>
+          {exp.type === 'IN' ? '+' : '-'}{formatRp(exp.total)}
+        </td>
+        <td className="px-4 py-3 text-center">
+            <div className="flex justify-center gap-2">
+                {exp.type === 'OUT' && (
+                    <button onClick={() => setPrintData({ type: 'voucher', data: exp })} className="text-slate-600 hover:text-slate-900 bg-slate-100 p-2 rounded-lg transition" title="Cetak Voucher">
+                    <Printer size={16} />
+                    </button>
+                )}
+                <button onClick={() => requestDelete(exp.id)} className="text-red-500 hover:text-red-700 bg-red-50 p-2 rounded-lg transition" title="Hapus Data">
+                    <Trash2 size={16} />
+                </button>
+            </div>
+        </td>
+      </tr>
+    ));
+  }, [displayExpenses, setPrintData, requestDelete]);
 
   return (
     <div className="space-y-4 animate-in fade-in">
@@ -1318,7 +1366,6 @@ function TabExpenses({ expenses, sendToSheet, setPrintData, requestDelete }) {
              </div>
              <div className="w-2/3">
                 <label className="text-sm font-medium text-slate-700">Harga Satuan (Rp)</label>
-                {/* INPUT PINTAR RUPIAH */}
                 <input type="text" required value={formatRp(price)} onChange={e => setPrice(parseRp(e.target.value))} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-200 font-bold" />
              </div>
           </div>
@@ -1355,38 +1402,7 @@ function TabExpenses({ expenses, sendToSheet, setPrintData, requestDelete }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {displayExpenses.map((exp) => (
-              <tr key={exp.id} className="hover:bg-slate-50">
-                <td className="px-4 py-3">
-                  <div className="font-medium">{formatDate(exp.date)}</div>
-                  <div className="text-[10px] text-slate-400 font-mono mt-0.5">{exp.id}</div>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="font-bold flex items-center gap-2">
-                    {exp.type === 'IN' ? <ArrowRightLeft size={14} className="text-emerald-500"/> : <ArrowRightLeft size={14} className="text-red-500"/>}
-                    {exp.category}
-                  </div>
-                  <div className="text-xs text-slate-600 mt-1">{exp.description} (Kpd: <span className="uppercase font-bold">{exp.recipient}</span>)</div>
-                </td>
-                <td className="px-4 py-3 text-center font-medium text-slate-500">{exp.paymentMethod}</td>
-                <td className={`px-4 py-3 text-right font-bold ${exp.type === 'IN' ? 'text-emerald-600' : 'text-red-600'}`}>
-                  {exp.type === 'IN' ? '+' : '-'}{formatRp(exp.total)}
-                </td>
-                <td className="px-4 py-3 text-center">
-                    <div className="flex justify-center gap-2">
-                        {exp.type === 'OUT' && (
-                            <button onClick={() => setPrintData({ type: 'voucher', data: exp })} className="text-slate-600 hover:text-slate-900 bg-slate-100 p-2 rounded-lg transition" title="Cetak Voucher">
-                            <Printer size={16} />
-                            </button>
-                        )}
-                        <button onClick={() => requestDelete(exp.id)} className="text-red-500 hover:text-red-700 bg-red-50 p-2 rounded-lg transition" title="Hapus Data">
-                            <Trash2 size={16} />
-                        </button>
-                    </div>
-                </td>
-              </tr>
-            ))}
-            {displayExpenses.length === 0 && <tr><td colSpan="5" className="text-center py-12 text-slate-400">Tidak ada kas masuk/keluar di tanggal tersebut.</td></tr>}
+            {renderedTableRows}
           </tbody>
         </table>
       </div>
@@ -1424,6 +1440,47 @@ function TabPiutang({ orders, payments, sendToSheet, requestDelete, setPrintData
   };
 
   const activeOrder = selectedOrder ? daftarPiutang.find(o => o.id === selectedOrder.id) : null;
+
+  // --- MEMOIZED CARDS UTK MENCEGAH LAG SAAT MENGETIK DI FORM CICILAN ---
+  const renderedPiutangCards = useMemo(() => {
+    const filtered = daftarPiutang.filter(o => o.sisaHutang > 0);
+    if (filtered.length === 0) {
+        return (
+          <div className="text-center p-12 bg-white rounded-xl border border-dashed border-slate-300 text-slate-500 col-span-full">
+              <CheckCircle size={48} className="mx-auto text-emerald-400 mb-3" />
+              <p>Hore! Semua nota telah lunas. Tidak ada piutang saat ini.</p>
+          </div>
+        );
+    }
+    return filtered.map((order) => (
+        <div key={order.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden group hover:border-orange-300 transition-colors">
+            <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg shadow">BELUM LUNAS</div>
+            <div className="text-sm text-slate-500 mb-1">{formatDate(order.date)}</div>
+            <div className="font-bold text-lg mb-1 uppercase">{order.customer}</div>
+            <div className="text-[10px] font-mono text-slate-400 mb-4">{order.id}</div>
+            
+            <div className="space-y-2 text-sm mb-4">
+                <div className="flex justify-between border-b border-slate-100 pb-1">
+                    <span className="text-slate-500">Total Invoice</span>
+                    <span className="font-medium">{formatRp(order.total)}</span>
+                </div>
+                <div className="flex justify-between border-b border-slate-100 pb-1">
+                    <span className="text-slate-500">Telah Dicicil</span>
+                    <span className="font-bold text-emerald-600">{formatRp((Number(order.paidAmount) || 0) + (Number(order.cicilanTerbayar) || 0))}</span>
+                </div>
+                <div className="flex justify-between pt-1">
+                    <span className="font-bold text-red-600">Sisa Hutang</span>
+                    <span className="font-bold text-red-700 text-base">{formatRp(order.sisaHutang)}</span>
+                </div>
+            </div>
+            
+            <button onClick={() => {setSelectedOrder(order); setBayarAmount(order.sisaHutang)}} className="w-full bg-orange-100 text-orange-800 hover:bg-orange-500 hover:text-white transition py-2.5 rounded-lg font-bold text-sm shadow-sm">
+                Kelola Cicilan / Pelunasan
+            </button>
+        </div>
+    ));
+  }, [daftarPiutang]);
+
 
   return (
     <div className="space-y-4 animate-in fade-in">
@@ -1463,7 +1520,6 @@ function TabPiutang({ orders, payments, sendToSheet, requestDelete, setPrintData
                                 </div>
                                 <div>
                                     <label className="text-xs font-bold text-orange-700">Nominal (Maks {formatRp(activeOrder.sisaHutang)})</label>
-                                    {/* INPUT PINTAR RUPIAH */}
                                     <input type="text" required value={formatRp(bayarAmount)} onChange={e => {
                                         let val = parseRp(e.target.value);
                                         if(val > activeOrder.sisaHutang) val = activeOrder.sisaHutang;
@@ -1512,42 +1568,9 @@ function TabPiutang({ orders, payments, sendToSheet, requestDelete, setPrintData
         <h3 className="font-bold text-lg">Daftar Nota Piutang Berjalan</h3>
       </div>
       
-      {daftarPiutang.filter(o => o.sisaHutang > 0).length === 0 ? (
-          <div className="text-center p-12 bg-white rounded-xl border border-dashed border-slate-300 text-slate-500">
-              <CheckCircle size={48} className="mx-auto text-emerald-400 mb-3" />
-              <p>Hore! Semua nota telah lunas. Tidak ada piutang saat ini.</p>
-          </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {daftarPiutang.filter(o => o.sisaHutang > 0).map((order) => (
-                <div key={order.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden group hover:border-orange-300 transition-colors">
-                    <div className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg shadow">BELUM LUNAS</div>
-                    <div className="text-sm text-slate-500 mb-1">{formatDate(order.date)}</div>
-                    <div className="font-bold text-lg mb-1 uppercase">{order.customer}</div>
-                    <div className="text-[10px] font-mono text-slate-400 mb-4">{order.id}</div>
-                    
-                    <div className="space-y-2 text-sm mb-4">
-                        <div className="flex justify-between border-b border-slate-100 pb-1">
-                            <span className="text-slate-500">Total Invoice</span>
-                            <span className="font-medium">{formatRp(order.total)}</span>
-                        </div>
-                        <div className="flex justify-between border-b border-slate-100 pb-1">
-                            <span className="text-slate-500">Telah Dicicil</span>
-                            <span className="font-bold text-emerald-600">{formatRp((Number(order.paidAmount) || 0) + (Number(order.cicilanTerbayar) || 0))}</span>
-                        </div>
-                        <div className="flex justify-between pt-1">
-                            <span className="font-bold text-red-600">Sisa Hutang</span>
-                            <span className="font-bold text-red-700 text-base">{formatRp(order.sisaHutang)}</span>
-                        </div>
-                    </div>
-                    
-                    <button onClick={() => {setSelectedOrder(order); setBayarAmount(order.sisaHutang)}} className="w-full bg-orange-100 text-orange-800 hover:bg-orange-500 hover:text-white transition py-2.5 rounded-lg font-bold text-sm shadow-sm">
-                        Kelola Cicilan / Pelunasan
-                    </button>
-                </div>
-            ))}
-        </div>
-      )}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {renderedPiutangCards}
+      </div>
     </div>
   );
 }
@@ -1588,6 +1611,42 @@ function TabPemalang({ reports, sendToSheet, requestDelete, role }) {
         return ymd >= filterFrom && ymd <= filterTo;
     });
   }, [reports, filterFrom, filterTo]);
+
+  // --- MEMOIZED TABLE ROWS UTK MENCEGAH LAG SAAT MENGETIK DI FORM ---
+  const renderedTableRows = useMemo(() => {
+    if (displayReports.length === 0) return <tr><td colSpan="7" className="text-center py-12 text-slate-400">Tidak ada laporan ditemukan pada tanggal filter tersebut.</td></tr>;
+    return displayReports.map((rep) => (
+      <tr key={rep.id} className="hover:bg-slate-50">
+        <td className="px-4 py-3">
+          <div className="font-medium text-slate-800">{formatDate(rep.date)}</div>
+          <div className="text-[10px] text-slate-400 font-mono mt-1">{rep.id}</div>
+        </td>
+        <td className="px-4 py-3 text-center bg-slate-50/50">
+          <div className="font-bold">{rep.pesananMika}</div>
+          <div className="text-xs text-slate-500">{rep.pesananPorsi} Prs</div>
+        </td>
+        <td className="px-4 py-3 text-center bg-amber-50/30">
+          <div className="font-bold text-amber-700">{rep.produksiMika}</div>
+          <div className="text-xs text-amber-600">{rep.produksiPorsi} Prs</div>
+        </td>
+        <td className="px-4 py-3 bg-blue-50/30 font-bold text-blue-700 uppercase">
+          {rep.stokFreezer || '-'}
+        </td>
+        <td className="px-4 py-3 text-center">
+            <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-[10px] font-bold tracking-wide">{rep.transferDestination || 'Pusat'}</span>
+        </td>
+        <td className="px-4 py-3 text-right font-bold text-emerald-600">
+          <div className="text-xs text-slate-400 font-normal mb-0.5">{rep.notes}</div>
+          +{formatRp(rep.nominal)}
+        </td>
+        <td className="px-4 py-3 text-center">
+            <button onClick={() => requestDelete(rep.id)} className="text-red-500 hover:text-red-700 bg-red-50 p-2 rounded-lg transition" title="Hapus Laporan">
+                <Trash2 size={16} />
+            </button>
+        </td>
+      </tr>
+    ));
+  }, [displayReports, requestDelete]);
 
   return (
     <div className="space-y-4 animate-in fade-in">
@@ -1635,7 +1694,6 @@ function TabPemalang({ reports, sendToSheet, requestDelete, role }) {
 
           <div className="space-y-1 lg:col-span-2 mt-2">
             <label className="text-sm font-medium text-slate-700">Total Nominal Disetor ke Pusat (Rp)</label>
-            {/* INPUT PINTAR RUPIAH */}
             <input type="text" required value={formatRp(nominal)} onChange={e => setNominal(parseRp(e.target.value))} className="w-full p-3 border-2 border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-400 font-bold text-lg text-amber-700" placeholder="Rp 0" />
           </div>
           <div className="space-y-1 lg:col-span-1 mt-2">
@@ -1679,38 +1737,7 @@ function TabPemalang({ reports, sendToSheet, requestDelete, role }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {displayReports.map((rep) => (
-              <tr key={rep.id} className="hover:bg-slate-50">
-                <td className="px-4 py-3">
-                  <div className="font-medium text-slate-800">{formatDate(rep.date)}</div>
-                  <div className="text-[10px] text-slate-400 font-mono mt-1">{rep.id}</div>
-                </td>
-                <td className="px-4 py-3 text-center bg-slate-50/50">
-                  <div className="font-bold">{rep.pesananMika}</div>
-                  <div className="text-xs text-slate-500">{rep.pesananPorsi} Prs</div>
-                </td>
-                <td className="px-4 py-3 text-center bg-amber-50/30">
-                  <div className="font-bold text-amber-700">{rep.produksiMika}</div>
-                  <div className="text-xs text-amber-600">{rep.produksiPorsi} Prs</div>
-                </td>
-                <td className="px-4 py-3 bg-blue-50/30 font-bold text-blue-700 uppercase">
-                  {rep.stokFreezer || '-'}
-                </td>
-                <td className="px-4 py-3 text-center">
-                    <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-[10px] font-bold tracking-wide">{rep.transferDestination || 'Pusat'}</span>
-                </td>
-                <td className="px-4 py-3 text-right font-bold text-emerald-600">
-                  <div className="text-xs text-slate-400 font-normal mb-0.5">{rep.notes}</div>
-                  +{formatRp(rep.nominal)}
-                </td>
-                <td className="px-4 py-3 text-center">
-                    <button onClick={() => requestDelete(rep.id)} className="text-red-500 hover:text-red-700 bg-red-50 p-2 rounded-lg transition" title="Hapus Laporan">
-                        <Trash2 size={16} />
-                    </button>
-                </td>
-              </tr>
-            ))}
-            {displayReports.length === 0 && <tr><td colSpan="7" className="text-center py-12 text-slate-400">Tidak ada laporan ditemukan pada tanggal filter tersebut.</td></tr>}
+            {renderedTableRows}
           </tbody>
         </table>
       </div>
@@ -1796,7 +1823,7 @@ function PrintInvoiceDotMatrix({ data, onBack }) {
                   <tr className="border-b border-black border-dashed">
                       <td className="p-2 border-r border-black border-dashed uppercase">{data.category}</td>
                       <td className="p-2 border-r border-black border-dashed uppercase">
-                         Pembelian Dimsum {data.notes ? `- ${data.notes}` : ''}
+                          Pembelian Dimsum {data.notes ? `- ${data.notes}` : ''}
                       </td>
                       <td className="p-2 border-r border-black border-dashed text-center font-bold">{data.qty} PCS</td>
                       <td className="p-2 border-r border-black border-dashed text-right">{formatRp(data.price).replace('Rp', '')}</td>
