@@ -10,7 +10,7 @@ import {
 // =====================================================================
 // === GANTI URL DI BAWAH INI DENGAN URL WEB APP GOOGLE SCRIPT ANDA ===
 // =====================================================================
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqSM572mbUIGozcghhh8LHNMNw2e83O7Wkyu-SkjdVTO3zpTb64PA/exec'; 
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycb.../exec'; 
 // =====================================================================
 
 // --- UTILITIES (ANTI-CRASH & ZONA WAKTU) ---
@@ -20,7 +20,6 @@ const formatRp = (angka) => {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
 };
 
-// Ambil tanggal lokal (WIB) tanpa terpengaruh Zona Waktu GMT Google
 const getLocalYMD = (dateVal) => {
     if(!dateVal) return '';
     const d = new Date(dateVal);
@@ -283,7 +282,6 @@ export default function App() {
               <NavItem icon={<Wallet size={20} />} label="Kas & Pengeluaran" active={activeTab === 'expenses'} onClick={() => setActiveTab('expenses')} />
               <NavItem icon={<Clock size={20} />} label="Piutang / Pending" active={activeTab === 'piutang'} onClick={() => setActiveTab('piutang')} badge={daftarPiutangGlobal.length} />
               <div className="pt-4 mt-2 border-t border-slate-800">
-                {/* FITUR BARU: Admin sekarang bisa akses Stok Pemalang */}
                 <NavItem icon={<Package size={20} />} label="Stok Freezer (Pemalang)" active={activeTab === 'stok'} onClick={() => setActiveTab('stok')} />
                 <NavItem icon={<Store size={20} />} label="Laporan Pemalang" active={activeTab === 'pemalang'} onClick={() => setActiveTab('pemalang')} />
               </div>
@@ -336,7 +334,6 @@ export default function App() {
           
           {activeTab === 'pemalang' && <TabPemalang reports={pemalangReports} sendToSheet={sendToSheet} requestDelete={(id) => setConfirmDialog({type: 'pemalang', id})} role={user.role} />}
           
-          {/* Fitur Stok sekarang bisa diakses Admin dan Branch tanpa batas */}
           {activeTab === 'stok' && <TabStok stokData={stokData} sendToSheet={sendToSheet} requestDelete={(id) => setConfirmDialog({type: 'stok', id})} />}
         </div>
       </main>
@@ -353,7 +350,6 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
   const [chartView, setChartView] = useState('daily'); 
 
   const rekap = useMemo(() => {
-    // String Comparison (Aman & Ngebut)
     const isDateInRange = (dateStr) => {
         const ymd = getLocalYMD(dateStr);
         if(!ymd) return false;
@@ -450,11 +446,24 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
         return { ...order, cicilanTerbayar: cicilan, sisaHutang: sisa };
     }).filter(order => order.sisaHutang > 0);
 
+    // FIX NAMA PELANGGAN & STATUS DI RINCIAN UANG MASUK (BAGIAN C)
+    const paymentsWithDetails = filteredPayments.map(pay => {
+      const relatedOrder = orders.find(o => o.id === pay.orderId);
+      if(!relatedOrder) return { ...pay, customer: '-', statusNota: '-' };
+      const cicilan = piutangPayments.filter(p => p.orderId === pay.orderId).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+      const sisa = (Number(relatedOrder.total) || 0) - (Number(relatedOrder.paidAmount) || 0) - cicilan;
+      return {
+        ...pay,
+        customer: relatedOrder.customer,
+        statusNota: sisa <= 0 ? 'LUNAS' : 'BELUM LUNAS'
+      };
+    });
+
     return {
       penjualanCash, piutangCash, kasMasukCash, kasKeluarCash, saldoCash,
       penjualanTF, piutangTF, kasMasukTF, kasKeluarTF, setoranPemalangTF, saldoTF,
       saldoAkhir, totalPenjualanKotor, totalPiutangBaru, totalPorsi, totalPcs, breakdownPorsi,
-      listTransaksiDetail: filteredOrders, listPembayaranPiutang: filteredPayments, listPemalang: filteredPemalang, 
+      listTransaksiDetail: filteredOrders, listPembayaranPiutang: paymentsWithDetails, listPemalang: filteredPemalang, 
       topCustomersList, finalChartData, listPiutangBerjalanLaporan
     };
   }, [orders, expenses, piutangPayments, pemalangReports, dateFrom, dateTo, chartView]);
@@ -499,66 +508,6 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
               <StatCard title="Total Saldo Keseluruhan" amount={rekap.saldoAkhir} icon={<Wallet />} color="bg-blue-50 text-blue-700 border-blue-200" />
               <StatCard title="Saldo Tunai (CASH)" amount={rekap.saldoCash} icon={<Coins />} color="bg-emerald-50 text-emerald-700 border-emerald-200" />
               <StatCard title="Saldo Rekening (TRANSFER)" amount={rekap.saldoTF} icon={<CreditCard />} color="bg-indigo-50 text-indigo-700 border-indigo-200" />
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-              <div className="bg-white p-6 rounded-xl border border-emerald-200 shadow-sm relative overflow-hidden">
-                  <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
-                  <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-emerald-800"><Coins size={20} /> Rincian Arus Kas Tunai (Cash)</h3>
-                  <div className="space-y-3 text-sm">
-                      <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-                          <span className="text-slate-600">Terima Penjualan Langsung</span>
-                          <span className="font-bold text-emerald-600">+{formatRp(rekap.penjualanCash)}</span>
-                      </div>
-                      <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-                          <span className="text-slate-600">Terima Pelunasan Piutang</span>
-                          <span className="font-bold text-emerald-600">+{formatRp(rekap.piutangCash)}</span>
-                      </div>
-                      <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-                          <span className="text-slate-600">Modal / Kas Masuk Lainnya</span>
-                          <span className="font-bold text-emerald-600">+{formatRp(rekap.kasMasukCash)}</span>
-                      </div>
-                      <div className="flex justify-between items-center pb-2 border-b border-slate-100 text-red-600">
-                          <span>Kas Keluar (Beban Tunai)</span>
-                          <span className="font-bold">-{formatRp(rekap.kasKeluarCash)}</span>
-                      </div>
-                      <div className="flex justify-between items-center pt-2 text-emerald-800">
-                          <span className="font-bold">TOTAL SALDO CASH</span>
-                          <span className="font-bold text-lg">{formatRp(rekap.saldoCash)}</span>
-                      </div>
-                  </div>
-              </div>
-
-              <div className="bg-white p-6 rounded-xl border border-indigo-200 shadow-sm relative overflow-hidden">
-                  <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
-                  <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-indigo-800"><CreditCard size={20} /> Rincian Arus Kas Bank (Transfer)</h3>
-                  <div className="space-y-3 text-sm">
-                      <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-                          <span className="text-slate-600">Terima Penjualan Langsung</span>
-                          <span className="font-bold text-indigo-600">+{formatRp(rekap.penjualanTF)}</span>
-                      </div>
-                      <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-                          <span className="text-slate-600">Terima Pelunasan Piutang</span>
-                          <span className="font-bold text-indigo-600">+{formatRp(rekap.piutangTF)}</span>
-                      </div>
-                      <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-                          <span className="text-slate-600">Modal / Kas Masuk Lainnya</span>
-                          <span className="font-bold text-indigo-600">+{formatRp(rekap.kasMasukTF)}</span>
-                      </div>
-                      <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-                          <span className="font-medium text-amber-700">Setoran Pemalang (TF Ke Pusat)</span>
-                          <span className="font-bold text-amber-600">+{formatRp(rekap.setoranPemalangTF)}</span>
-                      </div>
-                      <div className="flex justify-between items-center pb-2 border-b border-slate-100 text-red-600">
-                          <span>Kas Keluar (Beban Transfer)</span>
-                          <span className="font-bold">-{formatRp(rekap.kasKeluarTF)}</span>
-                      </div>
-                      <div className="flex justify-between items-center pt-2 text-indigo-800">
-                          <span className="font-bold">TOTAL SALDO TRANSFER</span>
-                          <span className="font-bold text-lg">{formatRp(rekap.saldoTF)}</span>
-                      </div>
-                  </div>
-              </div>
           </div>
       </div>
 
@@ -605,24 +554,48 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
                 </div>
                 ))}
             </div>
-
-            <div className="border-t border-slate-100 pt-4 space-y-2 mt-auto">
-                <div className="flex justify-between items-center p-2 bg-slate-50 rounded-lg">
-                    <span className="text-slate-600 text-sm">Omset Penjualan Kotor</span>
-                    <span className="font-bold text-slate-800">{formatRp(rekap.totalPenjualanKotor)}</span>
-                </div>
-                <div className="flex justify-between items-center p-2 bg-red-50 rounded-lg border border-red-100">
-                    <span className="text-red-600 text-sm font-medium">Total Piutang Berjalan Baru</span>
-                    <span className="font-bold text-red-700">{formatRp(rekap.totalPiutangBaru)}</span>
-                </div>
-            </div>
         </div>
       </div>
+
+      {rekap.listPembayaranPiutang.length > 0 && (
+          <div className="bg-white rounded-xl border border-orange-200 shadow-sm overflow-hidden mt-6">
+            <div className="p-4 border-b border-orange-200 bg-orange-50 flex items-center gap-2">
+                <Clock className="text-orange-600" size={18}/>
+                <h3 className="font-bold text-orange-800">Rincian Uang Masuk dari Pelunasan/Cicilan Piutang</h3>
+            </div>
+            <table className="w-full text-sm text-left block md:table overflow-x-auto">
+                <thead className="bg-white text-slate-500 text-xs uppercase font-semibold border-b">
+                    <tr>
+                        <th className="px-6 py-3">Tanggal Bayar</th>
+                        <th className="px-6 py-3">ID Pembayaran</th>
+                        <th className="px-6 py-3">Pelanggan</th>
+                        <th className="px-6 py-3">Via</th>
+                        <th className="px-6 py-3 text-right">Nominal Masuk</th>
+                        <th className="px-6 py-3 text-center">Status Nota</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                    {rekap.listPembayaranPiutang.map((p, i) => (
+                        <tr key={i} className="hover:bg-slate-50">
+                            <td className="px-6 py-3 font-medium">{formatDate(p.date)}</td>
+                            <td className="px-6 py-3 font-mono text-xs text-slate-500">{p.id}</td>
+                            <td className="px-6 py-3 font-bold uppercase">{p.customer}</td>
+                            <td className="px-6 py-3 text-xs font-medium text-slate-500">{p.paymentMethod}</td>
+                            <td className="px-6 py-3 text-right font-bold text-orange-600">{formatRp(p.amount)}</td>
+                            <td className="px-6 py-3 text-center font-bold text-[10px]">
+                                {p.statusNota === 'LUNAS' ? <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded">LUNAS</span> : <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded">BELUM LUNAS</span>}
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+          </div>
+      )}
     </div>
   );
 }
 
-// --- TAB DASHBOARD CABANG (KHUSUS PEMALANG) DENGAN MONITORING STOK ---
+// --- TAB DASHBOARD CABANG (KHUSUS PEMALANG) ---
 function TabDashboardBranch({ orders, pemalangReports, setPrintData, user, stokData }) {
   const todayStr = new Date().toISOString().split('T')[0];
   const [dateFrom, setDateFrom] = useState(todayStr);
@@ -634,9 +607,9 @@ function TabDashboardBranch({ orders, pemalangReports, setPrintData, user, stokD
     stokData.forEach(s => {
       const nama = s.itemName.toUpperCase();
       if(!calc[nama]) calc[nama] = { masuk: 0, keluar: 0, terpakai: 0, sisa: 0, satuan: s.satuan || 'PCS' };
-      if(s.type === 'MASUK') calc[nama].masuk += Number(s.qty);
-      else if(s.type === 'KELUAR') calc[nama].keluar += Number(s.qty);
-      else if(s.type === 'TERPAKAI') calc[nama].terpakai += Number(s.qty);
+      if(s.type === 'MASUK') calc[nama].masuk += Number(s.qty) || 0;
+      else if(s.type === 'KELUAR') calc[nama].keluar += Number(s.qty) || 0;
+      else if(s.type === 'TERPAKAI') calc[nama].terpakai += Number(s.qty) || 0;
 
       calc[nama].sisa = calc[nama].masuk - calc[nama].keluar - calc[nama].terpakai;
     });
@@ -730,11 +703,9 @@ function TabDashboardBranch({ orders, pemalangReports, setPrintData, user, stokD
           <StatCard title="Total Setoran Kas ke Pusat" amount={rekap.setoranKePusat} icon={<Wallet />} color="bg-blue-50 text-blue-700 border-blue-200" />
       </div>
 
-      {/* WIDGET MONITORING STOK CABANG */}
       <div className="bg-white p-6 rounded-xl border border-blue-200 shadow-sm relative overflow-hidden">
           <div className="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
           <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-blue-800"><Package size={20} /> Monitoring Sisa Stok Freezer Aktual</h3>
-          
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
               {Object.keys(stokAktual).length === 0 && <div className="text-sm text-slate-500 italic col-span-full">Stok kosong atau belum ada pencatatan barang.</div>}
               {Object.entries(stokAktual).map(([nama, data]) => (
@@ -745,44 +716,6 @@ function TabDashboardBranch({ orders, pemalangReports, setPrintData, user, stokD
                       </div>
                   </div>
               ))}
-          </div>
-      </div>
-
-      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
-         <div className="flex justify-between items-center mb-6">
-            <h3 className="font-bold text-lg flex items-center gap-2 text-slate-800"><TrendingUp size={20} className="text-red-500"/> Grafik Penjualan Cabang</h3>
-            <div className="flex bg-slate-100 p-1 rounded-lg">
-               <button onClick={()=>setChartView('daily')} className={`px-3 py-1 text-xs font-bold rounded ${chartView==='daily'?'bg-white shadow text-red-600':'text-slate-500'}`}>Harian</button>
-               <button onClick={()=>setChartView('monthly')} className={`px-3 py-1 text-xs font-bold rounded ${chartView==='monthly'?'bg-white shadow text-red-600':'text-slate-500'}`}>Bulanan</button>
-            </div>
-         </div>
-         <div className="w-full h-56 mt-4 relative min-w-[500px]">
-             {rekap.finalChartData.length === 0 ? (
-                <div className="w-full h-full flex items-center justify-center text-slate-400 border border-dashed rounded-xl">Belum ada data di periode ini.</div>
-             ) : (
-                <SimpleSVGLineChart data={rekap.finalChartData} />
-             )}
-         </div>
-      </div>
-
-      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col max-h-96">
-          <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Users size={20} className="text-slate-500"/> Top Pelanggan (Cabang Pemalang)</h3>
-          <div className="overflow-y-auto pr-2 flex-1 space-y-3">
-              {rekap.topCustomersList.map((cust, i) => (
-                <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100 hover:border-amber-200 transition">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shadow-sm ${i === 0 ? 'bg-amber-400 text-white' : i === 1 ? 'bg-slate-300 text-slate-700' : i === 2 ? 'bg-orange-300 text-white' : 'bg-white text-slate-400'}`}>
-                          #{i+1}
-                      </div>
-                      <div>
-                          <div className="font-bold text-slate-800">{cust.name}</div>
-                          <div className="text-xs text-slate-500">{cust.frequency}x Order • {cust.qty} Pcs ({cust.porsi} Prs)</div>
-                      </div>
-                    </div>
-                    <div className="font-bold text-amber-600">{formatRp(cust.total)}</div>
-                </div>
-              ))}
-              {rekap.topCustomersList.length === 0 && <div className="text-center text-slate-400 text-sm mt-8">Tidak ada data penjualan.</div>}
           </div>
       </div>
     </div>
@@ -841,7 +774,6 @@ function TabOrders({ orders, sendToSheet, setPrintData, requestDelete, role }) {
   const [paidAmount, setPaidAmount] = useState(100 * KATEGORI_HARGA[role === 'branch' ? 'Pemalang' : 'Reseller']);
   const [notes, setNotes] = useState('');
 
-  // Filter Tanggal Data Tabel
   const [filterFrom, setFilterFrom] = useState(todayStr);
   const [filterTo, setFilterTo] = useState(todayStr);
 
@@ -888,7 +820,7 @@ function TabOrders({ orders, sendToSheet, setPrintData, requestDelete, role }) {
     e.preventDefault();
     const newOrder = {
       id: generateId('INV', date),
-      date, customer, category, qty, price, total, paymentMethod, paidAmount: Number(paidAmount), notes
+      date, customer, category, qty: Number(qty)||0, price: Number(price)||0, total: Number(total)||0, paymentMethod, paidAmount: Number(paidAmount)||0, notes
     };
     sendToSheet('insert', newOrder, 'orders'); 
     setShowForm(false);
@@ -949,7 +881,6 @@ function TabOrders({ orders, sendToSheet, setPrintData, requestDelete, role }) {
           <div className="space-y-1 bg-amber-50 p-3 rounded-lg border border-amber-200 lg:col-span-3">
             <label className="text-xs font-bold text-amber-800 uppercase">Total Harga (Otomatis & Bisa Edit Manual)</label>
             <input type="number" required value={total} onChange={handleTotalChange} className="w-full p-3 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-400 font-bold text-lg bg-white mt-1" />
-            <p className="text-xs text-amber-700 mt-1">*Jika diedit manual, angka ini yang akan masuk ke Laporan Omset Dashboard.</p>
           </div>
 
           <div className="space-y-1">
@@ -1011,7 +942,7 @@ function TabOrders({ orders, sendToSheet, setPrintData, requestDelete, role }) {
                 <td className="px-4 py-3 text-center font-medium text-slate-600">{ord.paymentMethod}</td>
                 <td className="px-4 py-3 text-right font-bold text-emerald-600">{formatRp(ord.total)}</td>
                 <td className="px-4 py-3 text-center">
-                  {Number(ord.total) > Number(ord.paidAmount) ? (
+                  {(Number(ord.total)||0) > (Number(ord.paidAmount)||0) ? (
                     <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded text-[10px] font-bold tracking-wide">PIUTANG</span>
                   ) : (
                     <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-[10px] font-bold tracking-wide">LUNAS</span>
@@ -1022,11 +953,10 @@ function TabOrders({ orders, sendToSheet, setPrintData, requestDelete, role }) {
                     <button onClick={() => setPrintData({ type: 'invoice', data: ord })} className="text-slate-600 hover:text-slate-900 bg-slate-100 p-2 rounded-lg transition border border-slate-200 shadow-sm" title="Cetak Epson LX-310">
                       <Printer size={16} />
                     </button>
-                    {role === 'admin' && (
-                      <button onClick={() => requestDelete(ord.id)} className="text-red-500 hover:text-red-700 bg-red-50 p-2 rounded-lg transition" title="Hapus Data">
-                        <Trash2 size={16} />
-                      </button>
-                    )}
+                    {/* CABANG SEKARANG BISA HAPUS INVOICENYA SENDIRI */}
+                    <button onClick={() => requestDelete(ord.id)} className="text-red-500 hover:text-red-700 bg-red-50 p-2 rounded-lg transition" title="Hapus Data">
+                      <Trash2 size={16} />
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -1048,7 +978,7 @@ function TabStok({ stokData, sendToSheet, requestDelete }) {
   const [qty, setQty] = useState(0);
   const [notes, setNotes] = useState('');
 
-  const listBarangUnik = [...new Set(stokData.map(s => s.itemName.toUpperCase()))];
+  const listBarangUnik = [...new Set(stokData.map(s => String(s.itemName||'').toUpperCase()))];
 
   const handleSimpan = (e) => {
     e.preventDefault();
@@ -1058,7 +988,7 @@ function TabStok({ stokData, sendToSheet, requestDelete }) {
     const newStok = {
       id: generateId('STK', date),
       date, itemName: itemName.toUpperCase(), satuan: satuan.toUpperCase(),
-      type, qty: Number(qty), notes
+      type, qty: Number(qty)||0, notes
     };
     sendToSheet('insert', newStok, 'stok');
     setShowForm(false);
@@ -1068,7 +998,7 @@ function TabStok({ stokData, sendToSheet, requestDelete }) {
   const stokAktual = useMemo(() => {
     const calc = {};
     stokData.forEach(s => {
-      const nama = s.itemName.toUpperCase();
+      const nama = String(s.itemName||'').toUpperCase();
       if(!calc[nama]) calc[nama] = { masuk: 0, keluar: 0, terpakai: 0, sisa: 0, satuan: s.satuan || 'PCS' };
       if(s.type === 'MASUK') calc[nama].masuk += Number(s.qty) || 0;
       else if(s.type === 'KELUAR') calc[nama].keluar += Number(s.qty) || 0;
@@ -1209,7 +1139,6 @@ function TabExpenses({ expenses, sendToSheet, setPrintData, requestDelete }) {
   const [price, setPrice] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState('Cash');
 
-  // Filter Tanggal Data Tabel
   const [filterFrom, setFilterFrom] = useState(todayStr);
   const [filterTo, setFilterTo] = useState(todayStr);
 
@@ -1534,7 +1463,6 @@ function TabPemalang({ reports, sendToSheet, requestDelete, role }) {
   const [transferDestination, setTransferDestination] = useState('BCA (WASTAM)'); 
   const [notes, setNotes] = useState('');
 
-  // Filter Tanggal
   const [filterFrom, setFilterFrom] = useState(todayStr);
   const [filterTo, setFilterTo] = useState(todayStr);
 
@@ -1673,13 +1601,10 @@ function TabPemalang({ reports, sendToSheet, requestDelete, role }) {
                   +{formatRp(rep.nominal)}
                 </td>
                 <td className="px-4 py-3 text-center">
-                    {role === 'admin' ? (
-                      <button onClick={() => requestDelete(rep.id)} className="text-red-500 hover:text-red-700 bg-red-50 p-2 rounded-lg transition" title="Hapus Laporan">
-                          <Trash2 size={16} />
-                      </button>
-                    ) : (
-                      <span className="text-xs text-slate-400 italic">Terkunci</span>
-                    )}
+                    {/* CABANG SEKARANG BISA HAPUS LAPORANNYA SENDIRI */}
+                    <button onClick={() => requestDelete(rep.id)} className="text-red-500 hover:text-red-700 bg-red-50 p-2 rounded-lg transition" title="Hapus Laporan">
+                        <Trash2 size={16} />
+                    </button>
                 </td>
               </tr>
             ))}
@@ -1692,7 +1617,7 @@ function TabPemalang({ reports, sendToSheet, requestDelete, role }) {
 }
 
 // ==========================================================
-// --- LAYOUT CETAK KHUSUS PRINTER DOT MATRIX EPSON LX-310 ---
+// --- LAYOUT CETAK INVOICE & LAPORAN ---
 // ==========================================================
 function PrintInvoiceDotMatrix({ data, onBack }) {
     useEffect(() => {
@@ -1702,6 +1627,7 @@ function PrintInvoiceDotMatrix({ data, onBack }) {
   
     return (
       <>
+      {/* DIKUNCI KE UKURAN KERTAS 9.5 X 11 INCI (CONTINUOUS FORM) */}
       <style dangerouslySetInnerHTML={{__html: `
         @media print {
           @page { size: 9.5in 11in; margin: 0; }
@@ -1833,172 +1759,6 @@ function PrintInvoiceDotMatrix({ data, onBack }) {
     );
 }
 
-// Layout Cetak Rekap Laporan Cabang (KHUSUS PEMALANG) DENGAN TUJUAN TF
-function PrintReportBranch({ data, onBack, user }) {
-  useEffect(() => {
-      const timer = setTimeout(() => { window.print(); }, 500);
-      return () => clearTimeout(timer);
-  }, []);
-  
-  const { rekap, dateFrom, dateTo } = data;
-
-  return (
-    <div className="bg-white min-h-screen text-black print:bg-white print:p-0 p-8 w-full max-w-[800px] mx-auto">
-      <button onClick={onBack} className="print:hidden mb-4 bg-slate-800 text-white px-4 py-2 rounded flex items-center gap-2">
-        <ArrowRightLeft size={16} /> Kembali ke Aplikasi
-      </button>
-
-      <div className="print:p-0 text-sm font-sans" style={{ fontFamily: 'Arial, sans-serif' }}>
-        
-        <div className="text-center mb-6 border-b-2 border-black pb-4">
-            <h1 className="font-bold text-xl uppercase mt-2">Laporan Operasional {user.name}</h1>
-            <p className="text-slate-600">Periode: {formatDate(dateFrom)} s/d {formatDate(dateTo)}</p>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4 mb-6">
-            <div className="border border-black p-3">
-                <h3 className="font-bold text-sm border-b border-black pb-1 mb-2">RINGKASAN PENJUALAN CABANG</h3>
-                <div className="flex justify-between mb-1"><span>Total Omset Kotor:</span> <span className="font-medium text-emerald-700">{formatRp(rekap.totalPenjualanKotor)}</span></div>
-                <div className="flex justify-between mb-1"><span>Total Porsi Terjual:</span> <span className="font-medium text-indigo-700">{rekap.totalPorsi} Prs ({rekap.totalPcs} Pcs)</span></div>
-            </div>
-            <div className="border border-black p-3">
-                <h3 className="font-bold text-sm border-b border-black pb-1 mb-2">RINGKASAN KAS / SETORAN</h3>
-                <div className="flex justify-between mb-1"><span>Total Setoran Kas ke Pusat:</span> <span className="font-medium text-blue-700">{formatRp(rekap.setoranKePusat)}</span></div>
-                <div className="flex justify-between mb-1"><span>Status Uang Disetor:</span> <span className="font-medium text-slate-500">Full Transfer Bank</span></div>
-            </div>
-        </div>
-
-        <h3 className="font-bold text-md mb-2 mt-8">A. RINCIAN TRANSAKSI INVOICE CABANG</h3>
-        <table className="w-full border-collapse border border-black text-sm text-left mb-8">
-          <thead className="bg-gray-100">
-              <tr>
-                  <th className="border border-black p-2 text-center w-8">NO</th>
-                  <th className="border border-black p-2">NO. INVOICE</th>
-                  <th className="border border-black p-2">PELANGGAN</th>
-                  <th className="border border-black p-2 text-center">METODE BAYAR</th>
-                  <th className="border border-black p-2 text-center">QTY (PORSI)</th>
-                  <th className="border border-black p-2 text-right">TOTAL OMSET</th>
-              </tr>
-          </thead>
-          <tbody>
-              {rekap.listOrders.map((c, i) => (
-                  <tr key={i}>
-                      <td className="border border-black p-2 text-center">{i + 1}</td>
-                      <td className="border border-black p-2 font-mono text-xs">{c.id}</td>
-                      <td className="border border-black p-2 font-bold uppercase">{c.customer}</td>
-                      <td className="border border-black p-2 text-center">{c.paymentMethod}</td>
-                      <td className="border border-black p-2 text-center">{c.qty} Pcs <span className="text-xs">({c.qty/4} Prs)</span></td>
-                      <td className="border border-black p-2 text-right font-medium">{formatRp(c.total)}</td>
-                  </tr>
-              ))}
-              {rekap.listOrders.length === 0 && <tr><td colSpan="6" className="border border-black p-4 text-center italic">Tidak ada transaksi.</td></tr>}
-          </tbody>
-        </table>
-
-        <h3 className="font-bold text-md mb-2 mt-4">B. RINCIAN LAPORAN HARIAN & STOK FREEZER</h3>
-        <table className="w-full border-collapse border border-black text-sm text-left mb-8">
-            <thead className="bg-gray-100">
-                <tr>
-                    <th className="border border-black p-2 text-center w-8">NO</th>
-                    <th className="border border-black p-2">TANGGAL</th>
-                    <th className="border border-black p-2 text-center">PRODUKSI / PESANAN</th>
-                    <th className="border border-black p-2">STOK FREEZER AKHIR</th>
-                    <th className="border border-black p-2 text-center">TUJUAN TF</th>
-                    <th className="border border-black p-2 text-right">UANG DISETOR</th>
-                </tr>
-            </thead>
-            <tbody>
-                {rekap.listReports.map((p, i) => (
-                    <tr key={i}>
-                        <td className="border border-black p-2 text-center">{i + 1}</td>
-                        <td className="border border-black p-2">{formatDate(p.date)}</td>
-                        <td className="border border-black p-2 text-center">
-                            {p.produksiMika} M / {p.pesananMika} M
-                        </td>
-                        <td className="border border-black p-2 font-bold uppercase">{p.stokFreezer}</td>
-                        <td className="border border-black p-2 text-center font-bold">{p.transferDestination || 'BCA (WASTAM)'}</td>
-                        <td className="border border-black p-2 text-right font-bold text-emerald-700">{formatRp(p.nominal)}</td>
-                    </tr>
-                ))}
-                {rekap.listReports.length === 0 && <tr><td colSpan="6" className="border border-black p-4 text-center italic">Tidak ada laporan harian.</td></tr>}
-            </tbody>
-        </table>
-
-        <div className="flex justify-end mt-12">
-            <div className="text-center w-48">
-                <div className="text-sm mb-12 text-center">Dicetak oleh,</div>
-                <div className="border-b border-dotted border-black h-4 mb-1"></div>
-                <div className="text-xs uppercase">Admin {user.name}</div>
-                <div className="text-xs italic text-gray-500 mt-1">{formatDate(new Date())}</div>
-            </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PrintVoucher({ data, onBack }) {
-    useEffect(() => {
-        const timer = setTimeout(() => { window.print(); }, 500);
-        return () => clearTimeout(timer);
-    }, []);
-    return (
-      <div className="bg-white min-h-screen text-black print:bg-white print:p-0 p-8 w-full max-w-[800px] mx-auto">
-        <button onClick={onBack} className="print:hidden mb-4 bg-slate-800 text-white px-4 py-2 rounded flex items-center gap-2"><ArrowRightLeft size={16} /> Kembali</button>
-        <div className="p-8 border border-slate-200 print:border-none print:p-0 text-sm font-sans" style={{ fontFamily: 'Arial, sans-serif' }}>
-          <div className="flex justify-between items-center mb-8"><h1 className="font-bold text-xl uppercase">BUKTI PENGELUARAN KAS - DIMSUM ADITYA</h1></div>
-          <div className="flex justify-between items-end mb-6">
-              <table className="w-[50%] text-sm"><tbody>
-                      <tr><td className="font-bold w-24 pb-2">ID Voucher</td><td className="w-4 pb-2">:</td><td className="border-b border-dotted border-black pb-2">{data.id}</td></tr>
-                      <tr><td className="font-bold w-24 pb-2">Kepada</td><td className="w-4 pb-2">:</td><td className="border-b border-dotted border-black pb-2 uppercase">{data.recipient}</td></tr>
-              </tbody></table>
-              <table className="w-[35%] text-sm"><tbody>
-                      <tr><td className="font-bold w-20 pb-2">Tanggal</td><td className="w-4 pb-2">:</td><td className="border-b border-dotted border-black text-right pb-2">{formatDate(data.date)}</td></tr>
-                      <tr><td className="font-bold w-20 pb-2">Metode</td><td className="w-4 pb-2">:</td><td className="border-b border-dotted border-black text-right pb-2">{data.paymentMethod}</td></tr>
-              </tbody></table>
-          </div>
-          <table className="w-full border-collapse border border-black text-center mb-2 text-sm">
-              <thead><tr><th className="border border-black p-2 bg-gray-50 w-1/4">KATEGORI</th><th className="border border-black p-2 bg-gray-50 w-2/5">KETERANGAN</th><th className="border border-black p-2 bg-gray-50 w-16">QTY</th><th className="border border-black p-2 bg-gray-50">HARGA</th><th className="border border-black p-2 bg-gray-50">TOTAL (KAS KELUAR)</th></tr></thead>
-              <tbody><tr><td className="border border-black p-2">{data.category}</td><td className="border border-black p-2 uppercase">{data.description}</td><td className="border border-black p-2">{data.qty}</td><td className="border border-black p-2">{formatRp(data.price)}</td><td className="border border-black p-2 font-bold">{formatRp(data.total)}</td></tr></tbody>
-          </table>
-          <div className="italic text-sm font-serif mb-16 pt-2">TERBILANG : {terbilang(data.total)} Rupiah</div>
-          <div className="flex justify-between items-end mb-4">
-              <div className="text-center w-48 mt-12"><div className="border-b border-dotted border-black h-8 mb-1"></div><div className="text-xs">Penerima / Pelanggan</div></div>
-              <div className="text-center w-48"><div className="text-sm mb-16 text-left italic">Hormat kami,</div><div className="border-b border-dotted border-black h-4 mb-1"></div><div className="text-xs">Admin / Kasir</div></div>
-          </div>
-        </div>
-      </div>
-    );
-}
-function PrintReceipt({ data, onBack }) {
-    useEffect(() => {
-        const timer = setTimeout(() => { window.print(); }, 500);
-        return () => clearTimeout(timer);
-    }, []);
-    const { payment, order } = data;
-    return (
-      <div className="bg-white min-h-screen text-black print:bg-white print:p-0 p-8 w-full max-w-[800px] mx-auto">
-        <button onClick={onBack} className="print:hidden mb-4 bg-slate-800 text-white px-4 py-2 rounded flex items-center gap-2"><ArrowRightLeft size={16} /> Kembali</button>
-        <div className="p-8 border border-slate-200 print:border-none print:p-0 text-sm font-sans" style={{ fontFamily: 'Arial, sans-serif' }}>
-          <div className="flex justify-between items-center mb-10"><h1 className="font-bold text-xl uppercase border-b-2 border-black pb-2 inline-block">BUKTI PEMBAYARAN PIUTANG / CICILAN</h1></div>
-          <div className="space-y-4 text-base">
-              <div className="flex"><div className="w-48 font-bold">ID Pembayaran</div><div className="w-4">:</div><div className="font-mono font-medium">{payment.id}</div></div>
-              <div className="flex"><div className="w-48 font-bold">Tanggal Pembayaran</div><div className="w-4">:</div><div>{formatDate(payment.date)}</div></div>
-              <div className="flex"><div className="w-48 font-bold">Telah Diterima Dari</div><div className="w-4">:</div><div className="uppercase font-bold border-b border-dotted border-black flex-1">{order.customer}</div></div>
-              <div className="flex"><div className="w-48 font-bold">Metode Bayar</div><div className="w-4">:</div><div className="font-bold">{payment.paymentMethod}</div></div>
-              <div className="flex items-center"><div className="w-48 font-bold">Sejumlah Uang</div><div className="w-4">:</div><div className="font-bold text-lg bg-gray-100 px-4 py-1 border border-black inline-block">{formatRp(payment.amount)}</div></div>
-              <div className="flex"><div className="w-48 font-bold">Terbilang</div><div className="w-4">:</div><div className="italic font-serif flex-1 capitalize border-b border-dotted border-black">{terbilang(payment.amount)} Rupiah</div></div>
-              <div className="flex"><div className="w-48 font-bold">Untuk Pembayaran</div><div className="w-4">:</div><div className="flex-1">Cicilan / Pelunasan tagihan untuk No. Invoice: <strong>{order.id}</strong></div></div>
-          </div>
-          <div className="mt-16 flex justify-between items-end">
-              <div className="text-sm p-4 border border-black bg-gray-50"><p className="font-bold mb-1">Informasi Invoice (Referensi):</p><p>Total Tagihan Awal : {formatRp(order.total)}</p><p>Sisa Hutang Terakhir : {formatRp(order.sisaHutang)}</p></div>
-              <div className="text-center w-48"><div className="text-sm mb-16 text-left italic">Penerima (Kasir),</div><div className="border-b border-dotted border-black h-4 mb-1"></div><div className="text-xs uppercase text-center">Dimsum Aditya</div></div>
-          </div>
-        </div>
-      </div>
-    );
-}
-
 function PrintReport({ data, onBack }) {
     useEffect(() => {
         const timer = setTimeout(() => { window.print(); }, 500);
@@ -2006,8 +1766,17 @@ function PrintReport({ data, onBack }) {
     }, []);
     const { rekap, dateFrom, dateTo } = data;
     return (
+      <>
+      {/* KUNCI KE UKURAN A4 PORTRAIT */}
+      <style dangerouslySetInnerHTML={{__html: `
+        @media print {
+          @page { size: A4 portrait; margin: 0.5in; }
+          body { margin: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          .hide-on-print { display: none !important; }
+        }
+      `}} />
       <div className="bg-white min-h-screen text-black print:bg-white print:p-0 p-8 w-full max-w-[800px] mx-auto">
-        <button onClick={onBack} className="print:hidden mb-4 bg-slate-800 text-white px-4 py-2 rounded flex items-center gap-2"><ArrowRightLeft size={16} /> Kembali ke Aplikasi</button>
+        <button onClick={onBack} className="hide-on-print mb-4 bg-slate-800 text-white px-4 py-2 rounded flex items-center gap-2"><ArrowRightLeft size={16} /> Kembali ke Aplikasi</button>
         <div className="print:p-0 text-sm font-sans" style={{ fontFamily: 'Arial, sans-serif' }}>
           <div className="text-center mb-6 border-b-2 border-black pb-4"><h1 className="font-bold text-xl uppercase mt-2">Laporan Keuangan & Penjualan</h1><p className="text-slate-600">Periode: {formatDate(dateFrom)} s/d {formatDate(dateTo)}</p></div>
           <div className="grid grid-cols-2 gap-4 mb-6">
@@ -2041,10 +1810,21 @@ function PrintReport({ data, onBack }) {
               <>
                   <h3 className="font-bold text-md mb-2 mt-4">C. RINCIAN UANG MASUK DARI CICILAN PIUTANG (PERIODE INI)</h3>
                   <table className="w-full border-collapse border border-black text-sm text-left mb-8">
-                      <thead className="bg-gray-100"><tr><th className="border border-black p-2 text-center w-8">NO</th><th className="border border-black p-2">TANGGAL</th><th className="border border-black p-2">ID PEMBAYARAN</th><th className="border border-black p-2">REF. INVOICE</th><th className="border border-black p-2">PELANGGAN</th><th className="border border-black p-2">VIA</th><th className="border border-black p-2 text-right">NOMINAL MASUK</th></tr></thead>
+                      <thead className="bg-gray-100"><tr><th className="border border-black p-2 text-center w-8">NO</th><th className="border border-black p-2">TANGGAL</th><th className="border border-black p-2">ID PEMBAYARAN</th><th className="border border-black p-2">REF. INVOICE</th><th className="border border-black p-2">PELANGGAN</th><th className="border border-black p-2">VIA</th><th className="border border-black p-2 text-right">NOMINAL MASUK</th><th className="border border-black p-2 text-center">STATUS NOTA</th></tr></thead>
                       <tbody>
                           {rekap.listPembayaranPiutang.map((p, i) => (
-                              <tr key={i}><td className="border border-black p-2 text-center">{i + 1}</td><td className="border border-black p-2">{formatDate(p.date)}</td><td className="border border-black p-2 font-mono text-xs">{p.id}</td><td className="border border-black p-2 font-mono text-xs font-bold">{p.orderId}</td><td className="border border-black p-2 font-bold uppercase">{p.customer}</td><td className="border border-black p-2">{p.paymentMethod}</td><td className="border border-black p-2 text-right font-bold">{formatRp(p.amount)}</td></tr>
+                              <tr key={i}>
+                                <td className="border border-black p-2 text-center">{i + 1}</td>
+                                <td className="border border-black p-2">{formatDate(p.date)}</td>
+                                <td className="border border-black p-2 font-mono text-xs">{p.id}</td>
+                                <td className="border border-black p-2 font-mono text-xs font-bold">{p.orderId}</td>
+                                <td className="border border-black p-2 font-bold uppercase">{p.customer}</td>
+                                <td className="border border-black p-2">{p.paymentMethod}</td>
+                                <td className="border border-black p-2 text-right font-bold">{formatRp(p.amount)}</td>
+                                <td className="border border-black p-2 text-center text-[10px] font-bold">
+                                    {p.statusNota === 'LUNAS' ? <span className="text-emerald-600">LUNAS</span> : <span className="text-red-600">BELUM LUNAS</span>}
+                                </td>
+                              </tr>
                           ))}
                       </tbody>
                   </table>
@@ -2070,6 +1850,126 @@ function PrintReport({ data, onBack }) {
           </div>
         </div>
       </div>
+      </>
+    );
+}
+
+function PrintReportBranch({ data, onBack, user }) {
+  useEffect(() => {
+      const timer = setTimeout(() => { window.print(); }, 500);
+      return () => clearTimeout(timer);
+  }, []);
+  const { rekap, dateFrom, dateTo } = data;
+  return (
+    <>
+    {/* KUNCI KE UKURAN A4 PORTRAIT */}
+    <style dangerouslySetInnerHTML={{__html: `
+      @media print {
+        @page { size: A4 portrait; margin: 0.5in; }
+        body { margin: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        .hide-on-print { display: none !important; }
+      }
+    `}} />
+    <div className="bg-white min-h-screen text-black print:bg-white print:p-0 p-8 w-full max-w-[800px] mx-auto">
+      <button onClick={onBack} className="hide-on-print mb-4 bg-slate-800 text-white px-4 py-2 rounded flex items-center gap-2"><ArrowRightLeft size={16} /> Kembali ke Aplikasi</button>
+      <div className="print:p-0 text-sm font-sans" style={{ fontFamily: 'Arial, sans-serif' }}>
+        <div className="text-center mb-6 border-b-2 border-black pb-4"><h1 className="font-bold text-xl uppercase mt-2">Laporan Operasional {user.name}</h1><p className="text-slate-600">Periode: {formatDate(dateFrom)} s/d {formatDate(dateTo)}</p></div>
+        <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="border border-black p-3"><h3 className="font-bold text-sm border-b border-black pb-1 mb-2">RINGKASAN PENJUALAN CABANG</h3><div className="flex justify-between mb-1"><span>Total Omset Kotor:</span> <span className="font-medium text-emerald-700">{formatRp(rekap.totalPenjualanKotor)}</span></div><div className="flex justify-between mb-1"><span>Total Porsi Terjual:</span> <span className="font-medium text-indigo-700">{rekap.totalPorsi} Prs ({rekap.totalPcs} Pcs)</span></div></div>
+            <div className="border border-black p-3"><h3 className="font-bold text-sm border-b border-black pb-1 mb-2">RINGKASAN KAS / SETORAN</h3><div className="flex justify-between mb-1"><span>Total Setoran Kas ke Pusat:</span> <span className="font-medium text-blue-700">{formatRp(rekap.setoranKePusat)}</span></div><div className="flex justify-between mb-1"><span>Status Uang Disetor:</span> <span className="font-medium text-slate-500">Full Transfer Bank</span></div></div>
+        </div>
+        <h3 className="font-bold text-md mb-2 mt-8">A. RINCIAN TRANSAKSI INVOICE CABANG</h3>
+        <table className="w-full border-collapse border border-black text-sm text-left mb-8">
+          <thead className="bg-gray-100"><tr><th className="border border-black p-2 text-center w-8">NO</th><th className="border border-black p-2">NO. INVOICE</th><th className="border border-black p-2">PELANGGAN</th><th className="border border-black p-2 text-center">METODE BAYAR</th><th className="border border-black p-2 text-center">QTY (PORSI)</th><th className="border border-black p-2 text-right">TOTAL OMSET</th></tr></thead>
+          <tbody>
+              {rekap.listOrders.map((c, i) => (
+                  <tr key={i}><td className="border border-black p-2 text-center">{i + 1}</td><td className="border border-black p-2 font-mono text-xs">{c.id}</td><td className="border border-black p-2 font-bold uppercase">{c.customer}</td><td className="border border-black p-2 text-center">{c.paymentMethod}</td><td className="border border-black p-2 text-center">{c.qty} Pcs <span className="text-xs">({c.qty/4} Prs)</span></td><td className="border border-black p-2 text-right font-medium">{formatRp(c.total)}</td></tr>
+              ))}
+              {rekap.listOrders.length === 0 && <tr><td colSpan="6" className="border border-black p-4 text-center italic">Tidak ada transaksi.</td></tr>}
+          </tbody>
+        </table>
+        <h3 className="font-bold text-md mb-2 mt-4">B. RINCIAN LAPORAN HARIAN & STOK FREEZER</h3>
+        <table className="w-full border-collapse border border-black text-sm text-left mb-8">
+            <thead className="bg-gray-100"><tr><th className="border border-black p-2 text-center w-8">NO</th><th className="border border-black p-2">TANGGAL</th><th className="border border-black p-2 text-center">PRODUKSI / PESANAN</th><th className="border border-black p-2">STOK FREEZER AKHIR</th><th className="border border-black p-2 text-center">TUJUAN TF</th><th className="border border-black p-2 text-right">UANG DISETOR</th></tr></thead>
+            <tbody>
+                {rekap.listReports.map((p, i) => (
+                    <tr key={i}><td className="border border-black p-2 text-center">{i + 1}</td><td className="border border-black p-2">{formatDate(p.date)}</td><td className="border border-black p-2 text-center">{p.produksiMika} M / {p.pesananMika} M</td><td className="border border-black p-2 font-bold uppercase">{p.stokFreezer}</td><td className="border border-black p-2 text-center font-bold">{p.transferDestination || 'BCA (WASTAM)'}</td><td className="border border-black p-2 text-right font-bold text-emerald-700">{formatRp(p.nominal)}</td></tr>
+                ))}
+                {rekap.listReports.length === 0 && <tr><td colSpan="6" className="border border-black p-4 text-center italic">Tidak ada laporan harian.</td></tr>}
+            </tbody>
+        </table>
+        <div className="flex justify-end mt-12"><div className="text-center w-48"><div className="text-sm mb-12 text-center">Dicetak oleh,</div><div className="border-b border-dotted border-black h-4 mb-1"></div><div className="text-xs uppercase">Admin {user.name}</div><div className="text-xs italic text-gray-500 mt-1">{formatDate(new Date())}</div></div></div>
+      </div>
+    </div>
+    </>
+  );
+}
+
+function PrintVoucher({ data, onBack }) {
+    useEffect(() => {
+        const timer = setTimeout(() => { window.print(); }, 500);
+        return () => clearTimeout(timer);
+    }, []);
+    return (
+      <>
+      <style dangerouslySetInnerHTML={{__html: `@media print { @page { size: A4 portrait; margin: 0.5in; } body { margin: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } .hide-on-print { display: none !important; } }`}} />
+      <div className="bg-white min-h-screen text-black print:bg-white print:p-0 p-8 w-full max-w-[800px] mx-auto">
+        <button onClick={onBack} className="print:hidden mb-4 bg-slate-800 text-white px-4 py-2 rounded flex items-center gap-2"><ArrowRightLeft size={16} /> Kembali</button>
+        <div className="p-8 border border-slate-200 print:border-none print:p-0 text-sm font-sans" style={{ fontFamily: 'Arial, sans-serif' }}>
+          <div className="flex justify-between items-center mb-8"><h1 className="font-bold text-xl uppercase">BUKTI PENGELUARAN KAS - DIMSUM ADITYA</h1></div>
+          <div className="flex justify-between items-end mb-6">
+              <table className="w-[50%] text-sm"><tbody>
+                      <tr><td className="font-bold w-24 pb-2">ID Voucher</td><td className="w-4 pb-2">:</td><td className="border-b border-dotted border-black pb-2">{data.id}</td></tr>
+                      <tr><td className="font-bold w-24 pb-2">Kepada</td><td className="w-4 pb-2">:</td><td className="border-b border-dotted border-black pb-2 uppercase">{data.recipient}</td></tr>
+              </tbody></table>
+              <table className="w-[35%] text-sm"><tbody>
+                      <tr><td className="font-bold w-20 pb-2">Tanggal</td><td className="w-4 pb-2">:</td><td className="border-b border-dotted border-black text-right pb-2">{formatDate(data.date)}</td></tr>
+                      <tr><td className="font-bold w-20 pb-2">Metode</td><td className="w-4 pb-2">:</td><td className="border-b border-dotted border-black text-right pb-2">{data.paymentMethod}</td></tr>
+              </tbody></table>
+          </div>
+          <table className="w-full border-collapse border border-black text-center mb-2 text-sm">
+              <thead><tr><th className="border border-black p-2 bg-gray-50 w-1/4">KATEGORI</th><th className="border border-black p-2 bg-gray-50 w-2/5">KETERANGAN</th><th className="border border-black p-2 bg-gray-50 w-16">QTY</th><th className="border border-black p-2 bg-gray-50">HARGA</th><th className="border border-black p-2 bg-gray-50">TOTAL (KAS KELUAR)</th></tr></thead>
+              <tbody><tr><td className="border border-black p-2">{data.category}</td><td className="border border-black p-2 uppercase">{data.description}</td><td className="border border-black p-2">{data.qty}</td><td className="border border-black p-2">{formatRp(data.price)}</td><td className="border border-black p-2 font-bold">{formatRp(data.total)}</td></tr></tbody>
+          </table>
+          <div className="italic text-sm font-serif mb-16 pt-2">TERBILANG : {terbilang(data.total)} Rupiah</div>
+          <div className="flex justify-between items-end mb-4">
+              <div className="text-center w-48 mt-12"><div className="border-b border-dotted border-black h-8 mb-1"></div><div className="text-xs">Penerima / Pelanggan</div></div>
+              <div className="text-center w-48"><div className="text-sm mb-16 text-left italic">Hormat kami,</div><div className="border-b border-dotted border-black h-4 mb-1"></div><div className="text-xs">Admin / Kasir</div></div>
+          </div>
+        </div>
+      </div>
+      </>
+    );
+}
+function PrintReceipt({ data, onBack }) {
+    useEffect(() => {
+        const timer = setTimeout(() => { window.print(); }, 500);
+        return () => clearTimeout(timer);
+    }, []);
+    const { payment, order } = data;
+    return (
+      <>
+      <style dangerouslySetInnerHTML={{__html: `@media print { @page { size: A4 portrait; margin: 0.5in; } body { margin: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } .hide-on-print { display: none !important; } }`}} />
+      <div className="bg-white min-h-screen text-black print:bg-white print:p-0 p-8 w-full max-w-[800px] mx-auto">
+        <button onClick={onBack} className="print:hidden mb-4 bg-slate-800 text-white px-4 py-2 rounded flex items-center gap-2"><ArrowRightLeft size={16} /> Kembali</button>
+        <div className="p-8 border border-slate-200 print:border-none print:p-0 text-sm font-sans" style={{ fontFamily: 'Arial, sans-serif' }}>
+          <div className="flex justify-between items-center mb-10"><h1 className="font-bold text-xl uppercase border-b-2 border-black pb-2 inline-block">BUKTI PEMBAYARAN PIUTANG / CICILAN</h1></div>
+          <div className="space-y-4 text-base">
+              <div className="flex"><div className="w-48 font-bold">ID Pembayaran</div><div className="w-4">:</div><div className="font-mono font-medium">{payment.id}</div></div>
+              <div className="flex"><div className="w-48 font-bold">Tanggal Pembayaran</div><div className="w-4">:</div><div>{formatDate(payment.date)}</div></div>
+              <div className="flex"><div className="w-48 font-bold">Telah Diterima Dari</div><div className="w-4">:</div><div className="uppercase font-bold border-b border-dotted border-black flex-1">{order.customer}</div></div>
+              <div className="flex"><div className="w-48 font-bold">Metode Bayar</div><div className="w-4">:</div><div className="font-bold">{payment.paymentMethod}</div></div>
+              <div className="flex items-center"><div className="w-48 font-bold">Sejumlah Uang</div><div className="w-4">:</div><div className="font-bold text-lg bg-gray-100 px-4 py-1 border border-black inline-block">{formatRp(payment.amount)}</div></div>
+              <div className="flex"><div className="w-48 font-bold">Terbilang</div><div className="w-4">:</div><div className="italic font-serif flex-1 capitalize border-b border-dotted border-black">{terbilang(payment.amount)} Rupiah</div></div>
+              <div className="flex"><div className="w-48 font-bold">Untuk Pembayaran</div><div className="w-4">:</div><div className="flex-1">Cicilan / Pelunasan tagihan untuk No. Invoice: <strong>{order.id}</strong></div></div>
+          </div>
+          <div className="mt-16 flex justify-between items-end">
+              <div className="text-sm p-4 border border-black bg-gray-50"><p className="font-bold mb-1">Informasi Invoice (Referensi):</p><p>Total Tagihan Awal : {formatRp(order.total)}</p><p>Sisa Hutang Terakhir : {formatRp(order.sisaHutang)}</p></div>
+              <div className="text-center w-48"><div className="text-sm mb-16 text-left italic">Penerima (Kasir),</div><div className="border-b border-dotted border-black h-4 mb-1"></div><div className="text-xs uppercase text-center">Dimsum Aditya</div></div>
+          </div>
+        </div>
+      </div>
+      </>
     );
 }
 
