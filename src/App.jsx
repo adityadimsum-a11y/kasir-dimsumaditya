@@ -293,7 +293,7 @@ export default function App() {
              activeTab === 'dashboard' && user.role === 'branch' ? 'Dashboard Cabang' : 
              activeTab === 'piutang' ? 'Sistem Piutang' : 
              activeTab === 'pemalang' ? `Area Laporan ${user.role === 'branch' ? user.name : 'Pemalang'}` : 
-             activeTab === 'stok' ? 'Manajemen Stok Freezer' : 
+             activeTab === 'stok' ? 'Manajemen Stok Bahan/Freezer' : 
              `Manajemen ${activeTab}`}
           </h2>
           <div className="text-sm font-medium text-slate-500 bg-slate-100 px-4 py-2 rounded-full border border-slate-200 flex items-center gap-2 hide-on-mobile">
@@ -438,6 +438,7 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
 
   return (
     <div className="space-y-6 animate-in fade-in">
+      {/* Header Filter */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
               <h3 className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2"><Calendar size={16}/> Filter Periode Laporan & Grafik</h3>
@@ -452,6 +453,7 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
           </button>
       </div>
 
+      {/* --- MODUL GRAFIK PENJUALAN --- */}
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
          <div className="flex justify-between items-center mb-6">
             <h3 className="font-bold text-lg flex items-center gap-2 text-slate-800"><TrendingUp size={20} className="text-red-500"/> Metrik Pergerakan Omset</h3>
@@ -470,6 +472,7 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
          </div>
       </div>
 
+      {/* Modul Saldo */}
       <div>
           <h2 className="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2"><Wallet size={20}/> Status Saldo Aktual</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -479,6 +482,7 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              {/* Breakdown Arus Kas CASH */}
               <div className="bg-white p-6 rounded-xl border border-emerald-200 shadow-sm relative overflow-hidden">
                   <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
                   <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-emerald-800"><Coins size={20} /> Rincian Arus Kas Tunai (Cash)</h3>
@@ -506,6 +510,7 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
                   </div>
               </div>
 
+              {/* Breakdown Arus Kas TRANSFER */}
               <div className="bg-white p-6 rounded-xl border border-indigo-200 shadow-sm relative overflow-hidden">
                   <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
                   <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-indigo-800"><CreditCard size={20} /> Rincian Arus Kas Bank (Transfer)</h3>
@@ -1423,7 +1428,7 @@ function PrintInvoiceDotMatrix({ data, onBack }) {
                       </tr>
                       <tr className="border-t border-black border-dashed">
                           <td colSpan="4" className="p-1.5 border-r border-black border-dashed font-bold text-right uppercase">Sisa Tagihan (Piutang)</td>
-                          <td className="p-1.5 text-right font-bold">{formatRp(Number(data.total) - Number(data.paidAmount)))}</td>
+                          <td className="p-1.5 text-right font-bold">{formatRp(Number(data.total) - Number(data.paidAmount))}</td>
                       </tr>
                       </>
                   )}
@@ -1559,6 +1564,7 @@ function PrintReportBranch({ data, onBack, user }) {
   );
 }
 
+// ... Sisa fungsi Print lainnya (Voucher, dll) tetap tidak berubah
 function PrintVoucher({ data, onBack }) {
     useEffect(() => {
         const timer = setTimeout(() => { window.print(); }, 500);
@@ -1592,7 +1598,6 @@ function PrintVoucher({ data, onBack }) {
       </div>
     );
 }
-
 function PrintReceipt({ data, onBack }) {
     useEffect(() => {
         const timer = setTimeout(() => { window.print(); }, 500);
@@ -1622,6 +1627,7 @@ function PrintReceipt({ data, onBack }) {
     );
 }
 
+// Laporan Detail Update 
 function PrintReport({ data, onBack }) {
     useEffect(() => {
         const timer = setTimeout(() => { window.print(); }, 500);
