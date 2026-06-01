@@ -13,14 +13,13 @@ import {
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqSM572mbUIGozcghhh8LHNMNw2e83O7Wkyu-SkjdVTO3zpTb64PA/exec'; 
 // =====================================================================
 
-// --- UTILITIES (ANTI-CRASH, FORMAT RUPIAH & TERBILANG) ---
+// --- UTILITIES (ANTI-CRASH, ZONA WAKTU, & TERBILANG) ---
 const formatRp = (angka) => {
   const num = Number(angka);
   if (isNaN(num) || num === 0) return 'Rp 0';
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
 };
 
-// Fungsi untuk membaca ketikan angka & titik dari inputan
 const parseRp = (str) => {
   const num = Number(String(str).replace(/[^0-9]/g, ''));
   return isNaN(num) ? 0 : num;
@@ -53,7 +52,6 @@ const generateId = (prefix, date) => {
 
 const safeSort = (a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime();
 
-// Mesin Terbilang Baru (Anti-Nol)
 const terbilang = (angka) => {
   const num = Math.floor(Number(angka));
   if (isNaN(num) || num < 0) return 'Nol';
@@ -85,7 +83,7 @@ const KATEGORI_HARGA = {
 
 const KATEGORI_PENGELUARAN = [
   'Bahan Baku', 'Packaging', 'Operasional & Transport', 
-  'Konsumsi Karyawan', 'Kasbon', 'Jamuan', 'Lainnya'
+  'Konsumsi Karyawan', 'Kasbon', 'Jamuan', 'Setoran / Closing Kas Harian', 'Lainnya'
 ];
 
 export default function App() {
@@ -354,7 +352,7 @@ export default function App() {
 }
 
 
-// --- TAB DASHBOARD ADMIN PUSAT ---
+// --- TAB DASHBOARD ADMIN PUSAT (LOGIKA CUMULATIVE LANJUTAN) ---
 function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setPrintData }) {
   const todayStr = new Date().toISOString().split('T')[0];
   const [dateFrom, setDateFrom] = useState(todayStr);
@@ -362,68 +360,37 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
   const [chartView, setChartView] = useState('daily'); 
 
   const rekap = useMemo(() => {
-    const isDateInRange = (dateStr) => {
+    // FUNGSI CEK TANGGAL: Akumulasi (Sepanjang Masa hingga tgl akhir) vs Periode (Rentang Filter)
+    const isCumulative = (dateStr) => {
         const ymd = getLocalYMD(dateStr);
-        if(!ymd) return false;
-        return ymd >= dateFrom && ymd <= dateTo;
+        return ymd && ymd <= dateTo;
+    };
+    const isPeriod = (dateStr) => {
+        const ymd = getLocalYMD(dateStr);
+        return ymd && ymd >= dateFrom && ymd <= dateTo;
     };
 
-    const filteredOrders = orders.filter(o => isDateInRange(o.date));
-    const filteredExpenses = expenses.filter(e => isDateInRange(e.date));
-    const filteredPayments = piutangPayments.filter(p => isDateInRange(p.date));
-    const filteredPemalang = pemalangReports.filter(p => isDateInRange(p.date));
+    // 1. HITUNG SALDO AKUMULASI (ATM CONTINUE & CASH)
+    // Filter eksklusif: Pesanan Cabang Pemalang TIDAK dihitung di omset/porsi Pusat
+    const cumOrdersPusat = orders.filter(o => isCumulative(o.date) && o.category !== 'Pemalang');
+    const cumExpenses = expenses.filter(e => isCumulative(e.date));
+    const cumPaymentsPusat = piutangPayments.filter(p => {
+        const o = orders.find(x => x.id === p.orderId);
+        return isCumulative(p.date) && o && o.category !== 'Pemalang';
+    });
+    const cumPemalangReports = pemalangReports.filter(p => isCumulative(p.date));
 
-    let penjualanCash = 0, penjualanTF = 0;
-    let piutangCash = 0, piutangTF = 0;
-    let kasMasukCash = 0, kasMasukTF = 0;
-    let kasKeluarCash = 0, kasKeluarTF = 0;
+    let kasMasukCash = 0, kasMasukTF = 0, kasKeluarCash = 0, kasKeluarTF = 0;
+    let penjualanCash = 0, penjualanTF = 0, piutangCash = 0, piutangTF = 0;
     let setoranPemalangTF = 0;
-    let totalPiutangBaru = 0;
-    let totalPorsi = 0;
-    let totalPcs = 0;
 
-    const breakdownPorsi = {};
-    const customerMap = {}; 
-    const chartDataMap = {}; 
-
-    filteredOrders.forEach(order => {
-      const qtyNum = Number(order.qty) || 0;
-      const totalNum = Number(order.total) || 0;
-      const paidNum = Number(order.paidAmount) || 0;
-
-      totalPcs += qtyNum;
-      const porsiOrder = qtyNum / 4; 
-      totalPorsi += porsiOrder;
-      
-      breakdownPorsi[order.category] = (breakdownPorsi[order.category] || 0) + porsiOrder;
-      
-      const custName = String(order.customer).toUpperCase();
-      if(!customerMap[custName]) customerMap[custName] = { name: custName, qty: 0, porsi: 0, total: 0, frequency: 0 };
-      customerMap[custName].qty += qtyNum;
-      customerMap[custName].porsi += porsiOrder;
-      customerMap[custName].total += totalNum;
-      customerMap[custName].frequency += 1;
-
-      let chartKey = '';
-      const orderDate = new Date(order.date);
-      if(!isNaN(orderDate.getTime())) {
-          if(chartView === 'daily') chartKey = orderDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }); 
-          else if (chartView === 'monthly') chartKey = orderDate.toLocaleDateString('id-ID', { month: 'short', year: 'numeric' }); 
-          else chartKey = String(orderDate.getFullYear()); 
-      } else {
-          chartKey = String(order.date).split('T')[0];
-      }
-
-      chartDataMap[chartKey] = (chartDataMap[chartKey] || 0) + totalNum;
-
-      if (order.paymentMethod === 'Cash') penjualanCash += paidNum;
-      else if (order.paymentMethod === 'Transfer' || order.paymentMethod === 'Pending / DP') penjualanTF += paidNum; 
-
-      const sisaHutang = totalNum - paidNum;
-      if (sisaHutang > 0) totalPiutangBaru += sisaHutang;
+    cumOrdersPusat.forEach(o => {
+        const paid = Number(o.paidAmount) || 0;
+        if (o.paymentMethod === 'Cash') penjualanCash += paid;
+        else if (o.paymentMethod === 'Transfer') penjualanTF += paid;
     });
 
-    filteredExpenses.forEach(e => {
+    cumExpenses.forEach(e => {
         const t = Number(e.total) || 0;
         if (e.type === 'IN') {
             if (e.paymentMethod === 'Cash') kasMasukCash += t;
@@ -434,48 +401,74 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
         }
     });
 
-    filteredPayments.forEach(pay => {
-      const amt = Number(pay.amount) || 0;
-      if (pay.paymentMethod === 'Cash') piutangCash += amt;
-      else piutangTF += amt;
+    cumPaymentsPusat.forEach(p => {
+        const amt = Number(p.amount) || 0;
+        if (p.paymentMethod === 'Cash') piutangCash += amt;
+        else piutangTF += amt;
     });
 
-    filteredPemalang.forEach(p => {
-        setoranPemalangTF += (Number(p.nominal) || 0); 
+    cumPemalangReports.forEach(p => {
+        setoranPemalangTF += (Number(p.nominal) || 0);
     });
 
-    const totalPenjualanKotor = filteredOrders.reduce((acc, curr) => acc + (Number(curr.total) || 0), 0);
     const saldoCash = (kasMasukCash + penjualanCash + piutangCash) - kasKeluarCash;
     const saldoTF = (kasMasukTF + penjualanTF + piutangTF + setoranPemalangTF) - kasKeluarTF;
     const saldoAkhir = saldoCash + saldoTF;
 
-    const finalChartData = Object.keys(chartDataMap).map(key => ({ label: key, value: chartDataMap[key] }));
-    const topCustomersList = Object.values(customerMap).sort((a,b) => b.total - a.total);
+    // 2. HITUNG METRIK PERIODE FILTER SAAT INI
+    const periodOrdersPusat = cumOrdersPusat.filter(o => isPeriod(o.date));
+    let totalPenjualanKotor = 0, totalPorsi = 0, totalPcs = 0, totalPiutangBaru = 0;
+    const breakdownPorsi = {}; const customerMap = {}; const chartDataMap = {};
 
-    const listPiutangBerjalanLaporan = orders.map(order => {
+    periodOrdersPusat.forEach(o => {
+        const qty = Number(o.qty) || 0;
+        const total = Number(o.total) || 0;
+        const porsi = qty / 4;
+
+        totalPcs += qty; totalPorsi += porsi; totalPenjualanKotor += total;
+        breakdownPorsi[o.category] = (breakdownPorsi[o.category] || 0) + porsi;
+
+        const cName = String(o.customer).toUpperCase();
+        if(!customerMap[cName]) customerMap[cName] = { name: cName, qty: 0, porsi: 0, total: 0, frequency: 0 };
+        customerMap[cName].qty += qty; customerMap[cName].porsi += porsi; customerMap[cName].total += total; customerMap[cName].frequency += 1;
+
+        let cKey = '';
+        const oDate = new Date(o.date);
+        if(!isNaN(oDate.getTime())) {
+            if(chartView === 'daily') cKey = oDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }); 
+            else if (chartView === 'monthly') cKey = oDate.toLocaleDateString('id-ID', { month: 'short', year: 'numeric' }); 
+            else cKey = String(oDate.getFullYear()); 
+        } else { cKey = String(o.date).split('T')[0]; }
+        chartDataMap[cKey] = (chartDataMap[cKey] || 0) + total;
+
+        if (total - (Number(o.paidAmount) || 0) > 0) totalPiutangBaru += (total - (Number(o.paidAmount) || 0));
+    });
+
+    const topCustomersList = Object.values(customerMap).sort((a,b) => b.total - a.total);
+    const finalChartData = Object.keys(chartDataMap).map(k => ({ label: k, value: chartDataMap[k] }));
+
+    // Piutang Berjalan (Diambil dari SEMUA order pusat yg belum lunas)
+    const listPiutangBerjalanLaporan = orders.filter(o => o.category !== 'Pemalang').map(order => {
         const cicilan = piutangPayments.filter(p => p.orderId === order.id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
         const sisa = (Number(order.total) || 0) - (Number(order.paidAmount) || 0) - cicilan;
         return { ...order, cicilanTerbayar: cicilan, sisaHutang: sisa };
     }).filter(order => order.sisaHutang > 0);
 
-    const paymentsWithDetails = filteredPayments.map(pay => {
-      const relatedOrder = orders.find(o => o.id === pay.orderId);
-      if(!relatedOrder) return { ...pay, customer: '-', statusNota: '-' };
-      const cicilan = piutangPayments.filter(p => p.orderId === pay.orderId).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-      const sisa = (Number(relatedOrder.total) || 0) - (Number(relatedOrder.paidAmount) || 0) - cicilan;
-      return {
-        ...pay,
-        customer: relatedOrder.customer,
-        statusNota: sisa <= 0 ? 'LUNAS' : 'BELUM LUNAS'
-      };
+    // Pembayaran Piutang di Periode tsb lengkap dgn Status & Nama
+    const periodPaymentsPusat = cumPaymentsPusat.filter(p => isPeriod(p.date)).map(pay => {
+        const relOrder = orders.find(o => o.id === pay.orderId);
+        const cicilan = piutangPayments.filter(p => p.orderId === pay.orderId).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+        const sisa = (Number(relOrder?.total) || 0) - (Number(relOrder?.paidAmount) || 0) - cicilan;
+        return { ...pay, customer: relOrder?.customer || '-', statusNota: sisa <= 0 ? 'LUNAS' : 'BELUM LUNAS' };
     });
 
+    const periodPemalangReports = cumPemalangReports.filter(p => isPeriod(p.date));
+
     return {
-      penjualanCash, piutangCash, kasMasukCash, kasKeluarCash, saldoCash,
-      penjualanTF, piutangTF, kasMasukTF, kasKeluarTF, setoranPemalangTF, saldoTF,
-      saldoAkhir, totalPenjualanKotor, totalPiutangBaru, totalPorsi, totalPcs, breakdownPorsi,
-      listTransaksiDetail: filteredOrders, listPembayaranPiutang: paymentsWithDetails, listPemalang: filteredPemalang, 
-      topCustomersList, finalChartData, listPiutangBerjalanLaporan
+        saldoCash, saldoTF, saldoAkhir,
+        totalPenjualanKotor, totalPorsi, totalPcs, breakdownPorsi, totalPiutangBaru,
+        topCustomersList, finalChartData, listPiutangBerjalanLaporan,
+        listTransaksiDetail: periodOrdersPusat, listPembayaranPiutang: periodPaymentsPusat, listPemalang: periodPemalangReports
     };
   }, [orders, expenses, piutangPayments, pemalangReports, dateFrom, dateTo, chartView]);
 
@@ -514,71 +507,12 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
       </div>
 
       <div>
-          <h2 className="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2"><Wallet size={20}/> Status Saldo Aktual</h2>
+          <h2 className="text-lg font-bold text-slate-800 mb-1 flex items-center gap-2"><Wallet size={20}/> Status Saldo Aktual</h2>
+          <p className="text-xs text-slate-500 mb-4">*Dihitung terakumulasi berkelanjutan sejak awal transaksi hingga Tanggal Akhir Filter.</p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <StatCard title="Total Saldo Keseluruhan" amount={rekap.saldoAkhir} icon={<Wallet />} color="bg-blue-50 text-blue-700 border-blue-200" />
               <StatCard title="Saldo Tunai (CASH)" amount={rekap.saldoCash} icon={<Coins />} color="bg-emerald-50 text-emerald-700 border-emerald-200" />
               <StatCard title="Saldo Rekening (TRANSFER)" amount={rekap.saldoTF} icon={<CreditCard />} color="bg-indigo-50 text-indigo-700 border-indigo-200" />
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-              <div className="bg-white p-6 rounded-xl border border-emerald-200 shadow-sm relative overflow-hidden">
-                  <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
-                  <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-emerald-800"><Coins size={20} /> Rincian Arus Kas Tunai (Cash)</h3>
-                  <div className="space-y-3 text-sm">
-                      <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-                          <span className="text-slate-600">Terima Penjualan Langsung</span>
-                          <span className="font-bold text-emerald-600">+{formatRp(rekap.penjualanCash)}</span>
-                      </div>
-                      <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-                          <span className="text-slate-600">Terima Pelunasan Piutang</span>
-                          <span className="font-bold text-emerald-600">+{formatRp(rekap.piutangCash)}</span>
-                      </div>
-                      <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-                          <span className="text-slate-600">Modal / Kas Masuk Lainnya</span>
-                          <span className="font-bold text-emerald-600">+{formatRp(rekap.kasMasukCash)}</span>
-                      </div>
-                      <div className="flex justify-between items-center pb-2 border-b border-slate-100 text-red-600">
-                          <span>Kas Keluar (Beban Tunai)</span>
-                          <span className="font-bold">-{formatRp(rekap.kasKeluarCash)}</span>
-                      </div>
-                      <div className="flex justify-between items-center pt-2 text-emerald-800">
-                          <span className="font-bold">TOTAL SALDO CASH</span>
-                          <span className="font-bold text-lg">{formatRp(rekap.saldoCash)}</span>
-                      </div>
-                  </div>
-              </div>
-
-              <div className="bg-white p-6 rounded-xl border border-indigo-200 shadow-sm relative overflow-hidden">
-                  <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
-                  <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-indigo-800"><CreditCard size={20} /> Rincian Arus Kas Bank (Transfer)</h3>
-                  <div className="space-y-3 text-sm">
-                      <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-                          <span className="text-slate-600">Terima Penjualan Langsung</span>
-                          <span className="font-bold text-indigo-600">+{formatRp(rekap.penjualanTF)}</span>
-                      </div>
-                      <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-                          <span className="text-slate-600">Terima Pelunasan Piutang</span>
-                          <span className="font-bold text-indigo-600">+{formatRp(rekap.piutangTF)}</span>
-                      </div>
-                      <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-                          <span className="text-slate-600">Modal / Kas Masuk Lainnya</span>
-                          <span className="font-bold text-indigo-600">+{formatRp(rekap.kasMasukTF)}</span>
-                      </div>
-                      <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-                          <span className="font-medium text-amber-700">Setoran Pemalang (TF Ke Pusat)</span>
-                          <span className="font-bold text-amber-600">+{formatRp(rekap.setoranPemalangTF)}</span>
-                      </div>
-                      <div className="flex justify-between items-center pb-2 border-b border-slate-100 text-red-600">
-                          <span>Kas Keluar (Beban Transfer)</span>
-                          <span className="font-bold">-{formatRp(rekap.kasKeluarTF)}</span>
-                      </div>
-                      <div className="flex justify-between items-center pt-2 text-indigo-800">
-                          <span className="font-bold">TOTAL SALDO TRANSFER</span>
-                          <span className="font-bold text-lg">{formatRp(rekap.saldoTF)}</span>
-                      </div>
-                  </div>
-              </div>
           </div>
       </div>
 
@@ -625,6 +559,17 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
                 </div>
                 ))}
             </div>
+
+            <div className="border-t border-slate-100 pt-4 space-y-2 mt-auto">
+                <div className="flex justify-between items-center p-2 bg-slate-50 rounded-lg">
+                    <span className="text-slate-600 text-sm">Omset Penjualan Kotor</span>
+                    <span className="font-bold text-slate-800">{formatRp(rekap.totalPenjualanKotor)}</span>
+                </div>
+                <div className="flex justify-between items-center p-2 bg-red-50 rounded-lg border border-red-100">
+                    <span className="text-red-600 text-sm font-medium">Total Piutang Berjalan Baru</span>
+                    <span className="font-bold text-red-700">{formatRp(rekap.totalPiutangBaru)}</span>
+                </div>
+            </div>
         </div>
       </div>
 
@@ -654,7 +599,7 @@ function TabDashboard({ orders, expenses, piutangPayments, pemalangReports, setP
                             <td className="px-6 py-3 text-xs font-medium text-slate-500">{p.paymentMethod}</td>
                             <td className="px-6 py-3 text-right font-bold text-orange-600">{formatRp(p.amount)}</td>
                             <td className="px-6 py-3 text-center font-bold text-[10px]">
-                                {p.statusNota === 'LUNAS' ? <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded">LUNAS</span> : <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded">BELUM LUNAS</span>}
+                                {p.statusNota === 'LUNAS' ? <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded">LUNAS</span> : <span className="bg-red-100 text-red-700 px-2 py-1 rounded">BELUM LUNAS</span>}
                             </td>
                         </tr>
                     ))}
@@ -1065,7 +1010,7 @@ function TabOrders({ orders, sendToSheet, setPrintData, requestDelete, role }) {
                     <button onClick={() => setPrintData({ type: 'invoice', data: ord })} className="text-slate-600 hover:text-slate-900 bg-slate-100 p-2 rounded-lg transition border border-slate-200 shadow-sm" title="Cetak Epson LX-310">
                       <Printer size={16} />
                     </button>
-                    {/* CABANG SEKARANG BISA HAPUS INVOICENYA SENDIRI */}
+                    {/* CABANG BISA MENGHAPUS INVOICENYA SENDIRI */}
                     <button onClick={() => requestDelete(ord.id)} className="text-red-500 hover:text-red-700 bg-red-50 p-2 rounded-lg transition" title="Hapus Data">
                       <Trash2 size={16} />
                     </button>
@@ -1330,7 +1275,7 @@ function TabExpenses({ expenses, sendToSheet, setPrintData, requestDelete }) {
           <div className="space-y-1 flex gap-2">
              <div className="w-1/3">
                 <label className="text-sm font-medium text-slate-700">Qty</label>
-                <input type="number" min="1" required value={qty} onChange={e => setQty(e.target.value)} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-200" />
+                <input type="number" min="1" required value={qty} onChange={e => setQty(Number(e.target.value))} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-emerald-200" />
              </div>
              <div className="w-2/3">
                 <label className="text-sm font-medium text-slate-700">Harga Satuan (Rp)</label>
@@ -1876,187 +1821,9 @@ function PrintInvoiceDotMatrix({ data, onBack }) {
     );
 }
 
-// Layout Cetak Rekap Laporan Cabang (KHUSUS PEMALANG) DENGAN TUJUAN TF
-function PrintReportBranch({ data, onBack, user }) {
-  useEffect(() => {
-      const timer = setTimeout(() => { window.print(); }, 500);
-      return () => clearTimeout(timer);
-  }, []);
-  
-  const { rekap, dateFrom, dateTo } = data;
-
-  return (
-    <>
-    <style dangerouslySetInnerHTML={{__html: `
-      @media print {
-        @page { size: A4 portrait; margin: 0.5in; }
-        body { margin: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-        .hide-on-print { display: none !important; }
-      }
-    `}} />
-    <div className="bg-white min-h-screen text-black print:bg-white print:p-0 p-8 w-full max-w-[800px] mx-auto">
-      <button onClick={onBack} className="hide-on-print mb-4 bg-slate-800 text-white px-4 py-2 rounded flex items-center gap-2">
-        <ArrowRightLeft size={16} /> Kembali ke Aplikasi
-      </button>
-
-      <div className="print:p-0 text-sm font-sans" style={{ fontFamily: 'Arial, sans-serif' }}>
-        
-        <div className="text-center mb-6 border-b-2 border-black pb-4">
-            <h1 className="font-bold text-xl uppercase mt-2">Laporan Operasional {user.name}</h1>
-            <p className="text-slate-600">Periode: {formatDate(dateFrom)} s/d {formatDate(dateTo)}</p>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4 mb-6">
-            <div className="border border-black p-3">
-                <h3 className="font-bold text-sm border-b border-black pb-1 mb-2">RINGKASAN PENJUALAN CABANG</h3>
-                <div className="flex justify-between mb-1"><span>Total Omset Kotor:</span> <span className="font-medium text-emerald-700">{formatRp(rekap.totalPenjualanKotor)}</span></div>
-                <div className="flex justify-between mb-1"><span>Total Porsi Terjual:</span> <span className="font-medium text-indigo-700">{rekap.totalPorsi} Prs ({rekap.totalPcs} Pcs)</span></div>
-            </div>
-            <div className="border border-black p-3">
-                <h3 className="font-bold text-sm border-b border-black pb-1 mb-2">RINGKASAN KAS / SETORAN</h3>
-                <div className="flex justify-between mb-1"><span>Total Setoran Kas ke Pusat:</span> <span className="font-medium text-blue-700">{formatRp(rekap.setoranKePusat)}</span></div>
-                <div className="flex justify-between mb-1"><span>Status Uang Disetor:</span> <span className="font-medium text-slate-500">Full Transfer Bank</span></div>
-            </div>
-        </div>
-
-        <h3 className="font-bold text-md mb-2 mt-8">A. RINCIAN TRANSAKSI INVOICE CABANG</h3>
-        <table className="w-full border-collapse border border-black text-sm text-left mb-8">
-          <thead className="bg-gray-100">
-              <tr>
-                  <th className="border border-black p-2 text-center w-8">NO</th>
-                  <th className="border border-black p-2">NO. INVOICE</th>
-                  <th className="border border-black p-2">PELANGGAN</th>
-                  <th className="border border-black p-2 text-center">METODE BAYAR</th>
-                  <th className="border border-black p-2 text-center">QTY (PORSI)</th>
-                  <th className="border border-black p-2 text-right">TOTAL OMSET</th>
-              </tr>
-          </thead>
-          <tbody>
-              {rekap.listOrders.map((c, i) => (
-                  <tr key={i}>
-                      <td className="border border-black p-2 text-center">{i + 1}</td>
-                      <td className="border border-black p-2 font-mono text-xs">{c.id}</td>
-                      <td className="border border-black p-2 font-bold uppercase">{c.customer}</td>
-                      <td className="border border-black p-2 text-center">{c.paymentMethod}</td>
-                      <td className="border border-black p-2 text-center">{c.qty} Pcs <span className="text-xs">({c.qty/4} Prs)</span></td>
-                      <td className="border border-black p-2 text-right font-medium">{formatRp(c.total)}</td>
-                  </tr>
-              ))}
-              {rekap.listOrders.length === 0 && <tr><td colSpan="6" className="border border-black p-4 text-center italic">Tidak ada transaksi.</td></tr>}
-          </tbody>
-        </table>
-
-        <h3 className="font-bold text-md mb-2 mt-4">B. RINCIAN LAPORAN HARIAN & STOK FREEZER</h3>
-        <table className="w-full border-collapse border border-black text-sm text-left mb-8">
-            <thead className="bg-gray-100">
-                <tr>
-                    <th className="border border-black p-2 text-center w-8">NO</th>
-                    <th className="border border-black p-2">TANGGAL</th>
-                    <th className="border border-black p-2 text-center">PRODUKSI / PESANAN</th>
-                    <th className="border border-black p-2">STOK FREEZER AKHIR</th>
-                    <th className="border border-black p-2 text-center">TUJUAN TF</th>
-                    <th className="border border-black p-2 text-right">UANG DISETOR</th>
-                </tr>
-            </thead>
-            <tbody>
-                {rekap.listReports.map((p, i) => (
-                    <tr key={i}>
-                        <td className="border border-black p-2 text-center">{i + 1}</td>
-                        <td className="border border-black p-2">{formatDate(p.date)}</td>
-                        <td className="border border-black p-2 text-center">
-                            {p.produksiMika} M / {p.pesananMika} M
-                        </td>
-                        <td className="border border-black p-2 font-bold uppercase">{p.stokFreezer}</td>
-                        <td className="border border-black p-2 text-center font-bold">{p.transferDestination || 'BCA (WASTAM)'}</td>
-                        <td className="border border-black p-2 text-right font-bold text-emerald-700">{formatRp(p.nominal)}</td>
-                    </tr>
-                ))}
-                {rekap.listReports.length === 0 && <tr><td colSpan="6" className="border border-black p-4 text-center italic">Tidak ada laporan harian.</td></tr>}
-            </tbody>
-        </table>
-
-        <div className="flex justify-end mt-12">
-            <div className="text-center w-48">
-                <div className="text-sm mb-12 text-center">Dicetak oleh,</div>
-                <div className="border-b border-dotted border-black h-4 mb-1"></div>
-                <div className="text-xs uppercase">Admin {user.name}</div>
-                <div className="text-xs italic text-gray-500 mt-1">{formatDate(new Date())}</div>
-            </div>
-        </div>
-      </div>
-    </div>
-    </>
-  );
-}
-
-function PrintVoucher({ data, onBack }) {
-    useEffect(() => {
-        const timer = setTimeout(() => { window.print(); }, 500);
-        return () => clearTimeout(timer);
-    }, []);
-    return (
-      <>
-      <style dangerouslySetInnerHTML={{__html: `@media print { @page { size: A4 portrait; margin: 0.5in; } body { margin: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } .hide-on-print { display: none !important; } }`}} />
-      <div className="bg-white min-h-screen text-black print:bg-white print:p-0 p-8 w-full max-w-[800px] mx-auto">
-        <button onClick={onBack} className="print:hidden mb-4 bg-slate-800 text-white px-4 py-2 rounded flex items-center gap-2"><ArrowRightLeft size={16} /> Kembali</button>
-        <div className="p-8 border border-slate-200 print:border-none print:p-0 text-sm font-sans" style={{ fontFamily: 'Arial, sans-serif' }}>
-          <div className="flex justify-between items-center mb-8"><h1 className="font-bold text-xl uppercase">BUKTI PENGELUARAN KAS - DIMSUM ADITYA</h1></div>
-          <div className="flex justify-between items-end mb-6">
-              <table className="w-[50%] text-sm"><tbody>
-                      <tr><td className="font-bold w-24 pb-2">ID Voucher</td><td className="w-4 pb-2">:</td><td className="border-b border-dotted border-black pb-2">{data.id}</td></tr>
-                      <tr><td className="font-bold w-24 pb-2">Kepada</td><td className="w-4 pb-2">:</td><td className="border-b border-dotted border-black pb-2 uppercase">{data.recipient}</td></tr>
-              </tbody></table>
-              <table className="w-[35%] text-sm"><tbody>
-                      <tr><td className="font-bold w-20 pb-2">Tanggal</td><td className="w-4 pb-2">:</td><td className="border-b border-dotted border-black text-right pb-2">{formatDate(data.date)}</td></tr>
-                      <tr><td className="font-bold w-20 pb-2">Metode</td><td className="w-4 pb-2">:</td><td className="border-b border-dotted border-black text-right pb-2">{data.paymentMethod}</td></tr>
-              </tbody></table>
-          </div>
-          <table className="w-full border-collapse border border-black text-center mb-2 text-sm">
-              <thead><tr><th className="border border-black p-2 bg-gray-50 w-1/4">KATEGORI</th><th className="border border-black p-2 bg-gray-50 w-2/5">KETERANGAN</th><th className="border border-black p-2 bg-gray-50 w-16">QTY</th><th className="border border-black p-2 bg-gray-50">HARGA</th><th className="border border-black p-2 bg-gray-50">TOTAL (KAS KELUAR)</th></tr></thead>
-              <tbody><tr><td className="border border-black p-2">{data.category}</td><td className="border border-black p-2 uppercase">{data.description}</td><td className="border border-black p-2">{data.qty}</td><td className="border border-black p-2">{formatRp(data.price)}</td><td className="border border-black p-2 font-bold">{formatRp(data.total)}</td></tr></tbody>
-          </table>
-          <div className="italic text-sm font-serif mb-16 pt-2">TERBILANG : {terbilang(data.total)} Rupiah</div>
-          <div className="flex justify-between items-end mb-4">
-              <div className="text-center w-48 mt-12"><div className="border-b border-dotted border-black h-8 mb-1"></div><div className="text-xs">Penerima / Pelanggan</div></div>
-              <div className="text-center w-48"><div className="text-sm mb-16 text-left italic">Hormat kami,</div><div className="border-b border-dotted border-black h-4 mb-1"></div><div className="text-xs">Admin / Kasir</div></div>
-          </div>
-        </div>
-      </div>
-      </>
-    );
-}
-
-function PrintReceipt({ data, onBack }) {
-    useEffect(() => {
-        const timer = setTimeout(() => { window.print(); }, 500);
-        return () => clearTimeout(timer);
-    }, []);
-    const { payment, order } = data;
-    return (
-      <>
-      <style dangerouslySetInnerHTML={{__html: `@media print { @page { size: A4 portrait; margin: 0.5in; } body { margin: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } .hide-on-print { display: none !important; } }`}} />
-      <div className="bg-white min-h-screen text-black print:bg-white print:p-0 p-8 w-full max-w-[800px] mx-auto">
-        <button onClick={onBack} className="print:hidden mb-4 bg-slate-800 text-white px-4 py-2 rounded flex items-center gap-2"><ArrowRightLeft size={16} /> Kembali</button>
-        <div className="p-8 border border-slate-200 print:border-none print:p-0 text-sm font-sans" style={{ fontFamily: 'Arial, sans-serif' }}>
-          <div className="flex justify-between items-center mb-10"><h1 className="font-bold text-xl uppercase border-b-2 border-black pb-2 inline-block">BUKTI PEMBAYARAN PIUTANG / CICILAN</h1></div>
-          <div className="space-y-4 text-base">
-              <div className="flex"><div className="w-48 font-bold">ID Pembayaran</div><div className="w-4">:</div><div className="font-mono font-medium">{payment.id}</div></div>
-              <div className="flex"><div className="w-48 font-bold">Tanggal Pembayaran</div><div className="w-4">:</div><div>{formatDate(payment.date)}</div></div>
-              <div className="flex"><div className="w-48 font-bold">Telah Diterima Dari</div><div className="w-4">:</div><div className="uppercase font-bold border-b border-dotted border-black flex-1">{order.customer}</div></div>
-              <div className="flex"><div className="w-48 font-bold">Metode Bayar</div><div className="w-4">:</div><div className="font-bold">{payment.paymentMethod}</div></div>
-              <div className="flex items-center"><div className="w-48 font-bold">Sejumlah Uang</div><div className="w-4">:</div><div className="font-bold text-lg bg-gray-100 px-4 py-1 border border-black inline-block">{formatRp(payment.amount)}</div></div>
-              <div className="flex"><div className="w-48 font-bold">Terbilang</div><div className="w-4">:</div><div className="italic font-serif flex-1 capitalize border-b border-dotted border-black">{terbilang(payment.amount)} Rupiah</div></div>
-              <div className="flex"><div className="w-48 font-bold">Untuk Pembayaran</div><div className="w-4">:</div><div className="flex-1">Cicilan / Pelunasan tagihan untuk No. Invoice: <strong>{order.id}</strong></div></div>
-          </div>
-          <div className="mt-16 flex justify-between items-end">
-              <div className="text-sm p-4 border border-black bg-gray-50"><p className="font-bold mb-1">Informasi Invoice (Referensi):</p><p>Total Tagihan Awal : {formatRp(order.total)}</p><p>Sisa Hutang Terakhir : {formatRp(order.sisaHutang)}</p></div>
-              <div className="text-center w-48"><div className="text-sm mb-16 text-left italic">Penerima (Kasir),</div><div className="border-b border-dotted border-black h-4 mb-1"></div><div className="text-xs uppercase text-center">Dimsum Aditya</div></div>
-          </div>
-        </div>
-      </div>
-      </>
-    );
-}
+// ==========================================================
+// --- LAYOUT CETAK A4 PADAT (LAPORAN & VOUCHER) ---
+// ==========================================================
 
 function PrintReport({ data, onBack }) {
     useEffect(() => {
@@ -2068,9 +1835,22 @@ function PrintReport({ data, onBack }) {
       <>
       <style dangerouslySetInnerHTML={{__html: `
         @media print {
-          @page { size: A4 portrait; margin: 0.5in; }
-          body { margin: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          @page { size: A4 portrait; margin: 10mm; }
+          body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; font-size: 11px; color: black; background: white; }
           .hide-on-print { display: none !important; }
+          table { width: 100%; border-collapse: collapse; }
+          th, td { padding: 4px 6px !important; font-size: 10px !important; border: 1px solid black !important; }
+          h1 { font-size: 16px !important; margin-bottom: 4px !important; }
+          h3 { font-size: 12px !important; margin-top: 12px !important; margin-bottom: 4px !important; }
+          .p-8 { padding: 0 !important; }
+          .mb-8 { margin-bottom: 12px !important; }
+          .mb-6 { margin-bottom: 8px !important; }
+          .mt-8 { margin-top: 12px !important; }
+          .mt-12 { margin-top: 16px !important; }
+          .gap-4 { gap: 12px !important; }
+          .grid-cols-2 { display: flex !important; justify-content: space-between !important; }
+          .grid-cols-2 > div { width: 48% !important; margin-bottom: 8px !important; border: 1px solid black; padding: 6px !important; }
+          * { box-shadow: none !important; border-radius: 0 !important; }
         }
       `}} />
       <div className="bg-white min-h-screen text-black print:bg-white print:p-0 p-8 w-full max-w-[800px] mx-auto">
@@ -2128,23 +1908,141 @@ function PrintReport({ data, onBack }) {
                   </table>
               </>
           )}
-          {rekap.listPemalang.length > 0 && (
-              <>
-                  <h3 className="font-bold text-md mb-2 mt-4">D. RINCIAN LAPORAN & SETORAN CABANG PEMALANG</h3>
-                  <table className="w-full border-collapse border border-black text-sm text-left mb-8">
-                      <thead className="bg-gray-100"><tr><th className="border border-black p-2 text-center w-8">NO</th><th className="border border-black p-2">TANGGAL</th><th className="border border-black p-2 text-center">PRODUKSI / PESANAN</th><th className="border border-black p-2">STOK FREEZER</th><th className="border border-black p-2 text-center">TUJUAN TF</th><th className="border border-black p-2 text-right">UANG DISETOR</th></tr></thead>
-                      <tbody>
-                          {rekap.listPemalang.map((p, i) => (
-                              <tr key={i}><td className="border border-black p-2 text-center">{i + 1}</td><td className="border border-black p-2">{formatDate(p.date)}</td><td className="border border-black p-2 text-center">{p.produksiMika} M / {p.pesananMika} M</td><td className="border border-black p-2 font-bold uppercase">{p.stokFreezer}</td><td className="border border-black p-2 text-center font-bold text-indigo-700">{p.transferDestination || 'BCA (WASTAM)'}</td><td className="border border-black p-2 text-right font-bold text-emerald-700">{formatRp(p.nominal)}</td></tr>
-                          ))}
-                      </tbody>
-                  </table>
-              </>
-          )}
           <div className="flex justify-end mt-12">
               <div className="text-center w-48">
                   <div className="text-sm mb-12 text-center">Dicetak oleh,</div><div className="border-b border-dotted border-black h-4 mb-1"></div><div className="text-xs uppercase">Admin Pusat</div><div className="text-xs italic text-gray-500 mt-1">{formatDate(new Date())}</div>
               </div>
+          </div>
+        </div>
+      </div>
+      </>
+    );
+}
+
+function PrintReportBranch({ data, onBack, user }) {
+  useEffect(() => {
+      const timer = setTimeout(() => { window.print(); }, 500);
+      return () => clearTimeout(timer);
+  }, []);
+  const { rekap, dateFrom, dateTo } = data;
+  return (
+    <>
+    <style dangerouslySetInnerHTML={{__html: `
+      @media print {
+        @page { size: A4 portrait; margin: 10mm; }
+        body { margin: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; font-size: 11px; color: black; background: white; }
+        .hide-on-print { display: none !important; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 4px 6px !important; font-size: 10px !important; border: 1px solid black !important; }
+        h1 { font-size: 16px !important; margin-bottom: 4px !important; }
+        h3 { font-size: 12px !important; margin-top: 12px !important; margin-bottom: 4px !important; }
+        .p-8 { padding: 0 !important; }
+        .mb-8 { margin-bottom: 12px !important; }
+        .mb-6 { margin-bottom: 8px !important; }
+        .mt-8 { margin-top: 12px !important; }
+        .mt-12 { margin-top: 16px !important; }
+        .gap-4 { gap: 12px !important; }
+        .grid-cols-2 { display: flex !important; justify-content: space-between !important; }
+        .grid-cols-2 > div { width: 48% !important; margin-bottom: 8px !important; border: 1px solid black; padding: 6px !important; }
+        * { box-shadow: none !important; border-radius: 0 !important; }
+      }
+    `}} />
+    <div className="bg-white min-h-screen text-black print:bg-white print:p-0 p-8 w-full max-w-[800px] mx-auto">
+      <button onClick={onBack} className="hide-on-print mb-4 bg-slate-800 text-white px-4 py-2 rounded flex items-center gap-2"><ArrowRightLeft size={16} /> Kembali ke Aplikasi</button>
+      <div className="print:p-0 text-sm font-sans" style={{ fontFamily: 'Arial, sans-serif' }}>
+        <div className="text-center mb-6 border-b-2 border-black pb-4"><h1 className="font-bold text-xl uppercase mt-2">Laporan Operasional {user.name}</h1><p className="text-slate-600">Periode: {formatDate(dateFrom)} s/d {formatDate(dateTo)}</p></div>
+        <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="border border-black p-3"><h3 className="font-bold text-sm border-b border-black pb-1 mb-2">RINGKASAN PENJUALAN CABANG</h3><div className="flex justify-between mb-1"><span>Total Omset Kotor:</span> <span className="font-medium text-emerald-700">{formatRp(rekap.totalPenjualanKotor)}</span></div><div className="flex justify-between mb-1"><span>Total Porsi Terjual:</span> <span className="font-medium text-indigo-700">{rekap.totalPorsi} Prs ({rekap.totalPcs} Pcs)</span></div></div>
+            <div className="border border-black p-3"><h3 className="font-bold text-sm border-b border-black pb-1 mb-2">RINGKASAN KAS / SETORAN</h3><div className="flex justify-between mb-1"><span>Total Setoran Kas ke Pusat:</span> <span className="font-medium text-blue-700">{formatRp(rekap.setoranKePusat)}</span></div><div className="flex justify-between mb-1"><span>Status Uang Disetor:</span> <span className="font-medium text-slate-500">Full Transfer Bank</span></div></div>
+        </div>
+        <h3 className="font-bold text-md mb-2 mt-8">A. RINCIAN TRANSAKSI INVOICE CABANG</h3>
+        <table className="w-full border-collapse border border-black text-sm text-left mb-8">
+          <thead className="bg-gray-100"><tr><th className="border border-black p-2 text-center w-8">NO</th><th className="border border-black p-2">NO. INVOICE</th><th className="border border-black p-2">PELANGGAN</th><th className="border border-black p-2 text-center">METODE BAYAR</th><th className="border border-black p-2 text-center">QTY (PORSI)</th><th className="border border-black p-2 text-right">TOTAL OMSET</th></tr></thead>
+          <tbody>
+              {rekap.listOrders.map((c, i) => (
+                  <tr key={i}><td className="border border-black p-2 text-center">{i + 1}</td><td className="border border-black p-2 font-mono text-xs">{c.id}</td><td className="border border-black p-2 font-bold uppercase">{c.customer}</td><td className="border border-black p-2 text-center">{c.paymentMethod}</td><td className="border border-black p-2 text-center">{c.qty} Pcs <span className="text-xs">({c.qty/4} Prs)</span></td><td className="border border-black p-2 text-right font-medium">{formatRp(c.total)}</td></tr>
+              ))}
+              {rekap.listOrders.length === 0 && <tr><td colSpan="6" className="border border-black p-4 text-center italic">Tidak ada transaksi.</td></tr>}
+          </tbody>
+        </table>
+        <h3 className="font-bold text-md mb-2 mt-4">B. RINCIAN LAPORAN HARIAN & STOK FREEZER</h3>
+        <table className="w-full border-collapse border border-black text-sm text-left mb-8">
+            <thead className="bg-gray-100"><tr><th className="border border-black p-2 text-center w-8">NO</th><th className="border border-black p-2">TANGGAL</th><th className="border border-black p-2 text-center">PRODUKSI / PESANAN</th><th className="border border-black p-2">STOK FREEZER AKHIR</th><th className="border border-black p-2 text-center">TUJUAN TF</th><th className="border border-black p-2 text-right">UANG DISETOR</th></tr></thead>
+            <tbody>
+                {rekap.listReports.map((p, i) => (
+                    <tr key={i}><td className="border border-black p-2 text-center">{i + 1}</td><td className="border border-black p-2">{formatDate(p.date)}</td><td className="border border-black p-2 text-center">{p.produksiMika} M / {p.pesananMika} M</td><td className="border border-black p-2 font-bold uppercase">{p.stokFreezer}</td><td className="border border-black p-2 text-center font-bold">{p.transferDestination || 'BCA (WASTAM)'}</td><td className="border border-black p-2 text-right font-bold text-emerald-700">{formatRp(p.nominal)}</td></tr>
+                ))}
+                {rekap.listReports.length === 0 && <tr><td colSpan="6" className="border border-black p-4 text-center italic">Tidak ada laporan harian.</td></tr>}
+            </tbody>
+        </table>
+        <div className="flex justify-end mt-12"><div className="text-center w-48"><div className="text-sm mb-12 text-center">Dicetak oleh,</div><div className="border-b border-dotted border-black h-4 mb-1"></div><div className="text-xs uppercase">Admin {user.name}</div><div className="text-xs italic text-gray-500 mt-1">{formatDate(new Date())}</div></div></div>
+      </div>
+    </div>
+    </>
+  );
+}
+
+function PrintVoucher({ data, onBack }) {
+    useEffect(() => {
+        const timer = setTimeout(() => { window.print(); }, 500);
+        return () => clearTimeout(timer);
+    }, []);
+    return (
+      <>
+      <style dangerouslySetInnerHTML={{__html: `@media print { @page { size: A4 portrait; margin: 10mm; } body { margin: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } .hide-on-print { display: none !important; } * { box-shadow: none !important; border-radius: 0 !important; } table { border-collapse: collapse; } td, th { border: 1px solid black; padding: 6px !important;} }`}} />
+      <div className="bg-white min-h-screen text-black print:bg-white print:p-0 p-8 w-full max-w-[800px] mx-auto">
+        <button onClick={onBack} className="print:hidden mb-4 bg-slate-800 text-white px-4 py-2 rounded flex items-center gap-2"><ArrowRightLeft size={16} /> Kembali</button>
+        <div className="p-8 border border-slate-200 print:border-none print:p-0 text-sm font-sans" style={{ fontFamily: 'Arial, sans-serif' }}>
+          <div className="flex justify-between items-center mb-8"><h1 className="font-bold text-xl uppercase">BUKTI PENGELUARAN KAS - DIMSUM ADITYA</h1></div>
+          <div className="flex justify-between items-end mb-6">
+              <table className="w-[50%] text-sm" style={{border: 'none'}}><tbody>
+                      <tr><td className="font-bold w-24 pb-2" style={{border: 'none'}}>ID Voucher</td><td className="w-4 pb-2" style={{border: 'none'}}>:</td><td className="border-b border-dotted border-black pb-2" style={{border: 'none'}}>{data.id}</td></tr>
+                      <tr><td className="font-bold w-24 pb-2" style={{border: 'none'}}>Kepada</td><td className="w-4 pb-2" style={{border: 'none'}}>:</td><td className="border-b border-dotted border-black pb-2 uppercase" style={{border: 'none'}}>{data.recipient}</td></tr>
+              </tbody></table>
+              <table className="w-[35%] text-sm" style={{border: 'none'}}><tbody>
+                      <tr><td className="font-bold w-20 pb-2" style={{border: 'none'}}>Tanggal</td><td className="w-4 pb-2" style={{border: 'none'}}>:</td><td className="border-b border-dotted border-black text-right pb-2" style={{border: 'none'}}>{formatDate(data.date)}</td></tr>
+                      <tr><td className="font-bold w-20 pb-2" style={{border: 'none'}}>Metode</td><td className="w-4 pb-2" style={{border: 'none'}}>:</td><td className="border-b border-dotted border-black text-right pb-2" style={{border: 'none'}}>{data.paymentMethod}</td></tr>
+              </tbody></table>
+          </div>
+          <table className="w-full border-collapse border border-black text-center mb-2 text-sm">
+              <thead><tr><th className="border border-black p-2 bg-gray-50 w-1/4">KATEGORI</th><th className="border border-black p-2 bg-gray-50 w-2/5">KETERANGAN</th><th className="border border-black p-2 bg-gray-50 w-16">QTY</th><th className="border border-black p-2 bg-gray-50">HARGA</th><th className="border border-black p-2 bg-gray-50">TOTAL (KAS KELUAR)</th></tr></thead>
+              <tbody><tr><td className="border border-black p-2">{data.category}</td><td className="border border-black p-2 uppercase">{data.description}</td><td className="border border-black p-2">{data.qty}</td><td className="border border-black p-2">{formatRp(data.price)}</td><td className="border border-black p-2 font-bold">{formatRp(data.total)}</td></tr></tbody>
+          </table>
+          <div className="italic text-sm font-serif mb-16 pt-2">TERBILANG : {terbilang(data.total)} Rupiah</div>
+          <div className="flex justify-between items-end mb-4">
+              <div className="text-center w-48 mt-12"><div className="border-b border-dotted border-black h-8 mb-1"></div><div className="text-xs">Penerima / Pelanggan</div></div>
+              <div className="text-center w-48"><div className="text-sm mb-16 text-left italic">Hormat kami,</div><div className="border-b border-dotted border-black h-4 mb-1"></div><div className="text-xs">Admin / Kasir</div></div>
+          </div>
+        </div>
+      </div>
+      </>
+    );
+}
+function PrintReceipt({ data, onBack }) {
+    useEffect(() => {
+        const timer = setTimeout(() => { window.print(); }, 500);
+        return () => clearTimeout(timer);
+    }, []);
+    const { payment, order } = data;
+    return (
+      <>
+      <style dangerouslySetInnerHTML={{__html: `@media print { @page { size: A4 portrait; margin: 10mm; } body { margin: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } .hide-on-print { display: none !important; } }`}} />
+      <div className="bg-white min-h-screen text-black print:bg-white print:p-0 p-8 w-full max-w-[800px] mx-auto">
+        <button onClick={onBack} className="print:hidden mb-4 bg-slate-800 text-white px-4 py-2 rounded flex items-center gap-2"><ArrowRightLeft size={16} /> Kembali</button>
+        <div className="p-8 border border-slate-200 print:border-none print:p-0 text-sm font-sans" style={{ fontFamily: 'Arial, sans-serif' }}>
+          <div className="flex justify-between items-center mb-10"><h1 className="font-bold text-xl uppercase border-b-2 border-black pb-2 inline-block">BUKTI PEMBAYARAN PIUTANG / CICILAN</h1></div>
+          <div className="space-y-4 text-base">
+              <div className="flex"><div className="w-48 font-bold">ID Pembayaran</div><div className="w-4">:</div><div className="font-mono font-medium">{payment.id}</div></div>
+              <div className="flex"><div className="w-48 font-bold">Tanggal Pembayaran</div><div className="w-4">:</div><div>{formatDate(payment.date)}</div></div>
+              <div className="flex"><div className="w-48 font-bold">Telah Diterima Dari</div><div className="w-4">:</div><div className="uppercase font-bold border-b border-dotted border-black flex-1">{order.customer}</div></div>
+              <div className="flex"><div className="w-48 font-bold">Metode Bayar</div><div className="w-4">:</div><div className="font-bold">{payment.paymentMethod}</div></div>
+              <div className="flex items-center"><div className="w-48 font-bold">Sejumlah Uang</div><div className="w-4">:</div><div className="font-bold text-lg bg-gray-100 px-4 py-1 border border-black inline-block">{formatRp(payment.amount)}</div></div>
+              <div className="flex"><div className="w-48 font-bold">Terbilang</div><div className="w-4">:</div><div className="italic font-serif flex-1 capitalize border-b border-dotted border-black">{terbilang(payment.amount)} Rupiah</div></div>
+              <div className="flex"><div className="w-48 font-bold">Untuk Pembayaran</div><div className="w-4">:</div><div className="flex-1">Cicilan / Pelunasan tagihan untuk No. Invoice: <strong>{order.id}</strong></div></div>
+          </div>
+          <div className="mt-16 flex justify-between items-end">
+              <div className="text-sm p-4 border border-black bg-gray-50"><p className="font-bold mb-1">Informasi Invoice (Referensi):</p><p>Total Tagihan Awal : {formatRp(order.total)}</p><p>Sisa Hutang Terakhir : {formatRp(order.sisaHutang)}</p></div>
+              <div className="text-center w-48"><div className="text-sm mb-16 text-left italic">Penerima (Kasir),</div><div className="border-b border-dotted border-black h-4 mb-1"></div><div className="text-xs uppercase text-center">Dimsum Aditya</div></div>
           </div>
         </div>
       </div>
