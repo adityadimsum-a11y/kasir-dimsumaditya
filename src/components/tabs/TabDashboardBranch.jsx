@@ -56,14 +56,12 @@ export default function TabDashboardBranch({ orders, pemalangReports, piutangPay
       chartDataMap[chartKey] = (chartDataMap[chartKey] || 0) + totalNum;
     });
     
-    // MENGHITUNG PIUTANG & SISA TAGIHAN UNTUK CABANG
     const orderGroups = {};
     const branchOrdersAll = (orders || []).filter(o => o?.category === 'Pemalang');
     const branchOrderIds = branchOrdersAll.map(o => o.id);
 
     branchOrdersAll.forEach(o => { if(!o?.id) return; if(!orderGroups[o.id]) orderGroups[o.id] = { total:0, paid: Number(o.paidAmount)||0, items: [] }; orderGroups[o.id].total += Number(o.total)||0; orderGroups[o.id].items.push(`${o.qty} Pcs`); });
     
-    // KALKULASI RIWAYAT CICILAN KHUSUS CABANG
     const branchPayments = (piutangPayments || []).filter(p => branchOrderIds.includes(p.orderId));
     const allPaymentsChronological = [...branchPayments].filter(p => getLocalYMD(p.date) <= dateTo).sort((a,b) => new Date(a.date) - new Date(b.date));
     
@@ -135,31 +133,33 @@ export default function TabDashboardBranch({ orders, pemalangReports, piutangPay
           <StatCard title="Total Setoran Kas ke Pusat" amount={rekap.setoranKePusat} icon={<Wallet />} color="bg-blue-50 text-blue-700 border-blue-200" />
       </div>
 
-      {/* TABEL RIWAYAT PIUTANG (UANG MASUK KHUSUS CABANG) */}
       <div className="bg-white p-6 rounded-xl border border-emerald-200 shadow-sm flex flex-col mt-6">
         <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-emerald-700"><Clock size={20}/> Riwayat Terima Piutang (Pelanggan)</h3>
         <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
                 <thead className="bg-emerald-50 border-b border-emerald-100"><tr><th className="px-3 py-2 text-emerald-800">Tgl & Ref</th><th className="px-3 py-2 text-emerald-800">Pelanggan</th><th className="px-3 py-2 text-right text-emerald-800">Nominal Masuk</th><th className="px-3 py-2 text-right text-emerald-800">Sisa Tagihan</th></tr></thead>
                 <tbody className="divide-y divide-slate-100">
-                    {rekap.listRiwayatPiutang.length === 0 && <tr><td colSpan="4" className="text-center py-6 text-slate-400">Tidak ada riwayat piutang.</td></tr>}
-                    {rekap.listRiwayatPiutang.map((pay, i) => (
-                        <tr key={i} className="hover:bg-slate-50">
-                            <td className="px-3 py-2"><div className="font-bold text-slate-700">{formatDate(pay.date)}</div><div className="text-[10px] text-slate-400 font-mono">{pay.orderId}</div></td>
-                            <td className="px-3 py-2 font-bold uppercase text-xs">{pay.customer}</td>
-                            <td className="px-3 py-2 text-right font-black text-emerald-600">+{formatRp(pay.amount)}</td>
-                            <td className="px-3 py-2 text-right">
-                                <div className={`font-bold ${pay.sisaTagihan <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{pay.sisaTagihan <= 0 ? 'Rp 0' : formatRp(pay.sisaTagihan)}</div>
-                                <div className={`text-[9px] font-bold ${pay.statusNota === 'LUNAS' ? 'text-emerald-500' : 'text-orange-500'}`}>{pay.statusNota}</div>
-                            </td>
-                        </tr>
-                    ))}
+                    {(!rekap?.listRiwayatPiutang || rekap.listRiwayatPiutang.length === 0) ? (
+                        <tr><td colSpan="4" className="text-center py-6 text-slate-400">Tidak ada riwayat piutang.</td></tr>
+                    ) : (
+                        rekap.listRiwayatPiutang.map((pay, i) => (
+                            <tr key={i} className="hover:bg-slate-50">
+                                <td className="px-3 py-2"><div className="font-bold text-slate-700">{formatDate(pay.date)}</div><div className="text-[10px] text-slate-400 font-mono">{pay.orderId}</div></td>
+                                <td className="px-3 py-2 font-bold uppercase text-xs">{pay.customer}</td>
+                                <td className="px-3 py-2 text-right font-black text-emerald-600">+{formatRp(pay.amount)}</td>
+                                <td className="px-3 py-2 text-right">
+                                    <div className={`font-bold ${pay.sisaTagihan <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{pay.sisaTagihan <= 0 ? 'Rp 0' : formatRp(pay.sisaTagihan)}</div>
+                                    <div className={`text-[9px] font-bold ${pay.statusNota === 'LUNAS' ? 'text-emerald-500' : 'text-orange-500'}`}>{pay.statusNota}</div>
+                                </td>
+                            </tr>
+                        ))
+                    )}
                 </tbody>
             </table>
         </div>
       </div>
 
-      <div className="bg-white p-6 rounded-xl border border-blue-200 shadow-sm relative overflow-hidden">
+      <div className="bg-white p-6 rounded-xl border border-blue-200 shadow-sm relative overflow-hidden mt-6">
           <div className="absolute top-0 left-0 w-1 h-full bg-blue-500"></div><h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-blue-800"><Package size={20} /> Monitoring Sisa Stok Freezer Aktual</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
               {Object.keys(stokAktual).length === 0 && <div className="text-sm text-slate-500 italic col-span-full">Stok kosong atau belum ada pencatatan barang.</div>}
@@ -167,12 +167,12 @@ export default function TabDashboardBranch({ orders, pemalangReports, piutangPay
           </div>
       </div>
 
-      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
+      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm overflow-x-auto mt-6">
          <div className="flex justify-between items-center mb-6"><h3 className="font-bold text-lg flex items-center gap-2 text-slate-800"><TrendingUp size={20} className="text-red-500"/> Grafik Penjualan Cabang</h3><div className="flex bg-slate-100 p-1 rounded-lg"><button onClick={()=>setChartView('daily')} className={`px-3 py-1 text-xs font-bold rounded ${chartView==='daily'?'bg-white shadow text-red-600':'text-slate-500'}`}>Harian</button><button onClick={()=>setChartView('monthly')} className={`px-3 py-1 text-xs font-bold rounded ${chartView==='monthly'?'bg-white shadow text-red-600':'text-slate-500'}`}>Bulanan</button></div></div>
-         <div className="w-full h-56 mt-4 relative min-w-[500px]">{rekap.finalChartData.length === 0 ? (<div className="w-full h-full flex items-center justify-center text-slate-400 border border-dashed rounded-xl">Belum ada data di periode ini.</div>) : (<SimpleSVGLineChart data={rekap.finalChartData} />)}</div>
+         <div className="w-full h-56 mt-4 relative min-w-[500px]">{(!rekap.finalChartData || rekap.finalChartData.length === 0) ? (<div className="w-full h-full flex items-center justify-center text-slate-400 border border-dashed rounded-xl">Belum ada data di periode ini.</div>) : (<SimpleSVGLineChart data={rekap.finalChartData} />)}</div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col max-h-96">
             <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Users size={20} className="text-slate-500"/> Top Pelanggan (Cabang Pemalang)</h3>
             <div className="overflow-y-auto pr-2 flex-1 space-y-3">
