@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { ShoppingCart, Plus, X, Trash2, Printer, Filter } from 'lucide-react';
 import { 
-  getTodayStr, getFirstDayOfMonthStr, getLocalYMD, formatRp, parseRp, 
+  getTodayStr, getLocalYMD, formatRp, parseRp, 
   KATEGORI_HARGA, generateId, safeSort, formatDate 
 } from '../../utils/helpers';
 
@@ -22,8 +22,8 @@ export default function TabOrders({ orders, sendToSheet, setPrintData, requestDe
   const defaultCat = role === 'branch' ? 'Pemalang' : 'Reseller';
   const [cart, setCart] = useState([{ category: defaultCat, qty: '', price: defaultPrice }]);
 
-  // MENGGUNAKAN TANGGAL 1 SEBAGAI DEFAULT FILTER
-  const [filterFrom, setFilterFrom] = useState(getFirstDayOfMonthStr());
+  // DIKEMBALIKAN KE DEFAULT HARI INI - HARI INI
+  const [filterFrom, setFilterFrom] = useState(todayStr);
   const [filterTo, setFilterTo] = useState(todayStr);
 
   const listPelangganUnik = [...new Set((orders||[]).map(s => String(s?.customer||'').toUpperCase()))];
