@@ -2,19 +2,23 @@ import React, { useEffect } from 'react';
 import { formatRp, formatDate, terbilang } from '../../utils/helpers';
 
 // ============================================================================
-// 1. TEMPLATE INVOICE & KUITANSI (KHUSUS EPSON LX-310 DOT MATRIX 9.5 x 11")
+// 1. TEMPLATE INVOICE & KUITANSI (DESAIN SESUAI GAMBAR)
 // ============================================================================
 const dotMatrixStyle = `
   @media print {
-    @page { size: 9.5in 11in; margin: 0.2in 0.3in; }
-    body { font-family: 'Courier New', Courier, monospace !important; font-size: 12px !important; color: #000; line-height: 1.2; margin: 0; padding: 0; background: white; -webkit-print-color-adjust: exact; }
+    @page { size: 9.5in 11in; margin: 0.3in; }
+    body { font-family: Arial, sans-serif !important; font-size: 13px !important; color: #000; background: white; -webkit-print-color-adjust: exact; margin: 0; }
     .hide-on-print { display: none !important; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-    th, td { padding: 2px 4px !important; border: 1px solid #000 !important; font-size: 11px !important; }
-    .no-border th, .no-border td { border: none !important; border-bottom: 1px dashed #000 !important; }
-    h1, h2, h3, p { margin: 0; padding: 0; }
   }
-  .print-wrapper { max-width: 9.5in; margin: 0 auto; padding: 20px; background: white; font-family: 'Courier New', Courier, monospace; color: black; }
+  .print-wrapper { max-width: 9.5in; margin: 0 auto; padding: 20px; background: white; font-family: Arial, sans-serif; color: black; }
+  
+  /* CSS KHUSUS TABEL SESUAI GAMBAR (Inner Dashed, Outer Solid) */
+  .table-dotted { width: 100%; border-collapse: collapse; margin-bottom: 8px; border: 1px solid black; }
+  .table-dotted th { border: 1px solid black; padding: 8px; text-align: center; font-weight: bold; background: white; }
+  .table-dotted td { border: 1px dashed black; padding: 8px; text-align: center; }
+  .table-dotted tr td:first-child { border-left: 1px solid black; }
+  .table-dotted tr td:last-child { border-right: 1px solid black; }
+  .table-dotted tr:last-child td { border-bottom: 1px solid black; }
 `;
 
 export function PrintInvoiceDotMatrix({ data, onBack }) {
@@ -23,57 +27,79 @@ export function PrintInvoiceDotMatrix({ data, onBack }) {
     <div className="bg-slate-100 min-h-screen p-4">
       <style dangerouslySetInnerHTML={{ __html: dotMatrixStyle }} />
       <button onClick={onBack} className="hide-on-print mb-4 bg-red-600 text-white px-4 py-2 rounded font-bold shadow-md">Kembali ke Aplikasi</button>
+      
       <div className="print-wrapper shadow-lg">
-        <div className="flex justify-between items-end border-b-2 border-black pb-2 mb-2">
-          <div><h1 className="font-bold text-xl uppercase">DIMSUM ADITYA</h1><p className="text-xs">Distributor Dimsum & Makanan Beku</p></div>
-          <div className="text-right"><h2 className="font-bold text-lg">INVOICE PENJUALAN</h2><p className="text-xs">Tgl: {formatDate(data.date)} | No: {data.id}</p></div>
+        {/* HEADER */}
+        <div className="flex justify-between items-start mb-6">
+          <div className="text-sm">
+            <h1 className="font-bold text-lg mb-1">INVOICE DIMSUM ADITYA</h1>
+            <p>Jl. Thamrin, RT.001/RW.003, Ketapang</p>
+            <p>Kec. Cipondoh, Kota Tangerang, Banten 15147</p>
+            <p>Telp/Wa : 087809020931, dimsumaditya@gmail.com</p>
+          </div>
+          <div>
+            <img src="https://dimsumaditya.id/wp-content/uploads/2024/10/Dimsum-Aditya.png" alt="Logo" className="h-20 object-contain" />
+          </div>
         </div>
-        <div className="mb-3 text-sm"><p>Kepada Yth: <span className="font-bold uppercase text-base">{data.customer}</span></p><p>Metode Bayar: {data.paymentMethod}</p></div>
-        <table className="w-full text-left no-border">
-          <thead><tr><th className="w-8 text-center">NO</th><th>NAMA ITEM & QTY</th><th className="text-right w-32">KETERANGAN</th></tr></thead>
+
+        {/* INFO INVOICE */}
+        <div className="flex justify-between mb-4 text-sm">
+          <div className="w-[45%]">
+            <div className="flex mb-2"><span className="w-28 font-bold">No. Invoice</span><span className="flex-1 border-b border-dashed border-black">{data.id}</span></div>
+            <div className="flex"><span className="w-28 font-bold">Kepada</span><span className="flex-1 border-b border-dashed border-black uppercase">{data.customer}</span></div>
+          </div>
+          <div className="w-[45%]">
+            <div className="flex mb-2"><span className="w-32 font-bold">Tanggal</span><span className="flex-1 border-b border-dashed border-black text-right">{formatDate(data.date)}</span></div>
+            <div className="flex"><span className="w-32 font-bold">Metode Bayar</span><span className="flex-1 border-b border-dashed border-black text-right">{data.paymentMethod}</span></div>
+          </div>
+        </div>
+
+        {/* TABEL ITEM */}
+        <table className="table-dotted text-sm">
+          <thead>
+            <tr>
+              <th>KATEGORI</th>
+              <th>QTY</th>
+              <th>HARGA / Btr</th>
+              <th>TOTAL</th>
+            </tr>
+          </thead>
           <tbody>
-            {(data.items || []).map((item, idx) => (
-              <tr key={idx}><td className="text-center">{idx + 1}</td><td>{item}</td><td className="text-right">-</td></tr>
-            ))}
+            <tr>
+              <td>{data.category}</td>
+              <td>{(data.items || []).join(', ')}</td>
+              <td>{formatRp(data.price)}</td>
+              <td><strong>{formatRp(data.totalAll)}</strong></td>
+            </tr>
+            {/* Baris Kosong untuk menyamai visual gambar */}
+            {[1, 2, 3].map(i => <tr key={i}><td>&nbsp;</td><td></td><td></td><td></td></tr>)}
           </tbody>
         </table>
-        <div className="flex justify-end mt-2 text-sm">
-          <div className="w-64">
-            <div className="flex justify-between font-bold border-t border-black pt-1 mb-1"><span>TOTAL TAGIHAN:</span><span>{formatRp(data.totalAll)}</span></div>
-            <div className="flex justify-between mb-1"><span>DIBAYAR (DP):</span><span>{formatRp(data.paidAmount)}</span></div>
-            <div className="flex justify-between font-bold border-t border-black pt-1 text-red-600"><span>SISA KEKURANGAN:</span><span>{formatRp(Number(data.totalAll) - Number(data.paidAmount))}</span></div>
-          </div>
-        </div>
-        <div className="mt-2 text-xs italic">Terbilang: {terbilang(data.totalAll)} Rupiah</div>
-        <div className="flex justify-between mt-8 text-center text-sm">
-          <div className="w-40"><p className="mb-10">Penerima,</p><p className="border-t border-black pt-1">( {data.customer} )</p></div>
-          <div className="w-40"><p className="mb-10">Hormat Kami,</p><p className="border-t border-black pt-1">( Dimsum Aditya )</p></div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
-export function PrintPurchase({ data, onBack }) {
-  useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
-  return (
-    <div className="bg-slate-100 min-h-screen p-4">
-      <style dangerouslySetInnerHTML={{ __html: dotMatrixStyle }} />
-      <button onClick={onBack} className="hide-on-print mb-4 bg-orange-600 text-white px-4 py-2 rounded font-bold shadow-md">Kembali</button>
-      <div className="print-wrapper shadow-lg">
-        <div className="text-center border-b-2 border-black pb-2 mb-4"><h2 className="font-bold text-lg">BUKTI PEMBELIAN BAHAN (RESTOCK)</h2><p className="text-xs">No. Ref: {data.id} | Tgl: {formatDate(data.date)}</p></div>
-        <div className="mb-3 text-sm"><p>Supplier / Toko: <span className="font-bold uppercase text-base">{data.supplier}</span></p><p>Metode Bayar: {data.paymentMethod}</p></div>
-        <table className="w-full text-left no-border">
-          <thead><tr><th className="w-8 text-center">NO</th><th>BARANG & SATUAN</th></tr></thead>
-          <tbody>{(data.items || []).map((item, idx) => (<tr key={idx}><td className="text-center">{idx + 1}</td><td>{item}</td></tr>))}</tbody>
-        </table>
-        <div className="flex justify-end mt-4 text-sm">
-          <div className="w-64 border-t border-black pt-1">
-            <div className="flex justify-between font-bold"><span>TOTAL BELANJA:</span><span>{formatRp(data.totalAll)}</span></div>
-            <div className="flex justify-between"><span>DIBAYAR:</span><span>{formatRp(data.paidAmount)}</span></div>
+        {/* TERBILANG & TTD */}
+        <div className="mt-1 text-sm italic border-b-0">TERBILANG : {terbilang(data.totalAll)} Rupiah</div>
+        
+        <div className="flex justify-between mt-12 text-center text-sm">
+          <div className="w-48">
+            <p className="mb-20">&nbsp;</p>
+            <p className="border-t border-dashed border-black pt-1">Penerima / Pelanggan</p>
+          </div>
+          <div className="w-48">
+            <p className="text-left mb-20">Hormat kami,</p>
+            <p className="border-t border-dashed border-black pt-1">Admin / Kasir</p>
           </div>
         </div>
-        <div className="mt-8 flex justify-end text-center text-sm"><div className="w-40"><p className="mb-10">Admin Pembelian,</p><p className="border-t border-black pt-1">( Dimsum Aditya )</p></div></div>
+
+        {/* FOOTER BANK & WEB */}
+        <div className="flex justify-between items-end mt-4 text-sm">
+            <div className="font-bold">
+                <p>BCA : 1320552261 (WASTAM)</p>
+                <p>BRI : 775301006132536 (WASTAM)</p>
+            </div>
+            <div>
+                <a href="https://dimsumaditya.id/" target="_blank" rel="noreferrer" className="text-black no-underline">www.dimsumaditya.id</a>
+            </div>
+        </div>
       </div>
     </div>
   );
@@ -84,20 +110,92 @@ export function PrintVoucher({ data, onBack }) {
   return (
     <div className="bg-slate-100 min-h-screen p-4">
       <style dangerouslySetInnerHTML={{ __html: dotMatrixStyle }} />
-      <button onClick={onBack} className="hide-on-print mb-4 bg-slate-800 text-white px-4 py-2 rounded font-bold shadow-md">Kembali</button>
+      <button onClick={onBack} className="hide-on-print mb-4 bg-slate-800 text-white px-4 py-2 rounded font-bold shadow-md">Kembali ke Aplikasi</button>
+      
       <div className="print-wrapper shadow-lg">
-        <div className="text-center border-b-2 border-black pb-2 mb-4"><h2 className="font-bold text-lg">VOUCHER PENGELUARAN KAS</h2><p className="text-xs">No: {data.id} | Tgl: {formatDate(data.date)}</p></div>
-        <div className="text-sm space-y-2 mb-4 border border-black p-3">
-          <div className="flex"><span className="w-32 font-bold">Dibayarkan Kepada:</span><span className="uppercase font-bold">{data.recipient}</span></div>
-          <div className="flex"><span className="w-32 font-bold">Uang Sejumlah:</span><span className="font-bold text-base">{formatRp(data.total)}</span></div>
-          <div className="flex"><span className="w-32 font-bold">Terbilang:</span><span className="italic">"{terbilang(data.total)} Rupiah"</span></div>
-          <div className="flex"><span className="w-32 font-bold">Untuk Keperluan:</span><span>[{data.category}] - {data.description}</span></div>
-          <div className="flex"><span className="w-32 font-bold">Metode Bayar:</span><span>{data.paymentMethod}</span></div>
+        {/* HEADER */}
+        <div className="flex justify-between items-start mb-6">
+          <div className="mt-4">
+            <h1 className="font-bold text-xl uppercase">BUKTI PENGELUARAN KAS - DIMSUM ADITYA</h1>
+          </div>
+          <div>
+            <img src="https://dimsumaditya.id/wp-content/uploads/2024/10/Dimsum-Aditya.png" alt="Logo" className="h-20 object-contain" />
+          </div>
         </div>
-        <div className="flex justify-between mt-12 text-center text-sm">
-          <div className="w-40"><p className="mb-10">Penerima,</p><p className="border-t border-black pt-1">( {data.recipient} )</p></div>
-          <div className="w-40"><p className="mb-10">Disetujui Oleh,</p><p className="border-t border-black pt-1">( Dimsum Aditya )</p></div>
+
+        {/* INFO VOUCHER */}
+        <div className="flex justify-between mb-4 text-sm">
+          <div className="w-[45%]">
+            <div className="flex mb-2"><span className="w-28 font-bold">ID Voucher</span><span className="flex-1 border-b border-dashed border-black">{data.id}</span></div>
+            <div className="flex"><span className="w-28 font-bold">Kepada</span><span className="flex-1 border-b border-dashed border-black uppercase">{data.recipient}</span></div>
+          </div>
+          <div className="w-[40%]">
+            <div className="flex"><span className="w-24 font-bold">Tanggal</span><span className="flex-1 border-b border-dashed border-black text-right">{formatDate(data.date)}</span></div>
+          </div>
         </div>
+
+        {/* TABEL ITEM */}
+        <table className="table-dotted text-sm">
+          <thead>
+            <tr>
+              <th>KATEGORI</th>
+              <th>KETERANGAN</th>
+              <th>QTY</th>
+              <th>HARGA</th>
+              <th>TOTAL (KAS KELUAR)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>{data.category}</td>
+              <td>{data.description}</td>
+              <td>{data.qty}</td>
+              <td>{formatRp(data.price)}</td>
+              <td><strong>{formatRp(data.total)}</strong></td>
+            </tr>
+            {[1, 2, 3].map(i => <tr key={i}><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>)}
+          </tbody>
+        </table>
+
+        {/* TERBILANG & TTD */}
+        <div className="mt-1 text-sm italic">TERBILANG : {terbilang(data.total)} Rupiah</div>
+        
+        <div className="flex justify-between mt-16 text-center text-sm">
+          <div className="w-48">
+            <p className="mb-20">&nbsp;</p>
+            <p className="border-t border-dashed border-black pt-1">Penerima / Pelanggan</p>
+          </div>
+          <div className="w-48">
+            <p className="text-left mb-20">Hormat kami,</p>
+            <p className="border-t border-dashed border-black pt-1">Admin / Kasir</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// === TEMPLATE LAINNYA (SISA YANG TIDAK DIUBAH) ===
+export function PrintPurchase({ data, onBack }) {
+  useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
+  return (
+    <div className="bg-slate-100 min-h-screen p-4">
+      <style dangerouslySetInnerHTML={{ __html: dotMatrixStyle }} />
+      <button onClick={onBack} className="hide-on-print mb-4 bg-orange-600 text-white px-4 py-2 rounded font-bold shadow-md">Kembali</button>
+      <div className="print-wrapper shadow-lg">
+        <div className="text-center border-b-2 border-black pb-2 mb-4"><h2 className="font-bold text-lg">BUKTI PEMBELIAN BAHAN (RESTOCK)</h2><p className="text-xs">No. Ref: {data.id} | Tgl: {formatDate(data.date)}</p></div>
+        <div className="mb-3 text-sm"><p>Supplier / Toko: <span className="font-bold uppercase text-base">{data.supplier}</span></p><p>Metode Bayar: {data.paymentMethod}</p></div>
+        <table className="w-full text-left table-dotted">
+          <thead><tr><th className="w-8 text-center">NO</th><th>BARANG & SATUAN</th></tr></thead>
+          <tbody>{(data.items || []).map((item, idx) => (<tr key={idx}><td className="text-center">{idx + 1}</td><td>{item}</td></tr>))}</tbody>
+        </table>
+        <div className="flex justify-end mt-4 text-sm">
+          <div className="w-64 border-t border-black pt-1">
+            <div className="flex justify-between font-bold"><span>TOTAL BELANJA:</span><span>{formatRp(data.totalAll)}</span></div>
+            <div className="flex justify-between"><span>DIBAYAR:</span><span>{formatRp(data.paidAmount)}</span></div>
+          </div>
+        </div>
+        <div className="mt-8 flex justify-end text-center text-sm"><div className="w-40"><p className="mb-10">Admin Pembelian,</p><p className="border-t border-black pt-1">( Dimsum Aditya )</p></div></div>
       </div>
     </div>
   );
@@ -133,7 +231,6 @@ const a4Style = `
     body { font-family: Arial, sans-serif; font-size: 10px; color: black; background: white; margin: 0; padding: 0; -webkit-print-color-adjust: exact; } 
     .hide-on-print { display: none !important; } 
     table { width: 100%; border-collapse: collapse; margin-bottom: 10px; } 
-    /* PADDING DIBUAT SANGAT KECIL AGAR BARIS TABEL MERAPAT */
     th, td { padding: 3px 4px !important; border: 1px solid black !important; line-height: 1.1; } 
     th { background-color: #f3f4f6 !important; font-weight: bold; }
     h1 { font-size: 16px; margin: 0 0 4px 0; } 
