@@ -6,7 +6,7 @@ import {
   Store, Coins, Loader2, LogOut, TrendingUp, Users, Package,
   ArrowDownToLine, ArrowUpFromLine, UtilityPole, Utensils, Filter,
   Truck
-} from 'lucide-react'; // IKON EDIT TELAH DICABUT AGAR TIDAK CRASH
+} from 'lucide-react'; // Semua ikon yang bermasalah sudah disingkirkan
 
 // =====================================================================
 // === GANTI URL DI BAWAH INI DENGAN URL WEB APP GOOGLE SCRIPT ANDA ===
@@ -158,6 +158,8 @@ export default function App() {
     if (!SCRIPT_URL || SCRIPT_URL === 'TARUH_LINK_GOOGLE_SCRIPT_DISINI') {
         alert("SIMULASI: Data tersimpan di layar sementara. Harap masukkan link Script Google yang benar."); return;
     }
+
+    // FIX DUPLIKASI GHOST-DATA: Hapus langsung di state React secara fungsional
     if (action === 'insert') {
         if (table === 'orders') setOrders(prev => [data, ...prev]);
         if (table === 'expenses') setExpenses(prev => [data, ...prev]);
@@ -172,6 +174,15 @@ export default function App() {
         if (table === 'pemalang') setPemalangReports(prev => prev.map(p => p.id === data.id ? data : p));
         if (table === 'stok') setStokData(prev => prev.map(s => s.id === data.id ? data : s));
         if (table === 'purchases') setPurchases(prev => prev.map(p => p.id === data.id ? data : p));
+    } else if (action === 'delete') {
+        // STATE DELETION (Ini kunci agar tidak mengganda saat di Edit!)
+        const delId = data.id;
+        if (table === 'orders') setOrders(prev => prev.filter(o => o.id !== delId));
+        if (table === 'expenses') setExpenses(prev => prev.filter(e => e.id !== delId));
+        if (table === 'payments') setPiutangPayments(prev => prev.filter(p => p.id !== delId));
+        if (table === 'pemalang') setPemalangReports(prev => prev.filter(p => p.id !== delId));
+        if (table === 'stok') setStokData(prev => prev.filter(s => s.id !== delId));
+        if (table === 'purchases') setPurchases(prev => prev.filter(p => p.id !== delId));
     }
 
     try {
@@ -184,12 +195,12 @@ export default function App() {
     const { type, id } = confirmDialog;
     let colName = '';
     
-    if (type === 'order') { colName = 'orders'; setOrders(prev => prev.filter(o => o.id !== id)); } 
-    else if (type === 'expense') { colName = 'expenses'; setExpenses(prev => prev.filter(e => e.id !== id)); } 
-    else if (type === 'payment') { colName = 'payments'; setPiutangPayments(prev => prev.filter(p => p.id !== id)); } 
-    else if (type === 'pemalang') { colName = 'pemalang'; setPemalangReports(prev => prev.filter(p => p.id !== id)); } 
-    else if (type === 'stok') { colName = 'stok'; setStokData(prev => prev.filter(s => s.id !== id)); }
-    else if (type === 'purchase') { colName = 'purchases'; setPurchases(prev => prev.filter(p => p.id !== id)); }
+    if (type === 'order') colName = 'orders';
+    else if (type === 'expense') colName = 'expenses';
+    else if (type === 'payment') colName = 'payments';
+    else if (type === 'pemalang') colName = 'pemalang';
+    else if (type === 'stok') colName = 'stok';
+    else if (type === 'purchase') colName = 'purchases';
 
     await sendToSheet('delete', { id }, colName);
     setConfirmDialog(null);
@@ -353,7 +364,6 @@ function TabDashboard({ orders, expenses, purchases, piutangPayments, pemalangRe
     const isCumulative = (dateStr) => getLocalYMD(dateStr) && getLocalYMD(dateStr) <= dateTo;
     const isPeriod = (dateStr) => getLocalYMD(dateStr) && getLocalYMD(dateStr) >= dateFrom && getLocalYMD(dateStr) <= dateTo;
 
-    // Filter Cumulative
     const cumOrdersPusat = (orders || []).filter(o => isCumulative(o.date) && o.category !== 'Pemalang');
     const cumPurchases = (purchases || []).filter(p => isCumulative(p.date));
     const cumExpenses = (expenses || []).filter(e => isCumulative(e.date));
@@ -479,7 +489,7 @@ function TabDashboard({ orders, expenses, purchases, piutangPayments, pemalangRe
         return { ...grp, cicilanTerbayar: cicilan, sisaHutang: grp.totalTagihan - grp.totalDibayar - cicilan };
     }).filter(p => p.sisaHutang > 0);
 
-    const listPembayaranSemua = cumPayments.filter(p => isPeriod(p.date)).map(pay => {
+    const listPembayaranSemua = (cumPayments || []).filter(p => isPeriod(p.date)).map(pay => {
         const isHutang = String(pay?.orderId || '').startsWith('BUY-');
         const relData = isHutang ? groupPurAll[pay.orderId] : groupOrdersAll[pay.orderId];
         const cicilan = (piutangPayments || []).filter(p=>p.orderId===pay.orderId).reduce((s,p)=>s+(Number(p.amount)||0), 0);
@@ -574,7 +584,6 @@ function TabDashboard({ orders, expenses, purchases, piutangPayments, pemalangRe
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* ARUS DANA PERIODE TERPILIH */}
         <div className="bg-white p-6 rounded-xl border border-emerald-200 shadow-sm flex flex-col relative overflow-hidden">
             <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
             <h3 className="font-bold text-lg mb-1 flex items-center gap-2 text-emerald-800"><ArrowRightLeft size={20}/> Arus Uang Masuk & Keluar</h3>
@@ -654,7 +663,7 @@ function TabDashboard({ orders, expenses, purchases, piutangPayments, pemalangRe
                 <h3 className="font-bold text-lg mb-4 flex gap-2"><Truck size={20} className="text-slate-500"/> Pembelian Bahan (Periode Ini)</h3>
                 <div className="mb-4">
                     <span className="text-4xl font-bold text-orange-600">{formatRp(rekap.listPembelianDetail.reduce((a,b) => a + Number(b.total), 0))}</span>
-                    <div className="text-xs text-slate-400 mt-1">Total Transaksi Pembelian: {[...new Set((rekap.listPembelianDetail || []).map(x=>x?.id))].length} Trx</div>
+                    <div className="text-xs text-slate-400 mt-1">Total Transaksi Pembelian: {[...new Set(rekap.listPembelianDetail.map(x=>x?.id))].length} Trx</div>
                 </div>
             </div>
             <div className="border-t pt-4 flex justify-between p-3 bg-orange-50 rounded border border-orange-100">
@@ -1139,7 +1148,7 @@ function TabOrders({ orders, sendToSheet, setPrintData, requestDelete, role }) {
                 <td className="px-4 py-3 text-center">
                   <div className="flex justify-center gap-2">
                     <button onClick={() => setPrintData({ type: 'invoice', data: ord })} className="text-slate-600 bg-slate-100 p-2 rounded-lg transition" title="Cetak"><Printer size={16} /></button>
-                    {/* ICON GANTI JADI TEKS AGAR ANTI-CRASH */}
+                    {/* TOMBOL EDIT TEKS (ANTI CRASH) */}
                     <button onClick={() => handleEdit(ord)} className="text-blue-600 bg-blue-50 px-2 py-1 rounded-lg font-bold text-[10px] transition" title="Edit Data">EDIT</button>
                     <button onClick={() => requestDelete(ord.id)} className="text-red-500 bg-red-50 p-2 rounded-lg transition" title="Hapus Data"><Trash2 size={16} /></button>
                   </div>
@@ -1311,7 +1320,7 @@ function TabPurchases({ purchases, sendToSheet, requestDelete, setPrintData }) {
           </div>
 
           <div className="space-y-1 bg-orange-100 p-3 rounded-lg border border-orange-200 lg:col-span-3">
-            <label className="text-xs font-bold text-orange-900 uppercase">Total Seluruh Belanjaan</label>
+            <label className="text-xs font-bold text-orange-900 uppercase">Total Seluruh Belanjaan (Otomatis)</label>
             <input type="text" readOnly value={formatRp(cartTotal)} className="w-full p-3 border border-orange-300 rounded-lg font-bold text-lg bg-white mt-1 text-orange-900 cursor-not-allowed" />
           </div>
 
@@ -1372,6 +1381,7 @@ function TabPurchases({ purchases, sendToSheet, requestDelete, setPrintData }) {
                 <td className="px-4 py-3 text-center">
                   <div className="flex justify-center gap-2">
                     <button onClick={() => setPrintData({ type: 'purchase', data: pur })} className="text-slate-600 bg-slate-100 p-2 rounded-lg transition" title="Cetak Bukti"><Printer size={16} /></button>
+                    {/* TOMBOL EDIT TEKS ANTI CRASH */}
                     <button onClick={() => handleEdit(pur)} className="text-blue-600 bg-blue-50 px-2 py-1 rounded-lg font-bold text-[10px] transition" title="Edit Data">EDIT</button>
                     <button onClick={() => requestDelete(pur.id)} className="text-red-500 bg-red-50 p-2 rounded-lg transition" title="Hapus Permanen"><Trash2 size={16} /></button>
                   </div>
@@ -1794,7 +1804,7 @@ function TabPemalang({ reports, sendToSheet, requestDelete }) {
       )}
       <div className="flex items-center gap-3 bg-white p-3 rounded-xl border mt-4"><Filter size={16} className="text-slate-400"/><input type="date" value={filterFrom} onChange={e=>setFilterFrom(e.target.value)} className="p-1.5 text-sm border rounded" /> - <input type="date" value={filterTo} onChange={e=>setFilterTo(e.target.value)} className="p-1.5 text-sm border rounded" /></div>
       <div className="bg-white rounded-xl border mt-4 overflow-hidden"><table className="w-full text-sm text-left block md:table"><thead className="bg-amber-50 text-amber-800 border-b"><tr><th className="px-4 py-3">Tanggal Laporan</th><th className="px-4 py-3 text-center">Pesanan (M/P)</th><th className="px-4 py-3 text-center">Produksi (M/P)</th><th className="px-4 py-3">STOK FREEZER</th><th className="px-4 py-3 text-center">Disetor Ke</th><th className="px-4 py-3 text-right">Uang Disetor</th><th className="px-4 py-3 text-center">Aksi</th></tr></thead><tbody className="divide-y">
-          {displayReports.length === 0 ? <tr><td colSpan="7" className="text-center py-12 text-slate-400">Tidak ada laporan ditemukan.</td></tr> : displayReports.map((rep) => (
+          {displayReports.length === 0 ? <tr><td colSpan="7" className="text-center py-12 text-slate-400">Tidak ada laporan ditemukan pada tanggal filter tersebut.</td></tr> : displayReports.map((rep) => (
             <tr key={rep.id} className="hover:bg-slate-50">
               <td className="px-4 py-3"><div className="font-medium">{formatDate(rep.date)}</div><div className="text-[10px] text-slate-400 font-mono">{rep.id}</div></td>
               <td className="px-4 py-3 text-center bg-slate-50/50"><div className="font-bold">{rep.pesananMika} M</div><div className="text-xs text-slate-500">{rep.pesananPorsi} Prs</div></td>
@@ -1811,7 +1821,7 @@ function TabPemalang({ reports, sendToSheet, requestDelete }) {
 }
 
 // ==========================================================
-// --- LAYOUT CETAK (DIPERCEPAT & DITAMBAHKAN LOGO & SATUAN) ---
+// --- LAYOUT CETAK LAPORAN TERPADU & PADAT ---
 // ==========================================================
 function PrintReport({ data, onBack }) {
   useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
@@ -1950,6 +1960,7 @@ function PrintReportBranch({ data, onBack, user }) {
       <button onClick={onBack} className="hide-on-print mb-4 bg-slate-800 text-white px-4 py-2 rounded flex items-center gap-2">Kembali ke Aplikasi</button>
       <div className="print:p-0 text-sm font-sans" style={{ fontFamily: 'Arial, sans-serif' }}>
         
+        {/* LOGO ADDED */}
         <div className="flex justify-center mb-2">
             <img src="https://dimsumaditya.id/wp-content/uploads/2024/10/Dimsum-Aditya.png" alt="Logo" style={{height: '60px'}} />
         </div>
@@ -1979,155 +1990,5 @@ function PrintReportBranch({ data, onBack, user }) {
       </div>
     </div>
     </>
-  );
-}
-
-function PrintInvoiceDotMatrix({ data, onBack }) {
-  useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
-  return (
-    <>
-    <style dangerouslySetInnerHTML={{__html: `@media print { @page { size: 9.5in 11in; margin: 0; } body { margin: 0.5in; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } .hide-on-print { display: none !important; } }`}} />
-    <div className="bg-white min-h-screen text-black print:bg-white print:p-0 p-8 w-full max-w-[800px] mx-auto font-mono text-sm" style={{ fontFamily: '"Courier New", Courier, monospace' }}>
-      <button onClick={onBack} className="hide-on-print mb-8 bg-slate-800 text-white px-5 py-2.5 rounded flex items-center gap-2">Kembali ke Aplikasi</button>
-      <div className="border border-black p-6 print:border-none print:p-0 relative">
-        {(data?.editCount > 0) && <div className="absolute top-0 right-0 font-bold text-xs bg-black text-white px-2 py-1">CETAKAN KE-{data.editCount + 1}</div>}
-        <div className="flex justify-between items-start mb-6 border-b-2 border-black pb-4 mt-6">
-            <div>
-                <h1 className="font-bold text-2xl tracking-widest uppercase mb-2">INVOICE DIMSUM ADITYA</h1>
-                <p className="text-xs">Jl. Thamrin, RT.001/RW.003, Ketapang</p>
-                <p className="text-xs">Kec. Cipondoh, Tangerang 15147</p>
-                <p className="text-xs">Telp/Wa : 087809020931</p>
-            </div>
-            <div className="text-right"><h2 className="font-bold text-xl uppercase mt-2">DIMSUM ADITYA</h2><p className="text-xs">Pusat Produksi</p></div>
-        </div>
-        <div className="flex justify-between items-end mb-6">
-            <table className="w-[50%] text-sm"><tbody><tr><td className="w-24 pb-1">NO. INVOICE</td><td className="w-4 pb-1">:</td><td className="font-bold pb-1">{data?.id}</td></tr><tr><td className="w-24 pb-1">KEPADA</td><td className="w-4 pb-1">:</td><td className="font-bold uppercase pb-1">{data?.customer}</td></tr></tbody></table>
-            <table className="w-[40%] text-sm"><tbody><tr><td className="w-28 pb-1">TANGGAL</td><td className="w-4 pb-1">:</td><td className="text-right font-bold pb-1">{formatDate(data?.date)}</td></tr><tr><td className="w-28 pb-1">METODE BAYAR</td><td className="w-4 pb-1">:</td><td className="text-right font-bold pb-1">{data?.paymentMethod}</td></tr></tbody></table>
-        </div>
-        <table className="w-full border-collapse text-sm mb-4 border border-black">
-            <thead><tr className="border-b border-black"><th className="p-2 border-r border-black text-left w-1/4">KATEGORI</th><th className="p-2 border-r border-black text-left w-2/5">DESKRIPSI KETERANGAN</th><th className="p-2 border-r border-black text-center">QTY</th><th className="p-2 border-r border-black text-right">HARGA (Rp)</th><th className="p-2 text-right w-1/4">TOTAL (Rp)</th></tr></thead>
-            <tbody>
-                {(data?.items || []).length > 0 ? (data.items.map((it, idx) => (
-                    <tr key={idx} className="border-b border-black border-dashed"><td className="p-2 border-r border-black border-dashed uppercase">{data.category}</td><td className="p-2 border-r border-black border-dashed uppercase">Pembelian Dimsum {data.notes ? `- ${data.notes}` : ''}</td><td className="p-2 border-r border-black border-dashed text-center font-bold">{it}</td><td className="p-2 border-r border-black border-dashed text-right">{formatRp(data.price).replace('Rp', '')}</td><td className="p-2 text-right font-bold">{formatRp(data.total).replace('Rp', '')}</td></tr>
-                ))) : (
-                    <tr className="border-b border-black border-dashed"><td className="p-2 border-r border-black border-dashed uppercase">{data?.category}</td><td className="p-2 border-r border-black border-dashed uppercase">Pembelian Dimsum {data?.notes ? `- ${data.notes}` : ''}</td><td className="p-2 border-r border-black border-dashed text-center font-bold">{data?.qty} PCS</td><td className="p-2 border-r border-black border-dashed text-right">{formatRp(data?.price).replace('Rp', '')}</td><td className="p-2 text-right font-bold">{formatRp(data?.total).replace('Rp', '')}</td></tr>
-                )}
-                {[...Array(2)].map((_, i) => (<tr key={`empty-${i}`} className="border-b border-black border-dashed"><td className="p-3 border-r border-black border-dashed"></td><td className="p-3 border-r border-black border-dashed"></td><td className="p-3 border-r border-black border-dashed"></td><td className="p-3 border-r border-black border-dashed"></td><td className="p-3"></td></tr>))}
-                <tr className="border-t-2 border-black"><td colSpan="3" className="p-2 border-r border-black border-dashed text-right italic text-xs">{terbilang(data?.totalAll || data?.total)} Rupiah</td><td className="p-2 border-r border-black border-dashed font-bold text-right">GRAND TOTAL</td><td className="p-2 text-right font-bold text-lg">{formatRp(data?.totalAll || data?.total)}</td></tr>
-                {(Number(data?.totalAll || data?.total)||0) > (Number(data?.paidAmount)||0) && (
-                    <><tr><td colSpan="4" className="p-1 border-r border-black border-dashed font-bold text-right text-xs">TELAH DIBAYAR (DP)</td><td className="p-1 text-right font-bold text-xs">{formatRp(data?.paidAmount)}</td></tr><tr className="border-t border-black border-dashed"><td colSpan="4" className="p-1.5 border-r border-black border-dashed font-bold text-right uppercase">Sisa Tagihan (Piutang)</td><td className="p-1.5 text-right font-bold">{formatRp((Number(data?.totalAll || data?.total)||0) - (Number(data?.paidAmount)||0))}</td></tr></>
-                )}
-            </tbody>
-        </table>
-        <div className="flex justify-between items-end mt-12 mb-4"><div className="text-center w-48"><div className="border-b border-black border-dashed h-16 mb-1"></div><div className="text-xs uppercase">PENERIMA / PELANGGAN</div></div><div className="text-center w-48"><div className="text-xs mb-16 text-center italic">Hormat Kami,</div><div className="border-b border-black border-dashed h-4 mb-1"></div><div className="text-xs uppercase">DIMSUM ADITYA</div></div></div>
-        <div className="flex justify-between items-end mt-8 text-[10px] border-t border-black pt-2"><div><p className="font-bold">BCA : 1320552261 (WASTAM) | BRI : 775301006132536 (WASTAM)</p><p>Barang yang sudah dibeli tidak dapat ditukar/dikembalikan.</p></div><div className="font-bold">WWW.DIMSUMADITYA.ID</div></div>
-      </div>
-    </div>
-    </>
-  );
-}
-
-function PrintPurchase({ data, onBack }) {
-  useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
-  return (
-    <>
-    <style dangerouslySetInnerHTML={{__html: `@media print { @page { size: A4 portrait; margin: 10mm; } body { margin: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; font-size: 11px;} .hide-on-print { display: none !important; } }`}} />
-    <div className="bg-white min-h-screen text-black print:bg-white print:p-0 p-8 w-full max-w-[800px] mx-auto">
-      <button onClick={onBack} className="print:hidden mb-4 bg-slate-800 text-white px-4 py-2 rounded flex items-center gap-2">Kembali</button>
-      <div className="p-8 border border-slate-200 print:border-none print:p-0 text-sm font-sans relative" style={{ fontFamily: 'Arial, sans-serif' }}>
-        {(data?.editCount > 0) && <div className="absolute top-0 right-0 font-bold text-xs bg-black text-white px-2 py-1">CETAKAN KE-{data.editCount + 1}</div>}
-        <div className="flex justify-between items-center mb-10 mt-6"><h1 className="font-bold text-xl uppercase border-b-2 border-black pb-2 inline-block">BUKTI PEMBELIAN BAHAN BAKU</h1></div>
-        <div className="space-y-4 text-base">
-            <div className="flex"><div className="w-48 font-bold">ID Transaksi</div><div className="w-4">:</div><div className="font-mono font-medium">{data?.id}</div></div>
-            <div className="flex"><div className="w-48 font-bold">Tanggal Pembelian</div><div className="w-4">:</div><div>{formatDate(data?.date)}</div></div>
-            <div className="flex"><div className="w-48 font-bold">Nama Supplier</div><div className="w-4">:</div><div className="uppercase font-bold border-b border-dotted border-black flex-1">{data?.supplier}</div></div>
-            <div className="flex"><div className="w-48 font-bold">Daftar Barang</div><div className="w-4">:</div><div className="uppercase"><ul className="list-disc pl-4 text-xs font-bold">{(data?.items || []).map((it, idx) => <li key={idx}>{it}</li>)}</ul></div></div>
-            <div className="flex"><div className="w-48 font-bold">Metode Bayar</div><div className="w-4">:</div><div className="font-bold">{data?.paymentMethod}</div></div>
-            <div className="flex items-center"><div className="w-48 font-bold">Total Nilai Transaksi</div><div className="w-4">:</div><div className="font-bold text-lg bg-gray-100 px-4 py-1 border border-black inline-block">{formatRp(data?.totalAll || data?.total)}</div></div>
-            <div className="flex"><div className="w-48 font-bold">Uang Dibayarkan (DP)</div><div className="w-4">:</div><div className="font-bold">{formatRp(data?.paidAmount)}</div></div>
-        </div>
-        <div className="mt-16 flex justify-between items-end">
-            <div className="text-sm p-4 border border-black bg-gray-50"><p className="font-bold mb-1">Informasi Transaksi:</p><p>Total Nilai Faktur : {formatRp(data?.totalAll || data?.total)}</p><p>Hutang Berjalan : {formatRp((Number(data?.totalAll || data?.total)||0)-(Number(data?.paidAmount)||0))}</p></div>
-            <div className="text-center w-48"><div className="text-sm mb-16 text-left italic">Penerima (Kasir),</div><div className="border-b border-dotted border-black h-4 mb-1"></div><div className="text-xs uppercase text-center">Dimsum Aditya</div></div>
-        </div>
-      </div>
-    </div>
-    </>
-  );
-}
-
-function PrintVoucher({ data, onBack }) {
-    useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
-    return (
-      <>
-      <style dangerouslySetInnerHTML={{__html: `@media print { @page { size: A4 portrait; margin: 10mm; } body { margin: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; font-size: 11px; } .hide-on-print { display: none !important; } * { box-shadow: none !important; border-radius: 0 !important; } table { border-collapse: collapse; } td, th { border: 1px solid black; padding: 6px !important;} }`}} />
-      <div className="bg-white min-h-screen text-black print:bg-white print:p-0 p-8 w-full max-w-[800px] mx-auto relative">
-        <button onClick={onBack} className="print:hidden mb-4 bg-slate-800 text-white px-4 py-2 rounded flex items-center gap-2">Kembali</button>
-        <div className="p-8 border border-slate-200 print:border-none print:p-0 text-sm font-sans" style={{ fontFamily: 'Arial, sans-serif' }}>
-          {(data?.editCount > 0) && <div className="absolute top-0 right-0 font-bold text-xs bg-black text-white px-2 py-1">CETAKAN KE-{data.editCount + 1}</div>}
-          <div className="flex justify-between items-center mb-8"><h1 className="font-bold text-xl uppercase">BUKTI PENGELUARAN KAS - DIMSUM ADITYA</h1></div>
-          <div className="flex justify-between items-end mb-6">
-              <table className="w-[50%] text-sm" style={{border: 'none'}}><tbody><tr><td className="font-bold w-24 pb-2" style={{border: 'none'}}>ID Voucher</td><td className="w-4 pb-2" style={{border: 'none'}}>:</td><td className="border-b border-dotted border-black pb-2" style={{border: 'none'}}>{data?.id}</td></tr><tr><td className="font-bold w-24 pb-2" style={{border: 'none'}}>Kepada</td><td className="w-4 pb-2" style={{border: 'none'}}>:</td><td className="border-b border-dotted border-black pb-2 uppercase" style={{border: 'none'}}>{data?.recipient}</td></tr></tbody></table>
-              <table className="w-[35%] text-sm" style={{border: 'none'}}><tbody><tr><td className="font-bold w-20 pb-2" style={{border: 'none'}}>Tanggal</td><td className="w-4 pb-2" style={{border: 'none'}}>:</td><td className="border-b border-dotted border-black text-right pb-2" style={{border: 'none'}}>{formatDate(data?.date)}</td></tr><tr><td className="font-bold w-20 pb-2" style={{border: 'none'}}>Metode</td><td className="w-4 pb-2" style={{border: 'none'}}>:</td><td className="border-b border-dotted border-black text-right pb-2" style={{border: 'none'}}>{data?.paymentMethod}</td></tr></tbody></table>
-          </div>
-          <table className="w-full border-collapse border border-black text-center mb-2 text-sm">
-              <thead><tr><th className="border border-black p-2 bg-gray-50 w-1/4">KATEGORI</th><th className="border border-black p-2 bg-gray-50 w-2/5">KETERANGAN</th><th className="border border-black p-2 bg-gray-50 w-16">QTY</th><th className="border border-black p-2 bg-gray-50">HARGA</th><th className="border border-black p-2 bg-gray-50">TOTAL (KAS KELUAR)</th></tr></thead>
-              <tbody><tr><td className="border border-black p-2">{data?.category}</td><td className="border border-black p-2 uppercase">{data?.description}</td><td className="border border-black p-2">{data?.qty}</td><td className="border border-black p-2">{formatRp(data?.price)}</td><td className="border border-black p-2 font-bold">{formatRp(data?.total)}</td></tr></tbody>
-          </table>
-          <div className="italic text-sm font-serif mb-16 pt-2">TERBILANG : {terbilang(data?.total)} Rupiah</div>
-          <div className="flex justify-between items-end mb-4"><div className="text-center w-48 mt-12"><div className="border-b border-dotted border-black h-8 mb-1"></div><div className="text-xs">Penerima / Pelanggan</div></div><div className="text-center w-48"><div className="text-sm mb-16 text-left italic">Hormat kami,</div><div className="border-b border-dotted border-black h-4 mb-1"></div><div className="text-xs">Admin / Kasir</div></div></div>
-        </div>
-      </div>
-      </>
-    );
-}
-
-function PrintReceipt({ data, onBack }) {
-    useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
-    const { payment, order } = data;
-    return (
-      <>
-      <style dangerouslySetInnerHTML={{__html: `@media print { @page { size: A4 portrait; margin: 10mm; } body { margin: 0; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; font-size: 11px;} .hide-on-print { display: none !important; } }`}} />
-      <div className="bg-white min-h-screen text-black print:bg-white print:p-0 p-8 w-full max-w-[800px] mx-auto">
-        <button onClick={onBack} className="print:hidden mb-4 bg-slate-800 text-white px-4 py-2 rounded flex items-center gap-2">Kembali</button>
-        <div className="p-8 border border-slate-200 print:border-none print:p-0 text-sm font-sans" style={{ fontFamily: 'Arial, sans-serif' }}>
-          <div className="flex justify-between items-center mb-10"><h1 className="font-bold text-xl uppercase border-b-2 border-black pb-2 inline-block">BUKTI PEMBAYARAN PIUTANG / CICILAN</h1></div>
-          <div className="space-y-4 text-base">
-              <div className="flex"><div className="w-48 font-bold">ID Pembayaran</div><div className="w-4">:</div><div className="font-mono font-medium">{payment?.id}</div></div>
-              <div className="flex"><div className="w-48 font-bold">Tanggal Pembayaran</div><div className="w-4">:</div><div>{formatDate(payment?.date)}</div></div>
-              <div className="flex"><div className="w-48 font-bold">Telah Diterima Dari</div><div className="w-4">:</div><div className="uppercase font-bold border-b border-dotted border-black flex-1">{order?.customer}</div></div>
-              <div className="flex"><div className="w-48 font-bold">Metode Bayar</div><div className="w-4">:</div><div className="font-bold">{payment?.paymentMethod}</div></div>
-              <div className="flex items-center"><div className="w-48 font-bold">Sejumlah Uang</div><div className="w-4">:</div><div className="font-bold text-lg bg-gray-100 px-4 py-1 border border-black inline-block">{formatRp(payment?.amount)}</div></div>
-              <div className="flex"><div className="w-48 font-bold">Terbilang</div><div className="w-4">:</div><div className="italic font-serif flex-1 capitalize border-b border-dotted border-black">{terbilang(payment?.amount)} Rupiah</div></div>
-              <div className="flex"><div className="w-48 font-bold">Untuk Pembayaran</div><div className="w-4">:</div><div className="flex-1">Cicilan / Pelunasan tagihan untuk No. Invoice: <strong>{order?.id}</strong></div></div>
-          </div>
-          <div className="mt-16 flex justify-between items-end">
-              <div className="text-sm p-4 border border-black bg-gray-50"><p className="font-bold mb-1">Informasi Invoice (Referensi):</p><p>Total Tagihan Awal : {formatRp(order?.totalAll || order?.total)}</p><p>Sisa Hutang Terakhir : {formatRp(order?.sisaHutang)}</p></div>
-              <div className="text-center w-48"><div className="text-sm mb-16 text-left italic">Penerima (Kasir),</div><div className="border-b border-dotted border-black h-4 mb-1"></div><div className="text-xs uppercase text-center">Dimsum Aditya</div></div>
-          </div>
-        </div>
-      </div>
-      </>
-    );
-}
-
-function NavItem({ icon, label, active, onClick, badge }) {
-  return (
-    <button onClick={onClick} className={`w-full flex items-center justify-between p-3 rounded-xl transition-all duration-200 ${active ? 'bg-red-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
-      <div className="flex items-center gap-3">{icon}<span className="font-medium text-sm">{label}</span></div>
-      {badge > 0 && <span className="bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{badge}</span>}
-    </button>
-  );
-}
-
-function StatCard({ title, amount, icon, color }) {
-  return (
-    <div className={`p-5 rounded-xl border flex flex-col justify-between ${color}`}>
-      <div className="flex justify-between items-start mb-4">
-        <h3 className="font-medium text-sm opacity-90">{title}</h3>
-        <div className="p-2 bg-white/50 rounded-lg backdrop-blur-sm">{icon}</div>
-      </div>
-      <div className="text-2xl font-bold tracking-tight">{formatRp(amount)}</div>
-    </div>
   );
 }
