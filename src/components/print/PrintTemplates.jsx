@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { formatRp, formatDate, terbilang } from '../../utils/helpers';
 
 // ============================================================================
-// 1. CSS DOT MATRIX (UNTUK INVOICE, KAS KELUAR, CICILAN, PEMBELIAN BAHAN)
+// 1. CSS INVOICE DOT MATRIX (9.5" x 5.5")
 // ============================================================================
 const dotMatrixStyle = `
   .print-wrapper { max-width: 9.5in; margin: 0 auto; padding: 20px; background: white; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: black; line-height: 1.3; }
@@ -39,7 +39,98 @@ const a4Style = `
 `;
 
 // ============================================================================
-// KOMPONEN PRINT INVOICE
+// KOMPONEN PRINT TANDA TERIMA PEMBAYARAN CICILAN / HUTANG
+// ============================================================================
+export function PrintReceipt({ data, onBack }) {
+  useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
+  const { payment, order } = data;
+  
+  // Kalkulasi total tagihan dari order yang sedang dicicil
+  const totalTagihan = Number(order.totalTagihan) || 0;
+  // Total yang sudah dibayarkan (termasuk DP dan semua cicilan di dalam order ini)
+  const totalDibayar = (Number(order.totalDibayar) || 0) + (Number(order.cicilanTerbayar) || 0);
+  // Sisa Hutang Saat ini
+  const sisaHutang = Number(order.sisaHutang) || 0;
+
+  return (
+    <div className="bg-slate-100 min-h-screen p-4">
+      <style dangerouslySetInnerHTML={{ __html: dotMatrixStyle }} />
+      <button onClick={onBack} className="hide-on-print mb-4 bg-blue-600 text-white px-4 py-2 rounded font-bold shadow-md hover:bg-blue-700 transition">Kembali ke Aplikasi</button>
+      
+      <div className="print-wrapper shadow-xl">
+        <div className="flex justify-between items-center mb-4 border-b border-black pb-2">
+          <div className="flex items-center gap-4">
+            <img src="https://dimsumaditya.id/wp-content/uploads/2024/10/Dimsum-Aditya.png" alt="Logo" style={{ height: '64px', width: 'auto' }} />
+            <div>
+              <h1 className="font-black text-xl tracking-wide uppercase mb-1">Dimsum Aditya</h1>
+              <p className="text-[10px] font-medium leading-tight">Jl. Thamrin, RT.001/RW.003, Ketapang</p>
+              <p className="text-[10px] font-medium leading-tight">Kec. Cipondoh, Kota Tangerang, Banten 15147</p>
+              <p className="text-[10px] font-medium leading-tight mt-0.5">Telp: 087809020931 | Web: dimsumaditya.id</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <h2 className="text-2xl font-black tracking-widest uppercase mb-1">TANDA TERIMA</h2>
+            <p className="font-bold text-sm">{order.tipe === 'HUTANG' ? 'PEMBAYARAN' : 'CICILAN'}</p>
+          </div>
+        </div>
+
+        <div className="flex justify-between gap-4 mb-4">
+          <div className="flex-1 box-solid">
+            <div className="flex mb-1.5"><span className="w-36 font-bold uppercase text-[10px]">{order.tipe === 'HUTANG' ? 'Dibayarkan Kepada' : 'Diterima Dari'}</span><span className="font-black uppercase text-sm">: {order.customer}</span></div>
+            <div className="flex mb-1.5"><span className="w-36 font-bold uppercase text-[10px]">Uang Sejumlah</span><span className="font-black text-base">: {formatRp(payment.amount)}</span></div>
+            <div className="flex"><span className="w-36 font-bold uppercase text-[10px]">Terbilang</span><span className="font-bold italic text-[10px]">: # {terbilang(payment.amount)} Rupiah #</span></div>
+          </div>
+          <div className="w-1/3 box-solid flex flex-col justify-center">
+            <div className="flex justify-between mb-1.5"><span className="text-[10px] font-bold uppercase">No. Referensi</span> <span className="font-bold text-[10px]">{payment.id}</span></div>
+            <div className="flex justify-between mb-1.5"><span className="text-[10px] font-bold uppercase">Tanggal</span> <span className="font-bold text-[10px]">{formatDate(payment.date)}</span></div>
+            <div className="flex justify-between"><span className="text-[10px] font-bold uppercase">Metode</span> <span className="font-bold uppercase text-[10px]">{payment.paymentMethod}</span></div>
+          </div>
+        </div>
+
+        {/* ===== PENAMBAHAN TABEL RIWAYAT TAGIHAN ===== */}
+        <div className="box-solid mt-4">
+            <p className="text-[10px] font-bold uppercase mb-2">Keterangan Pembayaran :</p>
+            <p className="text-xs mb-2">Pembayaran untuk Invoice Referensi: <strong className="font-mono">{order.id}</strong></p>
+            
+            <table className="table-pro mt-2">
+                <thead>
+                    <tr>
+                        <th className="text-center">TOTAL TAGIHAN INV</th>
+                        <th className="text-center">TOTAL TERBAYAR (AKUMULASI)</th>
+                        <th className="text-center bg-gray-100">SISA TAGIHAN AKTUAL</th>
+                        <th className="text-center">STATUS INVOICE</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td className="font-bold text-center">{formatRp(totalTagihan)}</td>
+                        <td className="font-bold text-emerald-600 text-center">{formatRp(totalDibayar)}</td>
+                        <td className="font-black text-red-600 text-center bg-gray-100">{formatRp(sisaHutang)}</td>
+                        <td className="font-black text-center">{sisaHutang <= 0 ? 'LUNAS' : 'BELUM LUNAS'}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div className="flex justify-between mt-8 text-center text-xs">
+          <div className="w-40">
+            <p className="font-bold uppercase">Penerima</p>
+            <div className="h-16"></div>
+            <p className="border-t border-black pt-1 uppercase">( {order.customer} )</p>
+          </div>
+          <div className="w-40">
+            <p className="font-bold uppercase">Admin / Kasir</p>
+            <div className="h-16"></div>
+            <p className="border-t border-black pt-1 uppercase">( Dimsum Aditya )</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// KOMPONEN INVOICE
 // ============================================================================
 export function PrintInvoiceDotMatrix({ data, onBack }) {
   useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
@@ -118,10 +209,7 @@ export function PrintInvoiceDotMatrix({ data, onBack }) {
             <div className="w-64">
                 <div className="flex justify-between mb-1 text-xs"><span className="font-bold uppercase">Subtotal</span><span className="font-black">{formatRp(data.totalAll)}</span></div>
                 <div className="flex justify-between mb-1.5 text-xs"><span className="font-bold uppercase">Telah Dibayar</span><span className="font-bold">{formatRp(data.paidAmount)}</span></div>
-                <div className="flex justify-between border-t border-b border-black py-1 mt-1">
-                    <span className="font-black text-sm uppercase">SISA TAGIHAN</span>
-                    <span className="font-black text-sm">{formatRp(Number(data.totalAll) - Number(data.paidAmount))}</span>
-                </div>
+                <div className="flex justify-between border-t border-b border-black py-1 mt-1"><span className="font-black text-sm uppercase">SISA TAGIHAN</span><span className="font-black text-sm">{formatRp(Number(data.totalAll) - Number(data.paidAmount))}</span></div>
             </div>
         </div>
         
@@ -193,70 +281,6 @@ export function PrintVoucher({ data, onBack }) {
           <div className="w-32"><p className="font-bold uppercase">Dibuat Oleh,</p><div className="h-12"></div><p className="border-t border-black pt-1 uppercase">( Admin / Kasir )</p></div>
           <div className="w-32"><p className="font-bold uppercase">Disetujui Oleh,</p><div className="h-12"></div><p className="border-t border-black pt-1 uppercase">( Manajemen )</p></div>
           <div className="w-32"><p className="font-bold uppercase">Penerima,</p><div className="h-12"></div><p className="border-t border-black pt-1 uppercase">( {data.recipient} )</p></div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================================
-// KOMPONEN PRINT TANDA TERIMA PEMBAYARAN CICILAN
-// ============================================================================
-export function PrintReceipt({ data, onBack }) {
-  useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
-  const { payment, order } = data;
-  
-  return (
-    <div className="bg-slate-100 min-h-screen p-4">
-      <style dangerouslySetInnerHTML={{ __html: dotMatrixStyle }} />
-      <button onClick={onBack} className="hide-on-print mb-4 bg-blue-600 text-white px-4 py-2 rounded font-bold shadow-md hover:bg-blue-700 transition">Kembali ke Aplikasi</button>
-      
-      <div className="print-wrapper shadow-xl">
-        <div className="flex justify-between items-center mb-4 border-b border-black pb-2">
-          <div className="flex items-center gap-4">
-            <img src="https://dimsumaditya.id/wp-content/uploads/2024/10/Dimsum-Aditya.png" alt="Logo" style={{ height: '64px', width: 'auto' }} />
-            <div>
-              <h1 className="font-black text-xl tracking-wide uppercase mb-1">Dimsum Aditya</h1>
-              <p className="text-[10px] font-medium leading-tight">Jl. Thamrin, RT.001/RW.003, Ketapang</p>
-              <p className="text-[10px] font-medium leading-tight">Kec. Cipondoh, Kota Tangerang, Banten 15147</p>
-              <p className="text-[10px] font-medium leading-tight mt-0.5">Telp: 087809020931 | Web: dimsumaditya.id</p>
-            </div>
-          </div>
-          <div className="text-right">
-            <h2 className="text-2xl font-black tracking-widest uppercase mb-1">TANDA TERIMA</h2>
-            <p className="font-bold text-sm">{order.tipe === 'HUTANG' ? 'PEMBAYARAN' : 'CICILAN'}</p>
-          </div>
-        </div>
-
-        <div className="flex justify-between gap-4 mb-4">
-          <div className="flex-1 box-solid">
-            <div className="flex mb-1.5"><span className="w-36 font-bold uppercase text-[10px]">{order.tipe === 'HUTANG' ? 'Dibayarkan Kepada' : 'Diterima Dari'}</span><span className="font-black uppercase text-sm">: {order.customer}</span></div>
-            <div className="flex mb-1.5"><span className="w-36 font-bold uppercase text-[10px]">Uang Sejumlah</span><span className="font-black text-base">: {formatRp(payment.amount)}</span></div>
-            <div className="flex"><span className="w-36 font-bold uppercase text-[10px]">Terbilang</span><span className="font-bold italic text-[10px]">: # {terbilang(payment.amount)} Rupiah #</span></div>
-          </div>
-          <div className="w-1/3 box-solid flex flex-col justify-center">
-            <div className="flex justify-between mb-1.5"><span className="text-[10px] font-bold uppercase">No. Referensi</span> <span className="font-bold text-[10px]">{payment.id}</span></div>
-            <div className="flex justify-between mb-1.5"><span className="text-[10px] font-bold uppercase">Tanggal</span> <span className="font-bold text-[10px]">{formatDate(payment.date)}</span></div>
-            <div className="flex justify-between"><span className="text-[10px] font-bold uppercase">Metode</span> <span className="font-bold uppercase text-[10px]">{payment.paymentMethod}</span></div>
-          </div>
-        </div>
-
-        <div className="box-solid mt-4">
-            <p className="text-[10px] font-bold uppercase mb-1">Keterangan Pembayaran:</p>
-            <p className="text-xs">Pembayaran cicilan untuk Invoice Referensi: <strong className="font-mono">{order.id}</strong></p>
-        </div>
-
-        <div className="flex justify-between mt-12 text-center text-xs">
-          <div className="w-40">
-            <p className="font-bold uppercase">Penerima</p>
-            <div className="h-16"></div>
-            <p className="border-t border-black pt-1 uppercase">( {order.customer} )</p>
-          </div>
-          <div className="w-40">
-            <p className="font-bold uppercase">Admin / Kasir</p>
-            <div className="h-16"></div>
-            <p className="border-t border-black pt-1 uppercase">( Dimsum Aditya )</p>
-          </div>
         </div>
       </div>
     </div>
