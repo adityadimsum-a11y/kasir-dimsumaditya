@@ -88,7 +88,6 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
 
       {showForm && (
         <form onSubmit={handleSimpan} className="bg-white p-6 rounded-xl border border-red-200 shadow-sm grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {/* SAMA SEPERTI SEBELUMNYA */}
           <div className="lg:col-span-3 mb-2 border-b border-slate-100 pb-2"><h4 className="font-bold text-red-800 text-sm flex gap-2"><ShoppingCart size={16}/> Form {isEdit ? 'Edit' : 'Input'} Pesanan</h4></div>
           <div className="space-y-1"><label className="text-sm font-medium">Tanggal</label><input type="date" required value={date} onChange={e => setDate(e.target.value)} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-red-200" /></div>
           <div className="space-y-1 lg:col-span-2"><label className="text-sm font-medium">Nama Pelanggan</label><input type="text" list="cust-list" required placeholder="Contoh: Budi..." value={customer} onChange={e => setCustomer(e.target.value)} className="w-full p-2 border rounded-lg uppercase" /><datalist id="cust-list">{listPelangganUnik.map(b => <option key={b} value={b} />)}</datalist></div>
@@ -120,8 +119,7 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
           <thead className="bg-red-50 text-red-800 text-xs uppercase border-b"><tr><th className="px-4 py-3">No. Invoice & Tgl</th><th className="px-4 py-3">Pelanggan</th><th className="px-4 py-3 text-center">Daftar Qty</th><th className="px-4 py-3 text-center">Via</th><th className="px-4 py-3 text-right">Total</th><th className="px-4 py-3 text-center">Status</th><th className="px-4 py-3 text-center">Aksi</th></tr></thead>
           <tbody className="divide-y divide-slate-100">
             {displayOrders.length === 0 ? <tr><td colSpan="7" className="text-center py-12 text-slate-400">Tidak ada transaksi ditemukan.</td></tr> : displayOrders.map((ord) => {
-              
-              // LOGIKA STATUS LUNAS MURNI: TAGIHAN - DP - SEMUA CICILAN
+              // LOGIKA STATUS LUNAS SINKRONISASI
               const cicilan = (payments || []).filter(p => p.orderId === ord.id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
               const sisaHutang = (Number(ord.totalAll) || 0) - (Number(ord.paidAmount) || 0) - cicilan;
 
