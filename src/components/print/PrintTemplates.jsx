@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { formatRp, formatDate, terbilang } from '../../utils/helpers';
 
 // ============================================================================
-// 1. TEMPLATE INVOICE & VOUCHER (GARIS TIPIS ELEGAN 9.5" x 5.5")
+// 1. TEMPLATE INVOICE & VOUCHER (CLEAN MINIMALIST 9.5" x 5.5")
 // ============================================================================
 const dotMatrixStyle = `
   @media print {
@@ -17,7 +17,7 @@ const dotMatrixStyle = `
   }
   .print-wrapper { max-width: 9.5in; margin: 0 auto; padding: 10px 20px; background: white; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: black; line-height: 1.3; }
   
-  /* BORDER TIPIS (1px) AGAR LEBIH ELEGAN DAN HEMAT TINTA */
+  /* BORDER TIPIS AGAR ELEGAN */
   .box-solid { border: 1px solid black; padding: 8px 12px; border-radius: 4px; }
   
   .table-pro { width: 100%; border-collapse: collapse; margin-bottom: 8px; border: 1px solid black; }
@@ -57,7 +57,8 @@ export function PrintInvoiceDotMatrix({ data, onBack }) {
             <p className="text-lg font-black uppercase">{data.customer}</p>
           </div>
           <div className="w-1/3 box-solid flex flex-col justify-center">
-            <div className="flex justify-between mb-1 pb-1 border-b border-dashed border-black"><span className="text-[10px] font-bold uppercase">Tanggal</span> <span className="font-bold text-[10px]">{formatDate(data.date)}</span></div>
+            {/* Garis putus-putus dihilangkan agar lebih bersih */}
+            <div className="flex justify-between mb-1.5"><span className="text-[10px] font-bold uppercase">Tanggal</span> <span className="font-bold text-[10px]">{formatDate(data.date)}</span></div>
             <div className="flex justify-between"><span className="text-[10px] font-bold uppercase">Pembayaran</span> <span className="font-bold uppercase text-[10px]">{data.paymentMethod}</span></div>
           </div>
         </div>
@@ -66,7 +67,6 @@ export function PrintInvoiceDotMatrix({ data, onBack }) {
           <thead>
             <tr>
               <th className="w-8">NO</th>
-              {/* NAMA KOLOM DISESUAIKAN */}
               <th className="text-left">DESKRIPSI BARANG</th>
               <th className="w-24">QTY</th>
               <th className="w-32 text-right">HARGA SATUAN</th>
@@ -76,7 +76,6 @@ export function PrintInvoiceDotMatrix({ data, onBack }) {
           <tbody>
             <tr>
               <td className="font-bold">1</td>
-              {/* NAMA BARANG DISESUAIKAN */}
               <td className="text-left font-bold uppercase">Dimsum Ayam Mix (Paket {data.category})</td>
               <td className="font-bold">{(data.items || []).join(', ')}</td>
               <td className="text-right">{formatRp(data.price)}</td>
@@ -100,16 +99,17 @@ export function PrintInvoiceDotMatrix({ data, onBack }) {
             </div>
             
             <div className="w-64">
-                <div className="flex justify-between border-b border-black pb-1 mb-1 text-xs">
+                {/* GARIS DIHILANGKAN, DIBUAT CLEAN */}
+                <div className="flex justify-between mb-1 text-xs">
                     <span className="font-bold uppercase">Subtotal</span>
                     <span className="font-black">{formatRp(data.totalAll)}</span>
                 </div>
-                <div className="flex justify-between border-b border-black pb-1 mb-1 text-xs">
+                <div className="flex justify-between mb-1.5 text-xs">
                     <span className="font-bold uppercase">Telah Dibayar</span>
                     <span className="font-bold">{formatRp(data.paidAmount)}</span>
                 </div>
-                {/* GARIS DIUBAH MENJADI LEBIH TIPIS */}
-                <div className="flex justify-between border-t border-b border-black py-1 mt-1">
+                {/* HANYA ADA 1 GARIS PENJUMLAHAN DI ATAS HASIL AKHIR */}
+                <div className="flex justify-between border-t border-black pt-1.5 mt-0.5">
                     <span className="font-black text-sm uppercase">SISA TAGIHAN</span>
                     <span className="font-black text-sm">{formatRp(Number(data.totalAll) - Number(data.paidAmount))}</span>
                 </div>
@@ -154,13 +154,14 @@ export function PrintVoucher({ data, onBack }) {
 
         <div className="flex justify-between gap-4 mb-4">
           <div className="flex-1 box-solid">
-            <div className="flex mb-1 pb-1 border-b border-dashed border-black"><span className="w-32 font-bold uppercase text-[10px]">Dibayarkan Kpd</span><span className="font-black uppercase text-sm">: {data.recipient}</span></div>
-            <div className="flex mb-1 pb-1 border-b border-dashed border-black"><span className="w-32 font-bold uppercase text-[10px]">Terbilang</span><span className="font-bold italic text-[10px]">: # {terbilang(data.total)} Rupiah #</span></div>
+            {/* Garis dalam dihilangkan */}
+            <div className="flex mb-1.5"><span className="w-32 font-bold uppercase text-[10px]">Dibayarkan Kpd</span><span className="font-black uppercase text-sm">: {data.recipient}</span></div>
+            <div className="flex mb-1.5"><span className="w-32 font-bold uppercase text-[10px]">Terbilang</span><span className="font-bold italic text-[10px]">: # {terbilang(data.total)} Rupiah #</span></div>
             <div className="flex"><span className="w-32 font-bold uppercase text-[10px]">Uang Sejumlah</span><span className="font-black text-base">: {formatRp(data.total)}</span></div>
           </div>
           <div className="w-1/3 box-solid flex flex-col justify-center">
-            <div className="flex justify-between mb-1 pb-1 border-b border-dashed border-black"><span className="text-[10px] font-bold uppercase">No. Ref</span> <span className="font-bold text-[10px]">{data.id}</span></div>
-            <div className="flex justify-between mb-1 pb-1 border-b border-dashed border-black"><span className="text-[10px] font-bold uppercase">Tanggal</span> <span className="font-bold text-[10px]">{formatDate(data.date)}</span></div>
+            <div className="flex justify-between mb-1.5"><span className="text-[10px] font-bold uppercase">No. Ref</span> <span className="font-bold text-[10px]">{data.id}</span></div>
+            <div className="flex justify-between mb-1.5"><span className="text-[10px] font-bold uppercase">Tanggal</span> <span className="font-bold text-[10px]">{formatDate(data.date)}</span></div>
             <div className="flex justify-between"><span className="text-[10px] font-bold uppercase">Metode</span> <span className="font-bold uppercase text-[10px]">{data.paymentMethod}</span></div>
           </div>
         </div>
@@ -223,8 +224,9 @@ export function PrintPurchase({ data, onBack }) {
         </table>
         <div className="flex justify-end mt-2 text-xs">
           <div className="w-64 box-solid">
-            <div className="flex justify-between font-bold mb-1 pb-1 border-b border-black"><span>TOTAL BELANJA</span><span className="text-sm">{formatRp(data.totalAll)}</span></div>
-            <div className="flex justify-between font-bold"><span>DIBAYAR</span><span>{formatRp(data.paidAmount)}</span></div>
+            {/* Dibuat Clean seperti Invoice */}
+            <div className="flex justify-between font-bold mb-1.5"><span>TOTAL BELANJA</span><span className="text-sm">{formatRp(data.totalAll)}</span></div>
+            <div className="flex justify-between font-bold border-t border-black pt-1.5"><span>DIBAYAR</span><span>{formatRp(data.paidAmount)}</span></div>
           </div>
         </div>
         <div className="mt-6 flex justify-end text-center text-xs"><div className="w-40"><p className="font-bold uppercase">Admin Pembelian,</p><div className="h-10"></div><p className="border-t border-black pt-1">( Dimsum Aditya )</p></div></div>
@@ -243,9 +245,10 @@ export function PrintReceipt({ data, onBack }) {
       <div className="print-wrapper shadow-lg">
         <div className="text-center border-b border-black pb-2 mb-6"><h2 className="font-black text-2xl uppercase">TANDA TERIMA {order.tipe === 'HUTANG' ? 'PEMBAYARAN' : 'CICILAN'}</h2><p className="font-bold text-xs">No. Ref: {payment.id} | Tgl: {formatDate(payment.date)}</p></div>
         <div className="text-xs box-solid">
-          <div className="flex mb-2 pb-2 border-b border-dashed border-black"><span className="w-40 font-bold uppercase">{order.tipe === 'HUTANG' ? 'Dibayarkan Kepada:' : 'Diterima Dari:'}</span><span className="uppercase font-black text-sm">{order.customer}</span></div>
-          <div className="flex mb-2 pb-2 border-b border-dashed border-black"><span className="w-40 font-bold uppercase">Nominal Uang:</span><span className="font-black text-base">{formatRp(payment.amount)}</span></div>
-          <div className="flex mb-2 pb-2 border-b border-dashed border-black"><span className="w-40 font-bold uppercase">Untuk Pembayaran:</span><span className="font-bold">Cicilan Invoice No. {order.id}</span></div>
+          {/* Garis dalam dihilangkan */}
+          <div className="flex mb-2"><span className="w-40 font-bold uppercase">{order.tipe === 'HUTANG' ? 'Dibayarkan Kepada:' : 'Diterima Dari:'}</span><span className="uppercase font-black text-sm">{order.customer}</span></div>
+          <div className="flex mb-2"><span className="w-40 font-bold uppercase">Nominal Uang:</span><span className="font-black text-base">{formatRp(payment.amount)}</span></div>
+          <div className="flex mb-2"><span className="w-40 font-bold uppercase">Untuk Pembayaran:</span><span className="font-bold">Cicilan Invoice No. {order.id}</span></div>
           <div className="flex"><span className="w-40 font-bold uppercase">Metode Pembayaran:</span><span className="font-bold">{payment.paymentMethod}</span></div>
         </div>
         <div className="mt-8 flex justify-end text-center text-xs"><div className="w-40"><p className="font-bold uppercase">Penerima,</p><div className="h-10"></div><p className="border-t border-black pt-1">( Dimsum Aditya )</p></div></div>
