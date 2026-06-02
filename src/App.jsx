@@ -39,7 +39,6 @@ function NavItem({ icon, label, active, onClick, badge }) {
 }
 
 export default function App() {
-  // === 1. MEMBACA SESSION LOGIN (TIDAK LOGOUT SAAT REFRESH) ===
   const [user, setUser] = useState(() => {
     try {
       const savedUser = window.localStorage.getItem('dimsum_user_session');
@@ -47,14 +46,12 @@ export default function App() {
     } catch (error) { return null; }
   }); 
 
-  // === 2. MEMBACA POSISI MENU TERAKHIR (TIDAK PINDAH KE DASHBOARD SAAT REFRESH) ===
   const [activeTab, setActiveTab] = useState(() => {
     try {
       return window.localStorage.getItem('dimsum_active_tab') || 'dashboard';
     } catch (error) { return 'dashboard'; }
   });
 
-  // === 3. FUNGSI "SIMPAN PAKSA" SETIAP KALI MENU DIKLIK ===
   const handleTabChange = (tabName) => {
     setActiveTab(tabName);
     window.localStorage.setItem('dimsum_active_tab', tabName);
@@ -91,8 +88,6 @@ export default function App() {
     if (loggedInUser) {
       setUser(loggedInUser);
       window.localStorage.setItem('dimsum_user_session', JSON.stringify(loggedInUser));
-      
-      // Saat baru pertama login, paksa masuk ke dashboard
       handleTabChange('dashboard'); 
       setLoginError(''); 
     } else {
@@ -103,11 +98,8 @@ export default function App() {
   const handleLogout = () => {
     setUser(null); 
     setLoginForm({ username: '', password: '' });
-    
-    // BERSIHKAN SEMUA INGATAN BROWSER SAAT LOGOUT
     window.localStorage.removeItem('dimsum_user_session');
     window.localStorage.removeItem('dimsum_active_tab');
-    
     setOrders([]); setExpenses([]); setPiutangPayments([]); setPemalangReports([]); setStokData([]); setPurchases([]);
   };
 
@@ -246,7 +238,6 @@ export default function App() {
 
   if (isLoading) return <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50"><Loader2 className="w-12 h-12 text-red-600 animate-spin mb-4" />Menyinkronkan Database...</div>;
 
-  // === RENDER KOMPONEN PRINT ===
   if (printData?.type === 'invoice') return <PrintInvoiceDotMatrix data={printData.data} onBack={() => setPrintData(null)} />;
   if (printData?.type === 'purchase') return <PrintPurchase data={printData.data} onBack={() => setPrintData(null)} />;
   if (printData?.type === 'voucher') return <PrintVoucher data={printData.data} onBack={() => setPrintData(null)} />;
@@ -254,11 +245,12 @@ export default function App() {
   if (printData?.type === 'report') return <PrintReport data={printData.data} onBack={() => setPrintData(null)} />;
   if (printData?.type === 'reportBranch') return <PrintReportBranch data={printData.data} onBack={() => setPrintData(null)} user={user} />;
 
-  // === RENDER LAYOUT UTAMA ===
   return (
     <div className="min-h-screen bg-slate-50 flex font-sans text-slate-800">
+      
+      {/* ===== FIX Z-INDEX POPUP HAPUS AGAR SELALU DI DEPAN ===== */}
       {confirmDialog && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/60 z-[9999] flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm">
             <h3 className="font-bold text-lg text-red-600 mb-2">Konfirmasi Hapus Aman</h3>
             <p className="text-slate-600 text-sm mb-6">Apakah Anda yakin ingin menghapus data ini secara permanen?</p>
@@ -278,7 +270,6 @@ export default function App() {
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
           {user.role === 'admin' && (
             <>
-              {/* PERHATIKAN onClick SEKARANG MEMANGGIL handleTabChange */}
               <NavItem icon={<LayoutDashboard size={20} />} label="Dashboard & Rekap" active={activeTab === 'dashboard'} onClick={() => handleTabChange('dashboard')} />
               <NavItem icon={<ShoppingCart size={20} />} label="Order & Penjualan" active={activeTab === 'orders'} onClick={() => handleTabChange('orders')} />
               <NavItem icon={<Truck size={20} />} label="Pembelian Bahan" active={activeTab === 'purchases'} onClick={() => handleTabChange('purchases')} />
@@ -319,7 +310,6 @@ export default function App() {
         </header>
 
         <div className="flex-1 overflow-auto p-6 bg-slate-50 relative">
-          {/* PEMANGGILAN KOMPONEN TABS */}
           {activeTab === 'dashboard' && user.role === 'admin' && <TabDashboard orders={orders} expenses={expenses} purchases={purchases} piutangPayments={piutangPayments} pemalangReports={pemalangReports} setPrintData={setPrintData} />}
           {activeTab === 'dashboard' && user.role === 'branch' && <TabDashboardBranch orders={orders} pemalangReports={pemalangReports} setPrintData={setPrintData} user={user} stokData={stokData} />}
           {activeTab === 'orders' && <TabOrders orders={orders} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'order', id})} role={user.role} />}
@@ -330,7 +320,6 @@ export default function App() {
           {activeTab === 'stok' && <TabStok stokData={stokData} sendToSheet={sendToSheet} requestDelete={(id) => setConfirmDialog({type: 'stok', id})} />}
         </div>
         
-        {/* FOOTER APLIKASI WEB */}
         <footer className="bg-white border-t border-slate-200 p-3 text-center text-xs text-slate-500 z-10">
           &copy; {new Date().getFullYear()} Sistem Informasi Manajemen Terpadu | Developed for <a href="https://dimsumaditya.id/" target="_blank" rel="noopener noreferrer" className="text-red-600 font-bold hover:underline">Dimsum Aditya</a>
         </footer>
