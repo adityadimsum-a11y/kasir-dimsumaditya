@@ -3,7 +3,7 @@ import {
   Calendar, Printer, ShoppingCart, Package, Wallet, 
   TrendingUp, Users 
 } from 'lucide-react';
-import { getTodayStr, getLocalYMD, formatRp, formatDate } from '../../utils/helpers';
+import { getTodayStr, getFirstDayOfMonthStr, getLocalYMD, formatRp, formatDate } from '../../utils/helpers';
 import SimpleSVGLineChart from '../ui/SimpleSVGLineChart';
 
 const StatCard = ({ title, amount, icon, color }) => (
@@ -18,7 +18,8 @@ const StatCard = ({ title, amount, icon, color }) => (
 
 export default function TabDashboardBranch({ orders, pemalangReports, setPrintData, user, stokData }) {
   const todayStr = getTodayStr();
-  const [dateFrom, setDateFrom] = useState(todayStr);
+  // FILTER DEFAULT SEKARANG DIAMBIL DARI TANGGAL 1 BULAN INI
+  const [dateFrom, setDateFrom] = useState(getFirstDayOfMonthStr());
   const [dateTo, setDateTo] = useState(todayStr);
   const [chartView, setChartView] = useState('daily'); 
 
