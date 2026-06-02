@@ -297,6 +297,11 @@ export default function App() {
           {activeTab === 'pemalang' && <TabPemalang reports={pemalangReports} sendToSheet={sendToSheet} requestDelete={(id) => setConfirmDialog({type: 'pemalang', id})} role={user.role} />}
           {activeTab === 'stok' && <TabStok stokData={stokData} sendToSheet={sendToSheet} requestDelete={(id) => setConfirmDialog({type: 'stok', id})} />}
         </div>
+        
+        {/* FOOTER APLIKASI WEB */}
+        <footer className="bg-white border-t border-slate-200 p-3 text-center text-xs text-slate-500 z-10">
+          &copy; {new Date().getFullYear()} Sistem Informasi Manajemen Terpadu | Developed for <a href="https://dimsumaditya.id/" target="_blank" rel="noopener noreferrer" className="text-red-600 font-bold hover:underline">Dimsum Aditya</a>
+        </footer>
       </main>
     </div>
   );
