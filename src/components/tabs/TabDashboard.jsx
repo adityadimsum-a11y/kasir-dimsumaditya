@@ -70,12 +70,8 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
     const topCustomersList = Object.values(customerMap).sort((a,b) => b.total - a.total);
 
     const groupOrdersAll = {}; (orders || []).filter(o => o?.category !== 'Pemalang').forEach(o => { if(!o?.id) return; if(!groupOrdersAll[o.id]) groupOrdersAll[o.id] = { ...o, items: [], totalTagihan: 0, totalDibayar: Number(o.paidAmount)||0 }; groupOrdersAll[o.id].items.push(`${o.qty} Pcs`); groupOrdersAll[o.id].totalTagihan += Number(o.total)||0; });
-    const listPiutangBerjalan = Object.values(groupOrdersAll).map(grp => { const cicilan = (piutangPayments || []).filter(p => p.orderId === grp.id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0); return { ...grp, cicilanTerbayar: cicilan, sisaHutang: grp.totalTagihan - grp.totalDibayar - cicilan }; }).filter(o => o.sisaHutang > 0);
-
     const groupPurAll = {}; (purchases || []).forEach(p => { if(!p?.id) return; if(!groupPurAll[p.id]) groupPurAll[p.id] = { ...p, items: [], totalTagihan: 0, totalDibayar: Number(p.paidAmount)||0 }; groupPurAll[p.id].items.push(`${p.itemName} (${p.qty} ${p.satuan})`); groupPurAll[p.id].totalTagihan += Number(p.total)||0; });
-    const listHutangBerjalan = Object.values(groupPurAll).map(grp => { const cicilan = (piutangPayments || []).filter(p => p.orderId === grp.id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0); return { ...grp, cicilanTerbayar: cicilan, sisaHutang: grp.totalTagihan - grp.totalDibayar - cicilan }; }).filter(p => p.sisaHutang > 0);
 
-    // MENGHITUNG RUNNING BALANCE SECARA KRONOLOGIS
     const orderSisaTracker = {};
     Object.values(groupOrdersAll).forEach(o => { orderSisaTracker[o.id] = o.totalTagihan - o.totalDibayar; });
     Object.values(groupPurAll).forEach(p => { orderSisaTracker[p.id] = p.totalTagihan - p.totalDibayar; });
@@ -95,7 +91,7 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
 
     const listPembayaranSemua = allPaymentsChronological
         .filter(p => isPeriod(p.date))
-        .sort((a, b) => new Date(b.date) - new Date(a.date)) // Urutkan yang terbaru di atas untuk tampilan
+        .sort((a, b) => new Date(b.date) - new Date(a.date))
         .map(pay => {
             const isHutang = String(pay?.orderId || '').startsWith('BUY-');
             const relData = isHutang ? groupPurAll[pay.orderId] : groupOrdersAll[pay.orderId];
@@ -122,6 +118,13 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
             };
         });
 
+    // MEMISAHKAN LIST PEMBAYARAN UNTUK TABEL
+    const listRiwayatPiutang = listPembayaranSemua.filter(p => p.tipe === 'PIUTANG');
+    const listRiwayatHutang = listPembayaranSemua.filter(p => p.tipe === 'HUTANG');
+
+    const listPiutangBerjalan = Object.values(groupOrdersAll).map(grp => { const cicilan = (piutangPayments || []).filter(p => p.orderId === grp.id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0); return { ...grp, cicilanTerbayar: cicilan, sisaHutang: grp.totalTagihan - grp.totalDibayar - cicilan }; }).filter(o => o.sisaHutang > 0);
+    const listHutangBerjalan = Object.values(groupPurAll).map(grp => { const cicilan = (piutangPayments || []).filter(p => p.orderId === grp.id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0); return { ...grp, cicilanTerbayar: cicilan, sisaHutang: grp.totalTagihan - grp.totalDibayar - cicilan }; }).filter(p => p.sisaHutang > 0);
+
     let inCashPeriode = 0, inTfPeriode = 0, outCashPeriode = 0, outTfPeriode = 0;
     Object.values(orderGroups).forEach(g => { if(g.method === 'Cash') inCashPeriode += g.paid; else if(g.method === 'Transfer') inTfPeriode += g.paid; }); Object.values(purGroups).forEach(g => { if(g.method === 'Cash') outCashPeriode += g.paid; else if(g.method === 'Transfer') outTfPeriode += g.paid; });
     periodExpenses.forEach(e => { const t = Number(e.total) || 0; if (e.type === 'IN') { if (e.paymentMethod === 'Cash') inCashPeriode += t; else inTfPeriode += t; } else { if (e.paymentMethod === 'Cash') outCashPeriode += t; else outTfPeriode += t; } });
@@ -142,7 +145,7 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
         return { ...grp, totalTerbayar: terbayar, sisaTagihan: sisa, status: sisa <= 0 ? 'LUNAS' : 'BELUM LUNAS' };
     });
 
-    return { saldoCash, saldoTF, saldoAkhir, totalBebanTunai, totalClosingTunai, inCashPeriode, inTfPeriode, outCashPeriode, outTfPeriode, setorPemalangPeriode, totalPenjualanKotor, totalPorsi, totalPcs, breakdownPorsi, totalPiutangBaru, totalHutangBaru, topCustomersList, finalChartData, listPiutangBerjalan, listHutangBerjalan, listTransaksiDetail: groupedTransaksiPusat, listPembelianDetail: periodPurchases, listExpenses: periodExpenses, listPemalang: cumPemalangReports.filter(p => isPeriod(p.date)), listPembayaranSemua };
+    return { saldoCash, saldoTF, saldoAkhir, totalBebanTunai, totalClosingTunai, inCashPeriode, inTfPeriode, outCashPeriode, outTfPeriode, setorPemalangPeriode, totalPenjualanKotor, totalPorsi, totalPcs, breakdownPorsi, totalPiutangBaru, totalHutangBaru, topCustomersList, finalChartData, listPiutangBerjalan, listHutangBerjalan, listTransaksiDetail: groupedTransaksiPusat, listPembelianDetail: periodPurchases, listExpenses: periodExpenses, listPemalang: cumPemalangReports.filter(p => isPeriod(p.date)), listPembayaranSemua, listRiwayatPiutang, listRiwayatHutang };
   }, [orders, expenses, purchases, piutangPayments, pemalangReports, dateFrom, dateTo, chartView]);
 
   return (
@@ -158,30 +161,59 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6"><StatCard title="Total Saldo Keseluruhan" amount={rekap.saldoAkhir} icon={<Wallet />} color="bg-blue-50 text-blue-700 border-blue-200" /><StatCard title="Saldo Tunai (CASH)" amount={rekap.saldoCash} icon={<Coins />} color="bg-emerald-50 text-emerald-700 border-emerald-200" /><StatCard title="Saldo Rekening (TF)" amount={rekap.saldoTF} icon={<CreditCard />} color="bg-indigo-50 text-indigo-700 border-indigo-200" /></div>
       </div>
 
-      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm mt-6">
-        <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Clock size={20} className="text-slate-500"/> Riwayat Pembayaran Cicilan (Periode Ini)</h3>
-        <table className="w-full text-sm text-left block md:table overflow-x-auto">
-            <thead className="bg-slate-50 border-b"><tr><th className="px-4 py-3">Tgl & ID Bayar</th><th className="px-4 py-3">Tgl & Inv Asal</th><th className="px-4 py-3">Pelanggan</th><th className="px-4 py-3 text-center">Qty</th><th className="px-4 py-3 text-right">Nominal Masuk</th><th className="px-4 py-3 text-right">Sisa Tagihan</th><th className="px-4 py-3 text-center">Status</th></tr></thead>
-            <tbody className="divide-y divide-slate-100">
-                {rekap.listPembayaranSemua.length === 0 && <tr><td colSpan="7" className="text-center py-8 text-slate-400">Tidak ada riwayat cicilan.</td></tr>}
-                {rekap.listPembayaranSemua.map((pay, i) => (
-                    <tr key={i} className="hover:bg-slate-50">
-                        <td className="px-4 py-3"><div className="font-bold text-blue-600">{formatDate(pay.date)}</div><div className="text-[10px] text-slate-400 font-mono">{pay.payId}</div></td>
-                        <td className="px-4 py-3"><div className="text-xs text-slate-500">{formatDate(pay.tglInvoice)}</div><div className="font-mono text-[10px]">{pay.orderId}</div></td>
-                        <td className="px-4 py-3 font-bold uppercase">{pay.customer}</td>
-                        <td className="px-4 py-3 text-center text-xs">{pay.qtyDesc}</td>
-                        <td className={`px-4 py-3 text-right font-black ${pay.tipe === 'HUTANG' ? 'text-red-600' : 'text-emerald-600'}`}>{pay.tipe === 'HUTANG' ? '-' : '+'}{formatRp(pay.amount)}</td>
-                        <td className={`px-4 py-3 text-right font-bold ${pay.sisaTagihan <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{pay.sisaTagihan <= 0 ? 'Rp 0' : formatRp(pay.sisaTagihan)}</td>
-                        <td className={`px-4 py-3 text-center font-bold text-[10px] ${pay.statusNota === 'LUNAS' ? 'text-emerald-600' : 'text-red-600'}`}>{pay.statusNota}</td>
-                    </tr>
-                ))}
-            </tbody>
-        </table>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+          {/* TABEL RIWAYAT PIUTANG (UANG MASUK) */}
+          <div className="bg-white p-6 rounded-xl border border-emerald-200 shadow-sm flex flex-col">
+            <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-emerald-700"><Clock size={20}/> Riwayat Terima Piutang (Pelanggan)</h3>
+            <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                    <thead className="bg-emerald-50 border-b border-emerald-100"><tr><th className="px-3 py-2 text-emerald-800">Tgl & Ref</th><th className="px-3 py-2 text-emerald-800">Pelanggan</th><th className="px-3 py-2 text-right text-emerald-800">Nominal Masuk</th><th className="px-3 py-2 text-right text-emerald-800">Sisa Tagihan</th></tr></thead>
+                    <tbody className="divide-y divide-slate-100">
+                        {rekap.listRiwayatPiutang.length === 0 && <tr><td colSpan="4" className="text-center py-6 text-slate-400">Tidak ada riwayat piutang.</td></tr>}
+                        {rekap.listRiwayatPiutang.map((pay, i) => (
+                            <tr key={i} className="hover:bg-slate-50">
+                                <td className="px-3 py-2"><div className="font-bold text-slate-700">{formatDate(pay.date)}</div><div className="text-[10px] text-slate-400 font-mono">{pay.orderId}</div></td>
+                                <td className="px-3 py-2 font-bold uppercase text-xs">{pay.customer}</td>
+                                <td className="px-3 py-2 text-right font-black text-emerald-600">+{formatRp(pay.amount)}</td>
+                                <td className="px-3 py-2 text-right">
+                                    <div className={`font-bold ${pay.sisaTagihan <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{pay.sisaTagihan <= 0 ? 'Rp 0' : formatRp(pay.sisaTagihan)}</div>
+                                    <div className={`text-[9px] font-bold ${pay.statusNota === 'LUNAS' ? 'text-emerald-500' : 'text-orange-500'}`}>{pay.statusNota}</div>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+          </div>
+
+          {/* TABEL RIWAYAT HUTANG (UANG KELUAR) */}
+          <div className="bg-white p-6 rounded-xl border border-red-200 shadow-sm flex flex-col">
+            <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-red-700"><Clock size={20}/> Riwayat Bayar Hutang (Supplier)</h3>
+            <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                    <thead className="bg-red-50 border-b border-red-100"><tr><th className="px-3 py-2 text-red-800">Tgl & Ref</th><th className="px-3 py-2 text-red-800">Supplier</th><th className="px-3 py-2 text-right text-red-800">Nominal Keluar</th><th className="px-3 py-2 text-right text-red-800">Sisa Hutang</th></tr></thead>
+                    <tbody className="divide-y divide-slate-100">
+                        {rekap.listRiwayatHutang.length === 0 && <tr><td colSpan="4" className="text-center py-6 text-slate-400">Tidak ada riwayat hutang.</td></tr>}
+                        {rekap.listRiwayatHutang.map((pay, i) => (
+                            <tr key={i} className="hover:bg-slate-50">
+                                <td className="px-3 py-2"><div className="font-bold text-slate-700">{formatDate(pay.date)}</div><div className="text-[10px] text-slate-400 font-mono">{pay.orderId}</div></td>
+                                <td className="px-3 py-2 font-bold uppercase text-xs">{pay.customer}</td>
+                                <td className="px-3 py-2 text-right font-black text-red-600">-{formatRp(pay.amount)}</td>
+                                <td className="px-3 py-2 text-right">
+                                    <div className={`font-bold ${pay.sisaTagihan <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{pay.sisaTagihan <= 0 ? 'Rp 0' : formatRp(pay.sisaTagihan)}</div>
+                                    <div className={`text-[9px] font-bold ${pay.statusNota === 'LUNAS' ? 'text-emerald-500' : 'text-orange-500'}`}>{pay.statusNota}</div>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+          </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-        <div className="bg-white p-6 rounded-xl border border-emerald-200 shadow-sm flex flex-col relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div><h3 className="font-bold text-lg mb-1 flex items-center gap-2 text-emerald-800"><ArrowRightLeft size={20}/> Arus Uang Masuk & Keluar</h3><p className="text-xs text-slate-500 mb-4 border-b pb-2">Khusus periode {formatDate(dateFrom)} - {formatDate(dateTo)}</p>
+        <div className="bg-white p-6 rounded-xl border border-blue-200 shadow-sm flex flex-col relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-1 h-full bg-blue-500"></div><h3 className="font-bold text-lg mb-1 flex items-center gap-2 text-blue-800"><ArrowRightLeft size={20}/> Arus Uang Masuk & Keluar</h3><p className="text-xs text-slate-500 mb-4 border-b pb-2">Khusus periode {formatDate(dateFrom)} - {formatDate(dateTo)}</p>
             <div className="grid grid-cols-2 gap-4 mt-2">
                 <div className="bg-emerald-50 p-3 rounded border border-emerald-100"><div className="text-[10px] font-bold text-emerald-700 uppercase mb-1">Total Masuk (Cash)</div><div className="text-lg font-black text-emerald-600">+{formatRp(rekap.inCashPeriode)}</div></div>
                 <div className="bg-indigo-50 p-3 rounded border border-indigo-100"><div className="text-[10px] font-bold text-indigo-700 uppercase mb-1">Total Masuk (Transfer)</div><div className="text-lg font-black text-indigo-600">+{formatRp(rekap.inTfPeriode)}</div><div className="text-[9px] text-indigo-500 mt-1">Termasuk TF Cabang: {formatRp(rekap.setorPemalangPeriode)}</div></div>
