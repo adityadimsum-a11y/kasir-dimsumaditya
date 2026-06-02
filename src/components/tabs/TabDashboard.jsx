@@ -3,10 +3,9 @@ import {
   Calendar, Printer, Wallet, Coins, CreditCard, 
   TrendingUp, ArrowRightLeft, Users, ShoppingCart, Truck 
 } from 'lucide-react';
-import { getTodayStr, getLocalYMD, formatRp, formatDate } from '../../utils/helpers';
+import { getTodayStr, getFirstDayOfMonthStr, getLocalYMD, formatRp, formatDate } from '../../utils/helpers';
 import SimpleSVGLineChart from '../ui/SimpleSVGLineChart';
 
-// Komponen Card kecil untuk angka-angka
 const StatCard = ({ title, amount, icon, color }) => (
   <div className={`p-5 rounded-xl border flex flex-col justify-between ${color}`}>
     <div className="flex justify-between items-start mb-4">
@@ -19,7 +18,8 @@ const StatCard = ({ title, amount, icon, color }) => (
 
 export default function TabDashboard({ orders, expenses, purchases, piutangPayments, pemalangReports, setPrintData }) {
   const todayStr = getTodayStr();
-  const [dateFrom, setDateFrom] = useState(todayStr);
+  // FILTER DEFAULT SEKARANG DIAMBIL DARI TANGGAL 1 BULAN INI
+  const [dateFrom, setDateFrom] = useState(getFirstDayOfMonthStr());
   const [dateTo, setDateTo] = useState(todayStr);
   const [chartView, setChartView] = useState('daily'); 
 
