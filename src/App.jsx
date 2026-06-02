@@ -21,9 +21,7 @@ import {
 
 import { safeSort, formatDate } from './utils/helpers';
 
-// =====================================================================
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqSM572mbUIGozcghhh8LHNMNw2e83O7Wkyu-SkjdVTO3zpTb64PA/exec'; 
-// =====================================================================
 
 function NavItem({ icon, label, active, onClick, badge }) {
   return (
@@ -47,8 +45,7 @@ export default function App() {
   });
 
   const handleTabChange = (tabName) => {
-    setActiveTab(tabName);
-    window.localStorage.setItem('dimsum_active_tab', tabName);
+    setActiveTab(tabName); window.localStorage.setItem('dimsum_active_tab', tabName);
   };
 
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
@@ -74,8 +71,7 @@ export default function App() {
     else if (username === 'pemalang' && password === 'pemalang123') loggedInUser = { role: 'branch', name: 'Cabang Pemalang', branchId: 'Pemalang' };
 
     if (loggedInUser) {
-      setUser(loggedInUser);
-      window.localStorage.setItem('dimsum_user_session', JSON.stringify(loggedInUser));
+      setUser(loggedInUser); window.localStorage.setItem('dimsum_user_session', JSON.stringify(loggedInUser));
       handleTabChange('dashboard'); setLoginError(''); 
     } else setLoginError('Username atau Password salah!');
   };
@@ -222,11 +218,11 @@ export default function App() {
         <header className="bg-white border-b p-4 flex justify-between items-center z-10 shadow-sm"><h2 className="text-xl font-bold capitalize">Manajemen Data</h2></header>
         <div className="flex-1 overflow-auto p-6 bg-slate-50 relative">
           {activeTab === 'dashboard' && user.role === 'admin' && <TabDashboard orders={orders} expenses={expenses} purchases={purchases} piutangPayments={piutangPayments} pemalangReports={pemalangReports} setPrintData={setPrintData} />}
-          {activeTab === 'dashboard' && user.role === 'branch' && <TabDashboardBranch orders={orders} pemalangReports={pemalangReports} setPrintData={setPrintData} user={user} stokData={stokData} />}
-          {/* MENGIRIMKAN DATA PAYMENTS KE TAB ORDERS & PURCHASES AGAR STATUS LUNAS/PIUTANG AKURAT */}
+          {/* DI SINI SAYA TAMBAHKAN piutangPayments KE BRANCH AGAR BISA BACA RIWAYAT CICILAN */}
+          {activeTab === 'dashboard' && user.role === 'branch' && <TabDashboardBranch orders={orders} pemalangReports={pemalangReports} piutangPayments={piutangPayments} setPrintData={setPrintData} user={user} stokData={stokData} />}
+          
           {activeTab === 'orders' && <TabOrders orders={orders} payments={piutangPayments} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'order', id})} role={user.role} />}
           {activeTab === 'purchases' && user.role === 'admin' && <TabPurchases purchases={purchases} payments={piutangPayments} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'purchase', id})} />}
-          
           {activeTab === 'expenses' && user.role === 'admin' && <TabExpenses expenses={expenses} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'expense', id})} />}
           {activeTab === 'piutang' && <TabPiutang orders={orders} purchases={purchases} payments={piutangPayments} sendToSheet={sendToSheet} requestDelete={(id) => setConfirmDialog({type: 'payment', id})} setPrintData={setPrintData} role={user.role} />}
           {activeTab === 'pemalang' && <TabPemalang reports={pemalangReports} sendToSheet={sendToSheet} requestDelete={(id) => setConfirmDialog({type: 'pemalang', id})} role={user.role} />}
