@@ -6,15 +6,16 @@ export default function TabPiutang({ orders, purchases, payments, sendToSheet, r
   const [tab, setTab] = useState('piutang');
   const [selectedItem, setSelectedItem] = useState(null);
   
+  // FILTER STATUS PIUTANG/HUTANG
+  const [filterStatus, setFilterStatus] = useState('BELUM LUNAS');
+
   const todayStr = getTodayStr();
   const [payDate, setPayDate] = useState(todayStr);
   const [payMethod, setPayMethod] = useState('Transfer Bank');
   const [payAmount, setPayAmount] = useState(0);
 
-  // MENGAMBIL SEMUA DATA PIUTANG (BAIK YANG MASIH NUNGGAK MAUPUN SUDAH LUNAS)
   const listPiutang = useMemo(() => {
       const groups = {};
-      // Filter hanya order yang SAAT AWAL dibuat paidAmount-nya lebih kecil dari total
       (orders || []).filter(o => (Number(o.total) || 0) > (Number(o.paidAmount) || 0)).forEach(o => {
           if(!groups[o.id]) groups[o.id] = { ...o, totalTagihan: 0, totalDibayar: Number(o.paidAmount)||0, items: [] };
           groups[o.id].totalTagihan += Number(o.total)||0;
@@ -28,7 +29,6 @@ export default function TabPiutang({ orders, purchases, payments, sendToSheet, r
       }).sort((a,b) => new Date(b.date) - new Date(a.date));
   }, [orders, payments]);
 
-  // MENGAMBIL SEMUA DATA HUTANG SUPPLIER (BAIK YANG MASIH NUNGGAK MAUPUN SUDAH LUNAS)
   const listHutang = useMemo(() => {
       const groups = {};
       (purchases || []).filter(p => (Number(p.total) || 0) > (Number(p.paidAmount) || 0)).forEach(p => {
@@ -48,30 +48,38 @@ export default function TabPiutang({ orders, purchases, payments, sendToSheet, r
       e.preventDefault();
       if(payAmount <= 0) return alert('Nominal tidak boleh 0');
       if(payAmount > selectedItem.sisaHutang) return alert('Nominal melebihi sisa hutang!');
-      
-      const newPay = {
-          id: generateId('PAY', payDate), date: payDate, orderId: selectedItem.id, 
-          amount: Number(payAmount)||0, paymentMethod: payMethod
-      };
+      const newPay = { id: generateId('PAY', payDate), date: payDate, orderId: selectedItem.id, amount: Number(payAmount)||0, paymentMethod: payMethod };
       sendToSheet('insert', newPay, 'payments');
-      
-      // Update state sementara agar UI langsung refresh
       setSelectedItem(prev => ({ ...prev, sisaHutang: prev.sisaHutang - payAmount, totalCicilan: prev.totalCicilan + payAmount, cicilanList: [newPay, ...prev.cicilanList] }));
       setPayAmount(0); setPayDate(todayStr);
   };
 
   const activeList = tab === 'piutang' ? listPiutang : listHutang;
+  
+  // PENERAPAN FILTER
+  let displayedList = activeList;
+  if (filterStatus === 'BELUM LUNAS') displayedList = activeList.filter(item => item.sisaHutang > 0);
+  if (filterStatus === 'LUNAS') displayedList = activeList.filter(item => item.sisaHutang <= 0);
 
   return (
     <div className="space-y-4 animate-in fade-in relative">
-      <div className="flex gap-2 mb-6 border-b border-slate-200 pb-2">
-        <button onClick={() => setTab('piutang')} className={`px-4 py-2 font-bold text-sm rounded-t-lg transition ${tab === 'piutang' ? 'bg-white text-blue-600 border border-b-0 shadow-[0_-4px_6px_-2px_rgba(0,0,0,0.05)]' : 'text-slate-500 hover:bg-slate-200'}`}>Piutang (Pelanggan Ngutang)</button>
-        {role === 'admin' && <button onClick={() => setTab('hutang')} className={`px-4 py-2 font-bold text-sm rounded-t-lg transition ${tab === 'hutang' ? 'bg-white text-orange-600 border border-b-0 shadow-[0_-4px_6px_-2px_rgba(0,0,0,0.05)]' : 'text-slate-500 hover:bg-slate-200'}`}>Hutang (Kita Ngutang Supplier)</button>}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 border-b border-slate-200 pb-2">
+        <div className="flex gap-2">
+            <button onClick={() => setTab('piutang')} className={`px-4 py-2 font-bold text-sm rounded-t-lg transition ${tab === 'piutang' ? 'bg-white text-blue-600 border border-b-0 shadow-[0_-4px_6px_-2px_rgba(0,0,0,0.05)]' : 'text-slate-500 hover:bg-slate-200'}`}>Piutang (Pelanggan Ngutang)</button>
+            {role === 'admin' && <button onClick={() => setTab('hutang')} className={`px-4 py-2 font-bold text-sm rounded-t-lg transition ${tab === 'hutang' ? 'bg-white text-orange-600 border border-b-0 shadow-[0_-4px_6px_-2px_rgba(0,0,0,0.05)]' : 'text-slate-500 hover:bg-slate-200'}`}>Hutang (Kita Ngutang)</button>}
+        </div>
+        
+        {/* TOMBOL FILTER CANGGIH */}
+        <div className="flex bg-slate-200 p-1 rounded-lg w-full md:w-auto">
+            <button onClick={() => setFilterStatus('BELUM LUNAS')} className={`flex-1 md:flex-none px-3 py-1.5 text-xs font-bold rounded-md transition ${filterStatus === 'BELUM LUNAS' ? 'bg-white text-red-600 shadow' : 'text-slate-500 hover:text-slate-700'}`}>Belum Lunas</button>
+            <button onClick={() => setFilterStatus('LUNAS')} className={`flex-1 md:flex-none px-3 py-1.5 text-xs font-bold rounded-md transition ${filterStatus === 'LUNAS' ? 'bg-white text-emerald-600 shadow' : 'text-slate-500 hover:text-slate-700'}`}>Sudah Lunas</button>
+            <button onClick={() => setFilterStatus('SEMUA')} className={`flex-1 md:flex-none px-3 py-1.5 text-xs font-bold rounded-md transition ${filterStatus === 'SEMUA' ? 'bg-white text-slate-800 shadow' : 'text-slate-500 hover:text-slate-700'}`}>Semua</button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {activeList.length === 0 && <div className="col-span-full text-center py-12 text-slate-400 bg-white rounded-xl border border-dashed">Belum ada riwayat hutang/piutang.</div>}
-        {activeList.map((item, idx) => (
+        {displayedList.length === 0 && <div className="col-span-full text-center py-12 text-slate-400 bg-white rounded-xl border border-dashed">Tidak ada data di filter ini.</div>}
+        {displayedList.map((item, idx) => (
           <div key={idx} className={`bg-white border rounded-xl p-5 shadow-sm relative overflow-hidden transition hover:shadow-md ${item.sisaHutang <= 0 ? 'border-emerald-200' : 'border-slate-200'}`}>
             <div className={`absolute top-0 right-0 px-3 py-1 text-[10px] font-black uppercase rounded-bl-lg ${item.sisaHutang <= 0 ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
                 {item.sisaHutang <= 0 ? 'SUDAH LUNAS' : 'BELUM LUNAS'}
@@ -94,7 +102,7 @@ export default function TabPiutang({ orders, purchases, payments, sendToSheet, r
       </div>
 
       {selectedItem && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
             <div className="p-4 border-b flex justify-between items-center bg-slate-50">
                 <h3 className="font-bold text-lg">Kelola Cicilan / Riwayat</h3>
