@@ -5,7 +5,7 @@ import {
   Package, Truck
 } from 'lucide-react';
 
-// === IMPORT KOMPONEN TABS YANG SUDAH KITA PECAH ===
+// === IMPORT KOMPONEN TABS ===
 import TabDashboard from './components/tabs/TabDashboard';
 import TabDashboardBranch from './components/tabs/TabDashboardBranch';
 import TabOrders from './components/tabs/TabOrders';
@@ -15,7 +15,13 @@ import TabPiutang from './components/tabs/TabPiutang';
 import TabPemalang from './components/tabs/TabPemalang';
 import TabStok from './components/tabs/TabStok';
 
-// === IMPORT FORMATTER & HELPERS ===
+// === IMPORT KOMPONEN PRINT ===
+import { 
+  PrintInvoiceDotMatrix, PrintPurchase, PrintVoucher, 
+  PrintReceipt, PrintReport, PrintReportBranch 
+} from './components/print/PrintTemplates';
+
+// === IMPORT HELPERS ===
 import { safeSort, formatDate } from './utils/helpers';
 
 // =====================================================================
@@ -209,11 +215,15 @@ export default function App() {
 
   if (isLoading) return <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50"><Loader2 className="w-12 h-12 text-red-600 animate-spin mb-4" />Menyinkronkan Database...</div>;
 
-  // Halaman Print akan memanggil komponen asli (Bisa dipisahkan ke file lain nanti jika ingin lebih rapi)
-  // if (printData?.type === 'invoice') return <PrintInvoiceDotMatrix data={printData.data} onBack={() => setPrintData(null)} />;
-  // if (printData?.type === 'report') return <PrintReport data={printData.data} onBack={() => setPrintData(null)} />;
-  // dan seterusnya...
+  // === RENDER KOMPONEN PRINT ===
+  if (printData?.type === 'invoice') return <PrintInvoiceDotMatrix data={printData.data} onBack={() => setPrintData(null)} />;
+  if (printData?.type === 'purchase') return <PrintPurchase data={printData.data} onBack={() => setPrintData(null)} />;
+  if (printData?.type === 'voucher') return <PrintVoucher data={printData.data} onBack={() => setPrintData(null)} />;
+  if (printData?.type === 'receipt') return <PrintReceipt data={printData.data} onBack={() => setPrintData(null)} />;
+  if (printData?.type === 'report') return <PrintReport data={printData.data} onBack={() => setPrintData(null)} />;
+  if (printData?.type === 'reportBranch') return <PrintReportBranch data={printData.data} onBack={() => setPrintData(null)} user={user} />;
 
+  // === RENDER LAYOUT UTAMA ===
   return (
     <div className="min-h-screen bg-slate-50 flex font-sans text-slate-800">
       {confirmDialog && (
@@ -291,7 +301,3 @@ export default function App() {
     </div>
   );
 }
-
-// Catatan: Pastikan kode komponen cetak (PrintInvoiceDotMatrix, PrintReport, dll) 
-// tetap Anda letakkan di bagian paling bawah file ini jika sebelumnya ada di sana, 
-// atau Anda bisa memindahkannya ke file terpisah nanti.
