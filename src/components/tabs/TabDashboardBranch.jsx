@@ -64,7 +64,6 @@ export default function TabDashboardBranch({ orders, pemalangReports, setPrintDa
     const finalChartData = Object.keys(chartDataMap).map(key => ({ label: key, value: chartDataMap[key] }));
     const topCustomersList = Object.values(customerMap).sort((a,b) => b.total - a.total);
 
-    // MENGHITUNG TAGIHAN, SISA, DAN STATUS UNTUK TABEL CABANG
     const groupedTransaksiPusat = Object.values(filteredOrders.reduce((acc, o) => {
         if(!o?.id) return acc;
         if(!acc[o.id]) acc[o.id] = { ...o, items: [], totalTagihan: 0, dp: Number(o.paidAmount)||0 };
