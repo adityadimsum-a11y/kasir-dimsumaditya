@@ -386,7 +386,7 @@ export function PrintReport({ data, onBack }) {
             <h3 className="font-bold text-xs mb-1.5 mt-5 text-emerald-700">B. RIWAYAT TERIMA PIUTANG (DARI PELANGGAN)</h3>
             <table className="table-print">
               <thead>
-                <tr><th className="w-8">NO</th><th>TGL & ID BAYAR</th><th>TGL & INV ASAL</th><th>PELANGGAN</th><th className="text-center">QTY</th><th className="text-center">VIA</th><th className="text-right">NOMINAL MASUK</th><th className="text-center">STATUS NOTA</th></tr>
+                <tr><th className="w-8">NO</th><th>TGL & ID BAYAR</th><th>TGL & INV ASAL</th><th>PELANGGAN</th><th className="text-center">QTY</th><th className="text-center">VIA</th><th className="text-right">NOMINAL MASUK</th><th className="text-right">SISA TAGIHAN</th><th className="text-center">STATUS NOTA</th></tr>
               </thead>
               <tbody>
                 {rekap.listRiwayatPiutang.map((p, i) => (
@@ -398,6 +398,7 @@ export function PrintReport({ data, onBack }) {
                     <td className="text-center text-[9px]">{p.qtyDesc}</td>
                     <td className="text-center text-[9px]">{p.paymentMethod}</td>
                     <td className="text-right font-black text-emerald-600">+{formatRp(p.amount)}</td>
+                    <td className={`text-right font-bold ${p.sisaTagihan <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{p.sisaTagihan <= 0 ? 'Rp 0' : formatRp(p.sisaTagihan)}</td>
                     <td className={`text-center font-bold text-[9px] ${p.statusNota === 'LUNAS' ? 'text-emerald-600' : 'text-red-600'}`}>{p.statusNota}</td>
                   </tr>
                 ))}
@@ -411,7 +412,7 @@ export function PrintReport({ data, onBack }) {
             <h3 className="font-bold text-xs mb-1.5 mt-5 text-red-700">C. RIWAYAT BAYAR HUTANG (KE SUPPLIER)</h3>
             <table className="table-print">
               <thead>
-                <tr><th className="w-8">NO</th><th>TGL & ID BAYAR</th><th>TGL & INV ASAL</th><th>SUPPLIER</th><th className="text-center">BARANG</th><th className="text-center">VIA</th><th className="text-right">NOMINAL KELUAR</th><th className="text-center">STATUS NOTA</th></tr>
+                <tr><th className="w-8">NO</th><th>TGL & ID BAYAR</th><th>TGL & INV ASAL</th><th>SUPPLIER</th><th className="text-center">BARANG</th><th className="text-center">VIA</th><th className="text-right">NOMINAL KELUAR</th><th className="text-right">SISA HUTANG</th><th className="text-center">STATUS NOTA</th></tr>
               </thead>
               <tbody>
                 {rekap.listRiwayatHutang.map((p, i) => (
@@ -423,6 +424,7 @@ export function PrintReport({ data, onBack }) {
                     <td className="text-center text-[9px]">{p.qtyDesc}</td>
                     <td className="text-center text-[9px]">{p.paymentMethod}</td>
                     <td className="text-right font-black text-red-600">-{formatRp(p.amount)}</td>
+                    <td className={`text-right font-bold ${p.sisaTagihan <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{p.sisaTagihan <= 0 ? 'Rp 0' : formatRp(p.sisaTagihan)}</td>
                     <td className={`text-center font-bold text-[9px] ${p.statusNota === 'LUNAS' ? 'text-emerald-600' : 'text-red-600'}`}>{p.statusNota}</td>
                   </tr>
                 ))}
@@ -551,7 +553,7 @@ export function PrintReportBranch({ data, onBack, user }) {
             <h3 className="font-bold text-xs mb-1.5 mt-5 text-emerald-700">B. RIWAYAT TERIMA PIUTANG (AGEN CABANG)</h3>
             <table className="table-print">
               <thead>
-                <tr><th className="w-8">NO</th><th>TGL & ID BAYAR</th><th>TGL & INV ASAL</th><th>PELANGGAN</th><th className="text-center">QTY</th><th className="text-center">VIA</th><th className="text-right">NOMINAL MASUK</th><th className="text-center">STATUS NOTA</th></tr>
+                <tr><th className="w-8">NO</th><th>TGL & ID BAYAR</th><th>TGL & INV ASAL</th><th>PELANGGAN</th><th className="text-center">QTY</th><th className="text-center">VIA</th><th className="text-right">NOMINAL MASUK</th><th className="text-right">SISA TAGIHAN</th><th className="text-center">STATUS NOTA</th></tr>
               </thead>
               <tbody>
                 {rekap.listRiwayatPiutang.map((p, i) => (
@@ -563,6 +565,7 @@ export function PrintReportBranch({ data, onBack, user }) {
                     <td className="text-center text-[9px]">{p.qtyDesc}</td>
                     <td className="text-center text-[9px]">{p.paymentMethod}</td>
                     <td className="text-right font-black text-emerald-600">+{formatRp(p.amount)}</td>
+                    <td className={`text-right font-bold ${p.sisaTagihan <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{p.sisaTagihan <= 0 ? 'Rp 0' : formatRp(p.sisaTagihan)}</td>
                     <td className={`text-center font-bold text-[9px] ${p.statusNota === 'LUNAS' ? 'text-emerald-600' : 'text-red-600'}`}>{p.statusNota}</td>
                   </tr>
                 ))}
