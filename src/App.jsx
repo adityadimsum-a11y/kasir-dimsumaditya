@@ -19,7 +19,6 @@ import {
   PrintReceipt, PrintReport, PrintReportBranch 
 } from './components/print/PrintTemplates';
 
-// FIX VERCEL: Hapus formatDate karena tidak dipakai di sini
 import { safeSort } from './utils/helpers';
 
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqSM572mbUIGozcghhh8LHNMNw2e83O7Wkyu-SkjdVTO3zpTb64PA/exec'; 
@@ -150,14 +149,20 @@ export default function App() {
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 font-sans relative overflow-hidden">
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 relative z-10">
           <div className="flex flex-col items-center mb-8">
-            <img src="https://dimsumaditya.id/wp-content/uploads/2024/10/Dimsum-Aditya.png" alt="Logo" className="w-20 h-20 object-contain mb-2" />
-            <h1 className="text-2xl font-bold text-slate-800">Dimsum Aditya</h1>
+            {/* === ANCHOR LINK MENUJU WEBSITE DIMSUM ADITYA === */}
+            <a href="https://dimsumaditya.id/" target="_blank" rel="noopener noreferrer" title="Buka Website Dimsum Aditya">
+                <img src="https://dimsumaditya.id/wp-content/uploads/2024/10/Dimsum-Aditya.png" alt="Logo" className="w-20 h-20 object-contain mb-2 hover:scale-105 transition-transform" />
+            </a>
+            <h1 className="text-2xl font-bold text-slate-800">
+                <a href="https://dimsumaditya.id/" target="_blank" rel="noopener noreferrer" className="hover:text-red-600 transition-colors" title="Buka Website Dimsum Aditya">Dimsum Aditya</a>
+            </h1>
+            <p className="text-sm text-slate-500 mt-1">Sistem Informasi Manajemen Terpadu</p>
           </div>
           <form onSubmit={handleLogin} className="space-y-4">
             {loginError && <div className="p-3 bg-red-50 text-red-600 rounded-lg text-sm text-center">{loginError}</div>}
             <input type="text" required placeholder="Username" value={loginForm.username} onChange={e => setLoginForm({...loginForm, username: e.target.value})} className="w-full p-3 border rounded-xl" />
             <input type="password" required placeholder="Password" value={loginForm.password} onChange={e => setLoginForm({...loginForm, password: e.target.value})} className="w-full p-3 border rounded-xl" />
-            <button type="submit" className="w-full bg-red-600 text-white font-bold py-3.5 rounded-xl">Masuk Sistem</button>
+            <button type="submit" className="w-full bg-red-600 hover:bg-red-700 transition text-white font-bold py-3.5 rounded-xl">Masuk Sistem</button>
           </form>
         </div>
       </div>
