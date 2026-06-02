@@ -45,12 +45,12 @@ export function PrintReceipt({ data, onBack }) {
   useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
   const { payment, order } = data;
   
-  // Kalkulasi total tagihan dari order yang sedang dicicil
-  const totalTagihan = Number(order.totalTagihan) || 0;
-  // Total yang sudah dibayarkan (termasuk DP dan semua cicilan di dalam order ini)
-  const totalDibayar = (Number(order.totalDibayar) || 0) + (Number(order.cicilanTerbayar) || 0);
-  // Sisa Hutang Saat ini
-  const sisaHutang = Number(order.sisaHutang) || 0;
+  // Kalkulasi total yang sudah dibayarkan dan sisa hutang
+  const totalDibayar = (Number(order?.totalDibayar) || Number(order?.paidAmount) || 0) + (Number(order?.cicilanTerbayar) || 0);
+  const sisaHutang = Number(order?.sisaHutang) || 0;
+  
+  // FIX: Jurus Matematika Pasti agar Tagihan tidak pernah 0 (Terbayar + Sisa)
+  const totalTagihan = Number(order?.totalTagihan) || Number(order?.totalAll) || (totalDibayar + sisaHutang);
 
   return (
     <div className="bg-slate-100 min-h-screen p-4">
@@ -70,27 +70,26 @@ export function PrintReceipt({ data, onBack }) {
           </div>
           <div className="text-right">
             <h2 className="text-2xl font-black tracking-widest uppercase mb-1">TANDA TERIMA</h2>
-            <p className="font-bold text-sm">{order.tipe === 'HUTANG' ? 'PEMBAYARAN' : 'CICILAN'}</p>
+            <p className="font-bold text-sm">{order?.tipe === 'HUTANG' ? 'PEMBAYARAN' : 'CICILAN'}</p>
           </div>
         </div>
 
         <div className="flex justify-between gap-4 mb-4">
           <div className="flex-1 box-solid">
-            <div className="flex mb-1.5"><span className="w-36 font-bold uppercase text-[10px]">{order.tipe === 'HUTANG' ? 'Dibayarkan Kepada' : 'Diterima Dari'}</span><span className="font-black uppercase text-sm">: {order.customer}</span></div>
-            <div className="flex mb-1.5"><span className="w-36 font-bold uppercase text-[10px]">Uang Sejumlah</span><span className="font-black text-base">: {formatRp(payment.amount)}</span></div>
-            <div className="flex"><span className="w-36 font-bold uppercase text-[10px]">Terbilang</span><span className="font-bold italic text-[10px]">: # {terbilang(payment.amount)} Rupiah #</span></div>
+            <div className="flex mb-1.5"><span className="w-36 font-bold uppercase text-[10px]">{order?.tipe === 'HUTANG' ? 'Dibayarkan Kepada' : 'Diterima Dari'}</span><span className="font-black uppercase text-sm">: {order?.customer || order?.supplier}</span></div>
+            <div className="flex mb-1.5"><span className="w-36 font-bold uppercase text-[10px]">Uang Sejumlah</span><span className="font-black text-base">: {formatRp(payment?.amount)}</span></div>
+            <div className="flex"><span className="w-36 font-bold uppercase text-[10px]">Terbilang</span><span className="font-bold italic text-[10px]">: # {terbilang(payment?.amount)} Rupiah #</span></div>
           </div>
           <div className="w-1/3 box-solid flex flex-col justify-center">
-            <div className="flex justify-between mb-1.5"><span className="text-[10px] font-bold uppercase">No. Referensi</span> <span className="font-bold text-[10px]">{payment.id}</span></div>
-            <div className="flex justify-between mb-1.5"><span className="text-[10px] font-bold uppercase">Tanggal</span> <span className="font-bold text-[10px]">{formatDate(payment.date)}</span></div>
-            <div className="flex justify-between"><span className="text-[10px] font-bold uppercase">Metode</span> <span className="font-bold uppercase text-[10px]">{payment.paymentMethod}</span></div>
+            <div className="flex justify-between mb-1.5"><span className="text-[10px] font-bold uppercase">No. Referensi</span> <span className="font-bold text-[10px]">{payment?.id}</span></div>
+            <div className="flex justify-between mb-1.5"><span className="text-[10px] font-bold uppercase">Tanggal</span> <span className="font-bold text-[10px]">{formatDate(payment?.date)}</span></div>
+            <div className="flex justify-between"><span className="text-[10px] font-bold uppercase">Metode</span> <span className="font-bold uppercase text-[10px]">{payment?.paymentMethod}</span></div>
           </div>
         </div>
 
-        {/* ===== PENAMBAHAN TABEL RIWAYAT TAGIHAN ===== */}
         <div className="box-solid mt-4">
             <p className="text-[10px] font-bold uppercase mb-2">Keterangan Pembayaran :</p>
-            <p className="text-xs mb-2">Pembayaran untuk Invoice Referensi: <strong className="font-mono">{order.id}</strong></p>
+            <p className="text-xs mb-2">Pembayaran untuk Invoice Referensi: <strong className="font-mono">{order?.id}</strong></p>
             
             <table className="table-pro mt-2">
                 <thead>
@@ -112,11 +111,11 @@ export function PrintReceipt({ data, onBack }) {
             </table>
         </div>
 
-        <div className="flex justify-between mt-8 text-center text-xs">
+        <div className="flex justify-between mt-12 text-center text-xs">
           <div className="w-40">
             <p className="font-bold uppercase">Penerima</p>
             <div className="h-16"></div>
-            <p className="border-t border-black pt-1 uppercase">( {order.customer} )</p>
+            <p className="border-t border-black pt-1 uppercase">( {order?.customer || order?.supplier} )</p>
           </div>
           <div className="w-40">
             <p className="font-bold uppercase">Admin / Kasir</p>
@@ -130,7 +129,7 @@ export function PrintReceipt({ data, onBack }) {
 }
 
 // ============================================================================
-// KOMPONEN INVOICE
+// KOMPONEN INVOICE PENJUALAN
 // ============================================================================
 export function PrintInvoiceDotMatrix({ data, onBack }) {
   useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
