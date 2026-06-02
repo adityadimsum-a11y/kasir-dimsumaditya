@@ -1,5 +1,3 @@
-// File: src/utils/helpers.js
-
 export const rpFormatter = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 });
 export const dateFormatter = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
 
@@ -15,9 +13,21 @@ export const parseRp = (str) => {
   return isNaN(num) ? 0 : num;
 };
 
+// MENDAPATKAN TANGGAL HARI INI (LOKAL)
 export const getTodayStr = () => {
-    const d = new Date(new Date().getTime() + (7 * 60 * 60 * 1000)); 
-    return d.toISOString().split('T')[0];
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+};
+
+// MENDAPATKAN TANGGAL 1 BULAN INI (UNTUK DEFAULT FILTER)
+export const getFirstDayOfMonthStr = () => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    return `${y}-${m}-01`;
 };
 
 export const getLocalYMD = (dateVal) => {
