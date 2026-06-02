@@ -78,12 +78,26 @@ export function PrintReport({ data, onBack }) {
             <div className="text-right"><h1 className="text-xl font-black uppercase mb-1">LAPORAN KEUANGAN PUSAT</h1><p className="text-gray-700 font-medium">Periode: {formatDate(dateFrom)} s/d {formatDate(dateTo)}</p></div>
         </div>
 
-        <h3 className="font-bold text-sm mb-2">A. TRANSAKSI PENJUALAN</h3>
+        <h3 className="font-bold text-sm mb-2">A. TRANSAKSI PENJUALAN (RINCIAN TAGIHAN & PEMBAYARAN)</h3>
         <table className="table-print">
-          <thead><tr><th className="w-8">NO</th><th>NO. INV</th><th>PELANGGAN</th><th>VIA</th><th>QTY</th><th className="text-right">OMSET</th></tr></thead>
+          <thead><tr><th className="w-8">NO</th><th>TGL & INV</th><th>PELANGGAN</th><th className="text-right">TAGIHAN</th><th className="text-right">TERBAYAR</th><th className="text-right">SISA</th><th className="text-center">STATUS</th></tr></thead>
           <tbody>
-            {(rekap?.listTransaksiDetail || []).map((c, i) => (<tr key={i}><td className="text-center">{i + 1}</td><td className="font-mono text-[10px] text-center">{c.id}</td><td className="font-bold uppercase">{c.customer}</td><td className="text-center">{c.paymentMethod}</td><td className="text-center">{(c?.items || []).join(', ')}</td><td className="text-right">{formatRp(c.total)}</td></tr>))}
-            <tr><td colSpan="5" className="text-right font-bold uppercase">Total Omset Penjualan :</td><td className="text-right font-black text-emerald-600">{formatRp(rekap?.totalPenjualanKotor)}</td></tr>
+            {(rekap?.listTransaksiDetail || []).map((c, i) => (
+                <tr key={i}>
+                    <td className="text-center">{i + 1}</td>
+                    <td className="text-center">{formatDate(c.date)}<br/><span className="font-mono text-[9px]">{c.id}</span></td>
+                    <td className="font-bold uppercase">{c.customer}</td>
+                    <td className="text-right">{formatRp(c.totalTagihan)}</td>
+                    <td className="text-right text-emerald-600">{formatRp(c.totalTerbayar)}</td>
+                    <td className="text-right font-bold text-red-600">{formatRp(c.sisaTagihan)}</td>
+                    <td className={`text-center font-bold text-[10px] ${c.status === 'LUNAS' ? 'text-emerald-600' : 'text-red-600'}`}>{c.status}</td>
+                </tr>
+            ))}
+            <tr>
+                <td colSpan="3" className="text-right font-bold uppercase">Total Omset Penjualan :</td>
+                <td className="text-right font-black text-blue-700">{formatRp(rekap?.totalPenjualanKotor)}</td>
+                <td colSpan="3"></td>
+            </tr>
           </tbody>
         </table>
 
@@ -91,16 +105,16 @@ export function PrintReport({ data, onBack }) {
           <>
             <h3 className="font-bold text-sm mb-2 mt-6 text-blue-700">B. RIWAYAT PEMBAYARAN CICILAN (MASUK & KELUAR)</h3>
             <table className="table-print">
-              <thead><tr><th className="w-8">NO</th><th>TGL BAYAR</th><th>TGL & INV ASAL</th><th>PELANGGAN</th><th>QTY (PCS/PORSI)</th><th className="text-right">NOMINAL CICILAN</th></tr></thead>
+              <thead><tr><th className="w-8">NO</th><th>TGL & ID BAYAR</th><th>TGL & INV ASAL</th><th>PELANGGAN</th><th className="text-right">NOMINAL CICILAN</th><th className="text-center">STATUS NOTA</th></tr></thead>
               <tbody>
                 {rekap.listPembayaranSemua.map((p, i) => (
                   <tr key={i}>
                     <td className="text-center">{i + 1}</td>
-                    <td className="text-center font-bold text-blue-700">{formatDate(p.date)}</td>
+                    <td className="text-center font-bold text-blue-700">{formatDate(p.date)}<br/><span className="font-mono text-[9px] text-slate-500">{p.payId}</span></td>
                     <td className="text-center">{formatDate(p.tglInvoice)}<br/><span className="font-mono text-[9px]">{p.orderId}</span></td>
-                    <td className="font-bold uppercase">{p.customer}</td>
-                    <td className="text-center text-xs">{p.qtyDesc}</td>
+                    <td className="font-bold uppercase">{p.customer}<br/><span className="text-[9px] font-normal">{p.qtyDesc}</span></td>
                     <td className={`text-right font-black ${p.tipe === 'HUTANG' ? 'text-red-600' : 'text-emerald-600'}`}>{p.tipe === 'HUTANG' ? '-' : '+'}{formatRp(p.amount)}</td>
+                    <td className={`text-center font-bold text-[10px] ${p.statusNota === 'LUNAS' ? 'text-emerald-600' : 'text-red-600'}`}>{p.statusNota}</td>
                   </tr>
                 ))}
               </tbody>
@@ -122,7 +136,53 @@ export function PrintReport({ data, onBack }) {
   );
 }
 
-export function PrintInvoiceDotMatrix({ data, onBack }) { /* sama dengan sebelumnya */ return null; }
-export function PrintVoucher({ data, onBack }) { /* sama dengan sebelumnya */ return null; }
-export function PrintPurchase({ data, onBack }) { /* sama dengan sebelumnya */ return null; }
-export function PrintReportBranch({ data, onBack, user }) { /* sama dengan sebelumnya */ return null; }
+export function PrintReportBranch({ data, onBack, user }) {
+  useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
+  const { rekap, dateFrom, dateTo } = data;
+  return (
+    <div className="bg-slate-100 min-h-screen p-4">
+      <style dangerouslySetInnerHTML={{ __html: a4Style }} />
+      <button onClick={onBack} className="hide-on-print mb-4 bg-slate-800 text-white px-4 py-2 rounded">Kembali</button>
+      <div className="bg-white p-8 max-w-[210mm] mx-auto shadow-lg border border-gray-300">
+        <div className="header flex items-center justify-between border-b-2 border-black pb-4 mb-4">
+            <img src="https://dimsumaditya.id/wp-content/uploads/2024/10/Dimsum-Aditya.png" alt="Logo" style={{ height: '70px', width: 'auto' }} />
+            <div className="text-right"><h1 className="text-lg font-bold uppercase">LAPORAN OPERASIONAL DIMSUM ADITYA</h1><p className="text-xs font-bold uppercase">CABANG: {user?.name}</p><p className="text-xs">Periode: {formatDate(dateFrom)} s/d {formatDate(dateTo)}</p></div>
+        </div>
+        <div className="flex gap-4 mb-6"><div className="border p-4 flex-1"><strong>Total Penjualan Kotor:</strong> {formatRp(rekap?.totalPenjualanKotor)}</div><div className="border p-4 flex-1"><strong>Porsi Terjual:</strong> {rekap?.totalPorsi} Prs</div><div className="border p-4 flex-1"><strong>Total Setoran Pusat:</strong> <span className="text-blue-600">{formatRp(rekap?.setoranKePusat)}</span></div></div>
+        
+        <h3 className="font-bold text-sm mb-2">A. TRANSAKSI INVOICE CABANG</h3>
+        <table className="table-print">
+          <thead><tr><th className="w-8">NO</th><th>TGL & INV</th><th>PELANGGAN</th><th className="text-right">TAGIHAN</th><th className="text-right">TERBAYAR</th><th className="text-right">SISA</th><th className="text-center">STATUS</th></tr></thead>
+          <tbody>
+            {(rekap?.listOrders || []).map((c, i) => (
+                <tr key={i}>
+                    <td className="text-center">{i + 1}</td>
+                    <td className="text-center">{formatDate(c.date)}<br/><span className="font-mono text-[9px]">{c.id}</span></td>
+                    <td className="font-bold uppercase">{c.customer}</td>
+                    <td className="text-right">{formatRp(c.totalTagihan)}</td>
+                    <td className="text-right text-emerald-600">{formatRp(c.totalTerbayar)}</td>
+                    <td className="text-right font-bold text-red-600">{formatRp(c.sisaTagihan)}</td>
+                    <td className={`text-center font-bold text-[10px] ${c.status === 'LUNAS' ? 'text-emerald-600' : 'text-red-600'}`}>{c.status}</td>
+                </tr>
+            ))}
+            <tr>
+                <td colSpan="3" className="text-right font-bold uppercase">Total Omset Cabang :</td>
+                <td className="text-right font-black text-blue-700">{formatRp(rekap?.totalPenjualanKotor)}</td>
+                <td colSpan="3"></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3 className="font-bold text-sm mb-2 mt-6">B. LAPORAN HARIAN & STOK</h3>
+        <table className="table-print">
+            <thead><tr><th className="w-8">NO</th><th>TGL</th><th className="text-center">PROD / PSN</th><th>STOK FREEZER</th><th className="text-center">TUJUAN TF</th><th className="text-right">UANG DISETOR</th></tr></thead>
+            <tbody>{(rekap?.listReports || []).map((p, i) => (<tr key={i}><td className="text-center">{i + 1}</td><td className="text-center">{formatDate(p.date)}</td><td className="text-center">{p.produksiMika}M / {p.pesananMika}M</td><td className="font-bold uppercase text-center">{p.stokFreezer}</td><td className="text-center font-bold text-indigo-700">{p.transferDestination || 'BCA (WASTAM)'}</td><td className="text-right font-bold text-emerald-700">{formatRp(p.nominal)}</td></tr>))}</tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+export function PrintInvoiceDotMatrix({ data, onBack }) { /* sama dgn atas */ return null; }
+export function PrintVoucher({ data, onBack }) { /* sama dgn atas */ return null; }
+export function PrintPurchase({ data, onBack }) { /* sama dgn atas */ return null; }
