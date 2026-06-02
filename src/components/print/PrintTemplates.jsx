@@ -2,15 +2,14 @@ import React, { useEffect } from 'react';
 import { formatRp, formatDate, terbilang } from '../../utils/helpers';
 
 // ============================================================================
-// 1. TEMPLATE INVOICE & VOUCHER (DOT-MATRIX OPTIMIZED 9.5" x 5.5" - SETENGAH KERTAS)
+// 1. TEMPLATE INVOICE & VOUCHER (GARIS TIPIS ELEGAN 9.5" x 5.5")
 // ============================================================================
 const dotMatrixStyle = `
   @media print {
-    /* UKURAN SETENGAH KERTAS CONTINUOUS FORM (5.5 INCH) */
     @page { size: 9.5in 5.5in; margin: 0.15in 0.3in; }
     body { 
         font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif !important; 
-        font-size: 11px !important; /* Diperkecil sedikit agar aman tidak meluber ke bawah */
+        font-size: 11px !important; 
         color: #000; background: white; 
         -webkit-print-color-adjust: exact; margin: 0; 
     }
@@ -18,11 +17,11 @@ const dotMatrixStyle = `
   }
   .print-wrapper { max-width: 9.5in; margin: 0 auto; padding: 10px 20px; background: white; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: black; line-height: 1.3; }
   
-  /* BORDER TEGAS KHUSUS DOT MATRIX (TIDAK ADA BLOK WARNA) */
-  .box-solid { border: 2px solid black; padding: 8px 12px; border-radius: 4px; }
+  /* BORDER TIPIS (1px) AGAR LEBIH ELEGAN DAN HEMAT TINTA */
+  .box-solid { border: 1px solid black; padding: 8px 12px; border-radius: 4px; }
   
-  .table-pro { width: 100%; border-collapse: collapse; margin-bottom: 8px; border: 2px solid black; }
-  .table-pro th { border: 1px solid black; padding: 6px; text-align: center; font-weight: 900; text-transform: uppercase; border-bottom: 2px solid black; font-size: 11px; }
+  .table-pro { width: 100%; border-collapse: collapse; margin-bottom: 8px; border: 1px solid black; }
+  .table-pro th { border: 1px solid black; padding: 6px; text-align: center; font-weight: bold; text-transform: uppercase; border-bottom: 1px solid black; font-size: 11px; }
   .table-pro td { border: 1px solid black; padding: 6px; text-align: center; }
   .table-pro td.text-left { text-align: left; }
   .table-pro td.text-right { text-align: right; }
@@ -36,8 +35,7 @@ export function PrintInvoiceDotMatrix({ data, onBack }) {
       <button onClick={onBack} className="hide-on-print mb-4 bg-red-600 text-white px-4 py-2 rounded font-bold shadow-md hover:bg-red-700 transition">Kembali ke Aplikasi</button>
       
       <div className="print-wrapper shadow-xl">
-        {/* HEADER KORPORAT */}
-        <div className="flex justify-between items-center mb-4 border-b-2 border-black pb-2">
+        <div className="flex justify-between items-center mb-4 border-b border-black pb-2">
           <div className="flex items-center gap-4">
             <img src="https://dimsumaditya.id/wp-content/uploads/2024/10/Dimsum-Aditya.png" alt="Logo" className="h-16 object-contain" />
             <div>
@@ -53,7 +51,6 @@ export function PrintInvoiceDotMatrix({ data, onBack }) {
           </div>
         </div>
 
-        {/* INFO PELANGGAN & INVOICE */}
         <div className="flex justify-between gap-4 mb-4">
           <div className="flex-1 box-solid">
             <p className="text-[10px] font-bold uppercase mb-1">Tagihan Kepada :</p>
@@ -65,12 +62,12 @@ export function PrintInvoiceDotMatrix({ data, onBack }) {
           </div>
         </div>
 
-        {/* TABEL ITEM */}
         <table className="table-pro">
           <thead>
             <tr>
               <th className="w-8">NO</th>
-              <th className="text-left">KATEGORI BARANG</th>
+              {/* NAMA KOLOM DISESUAIKAN */}
+              <th className="text-left">DESKRIPSI BARANG</th>
               <th className="w-24">QTY</th>
               <th className="w-32 text-right">HARGA SATUAN</th>
               <th className="w-32 text-right">TOTAL</th>
@@ -79,17 +76,16 @@ export function PrintInvoiceDotMatrix({ data, onBack }) {
           <tbody>
             <tr>
               <td className="font-bold">1</td>
-              <td className="text-left font-bold uppercase">{data.category}</td>
+              {/* NAMA BARANG DISESUAIKAN */}
+              <td className="text-left font-bold uppercase">Dimsum Ayam Mix (Paket {data.category})</td>
               <td className="font-bold">{(data.items || []).join(', ')}</td>
               <td className="text-right">{formatRp(data.price)}</td>
               <td className="text-right font-black">{formatRp(data.totalAll)}</td>
             </tr>
-            {/* Ruang kosong estetika (Diperkecil agar muat setengah kertas) */}
             <tr><td className="py-2 border-b-0"></td><td className="border-b-0"></td><td className="border-b-0"></td><td className="border-b-0"></td><td className="border-b-0"></td></tr>
           </tbody>
         </table>
 
-        {/* SUMMARY & TERBILANG */}
         <div className="flex justify-between items-start mt-2">
             <div className="flex-1 mr-6">
                 <div className="border border-black p-2 rounded bg-white">
@@ -112,15 +108,14 @@ export function PrintInvoiceDotMatrix({ data, onBack }) {
                     <span className="font-bold uppercase">Telah Dibayar</span>
                     <span className="font-bold">{formatRp(data.paidAmount)}</span>
                 </div>
-                {/* BLOK HITAM DIHILANGKAN, DIGANTI GARIS TEBAL ATAS Bawah */}
-                <div className="flex justify-between border-t-4 border-b-4 border-black py-1 mt-1">
+                {/* GARIS DIUBAH MENJADI LEBIH TIPIS */}
+                <div className="flex justify-between border-t border-b border-black py-1 mt-1">
                     <span className="font-black text-sm uppercase">SISA TAGIHAN</span>
                     <span className="font-black text-sm">{formatRp(Number(data.totalAll) - Number(data.paidAmount))}</span>
                 </div>
             </div>
         </div>
         
-        {/* TANDA TANGAN (Margin gap diperkecil agar tidak over ke halaman 2) */}
         <div className="flex justify-between mt-6 text-center text-xs">
           <div className="w-40">
             <p className="font-bold uppercase">Penerima / Pelanggan</p>
@@ -146,7 +141,7 @@ export function PrintVoucher({ data, onBack }) {
       <button onClick={onBack} className="hide-on-print mb-4 bg-slate-800 text-white px-4 py-2 rounded font-bold shadow-md">Kembali ke Aplikasi</button>
       
       <div className="print-wrapper shadow-xl">
-        <div className="flex justify-between items-center mb-4 border-b-2 border-black pb-2">
+        <div className="flex justify-between items-center mb-4 border-b border-black pb-2">
           <div className="flex items-center gap-4">
             <img src="https://dimsumaditya.id/wp-content/uploads/2024/10/Dimsum-Aditya.png" alt="Logo" className="h-14 object-contain" />
             <h1 className="font-black text-xl tracking-wide uppercase">Dimsum Aditya</h1>
@@ -212,7 +207,7 @@ export function PrintVoucher({ data, onBack }) {
   );
 }
 
-// === TEMPLATE LAINNYA (TIDAK DIUBAH, HANYA DIPADATKAN) ===
+// === TEMPLATE LAINNYA ===
 export function PrintPurchase({ data, onBack }) {
   useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
   return (
@@ -220,8 +215,8 @@ export function PrintPurchase({ data, onBack }) {
       <style dangerouslySetInnerHTML={{ __html: dotMatrixStyle }} />
       <button onClick={onBack} className="hide-on-print mb-4 bg-orange-600 text-white px-4 py-2 rounded font-bold shadow-md">Kembali</button>
       <div className="print-wrapper shadow-lg">
-        <div className="text-center border-b-2 border-black pb-2 mb-4"><h2 className="font-black text-xl uppercase">BUKTI PEMBELIAN BAHAN</h2><p className="text-xs font-bold">No. Ref: {data.id} | Tgl: {formatDate(data.date)}</p></div>
-        <div className="mb-4 text-xs box-solid flex justify-between"><p>Supplier: <span className="font-bold uppercase">{data.supplier}</span></p><p>Metode Bayar: <strong>{data.paymentMethod}</strong></p></div>
+        <div className="text-center border-b border-black pb-2 mb-4"><h2 className="font-black text-xl uppercase">BUKTI PEMBELIAN BAHAN</h2><p className="text-xs font-bold">No. Ref: {data.id} | Tgl: {formatDate(data.date)}</p></div>
+        <div className="mb-4 text-xs box-solid flex justify-between"><p>Supplier: <span className="font-bold uppercase text-base">{data.supplier}</span></p><p>Metode Bayar: <strong>{data.paymentMethod}</strong></p></div>
         <table className="table-pro">
           <thead><tr><th className="w-8">NO</th><th className="text-left">BARANG & SATUAN</th></tr></thead>
           <tbody>{(data.items || []).map((item, idx) => (<tr key={idx}><td>{idx + 1}</td><td className="text-left font-bold">{item}</td></tr>))}</tbody>
@@ -246,7 +241,7 @@ export function PrintReceipt({ data, onBack }) {
       <style dangerouslySetInnerHTML={{ __html: dotMatrixStyle }} />
       <button onClick={onBack} className="hide-on-print mb-4 bg-blue-600 text-white px-4 py-2 rounded font-bold shadow-md">Kembali</button>
       <div className="print-wrapper shadow-lg">
-        <div className="text-center border-b-2 border-black pb-2 mb-4"><h2 className="font-black text-xl uppercase">TANDA TERIMA {order.tipe === 'HUTANG' ? 'PEMBAYARAN' : 'CICILAN'}</h2><p className="font-bold text-xs">No. Ref: {payment.id} | Tgl: {formatDate(payment.date)}</p></div>
+        <div className="text-center border-b border-black pb-2 mb-6"><h2 className="font-black text-2xl uppercase">TANDA TERIMA {order.tipe === 'HUTANG' ? 'PEMBAYARAN' : 'CICILAN'}</h2><p className="font-bold text-xs">No. Ref: {payment.id} | Tgl: {formatDate(payment.date)}</p></div>
         <div className="text-xs box-solid">
           <div className="flex mb-2 pb-2 border-b border-dashed border-black"><span className="w-40 font-bold uppercase">{order.tipe === 'HUTANG' ? 'Dibayarkan Kepada:' : 'Diterima Dari:'}</span><span className="uppercase font-black text-sm">{order.customer}</span></div>
           <div className="flex mb-2 pb-2 border-b border-dashed border-black"><span className="w-40 font-bold uppercase">Nominal Uang:</span><span className="font-black text-base">{formatRp(payment.amount)}</span></div>
