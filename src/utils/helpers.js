@@ -13,7 +13,6 @@ export const parseRp = (str) => {
   return isNaN(num) ? 0 : num;
 };
 
-// MENDAPATKAN TANGGAL HARI INI (LOKAL)
 export const getTodayStr = () => {
     const d = new Date();
     const y = d.getFullYear();
@@ -22,7 +21,6 @@ export const getTodayStr = () => {
     return `${y}-${m}-${day}`;
 };
 
-// MENDAPATKAN TANGGAL 1 BULAN INI (UNTUK DEFAULT FILTER)
 export const getFirstDayOfMonthStr = () => {
     const d = new Date();
     const y = d.getFullYear();
@@ -33,9 +31,13 @@ export const getFirstDayOfMonthStr = () => {
 export const getLocalYMD = (dateVal) => {
     if(!dateVal) return '';
     const str = String(dateVal);
-    if(str.length >= 10 && str[4] === '-') return str.substring(0, 10);
+    // FIX TANGGAL 1: Jika format sudah YYYY-MM-DD murni, langsung kembalikan
+    if(str.length === 10 && str[4] === '-') return str;
+    
+    // FIX TANGGAL 2: Konversi Waktu Google (UTC) ke Waktu Lokal (WIB) secara presisi
     const d = new Date(dateVal);
-    if(isNaN(d.getTime())) return str.split('T')[0];
+    if(isNaN(d.getTime())) return str.split('T')[0].substring(0, 10);
+    
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
