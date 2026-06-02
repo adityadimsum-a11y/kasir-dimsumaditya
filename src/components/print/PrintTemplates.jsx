@@ -20,7 +20,7 @@ const dotMatrixStyle = `
 const a4Style = `
   .a4-wrapper { max-width: 210mm; margin: 0 auto; background: white; padding: 30px; color: black; font-family: Arial, sans-serif; font-size: 12px; }
   .table-print { width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 20px; border: 1px solid black; }
-  .table-print th, .table-print td { border: 1px solid black !important; padding: 6px 8px !important; text-align: left; }
+  .table-print th, .table-print td { border: 1px solid black !important; padding: 6px 8px !important; text-align: left; vertical-align: middle; }
   .table-print th { background-color: #f3f4f6 !important; text-align: center; font-weight: bold; text-transform: uppercase; }
   @media print { 
     @page { size: A4 portrait; margin: 10mm; } 
@@ -30,6 +30,186 @@ const a4Style = `
   }
 `;
 
+// ============================================================================
+// KOMPONEN PRINT LAPORAN REKAP PUSAT (A4)
+// ============================================================================
+export function PrintReport({ data, onBack }) {
+  useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
+  const { rekap, dateFrom, dateTo } = data;
+  const totalPengeluaran = (rekap?.listExpenses || []).reduce((sum, e) => sum + (Number(e.total)||0), 0);
+
+  return (
+    <div className="bg-slate-100 min-h-screen p-4">
+      <style dangerouslySetInnerHTML={{ __html: a4Style }} />
+      <button onClick={onBack} className="hide-on-print mb-4 bg-slate-800 text-white px-4 py-2 rounded">Kembali</button>
+      <div className="a4-wrapper shadow-xl border border-gray-200">
+        <div className="flex justify-between items-center border-b-2 border-black pb-4 mb-6">
+            <img src="https://dimsumaditya.id/wp-content/uploads/2024/10/Dimsum-Aditya.png" alt="Logo" style={{ height: '70px', width: 'auto' }} />
+            <div className="text-right">
+                <h1 className="text-xl font-black uppercase mb-1">LAPORAN KEUANGAN PUSAT</h1>
+                <p className="text-gray-700 font-medium">Periode: {formatDate(dateFrom)} s/d {formatDate(dateTo)}</p>
+            </div>
+        </div>
+
+        {/* TABEL A: PENJUALAN (DISESUAIKAN DENGAN MOCKUP BARU) */}
+        <h3 className="font-bold text-sm mb-2">A. TRANSAKSI PENJUALAN (RINCIAN TAGIHAN & PEMBAYARAN)</h3>
+        <table className="table-print">
+          <thead>
+            <tr>
+                <th className="w-8">NO</th>
+                <th>TGL & INV</th>
+                <th>PELANGGAN</th>
+                <th className="text-right">TAGIHAN</th>
+                <th className="text-right">TERBAYAR</th>
+                <th className="text-right">SISA</th>
+                <th className="text-center">STATUS</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(rekap?.listTransaksiDetail || []).map((c, i) => (
+                <tr key={i}>
+                    <td className="text-center">{i + 1}</td>
+                    <td className="text-center">{formatDate(c.date)}<br/><span className="font-mono text-[9px]">{c.id}</span></td>
+                    <td className="font-bold uppercase">{c.customer}</td>
+                    <td className="text-right font-medium">{formatRp(c.totalTagihan)}</td>
+                    <td className="text-right text-emerald-600 font-bold">{formatRp(c.totalTerbayar)}</td>
+                    <td className="text-right font-bold text-red-600">{formatRp(c.sisaTagihan)}</td>
+                    <td className={`text-center font-bold text-[10px] ${c.status === 'LUNAS' ? 'text-emerald-600' : 'text-red-600'}`}>{c.status}</td>
+                </tr>
+            ))}
+            <tr>
+                <td colSpan="3" className="text-right font-bold uppercase">Total Omset Penjualan :</td>
+                <td className="text-right font-black text-blue-700">{formatRp(rekap?.totalPenjualanKotor)}</td>
+                <td colSpan="3"></td>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* TABEL B: RIWAYAT CICILAN */}
+        {rekap?.listPembayaranSemua?.length > 0 && (
+          <>
+            <h3 className="font-bold text-sm mb-2 mt-6 text-blue-700">B. RIWAYAT PEMBAYARAN CICILAN (MASUK & KELUAR)</h3>
+            <table className="table-print">
+              <thead>
+                <tr>
+                    <th className="w-8">NO</th>
+                    <th>TGL & ID BAYAR</th>
+                    <th>TGL & INV ASAL</th>
+                    <th>PELANGGAN</th>
+                    <th className="text-center">QTY (PCS/PORSI)</th>
+                    <th className="text-right">NOMINAL CICILAN</th>
+                    <th className="text-center">STATUS NOTA</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rekap.listPembayaranSemua.map((p, i) => (
+                  <tr key={i}>
+                    <td className="text-center">{i + 1}</td>
+                    <td className="text-center font-bold text-blue-700">{formatDate(p.date)}<br/><span className="font-mono text-[9px] text-slate-500 font-normal">{p.payId}</span></td>
+                    <td className="text-center">{formatDate(p.tglInvoice)}<br/><span className="font-mono text-[9px] font-normal text-slate-500">{p.orderId}</span></td>
+                    <td className="font-bold uppercase">{p.customer}</td>
+                    <td className="text-center text-xs">{p.qtyDesc}</td>
+                    <td className={`text-right font-black ${p.tipe === 'HUTANG' ? 'text-red-600' : 'text-emerald-600'}`}>{p.tipe === 'HUTANG' ? '-' : '+'}{formatRp(p.amount)}</td>
+                    <td className={`text-center font-bold text-[10px] ${p.statusNota === 'LUNAS' ? 'text-emerald-600' : 'text-red-600'}`}>{p.statusNota}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+
+        {/* TABEL C: PENGELUARAN KAS */}
+        {rekap?.listExpenses?.length > 0 && (
+          <>
+            <h3 className="font-bold text-sm mb-2 mt-6">C. BUKU KAS (PENGELUARAN)</h3>
+            <table className="table-print">
+              <thead><tr><th className="w-8">NO</th><th>TANGGAL</th><th>KATEGORI</th><th>KETERANGAN</th><th className="text-right">NOMINAL</th></tr></thead>
+              <tbody>{rekap.listExpenses.map((o, i) => (<tr key={i}><td className="text-center">{i + 1}</td><td className="text-center">{formatDate(o.date)}</td><td className="font-bold uppercase">{o.category}</td><td>{o.description}</td><td className="text-right">-{formatRp(o.total)}</td></tr>))}<tr><td colSpan="4" className="text-right font-bold uppercase">Total Pengeluaran Kas :</td><td className="text-right font-black text-red-600">-{formatRp(totalPengeluaran)}</td></tr></tbody>
+            </table>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function PrintReportBranch({ data, onBack, user }) {
+  useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
+  const { rekap, dateFrom, dateTo } = data;
+  return (
+    <div className="bg-slate-100 min-h-screen p-4">
+      <style dangerouslySetInnerHTML={{ __html: a4Style }} />
+      <button onClick={onBack} className="hide-on-print mb-4 bg-slate-800 text-white px-4 py-2 rounded font-bold shadow-md">Kembali ke Aplikasi</button>
+      <div className="a4-wrapper shadow-xl border border-gray-200">
+        <div className="flex justify-between items-center border-b-2 border-black pb-4 mb-6">
+            <div className="flex items-center gap-4">
+                <img src="https://dimsumaditya.id/wp-content/uploads/2024/10/Dimsum-Aditya.png" alt="Logo" style={{ height: '70px', width: 'auto' }} />
+            </div>
+            <div className="text-right">
+                <h1 className="text-xl font-black uppercase mb-1">LAPORAN OPERASIONAL DIMSUM ADITYA</h1>
+                <p className="text-sm font-bold uppercase">CABANG: {user?.name}</p>
+                <p className="text-gray-700 font-medium">Periode: {formatDate(dateFrom)} s/d {formatDate(dateTo)}</p>
+            </div>
+        </div>
+        
+        <div className="flex gap-4 mb-6">
+            <div className="border border-black p-4 flex-1 rounded bg-white">
+                <h3 className="font-bold mb-2 border-b border-black pb-1">RINGKASAN PENJUALAN</h3>
+                <div className="flex justify-between"><span>Omset Kotor:</span> <strong>{formatRp(rekap?.totalPenjualanKotor)}</strong></div>
+                <div className="flex justify-between"><span>Porsi Terjual:</span> <strong>{rekap?.totalPorsi} Porsi</strong></div>
+            </div>
+            <div className="border border-black p-4 flex-1 rounded bg-white">
+                <h3 className="font-bold mb-2 border-b border-black pb-1">SETORAN PUSAT</h3>
+                <div className="flex justify-between"><span>Total Disetor:</span> <strong className="text-blue-700">{formatRp(rekap?.setoranKePusat)}</strong></div>
+                <div className="flex justify-between"><span>Status:</span> <strong>Transfer Bank</strong></div>
+            </div>
+        </div>
+
+        <h3 className="font-bold text-sm mb-2">A. TRANSAKSI INVOICE CABANG</h3>
+        <table className="table-print">
+          <thead><tr><th className="w-8">NO</th><th>TGL & INV</th><th>PELANGGAN</th><th className="text-right">TAGIHAN</th><th className="text-right">TERBAYAR</th><th className="text-right">SISA</th><th className="text-center">STATUS</th></tr></thead>
+          <tbody>
+            {(rekap?.listOrders || []).map((c, i) => (
+                <tr key={i}>
+                    <td className="text-center">{i + 1}</td>
+                    <td className="text-center">{formatDate(c.date)}<br/><span className="font-mono text-[9px]">{c.id}</span></td>
+                    <td className="font-bold uppercase">{c.customer}</td>
+                    <td className="text-right">{formatRp(c.totalTagihan)}</td>
+                    <td className="text-right text-emerald-600 font-bold">{formatRp(c.totalTerbayar)}</td>
+                    <td className="text-right font-bold text-red-600">{formatRp(c.sisaTagihan)}</td>
+                    <td className={`text-center font-bold text-[10px] ${c.status === 'LUNAS' ? 'text-emerald-600' : 'text-red-600'}`}>{c.status}</td>
+                </tr>
+            ))}
+            <tr>
+                <td colSpan="3" className="text-right font-bold uppercase">Total Omset Cabang :</td>
+                <td className="text-right font-black text-blue-700">{formatRp(rekap?.totalPenjualanKotor)}</td>
+                <td colSpan="3"></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3 className="font-bold text-sm mb-2 mt-6">B. LAPORAN HARIAN & STOK</h3>
+        <table className="table-print">
+            <thead><tr><th className="w-8">NO</th><th>TGL</th><th className="text-center">PROD / PSN</th><th>STOK FREEZER</th><th className="text-center">TUJUAN TF</th><th className="text-right">UANG DISETOR</th></tr></thead>
+            <tbody>
+                {(rekap?.listReports || []).map((p, i) => (
+                    <tr key={i}>
+                        <td className="text-center">{i + 1}</td>
+                        <td className="text-center">{formatDate(p.date)}</td>
+                        <td className="text-center">{p.produksiMika}M / {p.pesananMika}M</td>
+                        <td className="font-bold uppercase text-center">{p.stokFreezer}</td>
+                        <td className="text-center font-bold text-indigo-700">{p.transferDestination || 'BCA (WASTAM)'}</td>
+                        <td className="text-right font-bold text-emerald-700">{formatRp(p.nominal)}</td>
+                    </tr>
+                ))}
+            </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// === KOMPONEN INVOICE & RECEIPT ===
 export function PrintReceipt({ data, onBack }) {
   useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
   const { payment, order } = data;
@@ -63,126 +243,39 @@ export function PrintReceipt({ data, onBack }) {
   );
 }
 
-export function PrintReport({ data, onBack }) {
+export function PrintInvoiceDotMatrix({ data, onBack }) {
   useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
-  const { rekap, dateFrom, dateTo } = data;
-  const totalPengeluaran = (rekap?.listExpenses || []).reduce((sum, e) => sum + (Number(e.total)||0), 0);
-
+  const totalQtyNum = (data.items || []).reduce((sum, str) => sum + (parseInt(str) || 0), 0);
+  const totalPorsi = totalQtyNum / 4;
   return (
     <div className="bg-slate-100 min-h-screen p-4">
-      <style dangerouslySetInnerHTML={{ __html: a4Style }} />
-      <button onClick={onBack} className="hide-on-print mb-4 bg-slate-800 text-white px-4 py-2 rounded">Kembali</button>
-      <div className="a4-wrapper shadow-xl border border-gray-200">
-        <div className="flex justify-between items-center border-b-2 border-black pb-4 mb-6">
-            <img src="https://dimsumaditya.id/wp-content/uploads/2024/10/Dimsum-Aditya.png" alt="Logo" style={{ height: '70px', width: 'auto' }} />
-            <div className="text-right"><h1 className="text-xl font-black uppercase mb-1">LAPORAN KEUANGAN PUSAT</h1><p className="text-gray-700 font-medium">Periode: {formatDate(dateFrom)} s/d {formatDate(dateTo)}</p></div>
+      <style dangerouslySetInnerHTML={{ __html: dotMatrixStyle }} />
+      <button onClick={onBack} className="hide-on-print mb-4 bg-red-600 text-white px-4 py-2 rounded font-bold shadow-md hover:bg-red-700 transition">Kembali ke Aplikasi</button>
+      <div className="print-wrapper shadow-xl">
+        <div className="flex justify-between items-center mb-4 border-b border-black pb-2">
+          <div className="flex items-center gap-4"><img src="https://dimsumaditya.id/wp-content/uploads/2024/10/Dimsum-Aditya.png" alt="Logo" style={{ height: '64px', width: 'auto' }} /><div><h1 className="font-black text-xl tracking-wide uppercase mb-1">Dimsum Aditya</h1><p className="text-[10px] font-medium leading-tight">Jl. Thamrin, RT.001/RW.003, Ketapang</p><p className="text-[10px] font-medium leading-tight">Kec. Cipondoh, Kota Tangerang, Banten 15147</p><p className="text-[10px] font-medium leading-tight mt-0.5">Telp: 087809020931 | Web: dimsumaditya.id</p></div></div>
+          <div className="text-right"><h2 className="text-3xl font-black tracking-widest uppercase mb-1">INVOICE</h2><p className="font-bold text-base">{data.id}</p></div>
         </div>
-
-        <h3 className="font-bold text-sm mb-2">A. TRANSAKSI PENJUALAN (RINCIAN TAGIHAN & PEMBAYARAN)</h3>
-        <table className="table-print">
-          <thead><tr><th className="w-8">NO</th><th>TGL & INV</th><th>PELANGGAN</th><th className="text-right">TAGIHAN</th><th className="text-right">TERBAYAR</th><th className="text-right">SISA</th><th className="text-center">STATUS</th></tr></thead>
+        <div className="flex justify-between gap-4 mb-4">
+          <div className="flex-1 box-solid"><p className="text-[10px] font-bold uppercase mb-1">Tagihan Kepada :</p><p className="text-lg font-black uppercase">{data.customer}</p></div>
+          <div className="w-1/3 box-solid flex flex-col justify-center"><div className="flex justify-between mb-1.5"><span className="text-[10px] font-bold uppercase">Tanggal</span> <span className="font-bold text-[10px]">{formatDate(data.date)}</span></div><div className="flex justify-between"><span className="text-[10px] font-bold uppercase">Pembayaran</span> <span className="font-bold uppercase text-[10px]">{data.paymentMethod}</span></div></div>
+        </div>
+        <table className="table-pro">
+          <thead><tr><th className="w-8">NO</th><th className="text-left">DESKRIPSI BARANG</th><th className="w-20">PORSI</th><th className="w-20">QTY</th><th className="w-32 text-right">HARGA SATUAN</th><th className="w-32 text-right">TOTAL</th></tr></thead>
           <tbody>
-            {(rekap?.listTransaksiDetail || []).map((c, i) => (
-                <tr key={i}>
-                    <td className="text-center">{i + 1}</td>
-                    <td className="text-center">{formatDate(c.date)}<br/><span className="font-mono text-[9px]">{c.id}</span></td>
-                    <td className="font-bold uppercase">{c.customer}</td>
-                    <td className="text-right">{formatRp(c.totalTagihan)}</td>
-                    <td className="text-right text-emerald-600">{formatRp(c.totalTerbayar)}</td>
-                    <td className="text-right font-bold text-red-600">{formatRp(c.sisaTagihan)}</td>
-                    <td className={`text-center font-bold text-[10px] ${c.status === 'LUNAS' ? 'text-emerald-600' : 'text-red-600'}`}>{c.status}</td>
-                </tr>
-            ))}
-            <tr>
-                <td colSpan="3" className="text-right font-bold uppercase">Total Omset Penjualan :</td>
-                <td className="text-right font-black text-blue-700">{formatRp(rekap?.totalPenjualanKotor)}</td>
-                <td colSpan="3"></td>
-            </tr>
+            <tr><td className="font-bold">1</td><td className="text-left font-bold uppercase">Dimsum Ayam Mix</td><td className="font-bold">{totalPorsi} Prs</td><td className="font-bold">{totalQtyNum} Pcs</td><td className="text-right">{formatRp(data.price)}</td><td className="text-right font-black">{formatRp(data.totalAll)}</td></tr>
+            <tr><td className="py-2 border-b-0"></td><td className="border-b-0"></td><td className="border-b-0"></td><td className="border-b-0"></td><td className="border-b-0"></td><td className="border-b-0"></td></tr>
           </tbody>
         </table>
-
-        {rekap?.listPembayaranSemua?.length > 0 && (
-          <>
-            <h3 className="font-bold text-sm mb-2 mt-6 text-blue-700">B. RIWAYAT PEMBAYARAN CICILAN (MASUK & KELUAR)</h3>
-            <table className="table-print">
-              <thead><tr><th className="w-8">NO</th><th>TGL & ID BAYAR</th><th>TGL & INV ASAL</th><th>PELANGGAN</th><th className="text-right">NOMINAL CICILAN</th><th className="text-center">STATUS NOTA</th></tr></thead>
-              <tbody>
-                {rekap.listPembayaranSemua.map((p, i) => (
-                  <tr key={i}>
-                    <td className="text-center">{i + 1}</td>
-                    <td className="text-center font-bold text-blue-700">{formatDate(p.date)}<br/><span className="font-mono text-[9px] text-slate-500">{p.payId}</span></td>
-                    <td className="text-center">{formatDate(p.tglInvoice)}<br/><span className="font-mono text-[9px]">{p.orderId}</span></td>
-                    <td className="font-bold uppercase">{p.customer}<br/><span className="text-[9px] font-normal">{p.qtyDesc}</span></td>
-                    <td className={`text-right font-black ${p.tipe === 'HUTANG' ? 'text-red-600' : 'text-emerald-600'}`}>{p.tipe === 'HUTANG' ? '-' : '+'}{formatRp(p.amount)}</td>
-                    <td className={`text-center font-bold text-[10px] ${p.statusNota === 'LUNAS' ? 'text-emerald-600' : 'text-red-600'}`}>{p.statusNota}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
-        )}
-
-        {rekap?.listExpenses?.length > 0 && (
-          <>
-            <h3 className="font-bold text-sm mb-2 mt-6">C. BUKU KAS (PENGELUARAN)</h3>
-            <table className="table-print">
-              <thead><tr><th className="w-8">NO</th><th>TANGGAL</th><th>KATEGORI</th><th>KETERANGAN</th><th className="text-right">NOMINAL</th></tr></thead>
-              <tbody>{rekap.listExpenses.map((o, i) => (<tr key={i}><td className="text-center">{i + 1}</td><td className="text-center">{formatDate(o.date)}</td><td className="font-bold uppercase">{o.category}</td><td>{o.description}</td><td className="text-right">-{formatRp(o.total)}</td></tr>))}<tr><td colSpan="4" className="text-right font-bold uppercase">Total Pengeluaran Kas :</td><td className="text-right font-black text-red-600">-{formatRp(totalPengeluaran)}</td></tr></tbody>
-            </table>
-          </>
-        )}
+        <div className="flex justify-between items-start mt-2">
+            <div className="flex-1 mr-6"><div className="border border-black p-2 rounded bg-white"><span className="text-[9px] font-bold uppercase block">Terbilang :</span><span className="font-bold italic text-xs"># {terbilang(data.totalAll)} Rupiah #</span></div><div className="mt-2 text-xs font-bold"><p className="uppercase underline mb-0.5">Info Transfer :</p><p>BCA : 1320552261 a/n WASTAM</p><p>BRI : 775301006132536 a/n WASTAM</p></div></div>
+            <div className="w-64"><div className="flex justify-between mb-1 text-xs"><span className="font-bold uppercase">Subtotal</span><span className="font-black">{formatRp(data.totalAll)}</span></div><div className="flex justify-between mb-1.5 text-xs"><span className="font-bold uppercase">Telah Dibayar</span><span className="font-bold">{formatRp(data.paidAmount)}</span></div><div className="flex justify-between border-t border-b border-black py-1 mt-1"><span className="font-black text-sm uppercase">SISA TAGIHAN</span><span className="font-black text-sm">{formatRp(Number(data.totalAll) - Number(data.paidAmount))}</span></div></div>
+        </div>
+        <div className="flex justify-between mt-6 text-center text-xs"><div className="w-40"><p className="font-bold uppercase">Penerima / Pelanggan</p><div className="h-12"></div><p className="border-t border-black pt-1 uppercase">( {data.customer} )</p></div><div className="w-40"><p className="font-bold uppercase">Hormat Kami,</p><div className="h-12"></div><p className="border-t border-black pt-1 uppercase">( Admin Kasir )</p></div></div>
       </div>
     </div>
   );
 }
 
-export function PrintReportBranch({ data, onBack, user }) {
-  useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
-  const { rekap, dateFrom, dateTo } = data;
-  return (
-    <div className="bg-slate-100 min-h-screen p-4">
-      <style dangerouslySetInnerHTML={{ __html: a4Style }} />
-      <button onClick={onBack} className="hide-on-print mb-4 bg-slate-800 text-white px-4 py-2 rounded">Kembali</button>
-      <div className="bg-white p-8 max-w-[210mm] mx-auto shadow-lg border border-gray-300">
-        <div className="header flex items-center justify-between border-b-2 border-black pb-4 mb-4">
-            <img src="https://dimsumaditya.id/wp-content/uploads/2024/10/Dimsum-Aditya.png" alt="Logo" style={{ height: '70px', width: 'auto' }} />
-            <div className="text-right"><h1 className="text-lg font-bold uppercase">LAPORAN OPERASIONAL DIMSUM ADITYA</h1><p className="text-xs font-bold uppercase">CABANG: {user?.name}</p><p className="text-xs">Periode: {formatDate(dateFrom)} s/d {formatDate(dateTo)}</p></div>
-        </div>
-        <div className="flex gap-4 mb-6"><div className="border p-4 flex-1"><strong>Total Penjualan Kotor:</strong> {formatRp(rekap?.totalPenjualanKotor)}</div><div className="border p-4 flex-1"><strong>Porsi Terjual:</strong> {rekap?.totalPorsi} Prs</div><div className="border p-4 flex-1"><strong>Total Setoran Pusat:</strong> <span className="text-blue-600">{formatRp(rekap?.setoranKePusat)}</span></div></div>
-        
-        <h3 className="font-bold text-sm mb-2">A. TRANSAKSI INVOICE CABANG</h3>
-        <table className="table-print">
-          <thead><tr><th className="w-8">NO</th><th>TGL & INV</th><th>PELANGGAN</th><th className="text-right">TAGIHAN</th><th className="text-right">TERBAYAR</th><th className="text-right">SISA</th><th className="text-center">STATUS</th></tr></thead>
-          <tbody>
-            {(rekap?.listOrders || []).map((c, i) => (
-                <tr key={i}>
-                    <td className="text-center">{i + 1}</td>
-                    <td className="text-center">{formatDate(c.date)}<br/><span className="font-mono text-[9px]">{c.id}</span></td>
-                    <td className="font-bold uppercase">{c.customer}</td>
-                    <td className="text-right">{formatRp(c.totalTagihan)}</td>
-                    <td className="text-right text-emerald-600">{formatRp(c.totalTerbayar)}</td>
-                    <td className="text-right font-bold text-red-600">{formatRp(c.sisaTagihan)}</td>
-                    <td className={`text-center font-bold text-[10px] ${c.status === 'LUNAS' ? 'text-emerald-600' : 'text-red-600'}`}>{c.status}</td>
-                </tr>
-            ))}
-            <tr>
-                <td colSpan="3" className="text-right font-bold uppercase">Total Omset Cabang :</td>
-                <td className="text-right font-black text-blue-700">{formatRp(rekap?.totalPenjualanKotor)}</td>
-                <td colSpan="3"></td>
-            </tr>
-          </tbody>
-        </table>
-
-        <h3 className="font-bold text-sm mb-2 mt-6">B. LAPORAN HARIAN & STOK</h3>
-        <table className="table-print">
-            <thead><tr><th className="w-8">NO</th><th>TGL</th><th className="text-center">PROD / PSN</th><th>STOK FREEZER</th><th className="text-center">TUJUAN TF</th><th className="text-right">UANG DISETOR</th></tr></thead>
-            <tbody>{(rekap?.listReports || []).map((p, i) => (<tr key={i}><td className="text-center">{i + 1}</td><td className="text-center">{formatDate(p.date)}</td><td className="text-center">{p.produksiMika}M / {p.pesananMika}M</td><td className="font-bold uppercase text-center">{p.stokFreezer}</td><td className="text-center font-bold text-indigo-700">{p.transferDestination || 'BCA (WASTAM)'}</td><td className="text-right font-bold text-emerald-700">{formatRp(p.nominal)}</td></tr>))}</tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-export function PrintInvoiceDotMatrix({ data, onBack }) { /* sama dgn atas */ return null; }
-export function PrintVoucher({ data, onBack }) { /* sama dgn atas */ return null; }
-export function PrintPurchase({ data, onBack }) { /* sama dgn atas */ return null; }
+export function PrintVoucher({ data, onBack }) { /* sama dengan sebelumnya */ return null; }
+export function PrintPurchase({ data, onBack }) { /* sama dengan sebelumnya */ return null; }
