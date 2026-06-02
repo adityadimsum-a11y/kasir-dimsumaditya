@@ -39,7 +39,7 @@ function NavItem({ icon, label, active, onClick, badge }) {
 }
 
 export default function App() {
-  // === SISTEM SESI SUPER KEBAL (BULLETPROOF LOCALSTORAGE) ===
+  // === 1. MEMBACA SESSION LOGIN (TIDAK LOGOUT SAAT REFRESH) ===
   const [user, setUser] = useState(() => {
     try {
       const savedUser = window.localStorage.getItem('dimsum_user_session');
@@ -47,26 +47,18 @@ export default function App() {
     } catch (error) { return null; }
   }); 
 
+  // === 2. MEMBACA POSISI MENU TERAKHIR (TIDAK PINDAH KE DASHBOARD SAAT REFRESH) ===
   const [activeTab, setActiveTab] = useState(() => {
     try {
       return window.localStorage.getItem('dimsum_active_tab') || 'dashboard';
     } catch (error) { return 'dashboard'; }
   });
 
-  // Watcher: Otomatis simpan setiap kali user / tab berubah
-  useEffect(() => {
-    try {
-      if (user) window.localStorage.setItem('dimsum_user_session', JSON.stringify(user));
-      else window.localStorage.removeItem('dimsum_user_session');
-    } catch (error) { console.error("Gagal simpan sesi", error); }
-  }, [user]);
-
-  useEffect(() => {
-    try {
-      if (user) window.localStorage.setItem('dimsum_active_tab', activeTab);
-    } catch (error) { console.error("Gagal simpan tab", error); }
-  }, [activeTab, user]);
-  // ==========================================================
+  // === 3. FUNGSI "SIMPAN PAKSA" SETIAP KALI MENU DIKLIK ===
+  const handleTabChange = (tabName) => {
+    setActiveTab(tabName);
+    window.localStorage.setItem('dimsum_active_tab', tabName);
+  };
 
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [loginError, setLoginError] = useState('');
@@ -98,7 +90,10 @@ export default function App() {
 
     if (loggedInUser) {
       setUser(loggedInUser);
-      setActiveTab('dashboard'); 
+      window.localStorage.setItem('dimsum_user_session', JSON.stringify(loggedInUser));
+      
+      // Saat baru pertama login, paksa masuk ke dashboard
+      handleTabChange('dashboard'); 
       setLoginError(''); 
     } else {
       setLoginError('Username atau Password salah!');
@@ -108,8 +103,11 @@ export default function App() {
   const handleLogout = () => {
     setUser(null); 
     setLoginForm({ username: '', password: '' });
+    
+    // BERSIHKAN SEMUA INGATAN BROWSER SAAT LOGOUT
     window.localStorage.removeItem('dimsum_user_session');
     window.localStorage.removeItem('dimsum_active_tab');
+    
     setOrders([]); setExpenses([]); setPiutangPayments([]); setPemalangReports([]); setStokData([]); setPurchases([]);
   };
 
@@ -280,22 +278,23 @@ export default function App() {
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
           {user.role === 'admin' && (
             <>
-              <NavItem icon={<LayoutDashboard size={20} />} label="Dashboard & Rekap" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
-              <NavItem icon={<ShoppingCart size={20} />} label="Order & Penjualan" active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} />
-              <NavItem icon={<Truck size={20} />} label="Pembelian Bahan" active={activeTab === 'purchases'} onClick={() => setActiveTab('purchases')} />
-              <NavItem icon={<Wallet size={20} />} label="Kas Umum (Lainnya)" active={activeTab === 'expenses'} onClick={() => setActiveTab('expenses')} />
-              <NavItem icon={<Clock size={20} />} label="Hutang & Piutang" active={activeTab === 'piutang'} onClick={() => setActiveTab('piutang')} badge={pendingHutangPiutang} />
-              <div className="pt-4 mt-2 border-t border-slate-800"><NavItem icon={<Package size={20} />} label="Stok Freezer Cabang" active={activeTab === 'stok'} onClick={() => setActiveTab('stok')} /></div>
+              {/* PERHATIKAN onClick SEKARANG MEMANGGIL handleTabChange */}
+              <NavItem icon={<LayoutDashboard size={20} />} label="Dashboard & Rekap" active={activeTab === 'dashboard'} onClick={() => handleTabChange('dashboard')} />
+              <NavItem icon={<ShoppingCart size={20} />} label="Order & Penjualan" active={activeTab === 'orders'} onClick={() => handleTabChange('orders')} />
+              <NavItem icon={<Truck size={20} />} label="Pembelian Bahan" active={activeTab === 'purchases'} onClick={() => handleTabChange('purchases')} />
+              <NavItem icon={<Wallet size={20} />} label="Kas Umum (Lainnya)" active={activeTab === 'expenses'} onClick={() => handleTabChange('expenses')} />
+              <NavItem icon={<Clock size={20} />} label="Hutang & Piutang" active={activeTab === 'piutang'} onClick={() => handleTabChange('piutang')} badge={pendingHutangPiutang} />
+              <div className="pt-4 mt-2 border-t border-slate-800"><NavItem icon={<Package size={20} />} label="Stok Freezer Cabang" active={activeTab === 'stok'} onClick={() => handleTabChange('stok')} /></div>
             </>
           )}
           {user.role === 'branch' && (
             <>
               <div className="text-xs font-bold text-slate-500 uppercase mb-2 px-3">Akses Cabang</div>
-              <NavItem icon={<LayoutDashboard size={20} />} label="Dashboard Cabang" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
-              <NavItem icon={<ShoppingCart size={20} />} label="Buat Invoice" active={activeTab === 'orders'} onClick={() => setActiveTab('orders')} />
-              <NavItem icon={<Clock size={20} />} label="Hutang & Piutang" active={activeTab === 'piutang'} onClick={() => setActiveTab('piutang')} />
-              <NavItem icon={<Package size={20} />} label="Manajemen Stok" active={activeTab === 'stok'} onClick={() => setActiveTab('stok')} />
-              <NavItem icon={<Store size={20} />} label="Laporan Harian" active={activeTab === 'pemalang'} onClick={() => setActiveTab('pemalang')} />
+              <NavItem icon={<LayoutDashboard size={20} />} label="Dashboard Cabang" active={activeTab === 'dashboard'} onClick={() => handleTabChange('dashboard')} />
+              <NavItem icon={<ShoppingCart size={20} />} label="Buat Invoice" active={activeTab === 'orders'} onClick={() => handleTabChange('orders')} />
+              <NavItem icon={<Clock size={20} />} label="Hutang & Piutang" active={activeTab === 'piutang'} onClick={() => handleTabChange('piutang')} />
+              <NavItem icon={<Package size={20} />} label="Manajemen Stok" active={activeTab === 'stok'} onClick={() => handleTabChange('stok')} />
+              <NavItem icon={<Store size={20} />} label="Laporan Harian" active={activeTab === 'pemalang'} onClick={() => handleTabChange('pemalang')} />
             </>
           )}
         </nav>
