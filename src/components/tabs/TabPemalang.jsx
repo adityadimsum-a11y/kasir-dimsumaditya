@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { X, Plus, Trash2, Filter } from 'lucide-react';
 import { 
-  getTodayStr, getFirstDayOfMonthStr, getLocalYMD, formatRp, parseRp, 
+  getTodayStr, getLocalYMD, formatRp, parseRp, 
   generateId, formatDate 
 } from '../../utils/helpers';
 
@@ -19,8 +19,8 @@ export default function TabPemalang({ reports, sendToSheet, requestDelete }) {
   const [nominal, setNominal] = useState(0); const [transferDestination, setTransferDestination] = useState('BCA (WASTAM)'); 
   const [notes, setNotes] = useState('');
   
-  // MENGGUNAKAN TANGGAL 1 SEBAGAI DEFAULT FILTER
-  const [filterFrom, setFilterFrom] = useState(getFirstDayOfMonthStr()); 
+  // DIKEMBALIKAN KE DEFAULT HARI INI - HARI INI
+  const [filterFrom, setFilterFrom] = useState(todayStr); 
   const [filterTo, setFilterTo] = useState(todayStr);
 
   const resetForm = () => {
