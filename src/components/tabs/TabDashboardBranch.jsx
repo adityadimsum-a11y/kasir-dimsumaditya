@@ -10,7 +10,8 @@ const StatCard = ({ title, amount, icon, color }) => (
   </div>
 );
 
-export default function TabDashboardBranch({ orders, pemalangReports, piutangPayments, setPrintData, user, stokData }) {
+// FIX VERCEL: Hapus parameter `user` yang tidak dipakai di dalam komponen ini
+export default function TabDashboardBranch({ orders, pemalangReports, piutangPayments, setPrintData, stokData }) {
   const todayStr = getTodayStr();
   const [dateFrom, setDateFrom] = useState(todayStr);
   const [dateTo, setDateTo] = useState(todayStr);
