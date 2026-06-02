@@ -18,7 +18,7 @@ const StatCard = ({ title, amount, icon, color }) => (
 
 export default function TabDashboardBranch({ orders, pemalangReports, setPrintData, user, stokData }) {
   const todayStr = getTodayStr();
-  // DIKEMBALIKAN KE HARI INI
+  // FILTER DIKEMBALIKAN KE HARI INI
   const [dateFrom, setDateFrom] = useState(todayStr);
   const [dateTo, setDateTo] = useState(todayStr);
   const [chartView, setChartView] = useState('daily'); 
