@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Calendar, Printer, Wallet, Coins, CreditCard, TrendingUp, ArrowRightLeft, Users, ShoppingCart, Truck, Clock } from 'lucide-react';
-import { getTodayStr, getLocalYMD, formatRp, formatDate } from '../../utils/helpers';
+import { getTodayStr, getFirstDayOfMonthStr, getLocalYMD, formatRp, formatDate } from '../../utils/helpers';
 import SimpleSVGLineChart from '../ui/SimpleSVGLineChart';
 
 const StatCard = ({ title, amount, icon, color }) => (
@@ -75,30 +75,52 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
     const groupPurAll = {}; (purchases || []).forEach(p => { if(!p?.id) return; if(!groupPurAll[p.id]) groupPurAll[p.id] = { ...p, items: [], totalTagihan: 0, totalDibayar: Number(p.paidAmount)||0 }; groupPurAll[p.id].items.push(`${p.itemName} (${p.qty} ${p.satuan})`); groupPurAll[p.id].totalTagihan += Number(p.total)||0; });
     const listHutangBerjalan = Object.values(groupPurAll).map(grp => { const cicilan = (piutangPayments || []).filter(p => p.orderId === grp.id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0); return { ...grp, cicilanTerbayar: cicilan, sisaHutang: grp.totalTagihan - grp.totalDibayar - cicilan }; }).filter(p => p.sisaHutang > 0);
 
-    const listPembayaranSemua = (cumPayments || []).filter(p => isPeriod(p.date)).map(pay => {
-        const isHutang = String(pay?.orderId || '').startsWith('BUY-');
-        const relData = isHutang ? groupPurAll[pay.orderId] : groupOrdersAll[pay.orderId];
-        const cicilan = (piutangPayments || []).filter(p=>p.orderId===pay.orderId).reduce((s,p)=>s+(Number(p.amount)||0), 0);
-        const sisa = (Number(relData?.totalTagihan)||0) - (Number(relData?.totalDibayar)||0) - cicilan;
-        
-        let qtyStr = "-";
-        if (relData && !isHutang) {
-            const totalQty = (relData.items || []).reduce((sum, str) => sum + (parseInt(str) || 0), 0);
-            qtyStr = `${totalQty} Pcs / ${totalQty/4} Prs`;
-        } else if (relData && isHutang) {
-            qtyStr = (relData.items || []).join(', ');
-        }
+    // MENGHITUNG RUNNING BALANCE SECARA KRONOLOGIS
+    const orderSisaTracker = {};
+    Object.values(groupOrdersAll).forEach(o => { orderSisaTracker[o.id] = o.totalTagihan - o.totalDibayar; });
+    Object.values(groupPurAll).forEach(p => { orderSisaTracker[p.id] = p.totalTagihan - p.totalDibayar; });
 
-        return { 
-            ...pay, 
-            payId: pay.id, 
-            customer: relData ? (isHutang ? relData.supplier : relData.customer) : '-', 
-            tglInvoice: relData?.date || '-',
-            qtyDesc: qtyStr,
-            statusNota: sisa <= 0 ? 'LUNAS' : 'BELUM LUNAS', 
-            tipe: isHutang ? 'HUTANG' : 'PIUTANG' 
-        };
+    const allPaymentsChronological = [...(piutangPayments || [])]
+        .filter(p => getLocalYMD(p.date) <= dateTo)
+        .sort((a,b) => new Date(a.date) - new Date(b.date));
+
+    const paymentSisaMap = {};
+    allPaymentsChronological.forEach(pay => {
+        const amt = Number(pay.amount) || 0;
+        if (orderSisaTracker[pay.orderId] !== undefined) {
+            orderSisaTracker[pay.orderId] -= amt;
+            paymentSisaMap[pay.id] = orderSisaTracker[pay.orderId];
+        }
     });
+
+    const listPembayaranSemua = allPaymentsChronological
+        .filter(p => isPeriod(p.date))
+        .sort((a, b) => new Date(b.date) - new Date(a.date)) // Urutkan yang terbaru di atas untuk tampilan
+        .map(pay => {
+            const isHutang = String(pay?.orderId || '').startsWith('BUY-');
+            const relData = isHutang ? groupPurAll[pay.orderId] : groupOrdersAll[pay.orderId];
+            
+            let qtyStr = "-";
+            if (relData && !isHutang) {
+                const totalQty = (relData.items || []).reduce((sum, str) => sum + (parseInt(str) || 0), 0);
+                qtyStr = `${totalQty} Pcs / ${totalQty/4} Prs`;
+            } else if (relData && isHutang) {
+                qtyStr = (relData.items || []).join(', ');
+            }
+
+            const sisaAkhir = paymentSisaMap[pay.id] || 0;
+
+            return { 
+                ...pay, 
+                payId: pay.id, 
+                customer: relData ? (isHutang ? relData.supplier : relData.customer) : '-', 
+                tglInvoice: relData?.date || '-',
+                qtyDesc: qtyStr,
+                sisaTagihan: sisaAkhir,
+                statusNota: sisaAkhir <= 0 ? 'LUNAS' : 'BELUM LUNAS', 
+                tipe: isHutang ? 'HUTANG' : 'PIUTANG' 
+            };
+        });
 
     let inCashPeriode = 0, inTfPeriode = 0, outCashPeriode = 0, outTfPeriode = 0;
     Object.values(orderGroups).forEach(g => { if(g.method === 'Cash') inCashPeriode += g.paid; else if(g.method === 'Transfer') inTfPeriode += g.paid; }); Object.values(purGroups).forEach(g => { if(g.method === 'Cash') outCashPeriode += g.paid; else if(g.method === 'Transfer') outTfPeriode += g.paid; });
@@ -139,9 +161,9 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm mt-6">
         <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Clock size={20} className="text-slate-500"/> Riwayat Pembayaran Cicilan (Periode Ini)</h3>
         <table className="w-full text-sm text-left block md:table overflow-x-auto">
-            <thead className="bg-slate-50 border-b"><tr><th className="px-4 py-3">Tgl & ID Bayar</th><th className="px-4 py-3">Tgl & Inv Asal</th><th className="px-4 py-3">Pelanggan</th><th className="px-4 py-3 text-center">Qty</th><th className="px-4 py-3 text-right">Nominal Masuk</th><th className="px-4 py-3 text-center">Status Nota</th></tr></thead>
+            <thead className="bg-slate-50 border-b"><tr><th className="px-4 py-3">Tgl & ID Bayar</th><th className="px-4 py-3">Tgl & Inv Asal</th><th className="px-4 py-3">Pelanggan</th><th className="px-4 py-3 text-center">Qty</th><th className="px-4 py-3 text-right">Nominal Masuk</th><th className="px-4 py-3 text-right">Sisa Tagihan</th><th className="px-4 py-3 text-center">Status</th></tr></thead>
             <tbody className="divide-y divide-slate-100">
-                {rekap.listPembayaranSemua.length === 0 && <tr><td colSpan="6" className="text-center py-8 text-slate-400">Tidak ada riwayat cicilan.</td></tr>}
+                {rekap.listPembayaranSemua.length === 0 && <tr><td colSpan="7" className="text-center py-8 text-slate-400">Tidak ada riwayat cicilan.</td></tr>}
                 {rekap.listPembayaranSemua.map((pay, i) => (
                     <tr key={i} className="hover:bg-slate-50">
                         <td className="px-4 py-3"><div className="font-bold text-blue-600">{formatDate(pay.date)}</div><div className="text-[10px] text-slate-400 font-mono">{pay.payId}</div></td>
@@ -149,6 +171,7 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
                         <td className="px-4 py-3 font-bold uppercase">{pay.customer}</td>
                         <td className="px-4 py-3 text-center text-xs">{pay.qtyDesc}</td>
                         <td className={`px-4 py-3 text-right font-black ${pay.tipe === 'HUTANG' ? 'text-red-600' : 'text-emerald-600'}`}>{pay.tipe === 'HUTANG' ? '-' : '+'}{formatRp(pay.amount)}</td>
+                        <td className={`px-4 py-3 text-right font-bold ${pay.sisaTagihan <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{pay.sisaTagihan <= 0 ? 'Rp 0' : formatRp(pay.sisaTagihan)}</td>
                         <td className={`px-4 py-3 text-center font-bold text-[10px] ${pay.statusNota === 'LUNAS' ? 'text-emerald-600' : 'text-red-600'}`}>{pay.statusNota}</td>
                     </tr>
                 ))}
