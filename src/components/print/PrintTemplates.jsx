@@ -295,12 +295,14 @@ export function PrintPurchase({ data, onBack }) {
 }
 
 // ============================================================================
-// KOMPONEN PRINT LAPORAN REKAP PUSAT (A4) - COMPACT SPACING + QTY
+// KOMPONEN PRINT LAPORAN REKAP PUSAT (A4) - COMPACT SPACING + QTY + FOOTER TOTAL
 // ============================================================================
 export function PrintReport({ data, onBack }) {
   useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
   const { rekap, dateFrom, dateTo } = data;
   const totalPengeluaran = (rekap?.listExpenses || []).reduce((sum, e) => sum + (Number(e.total)||0), 0);
+  const sumTerbayar = (rekap?.listTransaksiDetail || []).reduce((s, c) => s + (c.totalTerbayar||0), 0);
+  const sumSisa = (rekap?.listTransaksiDetail || []).reduce((s, c) => s + (c.sisaTagihan||0), 0);
 
   return (
     <div className="bg-slate-100 min-h-screen p-4">
@@ -342,7 +344,6 @@ export function PrintReport({ data, onBack }) {
             </div>
         </div>
 
-        {/* =============== PERBAIKAN: TAMBAH KOLOM QTY DI TABEL PENJUALAN =============== */}
         <h3 className="font-bold text-xs mb-1.5 text-slate-800">A. TRANSAKSI PENJUALAN</h3>
         <table className="table-print">
           <thead>
@@ -352,26 +353,30 @@ export function PrintReport({ data, onBack }) {
             {(!rekap?.listTransaksiDetail || rekap.listTransaksiDetail.length === 0) ? (
                 <tr><td colSpan="9" className="text-center py-4 italic text-slate-500">Tidak ada transaksi di periode ini.</td></tr>
             ) : (
-                rekap.listTransaksiDetail.map((c, i) => (
+                rekap.listTransaksiDetail.map((c, i) => {
+                    const itemPcs = c.items.reduce((sum, str) => sum + (parseInt(str) || 0), 0);
+                    return (
                     <tr key={i}>
                         <td className="text-center">{i + 1}</td>
                         <td>{formatDate(c.date)}<br/><span className="font-mono text-[8px] text-slate-500">{c.id}</span></td>
                         <td className="font-bold uppercase">{c.customer}</td>
-                        {/* INI KOLOM QTY BARU */}
-                        <td className="text-center text-[9px]">{c.items.join(', ')}</td>
-                        <td className="text-center">{c.paymentMethod}</td>
+                        <td className="text-center text-[9px]">{itemPcs} Pcs / {itemPcs/4} Prs</td>
+                        <td className="text-center text-[9px]">{c.paymentMethod}</td>
                         <td className="text-right font-medium">{formatRp(c.totalTagihan)}</td>
                         <td className="text-right text-emerald-600 font-bold">{formatRp(c.totalTerbayar)}</td>
                         <td className="text-right font-bold text-red-600">{formatRp(c.sisaTagihan)}</td>
-                        <td className={`text-center font-bold ${c.status === 'LUNAS' ? 'text-emerald-600' : 'text-red-600'}`}>{c.status}</td>
+                        <td className={`text-center font-bold text-[9px] ${c.status === 'LUNAS' ? 'text-emerald-600' : 'text-red-600'}`}>{c.status}</td>
                     </tr>
-                ))
+                )})
             )}
             <tr>
-                {/* COLSPAN DISESUAIKAN MENJADI 5 */}
-                <td colSpan="5" className="text-right font-bold uppercase bg-slate-50">Total Omset Penjualan :</td>
+                <td colSpan="3" className="text-right font-bold uppercase bg-slate-50">Total Penjualan :</td>
+                <td className="text-center font-bold text-slate-700 bg-slate-50 text-[9px]">{rekap?.totalPcs} Pcs / {rekap?.totalPorsi} Prs</td>
+                <td className="bg-slate-50"></td>
                 <td className="text-right font-black text-blue-700 bg-slate-50">{formatRp(rekap?.totalPenjualanKotor)}</td>
-                <td colSpan="3" className="bg-slate-50"></td>
+                <td className="text-right font-black text-emerald-600 bg-slate-50">{formatRp(sumTerbayar)}</td>
+                <td className="text-right font-black text-red-600 bg-slate-50">{formatRp(sumSisa)}</td>
+                <td className="bg-slate-50"></td>
             </tr>
           </tbody>
         </table>
@@ -391,9 +396,9 @@ export function PrintReport({ data, onBack }) {
                     <td>{formatDate(p.tglInvoice)}<br/><span className="font-mono text-[8px] font-normal text-slate-500">{p.orderId}</span></td>
                     <td className="font-bold uppercase">{p.customer}</td>
                     <td className="text-center text-[9px]">{p.qtyDesc}</td>
-                    <td className="text-center">{p.paymentMethod}</td>
+                    <td className="text-center text-[9px]">{p.paymentMethod}</td>
                     <td className="text-right font-black text-emerald-600">+{formatRp(p.amount)}</td>
-                    <td className={`text-center font-bold ${p.statusNota === 'LUNAS' ? 'text-emerald-600' : 'text-red-600'}`}>{p.statusNota}</td>
+                    <td className={`text-center font-bold text-[9px] ${p.statusNota === 'LUNAS' ? 'text-emerald-600' : 'text-red-600'}`}>{p.statusNota}</td>
                   </tr>
                 ))}
               </tbody>
@@ -416,9 +421,9 @@ export function PrintReport({ data, onBack }) {
                     <td>{formatDate(p.tglInvoice)}<br/><span className="font-mono text-[8px] font-normal text-slate-500">{p.orderId}</span></td>
                     <td className="font-bold uppercase">{p.customer}</td>
                     <td className="text-center text-[9px]">{p.qtyDesc}</td>
-                    <td className="text-center">{p.paymentMethod}</td>
+                    <td className="text-center text-[9px]">{p.paymentMethod}</td>
                     <td className="text-right font-black text-red-600">-{formatRp(p.amount)}</td>
-                    <td className={`text-center font-bold ${p.statusNota === 'LUNAS' ? 'text-emerald-600' : 'text-red-600'}`}>{p.statusNota}</td>
+                    <td className={`text-center font-bold text-[9px] ${p.statusNota === 'LUNAS' ? 'text-emerald-600' : 'text-red-600'}`}>{p.statusNota}</td>
                   </tr>
                 ))}
               </tbody>
@@ -440,7 +445,7 @@ export function PrintReport({ data, onBack }) {
                           <td>{formatDate(o.date)}<br/><span className="font-mono text-[8px] text-slate-500">{o.id}</span></td>
                           <td className="font-bold uppercase">{o.recipient || '-'}</td>
                           <td><div className="font-bold text-slate-800">{o.category}</div><div>{o.description}</div></td>
-                          <td className="text-center">{o.paymentMethod}</td>
+                          <td className="text-center text-[9px]">{o.paymentMethod}</td>
                           <td className="text-right font-bold text-red-600">-{formatRp(o.total)}</td>
                       </tr>
                   ))}
@@ -463,11 +468,14 @@ export function PrintReport({ data, onBack }) {
 }
 
 // ============================================================================
-// KOMPONEN PRINT LAPORAN CABANG PEMALANG (A4) - COMPACT SPACING + QTY
+// KOMPONEN PRINT LAPORAN CABANG PEMALANG (A4) - COMPACT SPACING + QTY + FOOTER
 // ============================================================================
 export function PrintReportBranch({ data, onBack, user }) {
   useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
   const { rekap, dateFrom, dateTo } = data;
+  const sumTerbayarBranch = (rekap?.listOrders || []).reduce((s, c) => s + (c.totalTerbayar||0), 0);
+  const sumSisaBranch = (rekap?.listOrders || []).reduce((s, c) => s + (c.sisaTagihan||0), 0);
+
   return (
     <div className="bg-slate-100 min-h-screen p-4">
       <style dangerouslySetInnerHTML={{ __html: a4Style }} />
@@ -503,7 +511,6 @@ export function PrintReportBranch({ data, onBack, user }) {
             </div>
         </div>
         
-        {/* =============== PERBAIKAN: TAMBAH KOLOM QTY DI TABEL PENJUALAN =============== */}
         <h3 className="font-bold text-xs mb-1.5 text-slate-800">A. TRANSAKSI INVOICE CABANG</h3>
         <table className="table-print">
           <thead><tr><th className="w-8">NO</th><th>TGL & INV</th><th>PELANGGAN</th><th className="text-center">QTY</th><th className="text-center">VIA</th><th className="text-right">TAGIHAN</th><th className="text-right">TERBAYAR</th><th className="text-right">SISA</th><th className="text-center">STATUS</th></tr></thead>
@@ -511,26 +518,30 @@ export function PrintReportBranch({ data, onBack, user }) {
             {(!rekap?.listOrders || rekap.listOrders.length === 0) ? (
                 <tr><td colSpan="9" className="text-center py-4 italic text-slate-500">Tidak ada transaksi penjualan cabang.</td></tr>
             ) : (
-                rekap.listOrders.map((c, i) => (
+                rekap.listOrders.map((c, i) => {
+                    const itemPcs = c.items.reduce((sum, str) => sum + (parseInt(str) || 0), 0);
+                    return (
                     <tr key={i}>
                         <td className="text-center">{i + 1}</td>
                         <td>{formatDate(c.date)}<br/><span className="font-mono text-[8px] text-slate-500">{c.id}</span></td>
                         <td className="font-bold uppercase">{c.customer}</td>
-                        {/* INI KOLOM QTY BARU */}
-                        <td className="text-center text-[9px]">{c.items.join(', ')}</td>
-                        <td className="text-center">{c.paymentMethod}</td>
+                        <td className="text-center text-[9px]">{itemPcs} Pcs / {itemPcs/4} Prs</td>
+                        <td className="text-center text-[9px]">{c.paymentMethod}</td>
                         <td className="text-right">{formatRp(c.totalTagihan)}</td>
                         <td className="text-right text-emerald-600 font-bold">{formatRp(c.totalTerbayar)}</td>
                         <td className="text-right font-bold text-red-600">{formatRp(c.sisaTagihan)}</td>
-                        <td className={`text-center font-bold ${c.status === 'LUNAS' ? 'text-emerald-600' : 'text-red-600'}`}>{c.status}</td>
+                        <td className={`text-center font-bold text-[9px] ${c.status === 'LUNAS' ? 'text-emerald-600' : 'text-red-600'}`}>{c.status}</td>
                     </tr>
-                ))
+                )})
             )}
             <tr>
-                {/* COLSPAN DISESUAIKAN MENJADI 5 */}
-                <td colSpan="5" className="text-right font-bold uppercase bg-slate-50">Total Omset Cabang :</td>
+                <td colSpan="3" className="text-right font-bold uppercase bg-slate-50">Total Penjualan :</td>
+                <td className="text-center font-bold text-slate-700 bg-slate-50 text-[9px]">{rekap?.totalPcs} Pcs / {rekap?.totalPorsi} Prs</td>
+                <td className="bg-slate-50"></td>
                 <td className="text-right font-black text-blue-700 bg-slate-50">{formatRp(rekap?.totalPenjualanKotor)}</td>
-                <td colSpan="3" className="bg-slate-50"></td>
+                <td className="text-right font-black text-emerald-600 bg-slate-50">{formatRp(sumTerbayarBranch)}</td>
+                <td className="text-right font-black text-red-600 bg-slate-50">{formatRp(sumSisaBranch)}</td>
+                <td className="bg-slate-50"></td>
             </tr>
           </tbody>
         </table>
@@ -550,9 +561,9 @@ export function PrintReportBranch({ data, onBack, user }) {
                     <td>{formatDate(p.tglInvoice)}<br/><span className="font-mono text-[8px] font-normal text-slate-500">{p.orderId}</span></td>
                     <td className="font-bold uppercase">{p.customer}</td>
                     <td className="text-center text-[9px]">{p.qtyDesc}</td>
-                    <td className="text-center">{p.paymentMethod}</td>
+                    <td className="text-center text-[9px]">{p.paymentMethod}</td>
                     <td className="text-right font-black text-emerald-600">+{formatRp(p.amount)}</td>
-                    <td className={`text-center font-bold ${p.statusNota === 'LUNAS' ? 'text-emerald-600' : 'text-red-600'}`}>{p.statusNota}</td>
+                    <td className={`text-center font-bold text-[9px] ${p.statusNota === 'LUNAS' ? 'text-emerald-600' : 'text-red-600'}`}>{p.statusNota}</td>
                   </tr>
                 ))}
               </tbody>
