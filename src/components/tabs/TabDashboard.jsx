@@ -18,8 +18,8 @@ const StatCard = ({ title, amount, icon, color }) => (
 
 export default function TabDashboard({ orders, expenses, purchases, piutangPayments, pemalangReports, setPrintData }) {
   const todayStr = getTodayStr();
-  // FILTER DEFAULT SEKARANG DIAMBIL DARI TANGGAL 1 BULAN INI
-  const [dateFrom, setDateFrom] = useState(getFirstDayOfMonthStr());
+  // DIKEMBALIKAN KE HARI INI SECARA REALTIME
+  const [dateFrom, setDateFrom] = useState(todayStr);
   const [dateTo, setDateTo] = useState(todayStr);
   const [chartView, setChartView] = useState('daily'); 
 
@@ -135,11 +135,20 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
         groupOrdersAll[o.id].items.push(`${o.qty} Pcs`);
         groupOrdersAll[o.id].totalTagihan += Number(o.total)||0;
     });
-    const listPiutangBerjalan = Object.values(groupOrdersAll).map(grp => {
-        const cicilan = (piutangPayments || []).filter(p => p.orderId === grp.id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-        return { ...grp, cicilanTerbayar: cicilan, sisaHutang: grp.totalTagihan - grp.totalDibayar - cicilan };
-    }).filter(o => o.sisaHutang > 0);
 
+    // SISTEM LACAK PIUTANG (Tampil jika belum lunas ATAU ada transaksi/cicilan di hari ini)
+    const listPiutangBerjalan = Object.values(groupOrdersAll).map(grp => {
+        const orderPayments = (piutangPayments || []).filter(p => p.orderId === grp.id);
+        const cicilan = orderPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+        const sisaHutang = grp.totalTagihan - grp.totalDibayar - cicilan;
+        
+        const totalPcs = grp.items.reduce((s, str) => s + (parseInt(str)||0), 0);
+        const totalPorsi = totalPcs / 4;
+
+        return { ...grp, totalPcs, totalPorsi, cicilanTerbayar: cicilan, sisaHutang, riwayat: orderPayments };
+    }).filter(o => o.sisaHutang > 0 || isPeriod(o.date) || (o.riwayat && o.riwayat.some(r => isPeriod(r.date))));
+
+    // SISTEM LACAK HUTANG SUPPLIER
     const groupPurAll = {};
     (purchases || []).forEach(p => {
         if(!p?.id) return;
@@ -148,17 +157,11 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
         groupPurAll[p.id].totalTagihan += Number(p.total)||0;
     });
     const listHutangBerjalan = Object.values(groupPurAll).map(grp => {
-        const cicilan = (piutangPayments || []).filter(p => p.orderId === grp.id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-        return { ...grp, cicilanTerbayar: cicilan, sisaHutang: grp.totalTagihan - grp.totalDibayar - cicilan };
-    }).filter(p => p.sisaHutang > 0);
-
-    const listPembayaranSemua = (cumPayments || []).filter(p => isPeriod(p.date)).map(pay => {
-        const isHutang = String(pay?.orderId || '').startsWith('BUY-');
-        const relData = isHutang ? groupPurAll[pay.orderId] : groupOrdersAll[pay.orderId];
-        const cicilan = (piutangPayments || []).filter(p=>p.orderId===pay.orderId).reduce((s,p)=>s+(Number(p.amount)||0), 0);
-        const sisa = (Number(relData?.totalTagihan)||0) - (Number(relData?.totalDibayar)||0) - cicilan;
-        return { ...pay, customer: relData ? (isHutang ? relData.supplier : relData.customer) : '-', statusNota: sisa <= 0 ? 'LUNAS' : 'BELUM LUNAS', tipe: isHutang ? 'HUTANG' : 'PIUTANG' };
-    });
+        const purPayments = (piutangPayments || []).filter(p => p.orderId === grp.id);
+        const cicilan = purPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+        const sisaHutang = grp.totalTagihan - grp.totalDibayar - cicilan;
+        return { ...grp, cicilanTerbayar: cicilan, sisaHutang, riwayat: purPayments };
+    }).filter(p => p.sisaHutang > 0 || isPeriod(p.date) || (p.riwayat && p.riwayat.some(r => isPeriod(r.date))));
 
     let inCashPeriode = 0, inTfPeriode = 0, outCashPeriode = 0, outTfPeriode = 0;
     Object.values(orderGroups).forEach(g => { if(g.method === 'Cash') inCashPeriode += g.paid; else if(g.method === 'Transfer') inTfPeriode += g.paid; });
@@ -170,14 +173,6 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
             if (e.paymentMethod === 'Cash') inCashPeriode += t; else inTfPeriode += t;
         } else {
             if (e.paymentMethod === 'Cash') outCashPeriode += t; else outTfPeriode += t;
-        }
-    });
-    listPembayaranSemua.forEach(pay => {
-        const amt = Number(pay.amount) || 0;
-        if(pay.tipe === 'HUTANG') {
-            if (pay.paymentMethod === 'Cash') outCashPeriode += amt; else outTfPeriode += amt;
-        } else {
-            if (pay.paymentMethod === 'Cash') inCashPeriode += amt; else inTfPeriode += amt;
         }
     });
 
@@ -199,7 +194,7 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
         totalPenjualanKotor, totalPorsi, totalPcs, breakdownPorsi, totalPiutangBaru, totalHutangBaru,
         topCustomersList, finalChartData, listPiutangBerjalan, listHutangBerjalan,
         listTransaksiDetail: groupedTransaksiPusat, listPembelianDetail: periodPurchases, 
-        listExpenses: periodExpenses, listPemalang: cumPemalangReports.filter(p => isPeriod(p.date)), listPembayaranSemua
+        listExpenses: periodExpenses, listPemalang: cumPemalangReports.filter(p => isPeriod(p.date))
     };
   }, [orders, expenses, purchases, piutangPayments, pemalangReports, dateFrom, dateTo, chartView]);
 
