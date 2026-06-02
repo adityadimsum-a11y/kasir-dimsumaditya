@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { X, Plus, Trash2, Filter } from 'lucide-react';
 import { 
-  getTodayStr, getLocalYMD, formatRp, parseRp, 
+  getTodayStr, getFirstDayOfMonthStr, getLocalYMD, formatRp, parseRp, 
   generateId, formatDate 
 } from '../../utils/helpers';
 
@@ -18,7 +18,10 @@ export default function TabPemalang({ reports, sendToSheet, requestDelete }) {
   const [stokFreezer, setStokFreezer] = useState(''); 
   const [nominal, setNominal] = useState(0); const [transferDestination, setTransferDestination] = useState('BCA (WASTAM)'); 
   const [notes, setNotes] = useState('');
-  const [filterFrom, setFilterFrom] = useState(todayStr); const [filterTo, setFilterTo] = useState(todayStr);
+  
+  // MENGGUNAKAN TANGGAL 1 SEBAGAI DEFAULT FILTER
+  const [filterFrom, setFilterFrom] = useState(getFirstDayOfMonthStr()); 
+  const [filterTo, setFilterTo] = useState(todayStr);
 
   const resetForm = () => {
     setShowForm(false); setIsEdit(false); setEditId(null); setEditCount(0);
@@ -62,7 +65,7 @@ export default function TabPemalang({ reports, sendToSheet, requestDelete }) {
       )}
       <div className="flex items-center gap-3 bg-white p-3 rounded-xl border mt-4"><Filter size={16} className="text-slate-400"/><input type="date" value={filterFrom} onChange={e=>setFilterFrom(e.target.value)} className="p-1.5 text-sm border rounded" /> - <input type="date" value={filterTo} onChange={e=>setFilterTo(e.target.value)} className="p-1.5 text-sm border rounded" /></div>
       <div className="bg-white rounded-xl border mt-4 overflow-hidden"><table className="w-full text-sm text-left block md:table"><thead className="bg-amber-50 text-amber-800 border-b"><tr><th className="px-4 py-3">Tanggal Laporan</th><th className="px-4 py-3 text-center">Pesanan (M/P)</th><th className="px-4 py-3 text-center">Produksi (M/P)</th><th className="px-4 py-3">STOK FREEZER</th><th className="px-4 py-3 text-center">Disetor Ke</th><th className="px-4 py-3 text-right">Uang Disetor</th><th className="px-4 py-3 text-center">Aksi</th></tr></thead><tbody className="divide-y">
-          {displayReports.length === 0 ? <tr><td colSpan="7" className="text-center py-12 text-slate-400">Tidak ada laporan ditemukan pada tanggal filter tersebut.</td></tr> : displayReports.map((rep) => (
+          {displayReports.length === 0 ? <tr><td colSpan="7" className="text-center py-12 text-slate-400">Tidak ada laporan ditemukan.</td></tr> : displayReports.map((rep) => (
             <tr key={rep.id} className="hover:bg-slate-50">
               <td className="px-4 py-3"><div className="font-medium">{formatDate(rep.date)}</div><div className="text-[10px] text-slate-400 font-mono">{rep.id}</div></td>
               <td className="px-4 py-3 text-center bg-slate-50/50"><div className="font-bold">{rep.pesananMika} M</div><div className="text-xs text-slate-500">{rep.pesananPorsi} Prs</div></td>
