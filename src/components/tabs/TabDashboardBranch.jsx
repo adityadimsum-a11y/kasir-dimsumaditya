@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Calendar, Printer, ShoppingCart, Package, Wallet, TrendingUp, Users } from 'lucide-react';
+import { Calendar, Printer, ShoppingCart, Package, Wallet, TrendingUp, Users, Clock } from 'lucide-react';
 import { getTodayStr, getLocalYMD, formatRp, formatDate } from '../../utils/helpers';
 import SimpleSVGLineChart from '../ui/SimpleSVGLineChart';
 
@@ -10,7 +10,7 @@ const StatCard = ({ title, amount, icon, color }) => (
   </div>
 );
 
-export default function TabDashboardBranch({ orders, pemalangReports, setPrintData, user, stokData }) {
+export default function TabDashboardBranch({ orders, pemalangReports, piutangPayments, setPrintData, user, stokData }) {
   const todayStr = getTodayStr();
   const [dateFrom, setDateFrom] = useState(todayStr);
   const [dateTo, setDateTo] = useState(todayStr);
@@ -56,28 +56,71 @@ export default function TabDashboardBranch({ orders, pemalangReports, setPrintDa
       chartDataMap[chartKey] = (chartDataMap[chartKey] || 0) + totalNum;
     });
     
+    // MENGHITUNG PIUTANG & SISA TAGIHAN UNTUK CABANG
     const orderGroups = {};
-    filteredOrders.forEach(o => { if(!o?.id) return; if(!orderGroups[o.id]) orderGroups[o.id] = { total:0, paid: Number(o.paidAmount)||0 }; orderGroups[o.id].total += Number(o.total)||0; });
-    Object.values(orderGroups).forEach(g => { if(g.total - g.paid > 0) totalPiutangBaru += (g.total - g.paid); });
+    const branchOrdersAll = (orders || []).filter(o => o?.category === 'Pemalang');
+    const branchOrderIds = branchOrdersAll.map(o => o.id);
+
+    branchOrdersAll.forEach(o => { if(!o?.id) return; if(!orderGroups[o.id]) orderGroups[o.id] = { total:0, paid: Number(o.paidAmount)||0, items: [] }; orderGroups[o.id].total += Number(o.total)||0; orderGroups[o.id].items.push(`${o.qty} Pcs`); });
+    
+    // KALKULASI RIWAYAT CICILAN KHUSUS CABANG
+    const branchPayments = (piutangPayments || []).filter(p => branchOrderIds.includes(p.orderId));
+    const allPaymentsChronological = [...branchPayments].filter(p => getLocalYMD(p.date) <= dateTo).sort((a,b) => new Date(a.date) - new Date(b.date));
+    
+    const orderSisaTracker = {};
+    branchOrdersAll.forEach(o => { orderSisaTracker[o.id] = (Number(o.total)||0) - (Number(o.paidAmount)||0); });
+    
+    const paymentSisaMap = {};
+    allPaymentsChronological.forEach(pay => {
+        const amt = Number(pay.amount) || 0;
+        if (orderSisaTracker[pay.orderId] !== undefined) {
+            orderSisaTracker[pay.orderId] -= amt;
+            paymentSisaMap[pay.id] = orderSisaTracker[pay.orderId];
+        }
+    });
+
+    const listRiwayatPiutang = allPaymentsChronological
+        .filter(p => isDateInRange(p.date))
+        .sort((a, b) => new Date(b.date) - new Date(a.date))
+        .map(pay => {
+            const relData = branchOrdersAll.find(o => o.id === pay.orderId);
+            let qtyStr = "-";
+            if (relData) {
+                const totalQty = (orderGroups[relData.id]?.items || []).reduce((sum, str) => sum + (parseInt(str) || 0), 0);
+                qtyStr = `${totalQty} Pcs / ${totalQty/4} Prs`;
+            }
+            const sisaAkhir = paymentSisaMap[pay.id] || 0;
+            return { 
+                ...pay, 
+                payId: pay.id, 
+                customer: relData ? relData.customer : '-', 
+                tglInvoice: relData?.date || '-',
+                qtyDesc: qtyStr,
+                sisaTagihan: sisaAkhir,
+                statusNota: sisaAkhir <= 0 ? 'LUNAS' : 'BELUM LUNAS'
+            };
+        });
 
     filteredReports.forEach(p => { setoranKePusat += (Number(p?.nominal) || 0); });
     const finalChartData = Object.keys(chartDataMap).map(key => ({ label: key, value: chartDataMap[key] }));
     const topCustomersList = Object.values(customerMap).sort((a,b) => b.total - a.total);
 
-    const groupedTransaksiPusat = Object.values(filteredOrders.reduce((acc, o) => {
+    const groupedTransaksiCabang = Object.values(filteredOrders.reduce((acc, o) => {
         if(!o?.id) return acc;
         if(!acc[o.id]) acc[o.id] = { ...o, items: [], totalTagihan: 0, dp: Number(o.paidAmount)||0 };
         acc[o.id].items.push(`${o.qty} Pcs`);
         acc[o.id].totalTagihan += Number(o.total)||0;
         return acc;
     }, {})).map(grp => {
-        const terbayar = grp.dp;
+        const cicilan = branchPayments.filter(p => p.orderId === grp.id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+        const terbayar = grp.dp + cicilan;
         const sisa = grp.totalTagihan - terbayar;
+        if(sisa > 0) totalPiutangBaru += sisa;
         return { ...grp, totalTerbayar: terbayar, sisaTagihan: sisa, status: sisa <= 0 ? 'LUNAS' : 'BELUM LUNAS' };
     });
 
-    return { totalPenjualanKotor, setoranKePusat, totalPorsi, totalPcs, totalPiutangBaru, breakdownPorsi, topCustomersList, finalChartData, listOrders: groupedTransaksiPusat, listReports: filteredReports };
-  }, [orders, pemalangReports, dateFrom, dateTo, chartView]);
+    return { totalPenjualanKotor, setoranKePusat, totalPorsi, totalPcs, totalPiutangBaru, breakdownPorsi, topCustomersList, finalChartData, listOrders: groupedTransaksiCabang, listReports: filteredReports, listRiwayatPiutang };
+  }, [orders, pemalangReports, piutangPayments, dateFrom, dateTo, chartView]);
 
   return (
     <div className="space-y-6 animate-in fade-in">
@@ -90,6 +133,30 @@ export default function TabDashboardBranch({ orders, pemalangReports, setPrintDa
           <StatCard title="Total Omset Cabang" amount={rekap.totalPenjualanKotor} icon={<ShoppingCart />} color="bg-orange-50 text-orange-700 border-orange-200" />
           <div className="p-5 rounded-xl border flex flex-col justify-between bg-white border-slate-200"><div className="flex justify-between items-start mb-4"><h3 className="font-medium text-sm opacity-90 text-slate-600">Total Porsi Terjual</h3><div className="p-2 bg-slate-50 rounded-lg text-slate-400"><Package size={20}/></div></div><div className="text-2xl font-bold tracking-tight text-slate-800">{rekap.totalPorsi} <span className="text-sm font-normal text-slate-500">Porsi ({rekap.totalPcs} Pcs)</span></div></div>
           <StatCard title="Total Setoran Kas ke Pusat" amount={rekap.setoranKePusat} icon={<Wallet />} color="bg-blue-50 text-blue-700 border-blue-200" />
+      </div>
+
+      {/* TABEL RIWAYAT PIUTANG (UANG MASUK KHUSUS CABANG) */}
+      <div className="bg-white p-6 rounded-xl border border-emerald-200 shadow-sm flex flex-col mt-6">
+        <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-emerald-700"><Clock size={20}/> Riwayat Terima Piutang (Pelanggan)</h3>
+        <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+                <thead className="bg-emerald-50 border-b border-emerald-100"><tr><th className="px-3 py-2 text-emerald-800">Tgl & Ref</th><th className="px-3 py-2 text-emerald-800">Pelanggan</th><th className="px-3 py-2 text-right text-emerald-800">Nominal Masuk</th><th className="px-3 py-2 text-right text-emerald-800">Sisa Tagihan</th></tr></thead>
+                <tbody className="divide-y divide-slate-100">
+                    {rekap.listRiwayatPiutang.length === 0 && <tr><td colSpan="4" className="text-center py-6 text-slate-400">Tidak ada riwayat piutang.</td></tr>}
+                    {rekap.listRiwayatPiutang.map((pay, i) => (
+                        <tr key={i} className="hover:bg-slate-50">
+                            <td className="px-3 py-2"><div className="font-bold text-slate-700">{formatDate(pay.date)}</div><div className="text-[10px] text-slate-400 font-mono">{pay.orderId}</div></td>
+                            <td className="px-3 py-2 font-bold uppercase text-xs">{pay.customer}</td>
+                            <td className="px-3 py-2 text-right font-black text-emerald-600">+{formatRp(pay.amount)}</td>
+                            <td className="px-3 py-2 text-right">
+                                <div className={`font-bold ${pay.sisaTagihan <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{pay.sisaTagihan <= 0 ? 'Rp 0' : formatRp(pay.sisaTagihan)}</div>
+                                <div className={`text-[9px] font-bold ${pay.statusNota === 'LUNAS' ? 'text-emerald-500' : 'text-orange-500'}`}>{pay.statusNota}</div>
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
       </div>
 
       <div className="bg-white p-6 rounded-xl border border-blue-200 shadow-sm relative overflow-hidden">
