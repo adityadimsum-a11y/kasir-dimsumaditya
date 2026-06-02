@@ -39,16 +39,38 @@ function NavItem({ icon, label, active, onClick, badge }) {
 }
 
 export default function App() {
-  // MEMBACA SESSION LOGIN DARI LOCAL STORAGE AGAR TIDAK LOGOUT SAAT REFRESH
+  // === SISTEM SESI SUPER KEBAL (BULLETPROOF LOCALSTORAGE) ===
   const [user, setUser] = useState(() => {
-    const savedUser = localStorage.getItem('dimsum_user_session');
-    return savedUser ? JSON.parse(savedUser) : null;
+    try {
+      const savedUser = window.localStorage.getItem('dimsum_user_session');
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch (error) { return null; }
   }); 
+
+  const [activeTab, setActiveTab] = useState(() => {
+    try {
+      return window.localStorage.getItem('dimsum_active_tab') || 'dashboard';
+    } catch (error) { return 'dashboard'; }
+  });
+
+  // Watcher: Otomatis simpan setiap kali user / tab berubah
+  useEffect(() => {
+    try {
+      if (user) window.localStorage.setItem('dimsum_user_session', JSON.stringify(user));
+      else window.localStorage.removeItem('dimsum_user_session');
+    } catch (error) { console.error("Gagal simpan sesi", error); }
+  }, [user]);
+
+  useEffect(() => {
+    try {
+      if (user) window.localStorage.setItem('dimsum_active_tab', activeTab);
+    } catch (error) { console.error("Gagal simpan tab", error); }
+  }, [activeTab, user]);
+  // ==========================================================
 
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [loginError, setLoginError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('dashboard');
   const [printData, setPrintData] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null); 
   
@@ -76,8 +98,6 @@ export default function App() {
 
     if (loggedInUser) {
       setUser(loggedInUser);
-      // SIMPAN SESSION KE BROWSER
-      localStorage.setItem('dimsum_user_session', JSON.stringify(loggedInUser));
       setActiveTab('dashboard'); 
       setLoginError(''); 
     } else {
@@ -88,9 +108,8 @@ export default function App() {
   const handleLogout = () => {
     setUser(null); 
     setLoginForm({ username: '', password: '' });
-    // HAPUS SESSION DARI BROWSER
-    localStorage.removeItem('dimsum_user_session');
-    
+    window.localStorage.removeItem('dimsum_user_session');
+    window.localStorage.removeItem('dimsum_active_tab');
     setOrders([]); setExpenses([]); setPiutangPayments([]); setPemalangReports([]); setStokData([]); setPurchases([]);
   };
 
