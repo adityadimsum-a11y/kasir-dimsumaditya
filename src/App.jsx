@@ -19,7 +19,8 @@ import {
   PrintReceipt, PrintReport, PrintReportBranch 
 } from './components/print/PrintTemplates';
 
-import { safeSort, formatDate } from './utils/helpers';
+// FIX VERCEL: Hapus formatDate karena tidak dipakai di sini
+import { safeSort } from './utils/helpers';
 
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqSM572mbUIGozcghhh8LHNMNw2e83O7Wkyu-SkjdVTO3zpTb64PA/exec'; 
 
@@ -218,7 +219,7 @@ export default function App() {
         <header className="bg-white border-b p-4 flex justify-between items-center z-10 shadow-sm"><h2 className="text-xl font-bold capitalize">Manajemen Data</h2></header>
         <div className="flex-1 overflow-auto p-6 bg-slate-50 relative">
           {activeTab === 'dashboard' && user.role === 'admin' && <TabDashboard orders={orders} expenses={expenses} purchases={purchases} piutangPayments={piutangPayments} pemalangReports={pemalangReports} setPrintData={setPrintData} />}
-          {activeTab === 'dashboard' && user.role === 'branch' && <TabDashboardBranch orders={orders} pemalangReports={pemalangReports} piutangPayments={piutangPayments} setPrintData={setPrintData} user={user} stokData={stokData} />}
+          {activeTab === 'dashboard' && user.role === 'branch' && <TabDashboardBranch orders={orders} pemalangReports={pemalangReports} piutangPayments={piutangPayments} setPrintData={setPrintData} stokData={stokData} />}
           {activeTab === 'orders' && <TabOrders orders={orders} payments={piutangPayments} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'order', id})} role={user.role} />}
           {activeTab === 'purchases' && user.role === 'admin' && <TabPurchases purchases={purchases} payments={piutangPayments} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'purchase', id})} />}
           {activeTab === 'expenses' && user.role === 'admin' && <TabExpenses expenses={expenses} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'expense', id})} />}
