@@ -35,7 +35,6 @@ export function PrintReceipt({ data, onBack }) {
   const { payment, order } = data;
   const totalDibayar = (Number(order?.totalDibayar) || Number(order?.paidAmount) || 0) + (Number(order?.cicilanTerbayar) || 0);
   const sisaHutang = Number(order?.sisaHutang) || 0;
-  // FIX RUMUS TOTAL TAGIHAN
   const totalTagihan = Number(order?.totalTagihan) || Number(order?.totalAll) || (totalDibayar + sisaHutang);
 
   return (
@@ -92,15 +91,16 @@ export function PrintReport({ data, onBack }) {
           <>
             <h3 className="font-bold text-sm mb-2 mt-6 text-blue-700">B. RIWAYAT PEMBAYARAN CICILAN (MASUK & KELUAR)</h3>
             <table className="table-print">
-              <thead><tr><th className="w-8">NO</th><th>TANGGAL</th><th>INVOICE REF</th><th>KETERANGAN</th><th className="text-right">NOMINAL</th></tr></thead>
+              <thead><tr><th className="w-8">NO</th><th>TGL BAYAR</th><th>TGL & INV ASAL</th><th>PELANGGAN</th><th>QTY (PCS/PORSI)</th><th className="text-right">NOMINAL CICILAN</th></tr></thead>
               <tbody>
                 {rekap.listPembayaranSemua.map((p, i) => (
                   <tr key={i}>
                     <td className="text-center">{i + 1}</td>
-                    <td className="text-center">{formatDate(p.date)}</td>
-                    <td className="font-mono text-[10px] text-center">{p.orderId}</td>
-                    <td className="font-bold">{p.tipe === 'HUTANG' ? `Bayar Hutang (${p.customer})` : `Terima Piutang (${p.customer})`}</td>
-                    <td className={`text-right font-bold ${p.tipe === 'HUTANG' ? 'text-red-600' : 'text-emerald-600'}`}>{p.tipe === 'HUTANG' ? '-' : '+'}{formatRp(p.amount)}</td>
+                    <td className="text-center font-bold text-blue-700">{formatDate(p.date)}</td>
+                    <td className="text-center">{formatDate(p.tglInvoice)}<br/><span className="font-mono text-[9px]">{p.orderId}</span></td>
+                    <td className="font-bold uppercase">{p.customer}</td>
+                    <td className="text-center text-xs">{p.qtyDesc}</td>
+                    <td className={`text-right font-black ${p.tipe === 'HUTANG' ? 'text-red-600' : 'text-emerald-600'}`}>{p.tipe === 'HUTANG' ? '-' : '+'}{formatRp(p.amount)}</td>
                   </tr>
                 ))}
               </tbody>
