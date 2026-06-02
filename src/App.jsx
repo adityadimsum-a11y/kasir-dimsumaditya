@@ -25,12 +25,9 @@ import {
 import { safeSort, formatDate } from './utils/helpers';
 
 // =====================================================================
-// === GANTI URL DI BAWAH INI DENGAN URL WEB APP GOOGLE SCRIPT ANDA ===
-// =====================================================================
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqSM572mbUIGozcghhh8LHNMNw2e83O7Wkyu-SkjdVTO3zpTb64PA/exec'; 
 // =====================================================================
 
-// Komponen Navigasi Sidebar
 function NavItem({ icon, label, active, onClick, badge }) {
   return (
     <button onClick={onClick} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-sm font-medium ${active ? 'bg-red-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}>
@@ -42,7 +39,12 @@ function NavItem({ icon, label, active, onClick, badge }) {
 }
 
 export default function App() {
-  const [user, setUser] = useState(null); 
+  // MEMBACA SESSION LOGIN DARI LOCAL STORAGE AGAR TIDAK LOGOUT SAAT REFRESH
+  const [user, setUser] = useState(() => {
+    const savedUser = localStorage.getItem('dimsum_user_session');
+    return savedUser ? JSON.parse(savedUser) : null;
+  }); 
+
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [loginError, setLoginError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -64,19 +66,31 @@ export default function App() {
   const handleLogin = (e) => {
     e.preventDefault();
     const { username, password } = loginForm;
+    let loggedInUser = null;
+
     if (username === 'dnamic' && password === 'Dnamic2026!!') {
-      setUser({ role: 'admin', name: 'Administrator Pusat' });
-      setActiveTab('dashboard'); setLoginError(''); 
+      loggedInUser = { role: 'admin', name: 'Administrator Pusat' };
     } else if (username === 'pemalang' && password === 'pemalang123') {
-      setUser({ role: 'branch', name: 'Cabang Pemalang', branchId: 'Pemalang' });
-      setActiveTab('dashboard'); setLoginError(''); 
+      loggedInUser = { role: 'branch', name: 'Cabang Pemalang', branchId: 'Pemalang' };
+    } 
+
+    if (loggedInUser) {
+      setUser(loggedInUser);
+      // SIMPAN SESSION KE BROWSER
+      localStorage.setItem('dimsum_user_session', JSON.stringify(loggedInUser));
+      setActiveTab('dashboard'); 
+      setLoginError(''); 
     } else {
       setLoginError('Username atau Password salah!');
     }
   };
 
   const handleLogout = () => {
-    setUser(null); setLoginForm({ username: '', password: '' });
+    setUser(null); 
+    setLoginForm({ username: '', password: '' });
+    // HAPUS SESSION DARI BROWSER
+    localStorage.removeItem('dimsum_user_session');
+    
     setOrders([]); setExpenses([]); setPiutangPayments([]); setPemalangReports([]); setStokData([]); setPurchases([]);
   };
 
