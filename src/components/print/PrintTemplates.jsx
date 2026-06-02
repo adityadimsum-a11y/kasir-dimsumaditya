@@ -32,7 +32,7 @@ const a4Style = `
 `;
 
 // ============================================================================
-// KOMPONEN PRINT INVOICE PENJUALAN
+// KOMPONEN PRINT INVOICE, TANDA TERIMA, VOUCHER, DAN PEMBELIAN BAHAN
 // ============================================================================
 export function PrintInvoiceDotMatrix({ data, onBack }) {
   useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
@@ -102,9 +102,6 @@ export function PrintInvoiceDotMatrix({ data, onBack }) {
   );
 }
 
-// ============================================================================
-// KOMPONEN PRINT TANDA TERIMA PEMBAYARAN CICILAN / HUTANG
-// ============================================================================
 export function PrintReceipt({ data, onBack }) {
   useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
   const { payment, order } = data;
@@ -170,9 +167,6 @@ export function PrintReceipt({ data, onBack }) {
   );
 }
 
-// ============================================================================
-// KOMPONEN PRINT VOUCHER KAS KELUAR
-// ============================================================================
 export function PrintVoucher({ data, onBack }) {
   useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
   return (
@@ -227,9 +221,6 @@ export function PrintVoucher({ data, onBack }) {
   );
 }
 
-// ============================================================================
-// KOMPONEN PRINT PEMBELIAN BAHAN (RESTOCK)
-// ============================================================================
 export function PrintPurchase({ data, onBack }) {
   useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
   return (
@@ -304,7 +295,7 @@ export function PrintPurchase({ data, onBack }) {
 }
 
 // ============================================================================
-// KOMPONEN PRINT LAPORAN REKAP PUSAT (A4)
+// KOMPONEN PRINT LAPORAN REKAP PUSAT (A4) - DENGAN SUMMARY / RINGKASAN KEUANGAN
 // ============================================================================
 export function PrintReport({ data, onBack }) {
   useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
@@ -317,12 +308,40 @@ export function PrintReport({ data, onBack }) {
       <button onClick={onBack} className="hide-on-print mb-4 bg-slate-800 text-white px-4 py-2 rounded">Kembali</button>
       
       <div className="a4-wrapper shadow-xl border border-gray-200">
-        <div className="flex justify-between items-center border-b-2 border-black pb-4 mb-8">
+        <div className="flex justify-between items-center border-b-2 border-black pb-4 mb-6">
             <img src="https://dimsumaditya.id/wp-content/uploads/2024/10/Dimsum-Aditya.png" alt="Logo" style={{ height: '70px', width: 'auto' }} />
             <div className="text-right">
                 <h1 className="text-2xl font-black uppercase mb-1">LAPORAN REKAPITULASI TRANSAKSI</h1>
                 <h2 className="font-bold text-slate-700 mb-1">DIMSUM ADITYA TANGERANG</h2>
                 <p className="text-gray-600 font-medium text-xs">Periode: {formatDate(dateFrom)} s/d {formatDate(dateTo)}</p>
+            </div>
+        </div>
+
+        {/* ========================================================== */}
+        {/* RINGKASAN KEUANGAN (EXECUTIVE SUMMARY) */}
+        {/* ========================================================== */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div className="border border-slate-300 p-3 rounded bg-slate-50">
+                <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Total Omset Penjualan</p>
+                <p className="text-base font-black text-blue-700">{formatRp(rekap?.totalPenjualanKotor)}</p>
+                <p className="text-[10px] text-slate-600 mt-1">Terjual: <strong>{rekap?.totalPcs} Pcs</strong> ({rekap?.totalPorsi} Prs)</p>
+            </div>
+            <div className="border border-emerald-200 p-3 rounded bg-emerald-50">
+                <p className="text-[10px] font-bold text-emerald-700 uppercase mb-1">Total Kas Masuk</p>
+                <div className="flex justify-between text-[10px] mb-0.5"><span>Cash:</span><span className="font-bold">{formatRp(rekap?.inCashPeriode)}</span></div>
+                <div className="flex justify-between text-[10px]"><span>Transfer:</span><span className="font-bold">{formatRp(rekap?.inTfPeriode)}</span></div>
+                <div className="flex justify-between text-xs border-t border-emerald-200 pt-1 mt-1 font-black text-emerald-800"><span>TOTAL:</span><span>{formatRp((rekap?.inCashPeriode||0) + (rekap?.inTfPeriode||0))}</span></div>
+            </div>
+            <div className="border border-red-200 p-3 rounded bg-red-50">
+                <p className="text-[10px] font-bold text-red-700 uppercase mb-1">Total Kas Keluar</p>
+                <div className="flex justify-between text-[10px] mb-0.5"><span>Cash:</span><span className="font-bold">{formatRp(rekap?.outCashPeriode)}</span></div>
+                <div className="flex justify-between text-[10px]"><span>Transfer:</span><span className="font-bold">{formatRp(rekap?.outTfPeriode)}</span></div>
+                <div className="flex justify-between text-xs border-t border-red-200 pt-1 mt-1 font-black text-red-800"><span>TOTAL:</span><span>{formatRp((rekap?.outCashPeriode||0) + (rekap?.outTfPeriode||0))}</span></div>
+            </div>
+            <div className="border border-orange-200 p-3 rounded bg-orange-50">
+                <p className="text-[10px] font-bold text-orange-700 uppercase mb-1">Tagihan Gantung (Sisa)</p>
+                <div className="flex justify-between text-[10px] mb-0.5"><span>Piutang Agen:</span><span className="font-bold">{formatRp(rekap?.totalPiutangBaru)}</span></div>
+                <div className="flex justify-between text-[10px]"><span>Hutang Supplier:</span><span className="font-bold">{formatRp(rekap?.totalHutangBaru)}</span></div>
             </div>
         </div>
 
@@ -443,7 +462,7 @@ export function PrintReport({ data, onBack }) {
 }
 
 // ============================================================================
-// KOMPONEN PRINT LAPORAN CABANG PEMALANG (A4)
+// KOMPONEN PRINT LAPORAN CABANG PEMALANG (A4) - DENGAN SUMMARY / RINGKASAN
 // ============================================================================
 export function PrintReportBranch({ data, onBack, user }) {
   useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
@@ -454,7 +473,7 @@ export function PrintReportBranch({ data, onBack, user }) {
       <button onClick={onBack} className="hide-on-print mb-4 bg-slate-800 text-white px-4 py-2 rounded font-bold shadow-md">Kembali ke Aplikasi</button>
       
       <div className="a4-wrapper shadow-xl border border-gray-200">
-        <div className="flex justify-between items-center border-b-2 border-black pb-4 mb-8">
+        <div className="flex justify-between items-center border-b-2 border-black pb-4 mb-6">
             <div className="flex items-center gap-4">
                 <img src="https://dimsumaditya.id/wp-content/uploads/2024/10/Dimsum-Aditya.png" alt="Logo" style={{ height: '70px', width: 'auto' }} />
             </div>
@@ -462,6 +481,27 @@ export function PrintReportBranch({ data, onBack, user }) {
                 <h1 className="text-2xl font-black uppercase mb-1">LAPORAN REKAPITULASI TRANSAKSI</h1>
                 <h2 className="font-bold text-slate-700 mb-1">DIMSUM ADITYA TANGERANG</h2>
                 <p className="text-gray-600 font-medium text-xs">CABANG: {user?.name} | Periode: {formatDate(dateFrom)} s/d {formatDate(dateTo)}</p>
+            </div>
+        </div>
+
+        {/* ========================================================== */}
+        {/* RINGKASAN KEUANGAN KHUSUS CABANG */}
+        {/* ========================================================== */}
+        <div className="grid grid-cols-3 gap-4 mb-8">
+            <div className="border border-slate-300 p-3 rounded bg-slate-50">
+                <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Total Omset Cabang</p>
+                <p className="text-base font-black text-blue-700">{formatRp(rekap?.totalPenjualanKotor)}</p>
+                <p className="text-[10px] text-slate-600 mt-1">Terjual: <strong>{rekap?.totalPcs} Pcs</strong> ({rekap?.totalPorsi} Prs)</p>
+            </div>
+            <div className="border border-emerald-200 p-3 rounded bg-emerald-50">
+                <p className="text-[10px] font-bold text-emerald-700 uppercase mb-1">Total Kas Disetor</p>
+                <p className="text-base font-black text-emerald-700">{formatRp(rekap?.setoranKePusat)}</p>
+                <p className="text-[10px] text-emerald-600 mt-1">Ke Rekening Pusat</p>
+            </div>
+            <div className="border border-orange-200 p-3 rounded bg-orange-50">
+                <p className="text-[10px] font-bold text-orange-700 uppercase mb-1">Piutang Gantung</p>
+                <p className="text-base font-black text-orange-700">{formatRp(rekap?.totalPiutangBaru)}</p>
+                <p className="text-[10px] text-orange-600 mt-1">Belum Lunas (Agen)</p>
             </div>
         </div>
         
