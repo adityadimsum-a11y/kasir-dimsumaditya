@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { X, Plus, Trash2, Printer, Filter } from 'lucide-react';
 import { 
-  getTodayStr, getFirstDayOfMonthStr, getLocalYMD, formatRp, parseRp, 
+  getTodayStr, getLocalYMD, formatRp, parseRp, 
   generateId, formatDate, KATEGORI_PENGELUARAN 
 } from '../../utils/helpers';
 
@@ -21,8 +21,8 @@ export default function TabExpenses({ expenses, sendToSheet, setPrintData, reque
   const [price, setPrice] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   
-  // MENGGUNAKAN TANGGAL 1 SEBAGAI DEFAULT FILTER
-  const [filterFrom, setFilterFrom] = useState(getFirstDayOfMonthStr());
+  // DIKEMBALIKAN KE DEFAULT HARI INI - HARI INI
+  const [filterFrom, setFilterFrom] = useState(todayStr);
   const [filterTo, setFilterTo] = useState(todayStr);
 
   const total = (Number(qty) || 0) * (Number(price) || 0);
