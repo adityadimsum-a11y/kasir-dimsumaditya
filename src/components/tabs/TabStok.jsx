@@ -42,15 +42,27 @@ export default function TabStok({ stokData, sendToSheet, requestDelete }) {
   const handleSimpan = (e) => {
     e.preventDefault();
     const batchId = isEdit ? editId : generateId('STK', date);
+    
     if(isEdit) sendToSheet('delete', { id: editId }, 'stok');
 
-    (cart||[]).forEach((item, index) => {
-        if(String(item?.itemName).trim() !== '' && String(item?.satuan).trim() !== '') {
-            const newStok = { id: batchId, date, itemName: String(item.itemName).toUpperCase(), satuan: String(item.satuan).toUpperCase(), type, qty: Number(item.qty)||0, notes, editCount: isEdit ? editCount + 1 : 0 };
-            setTimeout(() => sendToSheet('insert', newStok, 'stok'), index * 300);
-        }
-    });
-    setTimeout(() => resetForm(), (cart||[]).length * 300);
+    const newStokArray = cart
+      .filter(item => String(item?.itemName).trim() !== '' && String(item?.satuan).trim() !== '')
+      .map(item => ({
+        id: batchId, 
+        date, 
+        itemName: String(item.itemName).toUpperCase(), 
+        satuan: String(item.satuan).toUpperCase(), 
+        type, 
+        qty: Number(item.qty) || 0, 
+        notes, 
+        editCount: isEdit ? editCount + 1 : 0 
+      }));
+
+    if (newStokArray.length > 0) {
+      sendToSheet('insert', newStokArray, 'stok');
+    }
+    
+    resetForm();
   };
 
   const stokAktual = useMemo(() => {
