@@ -264,7 +264,7 @@ export default function App() {
           {activeTab === 'pemalang' && <TabPemalang reports={pemalangReports} sendToSheet={sendToSheet} requestDelete={(id) => setConfirmDialog({type: 'pemalang', id})} role={user.role} />}
           
           {/* TAB PRODUKSI & STOK PUSAT */}
-          {activeTab === 'stok' && <TabStok stokData={stokData} purchases={purchases} orders={orders} sendToSheet={sendToSheet} requestDelete={(id) => setConfirmDialog({type: 'stok', id})} />}
+          {activeTab === 'stok' && <TabStok stokData={stokData} purchases={purchases} orders={orders} sendToSheet={sendToSheet} requestDelete={(id) => setConfirmDialog({type: 'stok', id})} role={user.role} />}
           
           {/* TAB MONITORING CABANG PEMALANG */}
           {activeTab === 'monitoring_pemalang' && user.role === 'admin' && <TabMonitoringPemalang orders={orders} pemalangReports={pemalangReports} stokData={stokData} />}
