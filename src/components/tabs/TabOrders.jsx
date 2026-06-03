@@ -57,14 +57,30 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
   const handleSimpan = (e) => {
     e.preventDefault();
     const invoiceId = isEdit ? editId : generateId('INV', date);
+    
     if(isEdit) sendToSheet('delete', { id: editId }, 'orders');
-    (cart||[]).forEach((item, index) => {
-        if(Number(item?.qty) > 0) {
-            const newOrder = { id: invoiceId, date, customer: customer.toUpperCase(), category: item.category, qty: Number(item.qty)||0, price: Number(item.price)||0, total: (Number(item.qty)||0)*(Number(item.price)||0), paymentMethod, paidAmount: index === 0 ? (Number(paidAmount)||0) : 0, notes, editCount: isEdit ? editCount + 1 : 0 };
-            setTimeout(() => sendToSheet('insert', newOrder, 'orders'), index * 300);
-        }
-    });
-    setTimeout(() => resetForm(), (cart||[]).length * 300);
+    
+    const newOrdersArray = cart
+      .filter(item => Number(item?.qty) > 0)
+      .map((item, index) => ({
+        id: invoiceId, 
+        date, 
+        customer: customer.toUpperCase(), 
+        category: item.category, 
+        qty: Number(item.qty) || 0, 
+        price: Number(item.price) || 0, 
+        total: (Number(item.qty) || 0) * (Number(item.price) || 0), 
+        paymentMethod, 
+        paidAmount: index === 0 ? (Number(paidAmount) || 0) : 0, 
+        notes, 
+        editCount: isEdit ? editCount + 1 : 0 
+      }));
+
+    if (newOrdersArray.length > 0) {
+      sendToSheet('insert', newOrdersArray, 'orders');
+    }
+    
+    resetForm();
   };
 
   const displayOrders = useMemo(() => {
@@ -119,7 +135,6 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
           <thead className="bg-red-50 text-red-800 text-xs uppercase border-b"><tr><th className="px-4 py-3">No. Invoice & Tgl</th><th className="px-4 py-3">Pelanggan</th><th className="px-4 py-3 text-center">Daftar Qty</th><th className="px-4 py-3 text-center">Via</th><th className="px-4 py-3 text-right">Total</th><th className="px-4 py-3 text-center">Status</th><th className="px-4 py-3 text-center">Aksi</th></tr></thead>
           <tbody className="divide-y divide-slate-100">
             {displayOrders.length === 0 ? <tr><td colSpan="7" className="text-center py-12 text-slate-400">Tidak ada transaksi ditemukan.</td></tr> : displayOrders.map((ord) => {
-              // LOGIKA STATUS LUNAS SINKRONISASI
               const cicilan = (payments || []).filter(p => p.orderId === ord.id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
               const sisaHutang = (Number(ord.totalAll) || 0) - (Number(ord.paidAmount) || 0) - cicilan;
 
