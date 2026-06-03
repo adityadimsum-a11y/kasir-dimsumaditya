@@ -748,6 +748,7 @@ export function PrintReportBranch({ data, onBack, user }) {
     </div>
   );
 }
+
 export function PrintSPK({ data, onBack }) {
   useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
   if (!data) return <div className="p-4 bg-white text-center font-bold">Data SPK Tidak Tersedia.</div>;
@@ -756,66 +757,76 @@ export function PrintSPK({ data, onBack }) {
   const totalQtyNum = items.reduce((sum, str) => sum + (parseInt(str) || 0), 0) || Number(data.qty) || 0;
   const totalPorsi = totalQtyNum / 4;
 
-  return (
-    <div className="bg-slate-100 min-h-screen p-4 flex justify-center">
-      <style dangerouslySetInnerHTML={{ __html: `
-        @media print {
-          @page { margin: 0; }
-          body { margin: 0; background: white; color: black; font-family: monospace; }
-          .hide-on-print { display: none !important; }
-          .print-wrapper { box-shadow: none !important; margin: 0 !important; width: 100% !important; padding: 10px !important; }
-        }
-      ` }} />
-      <div className="absolute top-4 left-4 hide-on-print">
-         <button onClick={onBack} className="bg-orange-600 text-white px-4 py-2 rounded font-bold shadow-md hover:bg-orange-700 transition">Kembali ke Aplikasi</button>
-      </div>
-      
-      {/* Ukuran disesuaikan untuk Printer Kasir Thermal 80mm atau Kertas 3 Ply */}
-      <div className="print-wrapper bg-white shadow-xl p-6" style={{ width: '80mm', minHeight: '100mm' }}>
-        <div className="text-center mb-4 border-b-2 border-dashed border-black pb-4">
-          <h2 className="text-xl font-black uppercase text-slate-800 tracking-widest">TICKET DAPUR</h2>
-          <p className="font-bold text-sm text-slate-600 mt-1">SPK / ORDER PRODUKSI</p>
-        </div>
+  const spkStyle = `
+    .print-wrapper { max-width: 9.5in; margin: 0 auto; padding: 20px; background: white; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: black; line-height: 1.4; }
+    .table-pro { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+    .table-pro th { border-top: 2px solid black; border-bottom: 2px solid black; padding: 8px 4px; text-align: left; font-weight: bold; text-transform: uppercase; font-size: 14px; }
+    .table-pro td { padding: 12px 4px; text-align: left; border-bottom: 1px dashed #ccc; font-size: 16px; }
+    @media print {
+      @page { size: 9.5in 5.5in; margin: 0.15in 0.3in; }
+      body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif !important; color: #000; background: white; -webkit-print-color-adjust: exact; margin: 0; }
+      .hide-on-print { display: none !important; }
+      .print-wrapper { padding: 0; box-shadow: none !important; border: none !important; }
+    }
+  `;
 
-        <div className="mb-6">
-          <div className="flex justify-between text-xs font-bold mb-1"><span className="uppercase text-slate-500">ID ORDER:</span> <span>{data.id}</span></div>
-          <div className="flex justify-between text-xs font-bold mb-3"><span className="uppercase text-slate-500">TANGGAL:</span> <span>{formatDate(data.date)}</span></div>
-          
-          <div className="bg-slate-100 p-2 text-center rounded border border-black">
-             <p className="text-[10px] uppercase text-slate-500 font-bold mb-0.5">Pemesan / Pelanggan:</p>
-             <p className="text-xl font-black uppercase text-black">{data.customer || '-'}</p>
+  return (
+    <div className="bg-slate-100 min-h-screen p-4">
+      <style dangerouslySetInnerHTML={{ __html: spkStyle }} />
+      <button onClick={onBack} className="hide-on-print mb-4 bg-orange-600 text-white px-4 py-2 rounded font-bold shadow-md hover:bg-orange-700 transition">Kembali ke Aplikasi</button>
+      
+      <div className="print-wrapper shadow-xl">
+        <div className="flex justify-between items-start mb-6 border-b-2 border-black pb-4">
+          <div>
+            <h2 className="text-3xl font-black uppercase text-slate-800 tracking-widest mb-1">TICKET PRODUKSI</h2>
+            <p className="font-bold text-lg text-slate-600">ID: {data.id}</p>
+          </div>
+          <div className="text-right">
+            <div className="font-bold text-sm uppercase text-slate-500 mb-1">Tanggal Order</div>
+            <div className="text-lg font-black">{formatDate(data.date)}</div>
           </div>
         </div>
 
-        <table className="w-full mb-6">
+        <div className="mb-6 p-4 bg-slate-50 border-2 border-slate-200 rounded-lg">
+           <p className="text-xs uppercase text-slate-500 font-bold mb-1">Nama Pemesan / Pelanggan:</p>
+           <p className="text-2xl font-black uppercase text-black">{data.customer || '-'}</p>
+        </div>
+
+        <table className="table-pro mb-8">
           <thead>
-            <tr className="border-y-2 border-black text-left">
-              <th className="py-2 text-sm font-bold uppercase w-2/3">Item / Barang</th>
-              <th className="py-2 text-sm font-bold uppercase text-center w-1/3">Jumlah</th>
+            <tr>
+              <th className="w-2/3">NAMA BARANG / ITEM</th>
+              <th className="w-1/3 text-center">JUMLAH (PORSI)</th>
             </tr>
           </thead>
           <tbody>
-            <tr className="border-b border-dashed border-slate-300">
-              <td className="py-4 text-base font-black uppercase leading-tight">Dimsum Ayam Mix</td>
-              <td className="py-4 text-center">
-                 <div className="text-xl font-black text-black">{totalPorsi} <span className="text-sm">Prs</span></div>
-                 <div className="text-xs font-bold text-slate-500">({totalQtyNum} Pcs)</div>
+            <tr>
+              <td className="font-black uppercase tracking-wide">Dimsum Ayam Mix</td>
+              <td className="text-center">
+                 <span className="text-2xl font-black">{totalPorsi} Prs</span>
+                 <span className="text-sm font-bold text-slate-600 ml-2">({totalQtyNum} Pcs)</span>
               </td>
             </tr>
           </tbody>
         </table>
 
         {data.notes && (
-          <div className="mb-6 p-2 border-2 border-black border-dashed">
+          <div className="mb-8 p-3 border-2 border-black border-dashed">
              <p className="text-xs font-bold uppercase mb-1">Catatan Khusus:</p>
-             <p className="text-sm font-bold">{data.notes}</p>
+             <p className="text-lg font-bold">{data.notes}</p>
           </div>
         )}
 
-        <div className="text-center mt-8 border-t-2 border-black pt-4">
-          <p className="text-xs font-bold uppercase mb-8">Tim Produksi / Dapur</p>
-          <p className="text-xs uppercase">(.......................)</p>
-          <p className="text-[9px] mt-2 italic text-slate-500">*Tempelkan kertas ini di keranjang barang saat sudah selesai (Ready).</p>
+        <div className="flex justify-between mt-10">
+           <div className="text-left">
+              <p className="text-xs font-bold uppercase mb-12">Admin Kasir</p>
+              <p className="text-xs uppercase border-t-2 border-black pt-1 w-32 text-center">( ................... )</p>
+           </div>
+           <div className="text-center">
+              <p className="text-xs font-bold uppercase mb-12">Tim Produksi / Dapur</p>
+              <p className="text-xs uppercase border-t-2 border-black pt-1 w-48 text-center">( .................................. )</p>
+              <p className="text-[10px] mt-1 italic text-slate-500">*Tempel kertas ini di keranjang saat barang READY.</p>
+           </div>
         </div>
       </div>
     </div>
