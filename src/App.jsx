@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   LayoutDashboard, ShoppingCart, Wallet, 
   Clock, Store, Loader2, LogOut, 
-  Package, Truck
+  Package, Truck, Users
 } from 'lucide-react';
 
 import TabDashboard from './components/tabs/TabDashboard';
@@ -13,6 +13,7 @@ import TabExpenses from './components/tabs/TabExpenses';
 import TabPiutang from './components/tabs/TabPiutang';
 import TabPemalang from './components/tabs/TabPemalang';
 import TabStok from './components/tabs/TabStok';
+import TabKaryawan from './components/tabs/TabKaryawan';
 
 import { 
   PrintInvoiceDotMatrix, PrintPurchase, PrintVoucher, 
@@ -60,6 +61,7 @@ export default function App() {
   const [pemalangReports, setPemalangReports] = useState([]);
   const [stokData, setStokData] = useState([]); 
   const [purchases, setPurchases] = useState([]);
+  const [karyawan, setKaryawan] = useState([]); // STATE BARU UNTUK KARYAWAN
 
   useEffect(() => { if (user) fetchData(); }, [user]);
 
@@ -79,10 +81,9 @@ export default function App() {
   const handleLogout = () => {
     setUser(null); setLoginForm({ username: '', password: '' });
     window.localStorage.removeItem('dimsum_user_session'); window.localStorage.removeItem('dimsum_active_tab');
-    setOrders([]); setExpenses([]); setPiutangPayments([]); setPemalangReports([]); setStokData([]); setPurchases([]);
+    setOrders([]); setExpenses([]); setPiutangPayments([]); setPemalangReports([]); setStokData([]); setPurchases([]); setKaryawan([]);
   };
 
-  // --- PERBAIKAN: Limit Fetching menjadi 2000 data terbaru ---
   const fetchData = async () => {
     if (!SCRIPT_URL || SCRIPT_URL === 'TARUH_LINK_GOOGLE_SCRIPT_DISINI') return;
     setIsLoading(true);
@@ -97,6 +98,7 @@ export default function App() {
         setPemalangReports(data.filter(item => item && item.table === 'pemalang' && !item.isDeleted).sort(safeSort));
         setStokData(data.filter(item => item && item.table === 'stok' && !item.isDeleted).sort(safeSort));
         setPurchases(data.filter(item => item && item.table === 'purchases' && !item.isDeleted).sort(safeSort));
+        setKaryawan(data.filter(item => item && item.table === 'karyawan' && !item.isDeleted).sort(safeSort)); // FETCH DATA KARYAWAN
       }
     } catch (error) { 
       alert("Gagal terhubung ke Database Google Sheet."); 
@@ -107,32 +109,29 @@ export default function App() {
     }
   };
 
-  // --- PERBAIKAN: Dukungan Bulk Insert (Array) ---
   const sendToSheet = async (action, data, table) => {
     if (action === 'insert') {
         const dataArray = Array.isArray(data) ? data : [data];
-        
         if (table === 'orders') setOrders(prev => [...dataArray, ...prev]);
         if (table === 'expenses') setExpenses(prev => [...dataArray, ...prev]);
         if (table === 'payments') setPiutangPayments(prev => [...dataArray, ...prev]);
         if (table === 'pemalang') setPemalangReports(prev => [...dataArray, ...prev]);
         if (table === 'stok') setStokData(prev => [...dataArray, ...prev]);
         if (table === 'purchases') setPurchases(prev => [...dataArray, ...prev]);
+        if (table === 'karyawan') setKaryawan(prev => [...dataArray, ...prev]);
     } else if (action === 'update') {
-        // [BARU] Logic Merge Data: Mengupdate field tertentu (misal isSpkPrinted) 
-        // tanpa menghilangkan data asli seperti harga, qty, dll.
         const dataArray = Array.isArray(data) ? data : [data];
         const updateState = (prev) => prev.map(item => {
             const found = dataArray.find(d => d.id === item.id);
             return found ? { ...item, ...found } : item;
         });
-        
         if (table === 'orders') setOrders(updateState);
         if (table === 'expenses') setExpenses(updateState);
         if (table === 'payments') setPiutangPayments(updateState);
         if (table === 'pemalang') setPemalangReports(updateState);
         if (table === 'stok') setStokData(updateState);
         if (table === 'purchases') setPurchases(updateState);
+        if (table === 'karyawan') setKaryawan(updateState);
     } else if (action === 'delete') {
         if (table === 'orders') setOrders(prev => prev.filter(o => o.id !== data.id));
         if (table === 'expenses') setExpenses(prev => prev.filter(e => e.id !== data.id));
@@ -140,14 +139,11 @@ export default function App() {
         if (table === 'pemalang') setPemalangReports(prev => prev.filter(p => p.id !== data.id));
         if (table === 'stok') setStokData(prev => prev.filter(s => s.id !== data.id));
         if (table === 'purchases') setPurchases(prev => prev.filter(p => p.id !== data.id));
+        if (table === 'karyawan') setKaryawan(prev => prev.filter(k => k.id !== data.id));
     }
     
     try { 
-      await fetch(SCRIPT_URL, { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
-        body: JSON.stringify({ action, table, data }) 
-      }); 
+      await fetch(SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, table, data }) }); 
     } catch (error) {
       console.error("Gagal terhubung ke Sheet:", error);
     }
@@ -157,7 +153,7 @@ export default function App() {
     if(!confirmDialog) return;
     const { type, id } = confirmDialog;
     let colName = '';
-    if (type === 'order') colName = 'orders'; else if (type === 'expense') colName = 'expenses'; else if (type === 'payment') colName = 'payments'; else if (type === 'pemalang') colName = 'pemalang'; else if (type === 'stok') colName = 'stok'; else if (type === 'purchase') colName = 'purchases';
+    if (type === 'order') colName = 'orders'; else if (type === 'expense') colName = 'expenses'; else if (type === 'payment') colName = 'payments'; else if (type === 'pemalang') colName = 'pemalang'; else if (type === 'stok') colName = 'stok'; else if (type === 'purchase') colName = 'purchases'; else if (type === 'karyawan') colName = 'karyawan';
     await sendToSheet('delete', { id }, colName); setConfirmDialog(null);
   };
 
@@ -237,6 +233,7 @@ export default function App() {
               <NavItem icon={<Wallet size={20} />} label="Kas Umum (Lainnya)" active={activeTab === 'expenses'} onClick={() => handleTabChange('expenses')} />
               <NavItem icon={<Clock size={20} />} label="Hutang & Piutang" active={activeTab === 'piutang'} onClick={() => handleTabChange('piutang')} badge={pendingHutangPiutang} />
               <div className="pt-4 mt-2 border-t border-slate-800"><NavItem icon={<Package size={20} />} label="Stok Freezer" active={activeTab === 'stok'} onClick={() => handleTabChange('stok')} /></div>
+              <div className="pt-4 mt-2 border-t border-slate-800"><NavItem icon={<Users size={20} />} label="Karyawan & Gaji" active={activeTab === 'karyawan'} onClick={() => handleTabChange('karyawan')} /></div>
             </>
           )}
           {user.role === 'branch' && (
@@ -260,10 +257,16 @@ export default function App() {
           {activeTab === 'dashboard' && user.role === 'branch' && <TabDashboardBranch orders={orders} pemalangReports={pemalangReports} piutangPayments={piutangPayments} setPrintData={setPrintData} stokData={stokData} />}
           {activeTab === 'orders' && <TabOrders orders={orders} payments={piutangPayments} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'order', id})} role={user.role} />}
           {activeTab === 'purchases' && user.role === 'admin' && <TabPurchases purchases={purchases} payments={piutangPayments} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'purchase', id})} />}
-          {activeTab === 'expenses' && user.role === 'admin' && <TabExpenses expenses={expenses} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'expense', id})} />}
+          
+          {/* PERHATIKAN: TabExpenses sekarang dilempar data karyawan */}
+          {activeTab === 'expenses' && user.role === 'admin' && <TabExpenses expenses={expenses} karyawan={karyawan} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'expense', id})} />}
+          
           {activeTab === 'piutang' && <TabPiutang orders={orders} purchases={purchases} payments={piutangPayments} sendToSheet={sendToSheet} requestDelete={(id) => setConfirmDialog({type: 'payment', id})} setPrintData={setPrintData} role={user.role} />}
           {activeTab === 'pemalang' && <TabPemalang reports={pemalangReports} sendToSheet={sendToSheet} requestDelete={(id) => setConfirmDialog({type: 'pemalang', id})} role={user.role} />}
           {activeTab === 'stok' && <TabStok stokData={stokData} sendToSheet={sendToSheet} requestDelete={(id) => setConfirmDialog({type: 'stok', id})} />}
+          
+          {/* TAB BARU: KARYAWAN & GAJI */}
+          {activeTab === 'karyawan' && user.role === 'admin' && <TabKaryawan karyawan={karyawan} expenses={expenses} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'karyawan', id})} />}
         </div>
       </main>
     </div>
