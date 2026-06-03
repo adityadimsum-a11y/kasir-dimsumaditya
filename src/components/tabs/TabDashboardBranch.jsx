@@ -60,7 +60,7 @@ export default function TabDashboardBranch({ orders, pemalangReports, piutangPay
     const branchOrdersAll = (orders || []).filter(o => o?.category === 'Pemalang');
     const branchOrderIds = branchOrdersAll.map(o => o.id);
 
-    branchOrdersAll.forEach(o => { if(!o?.id) return; if(!orderGroups[o.id]) orderGroups[o.id] = { total:0, paid: Number(o.paidAmount)||0, items: [], paymentMethod: o.paymentMethod }; orderGroups[o.id].total += Number(o.total)||0; orderGroups[o.id].items.push(`${o.qty} Pcs`); });
+    branchOrdersAll.forEach(o => { if(!o?.id) return; if(!orderGroups[o.id]) orderGroups[o.id] = { total:0, paid: Number(o.paidAmount)||0, items: [], paymentMethod: o.paymentMethod, date: o.date, customer: o.customer, id: o.id }; orderGroups[o.id].total += Number(o.total)||0; orderGroups[o.id].items.push(`${o.qty} Pcs`); });
     
     const branchPayments = (piutangPayments || []).filter(p => branchOrderIds.includes(p.orderId));
     const allPaymentsChronological = [...branchPayments].filter(p => getLocalYMD(p?.date) <= dateTo).sort((a,b) => new Date(a.date) - new Date(b.date));
@@ -135,29 +135,33 @@ export default function TabDashboardBranch({ orders, pemalangReports, piutangPay
           <StatCard title="Total Setoran Kas ke Pusat" amount={rekap.setoranKePusat} icon={<Wallet />} color="bg-blue-50 text-blue-700 border-blue-200" />
       </div>
 
-      {rekap.listPiutangBerjalan.length > 0 && (
-          <div className="bg-white p-6 rounded-xl border border-orange-200 shadow-sm flex flex-col mt-6">
-              <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-orange-700"><AlertCircle size={20}/> Daftar Piutang Berjalan (Belum Lunas)</h3>
-              <div className="overflow-x-auto">
-                  <table className="w-full text-sm text-left">
-                      <thead className="bg-orange-50 border-b border-orange-100">
-                          <tr><th className="px-3 py-2 text-orange-800">Tgl & Inv</th><th className="px-3 py-2 text-orange-800">Pelanggan</th><th className="px-3 py-2 text-right text-orange-800">Total Tagihan</th><th className="px-3 py-2 text-right text-orange-800">Telah Terbayar</th><th className="px-3 py-2 text-right text-orange-800">Sisa Tagihan</th></tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                          {rekap.listPiutangBerjalan.map((p, i) => (
-                              <tr key={i} className="hover:bg-slate-50">
-                                  <td className="px-3 py-2"><div className="font-bold text-slate-700">{formatDate(p.date)}</div><div className="text-[10px] text-slate-400 font-mono">{p.id}</div></td>
-                                  <td className="px-3 py-2 font-bold uppercase text-xs">{p.customer}</td>
-                                  <td className="px-3 py-2 text-right font-medium">{formatRp(p.total)}</td>
-                                  <td className="px-3 py-2 text-right font-medium text-emerald-600">{formatRp(p.paid + p.cicilanTerbayar)}</td>
-                                  <td className="px-3 py-2 text-right font-black text-red-600">{formatRp(p.sisaHutang)}</td>
-                              </tr>
-                          ))}
-                      </tbody>
-                  </table>
-              </div>
+      <div className="bg-white p-6 rounded-xl border border-orange-200 shadow-sm flex flex-col mt-6">
+          <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-orange-700"><AlertCircle size={20}/> Daftar Piutang Berjalan (Belum Lunas)</h3>
+          <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                  <thead className="bg-orange-50 border-b border-orange-100">
+                      <tr><th className="px-3 py-2 text-orange-800">Tgl & Inv</th><th className="px-3 py-2 text-orange-800">Pelanggan</th><th className="px-3 py-2 text-right text-orange-800">Total Tagihan</th><th className="px-3 py-2 text-right text-orange-800">Telah Terbayar</th><th className="px-3 py-2 text-right text-orange-800">Sisa Tagihan</th></tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                      {rekap.listPiutangBerjalan.length === 0 && <tr><td colSpan="5" className="text-center py-6 text-slate-400">Tidak ada piutang berjalan.</td></tr>}
+                      {rekap.listPiutangBerjalan.map((p, i) => {
+                          const isNew = getLocalYMD(p.date) >= dateFrom && getLocalYMD(p.date) <= dateTo;
+                          return (
+                          <tr key={i} className="hover:bg-slate-50">
+                              <td className="px-3 py-2"><div className="font-bold text-slate-700">{formatDate(p.date)}</div><div className="text-[10px] text-slate-400 font-mono">{p.id}</div></td>
+                              <td className="px-3 py-2 font-bold uppercase text-xs">{p.customer}</td>
+                              <td className="px-3 py-2 text-right font-medium">{formatRp(p.total)}</td>
+                              <td className="px-3 py-2 text-right font-medium text-emerald-600">{formatRp(p.paid + p.cicilanTerbayar)}</td>
+                              <td className="px-3 py-2 text-right">
+                                  <div className="font-black text-red-600">{formatRp(p.sisaHutang)}</div>
+                                  {isNew && <span className="inline-block mt-0.5 text-[9px] font-black text-orange-600 bg-orange-100 px-1 rounded">(PIUTANG BARU)</span>}
+                              </td>
+                          </tr>
+                      )})}
+                  </tbody>
+              </table>
           </div>
-      )}
+      </div>
 
       <div className="bg-white p-6 rounded-xl border border-emerald-200 shadow-sm flex flex-col mt-6">
         <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-emerald-700"><Clock size={20}/> Riwayat Terima Piutang (Pelanggan)</h3>
