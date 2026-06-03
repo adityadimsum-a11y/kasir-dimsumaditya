@@ -295,7 +295,7 @@ export function PrintPurchase({ data, onBack }) {
 }
 
 // ============================================================================
-// KOMPONEN PRINT LAPORAN REKAP PUSAT (A4) - COMPACT SPACING + QTY + FOOTER TOTAL
+// KOMPONEN PRINT LAPORAN REKAP PUSAT (A4) - SELALU MUNCUL SEMUA TABEL
 // ============================================================================
 export function PrintReport({ data, onBack }) {
   useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
@@ -381,15 +381,17 @@ export function PrintReport({ data, onBack }) {
           </tbody>
         </table>
 
-        {rekap?.listRiwayatPiutang?.length > 0 && (
-          <>
-            <h3 className="font-bold text-xs mb-1.5 mt-5 text-emerald-700">B. RIWAYAT TERIMA PIUTANG (DARI PELANGGAN)</h3>
-            <table className="table-print">
-              <thead>
-                <tr><th className="w-8">NO</th><th>TGL & ID BAYAR</th><th>TGL & INV ASAL</th><th>PELANGGAN</th><th className="text-center">QTY</th><th className="text-center">VIA</th><th className="text-right">NOMINAL MASUK</th><th className="text-right">SISA TAGIHAN</th><th className="text-center">STATUS NOTA</th></tr>
-              </thead>
-              <tbody>
-                {rekap.listRiwayatPiutang.map((p, i) => (
+        {/* TABEL B SELALU TAMPIL */}
+        <h3 className="font-bold text-xs mb-1.5 mt-5 text-emerald-700">B. RIWAYAT TERIMA PIUTANG (DARI PELANGGAN)</h3>
+        <table className="table-print">
+          <thead>
+            <tr><th className="w-8">NO</th><th>TGL & ID BAYAR</th><th>TGL & INV ASAL</th><th>PELANGGAN</th><th className="text-center">QTY</th><th className="text-center">VIA</th><th className="text-right">NOMINAL MASUK</th><th className="text-center">STATUS NOTA</th></tr>
+          </thead>
+          <tbody>
+            {(!rekap?.listRiwayatPiutang || rekap.listRiwayatPiutang.length === 0) ? (
+                <tr><td colSpan="8" className="text-center py-4 italic text-slate-500">Tidak ada riwayat piutang.</td></tr>
+            ) : (
+                rekap.listRiwayatPiutang.map((p, i) => (
                   <tr key={i}>
                     <td className="text-center">{i + 1}</td>
                     <td><span className="font-bold text-blue-700">{formatDate(p.date)}</span><br/><span className="font-mono text-[8px] text-slate-500 font-normal">{p.payId}</span></td>
@@ -398,24 +400,24 @@ export function PrintReport({ data, onBack }) {
                     <td className="text-center text-[9px]">{p.qtyDesc}</td>
                     <td className="text-center text-[9px]">{p.paymentMethod}</td>
                     <td className="text-right font-black text-emerald-600">+{formatRp(p.amount)}</td>
-                    <td className={`text-right font-bold ${p.sisaTagihan <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{p.sisaTagihan <= 0 ? 'Rp 0' : formatRp(p.sisaTagihan)}</td>
                     <td className={`text-center font-bold text-[9px] ${p.statusNota === 'LUNAS' ? 'text-emerald-600' : 'text-red-600'}`}>{p.statusNota}</td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
-        )}
+                ))
+            )}
+          </tbody>
+        </table>
 
-        {rekap?.listRiwayatHutang?.length > 0 && (
-          <>
-            <h3 className="font-bold text-xs mb-1.5 mt-5 text-red-700">C. RIWAYAT BAYAR HUTANG (KE SUPPLIER)</h3>
-            <table className="table-print">
-              <thead>
-                <tr><th className="w-8">NO</th><th>TGL & ID BAYAR</th><th>TGL & INV ASAL</th><th>SUPPLIER</th><th className="text-center">BARANG</th><th className="text-center">VIA</th><th className="text-right">NOMINAL KELUAR</th><th className="text-right">SISA HUTANG</th><th className="text-center">STATUS NOTA</th></tr>
-              </thead>
-              <tbody>
-                {rekap.listRiwayatHutang.map((p, i) => (
+        {/* TABEL C SELALU TAMPIL */}
+        <h3 className="font-bold text-xs mb-1.5 mt-5 text-red-700">C. RIWAYAT BAYAR HUTANG (KE SUPPLIER)</h3>
+        <table className="table-print">
+          <thead>
+            <tr><th className="w-8">NO</th><th>TGL & ID BAYAR</th><th>TGL & INV ASAL</th><th>SUPPLIER</th><th className="text-center">BARANG</th><th className="text-center">VIA</th><th className="text-right">NOMINAL KELUAR</th><th className="text-center">STATUS NOTA</th></tr>
+          </thead>
+          <tbody>
+            {(!rekap?.listRiwayatHutang || rekap.listRiwayatHutang.length === 0) ? (
+                <tr><td colSpan="8" className="text-center py-4 italic text-slate-500">Tidak ada riwayat hutang.</td></tr>
+            ) : (
+                rekap.listRiwayatHutang.map((p, i) => (
                   <tr key={i}>
                     <td className="text-center">{i + 1}</td>
                     <td><span className="font-bold text-blue-700">{formatDate(p.date)}</span><br/><span className="font-mono text-[8px] text-slate-500 font-normal">{p.payId}</span></td>
@@ -424,24 +426,24 @@ export function PrintReport({ data, onBack }) {
                     <td className="text-center text-[9px]">{p.qtyDesc}</td>
                     <td className="text-center text-[9px]">{p.paymentMethod}</td>
                     <td className="text-right font-black text-red-600">-{formatRp(p.amount)}</td>
-                    <td className={`text-right font-bold ${p.sisaTagihan <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{p.sisaTagihan <= 0 ? 'Rp 0' : formatRp(p.sisaTagihan)}</td>
                     <td className={`text-center font-bold text-[9px] ${p.statusNota === 'LUNAS' ? 'text-emerald-600' : 'text-red-600'}`}>{p.statusNota}</td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
-        )}
+                ))
+            )}
+          </tbody>
+        </table>
 
-        {rekap?.listExpenses?.length > 0 && (
-          <>
-            <h3 className="font-bold text-xs mb-1.5 mt-5 text-slate-800">D. BUKU KAS (PENGELUARAN)</h3>
-            <table className="table-print">
-              <thead>
-                <tr><th className="w-8">NO</th><th>TGL & REF</th><th>PENERIMA</th><th>KATEGORI & KETERANGAN</th><th className="text-center">VIA</th><th className="text-right">NOMINAL</th></tr>
-              </thead>
-              <tbody>
-                  {rekap.listExpenses.map((o, i) => (
+        {/* TABEL D SELALU TAMPIL */}
+        <h3 className="font-bold text-xs mb-1.5 mt-5 text-slate-800">D. BUKU KAS (PENGELUARAN)</h3>
+        <table className="table-print">
+          <thead>
+            <tr><th className="w-8">NO</th><th>TGL & REF</th><th>PENERIMA</th><th>KATEGORI & KETERANGAN</th><th className="text-center">VIA</th><th className="text-right">NOMINAL</th></tr>
+          </thead>
+          <tbody>
+              {(!rekap?.listExpenses || rekap.listExpenses.length === 0) ? (
+                  <tr><td colSpan="6" className="text-center py-4 italic text-slate-500">Tidak ada pengeluaran kas di periode ini.</td></tr>
+              ) : (
+                  rekap.listExpenses.map((o, i) => (
                       <tr key={i}>
                           <td className="text-center">{i + 1}</td>
                           <td>{formatDate(o.date)}<br/><span className="font-mono text-[8px] text-slate-500">{o.id}</span></td>
@@ -450,15 +452,14 @@ export function PrintReport({ data, onBack }) {
                           <td className="text-center text-[9px]">{o.paymentMethod}</td>
                           <td className="text-right font-bold text-red-600">-{formatRp(o.total)}</td>
                       </tr>
-                  ))}
-                  <tr>
-                      <td colSpan="5" className="text-right font-bold uppercase bg-slate-50">Total Pengeluaran Kas :</td>
-                      <td className="text-right font-black text-red-600 bg-slate-50">-{formatRp(totalPengeluaran)}</td>
-                  </tr>
-              </tbody>
-            </table>
-          </>
-        )}
+                  ))
+              )}
+              <tr>
+                  <td colSpan="5" className="text-right font-bold uppercase bg-slate-50">Total Pengeluaran Kas :</td>
+                  <td className="text-right font-black text-red-600 bg-slate-50">-{formatRp(totalPengeluaran)}</td>
+              </tr>
+          </tbody>
+        </table>
 
         <div className="flex justify-between mt-12 text-center text-xs">
             <div className="w-48"><p className="text-slate-600">Dibuat Oleh,</p><div className="h-16"></div><p className="border-t border-black pt-1.5 uppercase font-bold text-slate-800">( Admin / Kasir )</p></div>
@@ -470,7 +471,7 @@ export function PrintReport({ data, onBack }) {
 }
 
 // ============================================================================
-// KOMPONEN PRINT LAPORAN CABANG PEMALANG (A4) - COMPACT SPACING + QTY + FOOTER
+// KOMPONEN PRINT LAPORAN CABANG PEMALANG (A4) - SELALU MUNCUL SEMUA TABEL
 // ============================================================================
 export function PrintReportBranch({ data, onBack, user }) {
   useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
@@ -548,15 +549,17 @@ export function PrintReportBranch({ data, onBack, user }) {
           </tbody>
         </table>
 
-        {rekap?.listRiwayatPiutang?.length > 0 && (
-          <>
-            <h3 className="font-bold text-xs mb-1.5 mt-5 text-emerald-700">B. RIWAYAT TERIMA PIUTANG (AGEN CABANG)</h3>
-            <table className="table-print">
-              <thead>
-                <tr><th className="w-8">NO</th><th>TGL & ID BAYAR</th><th>TGL & INV ASAL</th><th>PELANGGAN</th><th className="text-center">QTY</th><th className="text-center">VIA</th><th className="text-right">NOMINAL MASUK</th><th className="text-right">SISA TAGIHAN</th><th className="text-center">STATUS NOTA</th></tr>
-              </thead>
-              <tbody>
-                {rekap.listRiwayatPiutang.map((p, i) => (
+        {/* TABEL B SELALU TAMPIL */}
+        <h3 className="font-bold text-xs mb-1.5 mt-5 text-emerald-700">B. RIWAYAT TERIMA PIUTANG (AGEN CABANG)</h3>
+        <table className="table-print">
+          <thead>
+            <tr><th className="w-8">NO</th><th>TGL & ID BAYAR</th><th>TGL & INV ASAL</th><th>PELANGGAN</th><th className="text-center">QTY</th><th className="text-center">VIA</th><th className="text-right">NOMINAL MASUK</th><th className="text-center">STATUS NOTA</th></tr>
+          </thead>
+          <tbody>
+            {(!rekap?.listRiwayatPiutang || rekap.listRiwayatPiutang.length === 0) ? (
+                <tr><td colSpan="8" className="text-center py-4 italic text-slate-500">Tidak ada riwayat piutang.</td></tr>
+            ) : (
+                rekap.listRiwayatPiutang.map((p, i) => (
                   <tr key={i}>
                     <td className="text-center">{i + 1}</td>
                     <td><span className="font-bold text-blue-700">{formatDate(p.date)}</span><br/><span className="font-mono text-[8px] text-slate-500 font-normal">{p.payId}</span></td>
@@ -565,15 +568,14 @@ export function PrintReportBranch({ data, onBack, user }) {
                     <td className="text-center text-[9px]">{p.qtyDesc}</td>
                     <td className="text-center text-[9px]">{p.paymentMethod}</td>
                     <td className="text-right font-black text-emerald-600">+{formatRp(p.amount)}</td>
-                    <td className={`text-right font-bold ${p.sisaTagihan <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{p.sisaTagihan <= 0 ? 'Rp 0' : formatRp(p.sisaTagihan)}</td>
                     <td className={`text-center font-bold text-[9px] ${p.statusNota === 'LUNAS' ? 'text-emerald-600' : 'text-red-600'}`}>{p.statusNota}</td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
-        )}
+                ))
+            )}
+          </tbody>
+        </table>
 
+        {/* TABEL C SELALU TAMPIL */}
         <h3 className="font-bold text-xs mb-1.5 mt-5 text-slate-800">C. LAPORAN HARIAN & STOK</h3>
         <table className="table-print">
             <thead><tr><th className="w-8">NO</th><th>TGL</th><th className="text-center">PROD / PSN</th><th>STOK FREEZER</th><th className="text-center">TUJUAN TF</th><th className="text-right">UANG DISETOR</th></tr></thead>
