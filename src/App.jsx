@@ -86,7 +86,7 @@ export default function App() {
   };
 
   const fetchData = async () => {
-    if (!SCRIPT_URL || SCRIPT_URL === 'TARUH_LINK_GOOGLE_SCRIPT_DISINI') return;
+    if (!SCRIPT_URL) return;
     setIsLoading(true);
     try {
       const response = await fetch(`${SCRIPT_URL}?action=read&limit=2000`);
@@ -102,12 +102,8 @@ export default function App() {
         setKaryawan(data.filter(item => item && item.table === 'karyawan' && !item.isDeleted).sort(safeSort));
       }
     } catch (error) { 
-      alert("Gagal terhubung ke Database Google Sheet."); 
-      console.error(error);
-    } 
-    finally { 
-      setIsLoading(false); 
-    }
+      console.error("Gagal terhubung ke Database:", error);
+    } finally { setIsLoading(false); }
   };
 
   const sendToSheet = async (action, data, table) => {
@@ -145,54 +141,32 @@ export default function App() {
     
     try { 
       await fetch(SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, table, data }) }); 
-    } catch (error) {
-      console.error("Gagal terhubung ke Sheet:", error);
-    }
+    } catch (error) { console.error("Gagal kirim ke Sheet:", error); }
   };
 
   const executeDelete = async () => {
     if(!confirmDialog) return;
     const { type, id } = confirmDialog;
-    let colName = '';
-    if (type === 'order') colName = 'orders'; else if (type === 'expense') colName = 'expenses'; else if (type === 'payment') colName = 'payments'; else if (type === 'pemalang') colName = 'pemalang'; else if (type === 'stok') colName = 'stok'; else if (type === 'purchase') colName = 'purchases'; else if (type === 'karyawan') colName = 'karyawan';
+    let colName = type === 'order' ? 'orders' : type === 'expense' ? 'expenses' : type === 'payment' ? 'payments' : type === 'pemalang' ? 'pemalang' : type === 'stok' ? 'stok' : type === 'purchase' ? 'purchases' : 'karyawan';
     await sendToSheet('delete', { id }, colName); setConfirmDialog(null);
   };
 
   const pendingHutangPiutang = useMemo(() => {
-    const piutangGroups = {}; const hutangGroups = {};
-    (orders || []).forEach(o => { if(!o?.id) return; if(!piutangGroups[o.id]) piutangGroups[o.id] = { total: 0, paid: 0 }; piutangGroups[o.id].total += Number(o.total) || 0; piutangGroups[o.id].paid = Number(o.paidAmount) || 0; });
-    (purchases || []).forEach(p => { if(!p?.id) return; if(!hutangGroups[p.id]) hutangGroups[p.id] = { total: 0, paid: 0 }; hutangGroups[p.id].total += Number(p.total) || 0; hutangGroups[p.id].paid = Number(p.paidAmount) || 0; });
-    const piutang = Object.keys(piutangGroups).filter(id => { const cicilan = (piutangPayments || []).filter(p => p.orderId === id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0); return (piutangGroups[id].total - piutangGroups[id].paid - cicilan) > 0; }).length;
-    const hutang = Object.keys(hutangGroups).filter(id => { const cicilan = (piutangPayments || []).filter(p => p.orderId === id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0); return (hutangGroups[id].total - hutangGroups[id].paid - cicilan) > 0; }).length;
-    return piutang + hutang;
-  }, [orders, purchases, piutangPayments]);
+    const piutang = (orders || []).filter(o => (Number(o.total) - Number(o.paidAmount)) > 0).length;
+    return piutang;
+  }, [orders]);
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 font-sans relative overflow-hidden">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 relative z-10">
-          <div className="flex flex-col items-center mb-6">
-            <a href="https://dimsumaditya.id/" target="_blank" rel="noopener noreferrer" title="Buka Website Dimsum Aditya">
-                <img src="https://dimsumaditya.id/wp-content/uploads/2024/10/Dimsum-Aditya.png" alt="Logo" className="w-20 h-20 object-contain mb-2 hover:scale-105 transition-transform" />
-            </a>
-            <h1 className="text-2xl font-bold text-slate-800">
-                <a href="https://dimsumaditya.id/" target="_blank" rel="noopener noreferrer" className="hover:text-red-600 transition-colors" title="Buka Website Dimsum Aditya">Dimsum Aditya</a>
-            </h1>
-            <p className="text-sm text-slate-500 mt-1">Sistem Informasi Manajemen Terpadu</p>
-          </div>
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
           <form onSubmit={handleLogin} className="space-y-4">
+            <h1 className="text-2xl font-bold text-center">Dimsum Aditya Login</h1>
             {loginError && <div className="p-3 bg-red-50 text-red-600 rounded-lg text-sm text-center">{loginError}</div>}
             <input type="text" required placeholder="Username" value={loginForm.username} onChange={e => setLoginForm({...loginForm, username: e.target.value})} className="w-full p-3 border rounded-xl" />
             <input type="password" required placeholder="Password" value={loginForm.password} onChange={e => setLoginForm({...loginForm, password: e.target.value})} className="w-full p-3 border rounded-xl" />
-            <button type="submit" className="w-full bg-red-600 hover:bg-red-700 transition text-white font-bold py-3.5 rounded-xl">Masuk Sistem</button>
+            <button type="submit" className="w-full bg-red-600 text-white font-bold py-3.5 rounded-xl">Masuk</button>
           </form>
-          
-          <div className="mt-8 text-center border-t border-slate-100 pt-5">
-            <p className="text-xs text-slate-500">
-                Hak Cipta &copy; {new Date().getFullYear()} Sistem Kasir<br/>
-                Developed for <a href="https://dimsumaditya.id/" target="_blank" rel="noopener noreferrer" className="font-bold text-red-600 hover:text-red-700 transition">Dimsum Aditya</a>
-            </p>
-          </div>
         </div>
       </div>
     );
@@ -209,21 +183,11 @@ export default function App() {
   if (printData?.type === 'spk') return <PrintSPK data={printData.data} onBack={() => setPrintData(null)} />;
 
   return (
-    <div className="min-h-screen bg-slate-50 flex font-sans text-slate-800">
-      {confirmDialog && (
-        <div className="fixed inset-0 bg-black/60 z-[9999] flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl p-6 w-full max-w-sm">
-            <h3 className="font-bold text-lg text-red-600 mb-2">Hapus Data</h3>
-            <p className="text-sm mb-6">Yakin ingin menghapus permanen?</p>
-            <div className="flex gap-3 justify-end"><button onClick={() => setConfirmDialog(null)} className="px-4 py-2 bg-slate-100 rounded-lg">Batal</button><button onClick={executeDelete} className="px-4 py-2 bg-red-600 text-white rounded-lg">Hapus</button></div>
-          </div>
-        </div>
-      )}
-
+    <div className="min-h-screen bg-slate-50 flex">
       <aside className="w-64 bg-slate-900 text-white flex flex-col shrink-0">
-        <div className="p-6 border-b border-slate-800 flex items-center gap-3">
-          <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center p-0.5"><img src="https://dimsumaditya.id/wp-content/uploads/2024/10/Dimsum-Aditya.png" alt="Logo" className="w-full h-full object-contain" /></div>
-          <div><h1 className="font-bold text-lg leading-tight truncate w-40">Dimsum Aditya</h1><p className="text-xs text-emerald-400 font-bold">{user.name}</p></div>
+        <div className="p-6 border-b border-slate-800">
+            <h1 className="font-bold text-lg">Dimsum Aditya</h1>
+            <p className="text-xs text-emerald-400">{user.name}</p>
         </div>
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
           {user.role === 'admin' && (
@@ -232,15 +196,14 @@ export default function App() {
               <NavItem icon={<ShoppingCart size={20} />} label="Order & Penjualan" active={activeTab === 'orders'} onClick={() => handleTabChange('orders')} />
               <NavItem icon={<Truck size={20} />} label="Pembelian Bahan" active={activeTab === 'purchases'} onClick={() => handleTabChange('purchases')} />
               <NavItem icon={<Wallet size={20} />} label="Kas Umum (Lainnya)" active={activeTab === 'expenses'} onClick={() => handleTabChange('expenses')} />
-              <NavItem icon={<Clock size={20} />} label="Hutang & Piutang" active={activeTab === 'piutang'} onClick={() => handleTabChange('piutang')} badge={pendingHutangPiutang} />
-              <div className="pt-4 mt-2 border-t border-slate-800"><NavItem icon={<Package size={20} />} label="Produksi & Stok (Pusat)" active={activeTab === 'stok'} onClick={() => handleTabChange('stok')} /></div>
+              <NavItem icon={<Clock size={20} />} label="Hutang & Piutang" active={activeTab === 'piutang'} onClick={() => handleTabChange('piutang')} />
+              <div className="pt-2 mt-2 border-t border-slate-800"><NavItem icon={<Package size={20} />} label="Produksi & Stok (Pusat)" active={activeTab === 'stok'} onClick={() => handleTabChange('stok')} /></div>
               <NavItem icon={<Store size={20} />} label="Monitoring Pemalang" active={activeTab === 'monitoring_pemalang'} onClick={() => handleTabChange('monitoring_pemalang')} />
-              <div className="pt-4 mt-2 border-t border-slate-800"><NavItem icon={<Users size={20} />} label="Karyawan & Gaji" active={activeTab === 'karyawan'} onClick={() => handleTabChange('karyawan')} /></div>
+              <div className="pt-2 mt-2 border-t border-slate-800"><NavItem icon={<Users size={20} />} label="Karyawan & Gaji" active={activeTab === 'karyawan'} onClick={() => handleTabChange('karyawan')} /></div>
             </>
           )}
           {user.role === 'branch' && (
             <>
-              <div className="text-xs font-bold text-slate-500 uppercase mb-2 px-3">Akses Cabang</div>
               <NavItem icon={<LayoutDashboard size={20} />} label="Dashboard Cabang" active={activeTab === 'dashboard'} onClick={() => handleTabChange('dashboard')} />
               <NavItem icon={<ShoppingCart size={20} />} label="Buat Invoice" active={activeTab === 'orders'} onClick={() => handleTabChange('orders')} />
               <NavItem icon={<Clock size={20} />} label="Hutang & Piutang" active={activeTab === 'piutang'} onClick={() => handleTabChange('piutang')} />
@@ -253,8 +216,8 @@ export default function App() {
       </aside>
 
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        <header className="bg-white border-b p-4 flex justify-between items-center z-10 shadow-sm"><h2 className="text-xl font-bold capitalize">Manajemen Data</h2></header>
-        <div className="flex-1 overflow-auto p-6 bg-slate-50 relative">
+        <header className="bg-white border-b p-4 shadow-sm"><h2 className="text-xl font-bold capitalize">{activeTab.replace('_', ' ')}</h2></header>
+        <div className="flex-1 overflow-auto p-6 bg-slate-50">
           {activeTab === 'dashboard' && user.role === 'admin' && <TabDashboard orders={orders} expenses={expenses} purchases={purchases} piutangPayments={piutangPayments} pemalangReports={pemalangReports} setPrintData={setPrintData} sendToSheet={sendToSheet} />}
           {activeTab === 'dashboard' && user.role === 'branch' && <TabDashboardBranch orders={orders} pemalangReports={pemalangReports} piutangPayments={piutangPayments} setPrintData={setPrintData} stokData={stokData} />}
           {activeTab === 'orders' && <TabOrders orders={orders} payments={piutangPayments} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'order', id})} role={user.role} />}
@@ -262,14 +225,8 @@ export default function App() {
           {activeTab === 'expenses' && user.role === 'admin' && <TabExpenses expenses={expenses} karyawan={karyawan} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'expense', id})} />}
           {activeTab === 'piutang' && <TabPiutang orders={orders} purchases={purchases} payments={piutangPayments} sendToSheet={sendToSheet} requestDelete={(id) => setConfirmDialog({type: 'payment', id})} setPrintData={setPrintData} role={user.role} />}
           {activeTab === 'pemalang' && <TabPemalang reports={pemalangReports} sendToSheet={sendToSheet} requestDelete={(id) => setConfirmDialog({type: 'pemalang', id})} role={user.role} />}
-          
-          {/* TAB PRODUKSI & STOK PUSAT */}
           {activeTab === 'stok' && <TabStok stokData={stokData} purchases={purchases} orders={orders} sendToSheet={sendToSheet} requestDelete={(id) => setConfirmDialog({type: 'stok', id})} role={user.role} />}
-          
-          {/* TAB MONITORING CABANG PEMALANG */}
           {activeTab === 'monitoring_pemalang' && user.role === 'admin' && <TabMonitoringPemalang orders={orders} pemalangReports={pemalangReports} stokData={stokData} />}
-          
-          {/* TAB KARYAWAN & GAJI */}
           {activeTab === 'karyawan' && user.role === 'admin' && <TabKaryawan karyawan={karyawan} expenses={expenses} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'karyawan', id})} />}
         </div>
       </main>
