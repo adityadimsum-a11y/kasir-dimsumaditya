@@ -23,6 +23,36 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
     dateFrom, dateTo, chartView 
   });
 
+  // LOGIC BUKA KAS (MODAL AWAL)
+  const handleBukaKas = () => {
+      const nominalStr = window.prompt("Masukkan nominal Uang Modal Kembalian (Cash) pagi ini:\nContoh: 500000");
+      if (!nominalStr) return; // Batal
+      
+      const nominal = parseInt(nominalStr.replace(/[^0-9]/g, ''), 10);
+      if (isNaN(nominal) || nominal <= 0) {
+          alert("Nominal tidak valid! Harap masukkan angka yang benar.");
+          return;
+      }
+
+      const today = getTodayStr();
+      const newIncome = {
+          id: generateId('IN', today), 
+          date: today,
+          recipient: 'Admin Kasir',
+          category: 'Modal Awal / Tambahan Saldo',
+          description: `Modal awal kembalian buka toko.`,
+          qty: 1,
+          price: nominal,
+          total: nominal,
+          type: 'IN',
+          paymentMethod: 'Cash',
+          editCount: 0
+      };
+      
+      sendToSheet('insert', newIncome, 'expenses');
+      alert(`Modal awal sebesar ${formatRp(nominal)} berhasil dimasukkan ke Laci Sistem! Selamat bekerja!`);
+  };
+
   // LOGIC CLOSING KAS HARIAN (NOL-KAN LACI)
   const handleClosingKas = () => {
       if (rekap.saldoCash <= 0) {
@@ -48,10 +78,7 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
               editCount: 0
           };
           
-          // Simpan pengeluaran setor ke database
           sendToSheet('insert', newExpense, 'expenses');
-          
-          // Langsung otomatis cetak Voucher Kas Keluar
           setPrintData({ type: 'voucher', data: newExpense });
       }
   };
@@ -69,13 +96,22 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
                   <h2 className="text-lg font-bold text-slate-800 mb-1 flex items-center gap-2"><Wallet size={20}/> Status Saldo Berjalan (Akumulasi Aktif)</h2>
                   <p className="text-xs text-slate-500">*Dihitung otomatis terus-menerus (continue) sampai dengan {formatDate(dateTo)}.</p>
               </div>
-              <button 
-                onClick={handleClosingKas} 
-                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-lg flex items-center gap-2 text-sm font-bold shadow-md transition transform hover:scale-105"
-                title="Tekan ini saat mau pulang / tutup toko"
-              >
-                <CheckCircle size={18} /> Closing Kas & Setor Uang
-              </button>
+              <div className="flex gap-2">
+                  <button 
+                    onClick={handleBukaKas} 
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-lg flex items-center gap-2 text-sm font-bold shadow-md transition transform hover:scale-105"
+                    title="Tekan ini saat baru buka toko pagi hari"
+                  >
+                    <Coins size={18} /> Modal Pagi
+                  </button>
+                  <button 
+                    onClick={handleClosingKas} 
+                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-lg flex items-center gap-2 text-sm font-bold shadow-md transition transform hover:scale-105"
+                    title="Tekan ini saat mau pulang / tutup toko"
+                  >
+                    <CheckCircle size={18} /> Closing Kas
+                  </button>
+              </div>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
