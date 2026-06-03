@@ -201,6 +201,7 @@ export default function App() {
   if (printData?.type === 'receipt') return <PrintReceipt data={printData.data} onBack={() => setPrintData(null)} />;
   if (printData?.type === 'report') return <PrintReport data={printData.data} onBack={() => setPrintData(null)} />;
   if (printData?.type === 'reportBranch') return <PrintReportBranch data={printData.data} onBack={() => setPrintData(null)} user={user} />;
+  if (printData?.type === 'spk') return <PrintSPK data={printData.data} onBack={() => setPrintData(null)} />;
 
   return (
     <div className="min-h-screen bg-slate-50 flex font-sans text-slate-800">
