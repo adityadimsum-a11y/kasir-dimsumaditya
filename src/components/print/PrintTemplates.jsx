@@ -2,9 +2,6 @@ import React, { useEffect } from 'react';
 import { formatRp, formatDate, terbilang } from '../../utils/helpers';
 import { getLocalYMD } from '../../utils/helpers';
 
-// ============================================================================
-// 1. CSS STYLE UNTUK MODE CETAK DOT MATRIX (CLEAN, COMPACT & MINIMALIS)
-// ============================================================================
 const dotMatrixStyle = `
   .print-wrapper { max-width: 9.5in; margin: 0 auto; padding: 20px; background: white; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: black; line-height: 1.4; }
   .clean-header-block { border-top: 2px solid black; border-bottom: 2px solid black; padding: 10px 0; margin-bottom: 15px; }
@@ -22,9 +19,6 @@ const dotMatrixStyle = `
   }
 `;
 
-// ============================================================================
-// 2. CSS STYLE UNTUK MODE CETAK REKAP LAPORAN KERTAS A4 (COMPACT & RAPI)
-// ============================================================================
 const a4Style = `
   .a4-wrapper { max-width: 210mm; margin: 0 auto; background: white; padding: 20px; color: black; font-family: Arial, sans-serif; font-size: 11px; }
   .table-print { width: 100%; border-collapse: collapse; margin-top: 5px; margin-bottom: 15px; }
@@ -38,9 +32,6 @@ const a4Style = `
   }
 `;
 
-// ============================================================================
-// A. KOMPONEN PRINT INVOICE PENJUALAN (DOT MATRIX)
-// ============================================================================
 export function PrintInvoiceDotMatrix({ data, onBack }) {
   useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
   if (!data) return <div className="p-4 bg-white text-center font-bold">Data Invoice Tidak Tersedia.</div>;
@@ -87,14 +78,7 @@ export function PrintInvoiceDotMatrix({ data, onBack }) {
             <tr><th className="w-8">NO</th><th className="text-left">DESKRIPSI BARANG</th><th className="w-20">PORSI</th><th className="w-20">QTY</th><th className="w-28 text-right">HARGA SATUAN</th><th className="w-32 text-right">TOTAL</th></tr>
           </thead>
           <tbody>
-            <tr>
-              <td className="font-bold text-slate-600">1</td>
-              <td className="text-left font-black uppercase">Dimsum Ayam Mix</td>
-              <td className="font-bold">{totalPorsi} Prs</td>
-              <td className="font-bold">{totalQtyNum} Pcs</td>
-              <td className="text-right">{formatRp(data.price)}</td>
-              <td className="text-right font-black">{formatRp(data.totalAll || data.total)}</td>
-            </tr>
+            <tr><td className="font-bold text-slate-600">1</td><td className="text-left font-black uppercase">Dimsum Ayam Mix</td><td className="font-bold">{totalPorsi} Prs</td><td className="font-bold">{totalQtyNum} Pcs</td><td className="text-right">{formatRp(data.price)}</td><td className="text-right font-black">{formatRp(data.totalAll || data.total)}</td></tr>
           </tbody>
         </table>
 
@@ -119,9 +103,6 @@ export function PrintInvoiceDotMatrix({ data, onBack }) {
   );
 }
 
-// ============================================================================
-// B. KOMPONEN PRINT TANDA TERIMA PEMBAYARAN CICILAN / HUTANG (DOT MATRIX)
-// ============================================================================
 export function PrintReceipt({ data, onBack }) {
   useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
   if (!data) return <div className="p-4 bg-white text-center font-bold">Data Tanda Terima Tidak Tersedia.</div>;
@@ -188,9 +169,6 @@ export function PrintReceipt({ data, onBack }) {
   );
 }
 
-// ============================================================================
-// C. KOMPONEN PRINT VOUCHER KAS UMUM / KELUAR (DOT MATRIX)
-// ============================================================================
 export function PrintVoucher({ data, onBack }) {
   useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
   if (!data) return <div className="p-4 bg-white text-center font-bold">Data Voucher Kas Tidak Tersedia.</div>;
@@ -201,11 +179,11 @@ export function PrintVoucher({ data, onBack }) {
       <button onClick={onBack} className="hide-on-print mb-4 bg-slate-800 text-white px-4 py-2 rounded font-bold shadow-md">Kembali ke Aplikasi</button>
       
       <div className="print-wrapper shadow-xl">
-        <div className="flex justify-between items-end mb-4">
+        <div className="flex justify-between items-end mb-4 border-b-2 border-black pb-4">
           <div className="flex items-center gap-3">
             <img src="https://dimsumaditya.id/wp-content/uploads/2024/10/Dimsum-Aditya.png" alt="Logo" style={{ height: '54px', width: 'auto' }} />
             <div>
-              <h1 className="font-black text-xl tracking-wide uppercase mb-1">Dimsum Aditya</h1>
+              <h1 className="font-black text-xl tracking-wide uppercase mb-0.5">Dimsum Aditya</h1>
               <p className="text-[10px] font-medium text-slate-600 leading-tight">Sistem Kas Terpadu</p>
             </div>
           </div>
@@ -215,41 +193,51 @@ export function PrintVoucher({ data, onBack }) {
           </div>
         </div>
 
-        <div className="flex justify-between gap-4 clean-header-block">
-          <div className="flex-1">
-            <div className="flex mb-1.5 items-center"><span className="w-28 font-bold uppercase text-[10px] text-slate-500">Dibayarkan Kpd</span><span className="font-black uppercase text-base">: {data?.recipient || '-'}</span></div>
-            <div className="flex mb-1.5 items-center"><span className="w-28 font-bold uppercase text-[10px] text-slate-500">Uang Sejumlah</span><span className="font-black text-lg">: {formatRp(data?.total)}</span></div>
-            <div className="flex items-start"><span className="w-28 font-bold uppercase text-[10px] text-slate-500 mt-0.5">Terbilang</span><span className="font-bold italic text-xs text-slate-700">: # {terbilang(data?.total)} Rupiah #</span></div>
+        <div className="flex justify-between gap-4 mt-6 mb-6">
+          <div className="flex-1 space-y-2.5">
+            <div className="flex items-start"><span className="w-32 font-bold uppercase text-xs text-slate-500">Dibayarkan Kpd</span><span className="font-black uppercase text-base">: {data?.recipient || '-'}</span></div>
+            <div className="flex items-start"><span className="w-32 font-bold uppercase text-xs text-slate-500">Uang Sejumlah</span><span className="font-black text-xl">: {formatRp(data?.total)}</span></div>
+            <div className="flex items-start"><span className="w-32 font-bold uppercase text-xs text-slate-500 mt-1">Terbilang</span><span className="font-bold italic text-sm text-slate-800">: # {terbilang(data?.total)} Rupiah #</span></div>
           </div>
-          <div className="w-1/3 flex flex-col justify-center border-l-2 border-slate-200 pl-4">
-            <div className="flex justify-between mb-1.5"><span className="text-[10px] font-bold uppercase text-slate-500">No. Bukti</span> <span className="font-bold text-[10px]">{data?.id || '-'}</span></div>
-            <div className="flex justify-between mb-1.5"><span className="text-[10px] font-bold uppercase text-slate-500">Tanggal</span> <span className="font-bold text-[10px]">{formatDate(data?.date)}</span></div>
-            <div className="flex justify-between"><span className="text-[10px] font-bold uppercase text-slate-500">Metode</span> <span className="font-bold uppercase text-[10px]">{data?.paymentMethod || '-'}</span></div>
+          <div className="w-1/3 border-l-2 border-slate-200 pl-6 space-y-2 flex flex-col justify-center">
+            <div className="flex justify-between"><span className="text-xs font-bold uppercase text-slate-500">No. Bukti</span> <span className="font-bold text-xs">{data?.id || '-'}</span></div>
+            <div className="flex justify-between"><span className="text-xs font-bold uppercase text-slate-500">Tanggal</span> <span className="font-bold text-xs">{formatDate(data?.date)}</span></div>
+            <div className="flex justify-between"><span className="text-xs font-bold uppercase text-slate-500">Metode</span> <span className="font-bold uppercase text-xs">{data?.paymentMethod || '-'}</span></div>
           </div>
         </div>
 
-        <table className="table-pro">
+        <table className="w-full mt-6 mb-8">
           <thead>
-            <tr><th className="w-8">NO</th><th className="text-left w-56">KATEGORI PENGELUARAN</th><th className="text-left">KETERANGAN / RINCIAN</th><th className="w-32 text-right">TOTAL</th></tr>
+            <tr className="border-t-2 border-b-2 border-black">
+              <th className="w-10 text-center py-2.5 text-xs font-bold uppercase">No</th>
+              <th className="text-left py-2.5 text-xs font-bold uppercase w-1/3">Kategori Pengeluaran</th>
+              <th className="text-left py-2.5 text-xs font-bold uppercase">Keterangan / Rincian</th>
+              <th className="w-40 text-right py-2.5 text-xs font-bold uppercase">Total</th>
+            </tr>
           </thead>
           <tbody>
-            <tr><td className="font-bold text-slate-600">1</td><td className="text-left font-bold uppercase">{data?.category || '-'}</td><td className="text-left font-medium">{data?.description || '-'} (Qty: {data?.qty || 0})</td><td className="text-right font-black">{formatRp(data?.total)}</td></tr>
+            <tr className="border-b-2 border-black">
+              <td className="text-center py-4 font-bold text-slate-600">1</td>
+              <td className="text-left py-4 font-bold uppercase text-sm">{data?.category || '-'}</td>
+              <td className="text-left py-4 font-medium text-sm text-slate-700">
+                {data?.description || '-'} 
+                {Number(data?.qty) > 1 ? ` (Qty: ${data.qty})` : ''}
+              </td>
+              <td className="text-right py-4 font-black text-lg">{formatRp(data?.total)}</td>
+            </tr>
           </tbody>
         </table>
         
-        <div className="flex justify-between mt-12 text-center text-[10px] font-bold">
-          <div className="w-32"><p className="uppercase text-slate-500">Dibuat Oleh,</p><div className="h-12"></div><p className="border-t border-slate-400 pt-1 uppercase">( Admin Kasir )</p></div>
-          <div className="w-32"><p className="uppercase text-slate-500">Disetujui Oleh,</p><div className="h-12"></div><p className="border-t border-slate-400 pt-1 uppercase">( Manajemen )</p></div>
-          <div className="w-32"><p className="uppercase text-slate-500">Penerima,</p><div className="h-12"></div><p className="border-t border-slate-400 pt-1 uppercase">( {data?.recipient || '-'} )</p></div>
+        <div className="flex justify-between mt-16 text-center text-xs font-bold">
+          <div className="w-40"><p className="uppercase text-slate-500">Dibuat Oleh,</p><div className="h-16"></div><p className="border-t border-slate-400 pt-2 uppercase">( Admin Kasir )</p></div>
+          <div className="w-40"><p className="uppercase text-slate-500">Disetujui Oleh,</p><div className="h-16"></div><p className="border-t border-slate-400 pt-2 uppercase">( Manajemen )</p></div>
+          <div className="w-40"><p className="uppercase text-slate-500">Penerima,</p><div className="h-16"></div><p className="border-t border-slate-400 pt-2 uppercase">( {data?.recipient || '-'} )</p></div>
         </div>
       </div>
     </div>
   );
 }
 
-// ============================================================================
-// D. KOMPONEN PRINT RESTOCK / PEMBELIAN BAHAN BAKU (DOT MATRIX)
-// ============================================================================
 export function PrintPurchase({ data, onBack }) {
   useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
   if (!data) return <div className="p-4 bg-white text-center font-bold">Data Pembelian Baku Tidak Tersedia.</div>;
@@ -330,9 +318,6 @@ export function PrintPurchase({ data, onBack }) {
   );
 }
 
-// ============================================================================
-// E. KOMPONEN PRINT REKAP LAPORAN UTAMA PUSAT (A4 COMPACT)
-// ============================================================================
 export function PrintReport({ data, onBack }) {
   useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
   if (!data) return <div className="p-4 bg-white text-center font-bold">Data Rekap Laporan Tidak Tersedia.</div>;
@@ -382,14 +367,14 @@ export function PrintReport({ data, onBack }) {
             </div>
         </div>
 
-        <h3 className="font-bold text-xs mb-1.5 text-slate-800">A. TRANSAKSI PENJUALAN</h3>
+        <h3 className="font-bold text-xs mb-1.5 text-slate-800">A. TRANSAKSI PENJUALAN DIMSUM</h3>
         <table className="table-print">
           <thead>
             <tr><th className="w-8">NO</th><th>TGL & INV</th><th>PELANGGAN</th><th className="text-center">QTY</th><th className="text-center">VIA</th><th className="text-right">TAGIHAN</th><th className="text-right">TERBAYAR</th><th className="text-right">SISA</th><th className="text-center">STATUS</th></tr>
           </thead>
           <tbody>
             {(!rekap?.listTransaksiDetail || rekap.listTransaksiDetail.length === 0) ? (
-                <tr><td colSpan="9" className="text-center py-4 italic text-slate-500">Tidak ada transaksi di periode ini.</td></tr>
+                <tr><td colSpan="9" className="text-center py-4 italic text-slate-500">Tidak ada transaksi penjualan dimsum di periode ini.</td></tr>
             ) : (
                 rekap.listTransaksiDetail.map((c, i) => {
                     const itemPcs = (c?.items || []).reduce((sum, str) => sum + (parseInt(str) || 0), 0);
@@ -408,7 +393,7 @@ export function PrintReport({ data, onBack }) {
                 )})
             )}
             <tr>
-                <td colSpan="3" className="text-right font-bold uppercase bg-slate-50">Total Penjualan :</td>
+                <td colSpan="3" className="text-right font-bold uppercase bg-slate-50">Total Penjualan Dimsum :</td>
                 <td className="text-center font-bold text-slate-700 bg-slate-50 text-[9px]">{rekap?.totalPcs || 0} Pcs / {rekap?.totalPorsi || 0} Prs</td>
                 <td className="bg-slate-50"></td>
                 <td className="text-right font-black text-blue-700 bg-slate-50">{formatRp(rekap?.totalPenjualanKotor)}</td>
@@ -419,7 +404,70 @@ export function PrintReport({ data, onBack }) {
           </tbody>
         </table>
 
-        <h3 className="font-bold text-xs mb-1.5 mt-5 text-orange-700">B. DAFTAR PIUTANG BERJALAN (BELUM LUNAS)</h3>
+        <h3 className="font-bold text-xs mb-1.5 mt-5 text-indigo-700">B. TRANSAKSI PEMBELIAN BAHAN BAKU</h3>
+        <table className="table-print">
+          <thead>
+            <tr><th className="w-8">NO</th><th>TGL & INV</th><th>SUPPLIER</th><th className="text-center">BARANG & QTY</th><th className="text-center">VIA</th><th className="text-right">TOTAL</th><th className="text-right">TERBAYAR</th><th className="text-right">SISA</th><th className="text-center">STATUS</th></tr>
+          </thead>
+          <tbody>
+              {(!rekap?.listPembelianDetail || rekap.listPembelianDetail.length === 0) ? (
+                  <tr><td colSpan="9" className="text-center py-4 italic text-slate-500">Tidak ada transaksi pembelian bahan di periode ini.</td></tr>
+              ) : (
+                  rekap.listPembelianDetail.map((c, i) => {
+                      const sisa = Number(c?.total || 0) - Number(c?.paidAmount || 0);
+                      const status = sisa <= 0 ? 'LUNAS' : 'BELUM LUNAS';
+                      return (
+                      <tr key={i}>
+                          <td className="text-center">{i + 1}</td>
+                          <td>{formatDate(c?.date)}<br/><span className="font-mono text-[8px] text-slate-500">{c?.id || '-'}</span></td>
+                          <td className="font-bold uppercase">{c?.supplier || '-'}</td>
+                          <td className="text-center text-[9px] uppercase">{c?.itemName || '-'} ({c?.qty || 0} {c?.satuan || '-'})</td>
+                          <td className="text-center text-[9px]">{c?.paymentMethod || '-'}</td>
+                          <td className="text-right font-medium">{formatRp(c?.total)}</td>
+                          <td className="text-right text-emerald-600 font-bold">{formatRp(c?.paidAmount)}</td>
+                          <td className="text-right font-bold text-red-600">{formatRp(sisa)}</td>
+                          <td className={`text-center font-bold text-[9px] ${status === 'LUNAS' ? 'text-emerald-600' : 'text-red-600'}`}>{status}</td>
+                      </tr>
+                  )})
+              )}
+              <tr>
+                  <td colSpan="5" className="text-right font-bold uppercase bg-slate-50">Total Pembelian Bahan :</td>
+                  <td className="text-right font-black text-blue-700 bg-slate-50">{formatRp((rekap?.listPembelianDetail || []).reduce((s, c) => s + Number(c?.total||0), 0))}</td>
+                  <td className="text-right font-black text-emerald-600 bg-slate-50">{formatRp((rekap?.listPembelianDetail || []).reduce((s, c) => s + Number(c?.paidAmount||0), 0))}</td>
+                  <td className="text-right font-black text-red-600 bg-slate-50">{formatRp((rekap?.listPembelianDetail || []).reduce((s, c) => s + (Number(c?.total||0) - Number(c?.paidAmount||0)), 0))}</td>
+                  <td className="bg-slate-50"></td>
+              </tr>
+          </tbody>
+        </table>
+
+        <h3 className="font-bold text-xs mb-1.5 mt-5 text-slate-800">C. KAS PEGANGAN ADMIN (PENGELUARAN)</h3>
+        <table className="table-print">
+          <thead>
+            <tr><th className="w-8">NO</th><th>TGL & REF</th><th>PENERIMA</th><th>KATEGORI & KETERANGAN</th><th className="text-center">VIA</th><th className="text-right">NOMINAL</th></tr>
+          </thead>
+          <tbody>
+              {(!rekap?.listExpenses || rekap.listExpenses.length === 0) ? (
+                  <tr><td colSpan="6" className="text-center py-4 italic text-slate-500">Tidak ada pengeluaran kas di periode ini.</td></tr>
+              ) : (
+                  rekap.listExpenses.map((o, i) => (
+                      <tr key={i}>
+                          <td className="text-center">{i + 1}</td>
+                          <td>{formatDate(o?.date)}<br/><span className="font-mono text-[8px] text-slate-500">{o?.id || '-'}</span></td>
+                          <td className="font-bold uppercase">{o?.recipient || '-'}</td>
+                          <td><div className="font-bold text-slate-800 uppercase">{o?.category || '-'}</div><div>{o?.description || '-'}</div></td>
+                          <td className="text-center text-[9px]">{o?.paymentMethod || '-'}</td>
+                          <td className="text-right font-bold text-red-600">-{formatRp(o?.total)}</td>
+                      </tr>
+                  ))
+              )}
+              <tr>
+                  <td colSpan="5" className="text-right font-bold uppercase bg-slate-50">Total Pengeluaran Kas Admin :</td>
+                  <td className="text-right font-black text-red-600 bg-slate-50">-{formatRp(totalPengeluaran)}</td>
+              </tr>
+          </tbody>
+        </table>
+
+        <h3 className="font-bold text-xs mb-1.5 mt-5 text-orange-700">D. DAFTAR PIUTANG BERJALAN (BELUM LUNAS)</h3>
         <table className="table-print">
           <thead>
             <tr><th className="w-8">NO</th><th>TGL & INV</th><th>PELANGGAN</th><th className="text-right">TOTAL TAGIHAN</th><th className="text-right">TERBAYAR (DP+CICILAN)</th><th className="text-right">SISA PIUTANG</th><th className="text-center">STATUS</th></tr>
@@ -448,33 +496,7 @@ export function PrintReport({ data, onBack }) {
           </tbody>
         </table>
 
-        <h3 className="font-bold text-xs mb-1.5 mt-5 text-emerald-700">C. RIWAYAT TERIMA PIUTANG (DARI PELANGGAN)</h3>
-        <table className="table-print">
-          <thead>
-            <tr><th className="w-8">NO</th><th>TGL & ID BAYAR</th><th>TGL & INV ASAL</th><th>PELANGGAN</th><th className="text-center">QTY</th><th className="text-center">VIA</th><th className="text-right">NOMINAL MASUK</th><th className="text-right">SISA TAGIHAN</th><th className="text-center">STATUS NOTA</th></tr>
-          </thead>
-          <tbody>
-            {(!rekap?.listRiwayatPiutang || rekap.listRiwayatPiutang.length === 0) ? (
-                <tr><td colSpan="9" className="text-center py-4 italic text-slate-500">Tidak ada riwayat piutang.</td></tr>
-            ) : (
-                rekap.listRiwayatPiutang.map((p, i) => (
-                  <tr key={i}>
-                    <td className="text-center">{i + 1}</td>
-                    <td><span className="font-bold text-blue-700">{formatDate(p?.date)}</span><br/><span className="font-mono text-[8px] text-slate-500 font-normal">{p?.payId || '-'}</span></td>
-                    <td>{formatDate(p?.tglInvoice)}<br/><span className="font-mono text-[8px] font-normal text-slate-500">{p?.orderId || '-'}</span></td>
-                    <td className="font-bold uppercase">{p?.customer || '-'}</td>
-                    <td className="text-center text-[9px]">{p?.qtyDesc || '-'}</td>
-                    <td className="text-center text-[9px]">{p?.paymentMethod || '-'}</td>
-                    <td className="text-right font-black text-emerald-600">+{formatRp(p?.amount)}</td>
-                    <td className={`text-right font-bold ${Number(p?.sisaTagihan) <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{Number(p?.sisaTagihan) <= 0 ? 'Rp 0' : formatRp(p?.sisaTagihan)}</td>
-                    <td className={`text-center font-bold text-[9px] ${p?.statusNota === 'LUNAS' ? 'text-emerald-600' : 'text-red-600'}`}>{p?.statusNota || '-'}</td>
-                  </tr>
-                ))
-            )}
-          </tbody>
-        </table>
-
-        <h3 className="font-bold text-xs mb-1.5 mt-5 text-red-700">D. DAFTAR HUTANG BERJALAN (BELUM LUNAS)</h3>
+        <h3 className="font-bold text-xs mb-1.5 mt-5 text-red-700">E. DAFTAR HUTANG BERJALAN (BELUM LUNAS)</h3>
         <table className="table-print">
           <thead>
             <tr><th className="w-8">NO</th><th>TGL & INV</th><th>SUPPLIER</th><th className="text-right">TOTAL TAGIHAN</th><th className="text-right">TERBAYAR (DP+CICILAN)</th><th className="text-right">SISA HUTANG</th><th className="text-center">STATUS</th></tr>
@@ -503,14 +525,40 @@ export function PrintReport({ data, onBack }) {
           </tbody>
         </table>
 
-        <h3 className="font-bold text-xs mb-1.5 mt-5 text-red-700">E. RIWAYAT BAYAR HUTANG (KE SUPPLIER)</h3>
+        <h3 className="font-bold text-xs mb-1.5 mt-5 text-emerald-700">F. RIWAYAT TERIMA PIUTANG (DARI PELANGGAN)</h3>
+        <table className="table-print">
+          <thead>
+            <tr><th className="w-8">NO</th><th>TGL & ID BAYAR</th><th>TGL & INV ASAL</th><th>PELANGGAN</th><th className="text-center">QTY</th><th className="text-center">VIA</th><th className="text-right">NOMINAL MASUK</th><th className="text-right">SISA TAGIHAN</th><th className="text-center">STATUS NOTA</th></tr>
+          </thead>
+          <tbody>
+            {(!rekap?.listRiwayatPiutang || rekap.listRiwayatPiutang.length === 0) ? (
+                <tr><td colSpan="9" className="text-center py-4 italic text-slate-500">Tidak ada riwayat pembayaran piutang.</td></tr>
+            ) : (
+                rekap.listRiwayatPiutang.map((p, i) => (
+                  <tr key={i}>
+                    <td className="text-center">{i + 1}</td>
+                    <td><span className="font-bold text-blue-700">{formatDate(p?.date)}</span><br/><span className="font-mono text-[8px] text-slate-500 font-normal">{p?.payId || '-'}</span></td>
+                    <td>{formatDate(p?.tglInvoice)}<br/><span className="font-mono text-[8px] font-normal text-slate-500">{p?.orderId || '-'}</span></td>
+                    <td className="font-bold uppercase">{p?.customer || '-'}</td>
+                    <td className="text-center text-[9px]">{p?.qtyDesc || '-'}</td>
+                    <td className="text-center text-[9px]">{p?.paymentMethod || '-'}</td>
+                    <td className="text-right font-black text-emerald-600">+{formatRp(p?.amount)}</td>
+                    <td className={`text-right font-bold ${Number(p?.sisaTagihan) <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{Number(p?.sisaTagihan) <= 0 ? 'Rp 0' : formatRp(p?.sisaTagihan)}</td>
+                    <td className={`text-center font-bold text-[9px] ${p?.statusNota === 'LUNAS' ? 'text-emerald-600' : 'text-red-600'}`}>{p?.statusNota || '-'}</td>
+                  </tr>
+                ))
+            )}
+          </tbody>
+        </table>
+
+        <h3 className="font-bold text-xs mb-1.5 mt-5 text-red-700">G. RIWAYAT BAYAR HUTANG (KE SUPPLIER)</h3>
         <table className="table-print">
           <thead>
             <tr><th className="w-8">NO</th><th>TGL & ID BAYAR</th><th>TGL & INV ASAL</th><th>SUPPLIER</th><th className="text-center">BARANG</th><th className="text-center">VIA</th><th className="text-right">NOMINAL KELUAR</th><th className="text-right">SISA HUTANG</th><th className="text-center">STATUS NOTA</th></tr>
           </thead>
           <tbody>
             {(!rekap?.listRiwayatHutang || rekap.listRiwayatHutang.length === 0) ? (
-                <tr><td colSpan="9" className="text-center py-4 italic text-slate-500">Tidak ada riwayat hutang.</td></tr>
+                <tr><td colSpan="9" className="text-center py-4 italic text-slate-500">Tidak ada riwayat pembayaran hutang.</td></tr>
             ) : (
                 rekap.listRiwayatHutang.map((p, i) => (
                   <tr key={i}>
@@ -529,33 +577,6 @@ export function PrintReport({ data, onBack }) {
           </tbody>
         </table>
 
-        <h3 className="font-bold text-xs mb-1.5 mt-5 text-slate-800">F. BUKU KAS (PENGELUARAN)</h3>
-        <table className="table-print">
-          <thead>
-            <tr><th className="w-8">NO</th><th>TGL & REF</th><th>PENERIMA</th><th>KATEGORI & KETERANGAN</th><th className="text-center">VIA</th><th className="text-right">NOMINAL</th></tr>
-          </thead>
-          <tbody>
-              {(!rekap?.listExpenses || rekap.listExpenses.length === 0) ? (
-                  <tr><td colSpan="6" className="text-center py-4 italic text-slate-500">Tidak ada pengeluaran kas di periode ini.</td></tr>
-              ) : (
-                  rekap.listExpenses.map((o, i) => (
-                      <tr key={i}>
-                          <td className="text-center">{i + 1}</td>
-                          <td>{formatDate(o?.date)}<br/><span className="font-mono text-[8px] text-slate-500">{o?.id || '-'}</span></td>
-                          <td className="font-bold uppercase">{o?.recipient || '-'}</td>
-                          <td><div className="font-bold text-slate-800">{o?.category || '-'}</div><div>{o?.description || '-'}</div></td>
-                          <td className="text-center text-[9px]">{o?.paymentMethod || '-'}</td>
-                          <td className="text-right font-bold text-red-600">-{formatRp(o?.total)}</td>
-                      </tr>
-                  ))
-              )}
-              <tr>
-                  <td colSpan="5" className="text-right font-bold uppercase bg-slate-50">Total Pengeluaran Kas :</td>
-                  <td className="text-right font-black text-red-600 bg-slate-50">-{formatRp(totalPengeluaran)}</td>
-              </tr>
-          </tbody>
-        </table>
-
         <div className="flex justify-between mt-12 text-center text-xs">
             <div className="w-48"><p className="text-slate-600">Dibuat Oleh,</p><div className="h-16"></div><p className="border-t border-black pt-1.5 uppercase font-bold text-slate-800">( Admin / Kasir )</p></div>
             <div className="w-48"><p className="text-slate-600">Mengetahui / Menyetujui,</p><div className="h-16"></div><p className="border-t border-black pt-1.5 uppercase font-bold text-slate-800">( Pimpinan Pusat )</p></div>
@@ -565,12 +586,11 @@ export function PrintReport({ data, onBack }) {
   );
 }
 
-// ============================================================================
-// F. KOMPONEN PRINT LAPORAN CABANG PEMALANG (A4 UTUH)
-// ============================================================================
 export function PrintReportBranch({ data, onBack, user }) {
   useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
-  const { rekap, dateFrom, dateTo } = data || {};
+  if (!data) return <div className="p-4 bg-white text-center font-bold">Data Rekap Cabang Tidak Tersedia.</div>;
+
+  const { rekap, dateFrom, dateTo } = data;
   const sumTerbayarBranch = (rekap?.listOrders || []).reduce((s, c) => s + (Number(c?.totalTerbayar)||0), 0);
   const sumSisaBranch = (rekap?.listOrders || []).reduce((s, c) => s + (Number(c?.sisaTagihan)||0), 0);
 
@@ -586,7 +606,7 @@ export function PrintReportBranch({ data, onBack, user }) {
             </div>
             <div className="text-right">
                 <h1 className="text-xl font-black uppercase mb-0.5">LAPORAN REKAPITULASI TRANSAKSI</h1>
-                <h2 className="font-bold text-slate-700 mb-1">DIMSUM ADITYA TANGERANG</h2>
+                <h2 className="font-bold text-[11px] text-slate-700 mb-0.5">DIMSUM ADITYA TANGERANG</h2>
                 <p className="text-gray-600 font-medium text-[10px]">CABANG: {user?.name || '-'} | Periode: {formatDate(dateFrom)} s/d {formatDate(dateTo)}</p>
             </div>
         </div>
@@ -660,7 +680,7 @@ export function PrintReportBranch({ data, onBack, user }) {
                     <td className="text-center">{i + 1}</td>
                     <td>{formatDate(p?.date)}<br/><span className="font-mono text-[8px] text-slate-500">{p?.id || '-'}</span></td>
                     <td className="font-bold uppercase">{p?.customer || '-'}</td>
-                    <td className="text-right">{formatRp(p?.total)}</td>
+                    <td className="text-right">{formatRp(p?.totalTagihan)}</td>
                     <td className="text-right text-emerald-600">{formatRp((p?.paid || 0) + (p?.cicilanTerbayar || 0))}</td>
                     <td className="text-right font-bold text-red-600">{formatRp(p?.sisaHutang)}</td>
                     <td className="text-center font-bold text-[9px] text-red-600">
@@ -680,7 +700,7 @@ export function PrintReportBranch({ data, onBack, user }) {
           </thead>
           <tbody>
             {(!rekap?.listRiwayatPiutang || rekap.listRiwayatPiutang.length === 0) ? (
-                <tr><td colSpan="9" className="text-center py-4 italic text-slate-500">Tidak ada riwayat piutang.</td></tr>
+                <tr><td colSpan="9" className="text-center py-4 italic text-slate-500">Tidak ada riwayat pembayaran piutang.</td></tr>
             ) : (
                 rekap.listRiwayatPiutang.map((p, i) => (
                   <tr key={i}>
