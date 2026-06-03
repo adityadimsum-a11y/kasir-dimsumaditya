@@ -14,6 +14,7 @@ import TabPiutang from './components/tabs/TabPiutang';
 import TabPemalang from './components/tabs/TabPemalang';
 import TabStok from './components/tabs/TabStok';
 import TabKaryawan from './components/tabs/TabKaryawan';
+import TabMonitoringPemalang from './components/tabs/TabMonitoringPemalang';
 
 import { 
   PrintInvoiceDotMatrix, PrintPurchase, PrintVoucher, 
@@ -61,7 +62,7 @@ export default function App() {
   const [pemalangReports, setPemalangReports] = useState([]);
   const [stokData, setStokData] = useState([]); 
   const [purchases, setPurchases] = useState([]);
-  const [karyawan, setKaryawan] = useState([]); // STATE BARU UNTUK KARYAWAN
+  const [karyawan, setKaryawan] = useState([]); 
 
   useEffect(() => { if (user) fetchData(); }, [user]);
 
@@ -98,7 +99,7 @@ export default function App() {
         setPemalangReports(data.filter(item => item && item.table === 'pemalang' && !item.isDeleted).sort(safeSort));
         setStokData(data.filter(item => item && item.table === 'stok' && !item.isDeleted).sort(safeSort));
         setPurchases(data.filter(item => item && item.table === 'purchases' && !item.isDeleted).sort(safeSort));
-        setKaryawan(data.filter(item => item && item.table === 'karyawan' && !item.isDeleted).sort(safeSort)); // FETCH DATA KARYAWAN
+        setKaryawan(data.filter(item => item && item.table === 'karyawan' && !item.isDeleted).sort(safeSort));
       }
     } catch (error) { 
       alert("Gagal terhubung ke Database Google Sheet."); 
@@ -232,7 +233,8 @@ export default function App() {
               <NavItem icon={<Truck size={20} />} label="Pembelian Bahan" active={activeTab === 'purchases'} onClick={() => handleTabChange('purchases')} />
               <NavItem icon={<Wallet size={20} />} label="Kas Umum (Lainnya)" active={activeTab === 'expenses'} onClick={() => handleTabChange('expenses')} />
               <NavItem icon={<Clock size={20} />} label="Hutang & Piutang" active={activeTab === 'piutang'} onClick={() => handleTabChange('piutang')} badge={pendingHutangPiutang} />
-              <div className="pt-4 mt-2 border-t border-slate-800"><NavItem icon={<Package size={20} />} label="Stok Freezer" active={activeTab === 'stok'} onClick={() => handleTabChange('stok')} /></div>
+              <div className="pt-4 mt-2 border-t border-slate-800"><NavItem icon={<Package size={20} />} label="Produksi & Stok (Pusat)" active={activeTab === 'stok'} onClick={() => handleTabChange('stok')} /></div>
+              <NavItem icon={<Store size={20} />} label="Monitoring Pemalang" active={activeTab === 'monitoring_pemalang'} onClick={() => handleTabChange('monitoring_pemalang')} />
               <div className="pt-4 mt-2 border-t border-slate-800"><NavItem icon={<Users size={20} />} label="Karyawan & Gaji" active={activeTab === 'karyawan'} onClick={() => handleTabChange('karyawan')} /></div>
             </>
           )}
@@ -257,15 +259,17 @@ export default function App() {
           {activeTab === 'dashboard' && user.role === 'branch' && <TabDashboardBranch orders={orders} pemalangReports={pemalangReports} piutangPayments={piutangPayments} setPrintData={setPrintData} stokData={stokData} />}
           {activeTab === 'orders' && <TabOrders orders={orders} payments={piutangPayments} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'order', id})} role={user.role} />}
           {activeTab === 'purchases' && user.role === 'admin' && <TabPurchases purchases={purchases} payments={piutangPayments} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'purchase', id})} />}
-          
-          {/* PERHATIKAN: TabExpenses sekarang dilempar data karyawan */}
           {activeTab === 'expenses' && user.role === 'admin' && <TabExpenses expenses={expenses} karyawan={karyawan} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'expense', id})} />}
-          
           {activeTab === 'piutang' && <TabPiutang orders={orders} purchases={purchases} payments={piutangPayments} sendToSheet={sendToSheet} requestDelete={(id) => setConfirmDialog({type: 'payment', id})} setPrintData={setPrintData} role={user.role} />}
           {activeTab === 'pemalang' && <TabPemalang reports={pemalangReports} sendToSheet={sendToSheet} requestDelete={(id) => setConfirmDialog({type: 'pemalang', id})} role={user.role} />}
-          {activeTab === 'stok' && <TabStok stokData={stokData} sendToSheet={sendToSheet} requestDelete={(id) => setConfirmDialog({type: 'stok', id})} />}
           
-          {/* TAB BARU: KARYAWAN & GAJI */}
+          {/* TAB PRODUKSI & STOK PUSAT */}
+          {activeTab === 'stok' && <TabStok stokData={stokData} purchases={purchases} orders={orders} sendToSheet={sendToSheet} requestDelete={(id) => setConfirmDialog({type: 'stok', id})} />}
+          
+          {/* TAB MONITORING CABANG PEMALANG */}
+          {activeTab === 'monitoring_pemalang' && user.role === 'admin' && <TabMonitoringPemalang orders={orders} pemalangReports={pemalangReports} stokData={stokData} />}
+          
+          {/* TAB KARYAWAN & GAJI */}
           {activeTab === 'karyawan' && user.role === 'admin' && <TabKaryawan karyawan={karyawan} expenses={expenses} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'karyawan', id})} />}
         </div>
       </main>
