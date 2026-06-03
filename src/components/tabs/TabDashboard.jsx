@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Calendar, Printer, Wallet, Coins, CreditCard, TrendingUp, ArrowRightLeft, Users, ShoppingCart, AlertCircle, Clock, Package } from 'lucide-react';
-import { getTodayStr, formatRp, formatDate } from '../../utils/helpers';
+import { getTodayStr, getLocalYMD, formatRp, formatDate } from '../../utils/helpers';
 import SimpleSVGLineChart from '../ui/SimpleSVGLineChart';
 import useDashboardPusat from '../../hooks/useDashboardPusat';
 
