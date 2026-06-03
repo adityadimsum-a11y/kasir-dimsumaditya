@@ -119,12 +119,20 @@ export default function App() {
         if (table === 'stok') setStokData(prev => [...dataArray, ...prev]);
         if (table === 'purchases') setPurchases(prev => [...dataArray, ...prev]);
     } else if (action === 'update') {
-        if (table === 'orders') setOrders(prev => prev.map(o => o.id === data.id ? data : o));
-        if (table === 'expenses') setExpenses(prev => prev.map(e => e.id === data.id ? data : e));
-        if (table === 'payments') setPiutangPayments(prev => prev.map(p => p.id === data.id ? data : p));
-        if (table === 'pemalang') setPemalangReports(prev => prev.map(p => p.id === data.id ? data : p));
-        if (table === 'stok') setStokData(prev => prev.map(s => s.id === data.id ? data : s));
-        if (table === 'purchases') setPurchases(prev => prev.map(p => p.id === data.id ? data : p));
+        // [BARU] Logic Merge Data: Mengupdate field tertentu (misal isSpkPrinted) 
+        // tanpa menghilangkan data asli seperti harga, qty, dll.
+        const dataArray = Array.isArray(data) ? data : [data];
+        const updateState = (prev) => prev.map(item => {
+            const found = dataArray.find(d => d.id === item.id);
+            return found ? { ...item, ...found } : item;
+        });
+        
+        if (table === 'orders') setOrders(updateState);
+        if (table === 'expenses') setExpenses(updateState);
+        if (table === 'payments') setPiutangPayments(updateState);
+        if (table === 'pemalang') setPemalangReports(updateState);
+        if (table === 'stok') setStokData(updateState);
+        if (table === 'purchases') setPurchases(updateState);
     } else if (action === 'delete') {
         if (table === 'orders') setOrders(prev => prev.filter(o => o.id !== data.id));
         if (table === 'expenses') setExpenses(prev => prev.filter(e => e.id !== data.id));
