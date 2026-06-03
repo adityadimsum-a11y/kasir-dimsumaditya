@@ -20,14 +20,15 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
     const isCumulative = (dateStr) => getLocalYMD(dateStr) && getLocalYMD(dateStr) <= dateTo;
     const isPeriod = (dateStr) => getLocalYMD(dateStr) && getLocalYMD(dateStr) >= dateFrom && getLocalYMD(dateStr) <= dateTo;
 
-    const cumOrdersPusat = (orders || []).filter(o => isCumulative(o.date) && o.category !== 'Pemalang');
-    const cumPurchases = (purchases || []).filter(p => isCumulative(p.date));
-    const cumExpenses = (expenses || []).filter(e => isCumulative(e.date));
-    const cumPayments = (piutangPayments || []).filter(p => isCumulative(p.date));
-    const cumPemalangReports = (pemalangReports || []).filter(p => isCumulative(p.date));
+    const cumOrdersPusat = (orders || []).filter(o => isCumulative(o?.date) && o?.category !== 'Pemalang');
+    const cumPurchases = (purchases || []).filter(p => isCumulative(p?.date));
+    const cumExpenses = (expenses || []).filter(e => isCumulative(e?.date));
+    const cumPayments = (piutangPayments || []).filter(p => isCumulative(p?.date));
+    const cumPemalangReports = (pemalangReports || []).filter(p => isCumulative(p?.date));
 
     let kasMasukCash = 0, kasMasukTF = 0, kasKeluarCash = 0, kasKeluarTF = 0;
-    
+    let totalBebanTunai = 0, totalClosingTunai = 0;
+
     const groupedOrdersCum = {};
     cumOrdersPusat.forEach(o => { if(!o?.id) return; if(!groupedOrdersCum[o.id]) groupedOrdersCum[o.id] = { method: o.paymentMethod, paid: Number(o.paidAmount)||0 }; });
     Object.values(groupedOrdersCum).forEach(o => { if(o.method === 'Cash') kasMasukCash += o.paid; else if(o.method === 'Transfer') kasMasukTF += o.paid; });
@@ -36,16 +37,16 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
     cumPurchases.forEach(p => { if(!p?.id) return; if(!groupedPurCum[p.id]) groupedPurCum[p.id] = { method: p.paymentMethod, paid: Number(p.paidAmount)||0 }; });
     Object.values(groupedPurCum).forEach(p => { if(p.method === 'Cash') kasKeluarCash += p.paid; else if(p.method === 'Transfer') kasKeluarTF += p.paid; });
 
-    cumExpenses.forEach(e => { const t = Number(e.total) || 0; if (e.type === 'IN') { if (e.paymentMethod === 'Cash') kasMasukCash += t; else kasMasukTF += t; } else { if (e.paymentMethod === 'Cash') { kasKeluarCash += t; } else { kasKeluarTF += t; } } });
+    cumExpenses.forEach(e => { const t = Number(e.total) || 0; if (e.type === 'IN') { if (e.paymentMethod === 'Cash') kasMasukCash += t; else kasMasukTF += t; } else { if (e.paymentMethod === 'Cash') { kasKeluarCash += t; if(e.category === 'Setoran / Closing Kas Harian') totalClosingTunai += t; else totalBebanTunai += t; } else { kasKeluarTF += t; } } });
 
     cumPayments.forEach(pay => { const amt = Number(pay.amount) || 0; const isMembayarHutangBeli = String(pay?.orderId || '').startsWith('BUY-'); if(isMembayarHutangBeli) { if (pay.paymentMethod === 'Cash') kasKeluarCash += amt; else kasKeluarTF += amt; } else { if (pay.paymentMethod === 'Cash') kasMasukCash += amt; else kasMasukTF += amt; } });
 
     let setoranPemalangTF = 0; cumPemalangReports.forEach(p => { setoranPemalangTF += (Number(p?.nominal) || 0); });
     const saldoCash = kasMasukCash - kasKeluarCash; const saldoTF = (kasMasukTF + setoranPemalangTF) - kasKeluarTF; const saldoAkhir = saldoCash + saldoTF;
 
-    const periodOrdersPusat = cumOrdersPusat.filter(o => isPeriod(o.date));
-    const periodPurchases = cumPurchases.filter(p => isPeriod(p.date));
-    const periodExpenses = cumExpenses.filter(e => isPeriod(e.date));
+    const periodOrdersPusat = cumOrdersPusat.filter(o => isPeriod(o?.date));
+    const periodPurchases = cumPurchases.filter(p => isPeriod(p?.date));
+    const periodExpenses = cumExpenses.filter(e => isPeriod(e?.date));
     
     let totalPenjualanKotor = 0, totalPorsi = 0, totalPcs = 0, totalPiutangBaru = 0, totalHutangBaru = 0;
     const breakdownPorsi = {}; const chartDataMap = {}; const customerMap = {};
@@ -71,15 +72,15 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
     const listPiutangBerjalan = Object.values(groupOrdersAll).map(grp => { const cicilan = (piutangPayments || []).filter(p => p.orderId === grp.id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0); return { ...grp, cicilanTerbayar: cicilan, sisaHutang: grp.totalTagihan - grp.totalDibayar - cicilan }; }).filter(o => o.sisaHutang > 0);
     const listHutangBerjalan = Object.values(groupPurAll).map(grp => { const cicilan = (piutangPayments || []).filter(p => p.orderId === grp.id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0); return { ...grp, cicilanTerbayar: cicilan, sisaHutang: grp.totalTagihan - grp.totalDibayar - cicilan }; }).filter(p => p.sisaHutang > 0);
 
-    totalPiutangBaru = listPiutangBerjalan.reduce((sum, item) => sum + item.sisaHutang, 0);
-    totalHutangBaru = listHutangBerjalan.reduce((sum, item) => sum + item.sisaHutang, 0);
+    totalPiutangBaru = listPiutangBerjalan.reduce((sum, item) => sum + (item.sisaHutang || 0), 0);
+    totalHutangBaru = listHutangBerjalan.reduce((sum, item) => sum + (item.sisaHutang || 0), 0);
 
     const orderSisaTracker = {};
     Object.values(groupOrdersAll).forEach(o => { orderSisaTracker[o.id] = o.totalTagihan - o.totalDibayar; });
     Object.values(groupPurAll).forEach(p => { orderSisaTracker[p.id] = p.totalTagihan - p.totalDibayar; });
 
     const allPaymentsChronological = [...(piutangPayments || [])]
-        .filter(p => getLocalYMD(p.date) <= dateTo)
+        .filter(p => getLocalYMD(p?.date) <= dateTo)
         .sort((a,b) => new Date(a.date) - new Date(b.date));
 
     const paymentSisaMap = {};
@@ -92,7 +93,7 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
     });
 
     const listPembayaranSemua = allPaymentsChronological
-        .filter(p => isPeriod(p.date))
+        .filter(p => isPeriod(p?.date))
         .sort((a, b) => new Date(b.date) - new Date(a.date))
         .map(pay => {
             const isHutang = String(pay?.orderId || '').startsWith('BUY-');
@@ -125,7 +126,6 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
 
     let inCashPeriode = 0, inTfPeriode = 0, outCashPeriode = 0, outTfPeriode = 0;
     
-    // Calculate In/Out based strictly on period transactions
     const orderGroupsForPeriod = {}; periodOrdersPusat.forEach(o => { if(!o?.id) return; if(!orderGroupsForPeriod[o.id]) orderGroupsForPeriod[o.id] = { paid: Number(o.paidAmount)||0, method: o.paymentMethod }; });
     Object.values(orderGroupsForPeriod).forEach(g => { if(g.method === 'Cash') inCashPeriode += g.paid; else if(g.method === 'Transfer') inTfPeriode += g.paid; }); 
     
@@ -135,7 +135,7 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
     periodExpenses.forEach(e => { const t = Number(e.total) || 0; if (e.type === 'IN') { if (e.paymentMethod === 'Cash') inCashPeriode += t; else inTfPeriode += t; } else { if (e.paymentMethod === 'Cash') outCashPeriode += t; else outTfPeriode += t; } });
     listPembayaranSemua.forEach(pay => { const amt = Number(pay.amount) || 0; if(pay.tipe === 'HUTANG') { if (pay.paymentMethod === 'Cash') outCashPeriode += amt; else outTfPeriode += amt; } else { if (pay.paymentMethod === 'Cash') inCashPeriode += amt; else inTfPeriode += amt; } });
 
-    let setorPemalangPeriode = 0; cumPemalangReports.filter(p => isPeriod(p.date)).forEach(p => { setorPemalangPeriode += (Number(p?.nominal) || 0); }); inTfPeriode += setorPemalangPeriode;
+    let setorPemalangPeriode = 0; cumPemalangReports.filter(p => isPeriod(p?.date)).forEach(p => { setorPemalangPeriode += (Number(p?.nominal) || 0); }); inTfPeriode += setorPemalangPeriode;
 
     const groupedTransaksiPusat = Object.values(periodOrdersPusat.reduce((acc, o) => { 
         if(!o?.id) return acc; 
@@ -166,7 +166,6 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6"><StatCard title="Total Saldo Keseluruhan" amount={rekap.saldoAkhir} icon={<Wallet />} color="bg-blue-50 text-blue-700 border-blue-200" /><StatCard title="Saldo Tunai (CASH)" amount={rekap.saldoCash} icon={<Coins />} color="bg-emerald-50 text-emerald-700 border-emerald-200" /><StatCard title="Saldo Rekening (TF)" amount={rekap.saldoTF} icon={<CreditCard />} color="bg-indigo-50 text-indigo-700 border-indigo-200" /></div>
       </div>
 
-      {/* DAFTAR PIUTANG & HUTANG BERJALAN */}
       {(rekap.listPiutangBerjalan.length > 0 || rekap.listHutangBerjalan.length > 0) && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
               <div className="bg-white p-6 rounded-xl border border-orange-200 shadow-sm flex flex-col">
@@ -219,23 +218,27 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
                         <tr><th className="px-3 py-2 text-emerald-800">Tgl & Ref</th><th className="px-3 py-2 text-emerald-800">Pelanggan</th><th className="px-3 py-2 text-center text-emerald-800">Via</th><th className="px-3 py-2 text-right text-emerald-800">Nominal Masuk</th><th className="px-3 py-2 text-right text-emerald-800">Sisa Tagihan</th></tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {rekap.listRiwayatPiutang.length === 0 && <tr><td colSpan="5" className="text-center py-6 text-slate-400">Tidak ada riwayat pembayaran piutang.</td></tr>}
-                        {rekap.listRiwayatPiutang.map((pay, i) => (
-                            <tr key={i} className="hover:bg-slate-50">
-                                <td className="px-3 py-2"><div className="font-bold text-slate-700">{formatDate(pay.date)}</div><div className="text-[10px] text-slate-400 font-mono">{pay.orderId}</div></td>
-                                <td className="px-3 py-2 font-bold uppercase text-xs">{pay.customer}</td>
-                                <td className="px-3 py-2 text-center text-[10px] font-medium text-slate-600">{pay.paymentMethod}</td>
-                                <td className="px-3 py-2 text-right font-black text-emerald-600">+{formatRp(pay.amount)}</td>
-                                <td className="px-3 py-2 text-right">
-                                    <div className={`font-bold ${pay.sisaTagihan <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{pay.sisaTagihan <= 0 ? 'Rp 0' : formatRp(pay.sisaTagihan)}</div>
-                                    <div className={`text-[9px] font-bold ${pay.statusNota === 'LUNAS' ? 'text-emerald-500' : 'text-orange-500'}`}>{pay.statusNota}</div>
-                                </td>
-                            </tr>
-                        ))}
+                        {(!rekap?.listRiwayatPiutang || rekap.listRiwayatPiutang.length === 0) ? (
+                            <tr><td colSpan="5" className="text-center py-6 text-slate-400">Tidak ada riwayat piutang.</td></tr>
+                        ) : (
+                            rekap.listRiwayatPiutang.map((pay, i) => (
+                                <tr key={i} className="hover:bg-slate-50">
+                                    <td className="px-3 py-2"><div className="font-bold text-slate-700">{formatDate(pay.date)}</div><div className="text-[10px] text-slate-400 font-mono">{pay.orderId}</div></td>
+                                    <td className="px-3 py-2 font-bold uppercase text-xs">{pay.customer}</td>
+                                    <td className="px-3 py-2 text-center text-[10px] font-medium text-slate-600">{pay.paymentMethod}</td>
+                                    <td className="px-3 py-2 text-right font-black text-emerald-600">+{formatRp(pay.amount)}</td>
+                                    <td className="px-3 py-2 text-right">
+                                        <div className={`font-bold ${pay.sisaTagihan <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{pay.sisaTagihan <= 0 ? 'Rp 0' : formatRp(pay.sisaTagihan)}</div>
+                                        <div className={`text-[9px] font-bold ${pay.statusNota === 'LUNAS' ? 'text-emerald-500' : 'text-orange-500'}`}>{pay.statusNota}</div>
+                                    </td>
+                                </tr>
+                            ))
+                        )}
                     </tbody>
                 </table>
             </div>
           </div>
+
           <div className="bg-white p-6 rounded-xl border border-red-200 shadow-sm flex flex-col">
             <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-red-700"><Clock size={20}/> Riwayat Bayar Hutang (Supplier)</h3>
             <div className="overflow-x-auto">
@@ -244,19 +247,22 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
                         <tr><th className="px-3 py-2 text-red-800">Tgl & Ref</th><th className="px-3 py-2 text-red-800">Supplier</th><th className="px-3 py-2 text-center text-red-800">Via</th><th className="px-3 py-2 text-right text-red-800">Nominal Keluar</th><th className="px-3 py-2 text-right text-red-800">Sisa Hutang</th></tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {rekap.listRiwayatHutang.length === 0 && <tr><td colSpan="5" className="text-center py-6 text-slate-400">Tidak ada riwayat pembayaran hutang.</td></tr>}
-                        {rekap.listRiwayatHutang.map((pay, i) => (
-                            <tr key={i} className="hover:bg-slate-50">
-                                <td className="px-3 py-2"><div className="font-bold text-slate-700">{formatDate(pay.date)}</div><div className="text-[10px] text-slate-400 font-mono">{pay.orderId}</div></td>
-                                <td className="px-3 py-2 font-bold uppercase text-xs">{pay.customer}</td>
-                                <td className="px-3 py-2 text-center text-[10px] font-medium text-slate-600">{pay.paymentMethod}</td>
-                                <td className="px-3 py-2 text-right font-black text-red-600">-{formatRp(pay.amount)}</td>
-                                <td className="px-3 py-2 text-right">
-                                    <div className={`font-bold ${pay.sisaTagihan <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{pay.sisaTagihan <= 0 ? 'Rp 0' : formatRp(pay.sisaTagihan)}</div>
-                                    <div className={`text-[9px] font-bold ${pay.statusNota === 'LUNAS' ? 'text-emerald-500' : 'text-orange-500'}`}>{pay.statusNota}</div>
-                                </td>
-                            </tr>
-                        ))}
+                        {(!rekap?.listRiwayatHutang || rekap.listRiwayatHutang.length === 0) ? (
+                            <tr><td colSpan="5" className="text-center py-6 text-slate-400">Tidak ada riwayat hutang.</td></tr>
+                        ) : (
+                            rekap.listRiwayatHutang.map((pay, i) => (
+                                <tr key={i} className="hover:bg-slate-50">
+                                    <td className="px-3 py-2"><div className="font-bold text-slate-700">{formatDate(pay.date)}</div><div className="text-[10px] text-slate-400 font-mono">{pay.orderId}</div></td>
+                                    <td className="px-3 py-2 font-bold uppercase text-xs">{pay.customer}</td>
+                                    <td className="px-3 py-2 text-center text-[10px] font-medium text-slate-600">{pay.paymentMethod}</td>
+                                    <td className="px-3 py-2 text-right font-black text-red-600">-{formatRp(pay.amount)}</td>
+                                    <td className="px-3 py-2 text-right">
+                                        <div className={`font-bold ${pay.sisaTagihan <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{pay.sisaTagihan <= 0 ? 'Rp 0' : formatRp(pay.sisaTagihan)}</div>
+                                        <div className={`text-[9px] font-bold ${pay.statusNota === 'LUNAS' ? 'text-emerald-500' : 'text-orange-500'}`}>{pay.statusNota}</div>
+                                    </td>
+                                </tr>
+                            ))
+                        )}
                     </tbody>
                 </table>
             </div>
@@ -276,8 +282,11 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col max-h-[340px]">
             <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Users size={20} className="text-slate-500"/> Pelanggan Teratas (Periode Ini)</h3>
             <div className="overflow-y-auto pr-2 flex-1 space-y-3">
-               {rekap.topCustomersList.map((cust, i) => (<div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100 hover:border-blue-200 transition"><div className="flex items-center gap-3"><div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shadow-sm ${i === 0 ? 'bg-amber-400 text-white' : i === 1 ? 'bg-slate-300 text-slate-700' : i === 2 ? 'bg-orange-300 text-white' : 'bg-white text-slate-400'}`}>#{i+1}</div><div><div className="font-bold text-slate-800">{cust.name}</div><div className="text-xs text-slate-500">{cust.frequency}x Order • {cust.qty} Pcs ({cust.porsi} Prs)</div></div></div><div className="font-bold text-emerald-600">{formatRp(cust.total)}</div></div>))}
-               {rekap.topCustomersList.length === 0 && <div className="text-center text-slate-400 text-sm mt-8">Tidak ada data penjualan.</div>}
+               {(!rekap?.topCustomersList || rekap.topCustomersList.length === 0) ? (
+                   <div className="text-center text-slate-400 text-sm mt-8">Tidak ada data penjualan.</div>
+               ) : (
+                   rekap.topCustomersList.map((cust, i) => (<div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100 hover:border-blue-200 transition"><div className="flex items-center gap-3"><div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shadow-sm ${i === 0 ? 'bg-amber-400 text-white' : i === 1 ? 'bg-slate-300 text-slate-700' : i === 2 ? 'bg-orange-300 text-white' : 'bg-white text-slate-400'}`}>#{i+1}</div><div><div className="font-bold text-slate-800">{cust.name}</div><div className="text-xs text-slate-500">{cust.frequency}x Order • {cust.qty} Pcs ({cust.porsi} Prs)</div></div></div><div className="font-bold text-emerald-600">{formatRp(cust.total)}</div></div>))
+               )}
             </div>
         </div>
       </div>
