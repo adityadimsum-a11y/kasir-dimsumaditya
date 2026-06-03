@@ -63,7 +63,7 @@ export default function TabDashboardBranch({ orders, pemalangReports, piutangPay
     branchOrdersAll.forEach(o => { if(!o?.id) return; if(!orderGroups[o.id]) orderGroups[o.id] = { total:0, paid: Number(o.paidAmount)||0, items: [], paymentMethod: o.paymentMethod }; orderGroups[o.id].total += Number(o.total)||0; orderGroups[o.id].items.push(`${o.qty} Pcs`); });
     
     const branchPayments = (piutangPayments || []).filter(p => branchOrderIds.includes(p.orderId));
-    const allPaymentsChronological = [...branchPayments].filter(p => getLocalYMD(p.date) <= dateTo).sort((a,b) => new Date(a.date) - new Date(b.date));
+    const allPaymentsChronological = [...branchPayments].filter(p => getLocalYMD(p?.date) <= dateTo).sort((a,b) => new Date(a.date) - new Date(b.date));
     
     const orderSisaTracker = {};
     branchOrdersAll.forEach(o => { orderSisaTracker[o.id] = (Number(o.total)||0) - (Number(o.paidAmount)||0); });
@@ -78,7 +78,7 @@ export default function TabDashboardBranch({ orders, pemalangReports, piutangPay
     });
 
     const listRiwayatPiutang = allPaymentsChronological
-        .filter(p => isDateInRange(p.date))
+        .filter(p => isDateInRange(p?.date))
         .sort((a, b) => new Date(b.date) - new Date(a.date))
         .map(pay => {
             const relData = branchOrdersAll.find(o => o.id === pay.orderId);
@@ -100,7 +100,7 @@ export default function TabDashboardBranch({ orders, pemalangReports, piutangPay
         });
 
     const listPiutangBerjalan = Object.values(orderGroups).map(grp => { const cicilan = branchPayments.filter(p => p.orderId === grp.id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0); return { ...grp, cicilanTerbayar: cicilan, sisaHutang: grp.total - grp.paid - cicilan }; }).filter(o => o.sisaHutang > 0);
-    totalPiutangBaru = listPiutangBerjalan.reduce((sum, item) => sum + item.sisaHutang, 0);
+    totalPiutangBaru = listPiutangBerjalan.reduce((sum, item) => sum + (item.sisaHutang || 0), 0);
 
     filteredReports.forEach(p => { setoranKePusat += (Number(p?.nominal) || 0); });
     const finalChartData = Object.keys(chartDataMap).map(key => ({ label: key, value: chartDataMap[key] }));
@@ -205,8 +205,11 @@ export default function TabDashboardBranch({ orders, pemalangReports, piutangPay
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col max-h-96">
             <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Users size={20} className="text-slate-500"/> Top Pelanggan (Cabang Pemalang)</h3>
             <div className="overflow-y-auto pr-2 flex-1 space-y-3">
-               {rekap.topCustomersList.map((cust, i) => (<div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100 hover:border-amber-200 transition"><div className="flex items-center gap-3"><div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shadow-sm ${i === 0 ? 'bg-amber-400 text-white' : i === 1 ? 'bg-slate-300 text-slate-700' : i === 2 ? 'bg-orange-300 text-white' : 'bg-white text-slate-400'}`}>#{i+1}</div><div><div className="font-bold text-slate-800">{cust.name}</div><div className="text-xs text-slate-500">{cust.frequency}x Order • {cust.qty} Pcs ({cust.porsi} Prs)</div></div></div><div className="font-bold text-amber-600">{formatRp(cust.total)}</div></div>))}
-               {rekap.topCustomersList.length === 0 && <div className="text-center text-slate-400 text-sm mt-8">Tidak ada data penjualan.</div>}
+               {(!rekap?.topCustomersList || rekap.topCustomersList.length === 0) ? (
+                   <div className="text-center text-slate-400 text-sm mt-8">Tidak ada data penjualan.</div>
+               ) : (
+                   rekap.topCustomersList.map((cust, i) => (<div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100 hover:border-amber-200 transition"><div className="flex items-center gap-3"><div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shadow-sm ${i === 0 ? 'bg-amber-400 text-white' : i === 1 ? 'bg-slate-300 text-slate-700' : i === 2 ? 'bg-orange-300 text-white' : 'bg-white text-slate-400'}`}>#{i+1}</div><div><div className="font-bold text-slate-800">{cust.name}</div><div className="text-xs text-slate-500">{cust.frequency}x Order • {cust.qty} Pcs ({cust.porsi} Prs)</div></div></div><div className="font-bold text-amber-600">{formatRp(cust.total)}</div></div>))
+               )}
             </div>
         </div>
 
