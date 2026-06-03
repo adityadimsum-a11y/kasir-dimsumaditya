@@ -49,14 +49,31 @@ export default function TabPurchases({ purchases, payments, sendToSheet, request
   const handleSimpan = (e) => {
     e.preventDefault();
     const invoiceId = isEdit ? editId : generateId('BUY', date);
+    
     if(isEdit) sendToSheet('delete', { id: editId }, 'purchases');
-    (cart||[]).forEach((item, index) => {
-        if(String(item?.itemName).trim() !== '') {
-            const newPurchase = { id: invoiceId, date, supplier: supplier.toUpperCase(), itemName: String(item.itemName).toUpperCase(), satuan: String(item.satuan).toUpperCase(), qty: Number(item.qty)||0, price: Number(item.price)||0, total: (Number(item.qty)||0)*(Number(item.price)||0), paymentMethod, paidAmount: index === 0 ? (Number(paidAmount)||0) : 0, notes, editCount: isEdit ? editCount + 1 : 0 };
-            setTimeout(() => sendToSheet('insert', newPurchase, 'purchases'), index * 300);
-        }
-    });
-    setTimeout(() => resetForm(), (cart||[]).length * 300);
+    
+    const newPurchasesArray = cart
+      .filter(item => String(item?.itemName).trim() !== '')
+      .map((item, index) => ({
+        id: invoiceId, 
+        date, 
+        supplier: supplier.toUpperCase(), 
+        itemName: String(item.itemName).toUpperCase(), 
+        satuan: String(item.satuan).toUpperCase(), 
+        qty: Number(item.qty) || 0, 
+        price: Number(item.price) || 0, 
+        total: (Number(item.qty) || 0) * (Number(item.price) || 0), 
+        paymentMethod, 
+        paidAmount: index === 0 ? (Number(paidAmount) || 0) : 0, 
+        notes, 
+        editCount: isEdit ? editCount + 1 : 0 
+      }));
+
+    if (newPurchasesArray.length > 0) {
+      sendToSheet('insert', newPurchasesArray, 'purchases');
+    }
+    
+    resetForm();
   };
 
   const displayPurchases = useMemo(() => {
@@ -115,7 +132,6 @@ export default function TabPurchases({ purchases, payments, sendToSheet, request
             {displayPurchases.length === 0 && <tr><td colSpan="6" className="text-center py-8 text-slate-400">Tidak ada pembelian.</td></tr>}
             {displayPurchases.map((pur) => {
               
-              // LOGIKA STATUS HUTANG MURNI: TAGIHAN - DP - SEMUA CICILAN
               const cicilan = (payments || []).filter(p => p.orderId === pur.id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
               const sisaHutang = (Number(pur.totalAll) || 0) - (Number(pur.paidAmount) || 0) - cicilan;
 
