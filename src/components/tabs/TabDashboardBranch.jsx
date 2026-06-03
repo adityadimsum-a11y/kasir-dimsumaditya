@@ -10,7 +10,6 @@ const StatCard = ({ title, amount, icon, color }) => (
   </div>
 );
 
-// FIX VERCEL: Hapus parameter `user` yang tidak dipakai di dalam komponen ini
 export default function TabDashboardBranch({ orders, pemalangReports, piutangPayments, setPrintData, stokData }) {
   const todayStr = getTodayStr();
   const [dateFrom, setDateFrom] = useState(todayStr);
@@ -61,7 +60,7 @@ export default function TabDashboardBranch({ orders, pemalangReports, piutangPay
     const branchOrdersAll = (orders || []).filter(o => o?.category === 'Pemalang');
     const branchOrderIds = branchOrdersAll.map(o => o.id);
 
-    branchOrdersAll.forEach(o => { if(!o?.id) return; if(!orderGroups[o.id]) orderGroups[o.id] = { total:0, paid: Number(o.paidAmount)||0, items: [] }; orderGroups[o.id].total += Number(o.total)||0; orderGroups[o.id].items.push(`${o.qty} Pcs`); });
+    branchOrdersAll.forEach(o => { if(!o?.id) return; if(!orderGroups[o.id]) orderGroups[o.id] = { total:0, paid: Number(o.paidAmount)||0, items: [], paymentMethod: o.paymentMethod }; orderGroups[o.id].total += Number(o.total)||0; orderGroups[o.id].items.push(`${o.qty} Pcs`); });
     
     const branchPayments = (piutangPayments || []).filter(p => branchOrderIds.includes(p.orderId));
     const allPaymentsChronological = [...branchPayments].filter(p => getLocalYMD(p.date) <= dateTo).sort((a,b) => new Date(a.date) - new Date(b.date));
@@ -106,7 +105,7 @@ export default function TabDashboardBranch({ orders, pemalangReports, piutangPay
 
     const groupedTransaksiCabang = Object.values(filteredOrders.reduce((acc, o) => {
         if(!o?.id) return acc;
-        if(!acc[o.id]) acc[o.id] = { ...o, items: [], totalTagihan: 0, dp: Number(o.paidAmount)||0 };
+        if(!acc[o.id]) acc[o.id] = { ...o, items: [], totalTagihan: 0, dp: Number(o.paidAmount)||0, paymentMethod: o.paymentMethod };
         acc[o.id].items.push(`${o.qty} Pcs`);
         acc[o.id].totalTagihan += Number(o.total)||0;
         return acc;
@@ -138,15 +137,18 @@ export default function TabDashboardBranch({ orders, pemalangReports, piutangPay
         <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-emerald-700"><Clock size={20}/> Riwayat Terima Piutang (Pelanggan)</h3>
         <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
-                <thead className="bg-emerald-50 border-b border-emerald-100"><tr><th className="px-3 py-2 text-emerald-800">Tgl & Ref</th><th className="px-3 py-2 text-emerald-800">Pelanggan</th><th className="px-3 py-2 text-right text-emerald-800">Nominal Masuk</th><th className="px-3 py-2 text-right text-emerald-800">Sisa Tagihan</th></tr></thead>
+                <thead className="bg-emerald-50 border-b border-emerald-100">
+                    <tr><th className="px-3 py-2 text-emerald-800">Tgl & Ref</th><th className="px-3 py-2 text-emerald-800">Pelanggan</th><th className="px-3 py-2 text-center text-emerald-800">Via</th><th className="px-3 py-2 text-right text-emerald-800">Nominal Masuk</th><th className="px-3 py-2 text-right text-emerald-800">Sisa Tagihan</th></tr>
+                </thead>
                 <tbody className="divide-y divide-slate-100">
                     {(!rekap?.listRiwayatPiutang || rekap.listRiwayatPiutang.length === 0) ? (
-                        <tr><td colSpan="4" className="text-center py-6 text-slate-400">Tidak ada riwayat piutang.</td></tr>
+                        <tr><td colSpan="5" className="text-center py-6 text-slate-400">Tidak ada riwayat piutang.</td></tr>
                     ) : (
                         rekap.listRiwayatPiutang.map((pay, i) => (
                             <tr key={i} className="hover:bg-slate-50">
                                 <td className="px-3 py-2"><div className="font-bold text-slate-700">{formatDate(pay.date)}</div><div className="text-[10px] text-slate-400 font-mono">{pay.orderId}</div></td>
                                 <td className="px-3 py-2 font-bold uppercase text-xs">{pay.customer}</td>
+                                <td className="px-3 py-2 text-center text-[10px] font-medium text-slate-600">{pay.paymentMethod}</td>
                                 <td className="px-3 py-2 text-right font-black text-emerald-600">+{formatRp(pay.amount)}</td>
                                 <td className="px-3 py-2 text-right">
                                     <div className={`font-bold ${pay.sisaTagihan <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{pay.sisaTagihan <= 0 ? 'Rp 0' : formatRp(pay.sisaTagihan)}</div>
