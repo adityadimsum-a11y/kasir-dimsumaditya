@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ShoppingCart, Plus, X, Trash2, Printer, Filter, ChefHat } from 'lucide-react';
+import { ShoppingCart, Plus, X, Trash2, Printer, Filter, ChefHat, CheckCheck } from 'lucide-react';
 import { getTodayStr, getLocalYMD, formatRp, parseRp, KATEGORI_HARGA, generateId, safeSort, formatDate } from '../../utils/helpers';
 
 export default function TabOrders({ orders, payments, sendToSheet, setPrintData, requestDelete, role }) {
@@ -54,6 +54,7 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
     setCart(relatedItems.map(p => ({ category: p.category, qty: p.qty, price: p.price })));
     setEditId(item.id); setEditCount(Number(item.editCount) || 0); setIsEdit(true); setShowForm(true);
   };
+
   const handleSimpan = (e) => {
     e.preventDefault();
     const invoiceId = isEdit ? editId : generateId('INV', date);
@@ -83,13 +84,22 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
     resetForm();
   };
 
+  const handlePrintSPK = (ord) => {
+      setPrintData({ type: 'spk', data: ord });
+      // Jika SPK belum pernah dicetak, kirim update ke Google Sheet
+      if (!ord.isSpkPrinted) {
+          sendToSheet('update', { id: ord.id, isSpkPrinted: true }, 'orders');
+      }
+  };
+
   const displayOrders = useMemo(() => {
     let filtered = role === 'branch' ? (orders||[]).filter(o => o?.category === 'Pemalang') : (orders||[]);
     filtered = filtered.filter(o => { const ymd = getLocalYMD(o?.date); return ymd && ymd >= filterFrom && ymd <= filterTo; });
     const groups = {};
     filtered.forEach(p => {
         if(!p?.id) return;
-        if(!groups[p.id]) groups[p.id] = { ...p, items: [], totalAll: 0 };
+        // Tangkap isSpkPrinted dari database
+        if(!groups[p.id]) groups[p.id] = { ...p, items: [], totalAll: 0, isSpkPrinted: p.isSpkPrinted === true || p.isSpkPrinted === 'true' };
         groups[p.id].items.push(`${p.qty} Pcs`); groups[p.id].totalAll += Number(p.total);
     });
     return Object.values(groups).sort(safeSort);
@@ -148,9 +158,12 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
                 <td className="px-4 py-3 text-center">{sisaHutang > 0 ? <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded text-[10px] font-bold">PIUTANG</span> : <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-[10px] font-bold">LUNAS</span>}</td>
                 <td className="px-4 py-3 text-center">
                   <div className="flex justify-center gap-2">
-                    <button onClick={() => setPrintData({ type: 'spk', data: ord })} className="text-orange-600 bg-orange-50 p-2 rounded-lg border border-orange-200 hover:bg-orange-100 transition shadow-sm" title="Cetak SPK Dapur">
-                      <ChefHat size={16} />
+                    {/* Tombol SPK dengan Warna Dinamis */}
+                    <button onClick={() => handlePrintSPK(ord)} className={`p-2 rounded-lg border transition shadow-sm flex items-center justify-center relative ${ord.isSpkPrinted ? 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100' : 'bg-orange-50 border-orange-200 text-orange-600 hover:bg-orange-100'}`} title={ord.isSpkPrinted ? "Cetak Ulang SPK" : "Cetak SPK Dapur"}>
+                      {ord.isSpkPrinted ? <CheckCheck size={16} /> : <ChefHat size={16} />}
                     </button>
+                    
+                    {/* Tombol Invoice */}
                     <button onClick={() => setPrintData({ type: 'invoice', data: ord })} className="text-slate-600 bg-slate-100 p-2 rounded-lg border hover:bg-slate-200 transition shadow-sm" title="Cetak Invoice Pelanggan">
                       <Printer size={16} />
                     </button>
