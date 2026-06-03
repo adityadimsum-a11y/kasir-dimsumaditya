@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Calendar, Printer, ShoppingCart, Package, Wallet, TrendingUp, Users, Clock } from 'lucide-react';
+import { Calendar, Printer, ShoppingCart, Package, Wallet, TrendingUp, Users, Clock, AlertCircle } from 'lucide-react';
 import { getTodayStr, getLocalYMD, formatRp, formatDate } from '../../utils/helpers';
 import SimpleSVGLineChart from '../ui/SimpleSVGLineChart';
 
@@ -99,6 +99,9 @@ export default function TabDashboardBranch({ orders, pemalangReports, piutangPay
             };
         });
 
+    const listPiutangBerjalan = Object.values(orderGroups).map(grp => { const cicilan = branchPayments.filter(p => p.orderId === grp.id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0); return { ...grp, cicilanTerbayar: cicilan, sisaHutang: grp.total - grp.paid - cicilan }; }).filter(o => o.sisaHutang > 0);
+    totalPiutangBaru = listPiutangBerjalan.reduce((sum, item) => sum + item.sisaHutang, 0);
+
     filteredReports.forEach(p => { setoranKePusat += (Number(p?.nominal) || 0); });
     const finalChartData = Object.keys(chartDataMap).map(key => ({ label: key, value: chartDataMap[key] }));
     const topCustomersList = Object.values(customerMap).sort((a,b) => b.total - a.total);
@@ -113,11 +116,10 @@ export default function TabDashboardBranch({ orders, pemalangReports, piutangPay
         const cicilan = branchPayments.filter(p => p.orderId === grp.id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
         const terbayar = grp.dp + cicilan;
         const sisa = grp.totalTagihan - terbayar;
-        if(sisa > 0) totalPiutangBaru += sisa;
         return { ...grp, totalTerbayar: terbayar, sisaTagihan: sisa, status: sisa <= 0 ? 'LUNAS' : 'BELUM LUNAS' };
     });
 
-    return { totalPenjualanKotor, setoranKePusat, totalPorsi, totalPcs, totalPiutangBaru, breakdownPorsi, topCustomersList, finalChartData, listOrders: groupedTransaksiCabang, listReports: filteredReports, listRiwayatPiutang };
+    return { totalPenjualanKotor, setoranKePusat, totalPorsi, totalPcs, totalPiutangBaru, breakdownPorsi, topCustomersList, finalChartData, listOrders: groupedTransaksiCabang, listReports: filteredReports, listRiwayatPiutang, listPiutangBerjalan };
   }, [orders, pemalangReports, piutangPayments, dateFrom, dateTo, chartView]);
 
   return (
@@ -133,6 +135,30 @@ export default function TabDashboardBranch({ orders, pemalangReports, piutangPay
           <StatCard title="Total Setoran Kas ke Pusat" amount={rekap.setoranKePusat} icon={<Wallet />} color="bg-blue-50 text-blue-700 border-blue-200" />
       </div>
 
+      {rekap.listPiutangBerjalan.length > 0 && (
+          <div className="bg-white p-6 rounded-xl border border-orange-200 shadow-sm flex flex-col mt-6">
+              <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-orange-700"><AlertCircle size={20}/> Daftar Piutang Berjalan (Belum Lunas)</h3>
+              <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-left">
+                      <thead className="bg-orange-50 border-b border-orange-100">
+                          <tr><th className="px-3 py-2 text-orange-800">Tgl & Inv</th><th className="px-3 py-2 text-orange-800">Pelanggan</th><th className="px-3 py-2 text-right text-orange-800">Total Tagihan</th><th className="px-3 py-2 text-right text-orange-800">Telah Terbayar</th><th className="px-3 py-2 text-right text-orange-800">Sisa Tagihan</th></tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                          {rekap.listPiutangBerjalan.map((p, i) => (
+                              <tr key={i} className="hover:bg-slate-50">
+                                  <td className="px-3 py-2"><div className="font-bold text-slate-700">{formatDate(p.date)}</div><div className="text-[10px] text-slate-400 font-mono">{p.id}</div></td>
+                                  <td className="px-3 py-2 font-bold uppercase text-xs">{p.customer}</td>
+                                  <td className="px-3 py-2 text-right font-medium">{formatRp(p.total)}</td>
+                                  <td className="px-3 py-2 text-right font-medium text-emerald-600">{formatRp(p.paid + p.cicilanTerbayar)}</td>
+                                  <td className="px-3 py-2 text-right font-black text-red-600">{formatRp(p.sisaHutang)}</td>
+                              </tr>
+                          ))}
+                      </tbody>
+                  </table>
+              </div>
+          </div>
+      )}
+
       <div className="bg-white p-6 rounded-xl border border-emerald-200 shadow-sm flex flex-col mt-6">
         <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-emerald-700"><Clock size={20}/> Riwayat Terima Piutang (Pelanggan)</h3>
         <div className="overflow-x-auto">
@@ -142,7 +168,7 @@ export default function TabDashboardBranch({ orders, pemalangReports, piutangPay
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                     {(!rekap?.listRiwayatPiutang || rekap.listRiwayatPiutang.length === 0) ? (
-                        <tr><td colSpan="5" className="text-center py-6 text-slate-400">Tidak ada riwayat piutang.</td></tr>
+                        <tr><td colSpan="5" className="text-center py-6 text-slate-400">Tidak ada riwayat pembayaran piutang.</td></tr>
                     ) : (
                         rekap.listRiwayatPiutang.map((pay, i) => (
                             <tr key={i} className="hover:bg-slate-50">
