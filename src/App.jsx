@@ -149,8 +149,12 @@ export default function App() {
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 font-sans relative overflow-hidden">
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 relative z-10">
           <div className="flex flex-col items-center mb-6">
-            <img src="https://dimsumaditya.id/wp-content/uploads/2024/10/Dimsum-Aditya.png" alt="Logo" className="w-20 h-20 object-contain mb-2" />
-            <h1 className="text-2xl font-bold text-slate-800">Login Sistem</h1>
+            <a href="https://dimsumaditya.id/" target="_blank" rel="noopener noreferrer" title="Buka Website Dimsum Aditya">
+                <img src="https://dimsumaditya.id/wp-content/uploads/2024/10/Dimsum-Aditya.png" alt="Logo" className="w-20 h-20 object-contain mb-2 hover:scale-105 transition-transform" />
+            </a>
+            <h1 className="text-2xl font-bold text-slate-800">
+                <a href="https://dimsumaditya.id/" target="_blank" rel="noopener noreferrer" className="hover:text-red-600 transition-colors" title="Buka Website Dimsum Aditya">Dimsum Aditya</a>
+            </h1>
             <p className="text-sm text-slate-500 mt-1">Sistem Informasi Manajemen Terpadu</p>
           </div>
           <form onSubmit={handleLogin} className="space-y-4">
