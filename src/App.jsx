@@ -82,7 +82,26 @@ export default function App() {
     setOrders([]); setExpenses([]); setPiutangPayments([]); setPemalangReports([]); setStokData([]); setPurchases([]);
   };
 
-const sendToSheet = async (action, data, table) => {
+  const fetchData = async () => {
+    if (!SCRIPT_URL || SCRIPT_URL === 'TARUH_LINK_GOOGLE_SCRIPT_DISINI') return;
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${SCRIPT_URL}?action=read`);
+      const result = await response.json();
+      if (result.status === 'success') {
+        const data = result.data || [];
+        setOrders(data.filter(item => item && item.table === 'orders' && !item.isDeleted).sort(safeSort));
+        setExpenses(data.filter(item => item && item.table === 'expenses' && !item.isDeleted).sort(safeSort));
+        setPiutangPayments(data.filter(item => item && item.table === 'payments' && !item.isDeleted).sort(safeSort));
+        setPemalangReports(data.filter(item => item && item.table === 'pemalang' && !item.isDeleted).sort(safeSort));
+        setStokData(data.filter(item => item && item.table === 'stok' && !item.isDeleted).sort(safeSort));
+        setPurchases(data.filter(item => item && item.table === 'purchases' && !item.isDeleted).sort(safeSort));
+      }
+    } catch (error) { alert("Gagal terhubung ke Database Google Sheet."); } 
+    finally { setIsLoading(false); }
+  };
+
+  const sendToSheet = async (action, data, table) => {
     if (action === 'insert') {
         const dataArray = Array.isArray(data) ? data : [data];
         
@@ -117,32 +136,6 @@ const sendToSheet = async (action, data, table) => {
     } catch (error) {
       console.error("Gagal terhubung ke Sheet:", error);
     }
-  };
-
-  const sendToSheet = async (action, data, table) => {
-    if (action === 'insert') {
-        if (table === 'orders') setOrders(prev => [data, ...prev]);
-        if (table === 'expenses') setExpenses(prev => [data, ...prev]);
-        if (table === 'payments') setPiutangPayments(prev => [data, ...prev]);
-        if (table === 'pemalang') setPemalangReports(prev => [data, ...prev]);
-        if (table === 'stok') setStokData(prev => [data, ...prev]);
-        if (table === 'purchases') setPurchases(prev => [data, ...prev]);
-    } else if (action === 'update') {
-        if (table === 'orders') setOrders(prev => prev.map(o => o.id === data.id ? data : o));
-        if (table === 'expenses') setExpenses(prev => prev.map(e => e.id === data.id ? data : e));
-        if (table === 'payments') setPiutangPayments(prev => prev.map(p => p.id === data.id ? data : p));
-        if (table === 'pemalang') setPemalangReports(prev => prev.map(p => p.id === data.id ? data : p));
-        if (table === 'stok') setStokData(prev => prev.map(s => s.id === data.id ? data : s));
-        if (table === 'purchases') setPurchases(prev => prev.map(p => p.id === data.id ? data : p));
-    } else if (action === 'delete') {
-        if (table === 'orders') setOrders(prev => prev.filter(o => o.id !== data.id));
-        if (table === 'expenses') setExpenses(prev => prev.filter(e => e.id !== data.id));
-        if (table === 'payments') setPiutangPayments(prev => prev.filter(p => p.id !== data.id));
-        if (table === 'pemalang') setPemalangReports(prev => prev.filter(p => p.id !== data.id));
-        if (table === 'stok') setStokData(prev => prev.filter(s => s.id !== data.id));
-        if (table === 'purchases') setPurchases(prev => prev.filter(p => p.id !== data.id));
-    }
-    try { await fetch(SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, table, data }) }); } catch (error) {}
   };
 
   const executeDelete = async () => {
