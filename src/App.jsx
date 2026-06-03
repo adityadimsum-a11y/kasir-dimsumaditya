@@ -82,11 +82,12 @@ export default function App() {
     setOrders([]); setExpenses([]); setPiutangPayments([]); setPemalangReports([]); setStokData([]); setPurchases([]);
   };
 
+  // --- PERBAIKAN: Limit Fetching menjadi 2000 data terbaru ---
   const fetchData = async () => {
     if (!SCRIPT_URL || SCRIPT_URL === 'TARUH_LINK_GOOGLE_SCRIPT_DISINI') return;
     setIsLoading(true);
     try {
-      const response = await fetch(`${SCRIPT_URL}?action=read`);
+      const response = await fetch(`${SCRIPT_URL}?action=read&limit=2000`);
       const result = await response.json();
       if (result.status === 'success') {
         const data = result.data || [];
@@ -97,10 +98,16 @@ export default function App() {
         setStokData(data.filter(item => item && item.table === 'stok' && !item.isDeleted).sort(safeSort));
         setPurchases(data.filter(item => item && item.table === 'purchases' && !item.isDeleted).sort(safeSort));
       }
-    } catch (error) { alert("Gagal terhubung ke Database Google Sheet."); } 
-    finally { setIsLoading(false); }
+    } catch (error) { 
+      alert("Gagal terhubung ke Database Google Sheet."); 
+      console.error(error);
+    } 
+    finally { 
+      setIsLoading(false); 
+    }
   };
 
+  // --- PERBAIKAN: Dukungan Bulk Insert (Array) ---
   const sendToSheet = async (action, data, table) => {
     if (action === 'insert') {
         const dataArray = Array.isArray(data) ? data : [data];
