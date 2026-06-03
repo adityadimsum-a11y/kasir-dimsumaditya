@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { Calendar, Printer, Wallet, Coins, CreditCard, TrendingUp, ArrowRightLeft, Users, ShoppingCart, Truck, Clock } from 'lucide-react';
-import { getTodayStr, getFirstDayOfMonthStr, getLocalYMD, formatRp, formatDate } from '../../utils/helpers';
+import { Calendar, Printer, Wallet, Coins, CreditCard, TrendingUp, ArrowRightLeft, Users, ShoppingCart, AlertCircle, Clock } from 'lucide-react';
+import { getTodayStr, getLocalYMD, formatRp, formatDate } from '../../utils/helpers';
 import SimpleSVGLineChart from '../ui/SimpleSVGLineChart';
 
 const StatCard = ({ title, amount, icon, color }) => (
@@ -27,8 +27,7 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
     const cumPemalangReports = (pemalangReports || []).filter(p => isCumulative(p.date));
 
     let kasMasukCash = 0, kasMasukTF = 0, kasKeluarCash = 0, kasKeluarTF = 0;
-    let totalBebanTunai = 0, totalClosingTunai = 0;
-
+    
     const groupedOrdersCum = {};
     cumOrdersPusat.forEach(o => { if(!o?.id) return; if(!groupedOrdersCum[o.id]) groupedOrdersCum[o.id] = { method: o.paymentMethod, paid: Number(o.paidAmount)||0 }; });
     Object.values(groupedOrdersCum).forEach(o => { if(o.method === 'Cash') kasMasukCash += o.paid; else if(o.method === 'Transfer') kasMasukTF += o.paid; });
@@ -37,7 +36,7 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
     cumPurchases.forEach(p => { if(!p?.id) return; if(!groupedPurCum[p.id]) groupedPurCum[p.id] = { method: p.paymentMethod, paid: Number(p.paidAmount)||0 }; });
     Object.values(groupedPurCum).forEach(p => { if(p.method === 'Cash') kasKeluarCash += p.paid; else if(p.method === 'Transfer') kasKeluarTF += p.paid; });
 
-    cumExpenses.forEach(e => { const t = Number(e.total) || 0; if (e.type === 'IN') { if (e.paymentMethod === 'Cash') kasMasukCash += t; else kasMasukTF += t; } else { if (e.paymentMethod === 'Cash') { kasKeluarCash += t; if(e.category === 'Setoran / Closing Kas Harian') totalClosingTunai += t; else totalBebanTunai += t; } else { kasKeluarTF += t; } } });
+    cumExpenses.forEach(e => { const t = Number(e.total) || 0; if (e.type === 'IN') { if (e.paymentMethod === 'Cash') kasMasukCash += t; else kasMasukTF += t; } else { if (e.paymentMethod === 'Cash') { kasKeluarCash += t; } else { kasKeluarTF += t; } } });
 
     cumPayments.forEach(pay => { const amt = Number(pay.amount) || 0; const isMembayarHutangBeli = String(pay?.orderId || '').startsWith('BUY-'); if(isMembayarHutangBeli) { if (pay.paymentMethod === 'Cash') kasKeluarCash += amt; else kasKeluarTF += amt; } else { if (pay.paymentMethod === 'Cash') kasMasukCash += amt; else kasMasukTF += amt; } });
 
@@ -63,14 +62,17 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
         chartDataMap[cKey] = (chartDataMap[cKey] || 0) + total;
     });
 
-    const orderGroups = {}; periodOrdersPusat.forEach(o => { if(!o?.id) return; if(!orderGroups[o.id]) orderGroups[o.id] = { total:0, paid: Number(o.paidAmount)||0, method: o.paymentMethod }; orderGroups[o.id].total += Number(o.total)||0; }); Object.values(orderGroups).forEach(g => { if(g.total - g.paid > 0) totalPiutangBaru += (g.total - g.paid); });
-    const purGroups = {}; periodPurchases.forEach(p => { if(!p?.id) return; if(!purGroups[p.id]) purGroups[p.id] = { total:0, paid: Number(p.paidAmount)||0, method: p.paymentMethod }; purGroups[p.id].total += Number(p.total)||0; }); Object.values(purGroups).forEach(g => { if(g.total - g.paid > 0) totalHutangBaru += (g.total - g.paid); });
-
     const finalChartData = Object.keys(chartDataMap).map(k => ({ label: k, value: chartDataMap[k] }));
     const topCustomersList = Object.values(customerMap).sort((a,b) => b.total - a.total);
 
     const groupOrdersAll = {}; (orders || []).filter(o => o?.category !== 'Pemalang').forEach(o => { if(!o?.id) return; if(!groupOrdersAll[o.id]) groupOrdersAll[o.id] = { ...o, items: [], totalTagihan: 0, totalDibayar: Number(o.paidAmount)||0 }; groupOrdersAll[o.id].items.push(`${o.qty} Pcs`); groupOrdersAll[o.id].totalTagihan += Number(o.total)||0; });
     const groupPurAll = {}; (purchases || []).forEach(p => { if(!p?.id) return; if(!groupPurAll[p.id]) groupPurAll[p.id] = { ...p, items: [], totalTagihan: 0, totalDibayar: Number(p.paidAmount)||0 }; groupPurAll[p.id].items.push(`${p.itemName} (${p.qty} ${p.satuan})`); groupPurAll[p.id].totalTagihan += Number(p.total)||0; });
+
+    const listPiutangBerjalan = Object.values(groupOrdersAll).map(grp => { const cicilan = (piutangPayments || []).filter(p => p.orderId === grp.id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0); return { ...grp, cicilanTerbayar: cicilan, sisaHutang: grp.totalTagihan - grp.totalDibayar - cicilan }; }).filter(o => o.sisaHutang > 0);
+    const listHutangBerjalan = Object.values(groupPurAll).map(grp => { const cicilan = (piutangPayments || []).filter(p => p.orderId === grp.id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0); return { ...grp, cicilanTerbayar: cicilan, sisaHutang: grp.totalTagihan - grp.totalDibayar - cicilan }; }).filter(p => p.sisaHutang > 0);
+
+    totalPiutangBaru = listPiutangBerjalan.reduce((sum, item) => sum + item.sisaHutang, 0);
+    totalHutangBaru = listHutangBerjalan.reduce((sum, item) => sum + item.sisaHutang, 0);
 
     const orderSisaTracker = {};
     Object.values(groupOrdersAll).forEach(o => { orderSisaTracker[o.id] = o.totalTagihan - o.totalDibayar; });
@@ -121,11 +123,15 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
     const listRiwayatPiutang = listPembayaranSemua.filter(p => p.tipe === 'PIUTANG');
     const listRiwayatHutang = listPembayaranSemua.filter(p => p.tipe === 'HUTANG');
 
-    const listPiutangBerjalan = Object.values(groupOrdersAll).map(grp => { const cicilan = (piutangPayments || []).filter(p => p.orderId === grp.id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0); return { ...grp, cicilanTerbayar: cicilan, sisaHutang: grp.totalTagihan - grp.totalDibayar - cicilan }; }).filter(o => o.sisaHutang > 0);
-    const listHutangBerjalan = Object.values(groupPurAll).map(grp => { const cicilan = (piutangPayments || []).filter(p => p.orderId === grp.id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0); return { ...grp, cicilanTerbayar: cicilan, sisaHutang: grp.totalTagihan - grp.totalDibayar - cicilan }; }).filter(p => p.sisaHutang > 0);
-
     let inCashPeriode = 0, inTfPeriode = 0, outCashPeriode = 0, outTfPeriode = 0;
-    Object.values(orderGroups).forEach(g => { if(g.method === 'Cash') inCashPeriode += g.paid; else if(g.method === 'Transfer') inTfPeriode += g.paid; }); Object.values(purGroups).forEach(g => { if(g.method === 'Cash') outCashPeriode += g.paid; else if(g.method === 'Transfer') outTfPeriode += g.paid; });
+    
+    // Calculate In/Out based strictly on period transactions
+    const orderGroupsForPeriod = {}; periodOrdersPusat.forEach(o => { if(!o?.id) return; if(!orderGroupsForPeriod[o.id]) orderGroupsForPeriod[o.id] = { paid: Number(o.paidAmount)||0, method: o.paymentMethod }; });
+    Object.values(orderGroupsForPeriod).forEach(g => { if(g.method === 'Cash') inCashPeriode += g.paid; else if(g.method === 'Transfer') inTfPeriode += g.paid; }); 
+    
+    const purGroupsForPeriod = {}; periodPurchases.forEach(p => { if(!p?.id) return; if(!purGroupsForPeriod[p.id]) purGroupsForPeriod[p.id] = { paid: Number(p.paidAmount)||0, method: p.paymentMethod }; });
+    Object.values(purGroupsForPeriod).forEach(g => { if(g.method === 'Cash') outCashPeriode += g.paid; else if(g.method === 'Transfer') outTfPeriode += g.paid; });
+    
     periodExpenses.forEach(e => { const t = Number(e.total) || 0; if (e.type === 'IN') { if (e.paymentMethod === 'Cash') inCashPeriode += t; else inTfPeriode += t; } else { if (e.paymentMethod === 'Cash') outCashPeriode += t; else outTfPeriode += t; } });
     listPembayaranSemua.forEach(pay => { const amt = Number(pay.amount) || 0; if(pay.tipe === 'HUTANG') { if (pay.paymentMethod === 'Cash') outCashPeriode += amt; else outTfPeriode += amt; } else { if (pay.paymentMethod === 'Cash') inCashPeriode += amt; else inTfPeriode += amt; } });
 
@@ -160,8 +166,51 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6"><StatCard title="Total Saldo Keseluruhan" amount={rekap.saldoAkhir} icon={<Wallet />} color="bg-blue-50 text-blue-700 border-blue-200" /><StatCard title="Saldo Tunai (CASH)" amount={rekap.saldoCash} icon={<Coins />} color="bg-emerald-50 text-emerald-700 border-emerald-200" /><StatCard title="Saldo Rekening (TF)" amount={rekap.saldoTF} icon={<CreditCard />} color="bg-indigo-50 text-indigo-700 border-indigo-200" /></div>
       </div>
 
+      {/* DAFTAR PIUTANG & HUTANG BERJALAN */}
+      {(rekap.listPiutangBerjalan.length > 0 || rekap.listHutangBerjalan.length > 0) && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+              <div className="bg-white p-6 rounded-xl border border-orange-200 shadow-sm flex flex-col">
+                  <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-orange-700"><AlertCircle size={20}/> Daftar Piutang Berjalan (Belum Lunas)</h3>
+                  <div className="overflow-x-auto">
+                      <table className="w-full text-sm text-left">
+                          <thead className="bg-orange-50 border-b border-orange-100">
+                              <tr><th className="px-3 py-2 text-orange-800">Tgl & Inv</th><th className="px-3 py-2 text-orange-800">Pelanggan</th><th className="px-3 py-2 text-right text-orange-800">Sisa Tagihan</th></tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                              {rekap.listPiutangBerjalan.map((p, i) => (
+                                  <tr key={i} className="hover:bg-slate-50">
+                                      <td className="px-3 py-2"><div className="font-bold text-slate-700">{formatDate(p.date)}</div><div className="text-[10px] text-slate-400 font-mono">{p.id}</div></td>
+                                      <td className="px-3 py-2 font-bold uppercase text-xs">{p.customer}</td>
+                                      <td className="px-3 py-2 text-right font-black text-red-600">{formatRp(p.sisaHutang)}</td>
+                                  </tr>
+                              ))}
+                          </tbody>
+                      </table>
+                  </div>
+              </div>
+              <div className="bg-white p-6 rounded-xl border border-red-200 shadow-sm flex flex-col">
+                  <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-red-700"><AlertCircle size={20}/> Daftar Hutang Berjalan (Belum Lunas)</h3>
+                  <div className="overflow-x-auto">
+                      <table className="w-full text-sm text-left">
+                          <thead className="bg-red-50 border-b border-red-100">
+                              <tr><th className="px-3 py-2 text-red-800">Tgl & Inv</th><th className="px-3 py-2 text-red-800">Supplier</th><th className="px-3 py-2 text-right text-red-800">Sisa Hutang</th></tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                              {rekap.listHutangBerjalan.map((p, i) => (
+                                  <tr key={i} className="hover:bg-slate-50">
+                                      <td className="px-3 py-2"><div className="font-bold text-slate-700">{formatDate(p.date)}</div><div className="text-[10px] text-slate-400 font-mono">{p.id}</div></td>
+                                      <td className="px-3 py-2 font-bold uppercase text-xs">{p.supplier}</td>
+                                      <td className="px-3 py-2 text-right font-black text-red-600">{formatRp(p.sisaHutang)}</td>
+                                  </tr>
+                              ))}
+                          </tbody>
+                      </table>
+                  </div>
+              </div>
+          </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-          {/* TABEL RIWAYAT PIUTANG */}
           <div className="bg-white p-6 rounded-xl border border-emerald-200 shadow-sm flex flex-col">
             <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-emerald-700"><Clock size={20}/> Riwayat Terima Piutang (Pelanggan)</h3>
             <div className="overflow-x-auto">
@@ -170,7 +219,7 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
                         <tr><th className="px-3 py-2 text-emerald-800">Tgl & Ref</th><th className="px-3 py-2 text-emerald-800">Pelanggan</th><th className="px-3 py-2 text-center text-emerald-800">Via</th><th className="px-3 py-2 text-right text-emerald-800">Nominal Masuk</th><th className="px-3 py-2 text-right text-emerald-800">Sisa Tagihan</th></tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {rekap.listRiwayatPiutang.length === 0 && <tr><td colSpan="5" className="text-center py-6 text-slate-400">Tidak ada riwayat piutang.</td></tr>}
+                        {rekap.listRiwayatPiutang.length === 0 && <tr><td colSpan="5" className="text-center py-6 text-slate-400">Tidak ada riwayat pembayaran piutang.</td></tr>}
                         {rekap.listRiwayatPiutang.map((pay, i) => (
                             <tr key={i} className="hover:bg-slate-50">
                                 <td className="px-3 py-2"><div className="font-bold text-slate-700">{formatDate(pay.date)}</div><div className="text-[10px] text-slate-400 font-mono">{pay.orderId}</div></td>
@@ -187,8 +236,6 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
                 </table>
             </div>
           </div>
-
-          {/* TABEL RIWAYAT HUTANG */}
           <div className="bg-white p-6 rounded-xl border border-red-200 shadow-sm flex flex-col">
             <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-red-700"><Clock size={20}/> Riwayat Bayar Hutang (Supplier)</h3>
             <div className="overflow-x-auto">
@@ -197,7 +244,7 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
                         <tr><th className="px-3 py-2 text-red-800">Tgl & Ref</th><th className="px-3 py-2 text-red-800">Supplier</th><th className="px-3 py-2 text-center text-red-800">Via</th><th className="px-3 py-2 text-right text-red-800">Nominal Keluar</th><th className="px-3 py-2 text-right text-red-800">Sisa Hutang</th></tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {rekap.listRiwayatHutang.length === 0 && <tr><td colSpan="5" className="text-center py-6 text-slate-400">Tidak ada riwayat hutang.</td></tr>}
+                        {rekap.listRiwayatHutang.length === 0 && <tr><td colSpan="5" className="text-center py-6 text-slate-400">Tidak ada riwayat pembayaran hutang.</td></tr>}
                         {rekap.listRiwayatHutang.map((pay, i) => (
                             <tr key={i} className="hover:bg-slate-50">
                                 <td className="px-3 py-2"><div className="font-bold text-slate-700">{formatDate(pay.date)}</div><div className="text-[10px] text-slate-400 font-mono">{pay.orderId}</div></td>
