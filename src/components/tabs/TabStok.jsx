@@ -16,14 +16,17 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
   const [qtyAyam, setQtyAyam] = useState('');
   const [notesMutasi, setNotesMutasi] = useState('Kirim Bahan Baku Ayam ke Pemalang');
 
-  const MASTER_AYAM = 30; // 1 Adukan = 30 kg Ayam
+  const MASTER_AYAM_KG = 30; // 1 Adukan = 30 kg Ayam
   const MASTER_PCS = 1000; // 1 Adukan = 1000 Pcs Dimsum
+  const KG_PER_KANTONG = 10; // 1 Kantong = 10 Kg
+
+  const formatAyam = (kg) => `${kg} Kg (${(kg / KG_PER_KANTONG).toFixed(1).replace('.0', '')} Kantong)`;
 
   // ==========================================
   // ERP LOGIC: PUSAT VS CABANG (PEMALANG)
   // ==========================================
   const dashboardStok = useMemo(() => {
-      // 1. DATA BAHAN BAKU (AYAM) UTAMA DARI PEMBELIAN PUSAT
+      // 1. DATA BAHAN BAKU (AYAM) DARI PEMBELIAN PUSAT
       const totalAyamBeliPusat = (purchases || []).filter(p => p.itemName.toUpperCase().includes('AYAM')).reduce((sum, p) => sum + Number(p.qty), 0);
       
       // 2. DATA MUTASI AYAM (PUSAT -> PEMALANG)
@@ -37,12 +40,12 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
       const adukanPusat = prodPusat.reduce((sum, s) => sum + Number(s.qty), 0);
       const adukanPemalang = prodPemalang.reduce((sum, s) => sum + Number(s.qty), 0);
 
-      const ayamTerpakaiPusat = adukanPusat * MASTER_AYAM;
-      const ayamTerpakaiPemalang = adukanPemalang * MASTER_AYAM;
+      const ayamTerpakaiPusat = adukanPusat * MASTER_AYAM_KG;
+      const ayamTerpakaiPemalang = adukanPemalang * MASTER_AYAM_KG;
 
       // 4. SISA BAHAN BAKU AKTUAL
       const sisaAyamPusat = totalAyamBeliPusat - ayamDikirimKePemalang - ayamTerpakaiPusat;
-      const sisaAyamPemalang = ayamDikirimKePemalang - ayamTerpakaiPemalang; // Pemalang dapat ayam dari Pusat
+      const sisaAyamPemalang = ayamDikirimKePemalang - ayamTerpakaiPemalang; 
 
       // 5. DATA BARANG JADI (DIMSUM)
       const dimsumJadiPusat = adukanPusat * MASTER_PCS;
@@ -65,7 +68,7 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
       };
   }, [stokData, purchases, orders]);
 
-  // Log yang tampil di tabel menyesuaikan role
+  // Log tabel menyesuaikan role
   const displayLog = role === 'admin' 
     ? [...dashboardStok.logMutasi, ...dashboardStok.logProdPusat].sort((a,b) => new Date(b.date) - new Date(a.date))
     : [...dashboardStok.logProdPemalang].sort((a,b) => new Date(b.date) - new Date(a.date));
@@ -74,12 +77,11 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
       e.preventDefault();
       if(Number(adukan) <= 0) return;
       
-      // Validasi Stok Ayam sebelum produksi
       const stokAyamTersedia = role === 'admin' ? dashboardStok.sisaAyamPusat : dashboardStok.sisaAyamPemalang;
-      const butuhAyam = Number(adukan) * MASTER_AYAM;
+      const butuhAyam = Number(adukan) * MASTER_AYAM_KG;
       
       if(butuhAyam > stokAyamTersedia) {
-          alert(`Gagal: Stok Ayam ${role === 'admin' ? 'Pusat' : 'Pemalang'} tidak cukup! Butuh ${butuhAyam} Kg, sisa ${stokAyamTersedia} Kg.`);
+          alert(`Gagal: Stok Ayam ${role === 'admin' ? 'Pusat' : 'Pemalang'} tidak cukup!\n\nButuh: ${formatAyam(butuhAyam)}\nSisa Sistem: ${formatAyam(stokAyamTersedia)}`);
           return;
       }
 
@@ -88,7 +90,7 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
           id: generateId('PRD', todayStr), date: todayStr,
           itemName: 'PRODUKSI ADUKAN', satuan: 'ADUKAN',
           type: typeProd, qty: Number(adukan),
-          notes: `Produksi ${waktuProd} (${adukan} Adukan). ${notesProd}`,
+          notes: `Produksi ${waktuProd} (${adukan} Adukan). Memotong ${formatAyam(butuhAyam)}. ${notesProd}`,
           editCount: 0
       };
       sendToSheet('insert', newStok, 'stok');
@@ -99,7 +101,7 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
       e.preventDefault();
       if(Number(qtyAyam) <= 0) return;
       if(Number(qtyAyam) > dashboardStok.sisaAyamPusat) {
-          alert("Gagal: Stok Ayam Pusat tidak mencukupi untuk dikirim!"); return;
+          alert(`Gagal: Stok Ayam Pusat tidak mencukupi untuk dikirim!\nSisa Sistem: ${formatAyam(dashboardStok.sisaAyamPusat)}`); return;
       }
       const newStok = {
           id: generateId('TRF-AYM', todayStr), date: todayStr,
@@ -116,7 +118,7 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
       <div className="flex justify-between items-center">
           <div>
               <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2"><Server size={20}/> Mesin Produksi & Stok {role === 'admin' ? '(Pusat)' : '(Pemalang)'}</h3>
-              <p className="text-xs text-slate-500">Kalkulasi ERP: 1 Adukan memotong 30kg Ayam dan menghasilkan 1000 Pcs Dimsum.</p>
+              <p className="text-xs text-slate-500">1 Adukan = 30 Kg (3 Kantong) Ayam = 1000 Pcs Dimsum.</p>
           </div>
           <div className="flex gap-2">
               {role === 'admin' && <button onClick={() => { setShowMutasi(true); setShowProduksi(false); }} className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm"><Truck size={16}/> Kirim Ayam ke Pemalang</button>}
@@ -126,40 +128,40 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
 
       {showProduksi && (
           <form onSubmit={handleSimpanProduksi} className="bg-blue-50 p-5 rounded-xl border border-blue-200 shadow-sm flex gap-3 items-end">
-              <div className="w-1/4 space-y-1"><label className="text-xs font-bold text-blue-800 uppercase">Jumlah Adukan</label><input type="number" min="1" step="0.5" required value={adukan} onChange={e=>setAdukan(e.target.value)} className="w-full p-2 border rounded-lg font-bold text-lg" placeholder="Contoh: 5" /></div>
-              <div className="w-1/4 space-y-1"><label className="text-xs font-bold text-blue-800 uppercase">Waktu</label><select value={waktuProd} onChange={e=>setWaktuProd(e.target.value)} className="w-full p-2 border rounded-lg font-bold h-11"><option>Pagi</option><option>Siang</option><option>Sore/Malam</option></select></div>
-              <div className="w-2/4 space-y-1"><label className="text-xs font-bold text-blue-800 uppercase">Keterangan (Opsional)</label><div className="flex gap-2"><input type="text" value={notesProd} onChange={e=>setNotesProd(e.target.value)} className="w-full p-2 border rounded-lg h-11" placeholder="Nama pembuat dll" /><button type="submit" className="bg-blue-600 text-white px-6 rounded-lg font-bold whitespace-nowrap">Simpan Produksi</button><button type="button" onClick={()=>setShowProduksi(false)} className="bg-slate-200 text-slate-600 px-4 rounded-lg font-bold">Batal</button></div></div>
+              <div className="w-1/4 space-y-1"><label className="text-xs font-bold text-blue-800 uppercase">Jumlah Adukan</label><input type="number" min="1" step="0.5" required value={adukan} onChange={e=>setAdukan(e.target.value)} className="w-full p-2 border rounded-lg font-bold text-lg" placeholder="Contoh: 5" /><div className="text-[10px] font-bold text-blue-600 mt-1">Akan memotong: {adukan ? formatAyam(adukan * MASTER_AYAM_KG) : '0 Kg'}</div></div>
+              <div className="w-1/4 space-y-1 pb-5"><label className="text-xs font-bold text-blue-800 uppercase">Waktu</label><select value={waktuProd} onChange={e=>setWaktuProd(e.target.value)} className="w-full p-2 border rounded-lg font-bold h-11"><option>Pagi</option><option>Siang</option><option>Sore/Malam</option></select></div>
+              <div className="w-2/4 space-y-1 pb-5"><label className="text-xs font-bold text-blue-800 uppercase">Keterangan (Opsional)</label><div className="flex gap-2"><input type="text" value={notesProd} onChange={e=>setNotesProd(e.target.value)} className="w-full p-2 border rounded-lg h-11" placeholder="Nama pembuat dll" /><button type="submit" className="bg-blue-600 text-white px-6 rounded-lg font-bold whitespace-nowrap">Simpan Produksi</button><button type="button" onClick={()=>setShowProduksi(false)} className="bg-slate-200 text-slate-600 px-4 rounded-lg font-bold">Batal</button></div></div>
           </form>
       )}
 
       {showMutasi && role === 'admin' && (
           <form onSubmit={handleSimpanMutasiAyam} className="bg-orange-50 p-5 rounded-xl border border-orange-200 shadow-sm flex gap-3 items-end">
-              <div className="w-1/4 space-y-1"><label className="text-xs font-bold text-orange-800 uppercase">Kirim Ayam (Kg)</label><input type="number" min="1" required value={qtyAyam} onChange={e=>setQtyAyam(e.target.value)} className="w-full p-2 border rounded-lg font-bold text-lg" placeholder="Cth: 200" /></div>
-              <div className="w-3/4 space-y-1"><label className="text-xs font-bold text-orange-800 uppercase">Keterangan Pengiriman</label><div className="flex gap-2"><input type="text" required value={notesMutasi} onChange={e=>setNotesMutasi(e.target.value)} className="w-full p-2 border rounded-lg h-11" /><button type="submit" className="bg-orange-600 text-white px-6 rounded-lg font-bold whitespace-nowrap">Kirim Bahan</button><button type="button" onClick={()=>setShowMutasi(false)} className="bg-slate-200 text-slate-600 px-4 rounded-lg font-bold">Batal</button></div></div>
+              <div className="w-1/4 space-y-1"><label className="text-xs font-bold text-orange-800 uppercase">Kirim Ayam (Kg)</label><input type="number" min="1" required value={qtyAyam} onChange={e=>setQtyAyam(e.target.value)} className="w-full p-2 border rounded-lg font-bold text-lg" placeholder="Cth: 200" /><div className="text-[10px] font-bold text-orange-600 mt-1">Setara: {qtyAyam ? (qtyAyam / KG_PER_KANTONG).toFixed(1).replace('.0','') : 0} Kantong</div></div>
+              <div className="w-3/4 space-y-1 pb-5"><label className="text-xs font-bold text-orange-800 uppercase">Keterangan Pengiriman</label><div className="flex gap-2"><input type="text" required value={notesMutasi} onChange={e=>setNotesMutasi(e.target.value)} className="w-full p-2 border rounded-lg h-11" /><button type="submit" className="bg-orange-600 text-white px-6 rounded-lg font-bold whitespace-nowrap">Kirim Bahan</button><button type="button" onClick={()=>setShowMutasi(false)} className="bg-slate-200 text-slate-600 px-4 rounded-lg font-bold">Batal</button></div></div>
           </form>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* PANEL BAHAN BAKU (AYAM) */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="bg-slate-50 p-3 border-b border-slate-200 font-bold text-slate-700 flex justify-between"><span>Gudang Bahan Baku (Ayam)</span><span>{MASTER_AYAM} Kg / Adukan</span></div>
+              <div className="bg-slate-50 p-3 border-b border-slate-200 font-bold text-slate-700 flex justify-between"><span>Gudang Bahan Baku (Ayam)</span><span>{MASTER_AYAM_KG} Kg (3 Kantong) / Adukan</span></div>
               <div className="p-5 grid grid-cols-2 gap-4">
                   {role === 'admin' ? (
                       <>
-                        <div><div className="text-[10px] uppercase font-bold text-slate-500 mb-1">Total Pembelian Pusat</div><div className="text-xl font-bold">{dashboardStok.totalAyamBeliPusat} <span className="text-sm text-slate-400">Kg</span></div></div>
-                        <div><div className="text-[10px] uppercase font-bold text-orange-500 mb-1">Dikirim ke Cabang Pemalang</div><div className="text-xl font-bold text-orange-600">-{dashboardStok.ayamDikirimKePemalang} <span className="text-sm text-orange-400">Kg</span></div></div>
-                        <div className="col-span-2 border-t border-dashed pt-3"><div className="text-[10px] uppercase font-bold text-slate-500 mb-1">Dipakai Produksi Pusat ({dashboardStok.adukanPusat} Adukan)</div><div className="text-xl font-bold text-slate-600">-{dashboardStok.ayamTerpakaiPusat} <span className="text-sm">Kg</span></div></div>
+                        <div><div className="text-[10px] uppercase font-bold text-slate-500 mb-1">Total Pembelian Pusat</div><div className="text-xl font-bold">{formatAyam(dashboardStok.totalAyamBeliPusat)}</div></div>
+                        <div><div className="text-[10px] uppercase font-bold text-orange-500 mb-1">Dikirim ke Cabang Pemalang</div><div className="text-xl font-bold text-orange-600">-{formatAyam(dashboardStok.ayamDikirimKePemalang)}</div></div>
+                        <div className="col-span-2 border-t border-dashed pt-3"><div className="text-[10px] uppercase font-bold text-slate-500 mb-1">Dipakai Produksi Pusat ({dashboardStok.adukanPusat} Adukan)</div><div className="text-xl font-bold text-slate-600">-{formatAyam(dashboardStok.ayamTerpakaiPusat)}</div></div>
                       </>
                   ) : (
                       <>
-                        <div><div className="text-[10px] uppercase font-bold text-slate-500 mb-1">Suplai dari Pusat (Akumulasi)</div><div className="text-xl font-bold text-blue-600">+{dashboardStok.ayamDikirimKePemalang} <span className="text-sm text-blue-400">Kg</span></div></div>
-                        <div><div className="text-[10px] uppercase font-bold text-slate-500 mb-1">Dipakai Produksi ({dashboardStok.adukanPemalang} Adukan)</div><div className="text-xl font-bold text-orange-600">-{dashboardStok.ayamTerpakaiPemalang} <span className="text-sm text-orange-400">Kg</span></div></div>
+                        <div><div className="text-[10px] uppercase font-bold text-slate-500 mb-1">Suplai dari Pusat (Akumulasi)</div><div className="text-xl font-bold text-blue-600">+{formatAyam(dashboardStok.ayamDikirimKePemalang)}</div></div>
+                        <div><div className="text-[10px] uppercase font-bold text-slate-500 mb-1">Dipakai Produksi ({dashboardStok.adukanPemalang} Adukan)</div><div className="text-xl font-bold text-orange-600">-{formatAyam(dashboardStok.ayamTerpakaiPemalang)}</div></div>
                       </>
                   )}
                   <div className={`col-span-2 p-3 rounded-lg flex justify-between items-center border ${role === 'admin' ? (dashboardStok.sisaAyamPusat <= 0 ? 'bg-red-50 border-red-200' : 'bg-slate-50') : (dashboardStok.sisaAyamPemalang <= 0 ? 'bg-red-50 border-red-200' : 'bg-slate-50')}`}>
                       <span className="font-bold uppercase text-xs text-slate-600">Sisa Ayam Ready</span>
-                      <span className={`text-2xl font-black ${role === 'admin' ? (dashboardStok.sisaAyamPusat <= 0 ? 'text-red-600' : 'text-emerald-600') : (dashboardStok.sisaAyamPemalang <= 0 ? 'text-red-600' : 'text-emerald-600')}`}>
-                          {role === 'admin' ? dashboardStok.sisaAyamPusat : dashboardStok.sisaAyamPemalang} <span className="text-base font-medium">Kg</span>
+                      <span className={`text-xl font-black ${role === 'admin' ? (dashboardStok.sisaAyamPusat <= 0 ? 'text-red-600' : 'text-emerald-600') : (dashboardStok.sisaAyamPemalang <= 0 ? 'text-red-600' : 'text-emerald-600')}`}>
+                          {role === 'admin' ? formatAyam(dashboardStok.sisaAyamPusat) : formatAyam(dashboardStok.sisaAyamPemalang)}
                       </span>
                   </div>
               </div>
@@ -196,7 +198,7 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
                     {s.type.includes('PRODUKSI') ? <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-[10px] font-bold">HASIL PRODUKSI</span> : <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded text-[10px] font-bold">KIRIM AYAM (B.BAKU)</span>}
                 </td>
                 <td className={`px-4 py-3 text-right font-black ${s.type.includes('PRODUKSI') ? 'text-blue-600' : 'text-orange-600'}`}>
-                    {s.type.includes('PRODUKSI') ? `+${s.qty} Adukan` : `${s.qty} Kg`}
+                    {s.type.includes('PRODUKSI') ? `+${s.qty} Adukan` : formatAyam(s.qty)}
                 </td>
                 <td className="px-4 py-3 text-xs text-slate-600">{s.notes}</td>
                 <td className="px-4 py-3 text-center"><button onClick={() => requestDelete(s.id)} className="text-red-500 hover:text-red-700 p-2"><Trash2 size={16} /></button></td>
