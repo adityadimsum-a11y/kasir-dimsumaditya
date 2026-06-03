@@ -23,8 +23,8 @@ export default function TabExpenses({ expenses, karyawan, sendToSheet, setPrintD
 
   const total = (Number(qty) || 0) * (Number(price) || 0);
 
-  // Kategori gabungan agar Kasbon & Gaji muncul
-  const kategoriGabungan = [...new Set([...KATEGORI_PENGELUARAN, 'Kasbon Karyawan', 'Gaji Karyawan'])];
+// Kategori gabungan agar Kasbon & Gaji muncul, dan buang 'Kasbon' versi lama agar tidak dobel
+  const kategoriGabungan = [...new Set([...KATEGORI_PENGELUARAN.filter(k => k !== 'Kasbon'), 'Kasbon Karyawan', 'Gaji Karyawan'])];
 
   const resetForm = () => {
     setShowForm(false); setIsEdit(false); setEditId(null); setEditCount(0);
