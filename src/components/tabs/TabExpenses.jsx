@@ -1,11 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { X, Plus, Trash2, Printer, Filter } from 'lucide-react';
-import { 
-  getTodayStr, getLocalYMD, formatRp, parseRp, 
-  generateId, formatDate, KATEGORI_PENGELUARAN 
-} from '../../utils/helpers';
+import { getTodayStr, getLocalYMD, formatRp, parseRp, generateId, formatDate, KATEGORI_PENGELUARAN } from '../../utils/helpers';
 
-export default function TabExpenses({ expenses, sendToSheet, setPrintData, requestDelete }) {
+export default function TabExpenses({ expenses, karyawan, sendToSheet, setPrintData, requestDelete }) {
   const [showForm, setShowForm] = useState(false);
   const [isEdit, setIsEdit] = useState(false);
   const [editId, setEditId] = useState(null);
@@ -21,11 +18,13 @@ export default function TabExpenses({ expenses, sendToSheet, setPrintData, reque
   const [price, setPrice] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   
-  // DIKEMBALIKAN KE DEFAULT HARI INI - HARI INI
   const [filterFrom, setFilterFrom] = useState(todayStr);
   const [filterTo, setFilterTo] = useState(todayStr);
 
   const total = (Number(qty) || 0) * (Number(price) || 0);
+
+  // Kategori gabungan agar Kasbon & Gaji muncul
+  const kategoriGabungan = [...new Set([...KATEGORI_PENGELUARAN, 'Kasbon Karyawan', 'Gaji Karyawan'])];
 
   const resetForm = () => {
     setShowForm(false); setIsEdit(false); setEditId(null); setEditCount(0);
@@ -59,8 +58,16 @@ export default function TabExpenses({ expenses, sendToSheet, setPrintData, reque
           <div className="col-span-full"><div className="flex bg-slate-100 p-1 rounded-lg w-full max-w-sm"><button type="button" onClick={() => setType('IN')} className={`flex-1 py-2 text-sm font-bold rounded-md ${type === 'IN' ? 'bg-white text-emerald-600' : 'text-slate-500'}`}>Kas Masuk</button><button type="button" onClick={() => setType('OUT')} className={`flex-1 py-2 text-sm font-bold rounded-md ${type === 'OUT' ? 'bg-white text-red-600' : 'text-slate-500'}`}>Kas Keluar</button></div></div>
           <div className="space-y-1"><label className="text-sm font-medium">Metode</label><select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} className="w-full p-2 border rounded-lg bg-slate-50"><option value="Cash">Tunai (Cash)</option><option value="Transfer">Bank (Transfer)</option></select></div>
           <div className="space-y-1"><label className="text-sm font-medium">Tanggal</label><input type="date" required value={date} onChange={e => setDate(e.target.value)} className="w-full p-2 border rounded-lg" /></div>
-          <div className="space-y-1"><label className="text-sm font-medium">Penerima / Dari</label><input type="text" required value={recipient} onChange={e => setRecipient(e.target.value)} className="w-full p-2 border rounded-lg uppercase" /></div>
-          {type === 'OUT' ? <div className="space-y-1"><label className="text-sm font-medium">Kategori</label><select value={category} onChange={e => setCategory(e.target.value)} className="w-full p-2 border rounded-lg">{KATEGORI_PENGELUARAN.map(k => <option key={k} value={k}>{k}</option>)}</select></div> : <div className="space-y-1"><label className="text-sm font-medium">Kategori</label><input type="text" disabled value="Modal Awal" className="w-full p-2 border rounded-lg bg-slate-100" /></div>}
+          
+          {type === 'OUT' ? <div className="space-y-1"><label className="text-sm font-medium">Kategori</label><select value={category} onChange={e => setCategory(e.target.value)} className="w-full p-2 border rounded-lg">{kategoriGabungan.map(k => <option key={k} value={k}>{k}</option>)}</select></div> : <div className="space-y-1"><label className="text-sm font-medium">Kategori</label><input type="text" disabled value="Modal Awal" className="w-full p-2 border rounded-lg bg-slate-100" /></div>}
+          
+          {/* LOGIC RECIPIENT DROPDOWN UNTUK KASBON */}
+          {type === 'OUT' && (category === 'Kasbon Karyawan' || category === 'Gaji Karyawan') ? (
+            <div className="space-y-1"><label className="text-sm font-medium">Nama Karyawan</label><select required value={recipient} onChange={e => setRecipient(e.target.value)} className="w-full p-2 border rounded-lg uppercase bg-yellow-50 font-bold"><option value="">-- PILIH KARYAWAN --</option>{(karyawan||[]).map(k => <option key={k.name} value={k.name}>{k.name}</option>)}</select></div>
+          ) : (
+            <div className="space-y-1"><label className="text-sm font-medium">Penerima / Dari</label><input type="text" required value={recipient} onChange={e => setRecipient(e.target.value)} className="w-full p-2 border rounded-lg uppercase" /></div>
+          )}
+
           <div className="space-y-1 col-span-full"><label className="text-sm font-medium">Keterangan Lengkap</label><input type="text" required value={description} onChange={e => setDescription(e.target.value)} className="w-full p-2 border rounded-lg" /></div>
           <div className="space-y-1 flex gap-2"><div className="w-1/3"><label className="text-sm font-medium">Qty</label><input type="number" min="1" required value={qty} onChange={e => setQty(e.target.value)} className="w-full p-2 border rounded-lg" /></div><div className="w-2/3"><label className="text-sm font-medium">Harga Satuan (Rp)</label><input type="text" required value={formatRp(price)} onChange={e => setPrice(parseRp(e.target.value))} className="w-full p-2 border rounded-lg font-bold" /></div></div>
           <div className="space-y-1"><label className="text-sm font-medium">Total</label><div className="w-full p-2 bg-slate-100 border rounded-lg font-bold">{formatRp(total)}</div></div>
