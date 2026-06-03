@@ -118,7 +118,6 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
             };
         });
 
-    // MEMISAHKAN LIST PEMBAYARAN UNTUK TABEL
     const listRiwayatPiutang = listPembayaranSemua.filter(p => p.tipe === 'PIUTANG');
     const listRiwayatHutang = listPembayaranSemua.filter(p => p.tipe === 'HUTANG');
 
@@ -134,7 +133,7 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
 
     const groupedTransaksiPusat = Object.values(periodOrdersPusat.reduce((acc, o) => { 
         if(!o?.id) return acc; 
-        if(!acc[o.id]) acc[o.id] = { ...o, items: [], totalTagihan: 0, dp: Number(o.paidAmount)||0 }; 
+        if(!acc[o.id]) acc[o.id] = { ...o, items: [], totalTagihan: 0, dp: Number(o.paidAmount)||0, paymentMethod: o.paymentMethod }; 
         acc[o.id].items.push(`${o.qty} Pcs`); 
         acc[o.id].totalTagihan += Number(o.total)||0; 
         return acc; 
@@ -162,18 +161,21 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-          {/* TABEL RIWAYAT PIUTANG (UANG MASUK) */}
+          {/* TABEL RIWAYAT PIUTANG */}
           <div className="bg-white p-6 rounded-xl border border-emerald-200 shadow-sm flex flex-col">
             <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-emerald-700"><Clock size={20}/> Riwayat Terima Piutang (Pelanggan)</h3>
             <div className="overflow-x-auto">
                 <table className="w-full text-sm text-left">
-                    <thead className="bg-emerald-50 border-b border-emerald-100"><tr><th className="px-3 py-2 text-emerald-800">Tgl & Ref</th><th className="px-3 py-2 text-emerald-800">Pelanggan</th><th className="px-3 py-2 text-right text-emerald-800">Nominal Masuk</th><th className="px-3 py-2 text-right text-emerald-800">Sisa Tagihan</th></tr></thead>
+                    <thead className="bg-emerald-50 border-b border-emerald-100">
+                        <tr><th className="px-3 py-2 text-emerald-800">Tgl & Ref</th><th className="px-3 py-2 text-emerald-800">Pelanggan</th><th className="px-3 py-2 text-center text-emerald-800">Via</th><th className="px-3 py-2 text-right text-emerald-800">Nominal Masuk</th><th className="px-3 py-2 text-right text-emerald-800">Sisa Tagihan</th></tr>
+                    </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {rekap.listRiwayatPiutang.length === 0 && <tr><td colSpan="4" className="text-center py-6 text-slate-400">Tidak ada riwayat piutang.</td></tr>}
+                        {rekap.listRiwayatPiutang.length === 0 && <tr><td colSpan="5" className="text-center py-6 text-slate-400">Tidak ada riwayat piutang.</td></tr>}
                         {rekap.listRiwayatPiutang.map((pay, i) => (
                             <tr key={i} className="hover:bg-slate-50">
                                 <td className="px-3 py-2"><div className="font-bold text-slate-700">{formatDate(pay.date)}</div><div className="text-[10px] text-slate-400 font-mono">{pay.orderId}</div></td>
                                 <td className="px-3 py-2 font-bold uppercase text-xs">{pay.customer}</td>
+                                <td className="px-3 py-2 text-center text-[10px] font-medium text-slate-600">{pay.paymentMethod}</td>
                                 <td className="px-3 py-2 text-right font-black text-emerald-600">+{formatRp(pay.amount)}</td>
                                 <td className="px-3 py-2 text-right">
                                     <div className={`font-bold ${pay.sisaTagihan <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{pay.sisaTagihan <= 0 ? 'Rp 0' : formatRp(pay.sisaTagihan)}</div>
@@ -186,18 +188,21 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
             </div>
           </div>
 
-          {/* TABEL RIWAYAT HUTANG (UANG KELUAR) */}
+          {/* TABEL RIWAYAT HUTANG */}
           <div className="bg-white p-6 rounded-xl border border-red-200 shadow-sm flex flex-col">
             <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-red-700"><Clock size={20}/> Riwayat Bayar Hutang (Supplier)</h3>
             <div className="overflow-x-auto">
                 <table className="w-full text-sm text-left">
-                    <thead className="bg-red-50 border-b border-red-100"><tr><th className="px-3 py-2 text-red-800">Tgl & Ref</th><th className="px-3 py-2 text-red-800">Supplier</th><th className="px-3 py-2 text-right text-red-800">Nominal Keluar</th><th className="px-3 py-2 text-right text-red-800">Sisa Hutang</th></tr></thead>
+                    <thead className="bg-red-50 border-b border-red-100">
+                        <tr><th className="px-3 py-2 text-red-800">Tgl & Ref</th><th className="px-3 py-2 text-red-800">Supplier</th><th className="px-3 py-2 text-center text-red-800">Via</th><th className="px-3 py-2 text-right text-red-800">Nominal Keluar</th><th className="px-3 py-2 text-right text-red-800">Sisa Hutang</th></tr>
+                    </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {rekap.listRiwayatHutang.length === 0 && <tr><td colSpan="4" className="text-center py-6 text-slate-400">Tidak ada riwayat hutang.</td></tr>}
+                        {rekap.listRiwayatHutang.length === 0 && <tr><td colSpan="5" className="text-center py-6 text-slate-400">Tidak ada riwayat hutang.</td></tr>}
                         {rekap.listRiwayatHutang.map((pay, i) => (
                             <tr key={i} className="hover:bg-slate-50">
                                 <td className="px-3 py-2"><div className="font-bold text-slate-700">{formatDate(pay.date)}</div><div className="text-[10px] text-slate-400 font-mono">{pay.orderId}</div></td>
                                 <td className="px-3 py-2 font-bold uppercase text-xs">{pay.customer}</td>
+                                <td className="px-3 py-2 text-center text-[10px] font-medium text-slate-600">{pay.paymentMethod}</td>
                                 <td className="px-3 py-2 text-right font-black text-red-600">-{formatRp(pay.amount)}</td>
                                 <td className="px-3 py-2 text-right">
                                     <div className={`font-bold ${pay.sisaTagihan <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{pay.sisaTagihan <= 0 ? 'Rp 0' : formatRp(pay.sisaTagihan)}</div>
