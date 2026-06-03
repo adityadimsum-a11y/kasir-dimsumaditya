@@ -1,94 +1,100 @@
-import React, { useMemo } from 'react';
-import { Store, Package, ShoppingCart, TrendingUp, AlertCircle } from 'lucide-react';
-import { formatRp, formatDate, safeSort } from '../../utils/helpers';
+import React, { useMemo, useState } from 'react';
+import { Store, Package, ShoppingCart, TrendingUp, AlertCircle, Filter } from 'lucide-react';
+import { formatRp, formatDate, getLocalYMD, getTodayStr, safeSort } from '../../utils/helpers';
 
 export default function TabMonitoringPemalang({ orders, pemalangReports, stokData }) {
+  const todayStr = getTodayStr();
+  const [filterDate, setFilterDate] = useState(todayStr); // Filter khusus Hari Ini
   
-  // LOGIC KALKULASI REAL-TIME CABANG PEMALANG
-  const stats = useMemo(() => {
-    // 1. Total Mutasi Masuk dari Pusat
-    const mutasiMasuk = (stokData || []).filter(s => s.type === 'MUTASI_PEMALANG').reduce((sum, s) => sum + Number(s.qty), 0);
-    
-    // 2. Total Terjual (Dari Invoice Pemalang)
-    const terjualPcs = (orders || []).filter(o => o.category === 'Pemalang').reduce((sum, o) => sum + Number(o.qty), 0);
-    const omsetTotal = (orders || []).filter(o => o.category === 'Pemalang').reduce((sum, o) => sum + Number(o.total), 0);
-    
-    // 3. Sisa Stok Aktual (Sistem)
-    const sisaStokSistem = mutasiMasuk - terjualPcs;
-    
-    // 4. Laporan Terakhir Cabang
-    const laporanUrut = [...(pemalangReports || [])].sort((a,b) => new Date(b.date) - new Date(a.date));
-    const laporanTerakhir = laporanUrut.length > 0 ? laporanUrut[0] : null;
+  const MASTER_AYAM = 30; 
+  const MASTER_PCS = 1000; 
 
-    return { mutasiMasuk, terjualPcs, omsetTotal, sisaStokSistem, laporanTerakhir, laporanUrut };
-  }, [orders, pemalangReports, stokData]);
+  const stats = useMemo(() => {
+    // 1. DATA AYAM CABANG PEMALANG (Semua Waktu)
+    const mutasiAyamPemalang = (stokData || []).filter(s => s.type === 'MUTASI_AYAM_PEMALANG').reduce((sum, s) => sum + Number(s.qty), 0);
+    const prodPemalangAll = (stokData || []).filter(s => s.type === 'PRODUKSI_PEMALANG').reduce((sum, s) => sum + Number(s.qty), 0);
+    const sisaAyamCabang = mutasiAyamPemalang - (prodPemalangAll * MASTER_AYAM);
+
+    // 2. DATA DIMSUM CABANG PEMALANG (Semua Waktu)
+    const terjualPcsAll = (orders || []).filter(o => o.category === 'Pemalang').reduce((sum, o) => sum + Number(o.qty), 0);
+    const omsetTotal = (orders || []).filter(o => o.category === 'Pemalang').reduce((sum, o) => sum + Number(o.totalAll || o.total), 0);
+    const sisaStokFreezer = (prodPemalangAll * MASTER_PCS) - terjualPcsAll;
+
+    // 3. AKTIVITAS HARI INI (Sesuai Filter Tanggal)
+    const prodHariIni = (stokData || []).filter(s => s.type === 'PRODUKSI_PEMALANG' && getLocalYMD(s.date) === filterDate).reduce((sum, s) => sum + Number(s.qty), 0);
+    const terjualHariIniPcs = (orders || []).filter(o => o.category === 'Pemalang' && getLocalYMD(o.date) === filterDate).reduce((sum, o) => sum + Number(o.qty), 0);
+    const mikaHariIni = terjualHariIniPcs / 4; // Asumsi 1 porsi/mika = 4 pcs
+
+    // Laporan Akhir Hari dari Pemalang
+    const laporanUrut = [...(pemalangReports || [])].sort((a,b) => new Date(b.date) - new Date(a.date));
+
+    return { 
+        sisaAyamCabang, sisaStokFreezer, omsetTotal, 
+        prodHariIni, terjualHariIniPcs, mikaHariIni, laporanUrut 
+    };
+  }, [orders, pemalangReports, stokData, filterDate]);
 
   return (
     <div className="space-y-6 animate-in fade-in">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center bg-white p-4 rounded-xl border shadow-sm">
         <div>
-            <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2"><Store size={20}/> Pusat Kontrol: Cabang Pemalang</h3>
-            <p className="text-xs text-slate-500">Monitoring pergerakan stok dan penjualan cabang secara real-time.</p>
+            <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2"><Store size={20}/> Live Dashboard: Cabang Pemalang</h3>
+            <p className="text-xs text-slate-500">Monitoring real-time kapasitas bahan baku dan produksi cabang.</p>
+        </div>
+        <div className="flex items-center gap-2 bg-slate-100 p-2 rounded-lg border">
+            <Filter size={16} className="text-slate-500"/>
+            <span className="text-sm font-bold text-slate-600">Pantau Hari:</span>
+            <input type="date" value={filterDate} onChange={e=>setFilterDate(e.target.value)} className="p-1.5 text-sm border rounded bg-white" />
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-xl border border-blue-200 shadow-sm">
-            <div className="text-xs font-bold text-blue-500 uppercase mb-1">Total Kiriman Pusat</div>
-            <div className="text-2xl font-black text-blue-700">{stats.mutasiMasuk} <span className="text-sm">Pcs</span></div>
-            <div className="text-[10px] text-slate-400 mt-1">Akumulasi Mutasi Stok</div>
+      {/* INDIKATOR KAPASITAS REALTIME (ALL TIME) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className={`p-5 rounded-xl border shadow-sm ${stats.sisaAyamCabang <= 30 ? 'bg-red-50 border-red-200' : 'bg-white border-slate-200'}`}>
+            <div className={`text-xs font-bold uppercase mb-1 ${stats.sisaAyamCabang <= 30 ? 'text-red-500' : 'text-slate-500'}`}>Sisa Ayam (Bahan)</div>
+            <div className={`text-3xl font-black ${stats.sisaAyamCabang <= 30 ? 'text-red-700' : 'text-slate-800'}`}>{stats.sisaAyamCabang} <span className="text-sm">Kg</span></div>
+            <div className={`text-[10px] mt-1 font-bold ${stats.sisaAyamCabang <= 30 ? 'text-red-600 animate-pulse' : 'text-slate-400'}`}>
+                {stats.sisaAyamCabang <= 30 ? '⚠ KRITIS! Segera drop bahan!' : 'Kapasitas bahan aman.'}
+            </div>
         </div>
-        <div className="bg-white p-5 rounded-xl border border-emerald-200 shadow-sm">
-            <div className="text-xs font-bold text-emerald-500 uppercase mb-1">Total Terjual (Sistem)</div>
-            <div className="text-2xl font-black text-emerald-700">{stats.terjualPcs} <span className="text-sm">Pcs</span></div>
-            <div className="text-[10px] text-slate-400 mt-1">Setara {stats.terjualPcs / 4} Porsi</div>
+        <div className={`p-5 rounded-xl border shadow-sm ${stats.sisaStokFreezer <= 1000 ? 'bg-orange-50 border-orange-200' : 'bg-white border-slate-200'}`}>
+            <div className={`text-xs font-bold uppercase mb-1 ${stats.sisaStokFreezer <= 1000 ? 'text-orange-500' : 'text-slate-500'}`}>Isi Freezer (Dimsum)</div>
+            <div className={`text-3xl font-black ${stats.sisaStokFreezer <= 1000 ? 'text-orange-700' : 'text-slate-800'}`}>{stats.sisaStokFreezer} <span className="text-sm">Pcs</span></div>
+            <div className="text-[10px] text-slate-400 mt-1 font-bold">Setara {stats.sisaStokFreezer / 4} Porsi/Mika</div>
         </div>
-        <div className="bg-white p-5 rounded-xl border border-orange-200 shadow-sm relative overflow-hidden">
-            <div className="text-xs font-bold text-orange-500 uppercase mb-1">Sisa Stok Realtime</div>
-            <div className="text-3xl font-black text-orange-700">{stats.sisaStokSistem} <span className="text-sm">Pcs</span></div>
-            <div className="text-[10px] text-slate-400 mt-1">Sisa Barang Ready Jual</div>
-            <Package size={40} className="absolute -bottom-2 -right-2 text-orange-100" />
+        <div className="bg-emerald-50 p-5 rounded-xl border border-emerald-200 shadow-sm">
+            <div className="text-xs font-bold text-emerald-600 uppercase mb-1">Aktivitas Hari Ini ({formatDate(filterDate)})</div>
+            <div className="flex justify-between items-end mt-2">
+                <div><div className="text-[10px] font-bold text-emerald-500">PRODUKSI</div><div className="text-xl font-black text-emerald-700">{stats.prodHariIni} <span className="text-xs">Adukan</span></div></div>
+                <div className="text-emerald-300">/</div>
+                <div className="text-right"><div className="text-[10px] font-bold text-emerald-500">PESANAN MASUK</div><div className="text-xl font-black text-emerald-700">{stats.mikaHariIni} <span className="text-xs">Mika</span></div></div>
+            </div>
         </div>
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-            <div className="text-xs font-bold text-slate-500 uppercase mb-1">Total Omset (Akumulasi)</div>
-            <div className="text-2xl font-black text-slate-700">{formatRp(stats.omsetTotal)}</div>
-            <div className="text-[10px] text-slate-400 mt-1">Berdasarkan Invoice Cabang</div>
+        <div className="bg-blue-50 p-5 rounded-xl border border-blue-200 shadow-sm">
+            <div className="text-xs font-bold text-blue-500 uppercase mb-1">Total Omset Cabang (All Time)</div>
+            <div className="text-2xl font-black text-blue-700 mt-2">{formatRp(stats.omsetTotal)}</div>
+            <div className="text-[10px] text-blue-400 mt-1">Akumulasi Penjualan Pemalang</div>
         </div>
       </div>
 
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-          <h4 className="font-bold text-sm mb-4 flex items-center gap-2"><AlertCircle size={16} className="text-blue-500"/> Pengecekan Silang (Audit Fisik vs Sistem)</h4>
-          {stats.laporanTerakhir ? (
-              <div className="flex items-center justify-between bg-slate-50 p-4 rounded-lg border">
-                  <div>
-                      <div className="text-xs text-slate-500">Laporan Fisik Terakhir Cabang: <strong>{formatDate(stats.laporanTerakhir.date)}</strong></div>
-                      <div className="text-lg font-bold">Stok Freezer Laporan: <span className="text-indigo-600">{stats.laporanTerakhir.stokFreezer}</span></div>
-                  </div>
-                  <div className="text-right">
-                      <div className="text-xs text-slate-500">Estimasi Sistem Seharusnya:</div>
-                      <div className="text-lg font-bold text-orange-600">{stats.sisaStokSistem} Pcs</div>
-                  </div>
-              </div>
-          ) : (
-              <div className="text-sm text-slate-400 italic">Belum ada laporan harian dari cabang.</div>
-          )}
-      </div>
-
-      <div className="bg-white rounded-xl border mt-4 overflow-hidden">
-        <div className="p-4 border-b bg-slate-50"><h4 className="font-bold text-sm">Riwayat Laporan Harian (End of Day)</h4></div>
-        <table className="w-full text-sm text-left block md:table">
-          <thead className="bg-white text-slate-600 text-xs uppercase border-b"><tr><th className="px-4 py-3">Tanggal</th><th className="px-4 py-3 text-center">Produksi / Pesanan (Mika)</th><th className="px-4 py-3">Stok Laporan (Teks)</th><th className="px-4 py-3 text-right">Uang Disetor</th></tr></thead>
-          <tbody className="divide-y divide-slate-100">
-            {stats.laporanUrut.length === 0 ? <tr><td colSpan="4" className="text-center py-8 text-slate-400">Belum ada riwayat.</td></tr> : stats.laporanUrut.map((rep, idx) => (
-              <tr key={idx} className="hover:bg-slate-50">
-                <td className="px-4 py-3 font-bold">{formatDate(rep.date)}</td>
-                <td className="px-4 py-3 text-center">{rep.produksiMika} M / {rep.pesananMika} M</td>
-                <td className="px-4 py-3 font-bold uppercase text-indigo-700">{rep.stokFreezer || '-'}</td>
-                <td className="px-4 py-3 text-right font-black text-emerald-600">{formatRp(rep.nominal)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+          <h4 className="font-bold text-sm mb-4 flex items-center gap-2"><AlertCircle size={16} className="text-slate-500"/> Laporan Kasir Akhir Hari (EOD) vs Sistem</h4>
+          <table className="w-full text-sm text-left block md:table mt-2">
+            <thead className="bg-slate-50 text-slate-600 text-[10px] uppercase border-y">
+                <tr><th className="px-4 py-2">Tanggal Lapor</th><th className="px-4 py-2 text-center">Klaim Produksi (Mika)</th><th className="px-4 py-2 text-center">Klaim Order (Mika)</th><th className="px-4 py-2">Klaim Freezer</th><th className="px-4 py-2 text-right">Uang Disetor (Rp)</th></tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {stats.laporanUrut.length === 0 ? <tr><td colSpan="5" className="text-center py-6 text-slate-400">Belum ada riwayat EOD.</td></tr> : stats.laporanUrut.map((rep, idx) => (
+                <tr key={idx} className="hover:bg-slate-50">
+                  <td className="px-4 py-3 font-bold text-slate-700">{formatDate(rep.date)}</td>
+                  <td className="px-4 py-3 text-center font-medium">{rep.produksiMika} M</td>
+                  <td className="px-4 py-3 text-center font-medium">{rep.pesananMika} M</td>
+                  <td className="px-4 py-3 font-bold uppercase text-indigo-700">{rep.stokFreezer || '-'}</td>
+                  <td className="px-4 py-3 text-right font-black text-emerald-600">{formatRp(rep.nominal)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
       </div>
     </div>
   );
