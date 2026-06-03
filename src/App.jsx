@@ -148,14 +148,9 @@ export default function App() {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 font-sans relative overflow-hidden">
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 relative z-10">
-          <div className="flex flex-col items-center mb-8">
-            {/* === ANCHOR LINK MENUJU WEBSITE DIMSUM ADITYA === */}
-            <a href="https://dimsumaditya.id/" target="_blank" rel="noopener noreferrer" title="Buka Website Dimsum Aditya">
-                <img src="https://dimsumaditya.id/wp-content/uploads/2024/10/Dimsum-Aditya.png" alt="Logo" className="w-20 h-20 object-contain mb-2 hover:scale-105 transition-transform" />
-            </a>
-            <h1 className="text-2xl font-bold text-slate-800">
-                <a href="https://dimsumaditya.id/" target="_blank" rel="noopener noreferrer" className="hover:text-red-600 transition-colors" title="Buka Website Dimsum Aditya">Dimsum Aditya</a>
-            </h1>
+          <div className="flex flex-col items-center mb-6">
+            <img src="https://dimsumaditya.id/wp-content/uploads/2024/10/Dimsum-Aditya.png" alt="Logo" className="w-20 h-20 object-contain mb-2" />
+            <h1 className="text-2xl font-bold text-slate-800">Login Sistem</h1>
             <p className="text-sm text-slate-500 mt-1">Sistem Informasi Manajemen Terpadu</p>
           </div>
           <form onSubmit={handleLogin} className="space-y-4">
@@ -164,6 +159,13 @@ export default function App() {
             <input type="password" required placeholder="Password" value={loginForm.password} onChange={e => setLoginForm({...loginForm, password: e.target.value})} className="w-full p-3 border rounded-xl" />
             <button type="submit" className="w-full bg-red-600 hover:bg-red-700 transition text-white font-bold py-3.5 rounded-xl">Masuk Sistem</button>
           </form>
+          
+          <div className="mt-8 text-center border-t border-slate-100 pt-5">
+            <p className="text-xs text-slate-500">
+                Hak Cipta &copy; {new Date().getFullYear()} Sistem Kasir<br/>
+                Developed for <a href="https://dimsumaditya.id/" target="_blank" rel="noopener noreferrer" className="font-bold text-red-600 hover:text-red-700 transition">Dimsum Aditya</a>
+            </p>
+          </div>
         </div>
       </div>
     );
