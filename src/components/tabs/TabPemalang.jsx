@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Store, Plus, Trash2 } from 'lucide-react';
+import { Store, Plus, Trash2, X } from 'lucide-react';
 import { getTodayStr, generateId, formatDate, formatRp, parseRp } from '../../utils/helpers';
 
 export default function TabPemalang({ reports, sendToSheet, requestDelete, role }) {
@@ -27,7 +27,7 @@ export default function TabPemalang({ reports, sendToSheet, requestDelete, role 
       produksiMika: Number(produksiMika)||0, 
       pesananMika: Number(pesananMika)||0,
       stokFreezer: stokFreezer.toUpperCase(),
-      stokAyam: stokAyam.toUpperCase(), // INI DATA BARU SISA AYAM KANTONG
+      stokAyam: stokAyam.toUpperCase(),
       nominal: Number(nominal)||0,
       transferDestination
     };
