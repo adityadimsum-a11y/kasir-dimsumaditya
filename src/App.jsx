@@ -16,7 +16,7 @@ import TabStok from './components/tabs/TabStok';
 
 import { 
   PrintInvoiceDotMatrix, PrintPurchase, PrintVoucher, 
-  PrintReceipt, PrintReport, PrintReportBranch 
+  PrintReceipt, PrintReport, PrintReportBranch, PrintSPK
 } from './components/print/PrintTemplates';
 
 import { safeSort } from './utils/helpers';
