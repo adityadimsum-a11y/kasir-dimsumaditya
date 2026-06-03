@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ShoppingCart, Plus, X, Trash2, Printer, Filter } from 'lucide-react';
+import { ShoppingCart, Plus, X, Trash2, Printer, Filter, ChefHat } from 'lucide-react';
 import { getTodayStr, getLocalYMD, formatRp, parseRp, KATEGORI_HARGA, generateId, safeSort, formatDate } from '../../utils/helpers';
 
 export default function TabOrders({ orders, payments, sendToSheet, setPrintData, requestDelete, role }) {
@@ -146,7 +146,22 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
                 <td className="px-4 py-3 text-center font-medium text-slate-600">{ord.paymentMethod}</td>
                 <td className="px-4 py-3 text-right font-bold text-emerald-600">{formatRp(ord.totalAll)}</td>
                 <td className="px-4 py-3 text-center">{sisaHutang > 0 ? <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded text-[10px] font-bold">PIUTANG</span> : <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-[10px] font-bold">LUNAS</span>}</td>
-                <td className="px-4 py-3 text-center"><div className="flex justify-center gap-2"><button onClick={() => setPrintData({ type: 'invoice', data: ord })} className="text-slate-600 bg-slate-100 p-2 rounded-lg" title="Cetak"><Printer size={16} /></button><button onClick={() => handleEdit(ord)} className="text-blue-600 bg-blue-50 px-2 py-1 rounded-lg font-bold text-[10px]">EDIT</button><button onClick={() => requestDelete(ord.id)} className="text-red-500 bg-red-50 p-2 rounded-lg"><Trash2 size={16} /></button></div></td>
+                <td className="px-4 py-3 text-center">
+                  <div className="flex justify-center gap-2">
+                    <button onClick={() => setPrintData({ type: 'spk', data: ord })} className="text-orange-600 bg-orange-50 p-2 rounded-lg border border-orange-200 hover:bg-orange-100 transition shadow-sm" title="Cetak SPK Dapur">
+                      <ChefHat size={16} />
+                    </button>
+                    <button onClick={() => setPrintData({ type: 'invoice', data: ord })} className="text-slate-600 bg-slate-100 p-2 rounded-lg border hover:bg-slate-200 transition shadow-sm" title="Cetak Invoice Pelanggan">
+                      <Printer size={16} />
+                    </button>
+                    <button onClick={() => handleEdit(ord)} className="text-blue-600 bg-blue-50 px-2 py-1 rounded-lg font-bold text-[10px] border border-blue-200 hover:bg-blue-100 transition shadow-sm">
+                      EDIT
+                    </button>
+                    <button onClick={() => requestDelete(ord.id)} className="text-red-500 bg-red-50 p-2 rounded-lg border border-red-200 hover:bg-red-100 transition shadow-sm" title="Hapus Data">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </td>
               </tr>
             )})}
           </tbody>
