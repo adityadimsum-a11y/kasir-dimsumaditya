@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Calendar, Printer, Wallet, Coins, CreditCard, TrendingUp, ArrowRightLeft, Users, ShoppingCart, AlertCircle, Clock, Package } from 'lucide-react';
-import { getTodayStr, getLocalYMD, formatRp, formatDate } from '../../utils/helpers';
+import { Calendar, Printer, Wallet, Coins, CreditCard, TrendingUp, ArrowRightLeft, Users, ShoppingCart, AlertCircle, Clock, Package, CheckCircle } from 'lucide-react';
+import { getTodayStr, formatRp, formatDate, generateId } from '../../utils/helpers';
 import SimpleSVGLineChart from '../ui/SimpleSVGLineChart';
 import useDashboardPusat from '../../hooks/useDashboardPusat';
 
@@ -11,17 +11,50 @@ const StatCard = ({ title, amount, icon, color }) => (
   </div>
 );
 
-export default function TabDashboard({ orders, expenses, purchases, piutangPayments, pemalangReports, setPrintData }) {
+export default function TabDashboard({ orders, expenses, purchases, piutangPayments, pemalangReports, setPrintData, sendToSheet }) {
   const todayStr = getTodayStr();
   const [dateFrom, setDateFrom] = useState(todayStr);
   const [dateTo, setDateTo] = useState(todayStr);
   const [chartView, setChartView] = useState('daily'); 
 
-  // LOGIC SEKARANG DIAMBIL DARI CUSTOM HOOK
+  // LOGIC DIAMBIL DARI CUSTOM HOOK
   const rekap = useDashboardPusat({ 
     orders, expenses, purchases, piutangPayments, pemalangReports, 
     dateFrom, dateTo, chartView 
   });
+
+  // LOGIC CLOSING KAS HARIAN (NOL-KAN LACI)
+  const handleClosingKas = () => {
+      if (rekap.saldoCash <= 0) {
+          alert("Saldo Uang Fisik (Cash) saat ini Rp 0 atau minus. Tidak ada yang bisa disetor.");
+          return;
+      }
+      
+      const confirmSetor = window.confirm(`Perhatian: Uang fisik di laci Anda saat ini SEHARUSNYA adalah:\n\n>>> ${formatRp(rekap.saldoCash)} <<<\n\nJika uang fisik sudah Anda hitung dan jumlahnya PAS, klik OK untuk melakukan SETOR KE OWNER (Closing Kas). Saldo Cash akan otomatis menjadi Nol.`);
+      
+      if (confirmSetor) {
+          const today = getTodayStr();
+          const newExpense = {
+              id: generateId('OUT', today), 
+              date: today,
+              recipient: 'Pimpinan / Owner',
+              category: 'Setoran Kas Harian / Closing',
+              description: `Closing kas dan serah terima uang fisik ke Bos.`,
+              qty: 1,
+              price: rekap.saldoCash,
+              total: rekap.saldoCash,
+              type: 'OUT',
+              paymentMethod: 'Cash',
+              editCount: 0
+          };
+          
+          // Simpan pengeluaran setor ke database
+          sendToSheet('insert', newExpense, 'expenses');
+          
+          // Langsung otomatis cetak Voucher Kas Keluar
+          setPrintData({ type: 'voucher', data: newExpense });
+      }
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in">
@@ -30,10 +63,26 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
           <button onClick={() => setPrintData({ type: 'report', data: { rekap, dateFrom, dateTo } })} className="bg-slate-800 hover:bg-slate-900 text-white px-5 py-2.5 rounded-lg flex gap-2 text-sm font-medium"><Printer size={16} /> Cetak Rekap Pusat</button>
       </div>
 
-      <div>
-          <h2 className="text-lg font-bold text-slate-800 mb-1 flex items-center gap-2"><Wallet size={20}/> Status Saldo Berjalan (Akumulasi Aktif)</h2>
-          <p className="text-xs text-slate-500 mb-4">*Dihitung otomatis terus-menerus (continue) sampai dengan {formatDate(dateTo)}.</p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6"><StatCard title="Total Saldo Keseluruhan" amount={rekap.saldoAkhir} icon={<Wallet />} color="bg-blue-50 text-blue-700 border-blue-200" /><StatCard title="Saldo Tunai (CASH)" amount={rekap.saldoCash} icon={<Coins />} color="bg-emerald-50 text-emerald-700 border-emerald-200" /><StatCard title="Saldo Rekening (TF)" amount={rekap.saldoTF} icon={<CreditCard />} color="bg-indigo-50 text-indigo-700 border-indigo-200" /></div>
+      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
+          <div className="flex justify-between items-start mb-4">
+              <div>
+                  <h2 className="text-lg font-bold text-slate-800 mb-1 flex items-center gap-2"><Wallet size={20}/> Status Saldo Berjalan (Akumulasi Aktif)</h2>
+                  <p className="text-xs text-slate-500">*Dihitung otomatis terus-menerus (continue) sampai dengan {formatDate(dateTo)}.</p>
+              </div>
+              <button 
+                onClick={handleClosingKas} 
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-lg flex items-center gap-2 text-sm font-bold shadow-md transition transform hover:scale-105"
+                title="Tekan ini saat mau pulang / tutup toko"
+              >
+                <CheckCircle size={18} /> Closing Kas & Setor Uang
+              </button>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <StatCard title="Total Saldo Keseluruhan" amount={rekap.saldoAkhir} icon={<Wallet />} color="bg-blue-50 text-blue-700 border-blue-200" />
+              <StatCard title="Saldo Tunai (Laci CASH)" amount={rekap.saldoCash} icon={<Coins />} color="bg-emerald-50 text-emerald-700 border-emerald-200" />
+              <StatCard title="Saldo Rekening Bank (TF)" amount={rekap.saldoTF} icon={<CreditCard />} color="bg-indigo-50 text-indigo-700 border-indigo-200" />
+          </div>
       </div>
 
       {/* Tabel Pembelian Bahan Baku */}
