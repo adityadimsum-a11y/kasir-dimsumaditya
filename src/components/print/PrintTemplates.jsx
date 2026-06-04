@@ -43,6 +43,10 @@ export function PrintInvoiceDotMatrix({ data, onBack }) {
   let cleanNotes = data.notes || '';
   cleanNotes = cleanNotes.replace(/\[TAGS:(.*?)\]/, '$1 - ').trim();
 
+  // Membaca Riwayat Multi-Payment
+  const allPayments = data.allPayments || [];
+  const totalTerbayar = allPayments.reduce((s, p) => s + (Number(p.amount)||0), 0);
+
   return (
     <div className="bg-slate-100 min-h-screen p-4">
       <style dangerouslySetInnerHTML={{ __html: dotMatrixStyle }} />
@@ -72,8 +76,8 @@ export function PrintInvoiceDotMatrix({ data, onBack }) {
             {cleanNotes && <p className="text-[10px] italic text-slate-600 mt-1">*Notes: {cleanNotes}</p>}
           </div>
           <div className="w-1/3 flex flex-col justify-center border-l-2 border-slate-200 pl-4">
-            <div className="flex justify-between mb-1.5"><span className="text-[10px] font-bold uppercase text-slate-500">Tanggal</span> <span className="font-bold text-[10px]">{formatDate(data.date)}</span></div>
-            <div className="flex justify-between"><span className="text-[10px] font-bold uppercase text-slate-500">Pembayaran</span> <span className="font-bold uppercase text-[10px]">{data.paymentMethod || '-'}</span></div>
+            <div className="flex justify-between mb-1.5"><span className="text-[10px] font-bold uppercase text-slate-500">Tanggal Inv</span> <span className="font-bold text-[10px]">{formatDate(data.date)}</span></div>
+            <div className="flex justify-between"><span className="text-[10px] font-bold uppercase text-slate-500">Status Pembayaran</span> <span className="font-bold uppercase text-[10px]">{data.sisaHutangAktual <= 0 ? 'LUNAS' : data.statusProduksi === 'Sudah Diambil' ? 'PIUTANG' : totalTerbayar > 0 ? 'DP' : 'BELUM BAYAR'}</span></div>
           </div>
         </div>
 
@@ -89,12 +93,26 @@ export function PrintInvoiceDotMatrix({ data, onBack }) {
         <div className="flex justify-between items-start mt-4">
             <div className="flex-1 mr-6">
                 <div className="mb-3"><span className="text-[9px] font-bold uppercase text-slate-500 block mb-0.5">Terbilang :</span><span className="font-bold italic text-[11px]"># {terbilang(data.totalAll || data.total)} Rupiah #</span></div>
-                <div className="text-[10px] font-bold text-slate-600 bg-slate-50 p-2 rounded border border-slate-100 w-max"><p className="uppercase mb-0.5 text-slate-800">Info Pembayaran / Transfer :</p><p>BCA : 1320552261 a/n WASTAM</p><p>BRI : 775301006132536 a/n WASTAM</p></div>
+                <div className="text-[10px] font-bold text-slate-600 bg-slate-50 p-2 rounded border border-slate-100 w-max"><p className="uppercase mb-0.5 text-slate-800">Info Rekening Transfer :</p><p>BCA : 1320552261 a/n WASTAM</p><p>BRI : 775301006132536 a/n WASTAM</p></div>
             </div>
-            <div className="w-56">
-                <div className="flex justify-between mb-1.5 text-xs"><span className="font-bold uppercase text-slate-600">Subtotal</span><span className="font-black">{formatRp(data.totalAll || data.total)}</span></div>
-                <div className="flex justify-between mb-1.5 text-xs"><span className="font-bold uppercase text-slate-600">Telah Dibayar</span><span className="font-bold">{formatRp(data.paidAmount)}</span></div>
-                <div className="flex justify-between border-t-2 border-black pt-1.5 mt-1.5"><span className="font-black text-sm uppercase">SISA TAGIHAN</span><span className="font-black text-sm text-red-600">{formatRp(Number(data.totalAll || data.total || 0) - Number(data.paidAmount || 0))}</span></div>
+            
+            <div className="w-64 border-l-2 border-black pl-4">
+                <div className="flex justify-between mb-1.5 text-xs"><span className="font-bold uppercase text-slate-600">Total Tagihan</span><span className="font-black">{formatRp(data.totalAll || data.total)}</span></div>
+                
+                {allPayments.length > 0 && (
+                    <div className="mt-2 mb-2">
+                        <span className="text-[9px] font-bold uppercase text-slate-400 block mb-0.5">Riwayat Pembayaran :</span>
+                        {allPayments.map((p, i) => (
+                            <div key={i} className="flex justify-between text-[10px] font-bold text-slate-700">
+                                <span>- {p.method}</span>
+                                <span>{formatRp(p.amount)}</span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+                
+                <div className="flex justify-between mb-1.5 text-xs border-t border-slate-300 pt-1.5"><span className="font-bold uppercase text-slate-600">Total Dibayar</span><span className="font-bold text-emerald-600">{formatRp(totalTerbayar)}</span></div>
+                <div className="flex justify-between border-t-2 border-black pt-1.5 mt-1.5"><span className="font-black text-sm uppercase">SISA TAGIHAN</span><span className="font-black text-sm text-red-600">{formatRp(data.sisaHutangAktual || 0)}</span></div>
             </div>
         </div>
         
@@ -462,7 +480,7 @@ export function PrintReport({ data, onBack }) {
             </div>
         </div>
 
-        {/* SUMMARY KEUANGAN */}
+        {/* SUMMARY KEUANGAN YANG SUDAH DIPISAH CASH DAN TRANSFER */}
         <h3 className="text-[10px] font-black uppercase text-slate-800 border-b border-slate-300 pb-1 mb-2">B. RINGKASAN FINANSIAL KAS</h3>
         <div className="grid grid-cols-4 gap-3 mb-5">
             <div className="border border-slate-300 p-2 rounded bg-white">
@@ -471,23 +489,27 @@ export function PrintReport({ data, onBack }) {
                 <p className="text-[9px] text-slate-600 mt-0.5">Terjual Pusat: <strong>{rekap?.totalPcs || 0} Pcs</strong></p>
             </div>
             <div className="border border-emerald-200 p-2 rounded bg-emerald-50">
-                <p className="text-[9px] font-bold text-emerald-700 uppercase mb-0.5">Kas Masuk</p>
-                <div className="flex justify-between text-[10px] font-black text-emerald-800 mt-1"><span>TOTAL:</span><span>{formatRp((rekap?.inCashPeriode||0) + (rekap?.inTfPeriode||0))}</span></div>
+                <p className="text-[9px] font-bold text-emerald-700 uppercase mb-0.5">Kas Masuk Terpisah</p>
+                <div className="flex justify-between text-[9px] font-bold text-emerald-800 mt-0.5"><span>Cash:</span><span>{formatRp(rekap?.inCashPeriode)}</span></div>
+                <div className="flex justify-between text-[9px] font-bold text-emerald-800"><span>Transfer:</span><span>{formatRp(rekap?.inTfPeriode)}</span></div>
+                <div className="flex justify-between text-[10px] font-black text-emerald-900 border-t border-emerald-200 mt-1 pt-0.5"><span>TOTAL:</span><span>{formatRp((rekap?.inCashPeriode||0) + (rekap?.inTfPeriode||0))}</span></div>
             </div>
             <div className="border border-red-200 p-2 rounded bg-red-50">
-                <p className="text-[9px] font-bold text-red-700 uppercase mb-0.5">Kas Keluar</p>
-                <div className="flex justify-between text-[10px] font-black text-red-800 mt-1"><span>TOTAL:</span><span>{formatRp((rekap?.outCashPeriode||0) + (rekap?.outTfPeriode||0))}</span></div>
+                <p className="text-[9px] font-bold text-red-700 uppercase mb-0.5">Kas Keluar Terpisah</p>
+                <div className="flex justify-between text-[9px] font-bold text-red-800 mt-0.5"><span>Cash:</span><span>{formatRp(rekap?.outCashPeriode)}</span></div>
+                <div className="flex justify-between text-[9px] font-bold text-red-800"><span>Transfer:</span><span>{formatRp(rekap?.outTfPeriode)}</span></div>
+                <div className="flex justify-between text-[10px] font-black text-red-900 border-t border-red-200 mt-1 pt-0.5"><span>TOTAL:</span><span>{formatRp((rekap?.outCashPeriode||0) + (rekap?.outTfPeriode||0))}</span></div>
             </div>
             <div className="border border-orange-200 p-2 rounded bg-orange-50">
                 <p className="text-[9px] font-bold text-orange-700 uppercase mb-0.5">Tagihan Gantung (Sisa)</p>
-                <div className="flex justify-between text-[9px]"><span>Piutang:</span><span className="font-bold">{formatRp(rekap?.totalPiutangBaru)}</span></div>
+                <div className="flex justify-between text-[9px]"><span>Piutang Sah:</span><span className="font-bold">{formatRp(rekap?.totalPiutangBaru)}</span></div>
             </div>
         </div>
 
         <h3 className="font-bold text-xs mb-1.5 text-slate-800">C. TRANSAKSI PENJUALAN DIMSUM</h3>
         <table className="table-print">
           <thead>
-            <tr><th className="w-8">NO</th><th>TGL & INV</th><th>PELANGGAN</th><th className="text-center">QTY</th><th className="text-center">VIA</th><th className="text-right">TAGIHAN</th><th className="text-right">TERBAYAR</th><th className="text-right">SISA</th><th className="text-center">STATUS</th></tr>
+            <tr><th className="w-8">NO</th><th>TGL & INV</th><th>PELANGGAN</th><th className="text-center">QTY</th><th className="text-center">PEMBAYARAN (VIA)</th><th className="text-right">TAGIHAN</th><th className="text-right">TERBAYAR</th><th className="text-right">SISA</th><th className="text-center">STATUS</th></tr>
           </thead>
           <tbody>
             {(!rekap?.listTransaksiDetail || rekap.listTransaksiDetail.length === 0) ? (
@@ -501,7 +523,10 @@ export function PrintReport({ data, onBack }) {
                         <td>{formatDate(c?.date)}<br/><span className="font-mono text-[8px] text-slate-500">{c?.id || '-'}</span></td>
                         <td className="font-bold uppercase">{c?.customer || '-'}</td>
                         <td className="text-center text-[9px]">{itemPcs} Pcs / {itemPcs/4} Prs</td>
-                        <td className="text-center text-[9px]">{c?.paymentMethod || '-'}</td>
+                        <td className="text-left text-[8px] font-medium leading-tight">
+                            {(c.allPayments || []).map((p, idx) => <div key={idx}>• {p.method}: {formatRp(p.amount)}</div>)}
+                            {(c.allPayments || []).length === 0 && <div className="text-center">-</div>}
+                        </td>
                         <td className="text-right font-medium">{formatRp(c?.totalTagihan)}</td>
                         <td className="text-right text-emerald-600 font-bold">{formatRp(c?.totalTerbayar)}</td>
                         <td className="text-right font-bold text-red-600">{formatRp(c?.sisaTagihan)}</td>
@@ -533,13 +558,16 @@ export function PrintReport({ data, onBack }) {
                   rekap.listPembelianDetail.map((c, i) => {
                       const sisa = Number(c?.total || 0) - Number(c?.paidAmount || 0);
                       const status = sisa <= 0 ? 'LUNAS' : 'BELUM LUNAS';
+                      let displayVia = c.paymentMethod;
+                      try { const parsed = JSON.parse(c.paymentMethod); displayVia = parsed.map(p => p.method).join(' + '); } catch(e) {}
+
                       return (
                       <tr key={i}>
                           <td className="text-center">{i + 1}</td>
                           <td>{formatDate(c?.date)}<br/><span className="font-mono text-[8px] text-slate-500">{c?.id || '-'}</span></td>
                           <td className="font-bold uppercase">{c?.supplier || '-'}</td>
                           <td className="text-center text-[9px] uppercase">{c?.itemName || '-'} ({c?.qty || 0} {c?.satuan || '-'})</td>
-                          <td className="text-center text-[9px]">{c?.paymentMethod || '-'}</td>
+                          <td className="text-center text-[8px] max-w-[80px] truncate leading-tight" title={displayVia}>{displayVia}</td>
                           <td className="text-right font-medium">{formatRp(c?.total)}</td>
                           <td className="text-right text-emerald-600 font-bold">{formatRp(c?.paidAmount)}</td>
                           <td className="text-right font-bold text-red-600">{formatRp(sisa)}</td>
@@ -648,7 +676,10 @@ export function PrintReportBranch({ data, onBack, user }) {
                         <td>{formatDate(c?.date)}<br/><span className="font-mono text-[8px] text-slate-500">{c?.id || '-'}</span></td>
                         <td className="font-bold uppercase">{c?.customer || '-'}</td>
                         <td className="text-center text-[9px]">{itemPcs} Pcs / {itemPcs/4} Prs</td>
-                        <td className="text-center text-[9px]">{c?.paymentMethod || '-'}</td>
+                        <td className="text-left text-[8px] font-medium leading-tight">
+                            {(c.allPayments || []).map((p, idx) => <div key={idx}>• {p.method}: {formatRp(p.amount)}</div>)}
+                            {(c.allPayments || []).length === 0 && <div className="text-center">-</div>}
+                        </td>
                         <td className="text-right">{formatRp(c?.totalTagihan)}</td>
                         <td className="text-right text-emerald-600 font-bold">{formatRp(c?.totalTerbayar)}</td>
                         <td className="text-right font-bold text-red-600">{formatRp(c?.sisaTagihan)}</td>
