@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { formatRp, formatDate, terbilang, getLocalYMD } from '../../utils/helpers';
+import { formatRp, formatDate, terbilang } from '../../utils/helpers';
 
 const dotMatrixStyle = `
   .print-wrapper { max-width: 9.5in; margin: 0 auto; padding: 20px; background: white; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: black; line-height: 1.4; }
@@ -151,7 +151,7 @@ export function PrintReceipt({ data, onBack }) {
             
             <table className="table-pro">
                 <thead>
-                    <tr><th className="text-center w-1/4">TOTAL TAGIHAH INV</th><th className="text-center w-1/4">TOTAL TERBAYAR (AKUMULASI)</th><th className="text-center w-1/4">SISA TAGIHAN AKTUAL</th><th className="text-center w-1/4">STATUS INVOICE</th></tr>
+                    <tr><th className="text-center w-1/4">TOTAL TAGIHAN INV</th><th className="text-center w-1/4">TOTAL TERBAYAR (AKUMULASI)</th><th className="text-center w-1/4">SISA TAGIHAN AKTUAL</th><th className="text-center w-1/4">STATUS INVOICE</th></tr>
                 </thead>
                 <tbody>
                     <tr><td className="font-bold text-sm">{formatRp(totalTagihan)}</td><td className="font-bold text-sm text-emerald-600">{formatRp(totalTerbayar)}</td><td className="font-black text-sm text-red-600">{formatRp(sisaTagihanAktual)}</td><td className="font-black text-sm">{sisaTagihanAktual <= 0 ? 'LUNAS' : 'BELUM LUNAS'}</td></tr>
@@ -317,6 +317,94 @@ export function PrintPurchase({ data, onBack }) {
   );
 }
 
+// ==========================================
+// TIKET / BUKTI STOK (PRODUKSI & GUDANG)
+// ==========================================
+export function PrintBuktiStok({ data, onBack }) {
+  useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
+  if (!data) return <div className="p-4 bg-white text-center font-bold">Data Bukti Stok Tidak Tersedia.</div>;
+
+  const isProduksi = data.type && data.type.includes('PRODUKSI');
+  const isMasuk = data.action === 'MASUK';
+  
+  let judulBukti = isProduksi ? 'TICKET PRODUKSI & BAHAN' : (isMasuk ? 'BUKTI BARANG MASUK (IN)' : 'BUKTI BARANG KELUAR (OUT)');
+  const MASTER_AYAM_KG = 30;
+
+  return (
+    <div className="bg-slate-100 min-h-screen p-4">
+      <style dangerouslySetInnerHTML={{ __html: dotMatrixStyle }} />
+      <button onClick={onBack} className="hide-on-print mb-4 bg-slate-800 text-white px-4 py-2 rounded font-bold shadow-md hover:bg-slate-900 transition">Kembali ke Aplikasi</button>
+      
+      <div className="print-wrapper shadow-xl">
+        <div className="flex justify-between items-end mb-4 border-b-2 border-black pb-4">
+          <div className="flex items-center gap-3">
+            <img src="https://dimsumaditya.id/wp-content/uploads/2024/10/Dimsum-Aditya.png" alt="Logo" style={{ height: '54px', width: 'auto' }} />
+            <div>
+              <h1 className="font-black text-xl tracking-wide uppercase mb-0.5">Dimsum Aditya</h1>
+              <p className="text-[10px] font-medium text-slate-600 leading-tight">Divisi Logistik & Produksi</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <h2 className="text-xl font-black tracking-widest uppercase mb-1 text-slate-800">{judulBukti}</h2>
+            <p className="font-bold text-xs text-slate-500">ID: {data.id || '-'}</p>
+          </div>
+        </div>
+
+        <div className="flex justify-between gap-4 mb-6">
+          <div className="w-2/3">
+             <div className="flex items-start"><span className="w-24 font-bold uppercase text-xs text-slate-500">Keterangan</span><span className="font-bold uppercase text-sm text-slate-800">: {data.notes || '-'}</span></div>
+          </div>
+          <div className="w-1/3 flex flex-col justify-end">
+            <div className="flex justify-between"><span className="text-xs font-bold uppercase text-slate-500">Tanggal Transaksi</span> <span className="font-bold text-sm text-slate-800">{formatDate(data.date)}</span></div>
+          </div>
+        </div>
+
+        {/* JIKA PRODUKSI, TAMPILKAN HEADER ADUKAN */}
+        {isProduksi && (
+            <div className="mb-4 p-4 border-2 border-slate-800 bg-slate-50 text-center rounded">
+                <div className="text-xs font-bold text-slate-500 uppercase mb-1">TOTAL EKSEKUSI PRODUKSI</div>
+                <div className="text-3xl font-black text-blue-700">{data.adukanQty} <span className="text-base text-slate-800">ADUKAN DIMSUM</span></div>
+            </div>
+        )}
+
+        <table className="w-full mt-2 mb-8 table-pro">
+          <thead>
+            <tr>
+              <th className="w-12">NO</th>
+              <th className="text-left">NAMA BARANG / BAHAN BAKU</th>
+              <th className="w-32 text-center">QTY / JUMLAH</th>
+              <th className="w-32 text-center">SATUAN</th>
+            </tr>
+          </thead>
+          <tbody>
+            {isProduksi && (
+               <tr>
+                  <td className="font-bold text-slate-600">1</td>
+                  <td className="text-left font-bold uppercase">Ayam Mentah (Pemotongan Otomatis)</td>
+                  <td className="text-center font-black">{data.adukanQty * MASTER_AYAM_KG}</td>
+                  <td className="text-center font-bold uppercase">KG</td>
+               </tr>
+            )}
+            {data.items.filter(i => i.type === 'BAHAN_BAKU' || i.type.includes('MUTASI')).map((item, idx) => (
+              <tr key={idx}>
+                <td className="font-bold text-slate-600">{isProduksi ? idx + 2 : idx + 1}</td>
+                <td className="text-left font-bold uppercase">{item.itemName}</td>
+                <td className="text-center font-black">{item.qty}</td>
+                <td className="text-center font-bold uppercase">{item.satuan}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        
+        <div className="flex justify-between mt-16 text-center text-xs font-bold">
+          <div className="w-40"><p className="uppercase text-slate-500">Dibuat Oleh,</p><div className="h-16"></div><p className="border-t border-slate-400 pt-2 uppercase">( Admin Logistik )</p></div>
+          <div className="w-40"><p className="uppercase text-slate-500">Disetujui Oleh,</p><div className="h-16"></div><p className="border-t border-slate-400 pt-2 uppercase">( Manajemen )</p></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function PrintReport({ data, onBack }) {
   useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
   if (!data) return <div className="p-4 bg-white text-center font-bold">Data Rekap Laporan Tidak Tersedia.</div>;
@@ -345,7 +433,7 @@ export function PrintReport({ data, onBack }) {
 
         {/* SUMMARY OPERASIONAL STOK HARI INI */}
         <div className="border-2 border-slate-800 p-3 mb-4 rounded bg-slate-50">
-            <h3 className="text-[10px] font-black uppercase text-slate-800 border-b border-slate-300 pb-1 mb-2">A. DASHBOARD PRODUKSI & OPERASIONAL (PUSAT)</h3>
+            <h3 className="text-[10px] font-black uppercase text-slate-800 border-b border-slate-300 pb-1 mb-2">A. DASHBOARD PRODUKSI (PUSAT)</h3>
             <div className="grid grid-cols-5 gap-2 text-center">
                 <div className="border-r border-slate-300">
                     <div className="text-[9px] font-bold text-slate-500 uppercase">Adukan Hari Ini</div>
