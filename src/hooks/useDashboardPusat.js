@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { getLocalYMD } from '../utils/helpers';
 
 export default function useDashboardPusat({ 
-  orders, expenses, purchases, piutangPayments, pemalangReports, 
+  orders, expenses, purchases, piutangPayments, pemalangReports, stokData, 
   dateFrom, dateTo, chartView 
 }) {
   return useMemo(() => {
@@ -15,6 +15,7 @@ export default function useDashboardPusat({
     const cumPayments = (piutangPayments || []).filter(p => isCumulative(p?.date));
     const cumPemalangReports = (pemalangReports || []).filter(p => isCumulative(p?.date));
 
+    // PERHITUNGAN KEUANGAN KAS
     let kasMasukCash = 0, kasMasukTF = 0, kasKeluarCash = 0, kasKeluarTF = 0;
     
     const groupedOrdersCum = {};
@@ -122,6 +123,26 @@ export default function useDashboardPusat({
         return { ...grp, totalTerbayar: terbayar, sisaTagihan: sisa, status: sisa <= 0 ? 'LUNAS' : 'BELUM LUNAS' };
     });
 
-    return { saldoCash, saldoTF, saldoAkhir, inCashPeriode, inTfPeriode, outCashPeriode, outTfPeriode, setorPemalangPeriode, totalPenjualanKotor, totalPorsi, totalPcs, breakdownPorsi, totalPiutangBaru, totalHutangBaru, topCustomersList, finalChartData, listPiutangBerjalan, listHutangBerjalan, listTransaksiDetail: groupedTransaksiPusat, listPembelianDetail: periodPurchases, listExpenses: periodExpenses, listPemalang: cumPemalangReports.filter(p => isPeriod(p.date)), listPembayaranSemua, listRiwayatPiutang, listRiwayatHutang };
-  }, [orders, expenses, purchases, piutangPayments, pemalangReports, dateFrom, dateTo, chartView]);
+    // PERHITUNGAN OPERASIONAL & STOK UNTUK DASHBOARD/PRINT
+    const MASTER_AYAM_KG = 30; const MASTER_PCS = 1000; const KG_PER_KTG = 10;
+    const totalAyamBeli = (purchases||[]).filter(p => p.itemName.toUpperCase().includes('AYAM') && getLocalYMD(p.date) <= dateTo).reduce((s, p) => s + Number(p.qty), 0);
+    const ayamMutasi = (stokData||[]).filter(s => s.type === 'MUTASI_AYAM_PEMALANG' && getLocalYMD(s.date) <= dateTo).reduce((s, x) => s + Number(x.qty), 0);
+    const adukanAll = (stokData||[]).filter(s => s.type === 'PRODUKSI_PUSAT' && getLocalYMD(s.date) <= dateTo).reduce((s, x) => s + Number(x.qty), 0);
+    const sisaAyam = totalAyamBeli - ayamMutasi - (adukanAll * MASTER_AYAM_KG);
+
+    const terjualAll = (orders||[]).filter(o => o.category !== 'Pemalang' && getLocalYMD(o.date) <= dateTo).reduce((s, o) => s + Number(o.qty), 0);
+    const sisaFreezer = (adukanAll * MASTER_PCS) - terjualAll;
+
+    const adukanHariIni = (stokData||[]).filter(s => s.type === 'PRODUKSI_PUSAT' && isPeriod(s.date)).reduce((s, x) => s + Number(x.qty), 0);
+
+    const ops = {
+        sisaAyam, sisaAyamKtg: sisaAyam / KG_PER_KTG,
+        sisaFreezer,
+        adukanHariIni,
+        ayamTerpakaiHariIni: adukanHariIni * MASTER_AYAM_KG,
+        dimsumMasukHariIni: adukanHariIni * MASTER_PCS
+    };
+
+    return { saldoCash, saldoTF, saldoAkhir, inCashPeriode, inTfPeriode, outCashPeriode, outTfPeriode, setorPemalangPeriode, totalPenjualanKotor, totalPorsi, totalPcs, breakdownPorsi, totalPiutangBaru, totalHutangBaru, topCustomersList, finalChartData, listPiutangBerjalan, listHutangBerjalan, listTransaksiDetail: groupedTransaksiPusat, listPembelianDetail: periodPurchases, listExpenses: periodExpenses, listPemalang: cumPemalangReports.filter(p => isPeriod(p.date)), listPembayaranSemua, listRiwayatPiutang, listRiwayatHutang, ops };
+  }, [orders, expenses, purchases, piutangPayments, pemalangReports, stokData, dateFrom, dateTo, chartView]);
 }
