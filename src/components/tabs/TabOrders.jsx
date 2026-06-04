@@ -74,7 +74,7 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
         paymentMethod, 
         paidAmount: index === 0 ? (Number(paidAmount) || 0) : 0, 
         notes, 
-        isSpkPrinted: false, // Set default false
+        isSpkPrinted: false, // Set default false saat input baru
         editCount: isEdit ? editCount + 1 : 0 
       }));
 
@@ -88,12 +88,19 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
   const handlePrintSPK = (ord) => {
       setPrintData({ type: 'spk', data: ord });
       if (!ord.isSpkPrinted) {
-          // Cari semua baris (item) yang berhubungan dengan ID invoice ini dan update
+          // Kumpulkan semua baris pesanan terkait lalu ubah statusnya menjadi true
           const rowsToUpdate = orders.filter(o => o.id === ord.id).map(row => ({
               ...row,
               isSpkPrinted: true
           }));
-          sendToSheet('update', rowsToUpdate, 'orders');
+          
+          // TRIK JITU: Hapus data lama, lalu timpa dengan data baru yang sudah True
+          // Ini mencegah error "Gagal Update" dari Google Sheet
+          sendToSheet('delete', { id: ord.id }, 'orders');
+          
+          setTimeout(() => {
+              sendToSheet('insert', rowsToUpdate, 'orders');
+          }, 300); // Beri jeda 0.3 detik agar proses delete selesai di database
       }
   };
 
@@ -103,7 +110,8 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
     const groups = {};
     filtered.forEach(p => {
         if(!p?.id) return;
-        if(!groups[p.id]) groups[p.id] = { ...p, items: [], totalAll: 0, isSpkPrinted: p.isSpkPrinted === true || p.isSpkPrinted === 'true' };
+        // Pengecekan membaca format true (boolean) atau 'true' (string)
+        if(!groups[p.id]) groups[p.id] = { ...p, items: [], totalAll: 0, isSpkPrinted: p.isSpkPrinted === true || p.isSpkPrinted === 'true' || p.isSpkPrinted === 'TRUE' };
         groups[p.id].items.push(`${p.qty} Pcs`); groups[p.id].totalAll += Number(p.total);
     });
     return Object.values(groups).sort(safeSort);
