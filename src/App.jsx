@@ -160,83 +160,75 @@ export default function App() {
   }, [orders]);
 
   // ==========================================
-  // DESAIN LOGIN FLUID MODERN (REBRANDING)
+  // DESAIN LOGIN CENTERED MINIMALIST (NO IMAGE)
   // ==========================================
   if (!user) {
     return (
-      <div className="min-h-screen bg-white flex flex-col md:flex-row font-sans overflow-hidden">
-        {/* Sisi Kiri: Banner Gambar Dimsum (Tersembunyi di layar kecil) */}
-        <div className="md:w-1/2 lg:w-3/5 hidden md:block relative bg-slate-100 shadow-[10px_0_30px_rgba(0,0,0,0.1)] z-10">
-          <img 
-            src="https://dimsumaditya.id/wp-content/uploads/2026/06/Dimsum-Aditya-Mix.webp" 
-            alt="Aneka Dimsum Aditya" 
-            className="absolute inset-0 w-full h-full object-cover rounded-r-3xl"
-          />
-          {/* Efek gradasi bayangan tipis agar gambar terlihat premium */}
-          <div className="absolute inset-0 bg-gradient-to-r from-black/40 via-transparent to-transparent rounded-r-3xl"></div>
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 font-sans relative overflow-hidden">
+        
+        {/* Ornamen Latar Belakang Lingkaran Halus (Opsional, agar tidak terlalu kosong) */}
+        <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-red-100 rounded-full blur-3xl opacity-50 pointer-events-none"></div>
+        <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-blue-100 rounded-full blur-3xl opacity-50 pointer-events-none"></div>
+
+        {/* Card Form Login */}
+        <div className="w-full max-w-md bg-white p-8 lg:p-10 rounded-3xl shadow-xl border border-slate-100 relative z-10 animate-in fade-in zoom-in duration-500">
+          
+          {/* Bagian Logo dan Judul */}
+          <div className="flex flex-col items-center mb-8">
+            <img 
+              src="https://dimsumaditya.id/wp-content/uploads/2026/06/Dimsum-Aditya-New-Logo-scaled.webp" 
+              alt="Logo Dimsum Aditya" 
+              className="h-28 w-auto mb-4 object-contain"
+            />
+            <h1 className="text-2xl font-black text-slate-800 text-center tracking-tight">Sistem Enterprise</h1>
+            <p className="text-slate-500 mt-1 text-sm text-center font-medium">Masuk untuk mengelola kasir dan operasional</p>
+          </div>
+
+          {/* Form Input */}
+          <form onSubmit={handleLogin} className="space-y-5">
+            {loginError && (
+              <div className="p-3 bg-red-50 text-red-600 rounded-xl text-sm font-bold border border-red-100 flex items-center gap-2">
+                 <AlertCircle size={16} className="shrink-0"/> <span>{loginError}</span>
+              </div>
+            )}
+            
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-500 uppercase ml-1">Username</label>
+              <input 
+                type="text" 
+                required 
+                placeholder="Masukkan username" 
+                value={loginForm.username} 
+                onChange={e => setLoginForm({...loginForm, username: e.target.value})} 
+                className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all font-medium text-slate-800 placeholder-slate-400" 
+              />
+            </div>
+            
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-500 uppercase ml-1">Password</label>
+              <input 
+                type="password" 
+                required 
+                placeholder="••••••••" 
+                value={loginForm.password} 
+                onChange={e => setLoginForm({...loginForm, password: e.target.value})} 
+                className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all font-medium text-slate-800 placeholder-slate-400" 
+              />
+            </div>
+            
+            <button 
+              type="submit" 
+              className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 rounded-xl shadow-[0_4px_12px_rgba(220,38,38,0.3)] hover:shadow-[0_6px_16px_rgba(220,38,38,0.4)] hover:-translate-y-0.5 transition-all mt-6"
+            >
+              Masuk ke Sistem
+            </button>
+          </form>
         </div>
 
-        {/* Sisi Kanan: Form Login */}
-        <div className="w-full md:w-1/2 lg:w-2/5 flex flex-col items-center justify-center p-8 lg:p-16 bg-white relative z-0">
-          <div className="w-full max-w-sm space-y-8 animate-in fade-in zoom-in duration-500">
-            
-            {/* Bagian Logo dan Judul */}
-            <div className="flex flex-col items-center">
-              <img 
-                src="https://dimsumaditya.id/wp-content/uploads/2026/06/Dimsum-Aditya-New-Logo-scaled.webp" 
-                alt="Logo Dimsum Aditya" 
-                className="h-28 w-auto mb-6 object-contain"
-              />
-              <h1 className="text-2xl font-black text-slate-800 text-center tracking-tight">Sistem Enterprise</h1>
-              <p className="text-slate-500 mt-2 text-sm text-center font-medium">Masuk untuk mengelola kasir dan operasional</p>
-            </div>
-
-            {/* Form Input */}
-            <form onSubmit={handleLogin} className="space-y-5">
-              {loginError && (
-                <div className="p-3 bg-red-50 text-red-600 rounded-xl text-sm font-bold border border-red-100 flex items-center gap-2">
-                   <AlertCircle size={16} className="shrink-0"/> <span>{loginError}</span>
-                </div>
-              )}
-              
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-600 uppercase ml-1">Username</label>
-                <input 
-                  type="text" 
-                  required 
-                  placeholder="Masukkan username" 
-                  value={loginForm.username} 
-                  onChange={e => setLoginForm({...loginForm, username: e.target.value})} 
-                  className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all font-medium text-slate-800 placeholder-slate-400" 
-                />
-              </div>
-              
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-600 uppercase ml-1">Password</label>
-                <input 
-                  type="password" 
-                  required 
-                  placeholder="••••••••" 
-                  value={loginForm.password} 
-                  onChange={e => setLoginForm({...loginForm, password: e.target.value})} 
-                  className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all font-medium text-slate-800 placeholder-slate-400" 
-                />
-              </div>
-              
-              <button 
-                type="submit" 
-                className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 rounded-xl shadow-[0_4px_12px_rgba(220,38,38,0.3)] hover:shadow-[0_6px_16px_rgba(220,38,38,0.4)] hover:-translate-y-0.5 transition-all mt-4"
-              >
-                Masuk ke Sistem
-              </button>
-            </form>
-          </div>
-
-          {/* Footer Copyright */}
-          <div className="absolute bottom-8 text-center w-full text-[11px] font-medium text-slate-400">
-             &copy; {new Date().getFullYear()} Hak Cipta Dilindungi.<br/>
-             Sistem Manajemen oleh <a href="https://dimsumaditya.id/" target="_blank" rel="noreferrer" className="text-red-600 font-bold hover:underline transition">Dimsum Aditya</a>
-          </div>
+        {/* Footer Copyright */}
+        <div className="absolute bottom-6 text-center w-full text-[11px] font-medium text-slate-400 z-10">
+           &copy; {new Date().getFullYear()} Hak Cipta Dilindungi.<br/>
+           Sistem Manajemen oleh <a href="https://dimsumaditya.id/" target="_blank" rel="noreferrer" className="text-red-600 font-bold hover:underline transition">Dimsum Aditya</a>
         </div>
       </div>
     );
