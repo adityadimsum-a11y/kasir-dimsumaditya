@@ -136,7 +136,7 @@ export default function App() {
         if (table === 'expenses') setExpenses(prev => prev.filter(e => e.id !== data.id));
         if (table === 'payments') setPiutangPayments(prev => prev.filter(p => p.id !== data.id));
         if (table === 'pemalang') setPemalangReports(prev => prev.filter(p => p.id !== data.id));
-        if (table === 'stok') setStokData(prev => prev.filter(s => s.id !== data.id)); // Langsung membersihkan 1 blok transaksi produksi
+        if (table === 'stok') setStokData(prev => prev.filter(s => s.id !== data.id));
         if (table === 'purchases') setPurchases(prev => prev.filter(p => p.id !== data.id));
         if (table === 'karyawan') setKaryawan(prev => prev.filter(k => k.id !== data.id));
     }
@@ -151,7 +151,7 @@ export default function App() {
     const { type, id } = confirmDialog;
     let colName = type === 'order' ? 'orders' : type === 'expense' ? 'expenses' : type === 'payment' ? 'payments' : type === 'pemalang' ? 'pemalang' : type === 'stok' ? 'stok' : type === 'purchase' ? 'purchases' : 'karyawan';
     await sendToSheet('delete', { id }, colName); 
-    setConfirmDialog(null); // Tutup pop-up setelah dihapus
+    setConfirmDialog(null);
   };
 
   const pendingHutangPiutang = useMemo(() => {
@@ -159,17 +159,84 @@ export default function App() {
     return piutang;
   }, [orders]);
 
+  // ==========================================
+  // DESAIN LOGIN FLUID MODERN (REBRANDING)
+  // ==========================================
   if (!user) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
-          <form onSubmit={handleLogin} className="space-y-4">
-            <h1 className="text-2xl font-bold text-center">Dimsum Aditya Login</h1>
-            {loginError && <div className="p-3 bg-red-50 text-red-600 rounded-lg text-sm text-center">{loginError}</div>}
-            <input type="text" required placeholder="Username" value={loginForm.username} onChange={e => setLoginForm({...loginForm, username: e.target.value})} className="w-full p-3 border rounded-xl" />
-            <input type="password" required placeholder="Password" value={loginForm.password} onChange={e => setLoginForm({...loginForm, password: e.target.value})} className="w-full p-3 border rounded-xl" />
-            <button type="submit" className="w-full bg-red-600 text-white font-bold py-3.5 rounded-xl">Masuk</button>
-          </form>
+      <div className="min-h-screen bg-white flex flex-col md:flex-row font-sans overflow-hidden">
+        {/* Sisi Kiri: Banner Gambar Dimsum (Tersembunyi di layar kecil) */}
+        <div className="md:w-1/2 lg:w-3/5 hidden md:block relative bg-slate-100 shadow-[10px_0_30px_rgba(0,0,0,0.1)] z-10">
+          <img 
+            src="https://dimsumaditya.id/wp-content/uploads/2026/06/Dimsum-Aditya-Mix.webp" 
+            alt="Aneka Dimsum Aditya" 
+            className="absolute inset-0 w-full h-full object-cover rounded-r-3xl"
+          />
+          {/* Efek gradasi bayangan tipis agar gambar terlihat premium */}
+          <div className="absolute inset-0 bg-gradient-to-r from-black/40 via-transparent to-transparent rounded-r-3xl"></div>
+        </div>
+
+        {/* Sisi Kanan: Form Login */}
+        <div className="w-full md:w-1/2 lg:w-2/5 flex flex-col items-center justify-center p-8 lg:p-16 bg-white relative z-0">
+          <div className="w-full max-w-sm space-y-8 animate-in fade-in zoom-in duration-500">
+            
+            {/* Bagian Logo dan Judul */}
+            <div className="flex flex-col items-center">
+              <img 
+                src="https://dimsumaditya.id/wp-content/uploads/2026/06/Dimsum-Aditya-New-Logo-scaled.webp" 
+                alt="Logo Dimsum Aditya" 
+                className="h-28 w-auto mb-6 object-contain"
+              />
+              <h1 className="text-2xl font-black text-slate-800 text-center tracking-tight">Sistem Enterprise</h1>
+              <p className="text-slate-500 mt-2 text-sm text-center font-medium">Masuk untuk mengelola kasir dan operasional</p>
+            </div>
+
+            {/* Form Input */}
+            <form onSubmit={handleLogin} className="space-y-5">
+              {loginError && (
+                <div className="p-3 bg-red-50 text-red-600 rounded-xl text-sm font-bold border border-red-100 flex items-center gap-2">
+                   <AlertCircle size={16} className="shrink-0"/> <span>{loginError}</span>
+                </div>
+              )}
+              
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-600 uppercase ml-1">Username</label>
+                <input 
+                  type="text" 
+                  required 
+                  placeholder="Masukkan username" 
+                  value={loginForm.username} 
+                  onChange={e => setLoginForm({...loginForm, username: e.target.value})} 
+                  className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all font-medium text-slate-800 placeholder-slate-400" 
+                />
+              </div>
+              
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-600 uppercase ml-1">Password</label>
+                <input 
+                  type="password" 
+                  required 
+                  placeholder="••••••••" 
+                  value={loginForm.password} 
+                  onChange={e => setLoginForm({...loginForm, password: e.target.value})} 
+                  className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all font-medium text-slate-800 placeholder-slate-400" 
+                />
+              </div>
+              
+              <button 
+                type="submit" 
+                className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 rounded-xl shadow-[0_4px_12px_rgba(220,38,38,0.3)] hover:shadow-[0_6px_16px_rgba(220,38,38,0.4)] hover:-translate-y-0.5 transition-all mt-4"
+              >
+                Masuk ke Sistem
+              </button>
+            </form>
+          </div>
+
+          {/* Footer Copyright */}
+          <div className="absolute bottom-8 text-center w-full text-[11px] font-medium text-slate-400">
+             &copy; {new Date().getFullYear()} Hak Cipta Dilindungi.<br/>
+             Sistem Manajemen oleh <a href="https://dimsumaditya.id/" target="_blank" rel="noreferrer" className="text-red-600 font-bold hover:underline transition">Dimsum Aditya</a>
+          </div>
         </div>
       </div>
     );
@@ -188,12 +255,16 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
-      <aside className="w-64 bg-slate-900 text-white flex flex-col shrink-0">
-        <div className="p-6 border-b border-slate-800">
-            <h1 className="font-bold text-lg">Dimsum Aditya</h1>
-            <p className="text-xs text-emerald-400">{user.name}</p>
+      <aside className="w-64 bg-slate-900 text-white flex flex-col shrink-0 relative shadow-xl z-20">
+        <div className="p-6 border-b border-slate-800 bg-slate-900/50">
+            {/* Menambahkan Logo Kecil di Sidebar Menu agar serasi */}
+            <div className="bg-white p-2 rounded-lg inline-block mb-3 shadow-md">
+                <img src="https://dimsumaditya.id/wp-content/uploads/2026/06/Dimsum-Aditya-New-Logo-scaled.webp" alt="Logo" className="h-8 w-auto" />
+            </div>
+            <h1 className="font-black text-lg tracking-wide uppercase">Dimsum Aditya</h1>
+            <p className="text-[10px] font-bold text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded w-max mt-1">{user.name}</p>
         </div>
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+        <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
           {user.role === 'admin' && (
             <>
               <NavItem icon={<LayoutDashboard size={20} />} label="Dashboard & Rekap" active={activeTab === 'dashboard'} onClick={() => handleTabChange('dashboard')} />
@@ -201,9 +272,9 @@ export default function App() {
               <NavItem icon={<Truck size={20} />} label="Pembelian Bahan" active={activeTab === 'purchases'} onClick={() => handleTabChange('purchases')} />
               <NavItem icon={<Wallet size={20} />} label="Kas Umum (Lainnya)" active={activeTab === 'expenses'} onClick={() => handleTabChange('expenses')} />
               <NavItem icon={<Clock size={20} />} label="Hutang & Piutang" active={activeTab === 'piutang'} onClick={() => handleTabChange('piutang')} />
-              <div className="pt-2 mt-2 border-t border-slate-800"><NavItem icon={<Package size={20} />} label="Produksi & Stok (Pusat)" active={activeTab === 'stok'} onClick={() => handleTabChange('stok')} /></div>
+              <div className="pt-2 mt-2 border-t border-slate-800/60"><NavItem icon={<Package size={20} />} label="Produksi & Stok (Pusat)" active={activeTab === 'stok'} onClick={() => handleTabChange('stok')} /></div>
               <NavItem icon={<Store size={20} />} label="Monitoring Pemalang" active={activeTab === 'monitoring_pemalang'} onClick={() => handleTabChange('monitoring_pemalang')} />
-              <div className="pt-2 mt-2 border-t border-slate-800"><NavItem icon={<Users size={20} />} label="Karyawan & Gaji" active={activeTab === 'karyawan'} onClick={() => handleTabChange('karyawan')} /></div>
+              <div className="pt-2 mt-2 border-t border-slate-800/60"><NavItem icon={<Users size={20} />} label="Karyawan & Gaji" active={activeTab === 'karyawan'} onClick={() => handleTabChange('karyawan')} /></div>
             </>
           )}
           {user.role === 'branch' && (
@@ -216,12 +287,12 @@ export default function App() {
             </>
           )}
         </nav>
-        <div className="p-4 border-t border-slate-800"><button onClick={handleLogout} className="w-full flex justify-center gap-2 bg-slate-800 p-3 rounded-xl"><LogOut size={18}/> Keluar</button></div>
+        <div className="p-4 border-t border-slate-800"><button onClick={handleLogout} className="w-full flex justify-center gap-2 bg-slate-800/80 hover:bg-red-600 hover:text-white p-3 rounded-xl transition-all font-bold text-sm"><LogOut size={18}/> Keluar Sistem</button></div>
       </aside>
 
       <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
-        <header className="bg-white border-b p-4 shadow-sm"><h2 className="text-xl font-bold capitalize">{activeTab.replace('_', ' ')}</h2></header>
-        <div className="flex-1 overflow-auto p-6 bg-slate-50">
+        <header className="bg-white border-b p-4 shadow-sm z-10"><h2 className="text-xl font-bold capitalize text-slate-800 flex items-center gap-2">{activeTab.replace('_', ' ')}</h2></header>
+        <div className="flex-1 overflow-auto p-6 bg-slate-50/50">
           {activeTab === 'dashboard' && user.role === 'admin' && <TabDashboard orders={orders} expenses={expenses} purchases={purchases} piutangPayments={piutangPayments} pemalangReports={pemalangReports} stokData={stokData} setPrintData={setPrintData} sendToSheet={sendToSheet} />}
           {activeTab === 'dashboard' && user.role === 'branch' && <TabDashboardBranch orders={orders} pemalangReports={pemalangReports} piutangPayments={piutangPayments} setPrintData={setPrintData} stokData={stokData} />}
           {activeTab === 'orders' && <TabOrders orders={orders} payments={piutangPayments} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'order', id})} role={user.role} />}
@@ -239,13 +310,15 @@ export default function App() {
         {/* ========================================== */}
         {confirmDialog && (
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center transform transition-all scale-100">
-              <AlertCircle size={56} className="mx-auto text-red-500 mb-4" />
-              <h3 className="text-xl font-black text-slate-800 mb-2">Konfirmasi Hapus</h3>
-              <p className="text-sm text-slate-600 mb-8 font-medium">Apakah Anda yakin ingin menghapus data ini secara permanen? Data yang dihapus akan mempengaruhi seluruh kalkulasi stok dan laporan.</p>
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 text-center transform transition-all scale-100">
+              <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-5">
+                  <AlertCircle size={40} className="text-red-500" />
+              </div>
+              <h3 className="text-2xl font-black text-slate-800 mb-2">Konfirmasi Hapus</h3>
+              <p className="text-sm text-slate-500 mb-8 font-medium leading-relaxed">Apakah Anda yakin ingin menghapus data ini secara permanen? Data yang dihapus akan mempengaruhi seluruh kalkulasi kas dan stok.</p>
               <div className="flex gap-3 justify-center">
-                <button onClick={() => setConfirmDialog(null)} className="w-1/2 px-4 py-3 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition">Batal</button>
-                <button onClick={executeDelete} className="w-1/2 px-4 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 shadow-md transition">Ya, Hapus!</button>
+                <button onClick={() => setConfirmDialog(null)} className="w-1/2 px-4 py-3.5 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition">Batal</button>
+                <button onClick={executeDelete} className="w-1/2 px-4 py-3.5 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 shadow-md transition">Ya, Hapus!</button>
               </div>
             </div>
           </div>
