@@ -5,7 +5,9 @@ import { formatRp, getTodayStr, generateId, formatDate } from '../../utils/helpe
 export default function TabPiutang({ orders, purchases, payments, sendToSheet, setPrintData, role }) {
   const todayStr = getTodayStr();
   const [filterCustomer, setFilterCustomer] = useState('');
-  const [showPaymentForm, setShowFormPayment] = useState(false);
+  
+  // PERBAIKAN TYPO DISINI: showFormPayment sudah disamakan
+  const [showFormPayment, setShowFormPayment] = useState(false); 
   const [selectedInvoice, setSelectedInvoice] = useState(null);
 
   // Form Payment
