@@ -1,7 +1,15 @@
 import React, { useState } from 'react';
-import { Wallet, TrendingUp, Users, Calendar, Printer, FileText, ArrowRightLeft, PackageCheck } from 'lucide-react';
-import { formatRp, getTodayStr, getFirstDayOfMonth } from '../../utils/helpers';
+import { Wallet, TrendingUp, Users, Calendar, Printer, FileText, ArrowRightLeft, Package } from 'lucide-react';
+import { formatRp, getTodayStr } from '../../utils/helpers';
 import useDashboardPusat from '../../hooks/useDashboardPusat';
+
+// Fungsi bantuan lokal agar tidak error di Vercel
+const getFirstDayOfMonthLocal = () => {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}-01`;
+};
 
 const StatCard = ({ title, value, icon, color, subtitle }) => (
   <div className={`p-5 rounded-2xl border flex flex-col justify-between relative overflow-hidden ${color}`}>
@@ -15,7 +23,7 @@ const StatCard = ({ title, value, icon, color, subtitle }) => (
 );
 
 export default function TabDashboard({ orders, expenses, purchases, piutangPayments, pemalangReports, stokData, setPrintData }) {
-  const [dateFrom, setDateFrom] = useState(getFirstDayOfMonth());
+  const [dateFrom, setDateFrom] = useState(getFirstDayOfMonthLocal());
   const [dateTo, setDateTo] = useState(getTodayStr());
 
   const dash = useDashboardPusat({ orders, expenses, purchases, piutangPayments, pemalangReports, stokData, dateFrom, dateTo });
@@ -56,7 +64,7 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
               <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
                   
                   <div className="border border-blue-100 rounded-xl p-4 bg-blue-50/50 flex flex-col justify-between hover:shadow-md transition">
-                      <div><h4 className="font-black text-blue-800 flex items-center gap-2 mb-1"><TrendingUp size={16}/> Laporan Penjualan</h4><p className="text-xs text-slate-500 mb-4">Mencetak rekap order, total omset, metode pembayaran pelanggan, dan sisa piutang.</p></div>
+                      <div><h4 className="font-black text-blue-800 flex items-center gap-2 mb-1"><TrendingUp size={16}/> Laporan Penjualan</h4><p className="text-xs text-slate-500 mb-4">Mencetak rekap order, total omset, metode pembayaran, dan piutang pelanggan.</p></div>
                       <button onClick={() => setPrintData({ type: 'report', data: { dash, dateFrom, dateTo, reportType: 'sales' } })} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg text-xs transition">Cetak Lap. Penjualan</button>
                   </div>
 
@@ -66,12 +74,12 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
                   </div>
 
                   <div className="border border-orange-100 rounded-xl p-4 bg-orange-50/50 flex flex-col justify-between hover:shadow-md transition">
-                      <div><h4 className="font-black text-orange-800 flex items-center gap-2 mb-1"><PackageCheck size={16}/> Laporan Stok & Produksi</h4><p className="text-xs text-slate-500 mb-4">Mencetak pergerakan bahan baku, total adukan, dan sisa stok freezer.</p></div>
+                      <div><h4 className="font-black text-orange-800 flex items-center gap-2 mb-1"><Package size={16}/> Laporan Stok & Produksi</h4><p className="text-xs text-slate-500 mb-4">Mencetak pergerakan bahan baku, total adukan, dan sisa stok freezer.</p></div>
                       <button onClick={() => { alert('Modul Cetak Stok Modular dalam tahap integrasi ke Ledger Stok.'); }} className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-2.5 rounded-lg text-xs transition">Cetak Lap. Stok</button>
                   </div>
 
                   <div className="border border-slate-200 rounded-xl p-4 bg-slate-50 flex flex-col justify-between hover:shadow-md transition opacity-60">
-                      <div><h4 className="font-black text-slate-800 flex items-center gap-2 mb-1"><Users size={16}/> Laporan SDM / Payroll</h4><p className="text-xs text-slate-500 mb-4">Modul penggajian, lembur, dan kasbon karyawan. (Tahap Pengembangan Selanjutnya)</p></div>
+                      <div><h4 className="font-black text-slate-800 flex items-center gap-2 mb-1"><Users size={16}/> Laporan SDM / Payroll</h4><p className="text-xs text-slate-500 mb-4">Modul penggajian, lembur, dan kasbon karyawan. (Tahap Pengembangan)</p></div>
                       <button disabled className="w-full bg-slate-300 text-slate-500 font-bold py-2.5 rounded-lg text-xs cursor-not-allowed">Cetak Laporan SDM</button>
                   </div>
 
