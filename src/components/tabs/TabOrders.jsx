@@ -14,6 +14,7 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [paidAmount, setPaidAmount] = useState(0);
   const [notes, setNotes] = useState('');
+  const [statusProd, setStatusProd] = useState('Menunggu Produksi'); // State baru
 
   const defaultPrice = KATEGORI_HARGA[role === 'branch' ? 'Pemalang' : 'Reseller'];
   const defaultCat = role === 'branch' ? 'Pemalang' : 'Reseller';
@@ -45,14 +46,18 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
   const resetForm = () => {
     setShowForm(false); setIsEdit(false); setEditId(null); setEditCount(0);
     setDate(todayStr); setCustomer(''); setNotes(''); setPaymentMethod('Cash'); setPaidAmount(0);
+    setStatusProd('Menunggu Produksi');
     setCart([{ category: defaultCat, qty: '', price: defaultPrice }]);
   };
+  
   const handleEdit = (item) => {
     const relatedItems = (orders||[]).filter(p => p.id === item.id);
     setDate(String(item.date).split('T')[0]); setCustomer(item.customer); setPaymentMethod(item.paymentMethod); 
     setPaidAmount(item.paidAmount); setNotes(item.notes || '');
+    setStatusProd(item.statusProduksi || 'Menunggu Produksi');
     setCart(relatedItems.map(p => ({ category: p.category, qty: p.qty, price: p.price })));
     setEditId(item.id); setEditCount(Number(item.editCount) || 0); setIsEdit(true); setShowForm(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleSimpan = (e) => {
@@ -64,44 +69,32 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
     const newOrdersArray = cart
       .filter(item => Number(item?.qty) > 0)
       .map((item, index) => ({
-        id: invoiceId, 
-        date, 
-        customer: customer.toUpperCase(), 
-        category: item.category, 
-        qty: Number(item.qty) || 0, 
-        price: Number(item.price) || 0, 
-        total: (Number(item.qty) || 0) * (Number(item.price) || 0), 
-        paymentMethod, 
-        paidAmount: index === 0 ? (Number(paidAmount) || 0) : 0, 
-        notes, 
-        isSpkPrinted: false, // Set default false saat input baru
+        id: invoiceId, date, customer: customer.toUpperCase(), category: item.category, 
+        qty: Number(item.qty) || 0, price: Number(item.price) || 0, total: (Number(item.qty) || 0) * (Number(item.price) || 0), 
+        paymentMethod, paidAmount: index === 0 ? (Number(paidAmount) || 0) : 0, notes, 
+        isSpkPrinted: isEdit ? (orders.find(o => o.id === editId)?.isSpkPrinted || false) : false, 
+        statusProduksi: statusProd, // Status baru
         editCount: isEdit ? editCount + 1 : 0 
       }));
 
-    if (newOrdersArray.length > 0) {
-      sendToSheet('insert', newOrdersArray, 'orders');
-    }
-    
+    if (newOrdersArray.length > 0) sendToSheet('insert', newOrdersArray, 'orders');
     resetForm();
   };
 
   const handlePrintSPK = (ord) => {
       setPrintData({ type: 'spk', data: ord });
       if (!ord.isSpkPrinted) {
-          // Kumpulkan semua baris pesanan terkait lalu ubah statusnya menjadi true
-          const rowsToUpdate = orders.filter(o => o.id === ord.id).map(row => ({
-              ...row,
-              isSpkPrinted: true
-          }));
-          
-          // TRIK JITU: Hapus data lama, lalu timpa dengan data baru yang sudah True
-          // Ini mencegah error "Gagal Update" dari Google Sheet
+          const rowsToUpdate = orders.filter(o => o.id === ord.id).map(row => ({ ...row, isSpkPrinted: true }));
           sendToSheet('delete', { id: ord.id }, 'orders');
-          
-          setTimeout(() => {
-              sendToSheet('insert', rowsToUpdate, 'orders');
-          }, 300); // Beri jeda 0.3 detik agar proses delete selesai di database
+          setTimeout(() => { sendToSheet('insert', rowsToUpdate, 'orders'); }, 300); 
       }
+  };
+
+  // Quick Action Update Status Produksi
+  const handleStatusProduksiChange = (id, newStatus) => {
+      const rowsToUpdate = orders.filter(o => o.id === id).map(row => ({ ...row, statusProduksi: newStatus }));
+      sendToSheet('delete', { id }, 'orders');
+      setTimeout(() => { sendToSheet('insert', rowsToUpdate, 'orders'); }, 300); 
   };
 
   const displayOrders = useMemo(() => {
@@ -110,15 +103,14 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
     const groups = {};
     filtered.forEach(p => {
         if(!p?.id) return;
-        // Pengecekan membaca format true (boolean) atau 'true' (string)
-        if(!groups[p.id]) groups[p.id] = { ...p, items: [], totalAll: 0, isSpkPrinted: p.isSpkPrinted === true || p.isSpkPrinted === 'true' || p.isSpkPrinted === 'TRUE' };
+        if(!groups[p.id]) groups[p.id] = { ...p, items: [], totalAll: 0, isSpkPrinted: p.isSpkPrinted === true || p.isSpkPrinted === 'true' || p.isSpkPrinted === 'TRUE', statusProduksi: p.statusProduksi || 'Menunggu Produksi' };
         groups[p.id].items.push(`${p.qty} Pcs`); groups[p.id].totalAll += Number(p.total);
     });
     return Object.values(groups).sort(safeSort);
   }, [orders, role, filterFrom, filterTo]);
 
   return (
-    <div className="space-y-4 animate-in fade-in">
+    <div className="space-y-4 animate-in fade-in pb-10">
       <div className="flex justify-between items-center">
         <div><h3 className="font-bold text-lg text-slate-800">Order & Penjualan {role === 'branch' ? '(Pemalang)' : '(Pusat)'}</h3></div>
         <button onClick={() => { if(showForm) resetForm(); else setShowForm(true); }} className={`px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium transition shadow-sm text-white ${showForm ? 'bg-slate-500' : 'bg-red-600'}`}>{showForm ? <X size={16} /> : <Plus size={16} />} {showForm ? 'Batal' : 'Buat Invoice Baru'}</button>
@@ -126,7 +118,10 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
 
       {showForm && (
         <form onSubmit={handleSimpan} className="bg-white p-6 rounded-xl border border-red-200 shadow-sm grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-3 mb-2 border-b border-slate-100 pb-2"><h4 className="font-bold text-red-800 text-sm flex gap-2"><ShoppingCart size={16}/> Form {isEdit ? 'Edit' : 'Input'} Pesanan</h4></div>
+          <div className="lg:col-span-3 mb-2 border-b border-slate-100 pb-2 flex justify-between items-center">
+              <h4 className="font-bold text-red-800 text-sm flex gap-2"><ShoppingCart size={16}/> Form {isEdit ? 'Edit' : 'Input'} Pesanan</h4>
+              <button type="button" onClick={resetForm} className="text-slate-400 hover:text-red-500"><X size={18}/></button>
+          </div>
           <div className="space-y-1"><label className="text-sm font-medium">Tanggal</label><input type="date" required value={date} onChange={e => setDate(e.target.value)} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-red-200" /></div>
           <div className="space-y-1 lg:col-span-2"><label className="text-sm font-medium">Nama Pelanggan</label><input type="text" list="cust-list" required placeholder="Contoh: Budi..." value={customer} onChange={e => setCustomer(e.target.value)} className="w-full p-2 border rounded-lg uppercase" /><datalist id="cust-list">{listPelangganUnik.map(b => <option key={b} value={b} />)}</datalist></div>
           <div className="lg:col-span-3 bg-red-50 p-4 rounded-xl border border-red-100">
@@ -142,38 +137,58 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
                  ))}
              </div>
           </div>
-          <div className="space-y-1 bg-amber-50 p-3 rounded-lg border border-amber-200 lg:col-span-3"><label className="text-xs font-bold text-amber-800">Total Seluruh Pesanan</label><input type="text" readOnly value={formatRp(cartTotal)} className="w-full p-3 border border-amber-300 rounded-lg font-bold text-lg bg-white mt-1 text-amber-900" /></div>
-          <div className="space-y-1"><label className="text-sm font-medium">Metode Pembayaran</label><select value={paymentMethod} onChange={handlePaymentMethodChange} className="w-full p-2 border rounded-lg"><option value="Cash">Cash / Tunai</option><option value="Transfer">Transfer Bank</option><option value="Pending / DP">Pending (Piutang) / DP</option></select></div>
+          <div className="space-y-1 bg-amber-50 p-3 rounded-lg border border-amber-200 lg:col-span-3"><label className="text-xs font-bold text-amber-800">Total Seluruh Pesanan</label><input type="text" readOnly value={formatRp(cartTotal)} className="w-full p-3 border border-amber-300 rounded-lg font-black text-xl text-amber-900" /></div>
+          <div className="space-y-1"><label className="text-sm font-medium">Metode Pembayaran</label><select value={paymentMethod} onChange={handlePaymentMethodChange} className="w-full p-2 border rounded-lg"><option value="Cash">Cash / Tunai</option><option value="Transfer">Transfer Bank</option><option value="Pending / DP">Pending (Belum Bayar) / DP</option></select></div>
           <div className="space-y-1"><label className="text-sm font-medium">Uang Diterima / DP</label><input type="text" required value={formatRp(paidAmount)} onChange={e => setPaidAmount(parseRp(e.target.value))} className="w-full p-2 border rounded-lg font-bold" /></div>
-          <div className="space-y-1 lg:col-span-3"><label className="text-sm font-medium">Catatan Opsional</label><input type="text" value={notes} onChange={e => setNotes(e.target.value)} className="w-full p-2 border rounded-lg" /></div>
-          <div className="lg:col-span-3 flex justify-end mt-2 pt-4 border-t"><button type="submit" className="bg-red-600 text-white px-6 py-2.5 rounded-lg font-medium">Simpan {isEdit ? 'Perubahan' : 'Transaksi'}</button></div>
+          <div className="space-y-1"><label className="text-sm font-medium">Status Produksi / Barang</label><select value={statusProd} onChange={e=>setStatusProd(e.target.value)} className="w-full p-2 border rounded-lg bg-blue-50 font-bold text-blue-800"><option>Menunggu Produksi</option><option>Diproses</option><option>Ready</option><option>Sudah Diambil</option></select></div>
+          <div className="space-y-1 lg:col-span-3"><label className="text-sm font-medium">Catatan Opsional</label><input type="text" value={notes} onChange={e => setNotes(e.target.value)} className="w-full p-2 border rounded-lg" placeholder="Cth: Ambil jam 4 sore" /></div>
+          <div className="lg:col-span-3 flex justify-end mt-2 pt-4 border-t"><button type="submit" className="bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-lg font-bold shadow-md">Simpan {isEdit ? 'Perubahan' : 'Transaksi'}</button></div>
         </form>
       )}
 
-      <div className="flex items-center gap-3 bg-white p-3 rounded-xl border mt-4"><Filter size={16} className="text-slate-400"/><input type="date" value={filterFrom} onChange={e=>setFilterFrom(e.target.value)} className="p-1.5 text-sm border rounded" /> - <input type="date" value={filterTo} onChange={e=>setFilterTo(e.target.value)} className="p-1.5 text-sm border rounded" /></div>
+      <div className="flex items-center gap-3 bg-white p-3 rounded-xl border shadow-sm mt-4"><Filter size={16} className="text-slate-400"/><input type="date" value={filterFrom} onChange={e=>setFilterFrom(e.target.value)} className="p-1.5 text-sm border rounded" /> - <input type="date" value={filterTo} onChange={e=>setFilterTo(e.target.value)} className="p-1.5 text-sm border rounded" /></div>
 
-      <div className="bg-white rounded-xl border overflow-hidden mt-4">
-        <table className="w-full text-sm text-left block md:table">
-          <thead className="bg-red-50 text-red-800 text-xs uppercase border-b"><tr><th className="px-4 py-3">No. Invoice & Tgl</th><th className="px-4 py-3">Pelanggan</th><th className="px-4 py-3 text-center">Daftar Qty</th><th className="px-4 py-3 text-center">Via</th><th className="px-4 py-3 text-right">Total</th><th className="px-4 py-3 text-center">Status</th><th className="px-4 py-3 text-center">Aksi</th></tr></thead>
+      <div className="bg-white rounded-xl border shadow-sm overflow-hidden mt-4">
+        <div className="overflow-x-auto">
+        <table className="w-full text-sm text-left">
+          <thead className="bg-slate-50 text-slate-700 text-[10px] uppercase border-b"><tr><th className="px-4 py-3">No. Invoice & Tgl</th><th className="px-4 py-3">Pelanggan</th><th className="px-4 py-3">Pesanan</th><th className="px-4 py-3 text-center">Status Barang</th><th className="px-4 py-3 text-right">Tagihan</th><th className="px-4 py-3 text-center">Pembayaran</th><th className="px-4 py-3 text-center">Aksi</th></tr></thead>
           <tbody className="divide-y divide-slate-100">
             {displayOrders.length === 0 ? <tr><td colSpan="7" className="text-center py-12 text-slate-400">Tidak ada transaksi ditemukan.</td></tr> : displayOrders.map((ord) => {
               const cicilan = (payments || []).filter(p => p.orderId === ord.id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-              const sisaHutang = (Number(ord.totalAll) || 0) - (Number(ord.paidAmount) || 0) - cicilan;
+              const totalTerbayar = (Number(ord.paidAmount) || 0) + cicilan;
+              const sisaHutang = (Number(ord.totalAll) || 0) - totalTerbayar;
+              
+              // LOGIC PEMBAYARAN BARU
+              let statusBayarUI = null;
+              if (sisaHutang <= 0) statusBayarUI = <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-[10px] font-bold">LUNAS</span>;
+              else if (totalTerbayar === 0 && ord.statusProduksi !== 'Sudah Diambil') statusBayarUI = <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-[10px] font-bold border">BELUM BAYAR</span>;
+              else if (totalTerbayar > 0 && ord.statusProduksi !== 'Sudah Diambil') statusBayarUI = <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-[10px] font-bold">DP (Sisa {formatRp(sisaHutang)})</span>;
+              else statusBayarUI = <span className="bg-red-100 text-red-700 px-2 py-1 rounded text-[10px] font-bold border border-red-200">PIUTANG (Sisa {formatRp(sisaHutang)})</span>;
 
               return (
               <tr key={ord.id} className="hover:bg-slate-50">
-                <td className="px-4 py-3"><div className="font-mono text-xs font-bold text-slate-700">{ord.id}</div><div className="text-xs text-slate-500">{formatDate(ord.date)}</div></td>
-                <td className="px-4 py-3 font-bold text-slate-800 uppercase">{ord.customer}</td>
-                <td className="px-4 py-3 text-center"><ul className="list-disc pl-3 text-xs text-left">{(ord.items||[]).map((it,idx)=><li key={idx}>{it}</li>)}</ul></td>
-                <td className="px-4 py-3 text-center font-medium text-slate-600">{ord.paymentMethod}</td>
-                <td className="px-4 py-3 text-right font-bold text-emerald-600">{formatRp(ord.totalAll)}</td>
-                <td className="px-4 py-3 text-center">{sisaHutang > 0 ? <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded text-[10px] font-bold">PIUTANG</span> : <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-[10px] font-bold">LUNAS</span>}</td>
+                <td className="px-4 py-3"><div className="font-mono text-[11px] font-bold text-slate-700">{ord.id}</div><div className="text-[10px] text-slate-500">{formatDate(ord.date)}</div></td>
+                <td className="px-4 py-3 font-bold text-slate-800 uppercase text-xs">{ord.customer}</td>
+                <td className="px-4 py-3"><ul className="list-disc pl-3 text-[10px] font-bold text-slate-600">{(ord.items||[]).map((it,idx)=><li key={idx}>{it}</li>)}</ul></td>
                 <td className="px-4 py-3 text-center">
-                  <div className="flex justify-center gap-2">
+                    <select value={ord.statusProduksi} onChange={(e) => handleStatusProduksiChange(ord.id, e.target.value)} className={`text-[10px] font-bold p-1 rounded border outline-none cursor-pointer ${ord.statusProduksi === 'Sudah Diambil' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : ord.statusProduksi === 'Ready' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>
+                        <option value="Menunggu Produksi">Menunggu Produksi</option>
+                        <option value="Diproses">Diproses</option>
+                        <option value="Ready">Ready</option>
+                        <option value="Sudah Diambil">Sudah Diambil</option>
+                    </select>
+                </td>
+                <td className="px-4 py-3 text-right">
+                    <div className="font-bold text-slate-800 text-sm">{formatRp(ord.totalAll)}</div>
+                    <div className="text-[9px] text-slate-500">{ord.paymentMethod}</div>
+                </td>
+                <td className="px-4 py-3 text-center">{statusBayarUI}</td>
+                <td className="px-4 py-3 text-center">
+                  <div className="flex justify-center gap-1.5">
                     <button onClick={() => handlePrintSPK(ord)} className={`p-2 rounded-lg border transition shadow-sm flex items-center justify-center relative ${ord.isSpkPrinted ? 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100' : 'bg-orange-50 border-orange-200 text-orange-600 hover:bg-orange-100'}`} title={ord.isSpkPrinted ? "Cetak Ulang SPK" : "Cetak SPK Dapur"}>
                       {ord.isSpkPrinted ? <CheckCheck size={16} /> : <ChefHat size={16} />}
                     </button>
-                    <button onClick={() => setPrintData({ type: 'invoice', data: ord })} className="text-slate-600 bg-slate-100 p-2 rounded-lg border hover:bg-slate-200 transition shadow-sm" title="Cetak Invoice Pelanggan">
+                    <button onClick={() => setPrintData({ type: 'invoice', data: ord })} className="text-slate-600 bg-slate-100 p-2 rounded-lg border hover:bg-slate-200 transition shadow-sm" title="Cetak Invoice Customer">
                       <Printer size={16} />
                     </button>
                     <button onClick={() => handleEdit(ord)} className="text-blue-600 bg-blue-50 px-2 py-1 rounded-lg font-bold text-[10px] border border-blue-200 hover:bg-blue-100 transition shadow-sm">
@@ -188,6 +203,7 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
             )})}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );
