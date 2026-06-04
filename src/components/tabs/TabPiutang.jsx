@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { CreditCard, Wallet, Search, Filter, Printer, CheckCircle, Clock } from 'lucide-react';
+import { CreditCard, Wallet, Search, Filter, Printer, CheckCircle, Clock, X } from 'lucide-react';
 import { formatRp, getTodayStr, getLocalYMD, generateId, safeSort, formatDate } from '../../utils/helpers';
 
 export default function TabPiutang({ orders, purchases, payments, sendToSheet, requestDelete, setPrintData, role }) {
@@ -11,7 +11,7 @@ export default function TabPiutang({ orders, purchases, payments, sendToSheet, r
   // Form Payment
   const [payDate, setPayDate] = useState(todayStr);
   const [payAmount, setPayAmount] = useState('');
-  const [payMethod, setPayMethod] = useState('Cash');
+  const [payMethod, setPayMethod] = useState('Cash / Tunai');
 
   // FILTERING LOGIC 
   const dashboardData = useMemo(() => {
@@ -78,7 +78,7 @@ export default function TabPiutang({ orders, purchases, payments, sendToSheet, r
 
   const handleOpenPayment = (inv, type) => {
       setSelectedInvoice({ ...inv, type });
-      setPayDate(todayStr); setPayAmount(inv.sisaHutang); setPayMethod('Cash');
+      setPayDate(todayStr); setPayAmount(inv.sisaHutang); setPayMethod('Cash / Tunai');
       setShowFormPayment(true); window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -95,7 +95,8 @@ export default function TabPiutang({ orders, purchases, payments, sendToSheet, r
       setPrintData({ type: 'receipt', data: { payment: { ...newData, sisaAtThisPoint: selectedInvoice.sisaHutang - Number(payAmount) }, order: { ...selectedInvoice, tipe: selectedInvoice.type === 'HutangBeli' ? 'HUTANG' : 'PIUTANG' } } });
   };
 
-  const piutangFiltered = filterCustomer ? dashboardData.piutangPelanggan.filter(p => p.customer.toLowerCase().includes(filterCustomer.toLowerCase())) : dashboardData.piutangPelanggan;
+  // Guard string toLowerCase agar tidak crash jika nama customer kosong
+  const piutangFiltered = filterCustomer ? dashboardData.piutangPelanggan.filter(p => (p.customer || '').toLowerCase().includes(filterCustomer.toLowerCase())) : dashboardData.piutangPelanggan;
 
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
@@ -133,7 +134,7 @@ export default function TabPiutang({ orders, purchases, payments, sendToSheet, r
                 <form onSubmit={handleSimpanPayment} className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-1"><label className="text-xs font-bold text-slate-400 uppercase">Tanggal Bayar</label><input type="date" required value={payDate} onChange={e=>setPayDate(e.target.value)} className="w-full p-3 rounded-lg border-none bg-white font-bold" /></div>
                     <div className="space-y-1"><label className="text-xs font-bold text-slate-400 uppercase">Nominal Dibayar</label><input type="number" max={selectedInvoice.sisaHutang} min="1" required value={payAmount} onChange={e=>setPayAmount(e.target.value)} className="w-full p-3 rounded-lg border-none bg-white font-bold text-lg" placeholder="Rp" /></div>
-                    <div className="space-y-1"><label className="text-xs font-bold text-slate-400 uppercase">Metode Transfer</label><select value={payMethod} onChange={e=>setPayMethod(e.target.value)} className="w-full p-3 rounded-lg border-none bg-white font-bold"><option>Cash</option><option>Transfer</option></select></div>
+                    <div className="space-y-1"><label className="text-xs font-bold text-slate-400 uppercase">Metode Pembayaran</label><select value={payMethod} onChange={e=>setPayMethod(e.target.value)} className="w-full p-3 rounded-lg border-none bg-white font-bold"><option>Cash / Tunai</option><option>Transfer Bank</option><option>QRIS</option></select></div>
                     <div className="md:col-span-3 flex justify-end mt-4"><button type="submit" className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-8 py-3 rounded-xl shadow-lg transition">Simpan Pembayaran & Cetak Bukti</button></div>
                 </form>
             </div>
@@ -145,6 +146,7 @@ export default function TabPiutang({ orders, purchases, payments, sendToSheet, r
                 <h4 className="font-bold text-slate-800">Daftar Tagihan Piutang (Pelanggan)</h4>
                 <div className="flex bg-white rounded-lg border px-3 py-1.5 items-center gap-2 w-64"><Search size={14} className="text-slate-400"/><input type="text" placeholder="Cari pelanggan..." value={filterCustomer} onChange={e=>setFilterCustomer(e.target.value)} className="outline-none text-xs w-full"/></div>
             </div>
+            <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
                 <thead className="bg-white border-b text-[10px] text-slate-500 uppercase"><tr><th className="px-4 py-3">No. Invoice & Tgl</th><th className="px-4 py-3">Pelanggan</th><th className="px-4 py-3 text-right">Total Order</th><th className="px-4 py-3 text-right">Terbayar (DP+Cicil)</th><th className="px-4 py-3 text-right">Sisa Tagihan</th><th className="px-4 py-3 text-center">Tindakan</th></tr></thead>
                 <tbody className="divide-y divide-slate-100">
@@ -160,12 +162,14 @@ export default function TabPiutang({ orders, purchases, payments, sendToSheet, r
                     ))}
                 </tbody>
             </table>
+            </div>
         </div>
 
         {/* TABEL HUTANG SUPPLIER (KHUSUS ADMIN) */}
         {role === 'admin' && (
         <div className="bg-white rounded-xl border border-red-200 shadow-sm overflow-hidden mt-6">
             <div className="p-4 border-b bg-red-50"><h4 className="font-bold text-slate-800">Daftar Tagihan Hutang (Supplier Gudang)</h4></div>
+            <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
                 <thead className="bg-white border-b text-[10px] text-slate-500 uppercase"><tr><th className="px-4 py-3">No. Invoice & Tgl</th><th className="px-4 py-3">Supplier</th><th className="px-4 py-3 text-right">Total Belanja</th><th className="px-4 py-3 text-right">Terbayar (DP+Cicil)</th><th className="px-4 py-3 text-right">Sisa Hutang</th><th className="px-4 py-3 text-center">Tindakan</th></tr></thead>
                 <tbody className="divide-y divide-slate-100">
@@ -181,6 +185,7 @@ export default function TabPiutang({ orders, purchases, payments, sendToSheet, r
                     ))}
                 </tbody>
             </table>
+            </div>
         </div>
         )}
     </div>
