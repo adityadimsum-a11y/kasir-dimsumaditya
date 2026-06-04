@@ -1,340 +1,105 @@
 import React, { useState } from 'react';
-import { Calendar, Printer, Wallet, Coins, CreditCard, ArrowRightLeft, Users, ShoppingCart, AlertCircle, Clock, CheckCircle, Factory } from 'lucide-react';
-import { getTodayStr, getLocalYMD, formatRp, formatDate, generateId } from '../../utils/helpers';
+import { Wallet, TrendingUp, Users, Calendar, Printer, FileText, ArrowRightLeft, PackageCheck } from 'lucide-react';
+import { formatRp, getTodayStr, getFirstDayOfMonth } from '../../utils/helpers';
 import useDashboardPusat from '../../hooks/useDashboardPusat';
 
-const StatCard = ({ title, amount, icon, color }) => (
-  <div className={`p-5 rounded-xl border flex flex-col justify-between ${color}`}>
-    <div className="flex justify-between items-start mb-4"><h3 className="font-medium text-sm opacity-90">{title}</h3><div className="p-2 bg-white/60 rounded-lg shadow-sm">{icon}</div></div>
-    <div className="text-2xl font-bold tracking-tight">{amount}</div>
+const StatCard = ({ title, value, icon, color, subtitle }) => (
+  <div className={`p-5 rounded-2xl border flex flex-col justify-between relative overflow-hidden ${color}`}>
+    <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">{icon}</div>
+    <div className="flex justify-between items-start mb-4 relative z-10"><h3 className="font-bold text-sm opacity-90 uppercase tracking-wide">{title}</h3></div>
+    <div className="relative z-10">
+        <div className="text-3xl font-black tracking-tight">{value}</div>
+        {subtitle && <div className="text-[10px] font-bold mt-2 opacity-80 uppercase">{subtitle}</div>}
+    </div>
   </div>
 );
 
-export default function TabDashboard({ orders, expenses, purchases, piutangPayments, pemalangReports, stokData, setPrintData, sendToSheet }) {
-  const todayStr = getTodayStr();
-  const [dateFrom, setDateFrom] = useState(todayStr);
-  const [dateTo, setDateTo] = useState(todayStr);
-  const [chartView, setChartView] = useState('daily'); 
+export default function TabDashboard({ orders, expenses, purchases, piutangPayments, pemalangReports, stokData, setPrintData }) {
+  const [dateFrom, setDateFrom] = useState(getFirstDayOfMonth());
+  const [dateTo, setDateTo] = useState(getTodayStr());
 
-  // PANGGIL HOOK DASHBOARD PUSAT
-  const rekap = useDashboardPusat({ 
-    orders, expenses, purchases, piutangPayments, pemalangReports, stokData,
-    dateFrom, dateTo, chartView 
-  });
-
-  const ops = rekap.ops || {}; // Ambil data operasional
-  const PCS_PER_MIKA = 50;
-
-  // LOGIC BUKA KAS (MODAL AWAL)
-  const handleBukaKas = () => {
-      const nominalStr = window.prompt("Masukkan nominal Uang Modal Kembalian (Cash) pagi ini:\nContoh: 500000");
-      if (!nominalStr) return; 
-      
-      const nominal = parseInt(nominalStr.replace(/[^0-9]/g, ''), 10);
-      if (isNaN(nominal) || nominal <= 0) {
-          alert("Nominal tidak valid! Harap masukkan angka yang benar.");
-          return;
-      }
-
-      const today = getTodayStr();
-      const newIncome = {
-          id: generateId('IN', today), date: today, recipient: 'Admin Kasir',
-          category: 'Modal Awal / Tambahan Saldo', description: `Modal awal kembalian buka toko.`,
-          qty: 1, price: nominal, total: nominal, type: 'IN', paymentMethod: 'Cash', editCount: 0
-      };
-      
-      sendToSheet('insert', newIncome, 'expenses');
-      alert(`Modal awal sebesar ${formatRp(nominal)} berhasil dimasukkan ke Laci Sistem! Selamat bekerja!`);
-  };
-
-  // LOGIC CLOSING KAS HARIAN
-  const handleClosingKas = () => {
-      if (rekap.saldoCash <= 0) {
-          alert("Saldo Uang Fisik (Cash) saat ini Rp 0 atau minus. Tidak ada yang bisa disetor.");
-          return;
-      }
-      
-      const confirmSetor = window.confirm(`Perhatian: Uang fisik di laci Anda saat ini SEHARUSNYA adalah:\n\n>>> ${formatRp(rekap.saldoCash)} <<<\n\nJika uang fisik sudah Anda hitung dan jumlahnya PAS, klik OK untuk melakukan SETOR KE OWNER (Closing Kas). Saldo Cash akan otomatis menjadi Nol.`);
-      
-      if (confirmSetor) {
-          const today = getTodayStr();
-          const newExpense = {
-              id: generateId('OUT', today), date: today, recipient: 'Pimpinan / Owner',
-              category: 'Setoran Kas Harian / Closing', description: `Closing kas dan serah terima uang fisik ke Bos.`,
-              qty: 1, price: rekap.saldoCash, total: rekap.saldoCash, type: 'OUT', paymentMethod: 'Cash', editCount: 0
-          };
-          
-          sendToSheet('insert', newExpense, 'expenses');
-          setPrintData({ type: 'voucher', data: newExpense });
-      }
-  };
+  const dash = useDashboardPusat({ orders, expenses, purchases, piutangPayments, pemalangReports, stokData, dateFrom, dateTo });
 
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
       
-      {/* FILTER & CETAK */}
-      <div className="bg-white p-4 rounded-xl border shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div><h3 className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2"><Calendar size={16}/> Filter Laporan & Cetak</h3><div className="flex gap-2"><input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="p-2 text-sm border rounded-lg" /><span className="text-slate-400 self-center">s/d</span><input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="p-2 text-sm border rounded-lg" /></div></div>
-          <button onClick={() => setPrintData({ type: 'report', data: { rekap, dateFrom, dateTo } })} className="bg-slate-800 hover:bg-slate-900 text-white px-5 py-2.5 rounded-lg flex gap-2 text-sm font-medium"><Printer size={16} /> Cetak Rekap Pusat</button>
+      {/* FILTER GLOBAL */}
+      <div className="bg-white p-4 rounded-xl border shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
+          <div className="flex items-center gap-3">
+              <div className="bg-slate-100 p-2 rounded-lg text-slate-600"><Calendar size={20}/></div>
+              <div><h3 className="font-black text-slate-800 leading-none">Filter Dashboard</h3><p className="text-[10px] font-bold text-slate-500 uppercase mt-0.5">Tentukan Periode Analisa</p></div>
+          </div>
+          <div className="flex gap-2 w-full md:w-auto">
+              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="p-2.5 text-sm font-bold border rounded-lg w-full md:w-auto bg-slate-50" />
+              <span className="text-slate-400 self-center font-bold">s/d</span>
+              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="p-2.5 text-sm font-bold border rounded-lg w-full md:w-auto bg-slate-50" />
+          </div>
       </div>
 
-      {/* DASHBOARD OPERASIONAL PUSAT (DESAIN PREMIUM DARK MODE) */}
-      <div className="bg-slate-900 rounded-2xl shadow-2xl overflow-hidden border border-slate-800 relative">
-          <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-500 via-emerald-400 to-amber-500"></div>
+      {/* SUMMARY CARDS (REALTIME LEDGER) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard title="Omset Penjualan (Pusat)" value={formatRp(dash.totalOmset)} icon={<TrendingUp size={80}/>} color="bg-blue-50 border-blue-200 text-blue-800" subtitle={`Total Dimsum Terjual: ${dash.totalPcs} Pcs`} />
+        <StatCard title="Saldo Laci / Brankas (Cash)" value={formatRp(dash.saldoCash)} icon={<Wallet size={80}/>} color="bg-emerald-50 border-emerald-200 text-emerald-800" subtitle={`Masuk: ${formatRp(dash.inCash)} | Keluar: ${formatRp(dash.outCash)}`} />
+        <StatCard title="Saldo Rekening (Bank/TF)" value={formatRp(dash.saldoBank)} icon={<ArrowRightLeft size={80}/>} color="bg-indigo-50 border-indigo-200 text-indigo-800" subtitle={`Masuk: ${formatRp(dash.inBank)} | Keluar: ${formatRp(dash.outBank)}`} />
+        <StatCard title="Total Piutang Berjalan" value={formatRp(dash.totalPiutangBaru)} icon={<FileText size={80}/>} color="bg-orange-50 border-orange-200 text-orange-800" subtitle={`${dash.piutangBerjalan.length} Invoice Pelanggan Belum Lunas`} />
+      </div>
+
+      {/* AREA BAWAH: CETAK MODULAR & KASBON */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
           
-          <div className="p-5 border-b border-slate-800/60 flex justify-between items-center bg-slate-900/50">
-              <div>
-                  <h2 className="text-lg font-black text-white flex items-center gap-2 tracking-wide"><Factory className="text-blue-400"/> PUSAT KONTROL OPERASIONAL & PRODUKSI</h2>
-                  <p className="text-[11px] text-slate-400 mt-1">Monitoring real-time aktivitas dapur dan kapasitas gudang terpadu.</p>
+          {/* MODUL CETAK LAPORAN (KIRI) */}
+          <div className="lg:col-span-2 bg-white rounded-2xl border shadow-sm overflow-hidden flex flex-col">
+              <div className="p-5 border-b bg-slate-50 flex items-center gap-3">
+                  <div className="bg-slate-800 p-2 rounded-lg text-white"><Printer size={18}/></div>
+                  <h3 className="font-black text-slate-800 uppercase tracking-wide">Cetak Laporan Modular</h3>
               </div>
-              <div className="text-right hidden sm:block">
-                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Status Data</div>
-                  <div className="text-xs font-bold text-emerald-400 flex items-center justify-end gap-1.5 mt-0.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span> LIVE REALTIME</div>
-              </div>
-          </div>
-          
-          <div className="grid grid-cols-2 md:grid-cols-5 divide-y md:divide-y-0 md:divide-x divide-slate-800/60 bg-slate-800/30">
-              <div className="p-6 flex flex-col justify-center items-center text-center hover:bg-slate-800/50 transition">
-                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Adukan Hari Ini</div>
-                  <div className="text-3xl font-black text-white drop-shadow-md">{ops.adukanHariIni || 0} <span className="text-xs text-blue-400">Adk</span></div>
-              </div>
-              
-              <div className="p-6 flex flex-col justify-center items-center text-center hover:bg-slate-800/50 transition">
-                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Ayam Terpakai</div>
-                  <div className="text-3xl font-black text-white drop-shadow-md">-{ops.ayamTerpakaiHariIni || 0} <span className="text-xs text-orange-400">Kg</span></div>
-              </div>
-              
-              <div className="p-6 flex flex-col justify-center items-center text-center hover:bg-slate-800/50 transition relative overflow-hidden bg-slate-800/20">
-                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Sisa Ayam (Live)</div>
-                  <div className="text-3xl font-black text-white drop-shadow-md">{ops.sisaAyam || 0} <span className="text-xs text-emerald-400">Kg</span></div>
-                  <div className="text-[10px] font-bold text-emerald-400 mt-2 px-3 py-1 bg-emerald-950/80 rounded-full border border-emerald-800/50">{(ops.sisaAyamKtg || 0).toFixed(1).replace('.0','')} Kantong</div>
-              </div>
-              
-              <div className="p-6 flex flex-col justify-center items-center text-center hover:bg-slate-800/50 transition">
-                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Masuk Freezer</div>
-                  <div className="text-3xl font-black text-white drop-shadow-md">+{ops.dimsumMasukHariIni || 0} <span className="text-xs text-blue-400">Pcs</span></div>
-                  <div className="text-[10px] font-bold text-blue-400 mt-2 px-3 py-1 bg-blue-950/80 rounded-full border border-blue-800/50">{((ops.dimsumMasukHariIni || 0) / PCS_PER_MIKA).toFixed(1).replace('.0','')} Mika</div>
-              </div>
-              
-              <div className="p-6 flex flex-col justify-center items-center text-center hover:bg-slate-800/50 transition relative overflow-hidden bg-slate-800/20">
-                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Sisa Freezer (Live)</div>
-                  <div className="text-3xl font-black text-white drop-shadow-md">{ops.sisaFreezer || 0} <span className="text-xs text-emerald-400">Pcs</span></div>
-                  <div className="text-[10px] font-bold text-emerald-400 mt-2 px-3 py-1 bg-emerald-950/80 rounded-full border border-emerald-800/50">{((ops.sisaFreezer || 0) / PCS_PER_MIKA).toFixed(1).replace('.0','')} Mika</div>
-              </div>
-          </div>
-      </div>
-
-      {/* DASHBOARD KEUANGAN KAS */}
-      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
-          <div className="flex justify-between items-start mb-4">
-              <div>
-                  <h2 className="text-lg font-bold text-slate-800 mb-1 flex items-center gap-2"><Wallet size={20}/> Status Saldo Berjalan (Akumulasi Aktif)</h2>
-                  <p className="text-xs text-slate-500">*Dihitung otomatis terus-menerus (continue) sampai dengan {formatDate(dateTo)}.</p>
-              </div>
-              <div className="flex gap-2">
-                  <button onClick={handleBukaKas} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-lg flex items-center gap-2 text-sm font-bold shadow-md transition transform hover:scale-105" title="Tekan ini saat baru buka toko pagi hari"><Coins size={18} /> Modal Pagi</button>
-                  <button onClick={handleClosingKas} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-lg flex items-center gap-2 text-sm font-bold shadow-md transition transform hover:scale-105" title="Tekan ini saat mau pulang / tutup toko"><CheckCircle size={18} /> Closing Kas</button>
-              </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <StatCard title="Total Saldo Keseluruhan" amount={formatRp(rekap.saldoAkhir)} icon={<Wallet />} color="bg-blue-50 text-blue-700 border-blue-200" />
-              <StatCard title="Saldo Tunai (Laci CASH)" amount={formatRp(rekap.saldoCash)} icon={<Coins />} color="bg-emerald-50 text-emerald-700 border-emerald-200" />
-              <StatCard title="Saldo Rekening Bank (TF)" amount={formatRp(rekap.saldoTF)} icon={<CreditCard />} color="bg-indigo-50 text-indigo-700 border-indigo-200" />
-          </div>
-      </div>
-
-      {/* Tabel Pembelian Bahan Baku */}
-      <div className="bg-white p-6 rounded-xl border border-indigo-200 shadow-sm flex flex-col mt-6">
-          <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-indigo-700"><ShoppingCart size={20}/> Transaksi Pembelian Bahan Baku</h3>
-          <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                  <thead className="bg-indigo-50 border-b border-indigo-100">
-                      <tr><th className="px-3 py-2 text-indigo-800">Tgl & Inv</th><th className="px-3 py-2 text-indigo-800">Supplier</th><th className="px-3 py-2 text-indigo-800">Barang & Qty</th><th className="px-3 py-2 text-center text-indigo-800">Via</th><th className="px-3 py-2 text-right text-indigo-800">Total</th><th className="px-3 py-2 text-right text-indigo-800">Terbayar</th><th className="px-3 py-2 text-right text-indigo-800">Sisa</th><th className="px-3 py-2 text-center text-indigo-800">Status</th></tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                      {(!rekap?.listPembelianDetail || rekap.listPembelianDetail.length === 0) ? (
-                          <tr><td colSpan="8" className="text-center py-6 text-slate-400">Tidak ada data pembelian di periode ini.</td></tr>
-                      ) : (
-                          rekap.listPembelianDetail.map((c, i) => {
-                              const sisa = Number(c?.total || 0) - Number(c?.paidAmount || 0);
-                              const status = sisa <= 0 ? 'LUNAS' : 'BELUM LUNAS';
-                              return (
-                              <tr key={i} className="hover:bg-slate-50">
-                                  <td className="px-3 py-2"><div className="font-bold text-slate-700">{formatDate(c?.date)}</div><div className="text-[10px] text-slate-400 font-mono">{c?.id || '-'}</div></td>
-                                  <td className="px-3 py-2 font-bold uppercase text-xs">{c?.supplier || '-'}</td>
-                                  <td className="px-3 py-2 text-xs uppercase">{c?.itemName || '-'} ({c?.qty || 0} {c?.satuan || '-'})</td>
-                                  <td className="px-3 py-2 text-center text-[10px] font-medium text-slate-600">{c?.paymentMethod || '-'}</td>
-                                  <td className="px-3 py-2 text-right font-medium">{formatRp(c?.total)}</td>
-                                  <td className="px-3 py-2 text-right font-medium text-emerald-600">{formatRp(c?.paidAmount)}</td>
-                                  <td className="px-3 py-2 text-right font-black text-red-600">{formatRp(sisa)}</td>
-                                  <td className="px-3 py-2 text-center">
-                                      <span className={`px-2 py-1 rounded text-[10px] font-bold ${status === 'LUNAS' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>{status}</span>
-                                  </td>
-                              </tr>
-                          )})
-                      )}
-                  </tbody>
-              </table>
-          </div>
-      </div>
-
-      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col mt-6">
-          <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-slate-800"><Wallet size={20}/> Riwayat Kas Pegangan Admin (Pengeluaran Lainnya)</h3>
-          <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                  <thead className="bg-slate-50 border-b border-slate-100">
-                      <tr><th className="px-3 py-2 text-slate-800">Tgl & Ref</th><th className="px-3 py-2 text-slate-800">Penerima</th><th className="px-3 py-2 text-slate-800">Kategori & Keterangan</th><th className="px-3 py-2 text-center text-slate-800">Via</th><th className="px-3 py-2 text-right text-slate-800">Nominal</th></tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                      {(!rekap?.listExpenses || rekap.listExpenses.length === 0) ? (
-                          <tr><td colSpan="5" className="text-center py-6 text-slate-400">Tidak ada data pengeluaran kas di periode ini.</td></tr>
-                      ) : (
-                          rekap.listExpenses.map((o, i) => (
-                              <tr key={i} className="hover:bg-slate-50">
-                                  <td className="px-3 py-2"><div className="font-bold text-slate-700">{formatDate(o?.date)}</div><div className="text-[10px] text-slate-400 font-mono">{o?.id || '-'}</div></td>
-                                  <td className="px-3 py-2 font-bold uppercase text-xs">{o?.recipient || '-'}</td>
-                                  <td className="px-3 py-2"><div className="font-bold text-slate-800 uppercase">{o?.category || '-'}</div><div className="text-xs text-slate-600">{o?.description || '-'}</div></td>
-                                  <td className="px-3 py-2 text-center text-[10px] font-medium text-slate-600">{o?.paymentMethod || '-'}</td>
-                                  <td className="px-3 py-2 text-right font-black text-red-600">{o?.type === 'IN' ? '+' : '-'}{formatRp(o?.total)}</td>
-                              </tr>
-                          ))
-                      )}
-                  </tbody>
-              </table>
-          </div>
-      </div>
-
-      {(rekap.listPiutangBerjalan.length > 0 || rekap.listHutangBerjalan.length > 0) && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-              {rekap.listPiutangBerjalan.length > 0 && (
-              <div className="bg-white p-6 rounded-xl border border-orange-200 shadow-sm flex flex-col">
-                  <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-orange-700"><AlertCircle size={20}/> Daftar Piutang Berjalan (Belum Lunas)</h3>
-                  <div className="overflow-x-auto">
-                      <table className="w-full text-sm text-left">
-                          <thead className="bg-orange-50 border-b border-orange-100">
-                              <tr><th className="px-3 py-2 text-orange-800">Tgl & Inv</th><th className="px-3 py-2 text-orange-800">Pelanggan</th><th className="px-3 py-2 text-right text-orange-800">Sisa Tagihan</th></tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100">
-                              {rekap.listPiutangBerjalan.map((p, i) => {
-                                  const isNew = getLocalYMD(p.date) >= dateFrom && getLocalYMD(p.date) <= dateTo;
-                                  return (
-                                  <tr key={i} className="hover:bg-slate-50">
-                                      <td className="px-3 py-2"><div className="font-bold text-slate-700">{formatDate(p.date)}</div><div className="text-[10px] text-slate-400 font-mono">{p.id}</div></td>
-                                      <td className="px-3 py-2 font-bold uppercase text-xs">{p.customer}</td>
-                                      <td className="px-3 py-2 text-right">
-                                          <div className="font-black text-red-600">{formatRp(p.sisaHutang)}</div>
-                                          {isNew && <span className="inline-block mt-0.5 text-[9px] font-black text-orange-600 bg-orange-100 px-1 rounded">(PIUTANG BARU)</span>}
-                                      </td>
-                                  </tr>
-                              )})}
-                          </tbody>
-                      </table>
+              <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
+                  
+                  <div className="border border-blue-100 rounded-xl p-4 bg-blue-50/50 flex flex-col justify-between hover:shadow-md transition">
+                      <div><h4 className="font-black text-blue-800 flex items-center gap-2 mb-1"><TrendingUp size={16}/> Laporan Penjualan</h4><p className="text-xs text-slate-500 mb-4">Mencetak rekap order, total omset, metode pembayaran pelanggan, dan sisa piutang.</p></div>
+                      <button onClick={() => setPrintData({ type: 'reportSales', data: { dash, dateFrom, dateTo } })} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg text-xs transition">Cetak Lap. Penjualan</button>
                   </div>
-              </div>
-              )}
-              {rekap.listHutangBerjalan.length > 0 && (
-              <div className="bg-white p-6 rounded-xl border border-red-200 shadow-sm flex flex-col">
-                  <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-red-700"><AlertCircle size={20}/> Daftar Hutang Berjalan (Belum Lunas)</h3>
-                  <div className="overflow-x-auto">
-                      <table className="w-full text-sm text-left">
-                          <thead className="bg-red-50 border-b border-red-100">
-                              <tr><th className="px-3 py-2 text-red-800">Tgl & Inv</th><th className="px-3 py-2 text-red-800">Supplier</th><th className="px-3 py-2 text-right text-red-800">Sisa Hutang</th></tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100">
-                              {rekap.listHutangBerjalan.map((p, i) => {
-                                  const isNew = getLocalYMD(p.date) >= dateFrom && getLocalYMD(p.date) <= dateTo;
-                                  return (
-                                  <tr key={i} className="hover:bg-slate-50">
-                                      <td className="px-3 py-2"><div className="font-bold text-slate-700">{formatDate(p.date)}</div><div className="text-[10px] text-slate-400 font-mono">{p.id}</div></td>
-                                      <td className="px-3 py-2 font-bold uppercase text-xs">{p.supplier}</td>
-                                      <td className="px-3 py-2 text-right">
-                                          <div className="font-black text-red-600">{formatRp(p.sisaHutang)}</div>
-                                          {isNew && <span className="inline-block mt-0.5 text-[9px] font-black text-red-600 bg-red-100 px-1 rounded">(HUTANG BARU)</span>}
-                                      </td>
-                                  </tr>
-                              )})}
-                          </tbody>
-                      </table>
+
+                  <div className="border border-emerald-100 rounded-xl p-4 bg-emerald-50/50 flex flex-col justify-between hover:shadow-md transition">
+                      <div><h4 className="font-black text-emerald-800 flex items-center gap-2 mb-1"><Wallet size={16}/> Laporan Arus Kas & Bank</h4><p className="text-xs text-slate-500 mb-4">Mencetak *Ledger* (Buku Besar) pergerakan uang tunai dan transfer masuk/keluar.</p></div>
+                      <button onClick={() => setPrintData({ type: 'reportFinance', data: { dash, dateFrom, dateTo } })} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-lg text-xs transition">Cetak Lap. Keuangan</button>
                   </div>
+
+                  <div className="border border-orange-100 rounded-xl p-4 bg-orange-50/50 flex flex-col justify-between hover:shadow-md transition">
+                      <div><h4 className="font-black text-orange-800 flex items-center gap-2 mb-1"><PackageCheck size={16}/> Laporan Stok & Produksi</h4><p className="text-xs text-slate-500 mb-4">Mencetak pergerakan bahan baku, total adukan, dan sisa stok freezer.</p></div>
+                      <button onClick={() => { alert('Modul Cetak Stok Modular dalam tahap integrasi ke Ledger Stok.'); }} className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-2.5 rounded-lg text-xs transition">Cetak Lap. Stok</button>
+                  </div>
+
+                  <div className="border border-slate-200 rounded-xl p-4 bg-slate-50 flex flex-col justify-between hover:shadow-md transition opacity-60">
+                      <div><h4 className="font-black text-slate-800 flex items-center gap-2 mb-1"><Users size={16}/> Laporan SDM / Payroll</h4><p className="text-xs text-slate-500 mb-4">Modul penggajian, lembur, dan kasbon karyawan. (Tahap Pengembangan Selanjutnya)</p></div>
+                      <button disabled className="w-full bg-slate-300 text-slate-500 font-bold py-2.5 rounded-lg text-xs cursor-not-allowed">Cetak Laporan SDM</button>
+                  </div>
+
               </div>
-              )}
           </div>
-      )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-          <div className="bg-white p-6 rounded-xl border border-emerald-200 shadow-sm flex flex-col">
-            <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-emerald-700"><Clock size={20}/> Riwayat Terima Piutang (Pelanggan)</h3>
-            <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                    <thead className="bg-emerald-50 border-b border-emerald-100">
-                        <tr><th className="px-3 py-2 text-emerald-800">Tgl & Ref</th><th className="px-3 py-2 text-emerald-800">Pelanggan</th><th className="px-3 py-2 text-center text-emerald-800">Via</th><th className="px-3 py-2 text-right text-emerald-800">Nominal Masuk</th><th className="px-3 py-2 text-right text-emerald-800">Sisa Tagihan</th></tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {rekap.listRiwayatPiutang.length === 0 && <tr><td colSpan="5" className="text-center py-6 text-slate-400">Tidak ada riwayat piutang.</td></tr>}
-                        {rekap.listRiwayatPiutang.map((pay, i) => (
-                            <tr key={i} className="hover:bg-slate-50">
-                                <td className="px-3 py-2"><div className="font-bold text-slate-700">{formatDate(pay.date)}</div><div className="text-[10px] text-slate-400 font-mono">{pay.orderId}</div></td>
-                                <td className="px-3 py-2 font-bold uppercase text-xs">{pay.customer}</td>
-                                <td className="px-3 py-2 text-center text-[10px] font-medium text-slate-600">{pay.paymentMethod}</td>
-                                <td className="px-3 py-2 text-right font-black text-emerald-600">+{formatRp(pay.amount)}</td>
-                                <td className="px-3 py-2 text-right">
-                                    <div className={`font-bold ${pay.sisaTagihan <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{pay.sisaTagihan <= 0 ? 'Rp 0' : formatRp(pay.sisaTagihan)}</div>
-                                    <div className={`text-[9px] font-bold ${pay.statusNota === 'LUNAS' ? 'text-emerald-500' : 'text-orange-500'}`}>{pay.statusNota}</div>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+          {/* MONITORING KASBON KARYAWAN (KANAN) */}
+          <div className="bg-white rounded-2xl border shadow-sm overflow-hidden flex flex-col max-h-[400px]">
+              <div className="p-5 border-b bg-red-50 flex items-center gap-3">
+                  <div className="bg-red-600 p-2 rounded-lg text-white"><Users size={18}/></div>
+                  <div><h3 className="font-black text-red-900 uppercase tracking-wide leading-tight">Monitoring Kasbon</h3><p className="text-[9px] font-bold text-red-600">HUTANG KARYAWAN BELUM LUNAS</p></div>
+              </div>
+              <div className="p-2 overflow-y-auto flex-1">
+                  {dash.karyawanKasbon.length === 0 ? (
+                      <div className="text-center p-8 text-slate-400 text-xs italic">Bagus! Tidak ada karyawan yang memiliki tunggakan kasbon aktif.</div>
+                  ) : (
+                      <div className="space-y-2">
+                          {dash.karyawanKasbon.map((k, idx) => (
+                              <div key={idx} className="flex justify-between items-center p-3 border rounded-xl bg-white hover:bg-slate-50 transition">
+                                  <div className="font-bold text-sm text-slate-800 uppercase">{k.nama}</div>
+                                  <div className="font-black text-red-600">{formatRp(k.sisaKasbon)}</div>
+                              </div>
+                          ))}
+                      </div>
+                  )}
+              </div>
           </div>
-          <div className="bg-white p-6 rounded-xl border border-red-200 shadow-sm flex flex-col">
-            <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-red-700"><Clock size={20}/> Riwayat Bayar Hutang (Supplier)</h3>
-            <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                    <thead className="bg-red-50 border-b border-red-100">
-                        <tr><th className="px-3 py-2 text-red-800">Tgl & Ref</th><th className="px-3 py-2 text-red-800">Supplier</th><th className="px-3 py-2 text-center text-red-800">Via</th><th className="px-3 py-2 text-right text-red-800">Nominal Keluar</th><th className="px-3 py-2 text-right text-red-800">Sisa Hutang</th></tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {rekap.listRiwayatHutang.length === 0 && <tr><td colSpan="5" className="text-center py-6 text-slate-400">Tidak ada riwayat hutang.</td></tr>}
-                        {rekap.listRiwayatHutang.map((pay, i) => (
-                            <tr key={i} className="hover:bg-slate-50">
-                                <td className="px-3 py-2"><div className="font-bold text-slate-700">{formatDate(pay.date)}</div><div className="text-[10px] text-slate-400 font-mono">{pay.orderId}</div></td>
-                                <td className="px-3 py-2 font-bold uppercase text-xs">{pay.customer}</td>
-                                <td className="px-3 py-2 text-center text-[10px] font-medium text-slate-600">{pay.paymentMethod}</td>
-                                <td className="px-3 py-2 text-right font-black text-red-600">-{formatRp(pay.amount)}</td>
-                                <td className="px-3 py-2 text-right">
-                                    <div className={`font-bold ${pay.sisaTagihan <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{pay.sisaTagihan <= 0 ? 'Rp 0' : formatRp(pay.sisaTagihan)}</div>
-                                    <div className={`text-[9px] font-bold ${pay.statusNota === 'LUNAS' ? 'text-emerald-500' : 'text-orange-500'}`}>{pay.statusNota}</div>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-          </div>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-        <div className="bg-white p-6 rounded-xl border border-blue-200 shadow-sm flex flex-col relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-1 h-full bg-blue-500"></div><h3 className="font-bold text-lg mb-1 flex items-center gap-2 text-blue-800"><ArrowRightLeft size={20}/> Arus Uang Masuk & Keluar</h3><p className="text-xs text-slate-500 mb-4 border-b pb-2">Khusus periode {formatDate(dateFrom)} - {formatDate(dateTo)}</p>
-            <div className="grid grid-cols-2 gap-4 mt-2">
-                <div className="bg-emerald-50 p-3 rounded border border-emerald-100"><div className="text-[10px] font-bold text-emerald-700 uppercase mb-1">Total Masuk (Cash)</div><div className="text-lg font-black text-emerald-600">+{formatRp(rekap.inCashPeriode)}</div></div>
-                <div className="bg-indigo-50 p-3 rounded border border-indigo-100"><div className="text-[10px] font-bold text-indigo-700 uppercase mb-1">Total Masuk (Transfer)</div><div className="text-lg font-black text-indigo-600">+{formatRp(rekap.inTfPeriode)}</div><div className="text-[9px] text-indigo-500 mt-1">Termasuk TF Cabang: {formatRp(rekap.setorPemalangPeriode)}</div></div>
-                <div className="bg-red-50 p-3 rounded border border-red-100"><div className="text-[10px] font-bold text-red-700 uppercase mb-1">Total Keluar (Cash)</div><div className="text-lg font-black text-red-600">-{formatRp(rekap.outCashPeriode)}</div></div>
-                <div className="bg-orange-50 p-3 rounded border border-orange-100"><div className="text-[10px] font-bold text-orange-700 uppercase mb-1">Total Keluar (Transfer)</div><div className="text-lg font-black text-orange-600">-{formatRp(rekap.outTfPeriode)}</div></div>
-            </div>
-        </div>
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col max-h-[340px]">
-            <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Users size={20} className="text-slate-500"/> Pelanggan Teratas (Periode Ini)</h3>
-            <div className="overflow-y-auto pr-2 flex-1 space-y-3">
-               {(!rekap?.topCustomersList || rekap.topCustomersList.length === 0) ? (
-                   <div className="text-center text-slate-400 text-sm mt-8">Tidak ada data penjualan.</div>
-               ) : (
-                   rekap.topCustomersList.map((cust, i) => (<div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100 hover:border-blue-200 transition"><div className="flex items-center gap-3"><div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shadow-sm ${i === 0 ? 'bg-amber-400 text-white' : i === 1 ? 'bg-slate-300 text-slate-700' : i === 2 ? 'bg-orange-300 text-white' : 'bg-white text-slate-400'}`}>#{i+1}</div><div><div className="font-bold text-slate-800">{cust.name}</div><div className="text-xs text-slate-500">{cust.frequency}x Order • {cust.qty} Pcs ({cust.porsi} Prs)</div></div></div><div className="font-bold text-emerald-600">{formatRp(cust.total)}</div></div>))
-               )}
-            </div>
-        </div>
       </div>
     </div>
   );
