@@ -120,23 +120,44 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
       setQtyMutasi('');
   };
 
+  // HANDLER EDIT ANTI-CRASH
   const handleEdit = (g) => {
-      setIsEdit(true); setEditId(g.id);
-      if (g.type.includes('PRODUKSI')) {
-          setAdukan(g.adukanQty); setNotesProd(g.notes.replace(/Shift (Pagi|Siang|Sore\/Malam)\. /, ''));
-          const wMatch = g.notes.match(/Shift (Pagi|Siang|Sore\/Malam)/);
-          if(wMatch) setWaktuProd(wMatch[1]);
-          setBahanProdCart(g.items.filter(i => i.type === 'BAHAN_BAKU').map(i => ({ itemName: i.itemName, qty: i.qty, satuan: i.satuan })));
+      if (!g) return;
+      setIsEdit(true); 
+      setEditId(g.id);
+      
+      const safeType = g.type || '';
+      const safeAction = g.action || 'MASUK';
+      const safeNotes = g.notes || '';
+
+      if (safeType.includes('PRODUKSI')) {
+          setAdukan(g.adukanQty || ''); 
+          setNotesProd(safeNotes.replace(/Shift (Pagi|Siang|Sore\/Malam)\. /, '') || '');
+          const wMatch = safeNotes.match(/Shift (Pagi|Siang|Sore\/Malam)/);
+          if(wMatch) setWaktuProd(wMatch[1]); else setWaktuProd('Pagi');
+          
+          const bahanTambahan = g.items.filter(i => i.type === 'BAHAN_BAKU').map(i => ({ 
+              itemName: i.itemName || '', qty: i.qty || '', satuan: i.satuan || 'PACK' 
+          }));
+          setBahanProdCart(bahanTambahan.length > 0 ? bahanTambahan : []);
+          
           setShowFormProd(true); setShowFormBahan(false); setShowFormMutasi(false);
-      } else if (g.type === 'BAHAN_BAKU') {
-          setTipeBahan(g.action); setNotesBahan(g.notes);
-          setBahanCart(g.items.map(i => ({ itemName: i.itemName, qty: i.qty, satuan: i.satuan })));
+      } else if (safeType === 'BAHAN_BAKU') {
+          setTipeBahan(safeAction); 
+          setNotesBahan(safeNotes);
+          const cartItems = g.items.map(i => ({ 
+              itemName: i.itemName || '', qty: i.qty || '', satuan: i.satuan || 'PACK' 
+          }));
+          setBahanCart(cartItems.length > 0 ? cartItems : [{ itemName: '', qty: '', satuan: 'PACK' }]);
+          
           setShowFormBahan(true); setShowFormProd(false); setShowFormMutasi(false);
-      } else if (g.type.includes('MUTASI')) {
+      } else if (safeType.includes('MUTASI')) {
           setQtyMutasi(g.items[0]?.qty || '');
           setShowFormMutasi(true); setShowFormBahan(false); setShowFormProd(false);
       }
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      
+      // Memberi jeda sepersekian detik agar form muncul dulu, baru scroll ke atas
+      setTimeout(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); }, 100);
   };
 
   const updateBahanCart = (index, field, value) => { const newCart = [...bahanCart]; newCart[index][field] = value; setBahanCart(newCart); };
@@ -166,6 +187,7 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
       e.preventDefault();
       if(Number(adukan) <= 0) return;
       
+      // Jika Mode Edit, kita anggap stok ayam dikembalikan dulu, jadi bebas limit blocker (Bypass)
       const butuhAyam = Number(adukan) * MASTER_AYAM_KG;
       if(!isEdit && butuhAyam > dash.sisaAyamGudang) { 
           alert(`GAGAL: Stok Ayam di Gudang tidak mencukupi!\nKebutuhan: ${butuhAyam} Kg\nSisa: ${dash.sisaAyamGudang} Kg`); return; 
@@ -298,7 +320,7 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
                   <div className="flex justify-between items-center mb-3">
                       <div>
                           <h4 className="font-bold text-sm text-blue-800">Bahan Baku Produksi (Otomatis Keluar Gudang)</h4>
-                          <p className="text-[10px] text-slate-500">Catatan: Ayam utama (-30Kg/Adukan) sudah otomatis terpotong. Gunakan tabel di bawah ini khusus untuk Bumbu, Plastik, Saus, atau Ayam Tambahan.</p>
+                          <p className="text-[10px] text-slate-500">Catatan: Ayam utama (-30Kg/Adukan) sudah otomatis terpotong. Gunakan tabel di bawah ini khusus untuk Bumbu, Plastik, Saus, dll.</p>
                       </div>
                       <button type="button" onClick={addProdRow} className="bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700 border border-blue-200 rounded">+ Tambah Bahan</button>
                   </div>
@@ -308,7 +330,6 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
                           {bahanProdCart.map((item, index) => (
                               <div key={index} className="flex gap-2 items-center relative pr-8">
                                   <div className="w-5/12">
-                                      {/* MENGGUNAKAN DROPDOWN KHUSUS */}
                                       <select 
                                         required 
                                         value={item.itemName} 
