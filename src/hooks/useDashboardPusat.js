@@ -1,169 +1,126 @@
 import { useMemo } from 'react';
-import { getLocalYMD } from '../utils/helpers';
+import { getLocalYMD, safeSort } from '../utils/helpers';
 
 export default function useDashboardPusat({ 
   orders, expenses, purchases, piutangPayments, pemalangReports, stokData, 
   dateFrom, dateTo, chartView 
 }) {
   return useMemo(() => {
-    const isCumulative = (dateStr) => getLocalYMD(dateStr) && getLocalYMD(dateStr) <= dateTo;
     const isPeriod = (dateStr) => getLocalYMD(dateStr) && getLocalYMD(dateStr) >= dateFrom && getLocalYMD(dateStr) <= dateTo;
 
-    const cumOrdersPusat = (orders || []).filter(o => isCumulative(o?.date) && o?.category !== 'Pemalang');
-    const cumPurchases = (purchases || []).filter(p => isCumulative(p?.date));
-    const cumExpenses = (expenses || []).filter(e => isCumulative(e?.date));
-    const cumPayments = (piutangPayments || []).filter(p => isCumulative(p?.date));
-    const cumPemalangReports = (pemalangReports || []).filter(p => isCumulative(p?.date));
+    // 1. FILTER DATA PERIODE AKTIF SAJA UNTUK MERINGANKAN RENDER
+    const periodOrders = (orders || []).filter(o => o?.category !== 'Pemalang' && isPeriod(o?.date));
+    const periodPurchases = (purchases || []).filter(p => isPeriod(p?.date));
+    const periodExpenses = (expenses || []).filter(e => isPeriod(e?.date));
+    const periodPayments = (piutangPayments || []).filter(p => isPeriod(p?.date));
+    const periodPemalang = (pemalangReports || []).filter(p => isPeriod(p?.date));
 
-    // HELPER: Ekstrak Cash vs Transfer (Mendukung data JSON Split Payment dan teks lama)
-    const processPaymentMethod = (methodStr, fallbackAmount) => {
-        let cash = 0, tf = 0;
-        try {
-            const parsed = JSON.parse(methodStr);
-            parsed.forEach(p => {
-                if (String(p.method).toLowerCase().includes('cash')) cash += Number(p.amount);
-                else tf += Number(p.amount);
-            });
-        } catch(e) {
-            if (String(methodStr).toLowerCase().includes('cash')) cash += fallbackAmount;
-            else tf += fallbackAmount;
+    // 2. ENGINE BUKU BESAR (LEDGER) - KAS & BANK
+    let inCash = 0, outCash = 0;
+    let inBank = 0, outBank = 0;
+    const historyKeuangan = []; // Menyimpan semua pergerakan uang
+
+    const pushLedger = (date, ref, desc, amount, method, type) => {
+        const isCash = String(method).toLowerCase().includes('cash');
+        if (type === 'IN') {
+            if (isCash) inCash += amount; else inBank += amount;
+        } else {
+            if (isCash) outCash += amount; else outBank += amount;
         }
-        return { cash, tf };
+        historyKeuangan.push({ date, ref, desc, amount, method: isCash ? 'CASH' : 'BANK', type });
     };
 
-    // PERHITUNGAN KEUANGAN KAS
-    let kasMasukCash = 0, kasMasukTF = 0, kasKeluarCash = 0, kasKeluarTF = 0;
-    
-    const groupedOrdersCum = {};
-    cumOrdersPusat.forEach(o => { if(!o?.id) return; if(!groupedOrdersCum[o.id]) groupedOrdersCum[o.id] = { method: o.paymentMethod, paid: Number(o.paidAmount)||0 }; });
-    Object.values(groupedOrdersCum).forEach(o => { const pm = processPaymentMethod(o.method, o.paid); kasMasukCash += pm.cash; kasMasukTF += pm.tf; });
-
-    const groupedPurCum = {};
-    cumPurchases.forEach(p => { if(!p?.id) return; if(!groupedPurCum[p.id]) groupedPurCum[p.id] = { method: p.paymentMethod, paid: Number(p.paidAmount)||0 }; });
-    Object.values(groupedPurCum).forEach(p => { const pm = processPaymentMethod(p.method, p.paid); kasKeluarCash += pm.cash; kasKeluarTF += pm.tf; });
-
-    cumExpenses.forEach(e => { 
-        const t = Number(e.total) || 0; const isCash = String(e.paymentMethod).toLowerCase().includes('cash');
-        if (e.type === 'IN') { if (isCash) kasMasukCash += t; else kasMasukTF += t; } 
-        else { if (isCash) kasKeluarCash += t; else kasKeluarTF += t; } 
-    });
-
-    cumPayments.forEach(pay => { 
-        const amt = Number(pay.amount) || 0; const isHutang = String(pay?.orderId || '').startsWith('BUY-'); 
-        const isCash = String(pay.paymentMethod).toLowerCase().includes('cash');
-        if(isHutang) { if (isCash) kasKeluarCash += amt; else kasKeluarTF += amt; } 
-        else { if (isCash) kasMasukCash += amt; else kasMasukTF += amt; } 
-    });
-
-    let setoranPemalangTF = 0; cumPemalangReports.forEach(p => { setoranPemalangTF += (Number(p?.nominal) || 0); });
-    const saldoCash = kasMasukCash - kasKeluarCash; const saldoTF = (kasMasukTF + setoranPemalangTF) - kasKeluarTF; const saldoAkhir = saldoCash + saldoTF;
-
-    const periodOrdersPusat = cumOrdersPusat.filter(o => isPeriod(o?.date));
-    const periodPurchases = cumPurchases.filter(p => isPeriod(p?.date));
-    const periodExpenses = cumExpenses.filter(e => isPeriod(e?.date));
-    
-    let totalPenjualanKotor = 0, totalPorsi = 0, totalPcs = 0, totalPiutangBaru = 0, totalHutangBaru = 0;
-    const breakdownPorsi = {}; const chartDataMap = {}; const customerMap = {};
-
-    periodOrdersPusat.forEach(o => {
-        if(!o?.id) return;
-        const qty = Number(o.qty) || 0; const total = Number(o.total) || 0;
-        totalPcs += qty; totalPorsi += (qty / 4); totalPenjualanKotor += total;
-        if (o.category) breakdownPorsi[o.category] = (breakdownPorsi[o.category] || 0) + (qty / 4);
-        const cName = String(o.customer || '').toUpperCase();
-        if(!customerMap[cName]) customerMap[cName] = { name: cName, qty: 0, porsi: 0, total: 0, frequency: 0 };
-        customerMap[cName].qty += qty; customerMap[cName].porsi += (qty / 4); customerMap[cName].total += total; customerMap[cName].frequency += 1;
-        let cKey = chartView === 'daily' ? new Date(o.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : new Date(o.date).toLocaleDateString('id-ID', { month: 'short', year: 'numeric' });
-        chartDataMap[cKey] = (chartDataMap[cKey] || 0) + total;
-    });
-
-    const finalChartData = Object.keys(chartDataMap).map(k => ({ label: k, value: chartDataMap[k] }));
-    const topCustomersList = Object.values(customerMap).sort((a,b) => b.total - a.total);
-
-    const groupOrdersAll = {}; (orders || []).filter(o => o?.category !== 'Pemalang').forEach(o => { if(!o?.id) return; if(!groupOrdersAll[o.id]) groupOrdersAll[o.id] = { ...o, items: [], totalTagihan: 0, totalDibayar: Number(o.paidAmount)||0, statusProduksi: o.statusProduksi || 'Menunggu Produksi' }; groupOrdersAll[o.id].items.push(`${o.qty} Pcs`); groupOrdersAll[o.id].totalTagihan += Number(o.total)||0; });
-    const groupPurAll = {}; (purchases || []).forEach(p => { if(!p?.id) return; if(!groupPurAll[p.id]) groupPurAll[p.id] = { ...p, items: [], totalTagihan: 0, totalDibayar: Number(p.paidAmount)||0 }; groupPurAll[p.id].items.push(`${p.itemName} (${p.qty} ${p.satuan})`); groupPurAll[p.id].totalTagihan += Number(p.total)||0; });
-
-    // PIUTANG HANYA JIKA "SUDAH DIAMBIL" DAN SISA > 0
-    const listPiutangBerjalan = Object.values(groupOrdersAll).map(grp => { const cicilan = (piutangPayments || []).filter(p => p.orderId === grp.id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0); return { ...grp, cicilanTerbayar: cicilan, sisaHutang: grp.totalTagihan - grp.totalDibayar - cicilan }; }).filter(o => o.sisaHutang > 0 && o.statusProduksi === 'Sudah Diambil');
-    const listHutangBerjalan = Object.values(groupPurAll).map(grp => { const cicilan = (piutangPayments || []).filter(p => p.orderId === grp.id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0); return { ...grp, cicilanTerbayar: cicilan, sisaHutang: grp.totalTagihan - grp.totalDibayar - cicilan }; }).filter(p => p.sisaHutang > 0);
-
-    totalPiutangBaru = listPiutangBerjalan.reduce((sum, item) => sum + (item.sisaHutang || 0), 0);
-    totalHutangBaru = listHutangBerjalan.reduce((sum, item) => sum + (item.sisaHutang || 0), 0);
-
-    const orderSisaTracker = {};
-    Object.values(groupOrdersAll).forEach(o => { orderSisaTracker[o.id] = o.totalTagihan - o.totalDibayar; });
-    Object.values(groupPurAll).forEach(p => { orderSisaTracker[p.id] = p.totalTagihan - p.totalDibayar; });
-
-    const allPaymentsChronological = [...(piutangPayments || [])]
-        .filter(p => getLocalYMD(p?.date) <= dateTo)
-        .sort((a,b) => new Date(a.date) - new Date(b.date));
-
-    const paymentSisaMap = {};
-    allPaymentsChronological.forEach(pay => {
-        const amt = Number(pay.amount) || 0;
-        if (orderSisaTracker[pay.orderId] !== undefined) {
-            orderSisaTracker[pay.orderId] -= amt;
-            paymentSisaMap[pay.id] = orderSisaTracker[pay.orderId];
+    // A. Masukkan DP/Lunas Penjualan ke Ledger
+    periodOrders.forEach(o => {
+        if (!o?.id || Number(o.paidAmount) <= 0) return;
+        try {
+            const parsed = JSON.parse(o.paymentMethod);
+            parsed.forEach(p => pushLedger(o.date, o.id, `Pendapatan Order ${o.customer}`, Number(p.amount), p.method, 'IN'));
+        } catch(e) {
+            pushLedger(o.date, o.id, `Pendapatan Order ${o.customer}`, Number(o.paidAmount), o.paymentMethod, 'IN');
         }
     });
 
-    const listPembayaranSemua = allPaymentsChronological
-        .filter(p => isPeriod(p?.date))
-        .sort((a, b) => new Date(b.date) - new Date(a.date))
-        .map(pay => {
-            const isHutang = String(pay?.orderId || '').startsWith('BUY-');
-            const relData = isHutang ? groupPurAll[pay.orderId] : groupOrdersAll[pay.orderId];
-            let qtyStr = "-";
-            if (relData && !isHutang) {
-                const totalQty = (relData.items || []).reduce((sum, str) => sum + (parseInt(str) || 0), 0);
-                qtyStr = `${totalQty} Pcs / ${totalQty/4} Prs`;
-            } else if (relData && isHutang) {
-                qtyStr = (relData.items || []).join(', ');
-            }
-            const sisaAkhir = paymentSisaMap[pay.id] || 0;
-            return { ...pay, payId: pay.id, customer: relData ? (isHutang ? relData.supplier : relData.customer) : '-', tglInvoice: relData?.date || '-', qtyDesc: qtyStr, sisaTagihan: sisaAkhir, statusNota: sisaAkhir <= 0 ? 'LUNAS' : 'BELUM LUNAS', tipe: isHutang ? 'HUTANG' : 'PIUTANG' };
-        });
+    // B. Masukkan DP/Lunas Pembelian ke Ledger
+    periodPurchases.forEach(p => {
+        if (!p?.id || Number(p.paidAmount) <= 0) return;
+        try {
+            const parsed = JSON.parse(p.paymentMethod);
+            parsed.forEach(x => pushLedger(p.date, p.id, `Pembayaran Supplier ${p.supplier}`, Number(x.amount), x.method, 'OUT'));
+        } catch(e) {
+            pushLedger(p.date, p.id, `Pembayaran Supplier ${p.supplier}`, Number(p.paidAmount), p.paymentMethod, 'OUT');
+        }
+    });
 
-    const listRiwayatPiutang = listPembayaranSemua.filter(p => p.tipe === 'PIUTANG');
-    const listRiwayatHutang = listPembayaranSemua.filter(p => p.tipe === 'HUTANG');
+    // C. Masukkan Operasional & Kasbon ke Ledger
+    periodExpenses.forEach(e => {
+        if (!e?.id || Number(e.total) <= 0) return;
+        const desc = e.category === 'Kasbon' ? `Kasbon Karyawan: ${e.description}` : `Ops: ${e.category} - ${e.description}`;
+        pushLedger(e.date, e.id, desc, Number(e.total), e.paymentMethod, e.type);
+    });
 
-    let inCashPeriode = 0, inTfPeriode = 0, outCashPeriode = 0, outTfPeriode = 0;
-    const orderGroupsForPeriod = {}; periodOrdersPusat.forEach(o => { if(!o?.id) return; if(!orderGroupsForPeriod[o.id]) orderGroupsForPeriod[o.id] = { method: o.paymentMethod, paid: Number(o.paidAmount)||0 }; });
-    Object.values(orderGroupsForPeriod).forEach(g => { const pm = processPaymentMethod(g.method, g.paid); inCashPeriode += pm.cash; inTfPeriode += pm.tf; }); 
+    // D. Masukkan Cicilan Hutang/Piutang ke Ledger
+    periodPayments.forEach(pay => {
+        if (!pay?.id || Number(pay.amount) <= 0) return;
+        const isHutang = String(pay.orderId).startsWith('BUY-');
+        const desc = isHutang ? `Cicilan Hutang ke ${pay.orderId}` : `Terima Piutang dari ${pay.orderId}`;
+        pushLedger(pay.date, pay.id, desc, Number(pay.amount), pay.paymentMethod, isHutang ? 'OUT' : 'IN');
+    });
+
+    // E. Masukkan Setoran Cabang ke Bank Ledger
+    let setoranCabang = 0;
+    periodPemalang.forEach(r => {
+        if (Number(r.nominal) > 0) {
+            setoranCabang += Number(r.nominal);
+            pushLedger(r.date, r.id, `Setoran Cabang Pemalang`, Number(r.nominal), 'Transfer Bank', 'IN');
+        }
+    });
+
+    historyKeuangan.sort(safeSort);
+
+    // 3. ENGINE REKAP PENJUALAN & PIUTANG
+    let totalOmset = 0, totalPcs = 0;
+    const piutangBerjalan = [];
     
-    const purGroupsForPeriod = {}; periodPurchases.forEach(p => { if(!p?.id) return; if(!purGroupsForPeriod[p.id]) purGroupsForPeriod[p.id] = { method: p.paymentMethod, paid: Number(p.paidAmount)||0 }; });
-    Object.values(purGroupsForPeriod).forEach(g => { const pm = processPaymentMethod(g.method, g.paid); outCashPeriode += pm.cash; outTfPeriode += pm.tf; });
-    
-    periodExpenses.forEach(e => { const t = Number(e.total) || 0; const isCash = String(e.paymentMethod).toLowerCase().includes('cash'); if (e.type === 'IN') { if (isCash) inCashPeriode += t; else inTfPeriode += t; } else { if (isCash) outCashPeriode += t; else outTfPeriode += t; } });
-    listPembayaranSemua.forEach(pay => { const amt = Number(pay.amount) || 0; const isCash = String(pay.paymentMethod).toLowerCase().includes('cash'); if(pay.tipe === 'HUTANG') { if (isCash) outCashPeriode += amt; else outTfPeriode += amt; } else { if (isCash) inCashPeriode += amt; else inTfPeriode += amt; } });
-    let setorPemalangPeriode = 0; cumPemalangReports.filter(p => isPeriod(p?.date)).forEach(p => { setorPemalangPeriode += (Number(p?.nominal) || 0); }); inTfPeriode += setorPemalangPeriode;
+    const listPenjualan = periodOrders.map(o => {
+        totalOmset += Number(o.total) || 0;
+        totalPcs += Number(o.qty) || 0;
 
-    const groupedTransaksiPusat = Object.values(periodOrdersPusat.reduce((acc, o) => { 
-        if(!o?.id) return acc; 
-        if(!acc[o.id]) acc[o.id] = { ...o, items: [], totalTagihan: 0, dp: Number(o.paidAmount)||0, paymentMethod: o.paymentMethod, statusProduksi: o.statusProduksi || 'Menunggu Produksi' }; 
-        acc[o.id].items.push(`${o.qty} Pcs`); 
-        acc[o.id].totalTagihan += Number(o.total)||0; 
-        return acc; 
-    }, {})).map(grp => {
-        const cicilan = (piutangPayments || []).filter(p => p.orderId === grp.id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-        const terbayar = grp.dp + cicilan;
-        const sisa = grp.totalTagihan - terbayar;
+        const cicilan = (piutangPayments || []).filter(p => p.orderId === o.id).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+        const terbayar = (Number(o.paidAmount) || 0) + cicilan;
+        const sisa = (Number(o.total) || 0) - terbayar;
         
         let status = 'BELUM BAYAR';
         if (sisa <= 0) status = 'LUNAS';
-        else if (grp.statusProduksi === 'Sudah Diambil') status = 'PIUTANG';
+        else if (o.statusProduksi === 'Sudah Diambil') { status = 'PIUTANG'; piutangBerjalan.push({ ...o, sisaTagihan: sisa }); }
         else if (terbayar > 0) status = 'DP';
 
-        // Extract detailed payment history for print/display
-        let allPayments = [];
-        try { allPayments = JSON.parse(grp.paymentMethod); } catch(e) { if(grp.dp > 0) allPayments = [{ method: grp.paymentMethod, amount: grp.dp }]; }
-        allPayments.push(...(piutangPayments || []).filter(p => p.orderId === grp.id).map(c => ({ method: c.paymentMethod, amount: c.amount })));
-
-        return { ...grp, totalTerbayar: terbayar, sisaTagihan: sisa, status: status, allPayments };
+        // Format data detail payment
+        let paymentsDetail = [];
+        try { paymentsDetail = JSON.parse(o.paymentMethod); } catch(e) { if(o.paidAmount > 0) paymentsDetail = [{ method: o.paymentMethod, amount: o.paidAmount }]; }
+        
+        return { ...o, sisaTagihan: sisa, totalTerbayar: terbayar, status, paymentsDetail };
     });
 
-    const ops = {}; // Logic dihandle di TabStok
+    const totalPiutangBaru = piutangBerjalan.reduce((sum, o) => sum + o.sisaTagihan, 0);
 
-    return { saldoCash, saldoTF, saldoAkhir, inCashPeriode, inTfPeriode, outCashPeriode, outTfPeriode, setorPemalangPeriode, totalPenjualanKotor, totalPorsi, totalPcs, breakdownPorsi, totalPiutangBaru, totalHutangBaru, topCustomersList, finalChartData, listPiutangBerjalan, listHutangBerjalan, listTransaksiDetail: groupedTransaksiPusat, listPembelianDetail: periodPurchases, listExpenses: periodExpenses, listPemalang: cumPemalangReports.filter(p => isPeriod(p.date)), listPembayaranSemua, listRiwayatPiutang, listRiwayatHutang, ops };
+    // 4. ENGINE MONITORING KASBON KARYAWAN (FITUR BARU)
+    const listKasbon = (expenses || []).filter(e => e.category === 'Kasbon' && !e.isDeleted);
+    const rekapKasbon = {};
+    listKasbon.forEach(k => {
+        const nama = String(k.description || 'Tidak Diketahui').toUpperCase();
+        if(!rekapKasbon[nama]) rekapKasbon[nama] = 0;
+        if(k.type === 'OUT') rekapKasbon[nama] += Number(k.total); // Kasbon keluar
+        if(k.type === 'IN') rekapKasbon[nama] -= Number(k.total); // Bayar kasbon (potong gaji)
+    });
+    const karyawanKasbon = Object.keys(rekapKasbon).map(nama => ({ nama, sisaKasbon: rekapKasbon[nama] })).filter(k => k.sisaKasbon > 0);
+
+    return { 
+        inCash, outCash, inBank, outBank, setoranCabang, saldoCash: inCash - outCash, saldoBank: inBank - outBank,
+        historyKeuangan,
+        totalOmset, totalPcs, totalPiutangBaru, listPenjualan, piutangBerjalan,
+        karyawanKasbon,
+        periodPurchases, periodExpenses
+    };
   }, [orders, expenses, purchases, piutangPayments, pemalangReports, stokData, dateFrom, dateTo, chartView]);
 }
