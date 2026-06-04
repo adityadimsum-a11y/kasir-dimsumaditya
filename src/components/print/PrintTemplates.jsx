@@ -721,16 +721,16 @@ export function PrintSPK({ data, onBack }) {
            <p className="text-2xl font-black uppercase text-black">{data.customer || '-'}</p>
         </div>
 
-        {/* AREA REQUEST KHUSUS TIM PRODUKSI MATA KOKI */}
+        {/* AREA REQUEST KHUSUS TIM PRODUKSI MATA KOKI - VERSI SIMPEL RAPIH */}
         {(tags.length > 0 || rawNotes) && (
-          <div className="mb-6 p-4 border-4 border-black bg-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-             <p className="text-sm font-black uppercase mb-3 border-b-2 border-black pb-1">PERHATIAN! REQUEST KHUSUS CUSTOMER:</p>
+          <div className="mb-6 p-3 border-2 border-slate-800 rounded-lg bg-white">
+             <p className="text-xs font-bold uppercase text-slate-500 mb-2 border-b border-slate-200 pb-1">Catatan Produksi / Request Customer:</p>
              {tags.length > 0 && (
-                 <ul className="list-disc pl-5 mb-2">
-                     {tags.map((t, i) => <li key={i} className="text-2xl font-black uppercase tracking-wide">{t}</li>)}
+                 <ul className="list-disc pl-6 mb-1 text-slate-800">
+                     {tags.map((t, i) => <li key={i} className="text-lg font-bold uppercase tracking-wide">{t}</li>)}
                  </ul>
              )}
-             {rawNotes && <p className="text-xl font-bold italic mt-2">"{rawNotes}"</p>}
+             {rawNotes && <p className="text-sm font-bold italic mt-2 text-slate-700">"{rawNotes}"</p>}
           </div>
         )}
 
