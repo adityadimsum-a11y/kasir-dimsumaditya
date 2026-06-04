@@ -18,7 +18,7 @@ import TabMonitoringPemalang from './components/tabs/TabMonitoringPemalang';
 
 import { 
   PrintInvoiceDotMatrix, PrintPurchase, PrintVoucher, 
-  PrintReceipt, PrintReport, PrintReportBranch, PrintSPK
+  PrintReceipt, PrintReport, PrintReportBranch, PrintSPK, PrintBuktiStok
 } from './components/print/PrintTemplates';
 
 import { safeSort } from './utils/helpers';
@@ -181,6 +181,7 @@ export default function App() {
   if (printData?.type === 'report') return <PrintReport data={printData.data} onBack={() => setPrintData(null)} />;
   if (printData?.type === 'reportBranch') return <PrintReportBranch data={printData.data} onBack={() => setPrintData(null)} user={user} />;
   if (printData?.type === 'spk') return <PrintSPK data={printData.data} onBack={() => setPrintData(null)} />;
+  if (printData?.type === 'bukti_stok') return <PrintBuktiStok data={printData.data} onBack={() => setPrintData(null)} />;
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
@@ -218,16 +219,14 @@ export default function App() {
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
         <header className="bg-white border-b p-4 shadow-sm"><h2 className="text-xl font-bold capitalize">{activeTab.replace('_', ' ')}</h2></header>
         <div className="flex-1 overflow-auto p-6 bg-slate-50">
-          {/* TAB DASHBOARD (KIRIM STOKDATA AGAR BISA BACA OPERASIONAL) */}
           {activeTab === 'dashboard' && user.role === 'admin' && <TabDashboard orders={orders} expenses={expenses} purchases={purchases} piutangPayments={piutangPayments} pemalangReports={pemalangReports} stokData={stokData} setPrintData={setPrintData} sendToSheet={sendToSheet} />}
-          
           {activeTab === 'dashboard' && user.role === 'branch' && <TabDashboardBranch orders={orders} pemalangReports={pemalangReports} piutangPayments={piutangPayments} setPrintData={setPrintData} stokData={stokData} />}
           {activeTab === 'orders' && <TabOrders orders={orders} payments={piutangPayments} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'order', id})} role={user.role} />}
           {activeTab === 'purchases' && user.role === 'admin' && <TabPurchases purchases={purchases} payments={piutangPayments} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'purchase', id})} />}
           {activeTab === 'expenses' && user.role === 'admin' && <TabExpenses expenses={expenses} karyawan={karyawan} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'expense', id})} />}
           {activeTab === 'piutang' && <TabPiutang orders={orders} purchases={purchases} payments={piutangPayments} sendToSheet={sendToSheet} requestDelete={(id) => setConfirmDialog({type: 'payment', id})} setPrintData={setPrintData} role={user.role} />}
           {activeTab === 'pemalang' && <TabPemalang reports={pemalangReports} sendToSheet={sendToSheet} requestDelete={(id) => setConfirmDialog({type: 'pemalang', id})} role={user.role} />}
-          {activeTab === 'stok' && <TabStok stokData={stokData} purchases={purchases} orders={orders} sendToSheet={sendToSheet} requestDelete={(id) => setConfirmDialog({type: 'stok', id})} role={user.role} />}
+          {activeTab === 'stok' && <TabStok stokData={stokData} purchases={purchases} orders={orders} sendToSheet={sendToSheet} requestDelete={(id) => setConfirmDialog({type: 'stok', id})} setPrintData={setPrintData} role={user.role} />}
           {activeTab === 'monitoring_pemalang' && user.role === 'admin' && <TabMonitoringPemalang orders={orders} pemalangReports={pemalangReports} stokData={stokData} />}
           {activeTab === 'karyawan' && user.role === 'admin' && <TabKaryawan karyawan={karyawan} expenses={expenses} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'karyawan', id})} />}
         </div>
