@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Package, Plus, Trash2, Box, Server, Factory, Snowflake, TrendingUp, ArrowDownCircle, Truck, X, Printer, Edit, CheckCircle } from 'lucide-react';
+import { Package, Plus, Trash2, Box, Server, Factory, Snowflake, TrendingUp, ArrowDownCircle, Truck, X, Printer, Edit, ShoppingCart, ArrowRightCircle } from 'lucide-react';
 import { getTodayStr, generateId, formatDate, safeSort, getLocalYMD } from '../../utils/helpers';
 
 export default function TabStok({ stokData, purchases, orders, sendToSheet, requestDelete, setPrintData, role }) {
@@ -37,63 +37,91 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
   const formatAyam = (kg) => `${kg} Kg (${(kg / KG_PER_KANTONG).toFixed(1).replace('.0', '')} Kantong)`;
   const formatDimsum = (pcs) => `${pcs} Pcs (${(pcs / PCS_PER_MIKA).toFixed(1).replace('.0', '')} Mika)`;
 
-  // GABUNGAN DROPDOWN: Default System + Riwayat Unik Database (Membaca data lama BAHAN_LAIN juga)
-  const DEFAULT_BAHAN = ['BUMBU', 'DAUN BAWANG', 'GULA', 'MINYAK WIJEN', 'MIKA', 'PLASTIK', 'SAUS', 'TEPUNG', 'AYAM (TAMBAHAN)'];
+  // GABUNGAN DROPDOWN: Default System + Riwayat Pembelian + Riwayat Gudang
+  const DEFAULT_BAHAN = ['BUMBU', 'DAUN BAWANG', 'GULA', 'MINYAK WIJEN', 'MIKA', 'PLASTIK', 'SAUS', 'TEPUNG', 'AYAM (TAMBAHAN)', 'GAS'];
   const listBahanUnik = [...new Set([
       ...DEFAULT_BAHAN, 
-      ...(stokData||[]).filter(s => String(s.type).includes('BAHAN')).map(s => String(s.itemName).toUpperCase())
+      ...(stokData||[]).filter(s => String(s.type).includes('BAHAN')).map(s => String(s.itemName).toUpperCase()),
+      ...(purchases||[]).map(p => String(p.itemName).toUpperCase())
   ])].sort();
 
   // ==========================================
-  // ERP LOGIC: GUDANG -> PRODUKSI -> FREEZER
+  // ERP LOGIC: PEMBELIAN -> GUDANG -> PRODUKSI -> FREEZER -> ORDER
   // ==========================================
   const dash = useMemo(() => {
       const myBranch = role === 'admin' ? 'PUSAT' : 'PEMALANG';
+      const gudang = {}; 
 
-      // 1. GUDANG BAHAN BAKU (MASUK & KELUAR) - Sinkron membaca BAHAN_BAKU & BAHAN_LAIN
-      const bahanLog = (stokData || []).filter(s => String(s.type).includes('BAHAN') && s.branch === myBranch);
-      const mutasiAyamDariPusat = (stokData || []).filter(s => s.type === 'MUTASI_AYAM_PEMALANG').reduce((sum, s) => sum + Number(s.qty), 0);
-      const beliAyamPusat = role === 'admin' ? (purchases || []).filter(p => p.itemName.toUpperCase().includes('AYAM')).reduce((sum, p) => sum + Number(p.qty), 0) : 0;
+      // 1. INTEGRASI PEMBELIAN KE GUDANG (Hanya Pusat yang melakukan pembelian restock besar)
+      if (role === 'admin') {
+          (purchases || []).forEach(p => {
+              const name = String(p.itemName).toUpperCase();
+              if (!gudang[name]) gudang[name] = { qty: 0, satuan: String(p.satuan).toUpperCase() };
+              gudang[name].qty += Number(p.qty);
+          });
+      }
 
-      let masukAyamLokal = 0; let keluarAyamLokal = 0;
-      const rekapBahanPendukung = {};
-
-      bahanLog.forEach(b => {
-          const q = Number(b.qty) || 0;
-          if (b.itemName === 'AYAM') {
-              if (b.action === 'MASUK') masukAyamLokal += q; else keluarAyamLokal += q;
-          } else {
-              if (!rekapBahanPendukung[b.itemName]) rekapBahanPendukung[b.itemName] = { qty: 0, satuan: b.satuan };
-              if (b.action === 'MASUK') rekapBahanPendukung[b.itemName].qty += q; else rekapBahanPendukung[b.itemName].qty -= q;
-          }
+      // 2. INTEGRASI MUTASI (Pusat ke Cabang)
+      const mutasiLog = (stokData || []).filter(s => s.type === 'MUTASI_AYAM_PEMALANG');
+      let totalMutasiAyam = 0;
+      mutasiLog.forEach(m => {
+          totalMutasiAyam += Number(m.qty);
+          const name = 'AYAM';
+          if (!gudang[name]) gudang[name] = { qty: 0, satuan: 'KG' };
+          if (role === 'admin') gudang[name].qty -= Number(m.qty); // Pusat berkurang
+          if (role === 'branch') gudang[name].qty += Number(m.qty); // Pemalang bertambah
       });
 
-      let stokAyamAwal = role === 'admin' 
-          ? beliAyamPusat + masukAyamLokal - keluarAyamLokal - mutasiAyamDariPusat 
-          : mutasiAyamDariPusat + masukAyamLokal - keluarAyamLokal;
+      // 3. INTEGRASI INPUT MANUAL GUDANG (+ / -) & PEMAKAIAN BAHAN TAMBAHAN (-)
+      const bahanLog = (stokData || []).filter(s => String(s.type).includes('BAHAN') && s.branch === myBranch);
+      bahanLog.forEach(b => {
+          const name = String(b.itemName).toUpperCase();
+          if (!gudang[name]) gudang[name] = { qty: 0, satuan: String(b.satuan).toUpperCase() };
+          if (b.action === 'MASUK') gudang[name].qty += Number(b.qty);
+          else gudang[name].qty -= Number(b.qty); // Mengurangi stok gudang
+      });
 
+      // 4. EKSKEKUSI PRODUKSI MENGURANGI GUDANG AYAM OTOMATIS
       const myProdType = role === 'admin' ? 'PRODUKSI_PUSAT' : 'PRODUKSI_PEMALANG';
       const myProdLog = (stokData || []).filter(s => s.type === myProdType);
       
       const totalAdukanAll = myProdLog.reduce((sum, s) => sum + Number(s.qty), 0);
       const totalAyamTerpakai = totalAdukanAll * MASTER_AYAM_KG;
-      const sisaAyamGudang = stokAyamAwal - totalAyamTerpakai; 
+      
+      if (!gudang['AYAM']) gudang['AYAM'] = { qty: 0, satuan: 'KG' };
+      gudang['AYAM'].qty -= totalAyamTerpakai; 
 
+      // 5. PRODUKSI MENJADI BARANG JADI (FREEZER) & ORDER MENGURANGI FREEZER
       const totalDimsumJadi = totalAdukanAll * MASTER_PCS;
       const myOrders = (orders || []).filter(o => role === 'admin' ? o.category !== 'Pemalang' : o.category === 'Pemalang');
       const terjualTotalPcs = myOrders.reduce((sum, o) => sum + Number(o.qty), 0);
       const sisaFreezer = totalDimsumJadi - terjualTotalPcs; 
 
+      // --- STATISTIK HARIAN ---
       const adukanHariIni = myProdLog.filter(s => getLocalYMD(s.date) === todayStr).reduce((sum, s) => sum + Number(s.qty), 0);
       const orderHariIniPcs = myOrders.filter(o => getLocalYMD(o.date) === todayStr).reduce((sum, o) => sum + Number(o.qty), 0);
+      const masukGudangHariIni = [...(role==='admin'?purchases:[]), ...bahanLog].filter(x => getLocalYMD(x.date) === todayStr && (x.action==='MASUK' || x.supplier)).length;
 
+      // --- RIWAYAT GABUNGAN (STOK & PEMBELIAN) ---
       const myLog = [...bahanLog, ...myProdLog].sort((a,b) => new Date(b.date) - new Date(a.date));
       if (role === 'admin') myLog.push(...(stokData || []).filter(s => s.type === 'MUTASI_AYAM_PEMALANG'));
 
       const groupedLogMap = {};
+      
+      // Menyatukan Log Pembelian (Khusus Pusat) sebagai Barang Masuk Gudang
+      if (role === 'admin') {
+          (purchases || []).forEach(p => {
+              if(!groupedLogMap[p.id]) {
+                  groupedLogMap[p.id] = { id: p.id, date: p.date, type: 'PEMBELIAN', action: 'MASUK', notes: `Masuk dari Pembelian Supplier: ${p.supplier}`, items: [], branch: 'PUSAT', isPurchase: true };
+              }
+              groupedLogMap[p.id].items.push({ ...p, type: 'BAHAN_BAKU' });
+          });
+      }
+
+      // Menyatukan Log Gudang & Produksi
       myLog.forEach(s => {
           if (!groupedLogMap[s.id]) {
-              groupedLogMap[s.id] = { id: s.id, date: s.date, type: s.type, action: s.action, notes: s.notes, items: [], branch: s.branch };
+              groupedLogMap[s.id] = { id: s.id, date: s.date, type: s.type, action: s.action, notes: s.notes, items: [], branch: s.branch, isPurchase: false };
           }
           if (s.type.includes('PRODUKSI')) {
               groupedLogMap[s.id].type = s.type;
@@ -103,12 +131,16 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
       });
       const displayLogGrouped = Object.values(groupedLogMap).sort((a,b) => new Date(b.date) - new Date(a.date));
 
+      // Memisahkan Gudang Ayam dan Gudang Pendukung
+      const sisaAyamGudang = gudang['AYAM']?.qty || 0;
+      delete gudang['AYAM'];
+
       return {
-          stokAyamAwal, sisaAyamGudang, totalAyamTerpakai, rekapBahanPendukung,
+          sisaAyamGudang, gudangBahanLain: gudang, totalAyamTerpakai, totalMutasiAyam,
           totalAdukanAll, totalDimsumJadi, terjualTotalPcs, sisaFreezer,
           adukanHariIni, prodPcsHariIni: adukanHariIni * MASTER_PCS, prodMikaHariIni: (adukanHariIni * MASTER_PCS) / PCS_PER_MIKA,
           ayamTerpakaiHariIni: adukanHariIni * MASTER_AYAM_KG, orderHariIniPcs, orderHariIniMika: orderHariIniPcs / PCS_PER_MIKA,
-          displayLogGrouped
+          masukGudangHariIni, displayLogGrouped
       };
   }, [stokData, purchases, orders, role, todayStr]);
 
@@ -121,9 +153,9 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
       setQtyMutasi('');
   };
 
-  // HANDLER EDIT ANTI-CRASH (Bisa baca data lama maupun baru)
+  // HANDLER EDIT ANTI-CRASH 
   const handleEdit = (g) => {
-      if (!g) return;
+      if (!g || g.isPurchase) return; // Mencegah edit nota pembelian dari menu stok
       setIsEdit(true); 
       setEditId(g.id);
       
@@ -143,7 +175,7 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
           setBahanProdCart(bahanTambahan.length > 0 ? bahanTambahan : []);
           
           setShowFormProd(true); setShowFormBahan(false); setShowFormMutasi(false);
-      } else if (safeType.includes('BAHAN')) { // Deteksi BAHAN_BAKU maupun BAHAN_LAIN
+      } else if (safeType.includes('BAHAN')) {
           setTipeBahan(safeAction); 
           setNotesBahan(safeNotes);
           const cartItems = (g.items || []).map(i => ({ 
@@ -156,8 +188,6 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
           setQtyMutasi(g.items?.[0]?.qty || '');
           setShowFormMutasi(true); setShowFormBahan(false); setShowFormProd(false);
       }
-      
-      // Auto Scroll Ke Atas Agar Form Terlihat
       setTimeout(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); }, 100);
   };
 
@@ -188,9 +218,10 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
       e.preventDefault();
       if(Number(adukan) <= 0) return;
       
+      // Jika Mode Edit, kita anggap stok dikembalikan dulu untuk cek bypass
       const butuhAyam = Number(adukan) * MASTER_AYAM_KG;
       if(!isEdit && butuhAyam > dash.sisaAyamGudang) { 
-          alert(`GAGAL: Stok Ayam di Gudang tidak mencukupi!\nKebutuhan: ${butuhAyam} Kg\nSisa: ${dash.sisaAyamGudang} Kg`); return; 
+          alert(`GAGAL: Stok Ayam Gudang tidak cukup!\nButuh: ${butuhAyam} Kg\nSisa Gudang: ${dash.sisaAyamGudang} Kg`); return; 
       }
       
       if(isEdit) sendToSheet('delete', { id: editId }, 'stok');
@@ -204,11 +235,12 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
           qty: Number(adukan), notes: `Shift ${waktuProd}. ${notesProd}`, editCount: 0
       }];
 
+      // Bahan Baku Terpakai (Menguras Gudang Otomatis)
       bahanProdCart.filter(c => c.itemName && Number(c.qty) > 0).forEach(c => {
           dataToInsert.push({
               id: transId, date: todayStr, type: 'BAHAN_BAKU', branch: myBranch, action: 'KELUAR',
               itemName: c.itemName.toUpperCase(), qty: Number(c.qty), satuan: c.satuan.toUpperCase(),
-              notes: `Bahan terpakai untuk Produksi ID: ${transId}`, editCount: 0
+              notes: `Terpakai untuk Produksi ${transId}.`, editCount: 0
           });
       });
 
@@ -230,14 +262,13 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
 
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
-      {/* Suggestion untuk form Input Gudang */}
       <datalist id="bahan-list">{listBahanUnik.map(b => <option key={b} value={b} />)}</datalist>
 
       {/* SECTION 1: MONITORING OPERASIONAL (DASHBOARD REALTIME) */}
       <div className="bg-slate-900 rounded-2xl shadow-xl overflow-hidden border border-slate-800">
           <div className="p-4 border-b border-slate-800/80 bg-slate-800/30 flex justify-between items-center">
-              <h2 className="text-white font-bold flex items-center gap-2"><TrendingUp size={18} className="text-emerald-400"/> Monitoring Operasional Hari Ini ({formatDate(todayStr)})</h2>
-              <div className="text-[10px] font-bold text-emerald-400 flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> SINKRONISASI OTOMATIS</div>
+              <h2 className="text-white font-bold flex items-center gap-2"><TrendingUp size={18} className="text-emerald-400"/> Monitoring Operasional Harian ({formatDate(todayStr)})</h2>
+              <div className="text-[10px] font-bold text-emerald-400 flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> GUDANG SINKRON</div>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-5 divide-y md:divide-y-0 md:divide-x divide-slate-800/60">
               <div className="p-4 text-center">
@@ -299,47 +330,46 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
           </form>
       )}
 
-      {/* FORM: PRODUKSI & PEMAKAIAN BAHAN (DROPDOWN KHUSUS) */}
+      {/* FORM: PRODUKSI & PEMAKAIAN BAHAN */}
       {showFormProd && (
           <form onSubmit={handleSimpanProduksi} className="bg-blue-50 p-6 rounded-xl border shadow-sm border-blue-200">
               <div className="flex justify-between items-center border-b border-blue-200 pb-3 mb-4"><h3 className="font-bold text-blue-900 flex items-center gap-2"><Factory size={18}/> Form {isEdit?'Edit ':''}Eksekusi Produksi & Pemakaian Bahan</h3><button type="button" onClick={closeAllForms} className="text-blue-500 hover:text-red-500"><X size={18}/></button></div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start mb-6">
                   <div className="space-y-1">
-                      <label className="text-xs font-bold text-blue-800 uppercase">Input Total Adukan</label>
+                      <label className="text-xs font-bold text-blue-800 uppercase">Total Adukan Dibuat</label>
                       <input type="number" min="0.5" step="0.5" required value={adukan} onChange={e=>setAdukan(e.target.value)} className="w-full p-3 border border-blue-300 rounded-lg font-black text-xl text-blue-900" placeholder="0" />
                       <div className="text-[10px] bg-white p-2 rounded border text-slate-600 font-medium">
-                          Memotong: <strong className="text-orange-600">{adukan ? formatAyam(adukan * MASTER_AYAM_KG) : '0 Kg'}</strong><br/>
-                          Menambah: <strong className="text-emerald-600">{adukan ? formatDimsum(adukan * MASTER_PCS) : '0 Pcs'}</strong>
+                          Gudang Berkurang: <strong className="text-orange-600">{adukan ? formatAyam(adukan * MASTER_AYAM_KG) : '0 Kg'}</strong><br/>
+                          Freezer Bertambah: <strong className="text-emerald-600">{adukan ? formatDimsum(adukan * MASTER_PCS) : '0 Pcs'}</strong>
                       </div>
                   </div>
                   <div className="space-y-1"><label className="text-xs font-bold text-blue-800 uppercase">Shift / Waktu</label><select value={waktuProd} onChange={e=>setWaktuProd(e.target.value)} className="w-full p-3 border border-blue-300 rounded-lg font-bold bg-white"><option>Pagi</option><option>Siang</option><option>Sore/Malam</option></select></div>
-                  <div className="space-y-1"><label className="text-xs font-bold text-blue-800 uppercase">Keterangan Produksi</label><input type="text" value={notesProd} onChange={e=>setNotesProd(e.target.value)} className="w-full p-3 border border-blue-300 rounded-lg bg-white" placeholder="Cth: Produksi Budi" /></div>
+                  <div className="space-y-1"><label className="text-xs font-bold text-blue-800 uppercase">Keterangan Opsional</label><input type="text" value={notesProd} onChange={e=>setNotesProd(e.target.value)} className="w-full p-3 border border-blue-300 rounded-lg bg-white" placeholder="Nama Koki, dll" /></div>
               </div>
 
               <div className="bg-white p-4 rounded-lg border border-blue-200">
                   <div className="flex justify-between items-center mb-3">
                       <div>
-                          <h4 className="font-bold text-sm text-blue-800">Bahan Baku Produksi (Otomatis Keluar Gudang)</h4>
+                          <h4 className="font-bold text-sm text-blue-800">Bahan Baku Tambahan (Otomatis Mengurangi Gudang)</h4>
                           <p className="text-[10px] text-slate-500">Ayam utama otomatis terpotong. Gunakan tabel di bawah ini khusus untuk Bumbu, Plastik, Saus, dll.</p>
                       </div>
                       <button type="button" onClick={addProdRow} className="bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700 border border-blue-200 rounded">+ Tambah Bahan</button>
                   </div>
                   
-                  {bahanProdCart.length === 0 ? <div className="text-xs text-slate-400 italic text-center py-4 bg-slate-50 rounded border border-dashed">Klik "+ Tambah Bahan" untuk mencatat pemakaian Daun Bawang, Gula, Bumbu, dll.</div> : (
+                  {bahanProdCart.length === 0 ? <div className="text-xs text-slate-400 italic text-center py-4 bg-slate-50 rounded border border-dashed">Klik "+ Tambah Bahan" jika produksi ini menggunakan Mika, Plastik, Bumbu, dll.</div> : (
                       <div className="space-y-2">
                           {bahanProdCart.map((item, index) => (
                               <div key={index} className="flex gap-2 items-center relative pr-8">
                                   <div className="w-5/12">
                                       <select 
-                                        required 
-                                        value={item.itemName} 
+                                        required value={item.itemName} 
                                         onChange={e => {
                                             const val = e.target.value;
                                             updateProdCart(index, 'itemName', val);
                                             let defaultSat = item.satuan || 'PACK';
                                             if (val === 'DAUN BAWANG') defaultSat = 'IKAT';
                                             else if (val === 'MINYAK WIJEN' || val === 'SAUS') defaultSat = 'BOTOL';
-                                            else if (val === 'GULA' || val.includes('AYAM') || val === 'TEPUNG') defaultSat = 'KG';
+                                            else if (val === 'GULA' || val.includes('AYAM') || val === 'TEPUNG' || val === 'GAS') defaultSat = 'KG';
                                             else if (val === 'BUMBU' || val === 'PLASTIK' || val === 'MIKA') defaultSat = 'PACK';
                                             updateProdCart(index, 'satuan', defaultSat);
                                         }} 
@@ -375,7 +405,7 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
       {/* SECTION 2-4: FLOW (GUDANG -> PRODUKSI -> FREEZER) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col">
-              <div className="bg-slate-100 p-4 border-b border-slate-200"><h3 className="font-bold text-slate-800 flex items-center gap-2"><Box size={18}/> Gudang Bahan Baku</h3><p className="text-[10px] text-slate-500 mt-0.5">Penyimpanan bahan mentah belum diolah.</p></div>
+              <div className="bg-slate-100 p-4 border-b border-slate-200"><h3 className="font-bold text-slate-800 flex items-center gap-2"><Box size={18}/> Gudang Bahan Baku</h3><p className="text-[10px] text-slate-500 mt-0.5">Berisi bahan mentah yang didapat dari Pembelian/Mutasi.</p></div>
               <div className="p-5 flex-1">
                   <div className="border border-orange-200 bg-orange-50 rounded-lg p-4 mb-4 relative overflow-hidden">
                       <div className="text-xs font-bold text-orange-800 uppercase mb-1">Stok Utama: AYAM</div>
@@ -384,11 +414,11 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
                   </div>
                   <h4 className="text-[10px] font-bold uppercase text-slate-500 mb-2 border-b pb-1">Bahan Pendukung Lainnya</h4>
                   <div className="space-y-2">
-                      {Object.keys(dash.rekapBahanPendukung).length === 0 ? <div className="text-xs text-slate-400 italic">Belum ada bahan pendukung.</div> : 
-                      Object.keys(dash.rekapBahanPendukung).map(k => (
+                      {Object.keys(dash.gudangBahanLain).length === 0 ? <div className="text-xs text-slate-400 italic">Belum ada bahan pendukung.</div> : 
+                      Object.keys(dash.gudangBahanLain).map(k => (
                           <div key={k} className="flex justify-between items-center border-b border-dashed border-slate-200 pb-1">
                               <span className="text-xs font-bold text-slate-700">{k}</span>
-                              <span className="text-xs font-black bg-slate-100 px-2 py-0.5 rounded">{dash.rekapBahanPendukung[k].qty} {dash.rekapBahanPendukung[k].satuan}</span>
+                              <span className="text-xs font-black bg-slate-100 px-2 py-0.5 rounded">{dash.gudangBahanLain[k].qty} {dash.gudangBahanLain[k].satuan}</span>
                           </div>
                       ))}
                   </div>
@@ -396,10 +426,10 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
           </div>
 
           <div className="bg-white rounded-xl border border-blue-200 shadow-sm flex flex-col">
-              <div className="bg-blue-50 p-4 border-b border-blue-100"><h3 className="font-bold text-blue-900 flex items-center gap-2"><Factory size={18}/> Dapur Produksi (All Time)</h3><p className="text-[10px] text-blue-600 mt-0.5">Mesin pengolah bahan mentah menjadi barang jadi.</p></div>
+              <div className="bg-blue-50 p-4 border-b border-blue-100"><h3 className="font-bold text-blue-900 flex items-center gap-2"><Factory size={18}/> Dapur Produksi (All Time)</h3><p className="text-[10px] text-blue-600 mt-0.5">Tempat pengolahan bahan mentah menjadi barang jadi.</p></div>
               <div className="p-5 flex-1 flex flex-col justify-center">
                   <div className="flex justify-between items-center bg-white border border-slate-100 p-3 rounded-lg shadow-sm mb-3">
-                      <div className="text-[10px] font-bold text-slate-500 uppercase">Ayam Terpakai (Otomatis)</div>
+                      <div className="text-[10px] font-bold text-slate-500 uppercase">Ayam Terpakai Produksi</div>
                       <div className="text-lg font-black text-orange-600">-{dash.totalAyamTerpakai} Kg</div>
                   </div>
                   <div className="flex justify-center py-2"><ArrowDownCircle className="text-blue-300" size={24}/></div>
@@ -416,7 +446,7 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
           </div>
 
           <div className="bg-white rounded-xl border border-emerald-200 shadow-sm flex flex-col">
-              <div className="bg-emerald-50 p-4 border-b border-emerald-100"><h3 className="font-bold text-emerald-900 flex items-center gap-2"><Snowflake size={18}/> Freezer Barang Jadi</h3><p className="text-[10px] text-emerald-600 mt-0.5">Stok dimsum siap jual. Terpotong otomatis oleh Order.</p></div>
+              <div className="bg-emerald-50 p-4 border-b border-emerald-100"><h3 className="font-bold text-emerald-900 flex items-center gap-2"><Snowflake size={18}/> Freezer Barang Jadi</h3><p className="text-[10px] text-emerald-600 mt-0.5">Tempat penyimpanan dimsum siap jual. Dikurangi oleh Order.</p></div>
               <div className="p-5 flex-1">
                   <div className="border border-emerald-300 bg-emerald-600 text-white rounded-lg p-5 mb-5 text-center shadow-md">
                       <div className="text-xs font-bold text-emerald-200 uppercase mb-1">Sisa Stok Freezer Realtime</div>
@@ -449,9 +479,10 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
                 <td className="px-4 py-3"><div className="font-bold text-slate-800">{formatDate(g.date)}</div><div className="text-[10px] text-slate-500 font-mono">{g.id}</div></td>
                 <td className="px-4 py-3 text-center">
                     {g.type.includes('PRODUKSI') ? <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-[10px] font-bold border border-blue-200">PRODUKSI ADUKAN</span> :
+                     g.isPurchase ? <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-[10px] font-bold border border-emerald-200 flex items-center justify-center gap-1 mx-auto w-max"><ShoppingCart size={12}/> PEMBELIAN BAHAN</span> :
                      g.type.includes('MUTASI') ? <span className="bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-[10px] font-bold border border-orange-200">KIRIM CABANG</span> :
-                     g.action === 'MASUK' ? <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-[10px] font-bold border border-emerald-200">BARANG MASUK</span> :
-                     <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-[10px] font-bold border border-red-200">BARANG KELUAR</span>}
+                     g.action === 'MASUK' ? <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-[10px] font-bold border border-emerald-200">GUDANG: MASUK</span> :
+                     <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-[10px] font-bold border border-red-200">GUDANG: KELUAR</span>}
                 </td>
                 <td className="px-4 py-3 text-xs">
                     <ul className="list-disc pl-3 mb-1 text-slate-700 font-bold">
@@ -464,9 +495,15 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
                 </td>
                 <td className="px-4 py-3 text-center">
                     <div className="flex justify-center gap-2">
-                        <button onClick={() => setPrintData({ type: 'bukti_stok', data: g })} className="text-slate-600 bg-slate-100 p-2 rounded-lg border hover:bg-slate-200 transition shadow-sm" title="Cetak Bukti"><Printer size={16} /></button>
-                        <button onClick={() => handleEdit(g)} className="text-blue-600 bg-blue-50 px-2 py-1 rounded-lg border border-blue-200 hover:bg-blue-100 transition shadow-sm font-bold text-[10px]" title="Edit Transaksi">EDIT</button>
-                        <button onClick={() => requestDelete(g.id)} className="text-red-500 bg-red-50 p-2 rounded-lg border border-red-200 hover:bg-red-100 transition shadow-sm" title="Hapus Permanen"><Trash2 size={16} /></button>
+                        {g.isPurchase ? (
+                            <div className="text-[10px] text-slate-400 italic">Edit di menu<br/>Pembelian</div>
+                        ) : (
+                            <>
+                                <button onClick={() => setPrintData({ type: 'bukti_stok', data: g })} className="text-slate-600 bg-slate-100 p-2 rounded-lg border hover:bg-slate-200 transition shadow-sm" title="Cetak Bukti"><Printer size={16} /></button>
+                                <button onClick={() => handleEdit(g)} className="text-blue-600 bg-blue-50 px-2 py-1 rounded-lg border border-blue-200 hover:bg-blue-100 transition shadow-sm font-bold text-[10px]" title="Edit Transaksi">EDIT</button>
+                                <button onClick={() => requestDelete(g.id)} className="text-red-500 bg-red-50 p-2 rounded-lg border border-red-200 hover:bg-red-100 transition shadow-sm" title="Hapus Permanen"><Trash2 size={16} /></button>
+                            </>
+                        )}
                     </div>
                 </td>
               </tr>
