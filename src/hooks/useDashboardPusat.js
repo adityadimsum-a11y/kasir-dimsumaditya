@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { getLocalYMD, getTodayStr, safeSort } from '../utils/helpers';
+import { getLocalYMD, getTodayStr, safeSort, formatRp } from '../utils/helpers';
 
 export default function useDashboardPusat({ 
   orders, expenses, purchases, piutangPayments, pemalangReports, stokData, 
@@ -7,7 +7,6 @@ export default function useDashboardPusat({
 }) {
   return useMemo(() => {
     const todayStr = getTodayStr();
-    const isCumulative = (dateStr) => getLocalYMD(dateStr) && getLocalYMD(dateStr) <= dateTo;
     const isPeriod = (dateStr) => getLocalYMD(dateStr) && getLocalYMD(dateStr) >= dateFrom && getLocalYMD(dateStr) <= dateTo;
 
     // DATA PERIODE AKTIF
@@ -16,6 +15,19 @@ export default function useDashboardPusat({
     const periodExpenses = (expenses || []).filter(e => isPeriod(e?.date));
     const periodPayments = (piutangPayments || []).filter(p => isPeriod(p?.date));
     const periodPemalang = (pemalangReports || []).filter(p => isPeriod(p?.date));
+
+    // HELPER TIMESTAMP: Ekstrak Jam atau buat jam konsisten berdasarkan ID
+    const getTime = (dateStr, fallbackId) => {
+        if (dateStr && dateStr.includes('T')) {
+            return new Date(dateStr).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+        }
+        let hash = 0;
+        const str = String(fallbackId || 'dimsum');
+        for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+        const hh = String(8 + (Math.abs(hash) % 10)).padStart(2, '0');
+        const mm = String(Math.abs(hash) % 60).padStart(2, '0');
+        return `${hh}:${mm}`;
+    };
 
     // 1. ENGINE BUKU BESAR (LEDGER) - KAS & BANK
     let inCash = 0, outCash = 0, inBank = 0, outBank = 0;
@@ -63,7 +75,7 @@ export default function useDashboardPusat({
 
     historyKeuangan.sort(safeSort);
 
-    // 2. ENGINE REKAP PIUTANG & HUTANG BERJALAN
+    // 2. ENGINE REKAP PIUTANG & HUTANG BERJALAN (DETAIL FULL)
     let totalOmset = 0, totalPcs = 0;
     const piutangBerjalan = [];
     const listPenjualan = periodOrders.map(o => {
@@ -74,7 +86,10 @@ export default function useDashboardPusat({
         
         let status = 'BELUM BAYAR';
         if (sisa <= 0) status = 'LUNAS';
-        else if (o.statusProduksi === 'Sudah Diambil') { status = 'PIUTANG'; piutangBerjalan.push({ ...o, sisaTagihan: sisa }); }
+        else if (o.statusProduksi === 'Sudah Diambil') { 
+            status = 'PIUTANG'; 
+            piutangBerjalan.push({ ...o, sisaTagihan: sisa, time: getTime(o.date, o.id) }); 
+        }
         else if (terbayar > 0) status = 'DP';
 
         let paymentsDetail = [];
@@ -87,53 +102,53 @@ export default function useDashboardPusat({
         const cicilan = (piutangPayments || []).filter(pay => pay.orderId === p.id).reduce((s, pay) => s + (Number(pay.amount) || 0), 0);
         const terbayar = (Number(p.paidAmount) || 0) + cicilan;
         const sisa = (Number(p.total) || 0) - terbayar;
-        if (sisa > 0) hutangBerjalan.push({ ...p, sisaHutang: sisa });
+        if (sisa > 0) hutangBerjalan.push({ ...p, sisaHutang: sisa, time: getTime(p.date, p.id) });
     });
+
+    // Urutkan List Piutang & Hutang dari terbaru
+    piutangBerjalan.sort((a,b) => new Date(b.date) - new Date(a.date));
+    hutangBerjalan.sort((a,b) => new Date(b.date) - new Date(a.date));
 
     const totalPiutangBaru = piutangBerjalan.reduce((sum, o) => sum + o.sisaTagihan, 0);
     const totalHutangBaru = hutangBerjalan.reduce((sum, p) => sum + p.sisaHutang, 0);
 
-    // 3. ENGINE KASBON KARYAWAN
-    const listKasbon = (expenses || []).filter(e => e.category === 'Kasbon' && !e.isDeleted);
-    const rekapKasbon = {};
-    listKasbon.forEach(k => {
-        const nama = String(k.description || 'Tidak Diketahui').toUpperCase();
-        if(!rekapKasbon[nama]) rekapKasbon[nama] = 0;
-        if(k.type === 'OUT') rekapKasbon[nama] += Number(k.total); 
-        if(k.type === 'IN') rekapKasbon[nama] -= Number(k.total); 
-    });
-    const karyawanKasbon = Object.keys(rekapKasbon).map(nama => ({ nama, sisaKasbon: rekapKasbon[nama] })).filter(k => k.sisaKasbon > 0);
-
-    // 4. ENGINE NOTIFIKASI OPERASIONAL (ALERTS)
+    // 3. ENGINE NOTIFIKASI OPERASIONAL (ALERTS)
     const alerts = [];
     const pendingOrders = (orders || []).filter(o => o.statusProduksi === 'Menunggu Produksi' && o.category !== 'Pemalang');
-    if (pendingOrders.length > 0) alerts.push({ id: 'pending-order', type: 'warning', title: 'Order Menunggu Produksi', desc: `Ada ${pendingOrders.length} pesanan pusat yang belum diproses dapur.` });
+    if (pendingOrders.length > 0) alerts.push({ id: 'pending-order', type: 'warning', title: 'Order Belum Diproses', desc: `Terdapat ${pendingOrders.length} pesanan pusat yang masih Menunggu Produksi.` });
     
-    if (piutangBerjalan.length > 0) alerts.push({ id: 'piutang-alert', type: 'danger', title: 'Piutang Gantung', desc: `Terdapat ${piutangBerjalan.length} invoice pelanggan yang barangnya sudah diambil tapi belum lunas.` });
+    if (piutangBerjalan.length > 0) alerts.push({ id: 'piutang-alert', type: 'danger', title: 'Piutang Belum Lunas', desc: `Terdapat ${piutangBerjalan.length} invoice pelanggan yang barangnya sudah diambil tapi pembayaran masih kurang.` });
     
-    if (hutangBerjalan.length > 0) alerts.push({ id: 'hutang-alert', type: 'danger', title: 'Hutang Supplier Aktif', desc: `Terdapat tagihan supplier sebesar Rp ${totalHutangBaru.toLocaleString('id-ID')} yang belum dilunasi.` });
+    if (hutangBerjalan.length > 0) alerts.push({ id: 'hutang-alert', type: 'danger', title: 'Hutang Jatuh Tempo', desc: `Kewajiban hutang supplier aktif sebesar Rp ${formatRp(totalHutangBaru)} menanti untuk dilunasi.` });
     
     const pemalangHariIni = (pemalangReports || []).find(r => getLocalYMD(r.date) === todayStr);
-    if (!pemalangHariIni) alerts.push({ id: 'pemalang-alert', type: 'warning', title: 'Laporan Cabang Kosong', desc: `Cabang Pemalang belum mengirimkan setoran & laporan (EOD) hari ini.` });
+    if (!pemalangHariIni) alerts.push({ id: 'pemalang-alert', type: 'warning', title: 'Laporan Cabang Kosong', desc: `Cabang Pemalang belum mengirimkan setoran & laporan harian (EOD) hari ini.` });
 
-    // 5. ENGINE ACTIVITY FEED (TIMELINE REALTIME)
+    // 4. ENGINE ACTIVITY FEED (TIMELINE REALTIME TRANSAKSI)
     let feed = [];
-    periodOrders.forEach(o => feed.push({ date: o.date, type: 'ORDER', title: 'Order Masuk', desc: `${o.customer} - ${o.qty} Pcs`, amount: o.total, isPositive: true }));
-    periodPurchases.forEach(p => feed.push({ date: p.date, type: 'PURCHASE', title: 'Pembelian Bahan', desc: `${p.itemName} dari ${p.supplier}`, amount: p.total, isPositive: false }));
-    periodPayments.forEach(p => feed.push({ date: p.date, type: 'PAYMENT', title: String(p.orderId).startsWith('BUY') ? 'Bayar Hutang' : 'Terima Cicilan', desc: `Referensi: ${p.orderId}`, amount: p.amount, isPositive: !String(p.orderId).startsWith('BUY') }));
-    periodExpenses.forEach(e => feed.push({ date: e.date, type: 'EXPENSE', title: e.category === 'Kasbon' ? 'Kasbon Karyawan' : 'Pengeluaran Kas', desc: e.description, amount: e.total, isPositive: e.type === 'IN' }));
+    periodOrders.forEach(o => feed.push({ date: o.date, time: getTime(o.date, o.id), id: o.id, type: 'ORDER', title: 'ORDER MASUK', name: o.customer, desc: `${o.qty} Pcs | Status: ${o.statusProduksi}`, amount: o.total, isPositive: true }));
+    periodPurchases.forEach(p => feed.push({ date: p.date, time: getTime(p.date, p.id), id: p.id, type: 'PURCHASE', title: 'PEMBELIAN BAHAN', name: p.supplier, desc: `${p.itemName}`, amount: p.total, isPositive: false }));
+    periodPayments.forEach(p => {
+        const isHutang = String(p.orderId).startsWith('BUY');
+        feed.push({ date: p.date, time: getTime(p.date, p.id), id: p.id, type: 'PAYMENT', title: isHutang ? 'BAYAR HUTANG' : 'PEMBAYARAN MASUK', name: p.paymentMethod || 'Via Kas/Bank', desc: `Invoice: ${p.orderId}`, amount: p.amount, isPositive: !isHutang });
+    });
+    periodExpenses.forEach(e => feed.push({ date: e.date, time: getTime(e.date, e.id), id: e.id, type: 'EXPENSE', title: e.category === 'Kasbon' ? 'KASBON KARYAWAN' : 'PENGELUARAN KAS', name: e.category, desc: e.description, amount: e.total, isPositive: e.type === 'IN' }));
     
     const periodStok = (stokData || []).filter(s => isPeriod(s.date) && s.type.includes('PRODUKSI'));
-    periodStok.forEach(s => feed.push({ date: s.date, type: 'PRODUKSI', title: 'Produksi Dapur Selesai', desc: `${s.qty} Adukan Dieksekusi`, amount: 0, isPositive: true }));
+    periodStok.forEach(s => feed.push({ date: s.date, time: getTime(s.date, s.id), id: s.id, type: 'PRODUKSI', title: 'PRODUKSI SELESAI', name: 'Dapur Pusat', desc: `${s.qty} Adukan Dieksekusi`, amount: 0, isPositive: true }));
 
-    // Sortir Feed dari yang paling baru, batasi 30 item agar ringan
-    feed = feed.sort((a,b) => new Date(b.date) - new Date(a.date)).slice(0, 30);
+    // Sortir Feed dari yang paling baru (Newest First) & batasi max 25 item agar super ringan
+    feed = feed.sort((a,b) => {
+        const dateA = new Date(`${String(a.date).split('T')[0]}T${a.time}:00`);
+        const dateB = new Date(`${String(b.date).split('T')[0]}T${b.time}:00`);
+        return dateB - dateA;
+    }).slice(0, 25);
 
     return { 
         inCash, outCash, inBank, outBank, setoranCabang, saldoCash: inCash - outCash, saldoBank: inBank - outBank,
         historyKeuangan,
-        totalOmset, totalPcs, totalPiutangBaru, totalHutangBaru, listPenjualan, piutangBerjalan, hutangBerjalan,
-        karyawanKasbon,
+        totalOmset, totalPcs, totalPiutangBaru, totalHutangBaru, 
+        listPenjualan, piutangBerjalan, hutangBerjalan,
         periodPurchases, periodExpenses,
         alerts, feed
     };
