@@ -15,20 +15,45 @@ export default function useDashboardPusat({
     const cumPayments = (piutangPayments || []).filter(p => isCumulative(p?.date));
     const cumPemalangReports = (pemalangReports || []).filter(p => isCumulative(p?.date));
 
+    // HELPER: Ekstrak Cash vs Transfer (Mendukung data JSON Split Payment dan teks lama)
+    const processPaymentMethod = (methodStr, fallbackAmount) => {
+        let cash = 0, tf = 0;
+        try {
+            const parsed = JSON.parse(methodStr);
+            parsed.forEach(p => {
+                if (String(p.method).toLowerCase().includes('cash')) cash += Number(p.amount);
+                else tf += Number(p.amount);
+            });
+        } catch(e) {
+            if (String(methodStr).toLowerCase().includes('cash')) cash += fallbackAmount;
+            else tf += fallbackAmount;
+        }
+        return { cash, tf };
+    };
+
     // PERHITUNGAN KEUANGAN KAS
     let kasMasukCash = 0, kasMasukTF = 0, kasKeluarCash = 0, kasKeluarTF = 0;
     
     const groupedOrdersCum = {};
     cumOrdersPusat.forEach(o => { if(!o?.id) return; if(!groupedOrdersCum[o.id]) groupedOrdersCum[o.id] = { method: o.paymentMethod, paid: Number(o.paidAmount)||0 }; });
-    Object.values(groupedOrdersCum).forEach(o => { if(o.method === 'Cash / Tunai') kasMasukCash += o.paid; else kasMasukTF += o.paid; });
+    Object.values(groupedOrdersCum).forEach(o => { const pm = processPaymentMethod(o.method, o.paid); kasMasukCash += pm.cash; kasMasukTF += pm.tf; });
 
     const groupedPurCum = {};
     cumPurchases.forEach(p => { if(!p?.id) return; if(!groupedPurCum[p.id]) groupedPurCum[p.id] = { method: p.paymentMethod, paid: Number(p.paidAmount)||0 }; });
-    Object.values(groupedPurCum).forEach(p => { if(p.method === 'Cash / Tunai' || p.method === 'Cash') kasKeluarCash += p.paid; else kasKeluarTF += p.paid; });
+    Object.values(groupedPurCum).forEach(p => { const pm = processPaymentMethod(p.method, p.paid); kasKeluarCash += pm.cash; kasKeluarTF += pm.tf; });
 
-    cumExpenses.forEach(e => { const t = Number(e.total) || 0; if (e.type === 'IN') { if (e.paymentMethod === 'Cash' || e.paymentMethod === 'Cash / Tunai') kasMasukCash += t; else kasMasukTF += t; } else { if (e.paymentMethod === 'Cash' || e.paymentMethod === 'Cash / Tunai') { kasKeluarCash += t; } else { kasKeluarTF += t; } } });
+    cumExpenses.forEach(e => { 
+        const t = Number(e.total) || 0; const isCash = String(e.paymentMethod).toLowerCase().includes('cash');
+        if (e.type === 'IN') { if (isCash) kasMasukCash += t; else kasMasukTF += t; } 
+        else { if (isCash) kasKeluarCash += t; else kasKeluarTF += t; } 
+    });
 
-    cumPayments.forEach(pay => { const amt = Number(pay.amount) || 0; const isMembayarHutangBeli = String(pay?.orderId || '').startsWith('BUY-'); if(isMembayarHutangBeli) { if (pay.paymentMethod === 'Cash' || pay.paymentMethod === 'Cash / Tunai') kasKeluarCash += amt; else kasKeluarTF += amt; } else { if (pay.paymentMethod === 'Cash' || pay.paymentMethod === 'Cash / Tunai') kasMasukCash += amt; else kasMasukTF += amt; } });
+    cumPayments.forEach(pay => { 
+        const amt = Number(pay.amount) || 0; const isHutang = String(pay?.orderId || '').startsWith('BUY-'); 
+        const isCash = String(pay.paymentMethod).toLowerCase().includes('cash');
+        if(isHutang) { if (isCash) kasKeluarCash += amt; else kasKeluarTF += amt; } 
+        else { if (isCash) kasMasukCash += amt; else kasMasukTF += amt; } 
+    });
 
     let setoranPemalangTF = 0; cumPemalangReports.forEach(p => { setoranPemalangTF += (Number(p?.nominal) || 0); });
     const saldoCash = kasMasukCash - kasKeluarCash; const saldoTF = (kasMasukTF + setoranPemalangTF) - kasKeluarTF; const saldoAkhir = saldoCash + saldoTF;
@@ -103,12 +128,14 @@ export default function useDashboardPusat({
     const listRiwayatHutang = listPembayaranSemua.filter(p => p.tipe === 'HUTANG');
 
     let inCashPeriode = 0, inTfPeriode = 0, outCashPeriode = 0, outTfPeriode = 0;
-    const orderGroupsForPeriod = {}; periodOrdersPusat.forEach(o => { if(!o?.id) return; if(!orderGroupsForPeriod[o.id]) orderGroupsForPeriod[o.id] = { paid: Number(o.paidAmount)||0, method: o.paymentMethod }; });
-    Object.values(orderGroupsForPeriod).forEach(g => { if(g.method === 'Cash / Tunai' || g.method === 'Cash') inCashPeriode += g.paid; else inTfPeriode += g.paid; }); 
-    const purGroupsForPeriod = {}; periodPurchases.forEach(p => { if(!p?.id) return; if(!purGroupsForPeriod[p.id]) purGroupsForPeriod[p.id] = { paid: Number(p.paidAmount)||0, method: p.paymentMethod }; });
-    Object.values(purGroupsForPeriod).forEach(g => { if(g.method === 'Cash / Tunai' || g.method === 'Cash') outCashPeriode += g.paid; else outTfPeriode += g.paid; });
-    periodExpenses.forEach(e => { const t = Number(e.total) || 0; if (e.type === 'IN') { if (e.paymentMethod === 'Cash' || e.paymentMethod === 'Cash / Tunai') inCashPeriode += t; else inTfPeriode += t; } else { if (e.paymentMethod === 'Cash' || e.paymentMethod === 'Cash / Tunai') outCashPeriode += t; else outTfPeriode += t; } });
-    listPembayaranSemua.forEach(pay => { const amt = Number(pay.amount) || 0; if(pay.tipe === 'HUTANG') { if (pay.paymentMethod === 'Cash' || pay.paymentMethod === 'Cash / Tunai') outCashPeriode += amt; else outTfPeriode += amt; } else { if (pay.paymentMethod === 'Cash' || pay.paymentMethod === 'Cash / Tunai') inCashPeriode += amt; else inTfPeriode += amt; } });
+    const orderGroupsForPeriod = {}; periodOrdersPusat.forEach(o => { if(!o?.id) return; if(!orderGroupsForPeriod[o.id]) orderGroupsForPeriod[o.id] = { method: o.paymentMethod, paid: Number(o.paidAmount)||0 }; });
+    Object.values(orderGroupsForPeriod).forEach(g => { const pm = processPaymentMethod(g.method, g.paid); inCashPeriode += pm.cash; inTfPeriode += pm.tf; }); 
+    
+    const purGroupsForPeriod = {}; periodPurchases.forEach(p => { if(!p?.id) return; if(!purGroupsForPeriod[p.id]) purGroupsForPeriod[p.id] = { method: p.paymentMethod, paid: Number(p.paidAmount)||0 }; });
+    Object.values(purGroupsForPeriod).forEach(g => { const pm = processPaymentMethod(g.method, g.paid); outCashPeriode += pm.cash; outTfPeriode += pm.tf; });
+    
+    periodExpenses.forEach(e => { const t = Number(e.total) || 0; const isCash = String(e.paymentMethod).toLowerCase().includes('cash'); if (e.type === 'IN') { if (isCash) inCashPeriode += t; else inTfPeriode += t; } else { if (isCash) outCashPeriode += t; else outTfPeriode += t; } });
+    listPembayaranSemua.forEach(pay => { const amt = Number(pay.amount) || 0; const isCash = String(pay.paymentMethod).toLowerCase().includes('cash'); if(pay.tipe === 'HUTANG') { if (isCash) outCashPeriode += amt; else outTfPeriode += amt; } else { if (isCash) inCashPeriode += amt; else inTfPeriode += amt; } });
     let setorPemalangPeriode = 0; cumPemalangReports.filter(p => isPeriod(p?.date)).forEach(p => { setorPemalangPeriode += (Number(p?.nominal) || 0); }); inTfPeriode += setorPemalangPeriode;
 
     const groupedTransaksiPusat = Object.values(periodOrdersPusat.reduce((acc, o) => { 
@@ -127,7 +154,12 @@ export default function useDashboardPusat({
         else if (grp.statusProduksi === 'Sudah Diambil') status = 'PIUTANG';
         else if (terbayar > 0) status = 'DP';
 
-        return { ...grp, totalTerbayar: terbayar, sisaTagihan: sisa, status: status };
+        // Extract detailed payment history for print/display
+        let allPayments = [];
+        try { allPayments = JSON.parse(grp.paymentMethod); } catch(e) { if(grp.dp > 0) allPayments = [{ method: grp.paymentMethod, amount: grp.dp }]; }
+        allPayments.push(...(piutangPayments || []).filter(p => p.orderId === grp.id).map(c => ({ method: c.paymentMethod, amount: c.amount })));
+
+        return { ...grp, totalTerbayar: terbayar, sisaTagihan: sisa, status: status, allPayments };
     });
 
     const ops = {}; // Logic dihandle di TabStok
