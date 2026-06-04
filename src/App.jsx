@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   LayoutDashboard, ShoppingCart, Wallet, 
   Clock, Store, Loader2, LogOut, 
-  Package, Truck, Users
+  Package, Truck, Users, AlertCircle
 } from 'lucide-react';
 
 import TabDashboard from './components/tabs/TabDashboard';
@@ -54,6 +54,8 @@ export default function App() {
   const [loginError, setLoginError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [printData, setPrintData] = useState(null);
+  
+  // STATE UNTUK POP-UP KONFIRMASI DELETE
   const [confirmDialog, setConfirmDialog] = useState(null); 
   
   const [orders, setOrders] = useState([]);
@@ -82,7 +84,7 @@ export default function App() {
   const handleLogout = () => {
     setUser(null); setLoginForm({ username: '', password: '' });
     window.localStorage.removeItem('dimsum_user_session'); window.localStorage.removeItem('dimsum_active_tab');
-    setOrders([]); setExpenses([]); setPiutangPayments([]); setPemalangReports([]); setStokData([]); setPurchases([]); window.localStorage.removeItem('dimsum_active_tab');
+    setOrders([]); setExpenses([]); setPiutangPayments([]); setPemalangReports([]); setStokData([]); setPurchases([]); setKaryawan([]);
   };
 
   const fetchData = async () => {
@@ -134,7 +136,7 @@ export default function App() {
         if (table === 'expenses') setExpenses(prev => prev.filter(e => e.id !== data.id));
         if (table === 'payments') setPiutangPayments(prev => prev.filter(p => p.id !== data.id));
         if (table === 'pemalang') setPemalangReports(prev => prev.filter(p => p.id !== data.id));
-        if (table === 'stok') setStokData(prev => prev.filter(s => s.id !== data.id));
+        if (table === 'stok') setStokData(prev => prev.filter(s => s.id !== data.id)); // Langsung membersihkan 1 blok transaksi produksi
         if (table === 'purchases') setPurchases(prev => prev.filter(p => p.id !== data.id));
         if (table === 'karyawan') setKaryawan(prev => prev.filter(k => k.id !== data.id));
     }
@@ -148,7 +150,8 @@ export default function App() {
     if(!confirmDialog) return;
     const { type, id } = confirmDialog;
     let colName = type === 'order' ? 'orders' : type === 'expense' ? 'expenses' : type === 'payment' ? 'payments' : type === 'pemalang' ? 'pemalang' : type === 'stok' ? 'stok' : type === 'purchase' ? 'purchases' : 'karyawan';
-    await sendToSheet('delete', { id }, colName); setConfirmDialog(null);
+    await sendToSheet('delete', { id }, colName); 
+    setConfirmDialog(null); // Tutup pop-up setelah dihapus
   };
 
   const pendingHutangPiutang = useMemo(() => {
@@ -216,7 +219,7 @@ export default function App() {
         <div className="p-4 border-t border-slate-800"><button onClick={handleLogout} className="w-full flex justify-center gap-2 bg-slate-800 p-3 rounded-xl"><LogOut size={18}/> Keluar</button></div>
       </aside>
 
-      <main className="flex-1 flex flex-col h-screen overflow-hidden">
+      <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
         <header className="bg-white border-b p-4 shadow-sm"><h2 className="text-xl font-bold capitalize">{activeTab.replace('_', ' ')}</h2></header>
         <div className="flex-1 overflow-auto p-6 bg-slate-50">
           {activeTab === 'dashboard' && user.role === 'admin' && <TabDashboard orders={orders} expenses={expenses} purchases={purchases} piutangPayments={piutangPayments} pemalangReports={pemalangReports} stokData={stokData} setPrintData={setPrintData} sendToSheet={sendToSheet} />}
@@ -230,6 +233,24 @@ export default function App() {
           {activeTab === 'monitoring_pemalang' && user.role === 'admin' && <TabMonitoringPemalang orders={orders} pemalangReports={pemalangReports} stokData={stokData} />}
           {activeTab === 'karyawan' && user.role === 'admin' && <TabKaryawan karyawan={karyawan} expenses={expenses} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'karyawan', id})} />}
         </div>
+        
+        {/* ========================================== */}
+        {/* MODAL POP-UP KONFIRMASI DELETE PERMANEN */}
+        {/* ========================================== */}
+        {confirmDialog && (
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center transform transition-all scale-100">
+              <AlertCircle size={56} className="mx-auto text-red-500 mb-4" />
+              <h3 className="text-xl font-black text-slate-800 mb-2">Konfirmasi Hapus</h3>
+              <p className="text-sm text-slate-600 mb-8 font-medium">Apakah Anda yakin ingin menghapus data ini secara permanen? Data yang dihapus akan mempengaruhi seluruh kalkulasi stok dan laporan.</p>
+              <div className="flex gap-3 justify-center">
+                <button onClick={() => setConfirmDialog(null)} className="w-1/2 px-4 py-3 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition">Batal</button>
+                <button onClick={executeDelete} className="w-1/2 px-4 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 shadow-md transition">Ya, Hapus!</button>
+              </div>
+            </div>
+          </div>
+        )}
+
       </main>
     </div>
   );
