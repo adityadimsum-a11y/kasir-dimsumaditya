@@ -1,165 +1,188 @@
 import React, { useState, useMemo } from 'react';
-import { X, Printer, Trash2, CheckCircle, Clock } from 'lucide-react';
-import { getTodayStr, formatRp, parseRp, generateId, formatDate, safeSort } from '../../utils/helpers';
+import { CreditCard, Wallet, Search, Filter, Printer, CheckCircle, Clock } from 'lucide-react';
+import { formatRp, getTodayStr, getLocalYMD, generateId, safeSort, formatDate } from '../../utils/helpers';
 
 export default function TabPiutang({ orders, purchases, payments, sendToSheet, requestDelete, setPrintData, role }) {
-  // NAVIGATION STATE
-  const [viewMode, setViewMode] = useState('berjalan'); // 'berjalan' | 'lunas'
-  const [debtType, setDebtType] = useState('piutang'); // 'piutang' | 'hutang'
-  
-  const [selectedItem, setSelectedItem] = useState(null);
   const todayStr = getTodayStr();
+  const [filterCustomer, setFilterCustomer] = useState('');
+  const [showPaymentForm, setShowFormPayment] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
+
+  // Form Payment
   const [payDate, setPayDate] = useState(todayStr);
-  const [payMethod, setPayMethod] = useState('Transfer Bank');
-  const [payAmount, setPayAmount] = useState(0);
+  const [payAmount, setPayAmount] = useState('');
+  const [payMethod, setPayMethod] = useState('Cash');
 
-  const listPiutang = useMemo(() => {
-      const groups = {};
-      (orders || []).filter(o => (Number(o.total) || 0) > (Number(o.paidAmount) || 0)).forEach(o => {
-          if(!groups[o.id]) groups[o.id] = { ...o, totalTagihan: 0, totalDibayar: Number(o.paidAmount)||0, items: [] };
-          groups[o.id].totalTagihan += Number(o.total)||0;
-          groups[o.id].items.push(`${o.qty} Pcs`);
+  // FILTERING LOGIC 
+  const dashboardData = useMemo(() => {
+      // Saring orders (piutang) sesuai role admin/cabang
+      const myOrders = role === 'branch' ? (orders || []).filter(o => o.category === 'Pemalang') : (orders || []).filter(o => o.category !== 'Pemalang');
+      const myPurchases = role === 'admin' ? (purchases || []) : [];
+
+      const groupOrdersAll = {};
+      myOrders.forEach(o => {
+          if(!o?.id) return;
+          if(!groupOrdersAll[o.id]) groupOrdersAll[o.id] = { ...o, items: [], totalTagihan: 0, totalDibayar: Number(o.paidAmount)||0, statusProduksi: o.statusProduksi || 'Menunggu Produksi' };
+          groupOrdersAll[o.id].items.push(`${o.qty} Pcs`);
+          groupOrdersAll[o.id].totalTagihan += Number(o.total)||0;
       });
-      return Object.values(groups).map(g => {
-          const cicilanList = (payments||[]).filter(p => p.orderId === g.id).sort(safeSort);
-          const totalCicilan = cicilanList.reduce((sum, p) => sum + (Number(p.amount)||0), 0);
-          return { ...g, cicilanList, totalCicilan, sisaHutang: g.totalTagihan - g.totalDibayar - totalCicilan };
-      }).sort((a,b) => new Date(b.date) - new Date(a.date));
-  }, [orders, payments]);
 
-  const listHutang = useMemo(() => {
-      const groups = {};
-      (purchases || []).filter(p => (Number(p.total) || 0) > (Number(p.paidAmount) || 0)).forEach(p => {
-          if(!groups[p.id]) groups[p.id] = { ...p, totalTagihan: 0, totalDibayar: Number(p.paidAmount)||0, items: [] };
-          groups[p.id].totalTagihan += Number(p.total)||0;
-          groups[p.id].items.push(`${p.itemName} (${p.qty} ${p.satuan})`);
+      const groupPurAll = {};
+      myPurchases.forEach(p => {
+          if(!p?.id) return;
+          if(!groupPurAll[p.id]) groupPurAll[p.id] = { ...p, items: [], totalTagihan: 0, totalDibayar: Number(p.paidAmount)||0 };
+          groupPurAll[p.id].items.push(`${p.itemName} (${p.qty} ${p.satuan})`);
+          groupPurAll[p.id].totalTagihan += Number(p.total)||0;
       });
-      return Object.values(groups).map(g => {
-          const cicilanList = (payments||[]).filter(p => p.orderId === g.id).sort(safeSort);
-          const totalCicilan = cicilanList.reduce((sum, p) => sum + (Number(p.amount)||0), 0);
-          return { ...g, cicilanList, totalCicilan, sisaHutang: g.totalTagihan - g.totalDibayar - totalCicilan };
-      }).sort((a,b) => new Date(b.date) - new Date(a.date));
-  }, [purchases, payments]);
 
-  const handleSimpanCicilan = (e) => {
-      e.preventDefault();
-      if(payAmount <= 0) return alert('Nominal tidak boleh 0');
-      if(payAmount > selectedItem.sisaHutang) return alert('Nominal melebihi sisa hutang!');
-      const newPay = { id: generateId('PAY', payDate), date: payDate, orderId: selectedItem.id, amount: Number(payAmount)||0, paymentMethod: payMethod };
-      sendToSheet('insert', newPay, 'payments');
-      setSelectedItem(prev => ({ ...prev, sisaHutang: prev.sisaHutang - payAmount, totalCicilan: prev.totalCicilan + payAmount, cicilanList: [newPay, ...prev.cicilanList] }));
-      setPayAmount(0); setPayDate(todayStr);
+      // FILTER SYARAT PIUTANG: Sisa > 0 && Status Harus 'Sudah Diambil'
+      const piutangPelanggan = Object.values(groupOrdersAll).map(grp => {
+          const cicilan = (payments || []).filter(p => p.orderId === grp.id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+          return { ...grp, cicilanTerbayar: cicilan, sisaHutang: grp.totalTagihan - grp.totalDibayar - cicilan };
+      }).filter(o => o.sisaHutang > 0 && o.statusProduksi === 'Sudah Diambil').sort(safeSort);
+
+      const hutangSupplier = Object.values(groupPurAll).map(grp => {
+          const cicilan = (payments || []).filter(p => p.orderId === grp.id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+          return { ...grp, cicilanTerbayar: cicilan, sisaHutang: grp.totalTagihan - grp.totalDibayar - cicilan };
+      }).filter(p => p.sisaHutang > 0).sort(safeSort);
+
+      const totalPiutang = piutangPelanggan.reduce((sum, item) => sum + item.sisaHutang, 0);
+      const totalHutang = hutangSupplier.reduce((sum, item) => sum + item.sisaHutang, 0);
+
+      // Riwayat Semua Pembayaran
+      const orderSisaTracker = {};
+      Object.values(groupOrdersAll).forEach(o => { orderSisaTracker[o.id] = o.totalTagihan - o.totalDibayar; });
+      Object.values(groupPurAll).forEach(p => { orderSisaTracker[p.id] = p.totalTagihan - p.totalDibayar; });
+
+      const allPaymentsChronological = [...(payments || [])]
+        .filter(p => role === 'branch' ? String(p.orderId).startsWith('INV') && myOrders.find(x => x.id === p.orderId) : true)
+        .sort((a,b) => new Date(a.date) - new Date(b.date));
+
+      const paymentSisaMap = {};
+      allPaymentsChronological.forEach(pay => {
+          const amt = Number(pay.amount) || 0;
+          if (orderSisaTracker[pay.orderId] !== undefined) {
+              orderSisaTracker[pay.orderId] -= amt;
+              paymentSisaMap[pay.id] = orderSisaTracker[pay.orderId];
+          }
+      });
+
+      const listRiwayat = allPaymentsChronological.sort((a,b) => new Date(b.date) - new Date(a.date)).map(pay => {
+          const isHutang = String(pay.orderId).startsWith('BUY-');
+          const relData = isHutang ? groupPurAll[pay.orderId] : groupOrdersAll[pay.orderId];
+          return { ...pay, isHutang, relData, sisaAkhir: paymentSisaMap[pay.id] || 0 };
+      });
+
+      return { piutangPelanggan, hutangSupplier, totalPiutang, totalHutang, listRiwayat };
+  }, [orders, purchases, payments, role]);
+
+  const handleOpenPayment = (inv, type) => {
+      setSelectedInvoice({ ...inv, type });
+      setPayDate(todayStr); setPayAmount(inv.sisaHutang); setPayMethod('Cash');
+      setShowFormPayment(true); window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const activeSource = debtType === 'piutang' ? listPiutang : listHutang;
-  const displayedList = activeSource.filter(item => viewMode === 'berjalan' ? item.sisaHutang > 0 : item.sisaHutang <= 0);
+  const handleSimpanPayment = (e) => {
+      e.preventDefault();
+      if(Number(payAmount) <= 0 || Number(payAmount) > selectedInvoice.sisaHutang) {
+          alert('Nominal tidak valid atau melebihi sisa hutang!'); return;
+      }
+      const payId = generateId('PAY', payDate);
+      const newData = { id: payId, orderId: selectedInvoice.id, date: payDate, amount: Number(payAmount), paymentMethod: payMethod, editCount: 0 };
+      
+      sendToSheet('insert', newData, 'payments');
+      setShowFormPayment(false); setSelectedInvoice(null);
+      setPrintData({ type: 'receipt', data: { payment: { ...newData, sisaAtThisPoint: selectedInvoice.sisaHutang - Number(payAmount) }, order: { ...selectedInvoice, tipe: selectedInvoice.type === 'HutangBeli' ? 'HUTANG' : 'PIUTANG' } } });
+  };
 
-  // MENGHITUNG RUNNING BALANCE (CERITA SISA HUTANG DI SETIAP CICILAN)
-  let currentSisa = selectedItem ? selectedItem.sisaHutang : 0;
-  const enrichedCicilan = selectedItem ? selectedItem.cicilanList.map(c => {
-      const sisaAtThisPoint = currentSisa;
-      currentSisa += Number(c.amount);
-      return { ...c, sisaAtThisPoint };
-  }) : [];
+  const piutangFiltered = filterCustomer ? dashboardData.piutangPelanggan.filter(p => p.customer.toLowerCase().includes(filterCustomer.toLowerCase())) : dashboardData.piutangPelanggan;
 
   return (
-    <div className="space-y-4 animate-in fade-in relative">
-      {/* HEADER NAVIGASI MENU UTAMA */}
-      <div className="flex bg-slate-200 p-1 rounded-xl w-full max-w-md mx-auto mb-2">
-          <button onClick={() => setViewMode('berjalan')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition ${viewMode === 'berjalan' ? 'bg-white text-blue-600 shadow' : 'text-slate-500 hover:text-slate-700'}`}>Data Berjalan (Aktif)</button>
-          <button onClick={() => setViewMode('lunas')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition ${viewMode === 'lunas' ? 'bg-white text-emerald-600 shadow' : 'text-slate-500 hover:text-slate-700'}`}>Riwayat Lunas</button>
-      </div>
-
-      {/* SUB-NAVIGASI (PIUTANG / HUTANG) */}
-      <div className="flex gap-2 mb-6 border-b border-slate-200 pb-2">
-        <button onClick={() => setDebtType('piutang')} className={`px-4 py-2 font-bold text-sm rounded-t-lg transition ${debtType === 'piutang' ? 'bg-white text-slate-800 border border-b-0 shadow-[0_-4px_6px_-2px_rgba(0,0,0,0.05)]' : 'text-slate-400 hover:bg-slate-200'}`}>Piutang (Pelanggan Ngutang)</button>
-        {role === 'admin' && <button onClick={() => setDebtType('hutang')} className={`px-4 py-2 font-bold text-sm rounded-t-lg transition ${debtType === 'hutang' ? 'bg-white text-slate-800 border border-b-0 shadow-[0_-4px_6px_-2px_rgba(0,0,0,0.05)]' : 'text-slate-400 hover:bg-slate-200'}`}>Hutang (Ngutang Supplier)</button>}
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {displayedList.length === 0 && <div className="col-span-full text-center py-12 text-slate-400 bg-white rounded-xl border border-dashed">Tidak ada data di menu ini.</div>}
-        {displayedList.map((item, idx) => (
-          <div key={idx} className={`bg-white border rounded-xl p-5 shadow-sm relative overflow-hidden transition hover:shadow-md ${item.sisaHutang <= 0 ? 'border-emerald-200' : 'border-slate-200'}`}>
-            <div className={`absolute top-0 right-0 px-3 py-1 text-[10px] font-black uppercase rounded-bl-lg ${item.sisaHutang <= 0 ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
-                {item.sisaHutang <= 0 ? 'SUDAH LUNAS' : 'BELUM LUNAS'}
+    <div className="space-y-6 animate-in fade-in pb-10">
+        
+        {/* CARDS */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-white rounded-xl border border-orange-200 shadow-sm p-5 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-10"><Clock size={64}/></div>
+                <div className="text-sm font-bold text-orange-600 mb-2 uppercase">Total Piutang Berjalan (Uang Nyangkut)</div>
+                <div className="text-3xl font-black text-slate-800">{formatRp(dashboardData.totalPiutang)}</div>
+                <div className="text-xs text-slate-500 mt-2">Hanya order yang sudah <span className="font-bold text-orange-600">diambil pelanggan</span>.</div>
             </div>
-            <div className="text-xs text-slate-500 mb-1">{formatDate(item.date)}</div>
-            <div className="font-black text-lg uppercase text-slate-800">{item.customer || item.supplier}</div>
-            <div className="text-[10px] font-mono text-slate-400 mb-4">{item.id}</div>
-            
-            <div className="space-y-2 mb-4 text-sm border-t border-slate-100 pt-3">
-              <div className="flex justify-between"><span className="text-slate-500">Total Tagihan</span><span className="font-bold">{formatRp(item.totalTagihan)}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Telah Dicicil/DP</span><span className="font-bold text-emerald-600">{formatRp(item.totalDibayar + item.totalCicilan)}</span></div>
-              <div className="flex justify-between border-t border-slate-100 pt-2"><span className="font-bold text-slate-700">Sisa {debtType === 'piutang' ? 'Piutang' : 'Hutang'}</span><span className={`font-black ${item.sisaHutang <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{formatRp(item.sisaHutang)}</span></div>
-            </div>
-            
-            <button onClick={() => setSelectedItem({ ...item, tipe: debtType === 'piutang' ? 'PIUTANG' : 'HUTANG' })} className={`w-full py-2.5 rounded-lg text-sm font-bold text-white transition ${item.sisaHutang <= 0 ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'}`}>
-                {item.sisaHutang <= 0 ? 'Lihat Detail Lunas' : 'Kelola Cicilan'}
-            </button>
-          </div>
-        ))}
-      </div>
-
-      {selectedItem && (
-        <div className="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
-            <div className="p-4 border-b flex justify-between items-center bg-slate-50">
-                <h3 className="font-bold text-lg">Detail & Riwayat Transaksi</h3>
-                <button onClick={() => setSelectedItem(null)} className="p-1 hover:bg-slate-200 rounded-lg"><X size={20} /></button>
-            </div>
-            <div className="p-6 overflow-y-auto">
-                <div className="flex justify-between mb-2 text-sm"><span className="text-slate-500">Ref ID</span><span className="font-bold font-mono">{selectedItem.id}</span></div>
-                <div className="flex justify-between mb-4 text-sm pb-4 border-b border-dashed"><span className="text-slate-500">{debtType==='piutang'?'Pelanggan':'Supplier'}</span><span className="font-bold uppercase">{selectedItem.customer || selectedItem.supplier}</span></div>
-                
-                <div className={`flex justify-between items-center mb-6 p-4 rounded-xl border ${selectedItem.sisaHutang <= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-100'}`}>
-                    <span className={`font-bold ${selectedItem.sisaHutang <= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{selectedItem.sisaHutang <= 0 ? 'STATUS: LUNAS SEPENUHNYA' : 'SISA HUTANG AKTUAL'}</span>
-                    <span className={`text-xl font-black ${selectedItem.sisaHutang <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{formatRp(selectedItem.sisaHutang)}</span>
+            {role === 'admin' && (
+                <div className="bg-white rounded-xl border border-red-200 shadow-sm p-5 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-4 opacity-10"><Wallet size={64}/></div>
+                    <div className="text-sm font-bold text-red-600 mb-2 uppercase">Total Hutang Supplier (Harus Dibayar)</div>
+                    <div className="text-3xl font-black text-slate-800">{formatRp(dashboardData.totalHutang)}</div>
+                    <div className="text-xs text-slate-500 mt-2">Akumulasi hutang restock gudang.</div>
                 </div>
-
-                {selectedItem.sisaHutang > 0 && (
-                    <form onSubmit={handleSimpanCicilan} className="bg-blue-50 p-4 rounded-xl border border-blue-100 mb-6">
-                        <h4 className="font-bold text-sm text-blue-900 mb-3">Input Pembayaran Cicilan Baru</h4>
-                        <div className="grid grid-cols-2 gap-3 mb-3">
-                            <div className="space-y-1"><label className="text-xs font-bold text-blue-800">Tanggal Bayar</label><input type="date" required value={payDate} onChange={e=>setPayDate(e.target.value)} className="w-full p-2 border rounded" /></div>
-                            <div className="space-y-1"><label className="text-xs font-bold text-blue-800">Metode</label><select value={payMethod} onChange={e=>setPayMethod(e.target.value)} className="w-full p-2 border rounded"><option>Transfer Bank</option><option>Cash</option></select></div>
-                        </div>
-                        <div className="space-y-1 mb-3"><label className="text-xs font-bold text-blue-800">Nominal (Maks {formatRp(selectedItem.sisaHutang)})</label><input type="text" required value={formatRp(payAmount)} onChange={e=>setPayAmount(parseRp(e.target.value))} className="w-full p-2 border rounded font-bold text-lg" /></div>
-                        <div className="flex justify-end"><button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-bold text-sm shadow-sm">Simpan Pembayaran</button></div>
-                    </form>
-                )}
-
-                <h4 className="font-bold text-sm mb-3 flex items-center gap-2"><Clock size={16}/> Riwayat Pembayaran (Bawah ke Atas)</h4>
-                <div className="space-y-3">
-                    {enrichedCicilan.length === 0 && <p className="text-xs text-slate-400 italic">Belum ada riwayat cicilan tambahan (hanya DP/Awal).</p>}
-                    {enrichedCicilan.map((c, i) => (
-                        <div key={i} className="p-3 border rounded-lg hover:bg-slate-50 transition relative">
-                            <div className="flex justify-between items-start mb-2 border-b border-dashed pb-2">
-                                <div>
-                                    <div className="text-xs font-bold">{formatDate(c.date)} <span className="bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded ml-1 text-[9px]">{c.paymentMethod}</span></div>
-                                    <div className="text-[10px] text-slate-400 font-mono mt-0.5">{c.id}</div>
-                                </div>
-                                <div className="text-right">
-                                    <div className="font-black text-emerald-600">+{formatRp(c.amount)}</div>
-                                </div>
-                            </div>
-                            <div className="flex justify-between items-center text-xs">
-                                <span className="text-slate-500">Sisa Tagihan Setelah Ini:</span>
-                                <span className={`font-bold ${c.sisaAtThisPoint <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                                    {c.sisaAtThisPoint <= 0 ? 'Rp 0 (LUNAS)' : formatRp(c.sisaAtThisPoint)}
-                                </span>
-                            </div>
-                            
-                            <div className="absolute -top-3 -right-2 flex gap-1 bg-white shadow-sm border rounded-lg p-1">
-                                <button type="button" onClick={() => setPrintData({ type: 'receipt', data: { payment: c, order: selectedItem } })} className="p-1 text-slate-500 hover:text-blue-600 bg-slate-50 rounded hover:bg-blue-50 transition" title="Cetak Bukti"><Printer size={14} /></button>
-                                <button type="button" onClick={() => { requestDelete(c.id); setSelectedItem(null); }} className="p-1 text-slate-500 hover:text-red-600 bg-slate-50 rounded hover:bg-red-50 transition" title="Hapus"><Trash2 size={14} /></button>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
-          </div>
+            )}
         </div>
-      )}
+
+        {/* MODAL BAYAR */}
+        {showFormPayment && (
+            <div className="bg-slate-900 rounded-2xl shadow-xl border border-slate-800 p-6 relative">
+                <button onClick={() => setShowFormPayment(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white"><X size={20}/></button>
+                <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2"><CreditCard className="text-emerald-400"/> Form Pembayaran {selectedInvoice.type === 'HutangBeli' ? 'Hutang Supplier' : 'Piutang Pelanggan'}</h3>
+                
+                <div className="bg-slate-800 p-4 rounded-xl mb-6 grid grid-cols-2 gap-4">
+                    <div><div className="text-[10px] text-slate-400 font-bold uppercase">No. Tagihan</div><div className="text-sm font-black text-white">{selectedInvoice.id}</div></div>
+                    <div><div className="text-[10px] text-slate-400 font-bold uppercase">{selectedInvoice.type === 'HutangBeli' ? 'Supplier' : 'Pelanggan'}</div><div className="text-sm font-black text-white">{selectedInvoice.type === 'HutangBeli' ? selectedInvoice.supplier : selectedInvoice.customer}</div></div>
+                    <div><div className="text-[10px] text-slate-400 font-bold uppercase">Sisa Tagihan Aktual</div><div className="text-xl font-black text-red-400">{formatRp(selectedInvoice.sisaHutang)}</div></div>
+                </div>
+
+                <form onSubmit={handleSimpanPayment} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-1"><label className="text-xs font-bold text-slate-400 uppercase">Tanggal Bayar</label><input type="date" required value={payDate} onChange={e=>setPayDate(e.target.value)} className="w-full p-3 rounded-lg border-none bg-white font-bold" /></div>
+                    <div className="space-y-1"><label className="text-xs font-bold text-slate-400 uppercase">Nominal Dibayar</label><input type="number" max={selectedInvoice.sisaHutang} min="1" required value={payAmount} onChange={e=>setPayAmount(e.target.value)} className="w-full p-3 rounded-lg border-none bg-white font-bold text-lg" placeholder="Rp" /></div>
+                    <div className="space-y-1"><label className="text-xs font-bold text-slate-400 uppercase">Metode Transfer</label><select value={payMethod} onChange={e=>setPayMethod(e.target.value)} className="w-full p-3 rounded-lg border-none bg-white font-bold"><option>Cash</option><option>Transfer</option></select></div>
+                    <div className="md:col-span-3 flex justify-end mt-4"><button type="submit" className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-8 py-3 rounded-xl shadow-lg transition">Simpan Pembayaran & Cetak Bukti</button></div>
+                </form>
+            </div>
+        )}
+
+        {/* TABEL PIUTANG PELANGGAN */}
+        <div className="bg-white rounded-xl border border-orange-200 shadow-sm overflow-hidden mt-6">
+            <div className="p-4 border-b bg-orange-50 flex justify-between items-center">
+                <h4 className="font-bold text-slate-800">Daftar Tagihan Piutang (Pelanggan)</h4>
+                <div className="flex bg-white rounded-lg border px-3 py-1.5 items-center gap-2 w-64"><Search size={14} className="text-slate-400"/><input type="text" placeholder="Cari pelanggan..." value={filterCustomer} onChange={e=>setFilterCustomer(e.target.value)} className="outline-none text-xs w-full"/></div>
+            </div>
+            <table className="w-full text-sm text-left">
+                <thead className="bg-white border-b text-[10px] text-slate-500 uppercase"><tr><th className="px-4 py-3">No. Invoice & Tgl</th><th className="px-4 py-3">Pelanggan</th><th className="px-4 py-3 text-right">Total Order</th><th className="px-4 py-3 text-right">Terbayar (DP+Cicil)</th><th className="px-4 py-3 text-right">Sisa Tagihan</th><th className="px-4 py-3 text-center">Tindakan</th></tr></thead>
+                <tbody className="divide-y divide-slate-100">
+                    {piutangFiltered.length === 0 ? <tr><td colSpan="6" className="text-center py-8 text-slate-400">Tidak ada piutang berjalan.</td></tr> : piutangFiltered.map(p => (
+                        <tr key={p.id} className="hover:bg-slate-50">
+                            <td className="px-4 py-3"><div className="font-mono text-[11px] font-bold text-slate-700">{p.id}</div><div className="text-[10px] text-slate-500">{formatDate(p.date)}</div></td>
+                            <td className="px-4 py-3 font-bold uppercase text-xs">{p.customer}</td>
+                            <td className="px-4 py-3 text-right text-slate-600">{formatRp(p.totalTagihan)}</td>
+                            <td className="px-4 py-3 text-right text-emerald-600 font-medium">{formatRp(p.totalDibayar + p.cicilanTerbayar)}</td>
+                            <td className="px-4 py-3 text-right font-black text-red-600 text-lg">{formatRp(p.sisaHutang)}</td>
+                            <td className="px-4 py-3 text-center"><button onClick={()=>handleOpenPayment(p, 'PiutangJual')} className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-4 py-2 rounded-lg font-bold text-[10px] shadow-sm transition">BAYAR</button></td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+
+        {/* TABEL HUTANG SUPPLIER (KHUSUS ADMIN) */}
+        {role === 'admin' && (
+        <div className="bg-white rounded-xl border border-red-200 shadow-sm overflow-hidden mt-6">
+            <div className="p-4 border-b bg-red-50"><h4 className="font-bold text-slate-800">Daftar Tagihan Hutang (Supplier Gudang)</h4></div>
+            <table className="w-full text-sm text-left">
+                <thead className="bg-white border-b text-[10px] text-slate-500 uppercase"><tr><th className="px-4 py-3">No. Invoice & Tgl</th><th className="px-4 py-3">Supplier</th><th className="px-4 py-3 text-right">Total Belanja</th><th className="px-4 py-3 text-right">Terbayar (DP+Cicil)</th><th className="px-4 py-3 text-right">Sisa Hutang</th><th className="px-4 py-3 text-center">Tindakan</th></tr></thead>
+                <tbody className="divide-y divide-slate-100">
+                    {dashboardData.hutangSupplier.length === 0 ? <tr><td colSpan="6" className="text-center py-8 text-slate-400">Tidak ada hutang berjalan.</td></tr> : dashboardData.hutangSupplier.map(p => (
+                        <tr key={p.id} className="hover:bg-slate-50">
+                            <td className="px-4 py-3"><div className="font-mono text-[11px] font-bold text-slate-700">{p.id}</div><div className="text-[10px] text-slate-500">{formatDate(p.date)}</div></td>
+                            <td className="px-4 py-3 font-bold uppercase text-xs">{p.supplier}</td>
+                            <td className="px-4 py-3 text-right text-slate-600">{formatRp(p.totalTagihan)}</td>
+                            <td className="px-4 py-3 text-right text-emerald-600 font-medium">{formatRp(p.totalDibayar + p.cicilanTerbayar)}</td>
+                            <td className="px-4 py-3 text-right font-black text-red-600 text-lg">{formatRp(p.sisaHutang)}</td>
+                            <td className="px-4 py-3 text-center"><button onClick={()=>handleOpenPayment(p, 'HutangBeli')} className="bg-blue-100 text-blue-700 hover:bg-blue-200 px-4 py-2 rounded-lg font-bold text-[10px] shadow-sm transition">BAYAR</button></td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+        )}
     </div>
   );
 }
