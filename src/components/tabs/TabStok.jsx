@@ -37,11 +37,11 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
   const formatAyam = (kg) => `${kg} Kg (${(kg / KG_PER_KANTONG).toFixed(1).replace('.0', '')} Kantong)`;
   const formatDimsum = (pcs) => `${pcs} Pcs (${(pcs / PCS_PER_MIKA).toFixed(1).replace('.0', '')} Mika)`;
 
-  // GABUNGAN DROPDOWN: Default System + Riwayat Unik Database
+  // GABUNGAN DROPDOWN: Default System + Riwayat Unik Database (Membaca data lama BAHAN_LAIN juga)
   const DEFAULT_BAHAN = ['BUMBU', 'DAUN BAWANG', 'GULA', 'MINYAK WIJEN', 'MIKA', 'PLASTIK', 'SAUS', 'TEPUNG', 'AYAM (TAMBAHAN)'];
   const listBahanUnik = [...new Set([
       ...DEFAULT_BAHAN, 
-      ...(stokData||[]).filter(s => s.type === 'BAHAN_BAKU').map(s => String(s.itemName).toUpperCase())
+      ...(stokData||[]).filter(s => String(s.type).includes('BAHAN')).map(s => String(s.itemName).toUpperCase())
   ])].sort();
 
   // ==========================================
@@ -50,7 +50,8 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
   const dash = useMemo(() => {
       const myBranch = role === 'admin' ? 'PUSAT' : 'PEMALANG';
 
-      const bahanLog = (stokData || []).filter(s => s.type === 'BAHAN_BAKU' && s.branch === myBranch);
+      // 1. GUDANG BAHAN BAKU (MASUK & KELUAR) - Sinkron membaca BAHAN_BAKU & BAHAN_LAIN
+      const bahanLog = (stokData || []).filter(s => String(s.type).includes('BAHAN') && s.branch === myBranch);
       const mutasiAyamDariPusat = (stokData || []).filter(s => s.type === 'MUTASI_AYAM_PEMALANG').reduce((sum, s) => sum + Number(s.qty), 0);
       const beliAyamPusat = role === 'admin' ? (purchases || []).filter(p => p.itemName.toUpperCase().includes('AYAM')).reduce((sum, p) => sum + Number(p.qty), 0) : 0;
 
@@ -120,15 +121,15 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
       setQtyMutasi('');
   };
 
-  // HANDLER EDIT ANTI-CRASH
+  // HANDLER EDIT ANTI-CRASH (Bisa baca data lama maupun baru)
   const handleEdit = (g) => {
       if (!g) return;
       setIsEdit(true); 
       setEditId(g.id);
       
-      const safeType = g.type || '';
-      const safeAction = g.action || 'MASUK';
-      const safeNotes = g.notes || '';
+      const safeType = String(g.type || g.items?.[0]?.type || '');
+      const safeAction = String(g.action || g.items?.[0]?.action || 'MASUK');
+      const safeNotes = String(g.notes || g.items?.[0]?.notes || '');
 
       if (safeType.includes('PRODUKSI')) {
           setAdukan(g.adukanQty || ''); 
@@ -136,27 +137,27 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
           const wMatch = safeNotes.match(/Shift (Pagi|Siang|Sore\/Malam)/);
           if(wMatch) setWaktuProd(wMatch[1]); else setWaktuProd('Pagi');
           
-          const bahanTambahan = g.items.filter(i => i.type === 'BAHAN_BAKU').map(i => ({ 
+          const bahanTambahan = (g.items || []).filter(i => String(i.type).includes('BAHAN')).map(i => ({ 
               itemName: i.itemName || '', qty: i.qty || '', satuan: i.satuan || 'PACK' 
           }));
           setBahanProdCart(bahanTambahan.length > 0 ? bahanTambahan : []);
           
           setShowFormProd(true); setShowFormBahan(false); setShowFormMutasi(false);
-      } else if (safeType === 'BAHAN_BAKU') {
+      } else if (safeType.includes('BAHAN')) { // Deteksi BAHAN_BAKU maupun BAHAN_LAIN
           setTipeBahan(safeAction); 
           setNotesBahan(safeNotes);
-          const cartItems = g.items.map(i => ({ 
+          const cartItems = (g.items || []).map(i => ({ 
               itemName: i.itemName || '', qty: i.qty || '', satuan: i.satuan || 'PACK' 
           }));
           setBahanCart(cartItems.length > 0 ? cartItems : [{ itemName: '', qty: '', satuan: 'PACK' }]);
           
           setShowFormBahan(true); setShowFormProd(false); setShowFormMutasi(false);
       } else if (safeType.includes('MUTASI')) {
-          setQtyMutasi(g.items[0]?.qty || '');
+          setQtyMutasi(g.items?.[0]?.qty || '');
           setShowFormMutasi(true); setShowFormBahan(false); setShowFormProd(false);
       }
       
-      // Memberi jeda sepersekian detik agar form muncul dulu, baru scroll ke atas
+      // Auto Scroll Ke Atas Agar Form Terlihat
       setTimeout(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); }, 100);
   };
 
@@ -187,7 +188,6 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
       e.preventDefault();
       if(Number(adukan) <= 0) return;
       
-      // Jika Mode Edit, kita anggap stok ayam dikembalikan dulu, jadi bebas limit blocker (Bypass)
       const butuhAyam = Number(adukan) * MASTER_AYAM_KG;
       if(!isEdit && butuhAyam > dash.sisaAyamGudang) { 
           alert(`GAGAL: Stok Ayam di Gudang tidak mencukupi!\nKebutuhan: ${butuhAyam} Kg\nSisa: ${dash.sisaAyamGudang} Kg`); return; 
@@ -230,7 +230,7 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
 
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
-      {/* Suggestion untuk form Input Gudang (tetap datalist) */}
+      {/* Suggestion untuk form Input Gudang */}
       <datalist id="bahan-list">{listBahanUnik.map(b => <option key={b} value={b} />)}</datalist>
 
       {/* SECTION 1: MONITORING OPERASIONAL (DASHBOARD REALTIME) */}
@@ -274,7 +274,7 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
           {role === 'admin' && <button onClick={() => { closeAllForms(); setShowFormMutasi(true); }} className="bg-orange-600 hover:bg-orange-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 shadow"><Truck size={16}/> Kirim Ayam (Ke Pemalang)</button>}
       </div>
 
-      {/* FORM: GUDANG BAHAN BAKU MULTIPLE ITEMS (TETAP PAKAI INPUT BEBAS / DATALIST) */}
+      {/* FORM: GUDANG BAHAN BAKU MULTIPLE ITEMS */}
       {showFormBahan && (
           <form onSubmit={handleSimpanBahan} className="bg-slate-100 p-6 rounded-xl border shadow-sm border-slate-300">
               <div className="flex justify-between items-center border-b border-slate-300 pb-3 mb-4"><h3 className="font-bold text-slate-800 flex items-center gap-2"><ArrowDownCircle size={18}/> Form {isEdit?'Edit ':''}Gudang Bahan Baku</h3><button type="button" onClick={closeAllForms} className="hover:text-red-500"><X size={18}/></button></div>
@@ -288,7 +288,7 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
                       {bahanCart.map((item, index) => (
                           <div key={index} className="flex gap-2 items-center relative pr-8">
                               <div className="w-5/12"><input type="text" list="bahan-list" required placeholder="Nama Bahan (Cth: AYAM)" value={item.itemName} onChange={e=>updateBahanCart(index, 'itemName', e.target.value)} className="w-full p-2 border rounded text-xs uppercase font-bold" /></div>
-                              <div className="w-3/12"><input type="number" min="1" required placeholder="Qty" value={item.qty} onChange={e=>updateBahanCart(index, 'qty', e.target.value)} className="w-full p-2 border rounded text-xs font-bold text-center" /></div>
+                              <div className="w-3/12"><input type="number" min="0.1" step="0.1" required placeholder="Qty" value={item.qty} onChange={e=>updateBahanCart(index, 'qty', e.target.value)} className="w-full p-2 border rounded text-xs font-bold text-center" /></div>
                               <div className="w-4/12"><input type="text" required placeholder="Satuan" value={item.satuan} onChange={e=>updateBahanCart(index, 'satuan', e.target.value)} className="w-full p-2 border rounded text-xs uppercase" /></div>
                               {bahanCart.length > 1 && <button type="button" onClick={()=>removeBahanRow(index)} className="absolute right-1 top-2.5 text-red-400 hover:text-red-600"><Trash2 size={16}/></button>}
                           </div>
@@ -299,7 +299,7 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
           </form>
       )}
 
-      {/* FORM: PRODUKSI & PEMAKAIAN BAHAN (MENGGUNAKAN DROPDOWN KHUSUS) */}
+      {/* FORM: PRODUKSI & PEMAKAIAN BAHAN (DROPDOWN KHUSUS) */}
       {showFormProd && (
           <form onSubmit={handleSimpanProduksi} className="bg-blue-50 p-6 rounded-xl border shadow-sm border-blue-200">
               <div className="flex justify-between items-center border-b border-blue-200 pb-3 mb-4"><h3 className="font-bold text-blue-900 flex items-center gap-2"><Factory size={18}/> Form {isEdit?'Edit ':''}Eksekusi Produksi & Pemakaian Bahan</h3><button type="button" onClick={closeAllForms} className="text-blue-500 hover:text-red-500"><X size={18}/></button></div>
@@ -320,7 +320,7 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
                   <div className="flex justify-between items-center mb-3">
                       <div>
                           <h4 className="font-bold text-sm text-blue-800">Bahan Baku Produksi (Otomatis Keluar Gudang)</h4>
-                          <p className="text-[10px] text-slate-500">Catatan: Ayam utama (-30Kg/Adukan) sudah otomatis terpotong. Gunakan tabel di bawah ini khusus untuk Bumbu, Plastik, Saus, dll.</p>
+                          <p className="text-[10px] text-slate-500">Ayam utama otomatis terpotong. Gunakan tabel di bawah ini khusus untuk Bumbu, Plastik, Saus, dll.</p>
                       </div>
                       <button type="button" onClick={addProdRow} className="bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700 border border-blue-200 rounded">+ Tambah Bahan</button>
                   </div>
@@ -336,13 +336,11 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
                                         onChange={e => {
                                             const val = e.target.value;
                                             updateProdCart(index, 'itemName', val);
-                                            // SMART DEFAULT SATUAN
                                             let defaultSat = item.satuan || 'PACK';
                                             if (val === 'DAUN BAWANG') defaultSat = 'IKAT';
                                             else if (val === 'MINYAK WIJEN' || val === 'SAUS') defaultSat = 'BOTOL';
                                             else if (val === 'GULA' || val.includes('AYAM') || val === 'TEPUNG') defaultSat = 'KG';
                                             else if (val === 'BUMBU' || val === 'PLASTIK' || val === 'MIKA') defaultSat = 'PACK';
-                                            
                                             updateProdCart(index, 'satuan', defaultSat);
                                         }} 
                                         className="w-full p-2 border border-blue-200 rounded text-xs uppercase font-bold bg-white"
@@ -458,7 +456,7 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
                 <td className="px-4 py-3 text-xs">
                     <ul className="list-disc pl-3 mb-1 text-slate-700 font-bold">
                         {g.type.includes('PRODUKSI') && <li>{g.adukanQty} ADUKAN DIMSUM <span className="text-orange-500 font-medium">(Mmtg {g.adukanQty * MASTER_AYAM_KG} Kg Ayam)</span></li>}
-                        {g.items.filter(i => i.type === 'BAHAN_BAKU' || i.type.includes('MUTASI')).map((item, idx) => (
+                        {g.items.filter(i => String(i.type).includes('BAHAN') || i.type.includes('MUTASI')).map((item, idx) => (
                             <li key={idx}>{item.itemName} <span className="font-normal text-slate-500">- {item.qty} {item.satuan}</span></li>
                         ))}
                     </ul>
