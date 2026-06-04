@@ -37,8 +37,12 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
   const formatAyam = (kg) => `${kg} Kg (${(kg / KG_PER_KANTONG).toFixed(1).replace('.0', '')} Kantong)`;
   const formatDimsum = (pcs) => `${pcs} Pcs (${(pcs / PCS_PER_MIKA).toFixed(1).replace('.0', '')} Mika)`;
 
-  // Suggestion Datalist Bahan Unik
-  const listBahanUnik = [...new Set((stokData||[]).filter(s => s.type === 'BAHAN_BAKU').map(s => String(s.itemName).toUpperCase()))];
+  // GABUNGAN DROPDOWN: Default System + Riwayat Unik Database
+  const DEFAULT_BAHAN = ['BUMBU', 'DAUN BAWANG', 'GULA', 'MINYAK WIJEN', 'MIKA', 'PLASTIK', 'SAUS', 'TEPUNG', 'AYAM (TAMBAHAN)'];
+  const listBahanUnik = [...new Set([
+      ...DEFAULT_BAHAN, 
+      ...(stokData||[]).filter(s => s.type === 'BAHAN_BAKU').map(s => String(s.itemName).toUpperCase())
+  ])].sort();
 
   // ==========================================
   // ERP LOGIC: GUDANG -> PRODUKSI -> FREEZER
@@ -70,12 +74,10 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
       const myProdType = role === 'admin' ? 'PRODUKSI_PUSAT' : 'PRODUKSI_PEMALANG';
       const myProdLog = (stokData || []).filter(s => s.type === myProdType);
       
-      // SINKRONISASI 1: Adukan Otomatis Mengurangi Ayam
       const totalAdukanAll = myProdLog.reduce((sum, s) => sum + Number(s.qty), 0);
       const totalAyamTerpakai = totalAdukanAll * MASTER_AYAM_KG;
       const sisaAyamGudang = stokAyamAwal - totalAyamTerpakai; 
 
-      // SINKRONISASI 2: Adukan Otomatis Menambah Freezer, Order Mengurangi Freezer
       const totalDimsumJadi = totalAdukanAll * MASTER_PCS;
       const myOrders = (orders || []).filter(o => role === 'admin' ? o.category !== 'Pemalang' : o.category === 'Pemalang');
       const terjualTotalPcs = myOrders.reduce((sum, o) => sum + Number(o.qty), 0);
@@ -87,7 +89,6 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
       const myLog = [...bahanLog, ...myProdLog].sort((a,b) => new Date(b.date) - new Date(a.date));
       if (role === 'admin') myLog.push(...(stokData || []).filter(s => s.type === 'MUTASI_AYAM_PEMALANG'));
 
-      // Grouping untuk Riwayat dan Cetak
       const groupedLogMap = {};
       myLog.forEach(s => {
           if (!groupedLogMap[s.id]) {
@@ -119,7 +120,6 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
       setQtyMutasi('');
   };
 
-  // EDIT HANDLER
   const handleEdit = (g) => {
       setIsEdit(true); setEditId(g.id);
       if (g.type.includes('PRODUKSI')) {
@@ -139,7 +139,6 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
       window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // CART HANDLERS
   const updateBahanCart = (index, field, value) => { const newCart = [...bahanCart]; newCart[index][field] = value; setBahanCart(newCart); };
   const addBahanRow = () => setBahanCart([...bahanCart, { itemName: '', qty: '', satuan: 'PACK' }]);
   const removeBahanRow = (index) => setBahanCart(bahanCart.filter((_, i) => i !== index));
@@ -148,7 +147,6 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
   const addProdRow = () => setBahanProdCart([...bahanProdCart, { itemName: '', qty: '', satuan: 'PACK' }]);
   const removeProdRow = (index) => setBahanProdCart(bahanProdCart.filter((_, i) => i !== index));
 
-  // SUBMIT HANDLERS
   const handleSimpanBahan = (e) => {
       e.preventDefault();
       if(isEdit) sendToSheet('delete', { id: editId }, 'stok');
@@ -168,7 +166,6 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
       e.preventDefault();
       if(Number(adukan) <= 0) return;
       
-      // Jika edit, jangan block stok (karena stok ayam sebelumnya akan dikembalikan dulu)
       const butuhAyam = Number(adukan) * MASTER_AYAM_KG;
       if(!isEdit && butuhAyam > dash.sisaAyamGudang) { 
           alert(`GAGAL: Stok Ayam di Gudang tidak mencukupi!\nKebutuhan: ${butuhAyam} Kg\nSisa: ${dash.sisaAyamGudang} Kg`); return; 
@@ -189,7 +186,7 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
           dataToInsert.push({
               id: transId, date: todayStr, type: 'BAHAN_BAKU', branch: myBranch, action: 'KELUAR',
               itemName: c.itemName.toUpperCase(), qty: Number(c.qty), satuan: c.satuan.toUpperCase(),
-              notes: `Bahan terpakai untuk Produksi.`, editCount: 0
+              notes: `Bahan terpakai untuk Produksi ID: ${transId}`, editCount: 0
           });
       });
 
@@ -211,6 +208,7 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
 
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
+      {/* Suggestion untuk form Input Gudang (tetap datalist) */}
       <datalist id="bahan-list">{listBahanUnik.map(b => <option key={b} value={b} />)}</datalist>
 
       {/* SECTION 1: MONITORING OPERASIONAL (DASHBOARD REALTIME) */}
@@ -254,7 +252,7 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
           {role === 'admin' && <button onClick={() => { closeAllForms(); setShowFormMutasi(true); }} className="bg-orange-600 hover:bg-orange-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 shadow"><Truck size={16}/> Kirim Ayam (Ke Pemalang)</button>}
       </div>
 
-      {/* FORM: GUDANG BAHAN BAKU MULTIPLE ITEMS */}
+      {/* FORM: GUDANG BAHAN BAKU MULTIPLE ITEMS (TETAP PAKAI INPUT BEBAS / DATALIST) */}
       {showFormBahan && (
           <form onSubmit={handleSimpanBahan} className="bg-slate-100 p-6 rounded-xl border shadow-sm border-slate-300">
               <div className="flex justify-between items-center border-b border-slate-300 pb-3 mb-4"><h3 className="font-bold text-slate-800 flex items-center gap-2"><ArrowDownCircle size={18}/> Form {isEdit?'Edit ':''}Gudang Bahan Baku</h3><button type="button" onClick={closeAllForms} className="hover:text-red-500"><X size={18}/></button></div>
@@ -279,7 +277,7 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
           </form>
       )}
 
-      {/* FORM: PRODUKSI & PEMAKAIAN BAHAN */}
+      {/* FORM: PRODUKSI & PEMAKAIAN BAHAN (MENGGUNAKAN DROPDOWN KHUSUS) */}
       {showFormProd && (
           <form onSubmit={handleSimpanProduksi} className="bg-blue-50 p-6 rounded-xl border shadow-sm border-blue-200">
               <div className="flex justify-between items-center border-b border-blue-200 pb-3 mb-4"><h3 className="font-bold text-blue-900 flex items-center gap-2"><Factory size={18}/> Form {isEdit?'Edit ':''}Eksekusi Produksi & Pemakaian Bahan</h3><button type="button" onClick={closeAllForms} className="text-blue-500 hover:text-red-500"><X size={18}/></button></div>
@@ -295,14 +293,44 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
                   <div className="space-y-1"><label className="text-xs font-bold text-blue-800 uppercase">Shift / Waktu</label><select value={waktuProd} onChange={e=>setWaktuProd(e.target.value)} className="w-full p-3 border border-blue-300 rounded-lg font-bold bg-white"><option>Pagi</option><option>Siang</option><option>Sore/Malam</option></select></div>
                   <div className="space-y-1"><label className="text-xs font-bold text-blue-800 uppercase">Keterangan Produksi</label><input type="text" value={notesProd} onChange={e=>setNotesProd(e.target.value)} className="w-full p-3 border border-blue-300 rounded-lg bg-white" placeholder="Cth: Produksi Budi" /></div>
               </div>
+
               <div className="bg-white p-4 rounded-lg border border-blue-200">
-                  <div className="flex justify-between items-center mb-3"><h4 className="font-bold text-sm text-blue-800">Bahan Tambahan Terpakai (Otomatis Keluar Gudang)</h4><button type="button" onClick={addProdRow} className="bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700 border border-blue-200 rounded">+ Tambah Bahan</button></div>
-                  {bahanProdCart.length === 0 ? <div className="text-xs text-slate-400 italic text-center py-2">Klik "Tambah Bahan" jika menggunakan Mika, Plastik, Saus, dll.</div> : (
+                  <div className="flex justify-between items-center mb-3">
+                      <div>
+                          <h4 className="font-bold text-sm text-blue-800">Bahan Baku Produksi (Otomatis Keluar Gudang)</h4>
+                          <p className="text-[10px] text-slate-500">Catatan: Ayam utama (-30Kg/Adukan) sudah otomatis terpotong. Gunakan tabel di bawah ini khusus untuk Bumbu, Plastik, Saus, atau Ayam Tambahan.</p>
+                      </div>
+                      <button type="button" onClick={addProdRow} className="bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700 border border-blue-200 rounded">+ Tambah Bahan</button>
+                  </div>
+                  
+                  {bahanProdCart.length === 0 ? <div className="text-xs text-slate-400 italic text-center py-4 bg-slate-50 rounded border border-dashed">Klik "+ Tambah Bahan" untuk mencatat pemakaian Daun Bawang, Gula, Bumbu, dll.</div> : (
                       <div className="space-y-2">
                           {bahanProdCart.map((item, index) => (
                               <div key={index} className="flex gap-2 items-center relative pr-8">
-                                  <div className="w-5/12"><input type="text" list="bahan-list" required placeholder="Nama Bahan" value={item.itemName} onChange={e=>updateProdCart(index, 'itemName', e.target.value)} className="w-full p-2 border border-blue-200 rounded text-xs uppercase font-bold" /></div>
-                                  <div className="w-3/12"><input type="number" min="1" required placeholder="Qty" value={item.qty} onChange={e=>updateProdCart(index, 'qty', e.target.value)} className="w-full p-2 border border-blue-200 rounded text-xs font-bold text-center" /></div>
+                                  <div className="w-5/12">
+                                      {/* MENGGUNAKAN DROPDOWN KHUSUS */}
+                                      <select 
+                                        required 
+                                        value={item.itemName} 
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            updateProdCart(index, 'itemName', val);
+                                            // SMART DEFAULT SATUAN
+                                            let defaultSat = item.satuan || 'PACK';
+                                            if (val === 'DAUN BAWANG') defaultSat = 'IKAT';
+                                            else if (val === 'MINYAK WIJEN' || val === 'SAUS') defaultSat = 'BOTOL';
+                                            else if (val === 'GULA' || val.includes('AYAM') || val === 'TEPUNG') defaultSat = 'KG';
+                                            else if (val === 'BUMBU' || val === 'PLASTIK' || val === 'MIKA') defaultSat = 'PACK';
+                                            
+                                            updateProdCart(index, 'satuan', defaultSat);
+                                        }} 
+                                        className="w-full p-2 border border-blue-200 rounded text-xs uppercase font-bold bg-white"
+                                      >
+                                          <option value="" disabled>- PILIH BAHAN -</option>
+                                          {listBahanUnik.map(b => <option key={b} value={b}>{b}</option>)}
+                                      </select>
+                                  </div>
+                                  <div className="w-3/12"><input type="number" min="0.1" step="0.1" required placeholder="Qty" value={item.qty} onChange={e=>updateProdCart(index, 'qty', e.target.value)} className="w-full p-2 border border-blue-200 rounded text-xs font-bold text-center" /></div>
                                   <div className="w-4/12"><input type="text" required placeholder="Satuan" value={item.satuan} onChange={e=>updateProdCart(index, 'satuan', e.target.value)} className="w-full p-2 border border-blue-200 rounded text-xs uppercase" /></div>
                                   <button type="button" onClick={()=>removeProdRow(index)} className="absolute right-1 top-2.5 text-red-400 hover:text-red-600"><Trash2 size={16}/></button>
                               </div>
