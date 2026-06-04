@@ -42,8 +42,12 @@ export default function TabDashboardBranch({ orders, pemalangReports, piutangPay
     const customerMap = {};
     let totalTerbayarPeriode = 0;
     
+    // Grup Order untuk Laporan Print
+    const groupedOrders = {};
+    
     const listOrders = branchOrdersPeriod.map(o => {
-        const cicilan = (piutangPayments || []).filter(p => p.orderId === o.id).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+        const cicilanData = (piutangPayments || []).filter(p => p.orderId === o.id);
+        const cicilan = cicilanData.reduce((s, p) => s + (Number(p.amount) || 0), 0);
         const terbayar = (Number(o.paidAmount) || 0) + cicilan;
         const sisa = (Number(o.total) || 0) - terbayar;
         
@@ -60,6 +64,14 @@ export default function TabDashboardBranch({ orders, pemalangReports, piutangPay
         if (sisa <= 0) status = 'LUNAS';
         else if (o.statusProduksi === 'Sudah Diambil') status = 'PIUTANG';
         else if (terbayar > 0) status = 'DP';
+
+        // Extract detailed payment history for print
+        let allPayments = [];
+        try { allPayments = JSON.parse(o.paymentMethod); } catch(e) { if(Number(o.paidAmount) > 0) allPayments = [{ method: o.paymentMethod, amount: Number(o.paidAmount) }]; }
+        allPayments.push(...cicilanData.map(c => ({ method: c.paymentMethod, amount: c.amount })));
+
+        if(!groupedOrders[o.id]) groupedOrders[o.id] = { ...o, items: [`${o.qty} Pcs`], totalTagihan: o.total, totalTerbayar: terbayar, sisaTagihan: sisa, status, allPayments };
+        else { groupedOrders[o.id].items.push(`${o.qty} Pcs`); groupedOrders[o.id].totalTagihan += o.total; }
 
         return { ...o, items: [`${o.qty} Pcs`], totalTagihan: o.total, totalTerbayar: terbayar, sisaTagihan: sisa, status };
     });
@@ -86,7 +98,7 @@ export default function TabDashboardBranch({ orders, pemalangReports, piutangPay
 
     return {
         totalPenjualanKotor, totalPcs, setoranKePusat, totalPiutangBaru, totalTerbayarPeriode,
-        listOrders,
+        listOrders: Object.values(groupedOrders),
         listPiutangBerjalan: piutangBerjalan,
         listReports: branchReportsPeriod,
         topCustomersList,
@@ -194,7 +206,7 @@ export default function TabDashboardBranch({ orders, pemalangReports, piutangPay
           <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
                   <thead className="bg-slate-50 border-b border-slate-100">
-                      <tr><th className="px-3 py-2 text-slate-800">Tgl & Ref</th><th className="px-3 py-2 text-slate-800">Pelanggan</th><th className="px-3 py-2 text-center text-slate-800">Qty</th><th className="px-3 py-2 text-center text-slate-800">Via</th><th className="px-3 py-2 text-right text-slate-800">Tagihan</th><th className="px-3 py-2 text-right text-slate-800">Sisa</th><th className="px-3 py-2 text-center text-slate-800">Status Bayar</th></tr>
+                      <tr><th className="px-3 py-2 text-slate-800">Tgl & Ref</th><th className="px-3 py-2 text-slate-800">Pelanggan</th><th className="px-3 py-2 text-center text-slate-800">Qty</th><th className="px-3 py-2 text-center text-slate-800">Pembayaran (Via)</th><th className="px-3 py-2 text-right text-slate-800">Tagihan</th><th className="px-3 py-2 text-right text-slate-800">Sisa</th><th className="px-3 py-2 text-center text-slate-800">Status Bayar</th></tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                       {(!rekap.listOrders || rekap.listOrders.length === 0) ? (
@@ -206,7 +218,12 @@ export default function TabDashboardBranch({ orders, pemalangReports, piutangPay
                                   <td className="px-3 py-2"><div className="font-bold text-slate-700">{formatDate(o?.date)}</div><div className="text-[10px] text-slate-400 font-mono">{o?.id || '-'}</div></td>
                                   <td className="px-3 py-2 font-bold uppercase text-xs">{o?.customer || '-'}</td>
                                   <td className="px-3 py-2 text-center text-xs font-bold text-slate-600">{o?.qty} Pcs</td>
-                                  <td className="px-3 py-2 text-center text-[10px] font-medium text-slate-600">{o?.paymentMethod || '-'}</td>
+                                  <td className="px-3 py-2 text-center text-[9px] font-medium text-slate-600">
+                                      {(o.allPayments || []).map((p, idx) => (
+                                          <div key={idx}>{p.method}: {formatRp(p.amount)}</div>
+                                      ))}
+                                      {o.allPayments.length === 0 && '-'}
+                                  </td>
                                   <td className="px-3 py-2 text-right font-bold text-slate-700">{formatRp(o?.totalTagihan)}</td>
                                   <td className="px-3 py-2 text-right font-black text-red-600">{formatRp(o?.sisaTagihan)}</td>
                                   <td className="px-3 py-2 text-center"><span className={`px-2 py-1 rounded text-[10px] font-bold ${o?.status === 'LUNAS' ? 'bg-emerald-100 text-emerald-700' : o?.status === 'PIUTANG' ? 'bg-red-100 text-red-700' : o?.status === 'DP' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600 border'}`}>{o?.status}</span></td>
