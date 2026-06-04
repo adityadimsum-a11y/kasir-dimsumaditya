@@ -55,10 +55,11 @@ export default function useDashboardPusat({
     const finalChartData = Object.keys(chartDataMap).map(k => ({ label: k, value: chartDataMap[k] }));
     const topCustomersList = Object.values(customerMap).sort((a,b) => b.total - a.total);
 
-    const groupOrdersAll = {}; (orders || []).filter(o => o?.category !== 'Pemalang').forEach(o => { if(!o?.id) return; if(!groupOrdersAll[o.id]) groupOrdersAll[o.id] = { ...o, items: [], totalTagihan: 0, totalDibayar: Number(o.paidAmount)||0 }; groupOrdersAll[o.id].items.push(`${o.qty} Pcs`); groupOrdersAll[o.id].totalTagihan += Number(o.total)||0; });
+    const groupOrdersAll = {}; (orders || []).filter(o => o?.category !== 'Pemalang').forEach(o => { if(!o?.id) return; if(!groupOrdersAll[o.id]) groupOrdersAll[o.id] = { ...o, items: [], totalTagihan: 0, totalDibayar: Number(o.paidAmount)||0, statusProduksi: o.statusProduksi || 'Menunggu Produksi' }; groupOrdersAll[o.id].items.push(`${o.qty} Pcs`); groupOrdersAll[o.id].totalTagihan += Number(o.total)||0; });
     const groupPurAll = {}; (purchases || []).forEach(p => { if(!p?.id) return; if(!groupPurAll[p.id]) groupPurAll[p.id] = { ...p, items: [], totalTagihan: 0, totalDibayar: Number(p.paidAmount)||0 }; groupPurAll[p.id].items.push(`${p.itemName} (${p.qty} ${p.satuan})`); groupPurAll[p.id].totalTagihan += Number(p.total)||0; });
 
-    const listPiutangBerjalan = Object.values(groupOrdersAll).map(grp => { const cicilan = (piutangPayments || []).filter(p => p.orderId === grp.id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0); return { ...grp, cicilanTerbayar: cicilan, sisaHutang: grp.totalTagihan - grp.totalDibayar - cicilan }; }).filter(o => o.sisaHutang > 0);
+    // ATURAN BARU: HANYA YANG SUDAH DIAMBIL YANG MASUK DAFTAR PIUTANG
+    const listPiutangBerjalan = Object.values(groupOrdersAll).map(grp => { const cicilan = (piutangPayments || []).filter(p => p.orderId === grp.id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0); return { ...grp, cicilanTerbayar: cicilan, sisaHutang: grp.totalTagihan - grp.totalDibayar - cicilan }; }).filter(o => o.sisaHutang > 0 && o.statusProduksi === 'Sudah Diambil');
     const listHutangBerjalan = Object.values(groupPurAll).map(grp => { const cicilan = (piutangPayments || []).filter(p => p.orderId === grp.id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0); return { ...grp, cicilanTerbayar: cicilan, sisaHutang: grp.totalTagihan - grp.totalDibayar - cicilan }; }).filter(p => p.sisaHutang > 0);
 
     totalPiutangBaru = listPiutangBerjalan.reduce((sum, item) => sum + (item.sisaHutang || 0), 0);
@@ -123,25 +124,7 @@ export default function useDashboardPusat({
         return { ...grp, totalTerbayar: terbayar, sisaTagihan: sisa, status: sisa <= 0 ? 'LUNAS' : 'BELUM LUNAS' };
     });
 
-    // PERHITUNGAN OPERASIONAL & STOK UNTUK DASHBOARD/PRINT
-    const MASTER_AYAM_KG = 30; const MASTER_PCS = 1000; const KG_PER_KTG = 10;
-    const totalAyamBeli = (purchases||[]).filter(p => p.itemName.toUpperCase().includes('AYAM') && getLocalYMD(p.date) <= dateTo).reduce((s, p) => s + Number(p.qty), 0);
-    const ayamMutasi = (stokData||[]).filter(s => s.type === 'MUTASI_AYAM_PEMALANG' && getLocalYMD(s.date) <= dateTo).reduce((s, x) => s + Number(x.qty), 0);
-    const adukanAll = (stokData||[]).filter(s => s.type === 'PRODUKSI_PUSAT' && getLocalYMD(s.date) <= dateTo).reduce((s, x) => s + Number(x.qty), 0);
-    const sisaAyam = totalAyamBeli - ayamMutasi - (adukanAll * MASTER_AYAM_KG);
-
-    const terjualAll = (orders||[]).filter(o => o.category !== 'Pemalang' && getLocalYMD(o.date) <= dateTo).reduce((s, o) => s + Number(o.qty), 0);
-    const sisaFreezer = (adukanAll * MASTER_PCS) - terjualAll;
-
-    const adukanHariIni = (stokData||[]).filter(s => s.type === 'PRODUKSI_PUSAT' && isPeriod(s.date)).reduce((s, x) => s + Number(x.qty), 0);
-
-    const ops = {
-        sisaAyam, sisaAyamKtg: sisaAyam / KG_PER_KTG,
-        sisaFreezer,
-        adukanHariIni,
-        ayamTerpakaiHariIni: adukanHariIni * MASTER_AYAM_KG,
-        dimsumMasukHariIni: adukanHariIni * MASTER_PCS
-    };
+    const ops = {}; // Pass kosong karena kalkulasi dihandle langsung di komponen tab (per request ERP Gudang vs Produksi)
 
     return { saldoCash, saldoTF, saldoAkhir, inCashPeriode, inTfPeriode, outCashPeriode, outTfPeriode, setorPemalangPeriode, totalPenjualanKotor, totalPorsi, totalPcs, breakdownPorsi, totalPiutangBaru, totalHutangBaru, topCustomersList, finalChartData, listPiutangBerjalan, listHutangBerjalan, listTransaksiDetail: groupedTransaksiPusat, listPembelianDetail: periodPurchases, listExpenses: periodExpenses, listPemalang: cumPemalangReports.filter(p => isPeriod(p.date)), listPembayaranSemua, listRiwayatPiutang, listRiwayatHutang, ops };
   }, [orders, expenses, purchases, piutangPayments, pemalangReports, stokData, dateFrom, dateTo, chartView]);
