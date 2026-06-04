@@ -1,6 +1,5 @@
 import React, { useEffect } from 'react';
 import { formatRp, formatDate, terbilang } from '../../utils/helpers';
-import { getLocalYMD } from '../../utils/helpers';
 
 const dotMatrixStyle = `
   .print-wrapper { max-width: 9.5in; margin: 0 auto; padding: 20px; background: white; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: black; line-height: 1.4; }
@@ -327,11 +326,9 @@ export function PrintReport({ data, onBack }) {
   const sumTerbayar = (rekap?.listTransaksiDetail || []).reduce((s, c) => s + (Number(c?.totalTerbayar)||0), 0);
   const sumSisa = (rekap?.listTransaksiDetail || []).reduce((s, c) => s + (Number(c?.sisaTagihan)||0), 0);
 
-  // LOGIC LIVE OPERASIONAL PUSAT TANGERANG
-  const totalAdukanHarian = (rekap?.listExpenses || [])
-    .filter(e => e.category === 'Setoran Kas Harian / Closing') // trick fallback or dynamic pass
-    .length ? 0 : 0; // fallback safe
-    
+  // Ambil data Ops Realtime
+  const ops = rekap?.ops || {};
+
   return (
     <div className="bg-slate-100 min-h-screen p-4">
       <style dangerouslySetInnerHTML={{ __html: a4Style }} />
@@ -343,17 +340,45 @@ export function PrintReport({ data, onBack }) {
             <div className="text-right">
                 <h1 className="text-xl font-black uppercase mb-0.5">LAPORAN REKAPITULASI TRANSAKSI & OPERASIONAL</h1>
                 <h2 className="font-bold text-[11px] text-slate-700 mb-0.5">DIMSUM ADITYA TANGERANG</h2>
-                <p className="text-gray-600 font-medium text-[10px]">Periode: {formatDate(dateFrom)} s/d {formatDate(dateTo)}</p>
+                <p className="text-gray-600 font-medium text-[10px]">Periode Laporan: {formatDate(dateFrom)} s/d {formatDate(dateTo)}</p>
+            </div>
+        </div>
+
+        {/* SUMMARY OPERASIONAL STOK HARI INI */}
+        <div className="border-2 border-slate-800 p-3 mb-4 rounded bg-slate-50">
+            <h3 className="text-[10px] font-black uppercase text-slate-800 border-b border-slate-300 pb-1 mb-2">A. DASHBOARD PRODUKSI (PUSAT)</h3>
+            <div className="grid grid-cols-5 gap-2 text-center">
+                <div className="border-r border-slate-300">
+                    <div className="text-[9px] font-bold text-slate-500 uppercase">Adukan Hari Ini</div>
+                    <div className="text-sm font-black text-blue-700">{ops.adukanHariIni || 0} <span className="text-[10px]">Adk</span></div>
+                </div>
+                <div className="border-r border-slate-300">
+                    <div className="text-[9px] font-bold text-slate-500 uppercase">Ayam Terpakai</div>
+                    <div className="text-sm font-black text-orange-700">-{ops.ayamTerpakaiHariIni || 0} <span className="text-[10px]">Kg</span></div>
+                </div>
+                <div className="border-r border-slate-300">
+                    <div className="text-[9px] font-bold text-slate-500 uppercase">Sisa Ayam (Realtime)</div>
+                    <div className="text-sm font-black text-emerald-700">{ops.sisaAyam || 0} <span className="text-[10px]">Kg</span></div>
+                    <div className="text-[9px] text-slate-500">{(ops.sisaAyamKtg || 0).toFixed(1)} Kantong</div>
+                </div>
+                <div className="border-r border-slate-300">
+                    <div className="text-[9px] font-bold text-slate-500 uppercase">Dimsum Masuk Freezer</div>
+                    <div className="text-sm font-black text-blue-700">+{ops.dimsumMasukHariIni || 0} <span className="text-[10px]">Pcs</span></div>
+                </div>
+                <div>
+                    <div className="text-[9px] font-bold text-slate-500 uppercase">Sisa Freezer (Realtime)</div>
+                    <div className="text-sm font-black text-emerald-700">{ops.sisaFreezer || 0} <span className="text-[10px]">Pcs</span></div>
+                </div>
             </div>
         </div>
 
         {/* SUMMARY KEUANGAN */}
-        <h3 className="text-[10px] font-black uppercase text-slate-800 border-b border-slate-300 pb-1 mb-2">A. RINGKASAN FINANSIAL KAS</h3>
+        <h3 className="text-[10px] font-black uppercase text-slate-800 border-b border-slate-300 pb-1 mb-2">B. RINGKASAN FINANSIAL KAS</h3>
         <div className="grid grid-cols-4 gap-3 mb-5">
-            <div className="border border-slate-300 p-2 rounded bg-slate-50">
+            <div className="border border-slate-300 p-2 rounded bg-white">
                 <p className="text-[9px] font-bold text-slate-500 uppercase mb-0.5">Omset Penjualan</p>
                 <p className="text-sm font-black text-blue-700">{formatRp(rekap?.totalPenjualanKotor)}</p>
-                <p className="text-[9px] text-slate-600 mt-0.5">Terjual: <strong>{rekap?.totalPcs || 0} Pcs</strong></p>
+                <p className="text-[9px] text-slate-600 mt-0.5">Terjual Pusat: <strong>{rekap?.totalPcs || 0} Pcs</strong></p>
             </div>
             <div className="border border-emerald-200 p-2 rounded bg-emerald-50">
                 <p className="text-[9px] font-bold text-emerald-700 uppercase mb-0.5">Kas Masuk</p>
@@ -369,14 +394,14 @@ export function PrintReport({ data, onBack }) {
             </div>
         </div>
 
-        <h3 className="font-bold text-xs mb-1.5 text-slate-800">B. TRANSAKSI PENJUALAN DIMSUM</h3>
+        <h3 className="font-bold text-xs mb-1.5 text-slate-800">C. TRANSAKSI PENJUALAN DIMSUM</h3>
         <table className="table-print">
           <thead>
             <tr><th className="w-8">NO</th><th>TGL & INV</th><th>PELANGGAN</th><th className="text-center">QTY</th><th className="text-center">VIA</th><th className="text-right">TAGIHAN</th><th className="text-right">TERBAYAR</th><th className="text-right">SISA</th><th className="text-center">STATUS</th></tr>
           </thead>
           <tbody>
             {(!rekap?.listTransaksiDetail || rekap.listTransaksiDetail.length === 0) ? (
-                <tr><td colSpan="9" className="text-center py-4 italic text-slate-500">Tidak ada transaksi penjualan dimsum di periode ini.</td></tr>
+                <tr><td colSpan="9" className="text-center py-4 italic text-slate-500">Tidak ada transaksi penjualan dimsum.</td></tr>
             ) : (
                 rekap.listTransaksiDetail.map((c, i) => {
                     const itemPcs = (c?.items || []).reduce((sum, str) => sum + (parseInt(str) || 0), 0);
@@ -406,14 +431,14 @@ export function PrintReport({ data, onBack }) {
           </tbody>
         </table>
 
-        <h3 className="font-bold text-xs mb-1.5 mt-4 text-indigo-700">C. TRANSAKSI PEMBELIAN BAHAN BAKU</h3>
+        <h3 className="font-bold text-xs mb-1.5 mt-5 text-indigo-700">D. TRANSAKSI PEMBELIAN BAHAN BAKU</h3>
         <table className="table-print">
           <thead>
             <tr><th className="w-8">NO</th><th>TGL & INV</th><th>SUPPLIER</th><th className="text-center">BARANG & QTY</th><th className="text-center">VIA</th><th className="text-right">TOTAL</th><th className="text-right">TERBAYAR</th><th className="text-right">SISA</th><th className="text-center">STATUS</th></tr>
           </thead>
           <tbody>
               {(!rekap?.listPembelianDetail || rekap.listPembelianDetail.length === 0) ? (
-                  <tr><td colSpan="9" className="text-center py-4 italic text-slate-500">Tidak ada transaksi pembelian bahan.</td></tr>
+                  <tr><td colSpan="9" className="text-center py-4 italic text-slate-500">Tidak ada transaksi.</td></tr>
               ) : (
                   rekap.listPembelianDetail.map((c, i) => {
                       const sisa = Number(c?.total || 0) - Number(c?.paidAmount || 0);
@@ -452,6 +477,8 @@ export function PrintReportBranch({ data, onBack, user }) {
   const sumTerbayarBranch = (rekap?.listOrders || []).reduce((s, c) => s + (Number(c?.totalTerbayar)||0), 0);
   const sumSisaBranch = (rekap?.listOrders || []).reduce((s, c) => s + (Number(c?.sisaTagihan)||0), 0);
 
+  const ops = rekap?.ops || {};
+
   return (
     <div className="bg-slate-100 min-h-screen p-4">
       <style dangerouslySetInnerHTML={{ __html: a4Style }} />
@@ -463,16 +490,43 @@ export function PrintReportBranch({ data, onBack, user }) {
                 <img src="https://dimsumaditya.id/wp-content/uploads/2024/10/Dimsum-Aditya.png" alt="Logo" style={{ height: '60px', width: 'auto' }} />
             </div>
             <div className="text-right">
-                <h1 className="text-xl font-black uppercase mb-0.5">LAPORAN REKAPITULASI TRANSAKSI CABANG</h1>
+                <h1 className="text-xl font-black uppercase mb-0.5">LAPORAN REKAPITULASI TRANSAKSI & OPERASIONAL</h1>
                 <h2 className="font-bold text-[11px] text-slate-700 mb-0.5">DIMSUM ADITYA TERPADU</h2>
                 <p className="text-gray-600 font-medium text-[10px]">CABANG: {user?.name || '-'} | Periode: {formatDate(dateFrom)} s/d {formatDate(dateTo)}</p>
             </div>
         </div>
 
-        {/* SUMMARY KEUANGAN */}
-        <h3 className="text-[10px] font-black uppercase text-slate-800 border-b border-slate-300 pb-1 mb-2">A. RINGKASAN FINANSIAL KAS</h3>
+        {/* SUMMARY OPERASIONAL STOK CABANG */}
+        <div className="border-2 border-slate-800 p-3 mb-4 rounded bg-slate-50">
+            <h3 className="text-[10px] font-black uppercase text-slate-800 border-b border-slate-300 pb-1 mb-2">A. DASHBOARD PRODUKSI (CABANG PEMALANG)</h3>
+            <div className="grid grid-cols-5 gap-2 text-center">
+                <div className="border-r border-slate-300">
+                    <div className="text-[9px] font-bold text-slate-500 uppercase">Adukan Hari Ini</div>
+                    <div className="text-sm font-black text-blue-700">{ops.adukanHariIni || 0} <span className="text-[10px]">Adk</span></div>
+                </div>
+                <div className="border-r border-slate-300">
+                    <div className="text-[9px] font-bold text-slate-500 uppercase">Ayam Terpakai</div>
+                    <div className="text-sm font-black text-orange-700">-{ops.ayamTerpakaiHariIni || 0} <span className="text-[10px]">Kg</span></div>
+                </div>
+                <div className="border-r border-slate-300">
+                    <div className="text-[9px] font-bold text-slate-500 uppercase">Sisa Ayam (Realtime)</div>
+                    <div className="text-sm font-black text-emerald-700">{ops.sisaAyam || 0} <span className="text-[10px]">Kg</span></div>
+                    <div className="text-[9px] text-slate-500">{(ops.sisaAyamKtg || 0).toFixed(1)} Kantong</div>
+                </div>
+                <div className="border-r border-slate-300">
+                    <div className="text-[9px] font-bold text-slate-500 uppercase">Dimsum Masuk Freezer</div>
+                    <div className="text-sm font-black text-blue-700">+{ops.dimsumMasukHariIni || 0} <span className="text-[10px]">Pcs</span></div>
+                </div>
+                <div>
+                    <div className="text-[9px] font-bold text-slate-500 uppercase">Sisa Freezer (Realtime)</div>
+                    <div className="text-sm font-black text-emerald-700">{ops.sisaFreezer || 0} <span className="text-[10px]">Pcs</span></div>
+                </div>
+            </div>
+        </div>
+
+        <h3 className="text-[10px] font-black uppercase text-slate-800 border-b border-slate-300 pb-1 mb-2">B. RINGKASAN FINANSIAL KAS</h3>
         <div className="grid grid-cols-3 gap-3 mb-5">
-            <div className="border border-slate-300 p-2 rounded bg-slate-50">
+            <div className="border border-slate-300 p-2 rounded bg-white">
                 <p className="text-[9px] font-bold text-slate-500 uppercase mb-0.5">Total Omset Cabang</p>
                 <p className="text-sm font-black text-blue-700">{formatRp(rekap?.totalPenjualanKotor)}</p>
             </div>
@@ -486,12 +540,12 @@ export function PrintReportBranch({ data, onBack, user }) {
             </div>
         </div>
         
-        <h3 className="font-bold text-xs mb-1.5 text-slate-800">B. TRANSAKSI INVOICE CABANG</h3>
+        <h3 className="font-bold text-xs mb-1.5 text-slate-800">C. TRANSAKSI INVOICE CABANG</h3>
         <table className="table-print">
           <thead><tr><th className="w-8">NO</th><th>TGL & INV</th><th>PELANGGAN</th><th className="text-center">QTY</th><th className="text-center">VIA</th><th className="text-right">TAGIHAN</th><th className="text-right">TERBAYAR</th><th className="text-right">SISA</th><th className="text-center">STATUS</th></tr></thead>
           <tbody>
             {(!rekap?.listOrders || rekap.listOrders.length === 0) ? (
-                <tr><td colSpan="9" className="text-center py-4 italic text-slate-500">Tidak ada transaksi penjualan cabang.</td></tr>
+                <tr><td colSpan="9" className="text-center py-4 italic text-slate-500">Tidak ada transaksi penjualan.</td></tr>
             ) : (
                 rekap.listOrders.map((c, i) => {
                     const itemPcs = (c?.items || []).reduce((sum, str) => sum + (parseInt(str) || 0), 0);
