@@ -38,6 +38,10 @@ export function PrintInvoiceDotMatrix({ data, onBack }) {
   const items = data.items || [];
   const totalQtyNum = items.reduce((sum, str) => sum + (parseInt(str) || 0), 0) || Number(data.qty) || 0;
   const totalPorsi = totalQtyNum / 4;
+  
+  // Bersihkan [TAGS: ...] agar tidak tercetak aneh di Invoice Customer
+  let cleanNotes = data.notes || '';
+  cleanNotes = cleanNotes.replace(/\[TAGS:(.*?)\]/, '$1 - ').trim();
 
   return (
     <div className="bg-slate-100 min-h-screen p-4">
@@ -65,6 +69,7 @@ export function PrintInvoiceDotMatrix({ data, onBack }) {
           <div className="flex-1">
             <p className="text-[10px] font-bold uppercase mb-1 text-slate-500">Tagihan Kepada :</p>
             <p className="text-lg font-black uppercase">{data.customer || '-'}</p>
+            {cleanNotes && <p className="text-[10px] italic text-slate-600 mt-1">*Notes: {cleanNotes}</p>}
           </div>
           <div className="w-1/3 flex flex-col justify-center border-l-2 border-slate-200 pl-4">
             <div className="flex justify-between mb-1.5"><span className="text-[10px] font-bold uppercase text-slate-500">Tanggal</span> <span className="font-bold text-[10px]">{formatDate(data.date)}</span></div>
@@ -89,7 +94,7 @@ export function PrintInvoiceDotMatrix({ data, onBack }) {
             <div className="w-56">
                 <div className="flex justify-between mb-1.5 text-xs"><span className="font-bold uppercase text-slate-600">Subtotal</span><span className="font-black">{formatRp(data.totalAll || data.total)}</span></div>
                 <div className="flex justify-between mb-1.5 text-xs"><span className="font-bold uppercase text-slate-600">Telah Dibayar</span><span className="font-bold">{formatRp(data.paidAmount)}</span></div>
-                <div className="flex justify-between border-t-2 border-black pt-1.5 mt-1.5"><span className="font-black text-sm uppercase">SISA TAGIHAN</span><span className="font-black text-sm">{formatRp(Number(data.totalAll || data.total || 0) - Number(data.paidAmount || 0))}</span></div>
+                <div className="flex justify-between border-t-2 border-black pt-1.5 mt-1.5"><span className="font-black text-sm uppercase">SISA TAGIHAN</span><span className="font-black text-sm text-red-600">{formatRp(Number(data.totalAll || data.total || 0) - Number(data.paidAmount || 0))}</span></div>
             </div>
         </div>
         
@@ -317,9 +322,6 @@ export function PrintPurchase({ data, onBack }) {
   );
 }
 
-// ==========================================
-// TIKET / BUKTI STOK (PRODUKSI & GUDANG)
-// ==========================================
 export function PrintBuktiStok({ data, onBack }) {
   useEffect(() => { const timer = setTimeout(() => { window.print(); }, 500); return () => clearTimeout(timer); }, []);
   if (!data) return <div className="p-4 bg-white text-center font-bold">Data Bukti Stok Tidak Tersedia.</div>;
@@ -359,7 +361,6 @@ export function PrintBuktiStok({ data, onBack }) {
           </div>
         </div>
 
-        {/* JIKA PRODUKSI, TAMPILKAN HEADER ADUKAN */}
         {isProduksi && (
             <div className="mb-4 p-4 border-2 border-slate-800 bg-slate-50 text-center rounded">
                 <div className="text-xs font-bold text-slate-500 uppercase mb-1">TOTAL EKSEKUSI PRODUKSI</div>
@@ -385,7 +386,7 @@ export function PrintBuktiStok({ data, onBack }) {
                   <td className="text-center font-bold uppercase">KG</td>
                </tr>
             )}
-            {data.items.filter(i => i.type === 'BAHAN_BAKU' || i.type.includes('MUTASI')).map((item, idx) => (
+            {data.items.filter(i => String(i.type).includes('BAHAN') || i.type.includes('MUTASI')).map((item, idx) => (
               <tr key={idx}>
                 <td className="font-bold text-slate-600">{isProduksi ? idx + 2 : idx + 1}</td>
                 <td className="text-left font-bold uppercase">{item.itemName}</td>
@@ -675,6 +676,16 @@ export function PrintSPK({ data, onBack }) {
   const totalQtyNum = items.reduce((sum, str) => sum + (parseInt(str) || 0), 0) || Number(data.qty) || 0;
   const totalPorsi = totalQtyNum / 4;
 
+  let rawNotes = data.notes || '';
+  let tags = [];
+  if (rawNotes.includes('[TAGS:')) {
+      const tagPart = rawNotes.match(/\[TAGS:(.*?)\]/);
+      if (tagPart) {
+          tags = tagPart[1].split(', ');
+          rawNotes = rawNotes.replace(tagPart[0], '').trim();
+      }
+  }
+
   const spkStyle = `
     .print-wrapper { max-width: 9.5in; margin: 0 auto; padding: 20px; background: white; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: black; line-height: 1.4; }
     .table-pro { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
@@ -710,7 +721,20 @@ export function PrintSPK({ data, onBack }) {
            <p className="text-2xl font-black uppercase text-black">{data.customer || '-'}</p>
         </div>
 
-        <table className="table-pro mb-8">
+        {/* AREA REQUEST KHUSUS TIM PRODUKSI MATA KOKI */}
+        {(tags.length > 0 || rawNotes) && (
+          <div className="mb-6 p-4 border-4 border-black bg-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+             <p className="text-sm font-black uppercase mb-3 border-b-2 border-black pb-1">PERHATIAN! REQUEST KHUSUS CUSTOMER:</p>
+             {tags.length > 0 && (
+                 <ul className="list-disc pl-5 mb-2">
+                     {tags.map((t, i) => <li key={i} className="text-2xl font-black uppercase tracking-wide">{t}</li>)}
+                 </ul>
+             )}
+             {rawNotes && <p className="text-xl font-bold italic mt-2">"{rawNotes}"</p>}
+          </div>
+        )}
+
+        <table className="table-pro mb-8 mt-4">
           <thead>
             <tr>
               <th className="w-2/3">NAMA BARANG / ITEM</th>
@@ -727,13 +751,6 @@ export function PrintSPK({ data, onBack }) {
             </tr>
           </tbody>
         </table>
-
-        {data.notes && (
-          <div className="mb-8 p-3 border-2 border-black border-dashed">
-             <p className="text-xs font-bold uppercase mb-1">Catatan Khusus:</p>
-             <p className="text-lg font-bold">{data.notes}</p>
-          </div>
-        )}
 
         <div className="flex justify-between mt-10">
            <div className="text-left">
