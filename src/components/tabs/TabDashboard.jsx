@@ -1,32 +1,34 @@
 import React, { useState } from 'react';
-import { Calendar, Printer, Wallet, Coins, CreditCard, TrendingUp, ArrowRightLeft, Users, ShoppingCart, AlertCircle, Clock, Package, CheckCircle } from 'lucide-react';
+import { Calendar, Printer, Wallet, Coins, CreditCard, ArrowRightLeft, Users, ShoppingCart, AlertCircle, Clock, CheckCircle, Factory } from 'lucide-react';
 import { getTodayStr, getLocalYMD, formatRp, formatDate, generateId } from '../../utils/helpers';
-import SimpleSVGLineChart from '../ui/SimpleSVGLineChart';
 import useDashboardPusat from '../../hooks/useDashboardPusat';
 
 const StatCard = ({ title, amount, icon, color }) => (
   <div className={`p-5 rounded-xl border flex flex-col justify-between ${color}`}>
     <div className="flex justify-between items-start mb-4"><h3 className="font-medium text-sm opacity-90">{title}</h3><div className="p-2 bg-white/60 rounded-lg shadow-sm">{icon}</div></div>
-    <div className="text-2xl font-bold tracking-tight">{formatRp(amount)}</div>
+    <div className="text-2xl font-bold tracking-tight">{amount}</div>
   </div>
 );
 
-export default function TabDashboard({ orders, expenses, purchases, piutangPayments, pemalangReports, setPrintData, sendToSheet }) {
+export default function TabDashboard({ orders, expenses, purchases, piutangPayments, pemalangReports, stokData, setPrintData, sendToSheet }) {
   const todayStr = getTodayStr();
   const [dateFrom, setDateFrom] = useState(todayStr);
   const [dateTo, setDateTo] = useState(todayStr);
   const [chartView, setChartView] = useState('daily'); 
 
-  // LOGIC DIAMBIL DARI CUSTOM HOOK
+  // PANGGIL HOOK DASHBOARD PUSAT
   const rekap = useDashboardPusat({ 
-    orders, expenses, purchases, piutangPayments, pemalangReports, 
+    orders, expenses, purchases, piutangPayments, pemalangReports, stokData,
     dateFrom, dateTo, chartView 
   });
+
+  const ops = rekap.ops || {}; // Ambil data operasional
+  const PCS_PER_MIKA = 50;
 
   // LOGIC BUKA KAS (MODAL AWAL)
   const handleBukaKas = () => {
       const nominalStr = window.prompt("Masukkan nominal Uang Modal Kembalian (Cash) pagi ini:\nContoh: 500000");
-      if (!nominalStr) return; // Batal
+      if (!nominalStr) return; 
       
       const nominal = parseInt(nominalStr.replace(/[^0-9]/g, ''), 10);
       if (isNaN(nominal) || nominal <= 0) {
@@ -36,24 +38,16 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
 
       const today = getTodayStr();
       const newIncome = {
-          id: generateId('IN', today), 
-          date: today,
-          recipient: 'Admin Kasir',
-          category: 'Modal Awal / Tambahan Saldo',
-          description: `Modal awal kembalian buka toko.`,
-          qty: 1,
-          price: nominal,
-          total: nominal,
-          type: 'IN',
-          paymentMethod: 'Cash',
-          editCount: 0
+          id: generateId('IN', today), date: today, recipient: 'Admin Kasir',
+          category: 'Modal Awal / Tambahan Saldo', description: `Modal awal kembalian buka toko.`,
+          qty: 1, price: nominal, total: nominal, type: 'IN', paymentMethod: 'Cash', editCount: 0
       };
       
       sendToSheet('insert', newIncome, 'expenses');
       alert(`Modal awal sebesar ${formatRp(nominal)} berhasil dimasukkan ke Laci Sistem! Selamat bekerja!`);
   };
 
-  // LOGIC CLOSING KAS HARIAN (NOL-KAN LACI)
+  // LOGIC CLOSING KAS HARIAN
   const handleClosingKas = () => {
       if (rekap.saldoCash <= 0) {
           alert("Saldo Uang Fisik (Cash) saat ini Rp 0 atau minus. Tidak ada yang bisa disetor.");
@@ -65,17 +59,9 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
       if (confirmSetor) {
           const today = getTodayStr();
           const newExpense = {
-              id: generateId('OUT', today), 
-              date: today,
-              recipient: 'Pimpinan / Owner',
-              category: 'Setoran Kas Harian / Closing',
-              description: `Closing kas dan serah terima uang fisik ke Bos.`,
-              qty: 1,
-              price: rekap.saldoCash,
-              total: rekap.saldoCash,
-              type: 'OUT',
-              paymentMethod: 'Cash',
-              editCount: 0
+              id: generateId('OUT', today), date: today, recipient: 'Pimpinan / Owner',
+              category: 'Setoran Kas Harian / Closing', description: `Closing kas dan serah terima uang fisik ke Bos.`,
+              qty: 1, price: rekap.saldoCash, total: rekap.saldoCash, type: 'OUT', paymentMethod: 'Cash', editCount: 0
           };
           
           sendToSheet('insert', newExpense, 'expenses');
@@ -84,12 +70,61 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in">
+    <div className="space-y-6 animate-in fade-in pb-10">
+      
+      {/* FILTER & CETAK */}
       <div className="bg-white p-4 rounded-xl border shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div><h3 className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2"><Calendar size={16}/> Filter Laporan & Cetak</h3><div className="flex gap-2"><input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="p-2 text-sm border rounded-lg" /><span className="text-slate-400 self-center">s/d</span><input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="p-2 text-sm border rounded-lg" /></div></div>
           <button onClick={() => setPrintData({ type: 'report', data: { rekap, dateFrom, dateTo } })} className="bg-slate-800 hover:bg-slate-900 text-white px-5 py-2.5 rounded-lg flex gap-2 text-sm font-medium"><Printer size={16} /> Cetak Rekap Pusat</button>
       </div>
 
+      {/* DASHBOARD OPERASIONAL PUSAT (DESAIN PREMIUM DARK MODE) */}
+      <div className="bg-slate-900 rounded-2xl shadow-2xl overflow-hidden border border-slate-800 relative">
+          <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-500 via-emerald-400 to-amber-500"></div>
+          
+          <div className="p-5 border-b border-slate-800/60 flex justify-between items-center bg-slate-900/50">
+              <div>
+                  <h2 className="text-lg font-black text-white flex items-center gap-2 tracking-wide"><Factory className="text-blue-400"/> PUSAT KONTROL OPERASIONAL & PRODUKSI</h2>
+                  <p className="text-[11px] text-slate-400 mt-1">Monitoring real-time aktivitas dapur dan kapasitas gudang terpadu.</p>
+              </div>
+              <div className="text-right hidden sm:block">
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Status Data</div>
+                  <div className="text-xs font-bold text-emerald-400 flex items-center justify-end gap-1.5 mt-0.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span> LIVE REALTIME</div>
+              </div>
+          </div>
+          
+          <div className="grid grid-cols-2 md:grid-cols-5 divide-y md:divide-y-0 md:divide-x divide-slate-800/60 bg-slate-800/30">
+              <div className="p-6 flex flex-col justify-center items-center text-center hover:bg-slate-800/50 transition">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Adukan Hari Ini</div>
+                  <div className="text-3xl font-black text-white drop-shadow-md">{ops.adukanHariIni || 0} <span className="text-xs text-blue-400">Adk</span></div>
+              </div>
+              
+              <div className="p-6 flex flex-col justify-center items-center text-center hover:bg-slate-800/50 transition">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Ayam Terpakai</div>
+                  <div className="text-3xl font-black text-white drop-shadow-md">-{ops.ayamTerpakaiHariIni || 0} <span className="text-xs text-orange-400">Kg</span></div>
+              </div>
+              
+              <div className="p-6 flex flex-col justify-center items-center text-center hover:bg-slate-800/50 transition relative overflow-hidden bg-slate-800/20">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Sisa Ayam (Live)</div>
+                  <div className="text-3xl font-black text-white drop-shadow-md">{ops.sisaAyam || 0} <span className="text-xs text-emerald-400">Kg</span></div>
+                  <div className="text-[10px] font-bold text-emerald-400 mt-2 px-3 py-1 bg-emerald-950/80 rounded-full border border-emerald-800/50">{(ops.sisaAyamKtg || 0).toFixed(1).replace('.0','')} Kantong</div>
+              </div>
+              
+              <div className="p-6 flex flex-col justify-center items-center text-center hover:bg-slate-800/50 transition">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Masuk Freezer</div>
+                  <div className="text-3xl font-black text-white drop-shadow-md">+{ops.dimsumMasukHariIni || 0} <span className="text-xs text-blue-400">Pcs</span></div>
+                  <div className="text-[10px] font-bold text-blue-400 mt-2 px-3 py-1 bg-blue-950/80 rounded-full border border-blue-800/50">{((ops.dimsumMasukHariIni || 0) / PCS_PER_MIKA).toFixed(1).replace('.0','')} Mika</div>
+              </div>
+              
+              <div className="p-6 flex flex-col justify-center items-center text-center hover:bg-slate-800/50 transition relative overflow-hidden bg-slate-800/20">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Sisa Freezer (Live)</div>
+                  <div className="text-3xl font-black text-white drop-shadow-md">{ops.sisaFreezer || 0} <span className="text-xs text-emerald-400">Pcs</span></div>
+                  <div className="text-[10px] font-bold text-emerald-400 mt-2 px-3 py-1 bg-emerald-950/80 rounded-full border border-emerald-800/50">{((ops.sisaFreezer || 0) / PCS_PER_MIKA).toFixed(1).replace('.0','')} Mika</div>
+              </div>
+          </div>
+      </div>
+
+      {/* DASHBOARD KEUANGAN KAS */}
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
           <div className="flex justify-between items-start mb-4">
               <div>
@@ -97,27 +132,15 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
                   <p className="text-xs text-slate-500">*Dihitung otomatis terus-menerus (continue) sampai dengan {formatDate(dateTo)}.</p>
               </div>
               <div className="flex gap-2">
-                  <button 
-                    onClick={handleBukaKas} 
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-lg flex items-center gap-2 text-sm font-bold shadow-md transition transform hover:scale-105"
-                    title="Tekan ini saat baru buka toko pagi hari"
-                  >
-                    <Coins size={18} /> Modal Pagi
-                  </button>
-                  <button 
-                    onClick={handleClosingKas} 
-                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-lg flex items-center gap-2 text-sm font-bold shadow-md transition transform hover:scale-105"
-                    title="Tekan ini saat mau pulang / tutup toko"
-                  >
-                    <CheckCircle size={18} /> Closing Kas
-                  </button>
+                  <button onClick={handleBukaKas} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-lg flex items-center gap-2 text-sm font-bold shadow-md transition transform hover:scale-105" title="Tekan ini saat baru buka toko pagi hari"><Coins size={18} /> Modal Pagi</button>
+                  <button onClick={handleClosingKas} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-lg flex items-center gap-2 text-sm font-bold shadow-md transition transform hover:scale-105" title="Tekan ini saat mau pulang / tutup toko"><CheckCircle size={18} /> Closing Kas</button>
               </div>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <StatCard title="Total Saldo Keseluruhan" amount={rekap.saldoAkhir} icon={<Wallet />} color="bg-blue-50 text-blue-700 border-blue-200" />
-              <StatCard title="Saldo Tunai (Laci CASH)" amount={rekap.saldoCash} icon={<Coins />} color="bg-emerald-50 text-emerald-700 border-emerald-200" />
-              <StatCard title="Saldo Rekening Bank (TF)" amount={rekap.saldoTF} icon={<CreditCard />} color="bg-indigo-50 text-indigo-700 border-indigo-200" />
+              <StatCard title="Total Saldo Keseluruhan" amount={formatRp(rekap.saldoAkhir)} icon={<Wallet />} color="bg-blue-50 text-blue-700 border-blue-200" />
+              <StatCard title="Saldo Tunai (Laci CASH)" amount={formatRp(rekap.saldoCash)} icon={<Coins />} color="bg-emerald-50 text-emerald-700 border-emerald-200" />
+              <StatCard title="Saldo Rekening Bank (TF)" amount={formatRp(rekap.saldoTF)} icon={<CreditCard />} color="bg-indigo-50 text-indigo-700 border-indigo-200" />
           </div>
       </div>
 
@@ -173,7 +196,7 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
                                   <td className="px-3 py-2 font-bold uppercase text-xs">{o?.recipient || '-'}</td>
                                   <td className="px-3 py-2"><div className="font-bold text-slate-800 uppercase">{o?.category || '-'}</div><div className="text-xs text-slate-600">{o?.description || '-'}</div></td>
                                   <td className="px-3 py-2 text-center text-[10px] font-medium text-slate-600">{o?.paymentMethod || '-'}</td>
-                                  <td className="px-3 py-2 text-right font-black text-red-600">-{formatRp(o?.total)}</td>
+                                  <td className="px-3 py-2 text-right font-black text-red-600">{o?.type === 'IN' ? '+' : '-'}{formatRp(o?.total)}</td>
                               </tr>
                           ))
                       )}
@@ -184,6 +207,7 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
 
       {(rekap.listPiutangBerjalan.length > 0 || rekap.listHutangBerjalan.length > 0) && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+              {rekap.listPiutangBerjalan.length > 0 && (
               <div className="bg-white p-6 rounded-xl border border-orange-200 shadow-sm flex flex-col">
                   <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-orange-700"><AlertCircle size={20}/> Daftar Piutang Berjalan (Belum Lunas)</h3>
                   <div className="overflow-x-auto">
@@ -208,6 +232,8 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
                       </table>
                   </div>
               </div>
+              )}
+              {rekap.listHutangBerjalan.length > 0 && (
               <div className="bg-white p-6 rounded-xl border border-red-200 shadow-sm flex flex-col">
                   <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-red-700"><AlertCircle size={20}/> Daftar Hutang Berjalan (Belum Lunas)</h3>
                   <div className="overflow-x-auto">
@@ -232,6 +258,7 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
                       </table>
                   </div>
               </div>
+              )}
           </div>
       )}
 
