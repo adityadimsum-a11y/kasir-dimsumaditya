@@ -4,34 +4,34 @@ import { formatRp, formatDate, getLocalYMD, getTodayStr, safeSort } from '../../
 
 export default function TabMonitoringPemalang({ orders, pemalangReports, stokData }) {
   const todayStr = getTodayStr();
-  const [filterDate, setFilterDate] = useState(todayStr); // Filter khusus Hari Ini
+  const [filterDate, setFilterDate] = useState(todayStr); 
   
   const MASTER_AYAM_KG = 30; 
   const MASTER_PCS = 1000; 
   const KG_PER_KANTONG = 10;
+  const PCS_PER_MIKA = 50;
 
   const stats = useMemo(() => {
-    // 1. DATA AYAM CABANG PEMALANG (Semua Waktu)
     const mutasiAyamPemalang = (stokData || []).filter(s => s.type === 'MUTASI_AYAM_PEMALANG').reduce((sum, s) => sum + Number(s.qty), 0);
     const prodPemalangAll = (stokData || []).filter(s => s.type === 'PRODUKSI_PEMALANG').reduce((sum, s) => sum + Number(s.qty), 0);
     const sisaAyamCabang = mutasiAyamPemalang - (prodPemalangAll * MASTER_AYAM_KG);
 
-    // 2. DATA DIMSUM CABANG PEMALANG (Semua Waktu)
     const terjualPcsAll = (orders || []).filter(o => o.category === 'Pemalang').reduce((sum, o) => sum + Number(o.qty), 0);
     const omsetTotal = (orders || []).filter(o => o.category === 'Pemalang').reduce((sum, o) => sum + Number(o.totalAll || o.total), 0);
     const sisaStokFreezer = (prodPemalangAll * MASTER_PCS) - terjualPcsAll;
 
-    // 3. AKTIVITAS HARI INI (Sesuai Filter Tanggal)
     const prodHariIni = (stokData || []).filter(s => s.type === 'PRODUKSI_PEMALANG' && getLocalYMD(s.date) === filterDate).reduce((sum, s) => sum + Number(s.qty), 0);
     const terjualHariIniPcs = (orders || []).filter(o => o.category === 'Pemalang' && getLocalYMD(o.date) === filterDate).reduce((sum, o) => sum + Number(o.qty), 0);
-    const mikaHariIni = terjualHariIniPcs / 4; 
+    
+    // Konversi Pcs ke Mika & Porsi
+    const porsiHariIni = terjualHariIniPcs / 4; 
+    const mikaHariIni = terjualHariIniPcs / PCS_PER_MIKA; 
 
-    // Laporan Akhir Hari dari Pemalang
     const laporanUrut = [...(pemalangReports || [])].sort((a,b) => new Date(b.date) - new Date(a.date));
 
     return { 
         sisaAyamCabang, sisaStokFreezer, omsetTotal, 
-        prodHariIni, terjualHariIniPcs, mikaHariIni, laporanUrut 
+        prodHariIni, terjualHariIniPcs, mikaHariIni, porsiHariIni, laporanUrut 
     };
   }, [orders, pemalangReports, stokData, filterDate]);
 
@@ -49,7 +49,6 @@ export default function TabMonitoringPemalang({ orders, pemalangReports, stokDat
         </div>
       </div>
 
-      {/* INDIKATOR KAPASITAS REALTIME (ALL TIME) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className={`p-5 rounded-xl border shadow-sm ${stats.sisaAyamCabang <= 30 ? 'bg-red-50 border-red-200' : 'bg-white border-slate-200'}`}>
             <div className={`text-xs font-bold uppercase mb-1 ${stats.sisaAyamCabang <= 30 ? 'text-red-500' : 'text-slate-500'}`}>Sisa Ayam (Sistem)</div>
@@ -59,7 +58,7 @@ export default function TabMonitoringPemalang({ orders, pemalangReports, stokDat
         <div className={`p-5 rounded-xl border shadow-sm ${stats.sisaStokFreezer <= 1000 ? 'bg-orange-50 border-orange-200' : 'bg-white border-slate-200'}`}>
             <div className={`text-xs font-bold uppercase mb-1 ${stats.sisaStokFreezer <= 1000 ? 'text-orange-500' : 'text-slate-500'}`}>Sisa Freezer (Sistem)</div>
             <div className={`text-3xl font-black ${stats.sisaStokFreezer <= 1000 ? 'text-orange-700' : 'text-slate-800'}`}>{stats.sisaStokFreezer} <span className="text-sm">Pcs</span></div>
-            <div className="text-[11px] font-bold text-orange-600 mt-1">Setara {stats.sisaStokFreezer / 4} Porsi/Mika</div>
+            <div className="text-[11px] font-bold text-orange-600 mt-1">Setara {(stats.sisaStokFreezer / PCS_PER_MIKA).toFixed(1).replace('.0','')} Mika ({stats.sisaStokFreezer / 4} Porsi)</div>
         </div>
         <div className="bg-emerald-50 p-5 rounded-xl border border-emerald-200 shadow-sm">
             <div className="text-xs font-bold text-emerald-600 uppercase mb-1">Aktivitas Hari Ini ({formatDate(filterDate)})</div>
