@@ -57,12 +57,12 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
                   
                   <div className="border border-blue-100 rounded-xl p-4 bg-blue-50/50 flex flex-col justify-between hover:shadow-md transition">
                       <div><h4 className="font-black text-blue-800 flex items-center gap-2 mb-1"><TrendingUp size={16}/> Laporan Penjualan</h4><p className="text-xs text-slate-500 mb-4">Mencetak rekap order, total omset, metode pembayaran pelanggan, dan sisa piutang.</p></div>
-                      <button onClick={() => setPrintData({ type: 'reportSales', data: { dash, dateFrom, dateTo } })} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg text-xs transition">Cetak Lap. Penjualan</button>
+                      <button onClick={() => setPrintData({ type: 'report', data: { dash, dateFrom, dateTo, reportType: 'sales' } })} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg text-xs transition">Cetak Lap. Penjualan</button>
                   </div>
 
                   <div className="border border-emerald-100 rounded-xl p-4 bg-emerald-50/50 flex flex-col justify-between hover:shadow-md transition">
                       <div><h4 className="font-black text-emerald-800 flex items-center gap-2 mb-1"><Wallet size={16}/> Laporan Arus Kas & Bank</h4><p className="text-xs text-slate-500 mb-4">Mencetak *Ledger* (Buku Besar) pergerakan uang tunai dan transfer masuk/keluar.</p></div>
-                      <button onClick={() => setPrintData({ type: 'reportFinance', data: { dash, dateFrom, dateTo } })} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-lg text-xs transition">Cetak Lap. Keuangan</button>
+                      <button onClick={() => setPrintData({ type: 'report', data: { dash, dateFrom, dateTo, reportType: 'finance' } })} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-lg text-xs transition">Cetak Lap. Keuangan</button>
                   </div>
 
                   <div className="border border-orange-100 rounded-xl p-4 bg-orange-50/50 flex flex-col justify-between hover:shadow-md transition">
@@ -85,7 +85,7 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
                   <div><h3 className="font-black text-red-900 uppercase tracking-wide leading-tight">Monitoring Kasbon</h3><p className="text-[9px] font-bold text-red-600">HUTANG KARYAWAN BELUM LUNAS</p></div>
               </div>
               <div className="p-2 overflow-y-auto flex-1">
-                  {dash.karyawanKasbon.length === 0 ? (
+                  {(!dash.karyawanKasbon || dash.karyawanKasbon.length === 0) ? (
                       <div className="text-center p-8 text-slate-400 text-xs italic">Bagus! Tidak ada karyawan yang memiliki tunggakan kasbon aktif.</div>
                   ) : (
                       <div className="space-y-2">
