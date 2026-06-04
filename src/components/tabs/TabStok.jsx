@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Package, Plus, Trash2, ArrowRightCircle, Box, Server, Factory, Snowflake, ShoppingCart, TrendingUp, AlertCircle, ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
+import { Package, Plus, Trash2, Box, Server, Factory, Snowflake, TrendingUp, ArrowDownCircle, Truck, X } from 'lucide-react';
 import { getTodayStr, generateId, formatDate, safeSort, getLocalYMD } from '../../utils/helpers';
 
 export default function TabStok({ stokData, purchases, orders, sendToSheet, requestDelete, role }) {
@@ -186,12 +186,12 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
       {/* FORM: BAHAN BAKU */}
       {showFormBahan && (
           <form onSubmit={handleSimpanBahan} className="bg-slate-100 p-6 rounded-xl border shadow-sm border-slate-300">
-              <div className="flex justify-between items-center border-b pb-3 mb-4"><h3 className="font-bold text-slate-800 flex items-center gap-2"><ArrowDownCircle size={18}/> Form In/Out Gudang Bahan Baku</h3><button type="button" onClick={()=>setShowFormBahan(false)}><X size={18}/></button></div>
+              <div className="flex justify-between items-center border-b pb-3 mb-4"><h3 className="font-bold text-slate-800 flex items-center gap-2"><ArrowDownCircle size={18}/> Form In/Out Gudang Bahan Baku</h3><button type="button" onClick={()=>setShowFormBahan(false)} className="hover:text-red-500"><X size={18}/></button></div>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="space-y-1"><label className="text-xs font-bold text-slate-600 uppercase">Jenis Alur</label><select value={tipeBahan} onChange={e=>setTipeBahan(e.target.value)} className="w-full p-2 border rounded-lg font-bold"><option value="MASUK">BARANG MASUK (+)</option><option value="KELUAR">BARANG KELUAR (-)</option></select></div>
                   <div className="space-y-1"><label className="text-xs font-bold text-slate-600 uppercase">Nama Bahan</label><select value={namaBahan} onChange={e=>{ setNamaBahan(e.target.value); if(e.target.value==='AYAM')setSatuanBahan('KG'); else if(e.target.value==='MIKA')setSatuanBahan('PACK'); else setSatuanBahan('KG'); }} className="w-full p-2 border rounded-lg font-bold"><option>AYAM</option><option>MIKA</option><option>PLASTIK</option><option>TEPUNG</option><option>SAUS</option><option>BUMBU</option><option>LAINNYA</option></select></div>
                   <div className="space-y-1"><label className="text-xs font-bold text-slate-600 uppercase">Jumlah {tipeBahan}</label><input type="number" min="1" required value={qtyBahan} onChange={e=>setQtyBahan(e.target.value)} className="w-full p-2 border rounded-lg font-bold" /></div>
-                  <div className="space-y-1"><label className="text-xs font-bold text-slate-600 uppercase">Satuan</label><div className="flex gap-2"><input type="text" required value={satuanBahan} onChange={e=>setSatuanBahan(e.target.value)} className="w-full p-2 border rounded-lg uppercase" /><button type="submit" className="bg-slate-800 text-white px-4 rounded-lg font-bold">Simpan</button></div></div>
+                  <div className="space-y-1"><label className="text-xs font-bold text-slate-600 uppercase">Satuan</label><div className="flex gap-2"><input type="text" required value={satuanBahan} onChange={e=>setSatuanBahan(e.target.value)} className="w-full p-2 border rounded-lg uppercase" /><button type="submit" className="bg-slate-800 hover:bg-slate-900 text-white px-4 rounded-lg font-bold">Simpan</button></div></div>
               </div>
           </form>
       )}
@@ -199,7 +199,7 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
       {/* FORM: PRODUKSI */}
       {showFormProd && (
           <form onSubmit={handleSimpanProduksi} className="bg-blue-50 p-6 rounded-xl border shadow-sm border-blue-200">
-              <div className="flex justify-between items-center border-b border-blue-200 pb-3 mb-4"><h3 className="font-bold text-blue-900 flex items-center gap-2"><Factory size={18}/> Form Eksekusi Produksi (Masak)</h3><button type="button" onClick={()=>setShowFormProd(false)}><X size={18}/></button></div>
+              <div className="flex justify-between items-center border-b border-blue-200 pb-3 mb-4"><h3 className="font-bold text-blue-900 flex items-center gap-2"><Factory size={18}/> Form Eksekusi Produksi (Masak)</h3><button type="button" onClick={()=>setShowFormProd(false)} className="text-blue-500 hover:text-red-500"><X size={18}/></button></div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
                   <div className="space-y-1">
                       <label className="text-xs font-bold text-blue-800 uppercase">Input Total Adukan</label>
@@ -221,7 +221,7 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
       {/* FORM: MUTASI (PUSAT) */}
       {showFormMutasi && role === 'admin' && (
           <form onSubmit={handleMutasiPusat} className="bg-orange-50 p-6 rounded-xl border shadow-sm border-orange-200">
-              <div className="flex justify-between items-center border-b border-orange-200 pb-3 mb-4"><h3 className="font-bold text-orange-900 flex items-center gap-2"><Truck size={18}/> Kirim Stok Ayam Ke Pemalang</h3><button type="button" onClick={()=>setShowFormMutasi(false)}><X size={18}/></button></div>
+              <div className="flex justify-between items-center border-b border-orange-200 pb-3 mb-4"><h3 className="font-bold text-orange-900 flex items-center gap-2"><Truck size={18}/> Kirim Stok Ayam Ke Pemalang</h3><button type="button" onClick={()=>setShowFormMutasi(false)} className="text-orange-500 hover:text-red-500"><X size={18}/></button></div>
               <div className="flex gap-4 items-end">
                   <div className="w-1/3 space-y-1"><label className="text-xs font-bold text-orange-800 uppercase">Total Ayam (Kg)</label><input type="number" min="1" required value={qtyMutasi} onChange={e=>setQtyMutasi(e.target.value)} className="w-full p-3 border border-orange-300 rounded-lg font-black text-xl" /></div>
                   <div className="w-2/3 flex gap-2"><button type="submit" className="bg-orange-600 hover:bg-orange-700 text-white px-8 py-3 rounded-lg font-bold shadow-md">Kirim Ayam</button></div>
