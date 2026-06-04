@@ -50,9 +50,11 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
   const addCartRow = () => setCart([...cart, { category: defaultCat, qty: '', price: defaultPrice }]);
   const removeCartRow = (index) => setCart(cart.filter((_, i) => i !== index));
 
-  // HANDLER PEMBAYARAN
+  // HANDLER PEMBAYARAN (SUDAH DIPERBAIKI)
   const updatePaymentItem = (index, field, value) => {
-      const newList = [...paymentList]; newData = newList[index][field] = value; setPaymentList(newList);
+      const newList = [...paymentList]; 
+      newList[index] = { ...newList[index], [field]: value };
+      setPaymentList(newList);
   };
   const addPaymentRow = () => setPaymentList([...paymentList, { method: 'Cash / Tunai', amount: '', date: todayStr }]);
   const removePaymentRow = (index) => setPaymentList(paymentList.filter((_, i) => i !== index));
@@ -87,6 +89,7 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
     setSelectedTags(extractedTags); setNotes(rawNotes);
     setCart(relatedItems.map(p => ({ category: p.category, qty: p.qty, price: p.price })));
     
+    // Konversi data pembayaran lama ke format array multiple payment baru
     if (Number(item.paidAmount) > 0) {
         setPaymentList([{ method: item.paymentMethod || 'Cash / Tunai', amount: item.paidAmount, date: String(item.date).split('T')[0] }]);
     } else {
@@ -206,14 +209,14 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
                   <div className="text-4xl font-black text-amber-900">{formatRp(cartTotal)}</div>
               </div>
 
-              <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100 flex-1">
+              <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100 flex-1 flex flex-col">
                  <div className="flex justify-between items-center mb-3">
                      <h4 className="font-bold text-sm text-emerald-900 flex items-center gap-2"><CreditCard size={16}/> Riwayat / Input Pembayaran</h4>
-                     <button type="button" onClick={addPaymentRow} className="bg-white px-3 py-1 text-[10px] font-bold text-emerald-600 border border-emerald-300 rounded hover:bg-emerald-100 transition">+ Tambah Pembayaran</button>
+                     <button type="button" onClick={addPaymentRow} className="bg-white px-3 py-1 text-[10px] font-bold text-emerald-600 border border-emerald-300 rounded hover:bg-emerald-100 transition shadow-sm">+ Tambah Pembayaran</button>
                  </div>
                  
                  {paymentList.length === 0 ? (
-                     <div className="text-xs text-slate-500 italic text-center py-6 bg-white rounded border border-dashed border-emerald-200">
+                     <div className="text-xs text-slate-500 italic text-center py-6 bg-white rounded border border-dashed border-emerald-200 mb-4">
                          Belum ada pembayaran.<br/>Order ini akan disimpan sebagai Draft (Belum Bayar).
                      </div>
                  ) : (
@@ -233,9 +236,9 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
                          <span className="text-xs font-bold text-slate-600 uppercase">Total Dibayar</span>
                          <span className="font-black text-emerald-700">{formatRp(totalDibayar)}</span>
                      </div>
-                     <div className="flex justify-between items-center bg-white p-2 rounded border border-emerald-200">
+                     <div className="flex justify-between items-center bg-white p-2 rounded border border-emerald-200 shadow-sm">
                          <span className="text-xs font-bold text-slate-500 uppercase">Status Pembayaran Auto:</span>
-                         <span className={`px-2 py-1 rounded text-[10px] font-black ${autoStatusBayar === 'LUNAS' ? 'bg-emerald-600 text-white' : autoStatusBayar === 'PIUTANG' ? 'bg-red-600 text-white shadow-md' : autoStatusBayar === 'DP' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                         <span className={`px-3 py-1 rounded text-[10px] font-black ${autoStatusBayar === 'LUNAS' ? 'bg-emerald-600 text-white' : autoStatusBayar === 'PIUTANG' ? 'bg-red-600 text-white shadow-md' : autoStatusBayar === 'DP' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
                              {autoStatusBayar}
                          </span>
                      </div>
