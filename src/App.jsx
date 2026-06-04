@@ -82,7 +82,7 @@ export default function App() {
   const handleLogout = () => {
     setUser(null); setLoginForm({ username: '', password: '' });
     window.localStorage.removeItem('dimsum_user_session'); window.localStorage.removeItem('dimsum_active_tab');
-    setOrders([]); setExpenses([]); setPiutangPayments([]); setPemalangReports([]); setStokData([]); setPurchases([]); setKaryawan([]);
+    setOrders([]); setExpenses([]); setPiutangPayments([]); setPemalangReports([]); setStokData([]); setPurchases([]); window.localStorage.removeItem('dimsum_active_tab');
   };
 
   const fetchData = async () => {
