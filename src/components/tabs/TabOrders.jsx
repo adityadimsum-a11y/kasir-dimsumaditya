@@ -74,6 +74,7 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
         paymentMethod, 
         paidAmount: index === 0 ? (Number(paidAmount) || 0) : 0, 
         notes, 
+        isSpkPrinted: false, // Set default false
         editCount: isEdit ? editCount + 1 : 0 
       }));
 
@@ -86,9 +87,13 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
 
   const handlePrintSPK = (ord) => {
       setPrintData({ type: 'spk', data: ord });
-      // Jika SPK belum pernah dicetak, kirim update ke Google Sheet
       if (!ord.isSpkPrinted) {
-          sendToSheet('update', { id: ord.id, isSpkPrinted: true }, 'orders');
+          // Cari semua baris (item) yang berhubungan dengan ID invoice ini dan update
+          const rowsToUpdate = orders.filter(o => o.id === ord.id).map(row => ({
+              ...row,
+              isSpkPrinted: true
+          }));
+          sendToSheet('update', rowsToUpdate, 'orders');
       }
   };
 
@@ -98,7 +103,6 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
     const groups = {};
     filtered.forEach(p => {
         if(!p?.id) return;
-        // Tangkap isSpkPrinted dari database
         if(!groups[p.id]) groups[p.id] = { ...p, items: [], totalAll: 0, isSpkPrinted: p.isSpkPrinted === true || p.isSpkPrinted === 'true' };
         groups[p.id].items.push(`${p.qty} Pcs`); groups[p.id].totalAll += Number(p.total);
     });
@@ -158,12 +162,9 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
                 <td className="px-4 py-3 text-center">{sisaHutang > 0 ? <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded text-[10px] font-bold">PIUTANG</span> : <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-[10px] font-bold">LUNAS</span>}</td>
                 <td className="px-4 py-3 text-center">
                   <div className="flex justify-center gap-2">
-                    {/* Tombol SPK dengan Warna Dinamis */}
                     <button onClick={() => handlePrintSPK(ord)} className={`p-2 rounded-lg border transition shadow-sm flex items-center justify-center relative ${ord.isSpkPrinted ? 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100' : 'bg-orange-50 border-orange-200 text-orange-600 hover:bg-orange-100'}`} title={ord.isSpkPrinted ? "Cetak Ulang SPK" : "Cetak SPK Dapur"}>
                       {ord.isSpkPrinted ? <CheckCheck size={16} /> : <ChefHat size={16} />}
                     </button>
-                    
-                    {/* Tombol Invoice */}
                     <button onClick={() => setPrintData({ type: 'invoice', data: ord })} className="text-slate-600 bg-slate-100 p-2 rounded-lg border hover:bg-slate-200 transition shadow-sm" title="Cetak Invoice Pelanggan">
                       <Printer size={16} />
                     </button>
