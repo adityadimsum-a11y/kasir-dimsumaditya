@@ -8,6 +8,7 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
   // Modals / Forms
   const [showFormBahan, setShowFormBahan] = useState(false);
   const [showFormProd, setShowFormProd] = useState(false);
+  const [showFormMutasi, setShowFormMutasi] = useState(false);
 
   // Form Gudang Bahan Baku (Multiple Items)
   const [tipeBahan, setTipeBahan] = useState('MASUK');
@@ -18,9 +19,12 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
   const [adukan, setAdukan] = useState('');
   const [waktuProd, setWaktuProd] = useState('Pagi');
   const [notesProd, setNotesProd] = useState('');
-  const [bahanProdCart, setBahanProdCart] = useState([]); // Bahan tambahan untuk produksi
+  const [bahanProdCart, setBahanProdCart] = useState([]);
 
-  // KONSTANTA
+  // Form Mutasi Pusat
+  const [qtyMutasi, setQtyMutasi] = useState('');
+
+  // KONSTANTA STANDAR PRODUKSI & KONVERSI
   const MASTER_AYAM_KG = 30; 
   const MASTER_PCS = 1000; 
   const KG_PER_KANTONG = 10; 
@@ -56,9 +60,13 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
           }
       });
 
+      // Total Ayam Gudang
       let stokAyamAwal = 0;
-      if (role === 'admin') { stokAyamAwal = beliAyamPusat + masukAyamLokal - keluarAyamLokal - mutasiAyamDariPusat; } 
-      else { stokAyamAwal = mutasiAyamDariPusat + masukAyamLokal - keluarAyamLokal; }
+      if (role === 'admin') {
+          stokAyamAwal = beliAyamPusat + masukAyamLokal - keluarAyamLokal - mutasiAyamDariPusat; // Pusat kirim ke Pemalang
+      } else {
+          stokAyamAwal = mutasiAyamDariPusat + masukAyamLokal - keluarAyamLokal; // Pemalang terima dari Pusat
+      }
 
       // 2. PEMAKAIAN PRODUKSI
       const myProdType = role === 'admin' ? 'PRODUKSI_PUSAT' : 'PRODUKSI_PEMALANG';
@@ -70,15 +78,17 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
 
       // 3. BARANG JADI & FREEZER
       const totalDimsumJadi = totalAdukanAll * MASTER_PCS;
+      
       const myOrders = (orders || []).filter(o => role === 'admin' ? o.category !== 'Pemalang' : o.category === 'Pemalang');
       const terjualTotalPcs = myOrders.reduce((sum, o) => sum + Number(o.qty), 0);
+      
       const sisaFreezer = totalDimsumJadi - terjualTotalPcs; 
 
       // 4. MONITORING HARI INI
       const adukanHariIni = myProdLog.filter(s => getLocalYMD(s.date) === todayStr).reduce((sum, s) => sum + Number(s.qty), 0);
       const orderHariIniPcs = myOrders.filter(o => getLocalYMD(o.date) === todayStr).reduce((sum, o) => sum + Number(o.qty), 0);
 
-      // 5. RIWAYAT GABUNGAN (DIKELOMPOKKAN PER ID TRANSAKSI)
+      // 5. RIWAYAT GABUNGAN (DIKELOMPOKKAN PER ID TRANSAKSI UNTUK CETAK)
       const myLog = [...bahanLog, ...myProdLog].sort((a,b) => new Date(b.date) - new Date(a.date));
       if (role === 'admin') myLog.push(...(stokData || []).filter(s => s.type === 'MUTASI_AYAM_PEMALANG'));
 
@@ -96,8 +106,10 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
       const displayLogGrouped = Object.values(groupedLogMap).sort((a,b) => new Date(b.date) - new Date(a.date));
 
       return {
-          stokAyamAwal, sisaAyamGudang, totalAyamTerpakai, rekapBahanPendukung,
-          totalAdukanAll, totalDimsumJadi, terjualTotalPcs, sisaFreezer,
+          stokAyamAwal, sisaAyamGudang, totalAyamTerpakai,
+          rekapBahanPendukung,
+          totalAdukanAll, totalDimsumJadi, 
+          terjualTotalPcs, sisaFreezer,
           adukanHariIni, prodPcsHariIni: adukanHariIni * MASTER_PCS, prodMikaHariIni: (adukanHariIni * MASTER_PCS) / PCS_PER_MIKA,
           ayamTerpakaiHariIni: adukanHariIni * MASTER_AYAM_KG,
           orderHariIniPcs, orderHariIniMika: orderHariIniPcs / PCS_PER_MIKA,
@@ -134,17 +146,20 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
       e.preventDefault();
       if(Number(adukan) <= 0) return;
       const butuhAyam = Number(adukan) * MASTER_AYAM_KG;
-      if(butuhAyam > dash.sisaAyamGudang) { alert(`GAGAL: Stok Ayam di Gudang tidak mencukupi!\nButuh: ${butuhAyam} Kg\nSisa: ${dash.sisaAyamGudang} Kg`); return; }
-
+      if(butuhAyam > dash.sisaAyamGudang) { 
+          alert(`GAGAL: Stok Ayam di Gudang tidak mencukupi!\n\nKebutuhan: ${butuhAyam} Kg\nSisa Gudang: ${dash.sisaAyamGudang} Kg`); return; 
+      }
+      
       const myBranch = role === 'admin' ? 'PUSAT' : 'PEMALANG';
       const typeProd = role === 'admin' ? 'PRODUKSI_PUSAT' : 'PRODUKSI_PEMALANG';
       const transId = generateId('PRD', todayStr);
 
       const dataToInsert = [];
+      
       // 1. Data Hasil Produksi (Adukan)
       dataToInsert.push({
           id: transId, date: todayStr, type: typeProd, branch: myBranch, itemName: 'ADUKAN DIMSUM', satuan: 'ADUKAN',
-          qty: Number(adukan), notes: `Shift ${waktuProd}. Memotong ayam: ${butuhAyam} Kg. ${notesProd}`, editCount: 0
+          qty: Number(adukan), notes: `Shift ${waktuProd}. Otomatis memotong ${butuhAyam} Kg Ayam. ${notesProd}`, editCount: 0
       });
 
       // 2. Data Pemakaian Bahan Tambahan (Otomatis mengurangi gudang)
@@ -152,12 +167,22 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
           dataToInsert.push({
               id: transId, date: todayStr, type: 'BAHAN_BAKU', branch: myBranch, action: 'KELUAR',
               itemName: c.itemName.toUpperCase(), qty: Number(c.qty), satuan: c.satuan.toUpperCase(),
-              notes: `Pemakaian bahan untuk Produksi ID: ${transId}`, editCount: 0
+              notes: `Bahan terpakai untuk Produksi.`, editCount: 0
           });
       });
 
       sendToSheet('insert', dataToInsert, 'stok');
       setShowFormProd(false); setAdukan(''); setNotesProd(''); setBahanProdCart([]);
+  };
+
+  const handleMutasiPusat = (e) => {
+      e.preventDefault();
+      if(Number(qtyMutasi) > dash.sisaAyamGudang) { alert(`Gagal: Stok Ayam Pusat kurang! Sisa: ${dash.sisaAyamGudang} Kg`); return; }
+      sendToSheet('insert', {
+          id: generateId('TRF-AYM', todayStr), date: todayStr, type: 'MUTASI_AYAM_PEMALANG', itemName: 'AYAM', satuan: 'KG',
+          qty: Number(qtyMutasi), notes: 'Pengiriman ayam mentah ke Pemalang.', editCount: 0
+      }, 'stok');
+      setShowFormMutasi(false); setQtyMutasi('');
   };
 
   return (
@@ -200,8 +225,9 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
 
       {/* BUTTONS ACTION */}
       <div className="flex flex-wrap gap-3">
-          <button onClick={() => { setShowFormBahan(true); setShowFormProd(false); }} className="bg-slate-700 hover:bg-slate-800 text-white px-5 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 shadow"><Box size={16}/> Gudang: Keluar / Masuk</button>
-          <button onClick={() => { setShowFormProd(true); setShowFormBahan(false); }} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 shadow"><Factory size={16}/> Produksi: Eksekusi Adukan</button>
+          <button onClick={() => { setShowFormBahan(true); setShowFormProd(false); setShowFormMutasi(false); }} className="bg-slate-700 hover:bg-slate-800 text-white px-5 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 shadow"><Box size={16}/> Gudang: Keluar / Masuk</button>
+          <button onClick={() => { setShowFormProd(true); setShowFormBahan(false); setShowFormMutasi(false); }} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 shadow"><Factory size={16}/> Produksi: Eksekusi Adukan</button>
+          {role === 'admin' && <button onClick={() => { setShowFormMutasi(true); setShowFormBahan(false); setShowFormProd(false); }} className="bg-orange-600 hover:bg-orange-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 shadow"><Truck size={16}/> Kirim Ayam (Ke Pemalang)</button>}
       </div>
 
       {/* FORM: GUDANG BAHAN BAKU MULTIPLE ITEMS */}
@@ -251,9 +277,9 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
 
               {/* CART BAHAN TAMBAHAN YANG DIPAKAI */}
               <div className="bg-white p-4 rounded-lg border border-blue-200">
-                  <div className="flex justify-between items-center mb-3"><h4 className="font-bold text-sm text-blue-800">Bahan Tambahan Terpakai (Otomatis Mengurangi Gudang)</h4><button type="button" onClick={addProdRow} className="bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700 border border-blue-200 rounded">+ Tambah Bahan</button></div>
+                  <div className="flex justify-between items-center mb-3"><h4 className="font-bold text-sm text-blue-800">Bahan Tambahan Terpakai (Akan Mengurangi Gudang)</h4><button type="button" onClick={addProdRow} className="bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700 border border-blue-200 rounded">+ Tambah Bahan</button></div>
                   {bahanProdCart.length === 0 ? (
-                      <div className="text-xs text-slate-400 italic text-center py-2">Klik "Tambah Bahan" jika produksi ini menggunakan Mika, Plastik, Saus, dll.</div>
+                      <div className="text-xs text-slate-400 italic text-center py-2">Klik "Tambah Bahan" jika produksi ini memakai Mika, Plastik, Saus, dll.</div>
                   ) : (
                       <div className="space-y-2">
                           {bahanProdCart.map((item, index) => (
@@ -269,6 +295,17 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
               </div>
 
               <div className="mt-4 flex justify-end"><button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-bold shadow-md">Simpan & Eksekusi Produksi</button></div>
+          </form>
+      )}
+
+      {/* FORM: MUTASI (PUSAT) */}
+      {showFormMutasi && role === 'admin' && (
+          <form onSubmit={handleMutasiPusat} className="bg-orange-50 p-6 rounded-xl border shadow-sm border-orange-200">
+              <div className="flex justify-between items-center border-b border-orange-200 pb-3 mb-4"><h3 className="font-bold text-orange-900 flex items-center gap-2"><Truck size={18}/> Kirim Stok Ayam Ke Pemalang</h3><button type="button" onClick={()=>setShowFormMutasi(false)} className="text-orange-500 hover:text-red-500"><X size={18}/></button></div>
+              <div className="flex gap-4 items-end">
+                  <div className="w-1/3 space-y-1"><label className="text-xs font-bold text-orange-800 uppercase">Total Ayam (Kg)</label><input type="number" min="1" required value={qtyMutasi} onChange={e=>setQtyMutasi(e.target.value)} className="w-full p-3 border border-orange-300 rounded-lg font-black text-xl" /></div>
+                  <div className="w-2/3 flex gap-2"><button type="submit" className="bg-orange-600 hover:bg-orange-700 text-white px-8 py-3 rounded-lg font-bold shadow-md">Kirim Ayam</button></div>
+              </div>
           </form>
       )}
 
@@ -371,8 +408,8 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
                 </td>
                 <td className="px-4 py-3 text-center">
                     <div className="flex justify-center gap-2">
-                        <button onClick={() => setPrintData({ type: 'bukti_stok', data: g })} className="text-slate-600 bg-slate-100 p-2 rounded-lg border hover:bg-slate-200 transition shadow-sm"><Printer size={16} /></button>
-                        <button onClick={() => { if(window.confirm('Hapus seluruh transaksi ini (termasuk semua item)?')) requestDelete(g.id); }} className="text-red-500 bg-red-50 p-2 rounded-lg border border-red-200 hover:bg-red-100 transition shadow-sm"><Trash2 size={16} /></button>
+                        <button onClick={() => setPrintData({ type: 'bukti_stok', data: g })} className="text-slate-600 bg-slate-100 p-2 rounded-lg border hover:bg-slate-200 transition shadow-sm" title="Cetak Bukti Gudang"><Printer size={16} /></button>
+                        <button onClick={() => { if(window.confirm('Hapus seluruh transaksi ini (termasuk semua item)?')) requestDelete(g.id); }} className="text-red-500 bg-red-50 p-2 rounded-lg border border-red-200 hover:bg-red-100 transition shadow-sm" title="Hapus Permanen"><Trash2 size={16} /></button>
                     </div>
                 </td>
               </tr>
