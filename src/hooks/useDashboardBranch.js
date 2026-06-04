@@ -56,7 +56,12 @@ export default function TabDashboardBranch({ orders, pemalangReports, piutangPay
         customerMap[cName].total += Number(o.total);
         customerMap[cName].frequency += 1;
 
-        return { ...o, items: [`${o.qty} Pcs`], totalTagihan: o.total, totalTerbayar: terbayar, sisaTagihan: sisa, status: sisa <= 0 ? 'LUNAS' : 'BELUM LUNAS' };
+        let status = 'BELUM BAYAR';
+        if (sisa <= 0) status = 'LUNAS';
+        else if (o.statusProduksi === 'Sudah Diambil') status = 'PIUTANG';
+        else if (terbayar > 0) status = 'DP';
+
+        return { ...o, items: [`${o.qty} Pcs`], totalTagihan: o.total, totalTerbayar: terbayar, sisaTagihan: sisa, status };
     });
 
     const topCustomersList = Object.values(customerMap).sort((a,b) => b.total - a.total);
@@ -152,7 +157,7 @@ export default function TabDashboardBranch({ orders, pemalangReports, piutangPay
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <StatCard title="Total Omset Penjualan" amount={formatRp(rekap.totalPenjualanKotor)} icon={<Wallet />} color="bg-blue-50 text-blue-700 border-blue-200" />
               <StatCard title="Total Disetor (EOD)" amount={formatRp(rekap.setoranKePusat)} icon={<Coins />} color="bg-emerald-50 text-emerald-700 border-emerald-200" />
-              <StatCard title="Total Piutang Gantung (Barang Keluar)" amount={formatRp(rekap.totalPiutangBaru)} icon={<CreditCard />} color="bg-orange-50 text-orange-700 border-orange-200" />
+              <StatCard title="Total Piutang Berjalan (Diambil)" amount={formatRp(rekap.totalPiutangBaru)} icon={<CreditCard />} color="bg-orange-50 text-orange-700 border-orange-200" />
           </div>
       </div>
 
@@ -196,14 +201,6 @@ export default function TabDashboardBranch({ orders, pemalangReports, piutangPay
                           <tr><td colSpan="7" className="text-center py-6 text-slate-400">Tidak ada data penjualan cabang di periode ini.</td></tr>
                       ) : (
                           rekap.listOrders.map((o, i) => {
-                              const sisaHutang = Number(o.sisaTagihan) || 0;
-                              const totalTerbayar = Number(o.totalTerbayar) || 0;
-                              let statusBayarUI = null;
-                              if (sisaHutang <= 0) statusBayarUI = <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-[10px] font-bold">LUNAS</span>;
-                              else if (totalTerbayar === 0 && o.statusProduksi !== 'Sudah Diambil') statusBayarUI = <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-[10px] font-bold border">BELUM BAYAR</span>;
-                              else if (totalTerbayar > 0 && o.statusProduksi !== 'Sudah Diambil') statusBayarUI = <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-[10px] font-bold">DP</span>;
-                              else statusBayarUI = <span className="bg-red-100 text-red-700 px-2 py-1 rounded text-[10px] font-bold border border-red-200">PIUTANG</span>;
-                              
                               return (
                               <tr key={i} className="hover:bg-slate-50">
                                   <td className="px-3 py-2"><div className="font-bold text-slate-700">{formatDate(o?.date)}</div><div className="text-[10px] text-slate-400 font-mono">{o?.id || '-'}</div></td>
@@ -211,8 +208,8 @@ export default function TabDashboardBranch({ orders, pemalangReports, piutangPay
                                   <td className="px-3 py-2 text-center text-xs font-bold text-slate-600">{o?.qty} Pcs</td>
                                   <td className="px-3 py-2 text-center text-[10px] font-medium text-slate-600">{o?.paymentMethod || '-'}</td>
                                   <td className="px-3 py-2 text-right font-bold text-slate-700">{formatRp(o?.totalTagihan)}</td>
-                                  <td className="px-3 py-2 text-right font-black text-red-600">{formatRp(sisaHutang)}</td>
-                                  <td className="px-3 py-2 text-center">{statusBayarUI}</td>
+                                  <td className="px-3 py-2 text-right font-black text-red-600">{formatRp(o?.sisaTagihan)}</td>
+                                  <td className="px-3 py-2 text-center"><span className={`px-2 py-1 rounded text-[10px] font-bold ${o?.status === 'LUNAS' ? 'bg-emerald-100 text-emerald-700' : o?.status === 'PIUTANG' ? 'bg-red-100 text-red-700' : o?.status === 'DP' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600 border'}`}>{o?.status}</span></td>
                               </tr>
                           )})
                       )}
@@ -224,7 +221,7 @@ export default function TabDashboardBranch({ orders, pemalangReports, piutangPay
       {/* TABEL 3: PIUTANG BERJALAN (SAH DIAMBIL TAPI BELUM LUNAS) */}
       {rekap.listPiutangBerjalan.length > 0 && (
           <div className="bg-white p-6 rounded-xl border border-orange-200 shadow-sm flex flex-col mt-6">
-              <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-orange-700"><AlertCircle size={20}/> Daftar Piutang Berjalan (Sah)</h3>
+              <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-orange-700"><AlertCircle size={20}/> Daftar Piutang Berjalan (Sudah Diambil)</h3>
               <div className="overflow-x-auto">
                   <table className="w-full text-sm text-left">
                       <thead className="bg-orange-50 border-b border-orange-100">
@@ -253,12 +250,12 @@ export default function TabDashboardBranch({ orders, pemalangReports, piutangPay
             <div className="grid grid-cols-2 gap-4 mt-2">
                 <div className="bg-emerald-50 p-3 rounded border border-emerald-100"><div className="text-[10px] font-bold text-emerald-700 uppercase mb-1">Total Omset Cabang</div><div className="text-lg font-black text-emerald-600">+{formatRp(rekap.totalPenjualanKotor)}</div></div>
                 <div className="bg-blue-50 p-3 rounded border border-blue-100"><div className="text-[10px] font-bold text-blue-700 uppercase mb-1">Total Terbayar (Cash/TF)</div><div className="text-lg font-black text-blue-600">+{formatRp(rekap.totalTerbayarPeriode)}</div></div>
-                <div className="bg-orange-50 p-3 rounded border border-orange-100"><div className="text-[10px] font-bold text-orange-700 uppercase mb-1">Piutang / DP Berjalan</div><div className="text-lg font-black text-orange-600">{formatRp((rekap.totalPenjualanKotor) - (rekap.totalTerbayarPeriode))}</div></div>
+                <div className="bg-orange-50 p-3 rounded border border-orange-100"><div className="text-[10px] font-bold text-orange-700 uppercase mb-1">Piutang / Belum Bayar</div><div className="text-lg font-black text-orange-600">{formatRp((rekap.totalPenjualanKotor) - (rekap.totalTerbayarPeriode))}</div></div>
                 <div className="bg-indigo-50 p-3 rounded border border-indigo-100"><div className="text-[10px] font-bold text-indigo-700 uppercase mb-1">Setoran EOD (Ke Pusat)</div><div className="text-lg font-black text-indigo-600">{formatRp(rekap.setoranKePusat)}</div></div>
             </div>
         </div>
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col max-h-[340px]">
-            <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Users size={20} className="text-slate-500"/> Pelanggan Teratas Cabang</h3>
+            <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Users size={20} className="text-slate-500"/> Pelanggan Teratas Cabang (Periode Ini)</h3>
             <div className="overflow-y-auto pr-2 flex-1 space-y-3">
                {(!rekap.topCustomersList || rekap.topCustomersList.length === 0) ? (
                    <div className="text-center text-slate-400 text-sm mt-8">Tidak ada data penjualan cabang.</div>
