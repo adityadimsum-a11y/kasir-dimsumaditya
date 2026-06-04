@@ -26,8 +26,10 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
   const MASTER_AYAM_KG = 30; 
   const MASTER_PCS = 1000; 
   const KG_PER_KANTONG = 10; 
+  const PCS_PER_MIKA = 50; // 1 Mika = 50 Pcs
 
   const formatAyam = (kg) => `${kg} Kg (${(kg / KG_PER_KANTONG).toFixed(1).replace('.0', '')} Ktg)`;
+  const formatDimsum = (pcs) => `${pcs} Pcs (${(pcs / PCS_PER_MIKA).toFixed(1).replace('.0', '')} Mika)`;
 
   const dashboardStok = useMemo(() => {
       const totalAyamBeliPusat = (purchases || []).filter(p => p.itemName.toUpperCase().includes('AYAM')).reduce((sum, p) => sum + Number(p.qty), 0);
@@ -55,7 +57,6 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
       const sisaFreezerPusat = dimsumJadiPusat - terjualPusat;
       const sisaFreezerPemalang = dimsumJadiPemalang - terjualPemalang;
       
-      // Hitung Bahan Lainnya
       const bahanLain = (stokData || []).filter(s => s.type === 'BAHAN_LAIN').sort(safeSort);
       const rekapBahan = {};
       bahanLain.forEach(b => {
@@ -181,17 +182,18 @@ export default function TabStok({ stokData, purchases, orders, sendToSheet, requ
 
           <div className="bg-white rounded-xl border border-blue-200 shadow-sm overflow-hidden">
               <div className="bg-blue-50 p-3 border-b border-blue-100 font-bold text-blue-800 flex justify-between items-center">
-                  <span>Alur Freezer (Dimsum Jadi)</span><span className="text-xs font-normal bg-white px-2 py-1 rounded border border-blue-200">1 Adukan = 1000 Pcs</span>
+                  <span>Alur Freezer (Dimsum Jadi)</span><span className="text-xs font-normal bg-white px-2 py-1 rounded border border-blue-200">1 Mika = 50 Pcs</span>
               </div>
               <div className="p-5 grid grid-cols-2 gap-4">
                   <div className="col-span-2 flex justify-between items-end border-b border-dashed pb-3">
-                      <div><div className="text-[10px] uppercase font-bold text-blue-500 mb-1">Barang Masuk Freezer (Hasil Produksi)</div><div className="text-xl font-bold text-blue-600">+{role === 'admin' ? dashboardStok.dimsumJadiPusat : dashboardStok.dimsumJadiPemalang} <span className="text-sm text-blue-400">Pcs</span></div></div>
+                      <div><div className="text-[10px] uppercase font-bold text-blue-500 mb-1">Barang Masuk Freezer (Hasil Produksi)</div><div className="text-xl font-bold text-blue-600">+{formatDimsum(role === 'admin' ? dashboardStok.dimsumJadiPusat : dashboardStok.dimsumJadiPemalang)}</div></div>
+                      <div className="text-right text-xs font-bold text-blue-400">Dari {role === 'admin' ? dashboardStok.adukanPusat : dashboardStok.adukanPemalang} Adukan</div>
                   </div>
-                  <div className="col-span-2"><div className="text-[10px] uppercase font-bold text-orange-500 mb-1">Barang Keluar Freezer (Order / Mutasi)</div><div className="text-lg font-bold text-orange-600">-{role === 'admin' ? dashboardStok.terjualPusat : dashboardStok.terjualPemalang} <span className="text-xs">Pcs</span></div></div>
+                  <div className="col-span-2"><div className="text-[10px] uppercase font-bold text-orange-500 mb-1">Barang Keluar Freezer (Order / Mutasi)</div><div className="text-lg font-bold text-orange-600">-{formatDimsum(role === 'admin' ? dashboardStok.terjualPusat : dashboardStok.terjualPemalang)}</div></div>
                   <div className={`col-span-2 p-3 rounded-lg flex justify-between items-center border ${role === 'admin' ? (dashboardStok.sisaFreezerPusat <= 0 ? 'bg-red-50 border-red-200' : 'bg-slate-50') : (dashboardStok.sisaFreezerPemalang <= 0 ? 'bg-red-50 border-red-200' : 'bg-slate-50')}`}>
                       <span className="font-bold uppercase text-xs text-slate-600">Sisa Stok Harian (Freezer)</span>
                       <span className={`text-2xl font-black ${role === 'admin' ? (dashboardStok.sisaFreezerPusat <= 0 ? 'text-red-600' : 'text-emerald-600') : (dashboardStok.sisaFreezerPemalang <= 0 ? 'text-red-600' : 'text-emerald-600')}`}>
-                          {role === 'admin' ? dashboardStok.sisaFreezerPusat : dashboardStok.sisaFreezerPemalang} <span className="text-base font-medium">Pcs</span>
+                          {role === 'admin' ? dashboardStok.sisaFreezerPusat : dashboardStok.sisaFreezerPemalang} <span className="text-sm font-medium">Pcs ({((role === 'admin' ? dashboardStok.sisaFreezerPusat : dashboardStok.sisaFreezerPemalang) / PCS_PER_MIKA).toFixed(1).replace('.0','')} Mika)</span>
                       </span>
                   </div>
               </div>
