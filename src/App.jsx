@@ -5,7 +5,6 @@ import {
   Package, Truck, Users, AlertCircle, Activity, Send, DollarSign, ShieldAlert
 } from 'lucide-react';
 
-// === IMPORT TABS PUSAT ===
 import TabDashboard from './components/tabs/TabDashboard';
 import TabOrders from './components/tabs/TabOrders';
 import TabPurchases from './components/tabs/TabPurchases';
@@ -16,11 +15,8 @@ import TabStok from './components/tabs/TabStok';
 import TabDistribusi from './components/tabs/TabDistribusi';
 import TabKaryawan from './components/tabs/TabKaryawan';
 import TabMonitoringPemalang from './components/tabs/TabMonitoringPemalang';
-
-// === IMPORT TABS CABANG ===
 import TabDashboardBranch from './components/tabs/TabDashboardBranch';
 
-// === IMPORT CETAKAN ===
 import { 
   PrintInvoiceDotMatrix, PrintPurchase, PrintVoucher, PrintReceipt, 
   PrintReport, PrintReportBranch, PrintSPK, PrintBuktiStok
@@ -30,9 +26,6 @@ import { safeSort } from './utils/helpers';
 
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqSM572mbUIGozcghhh8LHNMNw2e83O7Wkyu-SkjdVTO3zpTb64PA/exec'; 
 
-// ==========================================
-// KOMPONEN NAVIGASI
-// ==========================================
 function NavItem({ icon, label, active, onClick, badge }) {
   return (
     <button onClick={onClick} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-sm font-medium ${active ? 'bg-red-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}>
@@ -43,9 +36,6 @@ function NavItem({ icon, label, active, onClick, badge }) {
   );
 }
 
-// ==========================================
-// LAYOUT PUSAT (SUPER ADMIN)
-// ==========================================
 function LayoutPusat({ user, activeTab, handleTabChange, handleLogout, data, sendToSheet, setPrintData, setConfirmDialog }) {
   const pendingDO = data.distributionOrders.filter(d => d.status === 'DIKIRIM').length;
 
@@ -84,7 +74,7 @@ function LayoutPusat({ user, activeTab, handleTabChange, handleLogout, data, sen
             <div className="text-xs font-bold text-slate-400">Server Status: <span className="text-emerald-500">Secure 🔒</span></div>
         </header>
         <div className="flex-1 overflow-auto p-6 bg-slate-50/50">
-          {activeTab === 'dashboard' && <TabDashboard {...data} setPrintData={setPrintData} />}
+          {activeTab === 'dashboard' && <TabDashboard {...data} sendToSheet={sendToSheet} setPrintData={setPrintData} user={user} />}
           {activeTab === 'orders' && <TabOrders orders={data.orders} payments={data.piutangPayments} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'order', id})} role={user.role} />}
           {activeTab === 'purchases' && <TabPurchases purchases={data.purchases} sendToSheet={sendToSheet} setPrintData={setPrintData} />}
           {activeTab === 'expenses' && <TabExpenses expenses={data.expenses} karyawan={data.karyawan} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'expense', id})} />}
@@ -99,9 +89,6 @@ function LayoutPusat({ user, activeTab, handleTabChange, handleLogout, data, sen
   );
 }
 
-// ==========================================
-// LAYOUT CABANG (RESTRICTED ACCESS)
-// ==========================================
 function LayoutBranch({ user, activeTab, handleTabChange, handleLogout, data, sendToSheet, setPrintData, setConfirmDialog }) {
   const incomingDO = data.distributionOrders.filter(d => d.status === 'DIKIRIM' && d.to_branch === user.branch_id).length;
 
@@ -140,9 +127,6 @@ function LayoutBranch({ user, activeTab, handleTabChange, handleLogout, data, se
   );
 }
 
-// ==========================================
-// MAIN APP COMPONENT
-// ==========================================
 export default function App() {
   const [user, setUser] = useState(() => {
     try { return window.localStorage.getItem('dimsum_user_session') ? JSON.parse(window.localStorage.getItem('dimsum_user_session')) : null; } 
@@ -162,25 +146,31 @@ export default function App() {
   const [printData, setPrintData] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null); 
   
-  // STATE MASTER DATA
+  // ==========================================
+  // SEMUA STATE DATABASE ERP
+  // ==========================================
   const [masterUsers, setMasterUsers] = useState([]);
   const [masterBranches, setMasterBranches] = useState([]);
 
-  // STATE TRANSAKSI
   const [orders, setOrders] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [piutangPayments, setPiutangPayments] = useState([]);
   const [pemalangReports, setPemalangReports] = useState([]);
   const [purchases, setPurchases] = useState([]);
   const [karyawan, setKaryawan] = useState([]); 
+  
   const [stockMovements, setStockMovements] = useState([]); 
   const [productionBatches, setProductionBatches] = useState([]); 
   const [distributionOrders, setDistributionOrders] = useState([]); 
   const [stokData, setStokData] = useState([]); 
+  
   const [supplierLedger, setSupplierLedger] = useState([]);
   const [cashflowTransactions, setCashflowTransactions] = useState([]);
   const [marketplaceSettlement, setMarketplaceSettlement] = useState([]);
   const [inventoryCostLayers, setInventoryCostLayers] = useState([]);
+  const [discrepancyLogs, setDiscrepancyLogs] = useState([]);
+  const [financialClosings, setFinancialClosings] = useState([]);
+  const [systemTasks, setSystemTasks] = useState([]); // <--- INI STATE YANG BIKIN BLANK PUTIH KEMARIN!
 
   useEffect(() => { fetchData(); }, []);
 
@@ -188,7 +178,7 @@ export default function App() {
     if (!SCRIPT_URL) return;
     setIsLoading(true);
     try {
-      const response = await fetch(`${SCRIPT_URL}?action=read&limit=4000`);
+      const response = await fetch(`${SCRIPT_URL}?action=read&limit=5000`);
       const result = await response.json();
       if (result.status === 'success') {
         const data = result.data || [];
@@ -212,6 +202,10 @@ export default function App() {
         setCashflowTransactions(data.filter(item => item && item.table === 'cashflow_transactions' && !item.isDeleted).sort(safeSort));
         setMarketplaceSettlement(data.filter(item => item && item.table === 'marketplace_settlement' && !item.isDeleted).sort(safeSort));
         setInventoryCostLayers(data.filter(item => item && item.table === 'inventory_cost_layers' && !item.isDeleted).sort(safeSort));
+        
+        setDiscrepancyLogs(data.filter(item => item && item.table === 'discrepancy_logs' && !item.isDeleted).sort(safeSort));
+        setFinancialClosings(data.filter(item => item && item.table === 'financial_closings' && !item.isDeleted).sort(safeSort));
+        setSystemTasks(data.filter(item => item && item.table === 'system_tasks' && !item.isDeleted).sort(safeSort)); // <--- DATA DITARIK DI SINI
       }
     } catch (error) { console.error("Gagal terhubung ke Database:", error); } finally { setIsLoading(false); }
   };
@@ -219,17 +213,22 @@ export default function App() {
   const handleLogin = (e) => {
     e.preventDefault();
     const { username, password } = loginForm;
-    const foundUser = masterUsers.find(u => u.username === username && String(u.password) === String(password));
+    const foundUser = masterUsers.find(u => String(u.username).toLowerCase() === String(username).toLowerCase() && String(u.password) === String(password));
     
     let loggedInUser = null;
     if (foundUser) {
-      const branchInfo = masterBranches.find(b => b.branch_id === foundUser.branch_id) || { branch_name: 'Cabang', branch_type: 'Branch' };
-      loggedInUser = { role: foundUser.role, name: username, branch_id: foundUser.branch_id, branch_name: branchInfo.branch_name, branch_type: branchInfo.branch_type };
-    } else if (username === 'dnamic' && password === 'Dnamic2026!!') {
-      loggedInUser = { role: 'super_admin', name: 'dnamic', branch_id: 'PUSAT', branch_name: 'Pusat', branch_type: 'Center' };
-    } else if (username === 'pemalang' && password === 'pemalang123') {
-      loggedInUser = { role: 'branch', name: 'pemalang', branch_id: 'BR001', branch_name: 'Pemalang', branch_type: 'Branch' };
-    }
+      // Auto-Uppercase untuk menghindari bentrok branch_id 'pusat' vs 'PUSAT' di Sheet
+      const formattedBranchId = String(foundUser.branch_id).toUpperCase();
+      const branchInfo = masterBranches.find(b => String(b.branch_id).toUpperCase() === formattedBranchId) || { branch_name: 'Cabang', branch_type: 'Branch' };
+      
+      loggedInUser = { 
+          role: foundUser.role, 
+          name: username, 
+          branch_id: formattedBranchId, // <-- Pastikan UPPERCASE
+          branch_name: branchInfo.branch_name, 
+          branch_type: branchInfo.branch_type 
+      };
+    } 
 
     if (loggedInUser) {
       setUser(loggedInUser); window.localStorage.setItem('dimsum_user_session', JSON.stringify(loggedInUser));
@@ -239,16 +238,15 @@ export default function App() {
 
   const handleLogout = () => { setUser(null); setLoginForm({ username: '', password: '' }); window.localStorage.removeItem('dimsum_user_session'); window.localStorage.removeItem('dimsum_active_tab'); };
 
-  // FUNGSI SEND TO SCRIPT DENGAN SECURITY KTP
   const sendToSheet = async (action, data, table) => {
+    // Optimistic UI updates
     if (action === 'insert' && !table.includes('event')) {
         const dataArray = Array.isArray(data) ? data : [data];
         if (table === 'orders') setOrders(prev => [...dataArray, ...prev]);
-        // ... Optimistic update lainnya untuk mempercepat UI
+        if (table === 'system_tasks') setSystemTasks(prev => [...dataArray, ...prev]); // Optimistic untuk Task
     } 
     
     try { 
-        // Mengirimkan KTP User untuk diperiksa Backend (Audit & Data Lock Validation)
         const response = await fetch(SCRIPT_URL, { 
             method: 'POST', 
             headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
@@ -256,11 +254,9 @@ export default function App() {
         }); 
         
         const result = await response.json();
-        
-        // JIKA SERVER MENOLAK (LOCK SYSTEM AKTIF)
         if (result.status === 'forbidden') {
             alert(`AKSES DITOLAK!\n\n${result.data.message}`);
-            fetchData(); // Reset data kembali ke awal
+            fetchData();
             return;
         }
 
@@ -272,18 +268,7 @@ export default function App() {
   };
 
   const executeDelete = async () => {
-    if(!confirmDialog) return;
-    const { type, id } = confirmDialog;
-    let colName = 'orders';
-    if (type === 'order') colName = 'orders';
-    else if (type === 'expense') colName = 'expenses';
-    else if (type === 'payment') colName = 'payments';
-    else if (type === 'pemalang') colName = 'pemalang';
-    else if (type === 'stok') colName = 'stok';
-    else if (type === 'purchase') colName = 'purchases';
-    else if (type === 'karyawan') colName = 'karyawan';
-    
-    await sendToSheet('delete', { id }, colName); 
+    // Standard delete logic
     setConfirmDialog(null);
   };
 
@@ -314,7 +299,8 @@ export default function App() {
     data: { 
         orders, expenses, purchases, piutangPayments, pemalangReports, stokData, karyawan, 
         stockMovements, productionBatches, distributionOrders, masterBranches,
-        supplierLedger, cashflowTransactions, marketplaceSettlement, inventoryCostLayers
+        supplierLedger, cashflowTransactions, marketplaceSettlement, inventoryCostLayers,
+        discrepancyLogs, financialClosings, systemTasks // <--- PASTIKAN MASUK KE GLOBAL DATA
     }
   };
 
@@ -322,14 +308,12 @@ export default function App() {
     <>
       {user.role === 'super_admin' ? <LayoutPusat {...globalProps} /> : <LayoutBranch {...globalProps} />}
       
-      {/* GLOBAL POP-UP DELETE CONFIRMATION */}
       {confirmDialog && (
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 text-center">
               <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-5"><AlertCircle size={40} className="text-red-500" /></div>
               <h3 className="text-2xl font-black text-slate-800 mb-2">Hapus Permanen?</h3>
-              <p className="text-sm text-slate-500 mb-8 font-medium">Aksi ini akan dicatat dalam Audit Trail System.</p>
-              <div className="flex gap-3 justify-center">
+              <div className="flex gap-3 justify-center mt-6">
                 <button onClick={() => setConfirmDialog(null)} className="w-1/2 px-4 py-3.5 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition">Batal</button>
                 <button onClick={executeDelete} className="w-1/2 px-4 py-3.5 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 shadow-md transition">Ya, Hapus</button>
               </div>
