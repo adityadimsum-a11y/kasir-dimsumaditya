@@ -1,202 +1,111 @@
-import React, { useState, useMemo } from 'react';
-import { Truck, Plus, X, Trash2, Printer, Filter, CreditCard } from 'lucide-react';
-import { getTodayStr, formatRp, parseRp, generateId, getLocalYMD, safeSort, formatDate } from '../../utils/helpers';
+import React, { useState } from 'react';
+import { Truck, Search, Download, Printer, PlusCircle, Factory, Zap } from 'lucide-react';
+import { formatRp, getTodayStr, generateId, formatDate } from '../../utils/helpers';
 
-export default function TabPurchases({ purchases, payments, sendToSheet, requestDelete, setPrintData }) {
-  const [showForm, setShowForm] = useState(false);
-  const [isEdit, setIsEdit] = useState(false);
-  const [editId, setEditId] = useState(null);
-
+export default function TabPurchases({ purchases, sendToSheet, setPrintData }) {
   const todayStr = getTodayStr();
   const [date, setDate] = useState(todayStr);
   const [supplier, setSupplier] = useState('');
-  
-  const [cart, setCart] = useState([{ itemName: '', qty: '', satuan: 'KG', price: 0 }]);
-  const [paymentList, setPaymentList] = useState([]);
-
-  const [filterFrom, setFilterFrom] = useState(todayStr);
-  const [filterTo, setFilterTo] = useState(todayStr);
-
-  const cartTotal = cart.reduce((sum, item) => sum + ((Number(item.qty)||0) * (Number(item.price)||0)), 0);
-  const totalDibayar = paymentList.reduce((sum, p) => sum + (Number(p.amount)||0), 0);
-
-  const listSupplierUnik = [...new Set((purchases||[]).map(s => String(s?.supplier||'').toUpperCase()))];
-
-  const updateCartItem = (index, field, value) => { const newCart = [...cart]; newCart[index][field] = value; setCart(newCart); };
-  const addCartRow = () => setCart([...cart, { itemName: '', qty: '', satuan: 'KG', price: 0 }]);
-  const removeCartRow = (index) => setCart(cart.filter((_, i) => i !== index));
-
-  const updatePaymentItem = (index, field, value) => { const newList = [...paymentList]; newList[index][field] = value; setPaymentList(newList); };
-  const addPaymentRow = () => setPaymentList([...paymentList, { method: 'Cash', amount: '', date: todayStr }]);
-  const removePaymentRow = (index) => setPaymentList(paymentList.filter((_, i) => i !== index));
-
-  let autoStatusBayar = 'BELUM BAYAR';
-  if (cartTotal > 0 && totalDibayar >= cartTotal) autoStatusBayar = 'LUNAS';
-  else if (totalDibayar > 0 && totalDibayar < cartTotal) autoStatusBayar = 'DP / SEBAGIAN';
-
-  const resetForm = () => {
-    setShowForm(false); setIsEdit(false); setEditId(null);
-    setDate(todayStr); setSupplier(''); 
-    setCart([{ itemName: '', qty: '', satuan: 'KG', price: 0 }]); setPaymentList([]);
-  };
-
-  const handleEdit = (item) => {
-    const relatedItems = (purchases||[]).filter(p => p.id === item.id);
-    setDate(String(item.date).split('T')[0]); setSupplier(item.supplier);
-    setCart(relatedItems.map(p => ({ itemName: p.itemName, qty: p.qty, satuan: p.satuan, price: p.price })));
-    
-    let loadedPayments = [];
-    try { loadedPayments = JSON.parse(item.paymentMethod); } 
-    catch(e) { if (Number(item.paidAmount) > 0) loadedPayments = [{ method: item.paymentMethod || 'Cash', amount: item.paidAmount, date: String(item.date).split('T')[0] }]; }
-    setPaymentList(loadedPayments);
-
-    setEditId(item.id); setIsEdit(true); setShowForm(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+  const [itemName, setItemName] = useState('AYAM MENTAH UTUH');
+  const [qty, setQty] = useState('');
+  const [satuan, setSatuan] = useState('KG');
+  const [price, setPrice] = useState('');
+  const [paidAmount, setPaidAmount] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('Cash / Tunai');
+  const [filterSupplier, setFilterSupplier] = useState('');
 
   const handleSimpan = (e) => {
     e.preventDefault();
-    const invoiceId = isEdit ? editId : generateId('BUY', date);
-    if(isEdit) sendToSheet('delete', { id: editId }, 'purchases');
+    const total = Number(qty) * Number(price);
+    const id = generateId('BUY', date);
 
-    const validPayments = paymentList.filter(p => Number(p.amount) > 0);
-    const paymentDataString = validPayments.length > 0 ? JSON.stringify(validPayments) : '-';
+    const newData = {
+      id, date, supplier, itemName,
+      qty: Number(qty), satuan, price: Number(price),
+      total, paidAmount: Number(paidAmount), paymentMethod,
+      isDeleted: false, branch_id: 'PUSAT'
+    };
 
-    const newPurchasesArray = cart.filter(item => Number(item.qty) > 0).map((item, index) => ({
-        id: invoiceId, date, supplier: supplier.toUpperCase(),
-        itemName: String(item.itemName).toUpperCase(), satuan: String(item.satuan).toUpperCase(),
-        qty: Number(item.qty) || 0, price: Number(item.price) || 0, total: (Number(item.qty) || 0) * (Number(item.price) || 0),
-        paymentMethod: index === 0 ? paymentDataString : '-', paidAmount: index === 0 ? totalDibayar : 0, editCount: 0
-    }));
+    // THE MAGIC TRIGGER: Send to AUTO JOURNAL EVENT ENGINE
+    sendToSheet('event_purchase', newData, 'purchases');
 
-    if (newPurchasesArray.length > 0) sendToSheet('insert', newPurchasesArray, 'purchases');
-    resetForm();
+    alert(`Auto-Journal Executed!\n\n1. Pembelian ${itemName} dicatat\n2. Stok Gudang bertambah\n3. Ledger Hutang Supplier tercatat\n4. Cashflow terpotong (jika ada DP/Lunas)`);
+
+    setSupplier(''); setQty(''); setPrice(''); setPaidAmount('');
+    setPrintData({ type: 'purchase', data: newData });
   };
 
-  const handlePrint = (pur) => {
-      const cicilan = (payments || []).filter(p => p.orderId === pur.id);
-      let basePayments = [];
-      try { basePayments = JSON.parse(pur.paymentMethod); } catch(e) { if(pur.paidAmount > 0) basePayments = [{ method: pur.paymentMethod, amount: pur.paidAmount, date: pur.date }]; }
-      const allPayments = [...basePayments, ...cicilan.map(c => ({ method: c.paymentMethod, amount: c.amount, date: c.date }))];
-      setPrintData({ type: 'purchase', data: { ...pur, allPayments } });
-  };
-
-  const displayPurchases = useMemo(() => {
-    let filtered = (purchases||[]).filter(p => { const ymd = getLocalYMD(p?.date); return ymd && ymd >= filterFrom && ymd <= filterTo; });
-    const groups = {};
-    filtered.forEach(p => {
-        if(!p?.id) return;
-        if(!groups[p.id]) groups[p.id] = { ...p, items: [], totalAll: 0 };
-        groups[p.id].items.push(`${p.itemName} (${p.qty} ${p.satuan})`); groups[p.id].totalAll += Number(p.total);
-    });
-    return Object.values(groups).sort(safeSort);
-  }, [purchases, filterFrom, filterTo]);
+  const listData = purchases ? purchases.filter(p => p.supplier && p.supplier.toLowerCase().includes(filterSupplier.toLowerCase())).sort((a, b) => new Date(b.date) - new Date(a.date)) : [];
 
   return (
-    <div className="space-y-4 animate-in fade-in pb-10">
-      <div className="flex justify-between items-center">
-        <div><h3 className="font-bold text-lg text-slate-800">Pembelian Bahan Baku</h3></div>
-        <button onClick={() => { if(showForm) resetForm(); else setShowForm(true); }} className={`px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium transition shadow-sm text-white ${showForm ? 'bg-slate-500' : 'bg-orange-600'}`}>{showForm ? <X size={16} /> : <Plus size={16} />} {showForm ? 'Batal' : 'Buat Pembelian'}</button>
+    <div className="space-y-6 animate-in fade-in pb-10">
+      
+      {/* FORM INPUT PEMBELIAN DENGAN EVENT ENGINE */}
+      <div className="bg-white rounded-2xl border shadow-sm p-6 relative overflow-hidden">
+        <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none"><Zap size={120} /></div>
+        
+        <div className="flex items-center gap-3 mb-6 border-b pb-4 relative z-10">
+          <div className="bg-orange-100 text-orange-600 p-2.5 rounded-xl"><Truck size={24} /></div>
+          <div>
+            <h3 className="font-black text-slate-800 text-lg uppercase tracking-wide">Purchase & Restock System</h3>
+            <p className="text-[10px] font-bold text-orange-600 uppercase tracking-widest flex items-center gap-1"><Zap size={10}/> Powered by Auto Journal Engine</p>
+          </div>
+        </div>
+
+        <form onSubmit={handleSimpan} className="grid grid-cols-1 md:grid-cols-4 gap-4 relative z-10">
+          <div className="space-y-1"><label className="text-[10px] font-bold text-slate-500 uppercase">Tgl Beli</label><input type="date" required value={date} onChange={e=>setDate(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm" /></div>
+          <div className="space-y-1"><label className="text-[10px] font-bold text-slate-500 uppercase">Supplier</label><input type="text" required placeholder="Cth: Suplier Ayam Pak Budi" value={supplier} onChange={e=>setSupplier(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm uppercase" /></div>
+          <div className="space-y-1"><label className="text-[10px] font-bold text-slate-500 uppercase">Barang / Bahan</label><input type="text" required value={itemName} onChange={e=>setItemName(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm uppercase" /></div>
+          
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1"><label className="text-[10px] font-bold text-slate-500 uppercase">Jumlah</label><input type="number" step="0.01" required value={qty} onChange={e=>setQty(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-black text-blue-700 text-sm" /></div>
+            <div className="space-y-1"><label className="text-[10px] font-bold text-slate-500 uppercase">Satuan</label><select value={satuan} onChange={e=>setSatuan(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm"><option value="KG">KG</option><option value="PCS">PCS</option><option value="KARUNG">KARUNG</option></select></div>
+          </div>
+
+          <div className="space-y-1"><label className="text-[10px] font-bold text-slate-500 uppercase">Harga Satuan</label><input type="number" required placeholder="Rp" value={price} onChange={e=>setPrice(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-black text-sm" /></div>
+          <div className="space-y-1"><label className="text-[10px] font-bold text-slate-500 uppercase">Total Tagihan (Auto)</label><div className="w-full p-2.5 bg-slate-100 border border-slate-200 rounded-xl font-black text-slate-500 text-sm cursor-not-allowed">{formatRp(Number(qty)*Number(price))}</div></div>
+          
+          <div className="space-y-1 border border-orange-200 bg-orange-50/50 p-2 rounded-xl"><label className="text-[10px] font-black text-orange-700 uppercase block mb-1">Dibayar Hari Ini (DP/Lunas)</label><input type="number" required placeholder="Cth: 0 jika hutang" value={paidAmount} onChange={e=>setPaidAmount(e.target.value)} className="w-full p-2 bg-white border border-orange-200 rounded-lg font-black text-emerald-600 text-sm" /></div>
+          <div className="space-y-1 border border-orange-200 bg-orange-50/50 p-2 rounded-xl"><label className="text-[10px] font-black text-orange-700 uppercase block mb-1">Metode Bayar / Kas</label><select value={paymentMethod} onChange={e=>setPaymentMethod(e.target.value)} className="w-full p-2 bg-white border border-orange-200 rounded-lg font-bold text-sm text-slate-700"><option>Cash / Tunai</option><option>Transfer BCA</option><option>Transfer Mandiri</option></select></div>
+
+          <div className="md:col-span-4 mt-2 border-t pt-4">
+            <button type="submit" className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3.5 rounded-xl shadow-md transition flex items-center justify-center gap-2">
+              <Zap size={18} className="text-yellow-400" /> Eksekusi Pembelian & Auto Journal
+            </button>
+          </div>
+        </form>
       </div>
 
-      {showForm && (
-        <form onSubmit={handleSimpan} className="bg-white p-6 rounded-xl border border-orange-200 shadow-sm grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="lg:col-span-2 mb-2 border-b border-slate-100 pb-2 flex justify-between items-center"><h4 className="font-bold text-orange-800 text-sm flex gap-2"><Truck size={16}/> Form {isEdit ? 'Edit' : 'Input'} Pembelian (Otomatis Masuk Gudang)</h4><button type="button" onClick={resetForm} className="text-slate-400 hover:text-red-500"><X size={18}/></button></div>
-          
-          <div className="space-y-4">
-              <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Tanggal Beli</label><input type="date" required value={date} onChange={e => setDate(e.target.value)} className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-orange-200" /></div>
-              <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Nama Supplier</label><input type="text" list="supp-list" required placeholder="Contoh: Toko Berkah..." value={supplier} onChange={e => setSupplier(e.target.value)} className="w-full p-2 border rounded-lg uppercase" /><datalist id="supp-list">{listSupplierUnik.map(b => <option key={b} value={b} />)}</datalist></div>
-              
-              <div className="bg-orange-50 p-4 rounded-xl border border-orange-100">
-                 <div className="flex justify-between items-center mb-3"><h4 className="font-bold text-sm text-orange-900">Rincian Barang</h4><button type="button" onClick={addCartRow} className="bg-white px-3 py-1 text-xs font-bold text-orange-600 border border-orange-300 rounded hover:bg-orange-100 transition">+ Tambah Barang</button></div>
-                 <div className="space-y-2">
-                     {cart.map((item, index) => (
-                         <div key={index} className="flex gap-2 items-center bg-white p-2 rounded-lg border relative pr-8">
-                             <div className="w-4/12"><input type="text" required placeholder="Nama Barang" value={item.itemName} onChange={e=>updateCartItem(index, 'itemName', e.target.value)} className="w-full p-1.5 border rounded text-xs uppercase font-bold" /></div>
-                             <div className="w-2/12"><input type="number" min="0.1" step="0.1" required placeholder="Qty" value={item.qty} onChange={e=>updateCartItem(index, 'qty', e.target.value)} className="w-full p-1.5 border rounded text-xs font-bold text-center" /></div>
-                             <div className="w-2/12"><input type="text" required placeholder="Satuan" value={item.satuan} onChange={e=>updateCartItem(index, 'satuan', e.target.value)} className="w-full p-1.5 border rounded text-xs uppercase text-center" /></div>
-                             <div className="w-4/12"><input type="text" required placeholder="Harga Total" value={formatRp(item.price)} onChange={e=>updateCartItem(index, 'price', parseRp(e.target.value))} className="w-full p-1.5 border rounded text-xs font-bold" /></div>
-                             {cart.length > 1 && <button type="button" onClick={()=>removeCartRow(index)} className="absolute right-2 top-2.5 text-red-400 hover:text-red-600"><Trash2 size={16}/></button>}
-                         </div>
-                     ))}
-                 </div>
-              </div>
-          </div>
-
-          <div className="space-y-4 flex flex-col">
-              <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 flex flex-col justify-center items-center text-center">
-                  <label className="text-xs font-bold text-amber-800 uppercase mb-1">Total Belanja (Hutang)</label>
-                  <div className="text-4xl font-black text-amber-900">{formatRp(cartTotal)}</div>
-              </div>
-
-              <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100 flex-1 flex flex-col">
-                 <div className="flex justify-between items-center mb-3"><h4 className="font-bold text-sm text-emerald-900 flex items-center gap-2"><CreditCard size={16}/> Riwayat Pembayaran ke Supplier</h4><button type="button" onClick={addPaymentRow} className="bg-white px-3 py-1 text-[10px] font-bold text-emerald-600 border border-emerald-300 rounded hover:bg-emerald-100 transition shadow-sm">+ Tambah Pembayaran</button></div>
-                 
-                 {paymentList.length === 0 ? (
-                     <div className="text-xs text-slate-500 italic text-center py-6 bg-white rounded border border-dashed border-emerald-200 mb-4">Belum ada pembayaran ke Supplier.<br/>Disimpan sebagai Hutang Penuh.</div>
-                 ) : (
-                     <div className="space-y-2 mb-4">
-                         {paymentList.map((item, index) => (
-                             <div key={index} className="flex gap-2 items-center bg-white p-2 rounded-lg border border-emerald-200 relative pr-8">
-                                 <div className="w-5/12 space-y-1"><select value={item.method} onChange={e=>updatePaymentItem(index, 'method', e.target.value)} className="w-full p-1.5 border rounded text-[10px] uppercase font-bold"><option>Cash</option><option>Transfer Bank</option></select></div>
-                                 <div className="w-7/12 space-y-1"><input type="text" required placeholder="Nominal" value={formatRp(item.amount)} onChange={e=>updatePaymentItem(index, 'amount', parseRp(e.target.value))} className="w-full p-1.5 border rounded text-xs font-black text-emerald-700 text-right" /></div>
-                                 <button type="button" onClick={()=>removePaymentRow(index)} className="absolute right-2 top-2.5 text-red-400 hover:text-red-600"><Trash2 size={16}/></button>
-                             </div>
-                         ))}
-                     </div>
-                 )}
-
-                 <div className="border-t border-emerald-200 pt-3 mt-auto">
-                     <div className="flex justify-between items-center mb-2"><span className="text-xs font-bold text-slate-600 uppercase">Total Dibayar</span><span className="font-black text-emerald-700">{formatRp(totalDibayar)}</span></div>
-                     <div className="flex justify-between items-center bg-white p-2 rounded border border-emerald-200 shadow-sm"><span className="text-xs font-bold text-slate-500 uppercase">Status Hutang Auto:</span><span className={`px-3 py-1 rounded text-[10px] font-black ${autoStatusBayar === 'LUNAS' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white shadow-md'}`}>{autoStatusBayar}</span></div>
-                 </div>
-              </div>
-          </div>
-
-          <div className="lg:col-span-2 flex justify-end mt-2 pt-4 border-t"><button type="submit" className="bg-orange-600 hover:bg-orange-700 text-white px-8 py-3 rounded-lg font-bold shadow-md w-full md:w-auto">Simpan Data Pembelian</button></div>
-        </form>
-      )}
-
-      <div className="flex items-center gap-3 bg-white p-3 rounded-xl border shadow-sm mt-4"><Filter size={16} className="text-slate-400"/><input type="date" value={filterFrom} onChange={e=>setFilterFrom(e.target.value)} className="p-1.5 text-sm border rounded" /> - <input type="date" value={filterTo} onChange={e=>setFilterTo(e.target.value)} className="p-1.5 text-sm border rounded" /></div>
-
-      <div className="bg-white rounded-xl border shadow-sm overflow-hidden mt-4">
-        <table className="w-full text-sm text-left block md:table">
-          <thead className="bg-slate-50 text-slate-700 text-[10px] uppercase border-b"><tr><th className="px-4 py-3">No. Bukti & Tgl</th><th className="px-4 py-3">Supplier</th><th className="px-4 py-3">Daftar Barang</th><th className="px-4 py-3 text-right">Total Tagihan</th><th className="px-4 py-3 text-center">Status Pembayaran</th><th className="px-4 py-3 text-center">Aksi</th></tr></thead>
-          <tbody className="divide-y divide-slate-100">
-            {displayPurchases.length === 0 ? <tr><td colSpan="6" className="text-center py-12 text-slate-400">Tidak ada pembelian ditemukan.</td></tr> : displayPurchases.map((pur) => {
-              const cicilan = (payments || []).filter(p => p.orderId === pur.id).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-              const totalTerbayar = (Number(pur.paidAmount) || 0) + cicilan;
-              const sisaHutang = (Number(pur.totalAll) || 0) - totalTerbayar;
-              
-              let statusBayarUI = null;
-              if (sisaHutang <= 0) { statusBayarUI = <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-[10px] font-bold">LUNAS</span>; } 
-              else if (totalTerbayar > 0) { statusBayarUI = <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-[10px] font-bold block w-max mx-auto">DP / SEBAGIAN<br/><span className="font-medium text-[9px]">Sisa: {formatRp(sisaHutang)}</span></span>; } 
-              else { statusBayarUI = <span className="bg-red-100 text-red-700 px-2 py-1 rounded text-[10px] font-bold border border-red-200 block w-max mx-auto shadow-sm">HUTANG<br/><span className="font-medium text-[9px]">Sisa: {formatRp(sisaHutang)}</span></span>; }
-
-              let displayVia = pur.paymentMethod;
-              try { const parsed = JSON.parse(pur.paymentMethod); displayVia = parsed.map(p => p.method).join(' + '); } catch(e) {}
-
-              return (
-              <tr key={pur.id} className="hover:bg-slate-50">
-                <td className="px-4 py-3"><div className="font-mono text-[11px] font-bold text-slate-700">{pur.id}</div><div className="text-[10px] text-slate-500">{formatDate(pur.date)}</div></td>
-                <td className="px-4 py-3 font-bold text-slate-800 uppercase text-xs">{pur.supplier}</td>
-                <td className="px-4 py-3"><ul className="list-disc pl-3 text-[10px] font-bold text-slate-600">{(pur.items||[]).map((it,idx)=><li key={idx}>{it}</li>)}</ul></td>
-                <td className="px-4 py-3 text-right">
-                    <div className="font-bold text-slate-800 text-sm">{formatRp(pur.totalAll)}</div>
-                    <div className="text-[9px] text-slate-500 max-w-[80px] truncate ml-auto" title={displayVia}>{displayVia}</div>
-                </td>
-                <td className="px-4 py-3 text-center">{statusBayarUI}</td>
-                <td className="px-4 py-3 text-center">
-                  <div className="flex justify-center gap-1.5">
-                    <button onClick={() => handlePrint(pur)} className="text-slate-600 bg-slate-100 p-2 rounded-lg border hover:bg-slate-200 transition shadow-sm" title="Cetak Bukti Restock"><Printer size={16} /></button>
-                    <button onClick={() => handleEdit(pur)} className="text-blue-600 bg-blue-50 px-2 py-1 rounded-lg font-bold text-[10px] border border-blue-200 hover:bg-blue-100 transition shadow-sm">EDIT</button>
-                    <button onClick={() => requestDelete(pur.id)} className="text-red-500 bg-red-50 p-2 rounded-lg border border-red-200 hover:bg-red-100 transition shadow-sm" title="Hapus Data"><Trash2 size={16} /></button>
-                  </div>
-                </td>
-              </tr>
-            )})}
-          </tbody>
-        </table>
+      {/* TABEL HISTORI PEMBELIAN */}
+      <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
+        <div className="p-4 border-b bg-slate-50 flex justify-between items-center">
+            <h4 className="font-bold text-slate-800 tracking-wide uppercase text-sm">Log History Pembelian</h4>
+            <div className="flex bg-white rounded-lg border px-3 py-1.5 items-center gap-2 w-64 shadow-sm"><Search size={14} className="text-slate-400"/><input type="text" placeholder="Cari supplier..." value={filterSupplier} onChange={e=>setFilterSupplier(e.target.value)} className="outline-none text-xs w-full font-medium"/></div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-white border-b text-[10px] text-slate-500 uppercase">
+              <tr><th className="px-4 py-3">TGL & ID</th><th className="px-4 py-3">SUPPLIER</th><th className="px-4 py-3">BARANG / ITEM</th><th className="px-4 py-3 text-right">TOTAL TAGIHAN</th><th className="px-4 py-3 text-right">DIBAYAR KAS</th><th className="px-4 py-3 text-right">SISA HUTANG</th><th className="px-4 py-3 text-center">BUKTI</th></tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {listData.length === 0 ? (
+                <tr><td colSpan="7" className="text-center py-8 text-slate-400 italic">Belum ada transaksi pembelian.</td></tr>
+              ) : listData.map((p) => {
+                  const sisaHutang = (Number(p.total) || 0) - (Number(p.paidAmount) || 0);
+                  return (
+                  <tr key={p.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-3"><div className="font-bold text-slate-700">{formatDate(p.date)}</div><div className="font-mono text-[9px] text-slate-400">{p.id}</div></td>
+                      <td className="px-4 py-3 font-black text-slate-800 uppercase">{p.supplier}</td>
+                      <td className="px-4 py-3 font-bold text-orange-700 text-xs">{p.itemName} <span className="text-slate-500 font-medium">({p.qty} {p.satuan})</span></td>
+                      <td className="px-4 py-3 text-right font-black text-slate-700">{formatRp(p.total)}</td>
+                      <td className="px-4 py-3 text-right font-black text-emerald-600">{formatRp(p.paidAmount)}</td>
+                      <td className="px-4 py-3 text-right font-black text-red-600">{sisaHutang > 0 ? formatRp(sisaHutang) : <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[9px]">LUNAS</span>}</td>
+                      <td className="px-4 py-3 text-center"><button onClick={() => setPrintData({ type: 'purchase', data: p })} className="bg-slate-100 hover:bg-slate-200 text-slate-600 p-2 rounded-lg transition"><Printer size={16} /></button></td>
+                  </tr>
+              )})}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
