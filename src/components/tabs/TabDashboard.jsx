@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Wallet, Activity, BrainCircuit, Zap, ListTodo, AlertTriangle, PlayCircle, ShieldCheck } from 'lucide-react';
+import { Wallet, Activity, BrainCircuit, Zap, ListTodo, AlertTriangle, PlayCircle, ShieldCheck, CheckCircle } from 'lucide-react';
 import { formatRp, getTodayStr } from '../../utils/helpers';
 import useDashboardPusat from '../../hooks/useDashboardPusat';
 
@@ -9,16 +9,13 @@ export default function TabDashboard(props) {
   const [dateFrom, setDateFrom] = useState(getFirstDayOfMonthLocal());
   const [dateTo, setDateTo] = useState(getTodayStr());
 
-  // Pastikan Anda mempassing systemTasks dari App.jsx
-  const dash = useDashboardPusat({ ...props, systemTasks: props.data.systemTasks, dateFrom, dateTo });
+  // Pastikan kita membongkar seluruh object data (termasuk systemTasks) ke dalam custom hook
+  const dash = useDashboardPusat({ ...props, ...props.data, dateFrom, dateTo });
 
-  // THE REAL EXECUTION ENGINE
   const handleExecuteTask = (task) => {
-      const isCritical = task.priority === 'CRITICAL';
       const msg = `Mengeksekusi Task: ${task.title}\n\nSistem akan menjalankan instruksi ini ke dalam database (Membuat Draft/Reserve Inventory/Approval otomatis).\n\nLanjutkan Eksekusi?`;
       
       if(window.confirm(msg)) {
-          // Tembak event_execute_task ke API App.jsx
           props.sendToSheet('event_execute_task', task, 'system_tasks');
           alert('Task berhasil dilempar ke Background Queue. Layar akan diperbarui...');
       }
@@ -27,7 +24,7 @@ export default function TabDashboard(props) {
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
       
-      {/* HEADER */}
+      {/* HEADER COMMAND CENTER */}
       <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 shadow-xl flex justify-between items-center relative overflow-hidden">
           <div className="absolute right-0 top-0 opacity-10"><Zap size={150}/></div>
           <div className="flex items-center gap-4 relative z-10">
@@ -53,7 +50,7 @@ export default function TabDashboard(props) {
                   <div className="text-center p-10 border border-dashed rounded-xl border-slate-300 bg-white">
                       <CheckCircle size={40} className="mx-auto mb-3 text-emerald-400"/>
                       <h4 className="font-black text-slate-700">Antrean Operasional Kosong</h4>
-                      <p className="text-xs font-medium text-slate-500 mt-1">Sistem tidak mendeteksi anomali stok atau keburuhan distribusi mendesak saat ini.</p>
+                      <p className="text-xs font-medium text-slate-500 mt-1">Sistem tidak mendeteksi anomali stok atau kebutuhan distribusi mendesak saat ini.</p>
                   </div>
               ) : (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
