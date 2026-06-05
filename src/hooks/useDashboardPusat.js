@@ -4,102 +4,119 @@ import { getLocalYMD, getTodayStr, formatRp } from '../utils/helpers';
 export default function useDashboardPusat({ 
   orders, expenses, purchases, piutangPayments, pemalangReports, stokData, 
   supplierLedger, cashflowTransactions, marketplaceSettlement, inventoryCostLayers,
-  stockMovements, masterBranches, dateFrom, dateTo 
+  stockMovements, discrepancyLogs, masterBranches, dateFrom, dateTo 
 }) {
   return useMemo(() => {
-    // ... (KODE KALKULASI SALES, BRANCH P&L, KPI, INVENTORY, CASHFLOW SAMA SEPERTI FASE 7) ...
     const todayStr = getTodayStr();
     const isPeriod = (dateStr) => getLocalYMD(dateStr) && getLocalYMD(dateStr) >= dateFrom && getLocalYMD(dateStr) <= dateTo;
-    const thirtyDaysAgo = new Date(); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30); const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
 
     // ==========================================
-    // PROFITABILITY, KPI, FINANCE (MINIFIED FOR HOOK)
+    // 1. INVENTORY VALUATION ENGINE
     // ==========================================
-    let netProfitTotal = 0, todayNetProfit = 0, totalGrossSales = 0;
-    let ayamGudangQty = 0, frozenPusatQty = 0, ayamUsed30d = 0, dimsumSold30d = 0;
-    let inCash = 0, outCash = 0, inBank = 0, outBank = 0, pendingCash = 0, hutangAyamAktif = 0, totalAssetInventory = 0;
-    const channelPerf = {}, branchPerf = {}, branchStocks = {};
-
-    (orders || []).filter(o => isPeriod(o?.date)).forEach(o => {
-        const netProf = Number(o.net_profit) || (Number(o.total) - Number(o.hpp_total));
-        todayNetProfit += (getLocalYMD(o.date) === todayStr) ? netProf : 0;
-        // ... (Kalkulasi lain)
-    });
-
-    (stockMovements || []).forEach(m => {
-        const qty = Number(m.qty) || 0;
-        const brId = m.branch_id;
-        if(!branchStocks[brId]) branchStocks[brId] = { frozen: 0, sold30d: 0 };
-
-        if (m.item_name === 'AYAM') { if(m.to_location === 'GUDANG') ayamGudangQty += qty; if(m.from_location === 'GUDANG') ayamGudangQty -= qty; }
-        if (m.item_name === 'DIMSUM' || m.item_name === 'DIMSUM FROZEN') {
-            if(m.to_location === 'FREEZER_PUSAT') frozenPusatQty += qty; if(m.from_location === 'FREEZER_PUSAT') frozenPusatQty -= qty;
-            if(m.to_location.includes('FREEZER') && brId !== 'PUSAT') branchStocks[brId].frozen += qty;
-            if(m.from_location.includes('FREEZER') && brId !== 'PUSAT') branchStocks[brId].frozen -= qty;
-        }
-
-        if (getLocalYMD(m.date) >= thirtyDaysAgoStr && getLocalYMD(m.date) <= todayStr) {
-            if (m.item_name === 'AYAM' && m.movement_type === 'PRODUCTION_USAGE') ayamUsed30d += qty;
-            if ((m.item_name === 'DIMSUM' || m.item_name === 'DIMSUM FROZEN') && m.movement_type === 'SALE') { dimsumSold30d += qty; branchStocks[brId].sold30d += qty; }
-        }
-    });
-
-    (supplierLedger || []).forEach(l => { if (l.transaction_type === 'PURCHASE') hutangAyamAktif += Number(l.amount); if (l.transaction_type === 'PAYMENT') hutangAyamAktif -= Number(l.amount); });
-
-    const avgAyamPerDay = Math.max((ayamUsed30d / 30), 1); 
-    const avgDimsumPerDay = Math.max((dimsumSold30d / 30), 1);
-    const ayamDaysRemaining = Math.max(0, ayamGudangQty / avgAyamPerDay);
-    const dimsumDaysRemaining = Math.max(0, frozenPusatQty / avgDimsumPerDay);
-    const cashReadyTotal = (inCash - outCash) + (inBank - outBank); // Estimasi kas (simplified)
-    const cashDeficit = cashReadyTotal - hutangAyamAktif;
-
-    const forecast = { ayamDays: ayamDaysRemaining.toFixed(1), ayamAvg: avgAyamPerDay.toFixed(1), dimsumDays: dimsumDaysRemaining.toFixed(0), dimsumAvg: avgDimsumPerDay.toFixed(0), cashDeficit };
-
-    // ==========================================
-    // 3. GENERATE AUTO-PILOT TASKS (THE EXECUTION PAYLOAD)
-    // ==========================================
-    const automationTasks = [];
-
-    // TUGAS 1: AUTO PURCHASE (Beri Payload untuk dieksekusi Backend)
-    if (ayamDaysRemaining <= 4) {
-        const targetAyam = Math.ceil(avgAyamPerDay * 7) - ayamGudangQty;
-        if (targetAyam > 0) {
-            automationTasks.push({ 
-                id: 'task-purchase', type: 'PURCHASE', title: 'Draft Purchase: Beli Ayam', 
-                desc: `Rekomendasi pembelian: ${targetAyam} KG (Target stok aman 7 hari).`, 
-                actionLabel: 'Eksekusi Draft Pembelian',
-                payload: { qty: targetAyam } // <--- THE SECRET SAUCE
-            });
-        }
-    }
-
-    // TUGAS 2: AUTO DISTRIBUTION 
-    (masterBranches || []).forEach(br => {
-        if (br.branch_id === 'PUSAT') return;
-        const brData = branchStocks[br.branch_id];
-        if (brData) {
-            const avgSoldBr = Math.max(brData.sold30d / 30, 1);
-            const brDaysRemain = brData.frozen / avgSoldBr;
-            if (brDaysRemain <= 3) {
-                const targetKirim = Math.ceil(avgSoldBr * 10) - brData.frozen;
-                if (targetKirim > 0) {
-                    automationTasks.push({ 
-                        id: `task-do-${br.branch_id}`, type: 'DISTRIBUTION', title: `Draft DO: Kirim ke ${br.branch_name}`, 
-                        desc: `Sisa stok ${brDaysRemain.toFixed(0)} hari. Rekomendasi kirim: ${targetKirim} Pcs.`, 
-                        actionLabel: 'Buat & Kirim DO Sekarang',
-                        payload: { branch_id: br.branch_id, qty: targetKirim } // <--- THE SECRET SAUCE
-                    });
-                }
+    let assetAyam = 0; let assetDimsum = 0;
+    let costPerLayerAyam = [];
+    (inventoryCostLayers || []).forEach(layer => {
+        if (Number(layer.qty_remaining) > 0 && layer.status.includes('ACTIVE')) {
+            const val = Number(layer.qty_remaining) * Number(layer.unit_cost);
+            if(String(layer.item_name).toUpperCase() === 'AYAM') {
+                assetAyam += val;
+                costPerLayerAyam.push(Number(layer.unit_cost));
+            }
+            if(String(layer.item_name).toUpperCase() === 'DIMSUM') {
+                assetDimsum += val;
             }
         }
     });
+    const totalAssetInventory = assetAyam + assetDimsum;
+    const avgAyamCost = costPerLayerAyam.length > 0 ? (costPerLayerAyam.reduce((a,b)=>a+b,0) / costPerLayerAyam.length) : 0;
 
-    const alerts = []; // Smart alerts...
+    // ==========================================
+    // 2. WASTE COSTING ENGINE
+    // ==========================================
+    let totalWasteCost = 0;
+    (discrepancyLogs || []).filter(d => isPeriod(d?.date)).forEach(d => {
+        totalWasteCost += (Number(d.financial_loss) || 0);
+    });
+
+    // ==========================================
+    // 3. REAL NET PROFIT & P&L ENGINE
+    // ==========================================
+    let totalGrossSales = 0, totalHPP = 0, totalFees = 0, totalOpex = 0;
+    let netProfitTotal = 0, todayNetProfit = 0;
+    const branchPerf = {};
+
+    // Penjualan & HPP
+    (orders || []).filter(o => isPeriod(o?.date)).forEach(o => {
+        const gross = Number(o.total) || 0;
+        const fee = Number(o.fee_amount) || 0;
+        const hpp = Number(o.hpp_total) || 0;
+        const netProf = Number(o.net_profit) || (gross - hpp - fee);
+
+        totalGrossSales += gross;
+        totalHPP += hpp;
+        totalFees += fee;
+        netProfitTotal += netProf;
+        if (getLocalYMD(o.date) === todayStr) todayNetProfit += netProf;
+
+        const br = String(o.branch_id || 'PUSAT').toUpperCase();
+        if(!branchPerf[br]) branchPerf[br] = { omzet: 0, hpp: 0, fee: 0, expense: 0, waste: 0, netProfit: 0 };
+        branchPerf[br].omzet += gross; branchPerf[br].hpp += hpp; branchPerf[br].fee += fee; branchPerf[br].netProfit += netProf;
+    });
+
+    // Opex (Biaya Operasional)
+    (expenses || []).filter(e => isPeriod(e?.date)).forEach(e => {
+        const br = String(e.branch_id || 'PUSAT').toUpperCase();
+        const amt = Number(e.total) || 0;
+        if (e.type === 'OUT') {
+            totalOpex += amt;
+            if(!branchPerf[br]) branchPerf[br] = { omzet:0, hpp:0, fee:0, expense:0, waste: 0, netProfit:0 };
+            branchPerf[br].expense += amt; branchPerf[br].netProfit -= amt;
+        }
+    });
+
+    // Alokasi Waste ke Cabang
+    (discrepancyLogs || []).filter(d => isPeriod(d?.date)).forEach(d => {
+        const br = String(d.branch_id || 'PUSAT').toUpperCase();
+        const loss = Number(d.financial_loss) || 0;
+        if(!branchPerf[br]) branchPerf[br] = { omzet:0, hpp:0, fee:0, expense:0, waste: 0, netProfit:0 };
+        branchPerf[br].waste += loss; branchPerf[br].netProfit -= loss;
+    });
+
+    // Final True Net Profit System-Wide
+    const trueNetProfit = totalGrossSales - totalHPP - totalFees - totalOpex - totalWasteCost;
+
+    // ==========================================
+    // 4. CASHFLOW OBLIGATION ENGINE
+    // ==========================================
+    let inCash = 0, outCash = 0, pendingMarketplace = 0, hutangAyamAktif = 0;
+    
+    (marketplaceSettlement || []).forEach(m => { if (m.status === 'PENDING') pendingMarketplace += (Number(m.net) || 0); });
+    
+    (supplierLedger || []).forEach(l => {
+        const amt = Number(l.amount) || 0;
+        if (l.transaction_type === 'PURCHASE') hutangAyamAktif += amt; 
+        if (l.transaction_type === 'PAYMENT') hutangAyamAktif -= amt; 
+    });
+
+    (cashflowTransactions || []).forEach(c => {
+        if(c.type === 'CASH_IN') inCash += Number(c.amount);
+        if(c.type === 'CASH_OUT') outCash += Number(c.amount);
+    });
+    // Fallback: Orders yg cash & offline jika cashflow table blm penuh
+    (orders || []).forEach(o => { if(o.source==='OFFLINE' && String(o.paymentMethod).toUpperCase().includes('CASH')) inCash += Number(o.paidAmount); });
+    (expenses || []).forEach(e => { if(e.type==='OUT') outCash += Number(e.total); });
+
+    const cashReadyTotal = inCash - outCash;
+    const cashflowHealth = cashReadyTotal - hutangAyamAktif; // Surplus/Deficit
+
+    const branchArr = Object.keys(branchPerf).map(k => ({ branch_id: k, ...branchPerf[k] })).sort((a,b) => b.netProfit - a.netProfit);
 
     return { 
-        todayNetProfit, totalGrossSales, channelArr: [], branchArr: [], kpiEngine: {},
-        cashReadyTotal, pendingCash, hutangAyamAktif, totalAssetInventory,
-        forecast, alerts, automationTasks
+        trueNetProfit, totalGrossSales, totalHPP, totalFees, totalOpex, totalWasteCost,
+        todayNetProfit, branchArr,
+        cashReadyTotal, pendingMarketplace, hutangAyamAktif, cashflowHealth,
+        assetAyam, assetDimsum, totalAssetInventory, avgAyamCost,
+        alerts: [], automationTasks: []
     };
-  }, [orders, expenses, purchases, piutangPayments, pemalangReports, stokData, supplierLedger, cashflowTransactions, marketplaceSettlement, inventoryCostLayers, stockMovements, masterBranches, dateFrom, dateTo]);
+  }, [orders, expenses, purchases, piutangPayments, pemalangReports, stokData, supplierLedger, cashflowTransactions, marketplaceSettlement, inventoryCostLayers, stockMovements, discrepancyLogs, masterBranches, dateFrom, dateTo]);
 }
