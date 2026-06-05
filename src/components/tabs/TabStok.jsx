@@ -16,6 +16,7 @@ export default function TabStok({ stockMovements, productionBatches, distributio
   const PCS_PER_ADUKAN = 1000; // 1000 Pcs
   const PCS_PER_PORSI = 4; // 1 Porsi = 4 Pcs
   const PCS_PER_MIKA = 50; // 1 Mika/Pack = 50 Pcs
+  const KG_PER_KANTONG = 10; // 1 Kantong Ayam = 10 KG
 
   // MODAL DISCREPANCY STATE
   const [receiveModal, setReceiveModal] = useState(null);
@@ -122,11 +123,18 @@ export default function TabStok({ stockMovements, productionBatches, distributio
       
       {/* SUMMARY REALTIME */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* KARTU GUDANG AYAM (DITAMBAH KONVERSI KANTONG) */}
           {isPusat && (
           <div className="bg-slate-900 rounded-2xl p-6 relative overflow-hidden shadow-lg border border-slate-800">
               <div className="absolute top-0 right-0 p-4 opacity-10"><Database size={80} className="text-white"/></div>
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">STOK GUDANG AYAM</h3>
               <div className="text-4xl font-black text-white">{stockRealtime.ayamGudang.toLocaleString('id-ID')} <span className="text-sm text-orange-400">KG</span></div>
+              <div className="mt-4 pt-4 border-t border-slate-800/50 flex gap-4">
+                 <div>
+                    <div className="text-[10px] text-slate-400 uppercase font-bold">Total Kantong ({KG_PER_KANTONG} KG)</div>
+                    <div className="font-bold text-orange-300">{(stockRealtime.ayamGudang / KG_PER_KANTONG).toLocaleString('id-ID')} Kantong</div>
+                 </div>
+              </div>
           </div>
           )}
           
