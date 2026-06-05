@@ -161,14 +161,18 @@ export default function App() {
   const [masterUsers, setMasterUsers] = useState([]);
   const [masterBranches, setMasterBranches] = useState([]);
 
-  // STATE TRANSAKSI
+// STATE TRANSAKSI
   const [orders, setOrders] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [piutangPayments, setPiutangPayments] = useState([]);
   const [pemalangReports, setPemalangReports] = useState([]);
-  const [stokData, setStokData] = useState([]); 
+  
+  // --- NEW ENGINE STATE ---
+  const [stockMovements, setStockMovements] = useState([]); 
+  const [productionBatches, setProductionBatches] = useState([]); 
+  
   const [purchases, setPurchases] = useState([]);
-  const [karyawan, setKaryawan] = useState([]); 
+  const [karyawan, setKaryawan] = useState([]);
 
   // FETCH DATA INITIAL (TERMASUK AUTH DATA)
   useEffect(() => { fetchData(); }, []);
