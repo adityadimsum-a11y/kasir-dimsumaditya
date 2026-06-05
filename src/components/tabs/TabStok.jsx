@@ -8,15 +8,19 @@ export default function TabStok({ stockMovements, productionBatches, distributio
 
   const [adukanQty, setAdukanQty] = useState('');
   const [ayamUsed, setAyamUsed] = useState('');
-  const [additionalCost, setAdditionalCost] = useState('200000');
+  const [additionalCost, setAdditionalCost] = useState('250000'); // Default modal bumbu/operasional
   const [resultPcs, setResultPcs] = useState('');
-  const PCS_PER_MIKA = 50;
+  
+  // MASTER DATA STANDAR (BOM)
+  const AYAM_PER_ADUKAN = 30; // 30 KG
+  const PCS_PER_ADUKAN = 1000; // 1000 Pcs
+  const PCS_PER_PORSI = 4; // 1 Porsi = 4 Pcs
+  const PCS_PER_MIKA = 50; // 1 Mika/Pack = 50 Pcs
 
   // MODAL DISCREPANCY STATE
   const [receiveModal, setReceiveModal] = useState(null);
   const [formReceive, setFormReceive] = useState({ received: 0, missing: 0, damaged: 0, notes: '' });
 
-  // 🐛 FIX: Identifikasi Pusat menggunakan super_admin atau admin
   const isPusat = role === 'super_admin' || role === 'admin';
 
   // ==========================================
@@ -26,7 +30,6 @@ export default function TabStok({ stockMovements, productionBatches, distributio
       let ayamGudang = 0;
       let frozenStock = 0;
 
-      // Filter movement khusus cabang ini (Atau semua jika Pusat)
       const myMovements = isPusat ? stockMovements : (stockMovements || []).filter(m => m.branch_id === user.branch_id);
 
       (myMovements || []).forEach(m => {
@@ -37,7 +40,6 @@ export default function TabStok({ stockMovements, productionBatches, distributio
               if (m.from_location === 'GUDANG') ayamGudang -= qty;
           }
           
-          // Logika Freezer sesuai Role
           const targetFreezer = isPusat ? 'FREEZER_PUSAT' : 'FREEZER_CABANG';
           if (m.item_name === 'DIMSUM' || m.item_name === 'DIMSUM FROZEN') {
               if (m.to_location === targetFreezer) frozenStock += qty;
@@ -47,6 +49,20 @@ export default function TabStok({ stockMovements, productionBatches, distributio
 
       return { ayamGudang, frozenStock };
   }, [stockMovements, purchases, orders, isPusat, user.branch_id]);
+
+  // ==========================================
+  // AUTO-CALCULATOR ADUKAN ENGINE
+  // ==========================================
+  const handleAdukanChange = (val) => {
+      setAdukanQty(val);
+      if (val && Number(val) > 0) {
+          setAyamUsed((Number(val) * AYAM_PER_ADUKAN).toString());
+          setResultPcs((Number(val) * PCS_PER_ADUKAN).toString());
+      } else {
+          setAyamUsed('');
+          setResultPcs('');
+      }
+  };
 
   // ==========================================
   // CORE ENGINE 2: PRODUCTION BATCH (PUSAT)
@@ -59,7 +75,8 @@ export default function TabStok({ stockMovements, productionBatches, distributio
           id: batchId, date: date, 
           adukan_qty: Number(adukanQty), ayam_used: Number(ayamUsed), 
           additional_cost: Number(additionalCost), result_pcs: Number(resultPcs), 
-          result_mika: Number(resultPcs) / PCS_PER_MIKA, status: 'SELESAI', branch_id: 'PUSAT' 
+          result_mika: Number(resultPcs) / PCS_PER_MIKA, // Disimpan sebagai info Pack/Mika (50 Pcs)
+          status: 'SELESAI', branch_id: 'PUSAT' 
       };
 
       sendToSheet('event_production', payload, 'production_batches');
@@ -109,17 +126,23 @@ export default function TabStok({ stockMovements, productionBatches, distributio
           <div className="bg-slate-900 rounded-2xl p-6 relative overflow-hidden shadow-lg border border-slate-800">
               <div className="absolute top-0 right-0 p-4 opacity-10"><Database size={80} className="text-white"/></div>
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">STOK GUDANG AYAM</h3>
-              <div className="text-4xl font-black text-white">{stockRealtime.ayamGudang.toFixed(1)} <span className="text-sm text-orange-400">KG</span></div>
+              <div className="text-4xl font-black text-white">{stockRealtime.ayamGudang.toLocaleString('id-ID')} <span className="text-sm text-orange-400">KG</span></div>
           </div>
           )}
           
           <div className="bg-blue-900 rounded-2xl p-6 relative overflow-hidden shadow-lg border border-blue-800">
               <div className="absolute top-0 right-0 p-4 opacity-10"><Package size={80} className="text-white"/></div>
               <h3 className="text-xs font-bold text-blue-300 uppercase tracking-widest mb-1">STOK FREEZER {isPusat ? 'PUSAT' : 'CABANG'}</h3>
-              <div className="text-4xl font-black text-white">{stockRealtime.frozenStock} <span className="text-sm text-cyan-300">PCS</span></div>
-              <div className="mt-4 pt-4 border-t border-blue-800/50 flex gap-4">
-                 <div><div className="text-[10px] text-blue-400 uppercase font-bold">Porsi</div><div className="font-bold text-blue-200">{stockRealtime.frozenStock / 4} Prs</div></div>
-                 <div><div className="text-[10px] text-blue-400 uppercase font-bold">Pack (Mika)</div><div className="font-bold text-blue-200">{stockRealtime.frozenStock / PCS_PER_MIKA} Mika</div></div>
+              <div className="text-4xl font-black text-white">{stockRealtime.frozenStock.toLocaleString('id-ID')} <span className="text-sm text-cyan-300">PCS</span></div>
+              <div className="mt-4 pt-4 border-t border-blue-800/50 flex gap-6">
+                 <div>
+                    <div className="text-[10px] text-blue-400 uppercase font-bold">Total Pack ({PCS_PER_MIKA} Pcs)</div>
+                    <div className="font-bold text-emerald-300">{(stockRealtime.frozenStock / PCS_PER_MIKA).toLocaleString('id-ID')} Mika</div>
+                 </div>
+                 <div>
+                    <div className="text-[10px] text-blue-400 uppercase font-bold">Total Porsi ({PCS_PER_PORSI} Pcs)</div>
+                    <div className="font-bold text-blue-200">{(stockRealtime.frozenStock / PCS_PER_PORSI).toLocaleString('id-ID')} Porsi</div>
+                 </div>
               </div>
           </div>
       </div>
@@ -193,19 +216,19 @@ export default function TabStok({ stockMovements, productionBatches, distributio
       <div className="bg-white rounded-2xl border shadow-sm p-6 mt-6 border-t-4 border-t-purple-600">
           <div className="flex items-center gap-3 mb-6 border-b pb-4">
               <div className="bg-purple-100 text-purple-700 p-2 rounded-lg"><Factory size={20}/></div>
-              <div><h3 className="font-black text-slate-800 text-lg uppercase tracking-wide">Auto-HPP Production Engine</h3><p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Sistem otomatis menghitung Modal Asli per Dimsum (FIFO)</p></div>
+              <div><h3 className="font-black text-slate-800 text-lg uppercase tracking-wide">Auto-HPP Production Engine</h3><p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Ketik jumlah adukan, sistem menghitung otomatis berdasarkan Master Data</p></div>
           </div>
           
           <form onSubmit={handleSimpanProduksi} className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
               <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-600 uppercase">Tgl Eksekusi</label><input type="date" required value={date} onChange={e=>setDate(e.target.value)} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold text-sm" /></div>
-              <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-600 uppercase">Jml Adukan</label><input type="number" required placeholder="0" value={adukanQty} onChange={e=>setAdukanQty(e.target.value)} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold text-sm" /></div>
-              <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-600 uppercase">Ayam Dipakai (KG)</label><input type="number" step="0.1" required placeholder="0" value={ayamUsed} onChange={e=>setAyamUsed(e.target.value)} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold text-sm" /></div>
-              <div className="space-y-1.5"><label className="text-[10px] font-bold text-purple-600 uppercase">Biaya Bumbu & Kulit</label><input type="number" required value={additionalCost} onChange={e=>setAdditionalCost(e.target.value)} className="w-full p-2.5 bg-purple-50 border border-purple-200 rounded-xl font-black text-sm text-purple-800" /></div>
-              <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-600 uppercase">Hasil Jadi (Pcs)</label><input type="number" required placeholder="0" value={resultPcs} onChange={e=>setResultPcs(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-blue-200 rounded-xl font-black text-blue-700 text-sm" /></div>
+              <div className="space-y-1.5"><label className="text-[10px] font-bold text-blue-600 uppercase">Jml Adukan</label><input type="number" required placeholder="0" value={adukanQty} onChange={e=>handleAdukanChange(e.target.value)} className="w-full p-2.5 bg-blue-50 border border-blue-200 rounded-xl font-black text-blue-700 text-sm" /></div>
+              <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-600 uppercase">Ayam Dipakai (KG)</label><input type="number" step="0.1" required placeholder="0" value={ayamUsed} onChange={e=>setAyamUsed(e.target.value)} className="w-full p-2.5 bg-slate-100 border rounded-xl font-bold text-sm text-slate-500" /></div>
+              <div className="space-y-1.5"><label className="text-[10px] font-bold text-purple-600 uppercase">Biaya Bumbu / Opex</label><input type="number" required value={additionalCost} onChange={e=>setAdditionalCost(e.target.value)} className="w-full p-2.5 bg-purple-50 border border-purple-200 rounded-xl font-black text-sm text-purple-800" /></div>
+              <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-600 uppercase">Hasil Jadi (Pcs)</label><input type="number" required placeholder="0" value={resultPcs} onChange={e=>setResultPcs(e.target.value)} className="w-full p-2.5 bg-slate-100 border rounded-xl font-black text-slate-500 text-sm" /></div>
               
               <div className="md:col-span-5 mt-2">
                   <button type="submit" className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3.5 rounded-xl shadow-md transition flex justify-center items-center gap-2">
-                      <CheckCircle size={18}/> Eksekusi & Kalkulasi HPP Otomatis
+                      <CheckCircle size={18}/> Eksekusi & Potong Stok Ayam (FIFO)
                   </button>
               </div>
           </form>
@@ -225,10 +248,13 @@ export default function TabStok({ stockMovements, productionBatches, distributio
                       {listBatches.map(b => (
                           <tr key={b.id} className="hover:bg-slate-50 transition">
                               <td className="px-4 py-3"><div className="font-mono text-[10px] font-bold text-slate-700">{b.id}</div><div className="text-[10px] text-slate-500">{formatDate(b.date)}</div></td>
-                              <td className="px-4 py-3 text-center font-black text-orange-600">-{b.ayam_used} KG AYAM</td>
-                              <td className="px-4 py-3 text-center font-black text-blue-600">+{b.result_pcs} PCS DIMSUM</td>
-                              <td className="px-4 py-3 text-right font-black text-slate-800">{b.total_cost ? formatRp(b.total_cost) : '-'}</td>
-                              <td className="px-4 py-3 text-center font-black bg-emerald-50 text-emerald-700 border-l border-emerald-100">{b.hpp_per_pcs ? formatRp(Math.round(b.hpp_per_pcs)) : 'Menghitung...'}</td>
+                              <td className="px-4 py-3 text-center font-black text-orange-600">-{Number(b.ayam_used).toLocaleString('id-ID')} KG AYAM</td>
+                              <td className="px-4 py-3 text-center">
+                                  <div className="font-black text-blue-600">+{Number(b.result_pcs).toLocaleString('id-ID')} PCS</div>
+                                  <div className="text-[9px] font-bold text-slate-500 uppercase">({(Number(b.result_pcs) / PCS_PER_MIKA).toLocaleString('id-ID')} Mika)</div>
+                              </td>
+                              <td className="px-4 py-3 text-right font-black text-slate-800">{b.total_cost ? `Rp ${Number(b.total_cost).toLocaleString('id-ID')}` : '-'}</td>
+                              <td className="px-4 py-3 text-center font-black bg-emerald-50 text-emerald-700 border-l border-emerald-100">{b.hpp_per_pcs ? `Rp ${Math.round(b.hpp_per_pcs).toLocaleString('id-ID')}` : 'Menghitung...'}</td>
                           </tr>
                       ))}
                   </tbody>
