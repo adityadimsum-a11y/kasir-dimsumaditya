@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Wallet, TrendingUp, AlertCircle, Activity, ShoppingBag, Store, Package, BrainCircuit, Timer, Factory, TrendingDown } from 'lucide-react';
+import { Wallet, TrendingUp, AlertCircle, Activity, ShoppingBag, Store, Package, BrainCircuit, Factory, TrendingDown, CheckSquare, Trophy, CheckCircle } from 'lucide-react';
 import { formatRp, getTodayStr } from '../../utils/helpers';
 import useDashboardPusat from '../../hooks/useDashboardPusat';
 
@@ -30,7 +30,7 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
   const [dateFrom, setDateFrom] = useState(getFirstDayOfMonthLocal());
   const [dateTo, setDateTo] = useState(getTodayStr());
 
-  const dash = useDashboardPusat({ orders, expenses, purchases, piutangPayments, pemalangReports, stokData, supplierLedger, cashflowTransactions, marketplaceSettlement, inventoryCostLayers, stockMovements, dateFrom, dateTo });
+  const dash = useDashboardPusat({ orders, expenses, purchases, piutangPayments, pemalangReports, stokData, supplierLedger, cashflowTransactions, marketplaceSettlement, inventoryCostLayers, stockMovements, masterBranches, dateFrom, dateTo });
 
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
@@ -38,8 +38,8 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
       {/* FILTER GLOBAL */}
       <div className="bg-white p-4 rounded-2xl border shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-3">
-              <div className="bg-slate-900 p-2.5 rounded-xl text-white shadow-md"><Activity size={20}/></div>
-              <div><h3 className="font-black text-slate-800 leading-none text-lg">Executive Command Center</h3><p className="text-[10px] font-bold text-slate-500 uppercase mt-1 tracking-wider">Profitability & Decision Engine</p></div>
+              <div className="bg-slate-900 p-2.5 rounded-xl text-white shadow-md"><BrainCircuit size={20}/></div>
+              <div><h3 className="font-black text-slate-800 leading-none text-lg">AI Automation Engine</h3><p className="text-[10px] font-bold text-slate-500 uppercase mt-1 tracking-wider">Business Decision & Auto-Pilot Mode</p></div>
           </div>
           <div className="flex gap-2 w-full md:w-auto">
               <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="p-2 text-sm font-bold border border-slate-300 rounded-xl bg-slate-50 outline-none" />
@@ -56,14 +56,44 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
         <StatCard title="TOTAL ASSET INVENTORY" value={formatRp(dash.totalAssetInventory)} icon={<Package size={64}/>} color="bg-purple-600 text-white border-purple-700" subtitle="Valuasi Ayam & Frozen" subValue="Modal Berjalan" />
       </div>
 
-      {/* TIER 2: FORECAST ENGINE & SMART ALERTS (NEW!) */}
+      {/* TIER 2: AUTO-PILOT TASK ENGINE (NEW!) */}
+      <div className="bg-white rounded-2xl border shadow-sm p-6 border-t-4 border-t-indigo-600">
+          <div className="flex items-center gap-3 mb-5 border-b pb-4">
+              <div className="bg-indigo-100 p-2 rounded-lg text-indigo-700"><CheckSquare size={20}/></div>
+              <div><h3 className="font-black text-slate-800 uppercase tracking-wide">Auto-Pilot Task Recommendations</h3><p className="text-[10px] font-medium text-slate-500 uppercase mt-0.5">Tugas otomatis hasil generate AI berdasarkan predikisi stok & kas</p></div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {dash.automationTasks.length === 0 ? (
+                  <div className="col-span-full text-center p-8 border border-dashed rounded-xl border-slate-200 text-slate-400 font-bold text-sm">
+                      <CheckCircle size={32} className="mx-auto mb-2 text-emerald-400"/>
+                      Tidak ada tugas mendesak. Operasional berjalan otomatis dengan lancar.
+                  </div>
+              ) : (
+                  dash.automationTasks.map((task, idx) => (
+                      <div key={idx} className="p-4 rounded-xl border border-indigo-100 bg-indigo-50/30 flex flex-col justify-between">
+                          <div>
+                              <div className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-1">{task.type}</div>
+                              <h4 className="font-bold text-slate-800 text-sm mb-1">{task.title}</h4>
+                              <p className="text-[11px] text-slate-600 leading-tight mb-4">{task.desc}</p>
+                          </div>
+                          <button className="w-full bg-white border border-indigo-200 text-indigo-700 font-bold py-2 rounded-lg text-xs hover:bg-indigo-600 hover:text-white transition shadow-sm">
+                              {task.actionLabel}
+                          </button>
+                      </div>
+                  ))
+              )}
+          </div>
+      </div>
+
+      {/* TIER 3: FORECAST ENGINE & KPI BOARD */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-2">
           
           {/* AI DECISION ENGINE */}
-          <div className="lg:col-span-8 bg-white rounded-2xl border shadow-sm p-6 border-t-4 border-t-indigo-600">
+          <div className="lg:col-span-8 bg-white rounded-2xl border shadow-sm p-6">
               <div className="flex items-center gap-3 mb-6 border-b pb-4">
-                  <div className="bg-indigo-100 p-2 rounded-lg text-indigo-700"><BrainCircuit size={20}/></div>
-                  <div><h3 className="font-bold text-slate-800 uppercase tracking-wide">AI Forecast & Decision Engine</h3><p className="text-[10px] font-medium text-slate-500 uppercase mt-0.5">Prediksi berbasis data pergerakan 30 Hari Terakhir</p></div>
+                  <div className="bg-slate-100 p-2 rounded-lg text-slate-700"><Activity size={20}/></div>
+                  <h3 className="font-bold text-slate-800 uppercase tracking-wide text-sm">Inventory & Runway Forecast</h3>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 relative overflow-hidden group">
@@ -87,74 +117,36 @@ export default function TabDashboard({ orders, expenses, purchases, piutangPayme
               </div>
           </div>
 
-          {/* SMART EXECUTIVE ALERTS */}
-          <div className="lg:col-span-4 bg-white rounded-2xl border shadow-sm p-6 border-t-4 border-t-red-500 flex flex-col h-full">
-              <div className="flex items-center gap-3 mb-4"><div className="bg-red-50 p-2 rounded-lg text-red-600"><AlertCircle size={18}/></div><h3 className="font-bold text-slate-800 uppercase tracking-wide text-sm">Smart Executive Alerts</h3></div>
-              <div className="space-y-3 overflow-y-auto flex-1 pr-2 custom-scrollbar">
-                  {dash.alerts.length === 0 ? (
-                      <div className="text-center p-6 text-slate-400 text-xs italic border border-dashed rounded-xl border-slate-200">Semua operasional & finansial terpantau aman terkendali.</div>
-                  ) : (
-                      dash.alerts.map((a, idx) => (
-                          <div key={idx} className={`p-3 rounded-xl border flex items-start gap-3 shadow-sm bg-white ${a.type === 'danger' ? 'border-red-200' : 'border-amber-200'}`}>
-                              <AlertCircle size={18} className={`shrink-0 mt-0.5 ${a.type === 'danger' ? 'text-red-500' : 'text-amber-500'}`}/>
-                              <div>
-                                  <h4 className={`text-[10px] font-black uppercase mb-0.5 ${a.type === 'danger' ? 'text-red-700' : 'text-amber-700'}`}>{a.title}</h4>
-                                  <p className="text-[10px] text-slate-600 leading-snug font-medium">{a.desc}</p>
-                              </div>
-                          </div>
-                      ))
-                  )}
-              </div>
-          </div>
-
-      </div>
-
-      {/* TIER 3: MARKETPLACE & BRANCH P&L */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-2">
-          {/* MARKETPLACE PROFITABILITY */}
-          <div className="bg-white rounded-2xl border shadow-sm p-6">
-              <div className="flex items-center justify-between mb-4 border-b pb-3">
-                  <div className="flex items-center gap-3"><div className="bg-orange-100 text-orange-600 p-2 rounded-lg"><ShoppingBag size={18}/></div><h3 className="font-bold text-slate-800 uppercase tracking-wide text-sm">Marketplace Profitability</h3></div>
-              </div>
-              <div className="space-y-4">
-                  {dash.channelArr.map((ch, idx) => {
-                      const margin = ch.gross > 0 ? ((ch.netProfit / ch.gross) * 100).toFixed(1) : 0;
-                      return (
-                      <div key={idx} className="relative group">
-                          <div className="flex justify-between items-end mb-1"><span className="font-black text-slate-700 uppercase text-xs">{ch.channel} <span className="text-[9px] text-slate-400 font-bold ml-1">({ch.count} Order)</span></span><span className="font-black text-emerald-600 text-sm">{formatRp(ch.netProfit)}</span></div>
-                          <div className="w-full bg-slate-100 rounded-full h-2 mb-1 overflow-hidden flex"><div className="bg-emerald-500 h-2" style={{width: `${margin}%`}}></div><div className="bg-red-400 h-2" style={{width: `${ch.gross > 0 ? (ch.fee / ch.gross) * 100 : 0}%`}}></div></div>
-                          <div className="flex justify-between text-[9px] font-bold text-slate-500 uppercase"><span>Gross: {formatRp(ch.gross)}</span><span className="text-red-500">Fee: -{formatRp(ch.fee)}</span><span className="text-emerald-600">Margin: {margin}%</span></div>
+          {/* KPI ENGINE BOARD */}
+          <div className="lg:col-span-4 bg-white rounded-2xl border shadow-sm p-6 flex flex-col h-full bg-gradient-to-b from-white to-amber-50/30">
+              <div className="flex items-center gap-3 mb-4 border-b pb-3"><div className="bg-amber-100 p-2 rounded-lg text-amber-600"><Trophy size={18}/></div><h3 className="font-bold text-slate-800 uppercase tracking-wide text-sm">Business Intelligence KPI</h3></div>
+              <div className="space-y-4 flex-1">
+                  
+                  {dash.kpiEngine.bestBranch && (
+                      <div className="flex items-center gap-3 p-3 bg-white border border-amber-200 rounded-xl shadow-sm">
+                          <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 font-black">1</div>
+                          <div><div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Cabang Paling Profitable</div><div className="font-black text-slate-800 text-sm">{masterBranches.find(b => b.branch_id === dash.kpiEngine.bestBranch.branch_id)?.branch_name || dash.kpiEngine.bestBranch.branch_id}</div><div className="text-[10px] font-bold text-emerald-600">{formatRp(dash.kpiEngine.bestBranch.netProfit)} Net Profit</div></div>
                       </div>
-                  )})}
+                  )}
+
+                  {dash.kpiEngine.bestChannel && (
+                      <div className="flex items-center gap-3 p-3 bg-white border border-blue-200 rounded-xl shadow-sm">
+                          <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-black"><ShoppingBag size={18}/></div>
+                          <div><div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Marketplace Terbaik</div><div className="font-black text-slate-800 text-sm">{dash.kpiEngine.bestChannel.channel}</div><div className="text-[10px] font-bold text-emerald-600">{formatRp(dash.kpiEngine.bestChannel.netProfit)} Net Profit</div></div>
+                      </div>
+                  )}
+
+                  {dash.kpiEngine.worstMarginChannel && (
+                      <div className="flex items-center gap-3 p-3 bg-white border border-red-200 rounded-xl shadow-sm">
+                          <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600 font-black"><TrendingDown size={18}/></div>
+                          <div><div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Margin Paling Bocor</div><div className="font-black text-slate-800 text-sm">{dash.kpiEngine.worstMarginChannel.channel}</div><div className="text-[10px] font-bold text-red-500">Margin hanya {((dash.kpiEngine.worstMarginChannel.netProfit / dash.kpiEngine.worstMarginChannel.gross) * 100).toFixed(1)}%</div></div>
+                      </div>
+                  )}
+
               </div>
           </div>
 
-          {/* BRANCH P&L */}
-          <div className="bg-white rounded-2xl border shadow-sm p-6">
-              <div className="flex items-center gap-3 mb-4 border-b pb-3"><div className="bg-blue-100 text-blue-600 p-2 rounded-lg"><Store size={18}/></div><h3 className="font-bold text-slate-800 uppercase tracking-wide text-sm">Branch P&L (Profit & Loss)</h3></div>
-              <div className="overflow-x-auto">
-                  <table className="w-full text-sm text-left">
-                      <thead className="bg-slate-50 text-[9px] text-slate-500 uppercase">
-                          <tr><th className="px-3 py-2 rounded-l-lg">Cabang</th><th className="px-3 py-2 text-right">Omzet</th><th className="px-3 py-2 text-right">HPP</th><th className="px-3 py-2 text-right text-red-500">Fee/Ops</th><th className="px-3 py-2 text-right text-emerald-600 rounded-r-lg">Net Profit</th></tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                          {dash.branchArr.map((br, idx) => {
-                              const bName = (masterBranches || []).find(x => x.branch_id === br.branch_id)?.branch_name || br.branch_id;
-                              return (
-                              <tr key={idx} className="hover:bg-slate-50">
-                                  <td className="px-3 py-3 font-black text-slate-700 uppercase text-xs">{bName}</td>
-                                  <td className="px-3 py-3 text-right font-medium text-slate-600">{formatRp(br.omzet)}</td>
-                                  <td className="px-3 py-3 text-right font-medium text-orange-600">-{formatRp(br.hpp)}</td>
-                                  <td className="px-3 py-3 text-right font-medium text-red-500">-{formatRp(br.fee + br.expense)}</td>
-                                  <td className="px-3 py-3 text-right font-black text-emerald-600 bg-emerald-50/50">{formatRp(br.netProfit)}</td>
-                              </tr>
-                          )})}
-                      </tbody>
-                  </table>
-              </div>
-          </div>
       </div>
-      <style dangerouslySetInnerHTML={{__html: `.custom-scrollbar::-webkit-scrollbar { width: 6px; } .custom-scrollbar::-webkit-scrollbar-track { background: transparent; } .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }`}}/>
     </div>
   );
 }
