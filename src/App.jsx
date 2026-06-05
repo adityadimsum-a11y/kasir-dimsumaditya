@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, ShoppingCart, Wallet, 
   Clock, Store, Loader2, LogOut, 
@@ -19,6 +19,7 @@ import TabMonitoringPemalang from './components/tabs/TabMonitoringPemalang';
 // === IMPORT TABS CABANG ===
 import TabDashboardBranch from './components/tabs/TabDashboardBranch';
 
+// === IMPORT CETAKAN ===
 import { 
   PrintInvoiceDotMatrix, PrintPurchase, PrintVoucher, PrintReceipt, 
   PrintReport, PrintReportBranch, PrintSPK, PrintBuktiStok
@@ -83,7 +84,10 @@ function LayoutPusat({ user, activeTab, handleTabChange, handleLogout, data, sen
           {activeTab === 'purchases' && <TabPurchases purchases={data.purchases} payments={data.piutangPayments} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'purchase', id})} />}
           {activeTab === 'expenses' && <TabExpenses expenses={data.expenses} karyawan={data.karyawan} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'expense', id})} />}
           {activeTab === 'piutang' && <TabPiutang orders={data.orders} purchases={data.purchases} payments={data.piutangPayments} sendToSheet={sendToSheet} requestDelete={(id) => setConfirmDialog({type: 'payment', id})} setPrintData={setPrintData} role={user.role} />}
-          {activeTab === 'stok' && <TabStok stokData={data.stokData} purchases={data.purchases} orders={data.orders} sendToSheet={sendToSheet} requestDelete={(id) => setConfirmDialog({type: 'stok', id})} setPrintData={setPrintData} role={user.role} />}
+          
+          {/* TAB STOK SUDAH MENGGUNAKAN MOVEMENT ENGINE BARU */}
+          {activeTab === 'stok' && <TabStok stockMovements={data.stockMovements} productionBatches={data.productionBatches} purchases={data.purchases} orders={data.orders} sendToSheet={sendToSheet} requestDelete={(id) => setConfirmDialog({type: 'stok', id})} role={user.role} />}
+          
           {activeTab === 'monitoring_pemalang' && <TabMonitoringPemalang orders={data.orders} pemalangReports={data.pemalangReports} stokData={data.stokData} />}
           {activeTab === 'karyawan' && <TabKaryawan karyawan={data.karyawan} expenses={data.expenses} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'karyawan', id})} />}
         </div>
@@ -125,7 +129,10 @@ function LayoutBranch({ user, activeTab, handleTabChange, handleLogout, data, se
           {activeTab === 'dashboard' && <TabDashboardBranch orders={data.orders} pemalangReports={data.pemalangReports} piutangPayments={data.piutangPayments} setPrintData={setPrintData} stokData={data.stokData} />}
           {activeTab === 'orders' && <TabOrders orders={data.orders} payments={data.piutangPayments} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'order', id})} role={user.role} />}
           {activeTab === 'piutang' && <TabPiutang orders={data.orders} purchases={[]} payments={data.piutangPayments} sendToSheet={sendToSheet} requestDelete={(id) => setConfirmDialog({type: 'payment', id})} setPrintData={setPrintData} role={user.role} />}
-          {activeTab === 'stok' && <TabStok stokData={data.stokData} purchases={[]} orders={data.orders} sendToSheet={sendToSheet} requestDelete={(id) => setConfirmDialog({type: 'stok', id})} setPrintData={setPrintData} role={user.role} />}
+          
+          {/* TAB STOK SUDAH MENGGUNAKAN MOVEMENT ENGINE BARU */}
+          {activeTab === 'stok' && <TabStok stockMovements={data.stockMovements} productionBatches={data.productionBatches} purchases={[]} orders={data.orders} sendToSheet={sendToSheet} requestDelete={(id) => setConfirmDialog({type: 'stok', id})} role={user.role} />}
+          
           {activeTab === 'pemalang' && <TabPemalang reports={data.pemalangReports} sendToSheet={sendToSheet} requestDelete={(id) => setConfirmDialog({type: 'pemalang', id})} role={user.role} />}
         </div>
       </main>
@@ -161,20 +168,19 @@ export default function App() {
   const [masterUsers, setMasterUsers] = useState([]);
   const [masterBranches, setMasterBranches] = useState([]);
 
-// STATE TRANSAKSI
+  // STATE TRANSAKSI & MOVEMENT ENGINE
   const [orders, setOrders] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [piutangPayments, setPiutangPayments] = useState([]);
   const [pemalangReports, setPemalangReports] = useState([]);
-  
-  // --- NEW ENGINE STATE ---
+  const [purchases, setPurchases] = useState([]);
+  const [karyawan, setKaryawan] = useState([]); 
+
   const [stockMovements, setStockMovements] = useState([]); 
   const [productionBatches, setProductionBatches] = useState([]); 
-  
-  const [purchases, setPurchases] = useState([]);
-  const [karyawan, setKaryawan] = useState([]);
+  const [stokData, setStokData] = useState([]); // Legacy support sementara
 
-  // FETCH DATA INITIAL (TERMASUK AUTH DATA)
+  // FETCH DATA INITIAL
   useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
@@ -195,9 +201,13 @@ export default function App() {
         setExpenses(data.filter(item => item && item.table === 'expenses' && !item.isDeleted).sort(safeSort));
         setPiutangPayments(data.filter(item => item && item.table === 'payments' && !item.isDeleted).sort(safeSort));
         setPemalangReports(data.filter(item => item && item.table === 'pemalang' && !item.isDeleted).sort(safeSort));
-        setStokData(data.filter(item => item && item.table === 'stok' && !item.isDeleted).sort(safeSort));
         setPurchases(data.filter(item => item && item.table === 'purchases' && !item.isDeleted).sort(safeSort));
         setKaryawan(data.filter(item => item && item.table === 'karyawan' && !item.isDeleted).sort(safeSort));
+        
+        // Populate Engine Baru
+        setStockMovements(data.filter(item => item && item.table === 'stock_movements' && !item.isDeleted).sort(safeSort));
+        setProductionBatches(data.filter(item => item && item.table === 'production_batches' && !item.isDeleted).sort(safeSort));
+        setStokData(data.filter(item => item && item.table === 'stok' && !item.isDeleted).sort(safeSort)); // Legacy
       }
     } catch (error) { 
       console.error("Gagal terhubung ke Database:", error);
@@ -242,9 +252,11 @@ export default function App() {
         if (table === 'expenses') setExpenses(prev => [...dataArray, ...prev]);
         if (table === 'payments') setPiutangPayments(prev => [...dataArray, ...prev]);
         if (table === 'pemalang') setPemalangReports(prev => [...dataArray, ...prev]);
-        if (table === 'stok') setStokData(prev => [...dataArray, ...prev]);
         if (table === 'purchases') setPurchases(prev => [...dataArray, ...prev]);
         if (table === 'karyawan') setKaryawan(prev => [...dataArray, ...prev]);
+        if (table === 'stock_movements') setStockMovements(prev => [...dataArray, ...prev]);
+        if (table === 'production_batches') setProductionBatches(prev => [...dataArray, ...prev]);
+        if (table === 'stok') setStokData(prev => [...dataArray, ...prev]);
     } else if (action === 'update') {
         const dataArray = Array.isArray(data) ? data : [data];
         const updateState = (prev) => prev.map(item => {
@@ -255,17 +267,21 @@ export default function App() {
         if (table === 'expenses') setExpenses(updateState);
         if (table === 'payments') setPiutangPayments(updateState);
         if (table === 'pemalang') setPemalangReports(updateState);
-        if (table === 'stok') setStokData(updateState);
         if (table === 'purchases') setPurchases(updateState);
         if (table === 'karyawan') setKaryawan(updateState);
+        if (table === 'stock_movements') setStockMovements(updateState);
+        if (table === 'production_batches') setProductionBatches(updateState);
+        if (table === 'stok') setStokData(updateState);
     } else if (action === 'delete') {
         if (table === 'orders') setOrders(prev => prev.filter(o => o.id !== data.id));
         if (table === 'expenses') setExpenses(prev => prev.filter(e => e.id !== data.id));
         if (table === 'payments') setPiutangPayments(prev => prev.filter(p => p.id !== data.id));
         if (table === 'pemalang') setPemalangReports(prev => prev.filter(p => p.id !== data.id));
-        if (table === 'stok') setStokData(prev => prev.filter(s => s.id !== data.id));
         if (table === 'purchases') setPurchases(prev => prev.filter(p => p.id !== data.id));
         if (table === 'karyawan') setKaryawan(prev => prev.filter(k => k.id !== data.id));
+        if (table === 'stock_movements') setStockMovements(prev => prev.filter(s => s.id !== data.id));
+        if (table === 'production_batches') setProductionBatches(prev => prev.filter(p => p.id !== data.id));
+        if (table === 'stok') setStokData(prev => prev.filter(s => s.id !== data.id));
     }
     try { await fetch(SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, table, data }) }); } 
     catch (error) { console.error("Gagal kirim ke Sheet:", error); }
@@ -274,7 +290,15 @@ export default function App() {
   const executeDelete = async () => {
     if(!confirmDialog) return;
     const { type, id } = confirmDialog;
-    let colName = type === 'order' ? 'orders' : type === 'expense' ? 'expenses' : type === 'payment' ? 'payments' : type === 'pemalang' ? 'pemalang' : type === 'stok' ? 'stok' : type === 'purchase' ? 'purchases' : 'karyawan';
+    let colName = 'orders';
+    if (type === 'order') colName = 'orders';
+    else if (type === 'expense') colName = 'expenses';
+    else if (type === 'payment') colName = 'payments';
+    else if (type === 'pemalang') colName = 'pemalang';
+    else if (type === 'stok') colName = 'stok'; // Atau stock_movements / production_batches tergantung tab
+    else if (type === 'purchase') colName = 'purchases';
+    else if (type === 'karyawan') colName = 'karyawan';
+    
     await sendToSheet('delete', { id }, colName); 
     setConfirmDialog(null);
   };
@@ -324,9 +348,10 @@ export default function App() {
   if (printData?.type === 'spk') return <PrintSPK data={printData.data} onBack={() => setPrintData(null)} />;
   if (printData?.type === 'bukti_stok') return <PrintBuktiStok data={printData.data} onBack={() => setPrintData(null)} />;
 
+  // Global Props untuk disebarkan ke komponen Layout
   const globalProps = {
     user, activeTab, handleTabChange, handleLogout, sendToSheet, setPrintData, setConfirmDialog,
-    data: { orders, expenses, purchases, piutangPayments, pemalangReports, stokData, karyawan }
+    data: { orders, expenses, purchases, piutangPayments, pemalangReports, stokData, karyawan, stockMovements, productionBatches }
   };
 
   return (
