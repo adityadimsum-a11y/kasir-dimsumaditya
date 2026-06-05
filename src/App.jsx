@@ -5,6 +5,7 @@ import {
   Package, Truck, Users, AlertCircle, Activity, Send, DollarSign, ShieldAlert
 } from 'lucide-react';
 
+// === IMPORT TABS PUSAT ===
 import TabDashboard from './components/tabs/TabDashboard';
 import TabOrders from './components/tabs/TabOrders';
 import TabPurchases from './components/tabs/TabPurchases';
@@ -15,8 +16,11 @@ import TabStok from './components/tabs/TabStok';
 import TabDistribusi from './components/tabs/TabDistribusi';
 import TabKaryawan from './components/tabs/TabKaryawan';
 import TabMonitoringPemalang from './components/tabs/TabMonitoringPemalang';
+
+// === IMPORT TABS CABANG ===
 import TabDashboardBranch from './components/tabs/TabDashboardBranch';
 
+// === IMPORT CETAKAN ===
 import { 
   PrintInvoiceDotMatrix, PrintPurchase, PrintVoucher, PrintReceipt, 
   PrintReport, PrintReportBranch, PrintSPK, PrintBuktiStok
@@ -24,8 +28,12 @@ import {
 
 import { safeSort } from './utils/helpers';
 
+// Ganti SCRIPT_URL jika Anda melakukan deploy ulang Apps Script
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqSM572mbUIGozcghhh8LHNMNw2e83O7Wkyu-SkjdVTO3zpTb64PA/exec'; 
 
+// ==========================================
+// KOMPONEN NAVIGASI MENU
+// ==========================================
 function NavItem({ icon, label, active, onClick, badge }) {
   return (
     <button onClick={onClick} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-sm font-medium ${active ? 'bg-red-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}>
@@ -36,6 +44,9 @@ function NavItem({ icon, label, active, onClick, badge }) {
   );
 }
 
+// ==========================================
+// LAYOUT KHUSUS PUSAT (SUPER ADMIN)
+// ==========================================
 function LayoutPusat({ user, activeTab, handleTabChange, handleLogout, data, sendToSheet, setPrintData, setConfirmDialog }) {
   const pendingDO = data.distributionOrders.filter(d => d.status === 'DIKIRIM').length;
 
@@ -89,6 +100,9 @@ function LayoutPusat({ user, activeTab, handleTabChange, handleLogout, data, sen
   );
 }
 
+// ==========================================
+// LAYOUT KHUSUS CABANG / RESTO
+// ==========================================
 function LayoutBranch({ user, activeTab, handleTabChange, handleLogout, data, sendToSheet, setPrintData, setConfirmDialog }) {
   const incomingDO = data.distributionOrders.filter(d => d.status === 'DIKIRIM' && d.to_branch === user.branch_id).length;
 
@@ -98,7 +112,7 @@ function LayoutBranch({ user, activeTab, handleTabChange, handleLogout, data, se
         <div className="p-6 border-b border-slate-800 bg-slate-900/50">
             <div className="bg-white p-2 rounded-lg inline-block mb-3 shadow-md"><img src="https://dimsumaditya.id/wp-content/uploads/2026/06/Dimsum-Aditya-New-Logo-scaled.webp" alt="Logo" className="h-8 w-auto" /></div>
             <h1 className="font-black text-lg tracking-wide uppercase">Dimsum Aditya</h1>
-            <p className="text-[10px] font-bold text-blue-400 bg-blue-400/10 px-2 py-0.5 rounded w-max mt-1 uppercase">{user.branch_name}</p>
+            <p className="text-[10px] font-bold text-blue-400 bg-blue-400/10 px-2 py-0.5 rounded w-max mt-1 uppercase">{user.branch_name} ({user.branch_type})</p>
         </div>
         <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
             <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 mt-2 px-2">Operasional</div>
@@ -114,7 +128,10 @@ function LayoutBranch({ user, activeTab, handleTabChange, handleLogout, data, se
       </aside>
 
       <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
-        <header className="bg-white border-b p-4 shadow-sm z-10"><h2 className="text-xl font-bold capitalize text-slate-800 flex items-center gap-2">{activeTab.replace('_', ' ')}</h2></header>
+        <header className="bg-white border-b p-4 shadow-sm z-10 flex justify-between items-center">
+            <h2 className="text-xl font-bold capitalize text-slate-800 flex items-center gap-2">{activeTab.replace('_', ' ')}</h2>
+            <div className="text-xs font-bold text-slate-400">Server Status: <span className="text-emerald-500">Secure 🔒</span></div>
+        </header>
         <div className="flex-1 overflow-auto p-6 bg-slate-50/50">
           {activeTab === 'dashboard' && <TabDashboardBranch orders={data.orders} pemalangReports={data.pemalangReports} piutangPayments={data.piutangPayments} setPrintData={setPrintData} stokData={data.stokData} />}
           {activeTab === 'orders' && <TabOrders orders={data.orders} payments={data.piutangPayments} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'order', id})} role={user.role} />}
@@ -127,6 +144,9 @@ function LayoutBranch({ user, activeTab, handleTabChange, handleLogout, data, se
   );
 }
 
+// ==========================================
+// MAIN APP COMPONENT
+// ==========================================
 export default function App() {
   const [user, setUser] = useState(() => {
     try { return window.localStorage.getItem('dimsum_user_session') ? JSON.parse(window.localStorage.getItem('dimsum_user_session')) : null; } 
@@ -162,7 +182,7 @@ export default function App() {
   const [stockMovements, setStockMovements] = useState([]); 
   const [productionBatches, setProductionBatches] = useState([]); 
   const [distributionOrders, setDistributionOrders] = useState([]); 
-  const [stokData, setStokData] = useState([]); 
+  const [stokData, setStokData] = useState([]); // Legacy support
   
   const [supplierLedger, setSupplierLedger] = useState([]);
   const [cashflowTransactions, setCashflowTransactions] = useState([]);
@@ -170,7 +190,7 @@ export default function App() {
   const [inventoryCostLayers, setInventoryCostLayers] = useState([]);
   const [discrepancyLogs, setDiscrepancyLogs] = useState([]);
   const [financialClosings, setFinancialClosings] = useState([]);
-  const [systemTasks, setSystemTasks] = useState([]); // <--- INI STATE YANG BIKIN BLANK PUTIH KEMARIN!
+  const [systemTasks, setSystemTasks] = useState([]); 
 
   useEffect(() => { fetchData(); }, []);
 
@@ -205,9 +225,13 @@ export default function App() {
         
         setDiscrepancyLogs(data.filter(item => item && item.table === 'discrepancy_logs' && !item.isDeleted).sort(safeSort));
         setFinancialClosings(data.filter(item => item && item.table === 'financial_closings' && !item.isDeleted).sort(safeSort));
-        setSystemTasks(data.filter(item => item && item.table === 'system_tasks' && !item.isDeleted).sort(safeSort)); // <--- DATA DITARIK DI SINI
+        setSystemTasks(data.filter(item => item && item.table === 'system_tasks' && !item.isDeleted).sort(safeSort)); 
       }
-    } catch (error) { console.error("Gagal terhubung ke Database:", error); } finally { setIsLoading(false); }
+    } catch (error) { 
+      console.error("Gagal terhubung ke Database:", error); 
+    } finally { 
+      setIsLoading(false); 
+    }
   };
 
   const handleLogin = (e) => {
@@ -217,14 +241,13 @@ export default function App() {
     
     let loggedInUser = null;
     if (foundUser) {
-      // Auto-Uppercase untuk menghindari bentrok branch_id 'pusat' vs 'PUSAT' di Sheet
       const formattedBranchId = String(foundUser.branch_id).toUpperCase();
       const branchInfo = masterBranches.find(b => String(b.branch_id).toUpperCase() === formattedBranchId) || { branch_name: 'Cabang', branch_type: 'Branch' };
       
       loggedInUser = { 
           role: foundUser.role, 
           name: username, 
-          branch_id: formattedBranchId, // <-- Pastikan UPPERCASE
+          branch_id: formattedBranchId, 
           branch_name: branchInfo.branch_name, 
           branch_type: branchInfo.branch_type 
       };
@@ -238,15 +261,15 @@ export default function App() {
 
   const handleLogout = () => { setUser(null); setLoginForm({ username: '', password: '' }); window.localStorage.removeItem('dimsum_user_session'); window.localStorage.removeItem('dimsum_active_tab'); };
 
+  // ==========================================
+  // HARD LOCK SECURITY ENGINE UNTUK MENGIRIM DATA
+  // ==========================================
   const sendToSheet = async (action, data, table) => {
-    // Optimistic UI updates
-    if (action === 'insert' && !table.includes('event')) {
-        const dataArray = Array.isArray(data) ? data : [data];
-        if (table === 'orders') setOrders(prev => [...dataArray, ...prev]);
-        if (table === 'system_tasks') setSystemTasks(prev => [...dataArray, ...prev]); // Optimistic untuk Task
-    } 
-    
+    // 1. Tampilkan Indikator Loading untuk mencegah klik ganda dari sisi UI
+    setIsLoading(true);
+
     try { 
+        // 2. Tembak ke Backend dengan KTP Executor (Identitas User)
         const response = await fetch(SCRIPT_URL, { 
             method: 'POST', 
             headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
@@ -254,21 +277,47 @@ export default function App() {
         }); 
         
         const result = await response.json();
-        if (result.status === 'forbidden') {
-            alert(`AKSES DITOLAK!\n\n${result.data.message}`);
-            fetchData();
-            return;
+        
+        // 3. TANGKAP PENOLAKAN DARI BACKEND (HARD LOCKS: Stok Minus, Dobel Eksekusi, Closing)
+        if (result.status === 'forbidden' || result.status === 'error') {
+            setIsLoading(false);
+            alert(`⛔ SISTEM MENOLAK AKSI ANDA!\n\nAlasan: ${result.data?.message || result.message || 'Terjadi pelanggaran aturan sistem.'}`);
+            return false; // Hentikan eksekusi
+        }
+
+        // 4. JIKA SUKSES
+        if (result.status === 'success') {
+            // Tampilkan alert hanya untuk notifikasi khusus yang ada pesannya
+            if (result.data?.message) {
+                alert(`✅ ${result.data.message}`);
+            }
+            // Tarik ulang data asli dari server
+            await fetchData();
+            setIsLoading(false);
+            return true;
         }
 
     } catch (error) { 
         console.error("Gagal kirim ke Server:", error); 
+        alert("🚨 TERJADI KESALAHAN JARINGAN ATAU SERVER!\nData Anda belum tersimpan. Silakan coba lagi.");
+        setIsLoading(false);
+        return false;
     }
-    
-    setTimeout(fetchData, 1500); 
   };
 
   const executeDelete = async () => {
-    // Standard delete logic
+    if(!confirmDialog) return;
+    const { type, id } = confirmDialog;
+    let colName = 'orders';
+    if (type === 'order') colName = 'orders';
+    else if (type === 'expense') colName = 'expenses';
+    else if (type === 'payment') colName = 'payments';
+    else if (type === 'pemalang') colName = 'pemalang';
+    else if (type === 'stok') colName = 'stok';
+    else if (type === 'purchase') colName = 'purchases';
+    else if (type === 'karyawan') colName = 'karyawan';
+    
+    await sendToSheet('delete', { id }, colName); 
     setConfirmDialog(null);
   };
 
@@ -292,7 +341,15 @@ export default function App() {
     );
   }
 
-  if (isLoading) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><Loader2 className="w-12 h-12 text-slate-800 animate-spin" /></div>;
+  // Tampilan Loading Universal agar tidak bisa di-klik dobel
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50/80 backdrop-blur-sm z-50 fixed inset-0">
+        <Loader2 className="w-12 h-12 text-slate-800 animate-spin mb-4" />
+        <div className="text-sm font-bold text-slate-600 tracking-widest uppercase">Menyinkronkan Data Server...</div>
+      </div>
+    );
+  }
 
   const globalProps = {
     user, activeTab, handleTabChange, handleLogout, sendToSheet, setPrintData, setConfirmDialog,
@@ -300,7 +357,7 @@ export default function App() {
         orders, expenses, purchases, piutangPayments, pemalangReports, stokData, karyawan, 
         stockMovements, productionBatches, distributionOrders, masterBranches,
         supplierLedger, cashflowTransactions, marketplaceSettlement, inventoryCostLayers,
-        discrepancyLogs, financialClosings, systemTasks // <--- PASTIKAN MASUK KE GLOBAL DATA
+        discrepancyLogs, financialClosings, systemTasks
     }
   };
 
