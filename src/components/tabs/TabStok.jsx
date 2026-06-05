@@ -16,36 +16,61 @@ export default function TabStok({ stockMovements, productionBatches, distributio
   const [receiveModal, setReceiveModal] = useState(null);
   const [formReceive, setFormReceive] = useState({ received: 0, missing: 0, damaged: 0, notes: '' });
 
-  // ... (KODE useMemo stockRealtime dan handleSimpanProduksi TETAP SAMA SEPERTI FASE 7) ...
+  // 🐛 FIX: Identifikasi Pusat menggunakan super_admin atau admin
+  const isPusat = role === 'super_admin' || role === 'admin';
+
+  // ==========================================
+  // CORE ENGINE 1: STOK SEPARATION (PUSAT VS CABANG)
+  // ==========================================
   const stockRealtime = useMemo(() => {
-      let ayamGudang = 0; let frozenStock = 0;
-      const myMovements = role === 'admin' ? stockMovements : (stockMovements || []).filter(m => m.branch_id === user.branch_id);
+      let ayamGudang = 0;
+      let frozenStock = 0;
+
+      // Filter movement khusus cabang ini (Atau semua jika Pusat)
+      const myMovements = isPusat ? stockMovements : (stockMovements || []).filter(m => m.branch_id === user.branch_id);
+
       (myMovements || []).forEach(m => {
           const qty = Number(m.qty) || 0;
-          if (role === 'admin' && m.item_name === 'AYAM') { if(m.to_location === 'GUDANG') ayamGudang += qty; if(m.from_location === 'GUDANG') ayamGudang -= qty; }
-          const targetFreezer = role === 'admin' ? 'FREEZER_PUSAT' : 'FREEZER_CABANG';
+          
+          if (isPusat && m.item_name === 'AYAM') {
+              if (m.to_location === 'GUDANG') ayamGudang += qty;
+              if (m.from_location === 'GUDANG') ayamGudang -= qty;
+          }
+          
+          // Logika Freezer sesuai Role
+          const targetFreezer = isPusat ? 'FREEZER_PUSAT' : 'FREEZER_CABANG';
           if (m.item_name === 'DIMSUM' || m.item_name === 'DIMSUM FROZEN') {
               if (m.to_location === targetFreezer) frozenStock += qty;
               if (m.from_location === targetFreezer) frozenStock -= qty;
           }
       });
-      return { ayamGudang, frozenStock };
-  }, [stockMovements, purchases, orders, role, user.branch_id]);
 
+      return { ayamGudang, frozenStock };
+  }, [stockMovements, purchases, orders, isPusat, user.branch_id]);
+
+  // ==========================================
+  // CORE ENGINE 2: PRODUCTION BATCH (PUSAT)
+  // ==========================================
   const handleSimpanProduksi = (e) => {
       e.preventDefault();
       const batchId = generateId('BATCH', date);
-      const payload = { id: batchId, date: date, adukan_qty: Number(adukanQty), ayam_used: Number(ayamUsed), additional_cost: Number(additionalCost), result_pcs: Number(resultPcs), result_mika: Number(resultPcs) / PCS_PER_MIKA, status: 'SELESAI', branch_id: 'PUSAT' };
+      
+      const payload = { 
+          id: batchId, date: date, 
+          adukan_qty: Number(adukanQty), ayam_used: Number(ayamUsed), 
+          additional_cost: Number(additionalCost), result_pcs: Number(resultPcs), 
+          result_mika: Number(resultPcs) / PCS_PER_MIKA, status: 'SELESAI', branch_id: 'PUSAT' 
+      };
+
       sendToSheet('event_production', payload, 'production_batches');
-      alert("Batch Produksi Sukses & HPP Dihitung Server!");
       setAdukanQty(''); setAyamUsed(''); setResultPcs('');
   };
 
   // ==========================================
-  // DISCREPANCY & RECEIVING ENGINE
+  // CORE ENGINE 3: RECEIVE DO (CABANG)
   // ==========================================
   const incomingDO = (distributionOrders || []).filter(d => d.to_branch === user.branch_id && d.status === 'DIKIRIM');
-
+  
   const openReceiveModal = (doItem) => {
       setReceiveModal(doItem);
       setFormReceive({ received: doItem.qty, missing: 0, damaged: 0, notes: '' });
@@ -69,7 +94,6 @@ export default function TabStok({ stockMovements, productionBatches, distributio
           };
           
           sendToSheet('event_receive_do', payload, 'system_lifecycle');
-          alert("Receiving Protocol & Discrepancy Log tereksekusi di Backend!");
           setReceiveModal(null);
       }
   };
@@ -81,33 +105,50 @@ export default function TabStok({ stockMovements, productionBatches, distributio
       
       {/* SUMMARY REALTIME */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {role === 'admin' && (
+          {isPusat && (
           <div className="bg-slate-900 rounded-2xl p-6 relative overflow-hidden shadow-lg border border-slate-800">
               <div className="absolute top-0 right-0 p-4 opacity-10"><Database size={80} className="text-white"/></div>
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">STOK GUDANG AYAM</h3>
               <div className="text-4xl font-black text-white">{stockRealtime.ayamGudang.toFixed(1)} <span className="text-sm text-orange-400">KG</span></div>
           </div>
           )}
+          
           <div className="bg-blue-900 rounded-2xl p-6 relative overflow-hidden shadow-lg border border-blue-800">
               <div className="absolute top-0 right-0 p-4 opacity-10"><Package size={80} className="text-white"/></div>
-              <h3 className="text-xs font-bold text-blue-300 uppercase tracking-widest mb-1">STOK FREEZER {role === 'admin' ? 'PUSAT' : 'CABANG'}</h3>
+              <h3 className="text-xs font-bold text-blue-300 uppercase tracking-widest mb-1">STOK FREEZER {isPusat ? 'PUSAT' : 'CABANG'}</h3>
               <div className="text-4xl font-black text-white">{stockRealtime.frozenStock} <span className="text-sm text-cyan-300">PCS</span></div>
+              <div className="mt-4 pt-4 border-t border-blue-800/50 flex gap-4">
+                 <div><div className="text-[10px] text-blue-400 uppercase font-bold">Porsi</div><div className="font-bold text-blue-200">{stockRealtime.frozenStock / 4} Prs</div></div>
+                 <div><div className="text-[10px] text-blue-400 uppercase font-bold">Pack (Mika)</div><div className="font-bold text-blue-200">{stockRealtime.frozenStock / PCS_PER_MIKA} Mika</div></div>
+              </div>
           </div>
       </div>
 
       {/* MODULE PENERIMAAN BARANG (KHUSUS CABANG) */}
-      {role === 'branch' && (
+      {!isPusat && (
           <div className="bg-white rounded-2xl border shadow-sm p-6">
-              <div className="flex items-center gap-3 mb-4 border-b pb-4"><div className="bg-orange-100 text-orange-700 p-2 rounded-lg"><Truck size={20}/></div><div><h3 className="font-black text-slate-800 text-lg uppercase tracking-wide">Receiving Dashboard</h3><p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Truk sedang di perjalanan dari Pusat</p></div></div>
+              <div className="flex items-center gap-3 mb-4 border-b pb-4">
+                  <div className="bg-orange-100 text-orange-700 p-2 rounded-lg"><Truck size={20}/></div>
+                  <div><h3 className="font-black text-slate-800 text-lg uppercase tracking-wide">Receiving Dashboard</h3><p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Truk sedang di perjalanan dari Pusat</p></div>
+              </div>
 
               {incomingDO.length === 0 ? (
-                  <div className="text-center p-8 bg-slate-50 rounded-xl border border-dashed border-slate-300"><Package size={32} className="mx-auto text-slate-300 mb-2"/><p className="text-slate-500 font-bold text-sm">Tidak ada barang dalam perjalanan.</p></div>
+                  <div className="text-center p-8 bg-slate-50 rounded-xl border border-dashed border-slate-300">
+                      <Package size={32} className="mx-auto text-slate-300 mb-2"/>
+                      <p className="text-slate-500 font-bold text-sm">Tidak ada barang dalam perjalanan.</p>
+                  </div>
               ) : (
                   <div className="space-y-3">
                       {incomingDO.map(doItem => (
                           <div key={doItem.id} className="flex justify-between items-center bg-orange-50 border border-orange-200 p-4 rounded-xl shadow-sm">
-                              <div><div className="text-[10px] font-bold text-orange-600 uppercase mb-1">Status: DIKIRIM (Menuju Lokasi)</div><div className="font-black text-slate-800 text-lg">{doItem.qty} PCS DIMSUM</div><div className="text-xs font-bold text-slate-600 mt-1">Ref ID: {doItem.id}</div></div>
-                              <button onClick={() => openReceiveModal(doItem)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 py-3 rounded-xl shadow-md flex items-center gap-2 transition"><Download size={18}/> Buka Form Penerimaan</button>
+                              <div>
+                                  <div className="text-[10px] font-bold text-orange-600 uppercase mb-1">Status: DIKIRIM (Menuju Lokasi)</div>
+                                  <div className="font-black text-slate-800 text-lg">{doItem.qty} PCS DIMSUM</div>
+                                  <div className="text-xs font-bold text-slate-600 mt-1">Ref ID: {doItem.id}</div>
+                              </div>
+                              <button onClick={() => openReceiveModal(doItem)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 py-3 rounded-xl shadow-md flex items-center gap-2 transition">
+                                  <Download size={18}/> Buka Form Penerimaan
+                              </button>
                           </div>
                       ))}
                   </div>
@@ -120,7 +161,7 @@ export default function TabStok({ stockMovements, productionBatches, distributio
           <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
               <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-6 overflow-hidden">
                   <div className="flex items-center justify-between mb-6 border-b pb-4">
-                      <div className="flex items-center gap-3"><div className="bg-emerald-100 text-emerald-600 p-2 rounded-xl"><PackageOpen size={24}/></div><div><h3 className="font-black text-lg text-slate-800 uppercase tracking-tight">Cek & Terima Barang</h3><p className="text-[10px] font-bold text-slate-500 uppercase">DO: {receiveModal.id}</p></div></div>
+                      <div className="flex items-center gap-3"><div className="bg-emerald-100 text-emerald-600 p-2 rounded-xl"><Package size={24}/></div><div><h3 className="font-black text-lg text-slate-800 uppercase tracking-tight">Cek & Terima Barang</h3><p className="text-[10px] font-bold text-slate-500 uppercase">DO: {receiveModal.id}</p></div></div>
                       <div className="text-right"><div className="text-[10px] font-bold text-slate-500 uppercase">Total Kirim Pusat</div><div className="font-black text-2xl text-slate-800">{receiveModal.qty} <span className="text-sm">Pcs</span></div></div>
                   </div>
                   
@@ -134,20 +175,67 @@ export default function TabStok({ stockMovements, productionBatches, distributio
                       {(Number(formReceive.missing) > 0 || Number(formReceive.damaged) > 0) && (
                           <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex gap-3 animate-in fade-in zoom-in">
                               <AlertTriangle size={24} className="text-amber-500 shrink-0"/>
-                              <div className="space-y-2 w-full"><div className="text-xs font-bold text-amber-800">Terdapat Selisih (Discrepancy) sejumlah {Number(formReceive.missing) + Number(formReceive.damaged)} Pcs. Barang ini akan masuk ke daftar WASTE. Wajib sertakan alasan!</div><textarea required placeholder="Tulis alasan hilang/rusak..." value={formReceive.notes} onChange={e=>setFormReceive({...formReceive, notes: e.target.value})} className="w-full p-2 text-xs bg-white border border-amber-200 rounded-lg outline-none font-medium resize-none" rows="2"></textarea></div>
+                              <div className="space-y-2 w-full"><div className="text-xs font-bold text-amber-800">Terdapat Selisih sejumlah {Number(formReceive.missing) + Number(formReceive.damaged)} Pcs. Wajib sertakan alasan!</div><textarea required placeholder="Tulis alasan..." value={formReceive.notes} onChange={e=>setFormReceive({...formReceive, notes: e.target.value})} className="w-full p-2 text-xs bg-white border border-amber-200 rounded-lg outline-none font-medium resize-none" rows="2"></textarea></div>
                           </div>
                       )}
 
                       <div className="flex gap-3 pt-4 border-t">
                           <button type="button" onClick={() => setReceiveModal(null)} className="w-1/3 bg-slate-100 text-slate-600 font-bold py-3.5 rounded-xl hover:bg-slate-200 transition">Batal</button>
-                          <button type="submit" className="w-2/3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-md transition flex justify-center items-center gap-2"><CheckCircle size={18}/> Konfirmasi & Update Stok</button>
+                          <button type="submit" className="w-2/3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-md transition flex justify-center items-center gap-2"><CheckCircle size={18}/> Konfirmasi & Terima</button>
                       </div>
                   </form>
               </div>
           </div>
       )}
 
-      {/* ... (MODUL PRODUKSI PUSAT SAMA SEPERTI FASE 7) ... */}
+      {/* MODUL INPUT BATCH PRODUKSI (HANYA PUSAT) */}
+      {isPusat && (
+      <div className="bg-white rounded-2xl border shadow-sm p-6 mt-6 border-t-4 border-t-purple-600">
+          <div className="flex items-center gap-3 mb-6 border-b pb-4">
+              <div className="bg-purple-100 text-purple-700 p-2 rounded-lg"><Factory size={20}/></div>
+              <div><h3 className="font-black text-slate-800 text-lg uppercase tracking-wide">Auto-HPP Production Engine</h3><p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Sistem otomatis menghitung Modal Asli per Dimsum (FIFO)</p></div>
+          </div>
+          
+          <form onSubmit={handleSimpanProduksi} className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+              <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-600 uppercase">Tgl Eksekusi</label><input type="date" required value={date} onChange={e=>setDate(e.target.value)} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold text-sm" /></div>
+              <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-600 uppercase">Jml Adukan</label><input type="number" required placeholder="0" value={adukanQty} onChange={e=>setAdukanQty(e.target.value)} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold text-sm" /></div>
+              <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-600 uppercase">Ayam Dipakai (KG)</label><input type="number" step="0.1" required placeholder="0" value={ayamUsed} onChange={e=>setAyamUsed(e.target.value)} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold text-sm" /></div>
+              <div className="space-y-1.5"><label className="text-[10px] font-bold text-purple-600 uppercase">Biaya Bumbu & Kulit</label><input type="number" required value={additionalCost} onChange={e=>setAdditionalCost(e.target.value)} className="w-full p-2.5 bg-purple-50 border border-purple-200 rounded-xl font-black text-sm text-purple-800" /></div>
+              <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-600 uppercase">Hasil Jadi (Pcs)</label><input type="number" required placeholder="0" value={resultPcs} onChange={e=>setResultPcs(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-blue-200 rounded-xl font-black text-blue-700 text-sm" /></div>
+              
+              <div className="md:col-span-5 mt-2">
+                  <button type="submit" className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3.5 rounded-xl shadow-md transition flex justify-center items-center gap-2">
+                      <CheckCircle size={18}/> Eksekusi & Kalkulasi HPP Otomatis
+                  </button>
+              </div>
+          </form>
+      </div>
+      )}
+
+      {/* TABEL HISTORI BATCH PRODUKSI (HANYA PUSAT) */}
+      {isPusat && (
+      <div className="bg-white rounded-2xl border shadow-sm overflow-hidden mt-6">
+          <div className="p-4 border-b bg-slate-50 flex items-center gap-3"><ListChecks size={18} className="text-slate-600"/><h4 className="font-bold text-slate-800 tracking-wide uppercase text-sm">Log HPP Produksi</h4></div>
+          <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                  <thead className="bg-white border-b text-[10px] text-slate-500 uppercase">
+                      <tr><th className="px-4 py-3">Batch ID & Tgl</th><th className="px-4 py-3 text-center">Bahan Baku Keluar</th><th className="px-4 py-3 text-center">Dimsum Freezer Masuk</th><th className="px-4 py-3 text-right">Total Biaya Produksi</th><th className="px-4 py-3 text-center">HPP Per Pcs</th></tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                      {listBatches.map(b => (
+                          <tr key={b.id} className="hover:bg-slate-50 transition">
+                              <td className="px-4 py-3"><div className="font-mono text-[10px] font-bold text-slate-700">{b.id}</div><div className="text-[10px] text-slate-500">{formatDate(b.date)}</div></td>
+                              <td className="px-4 py-3 text-center font-black text-orange-600">-{b.ayam_used} KG AYAM</td>
+                              <td className="px-4 py-3 text-center font-black text-blue-600">+{b.result_pcs} PCS DIMSUM</td>
+                              <td className="px-4 py-3 text-right font-black text-slate-800">{b.total_cost ? formatRp(b.total_cost) : '-'}</td>
+                              <td className="px-4 py-3 text-center font-black bg-emerald-50 text-emerald-700 border-l border-emerald-100">{b.hpp_per_pcs ? formatRp(Math.round(b.hpp_per_pcs)) : 'Menghitung...'}</td>
+                          </tr>
+                      ))}
+                  </tbody>
+              </table>
+          </div>
+      </div>
+      )}
     </div>
   );
 }
