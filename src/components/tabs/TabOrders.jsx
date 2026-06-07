@@ -4,8 +4,10 @@ import { formatRp, getTodayStr, generateId, formatDate } from '../../utils/helpe
 
 export default function TabOrders({ orders, payments, sendToSheet, setPrintData, role }) {
   const todayStr = getTodayStr();
+  
+  // Tarik identitas user dari memori browser agar transaksi masuk ke cabang yang benar
+  const userSession = JSON.parse(window.localStorage.getItem('dimsum_user_session')) || { branch_id: 'PUSAT' };
 
-  // STATE UNTUK FORM KASIR BARU
   const [form, setForm] = useState({
       date: todayStr,
       source: 'GOFOOD',
@@ -27,7 +29,6 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
           return;
       }
 
-      // Validasi Khusus Marketplace (GoFood dll)
       if (form.source !== 'OFFLINE' && form.paymentMethod !== 'MARKETPLACE') {
           if (!window.confirm(`Anda memilih Channel ${form.source} tapi pembayarannya menggunakan ${form.paymentMethod}. Yakin ini benar? (Biasanya penjualan online uangnya tertahan di Marketplace)`)) {
               return;
@@ -48,13 +49,11 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
           total: total,
           paidAmount: Number(form.paidAmount),
           paymentMethod: form.paymentMethod,
-          settlement_status: settlementStatus
+          settlement_status: settlementStatus,
+          branch_id: userSession.branch_id // 🔥 Pastikan masuk ke Cabang yang login!
       };
 
-      // Tembak event_order agar backend menghitung Fee & HPP Realtime!
       sendToSheet('event_order', payload, 'system_events');
-
-      // Reset form
       setForm({ ...form, qty: '', paidAmount: '0' });
   };
 
@@ -63,7 +62,6 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
       
-      {/* FORM KASIR (POS ENGINE) */}
       <div className="bg-white rounded-2xl border shadow-sm p-6">
           <div className="flex items-center gap-3 mb-6 border-b pb-4">
               <div className="bg-blue-100 text-blue-700 p-2 rounded-lg"><ShoppingCart size={20}/></div>
@@ -114,7 +112,6 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
           </form>
       </div>
 
-      {/* TABEL HISTORI TRANSAKSI */}
       <div className="bg-white rounded-2xl border shadow-sm overflow-hidden mt-6">
           <div className="p-4 border-b bg-slate-50 flex items-center justify-between">
               <div className="flex items-center gap-3"><Clock size={18} className="text-slate-600"/><h4 className="font-bold text-slate-800 tracking-wide uppercase text-sm">Histori Penjualan & Laba Realtime</h4></div>
@@ -150,7 +147,7 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
                                   ) : <span className="text-slate-300">-</span>}
                               </td>
                               <td className="px-4 py-3 text-right font-black bg-emerald-50 border-l border-emerald-100">
-                                  <div className="text-emerald-700">{o.net_profit ? formatRp(o.net_profit) : 'Menghitung...'}</div>
+                                  <div className="text-emerald-700">{o.net_profit !== undefined ? formatRp(o.net_profit) : 'Menghitung...'}</div>
                                   {o.hpp_total && <div className="text-[9px] text-slate-500 font-normal">HPP: -{formatRp(o.hpp_total)}</div>}
                               </td>
                           </tr>
