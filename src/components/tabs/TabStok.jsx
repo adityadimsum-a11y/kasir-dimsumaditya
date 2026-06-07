@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShoppingCart, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
+import { ShoppingCart, CheckCircle, Clock } from 'lucide-react';
 import { formatRp, getTodayStr, generateId, formatDate } from '../../utils/helpers';
 
 export default function TabOrders({ orders, payments, sendToSheet, setPrintData, role }) {
@@ -27,7 +27,7 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
           return;
       }
 
-      // Validasi Khusus Marketplace (GoFood dll) -> Biasanya uangnya masuk ke Piutang/Pending
+      // Validasi Khusus Marketplace (GoFood dll)
       if (form.source !== 'OFFLINE' && form.paymentMethod !== 'MARKETPLACE') {
           if (!window.confirm(`Anda memilih Channel ${form.source} tapi pembayarannya menggunakan ${form.paymentMethod}. Yakin ini benar? (Biasanya penjualan online uangnya tertahan di Marketplace)`)) {
               return;
@@ -48,11 +48,10 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
           total: total,
           paidAmount: Number(form.paidAmount),
           paymentMethod: form.paymentMethod,
-          settlement_status: settlementStatus,
-          // branch_id akan otomatis diisi oleh backend `Code.gs` berdasarkan login user
+          settlement_status: settlementStatus
       };
 
-      // 🔥 THE MAGIC: Tembak event_order agar backend menghitung Fee & HPP Realtime!
+      // Tembak event_order agar backend menghitung Fee & HPP Realtime!
       sendToSheet('event_order', payload, 'system_events');
 
       // Reset form
@@ -103,7 +102,7 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
                   </select>
               </div>
 
-              <div className="md:col-span-3 bg-blue-50 p-4 rounded-xl border border-blue-200 flex justify-between items-center mt-2 shadow-inner">
+              <div className="md:col-span-4 bg-blue-50 p-4 rounded-xl border border-blue-200 flex justify-between items-center mt-2 shadow-inner">
                   <div>
                       <div className="text-[10px] font-black text-blue-800 uppercase tracking-widest">Total Transaksi</div>
                       <div className="text-2xl font-black text-blue-700">{formatRp(total)}</div>
