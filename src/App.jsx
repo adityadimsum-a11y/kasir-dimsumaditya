@@ -20,10 +20,8 @@ import TabMonitoringPemalang from './components/tabs/TabMonitoringPemalang';
 // === IMPORT TABS CABANG ===
 import TabDashboardBranch from './components/tabs/TabDashboardBranch';
 
-// === IMPORT CETAKAN (Hanya yang sudah kita buat) ===
+// === IMPORT CETAKAN ===
 import PrintDotMatrix from './components/PrintDotMatrix';
-
-import { safeSort } from './utils/helpers';
 
 // Ganti SCRIPT_URL jika Anda melakukan deploy ulang Apps Script
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqSM572mbUIGozcghhh8LHNMNw2e83O7Wkyu-SkjdVTO3zpTb64PA/exec'; 
@@ -200,29 +198,32 @@ export default function App() {
       if (result.status === 'success') {
         const data = result.data || [];
         
+        // PENGURUTAN MANUAL JAVASCRIPT (ANTI-ERROR VERCEL)
+        const sortData = (arr) => arr.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+
         setMasterUsers(data.filter(item => item && item.table === 'users' && !item.isDeleted));
         setMasterBranches(data.filter(item => item && item.table === 'branches' && !item.isDeleted));
 
-        setOrders(data.filter(item => item && item.table === 'orders' && !item.isDeleted).sort(safeSort));
-        setExpenses(data.filter(item => item && item.table === 'expenses' && !item.isDeleted).sort(safeSort));
-        setPiutangPayments(data.filter(item => item && item.table === 'payments' && !item.isDeleted).sort(safeSort));
-        setPemalangReports(data.filter(item => item && item.table === 'pemalang' && !item.isDeleted).sort(safeSort));
-        setPurchases(data.filter(item => item && item.table === 'purchases' && !item.isDeleted).sort(safeSort));
-        setKaryawan(data.filter(item => item && item.table === 'karyawan' && !item.isDeleted).sort(safeSort));
+        setOrders(sortData(data.filter(item => item && item.table === 'orders' && !item.isDeleted)));
+        setExpenses(sortData(data.filter(item => item && item.table === 'expenses' && !item.isDeleted)));
+        setPiutangPayments(sortData(data.filter(item => item && item.table === 'payments' && !item.isDeleted)));
+        setPemalangReports(sortData(data.filter(item => item && item.table === 'pemalang' && !item.isDeleted)));
+        setPurchases(sortData(data.filter(item => item && item.table === 'purchases' && !item.isDeleted)));
+        setKaryawan(sortData(data.filter(item => item && item.table === 'karyawan' && !item.isDeleted)));
         
-        setStockMovements(data.filter(item => item && item.table === 'stock_movements' && !item.isDeleted).sort(safeSort));
-        setProductionBatches(data.filter(item => item && item.table === 'production_batches' && !item.isDeleted).sort(safeSort));
-        setDistributionOrders(data.filter(item => item && item.table === 'distribution_orders' && !item.isDeleted).sort(safeSort));
-        setStokData(data.filter(item => item && item.table === 'stok' && !item.isDeleted).sort(safeSort)); 
+        setStockMovements(sortData(data.filter(item => item && item.table === 'stock_movements' && !item.isDeleted)));
+        setProductionBatches(sortData(data.filter(item => item && item.table === 'production_batches' && !item.isDeleted)));
+        setDistributionOrders(sortData(data.filter(item => item && item.table === 'distribution_orders' && !item.isDeleted)));
+        setStokData(sortData(data.filter(item => item && item.table === 'stok' && !item.isDeleted))); 
         
-        setSupplierLedger(data.filter(item => item && item.table === 'supplier_ledger' && !item.isDeleted).sort(safeSort));
-        setCashflowTransactions(data.filter(item => item && item.table === 'cashflow_transactions' && !item.isDeleted).sort(safeSort));
-        setMarketplaceSettlement(data.filter(item => item && item.table === 'marketplace_settlement' && !item.isDeleted).sort(safeSort));
-        setInventoryCostLayers(data.filter(item => item && item.table === 'inventory_cost_layers' && !item.isDeleted).sort(safeSort));
+        setSupplierLedger(sortData(data.filter(item => item && item.table === 'supplier_ledger' && !item.isDeleted)));
+        setCashflowTransactions(sortData(data.filter(item => item && item.table === 'cashflow_transactions' && !item.isDeleted)));
+        setMarketplaceSettlement(sortData(data.filter(item => item && item.table === 'marketplace_settlement' && !item.isDeleted)));
+        setInventoryCostLayers(sortData(data.filter(item => item && item.table === 'inventory_cost_layers' && !item.isDeleted)));
         
-        setDiscrepancyLogs(data.filter(item => item && item.table === 'discrepancy_logs' && !item.isDeleted).sort(safeSort));
-        setFinancialClosings(data.filter(item => item && item.table === 'financial_closings' && !item.isDeleted).sort(safeSort));
-        setSystemTasks(data.filter(item => item && item.table === 'system_tasks' && !item.isDeleted).sort(safeSort)); 
+        setDiscrepancyLogs(sortData(data.filter(item => item && item.table === 'discrepancy_logs' && !item.isDeleted)));
+        setFinancialClosings(sortData(data.filter(item => item && item.table === 'financial_closings' && !item.isDeleted)));
+        setSystemTasks(sortData(data.filter(item => item && item.table === 'system_tasks' && !item.isDeleted))); 
       }
     } catch (error) { 
       console.error("Gagal terhubung ke Database:", error); 
