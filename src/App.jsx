@@ -16,6 +16,7 @@ import TabStok from './components/tabs/TabStok';
 import TabDistribusi from './components/tabs/TabDistribusi';
 import TabKaryawan from './components/tabs/TabKaryawan';
 import TabMonitoringPemalang from './components/tabs/TabMonitoringPemalang';
+import PrintDotMatrix from './components/PrintDotMatrix';
 
 // === IMPORT TABS CABANG ===
 import TabDashboardBranch from './components/tabs/TabDashboardBranch';
