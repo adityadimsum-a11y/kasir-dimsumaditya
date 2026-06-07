@@ -124,13 +124,15 @@ export default function TabDistribusi({ distributionOrders, stockMovements, mast
                                           : <span className="bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase w-max mx-auto inline-block">RECEIVED (DITERIMA)</span>}
                               </td>
                               <td className="px-4 py-3 text-right">
+                                  {/* TOMBOL PRINT YANG SUDAH AKTIF */}
                                   <button 
-   onClick={() => setPrintData({ type: 'DO', data: d })} 
-   className="bg-slate-100 hover:bg-slate-200 text-slate-600 p-2 rounded-lg transition" 
-   title="Print Surat Jalan"
->
-   <Printer size={16}/>
-</button>
+                                     onClick={() => setPrintData({ type: 'DO', data: d })} 
+                                     className="bg-slate-100 hover:bg-slate-200 text-slate-600 p-2 rounded-lg transition" 
+                                     title="Print Surat Jalan"
+                                  >
+                                     <Printer size={16}/>
+                                  </button>
+                              </td>
                           </tr>
                       )})}
                   </tbody>
