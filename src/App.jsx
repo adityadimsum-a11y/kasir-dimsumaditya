@@ -16,12 +16,12 @@ import TabStok from './components/tabs/TabStok';
 import TabDistribusi from './components/tabs/TabDistribusi';
 import TabKaryawan from './components/tabs/TabKaryawan';
 import TabMonitoringPemalang from './components/tabs/TabMonitoringPemalang';
-import PrintDotMatrix from './components/PrintDotMatrix';
 
 // === IMPORT TABS CABANG ===
 import TabDashboardBranch from './components/tabs/TabDashboardBranch';
 
 // === IMPORT CETAKAN ===
+import PrintDotMatrix from './components/PrintDotMatrix';
 import { 
   PrintInvoiceDotMatrix, PrintPurchase, PrintVoucher, PrintReceipt, 
   PrintReport, PrintReportBranch, PrintSPK, PrintBuktiStok
@@ -366,6 +366,9 @@ export default function App() {
     <>
       {user.role === 'super_admin' ? <LayoutPusat {...globalProps} /> : <LayoutBranch {...globalProps} />}
       
+      {/* MESIN CETAK DOT MATRIX */}
+      <PrintDotMatrix printData={printData} onClose={() => setPrintData(null)} />
+
       {confirmDialog && (
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 text-center">
