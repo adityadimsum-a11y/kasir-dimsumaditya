@@ -1,87 +1,66 @@
 import React, { useState } from 'react';
-import { Store, Plus, Trash2, X } from 'lucide-react';
-import { getTodayStr, generateId, formatDate, formatRp, parseRp } from '../../utils/helpers';
+import { Lock, ShieldAlert, CheckCircle, AlertTriangle } from 'lucide-react';
+import { getTodayStr, formatDate } from '../../utils/helpers';
 
-export default function TabPemalang({ reports, sendToSheet, requestDelete, role }) {
-  const [showForm, setShowForm] = useState(false);
-  const todayStr = getTodayStr();
+export default function TabPemalang({ sendToSheet, user }) {
+  const [closingDate, setClosingDate] = useState(getTodayStr());
 
-  // Form Laporan Harian
-  const [date, setDate] = useState(todayStr);
-  const [produksiMika, setProduksiMika] = useState('');
-  const [pesananMika, setPesananMika] = useState('');
-  const [stokFreezer, setStokFreezer] = useState('KOSONG / HABIS');
-  const [stokAyam, setStokAyam] = useState('HABIS');
-  const [nominal, setNominal] = useState(0);
-  const [transferDestination, setTransferDestination] = useState('BCA (WASTAM)');
-
-  const resetForm = () => {
-    setShowForm(false); setDate(todayStr); setProduksiMika(''); setPesananMika(''); 
-    setStokFreezer('KOSONG / HABIS'); setStokAyam('HABIS'); setNominal(0);
-  };
-
-  const handleSimpan = (e) => {
+  const handleTutupBuku = (e) => {
     e.preventDefault();
-    const newReport = {
-      id: generateId('RPT', date), table: 'pemalang', date,
-      produksiMika: Number(produksiMika)||0, 
-      pesananMika: Number(pesananMika)||0,
-      stokFreezer: stokFreezer.toUpperCase(),
-      stokAyam: stokAyam.toUpperCase(),
-      nominal: Number(nominal)||0,
-      transferDestination
-    };
-    sendToSheet('insert', newReport, 'pemalang');
-    resetForm();
-  };
 
-  const displayReports = [...(reports || [])].sort((a,b) => new Date(b.date) - new Date(a.date));
+    const confirmMsg = `🚨 PERINGATAN FATAL!\n\nAnda akan MENGUNCI PERMANEN seluruh transaksi pada tanggal ${formatDate(closingDate)} dan hari-hari sebelumnya.\n\nKasir Cabang TIDAK AKAN BISA lagi menginput, mengubah, atau menghapus data penjualan di tanggal tersebut.\n\nApakah Kas Aktual sudah sesuai dengan Sistem dan Anda yakin ingin TUTUP BUKU?`;
+    
+    if (window.confirm(confirmMsg)) {
+        // Tembak event_closing ke Backend
+        const payload = {
+            date: closingDate,
+            cash_ready: 0, // Disederhanakan untuk UAT
+            inventory_value: 0,
+            hutang_aktif: 0,
+            net_profit_today: 0
+        };
+        
+        sendToSheet('event_closing', payload, 'system_events');
+    }
+  };
 
   return (
-    <div className="space-y-4 animate-in fade-in">
-      <div className="flex justify-between items-center">
-        <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2"><Store size={20} /> Laporan Harian Pemalang</h3>
-        <button onClick={() => { if(showForm) resetForm(); else setShowForm(true); }} className={`px-4 py-2 rounded-lg flex items-center gap-2 text-sm text-white font-bold shadow-sm ${showForm ? 'bg-slate-500' : 'bg-indigo-600'}`}>
-          {showForm ? <X size={16} /> : <Plus size={16} />} {showForm ? 'Batal' : 'Buat Laporan Baru'}
-        </button>
-      </div>
-
-      {showForm && (
-        <form onSubmit={handleSimpan} className="bg-indigo-50 p-6 rounded-xl border border-indigo-200 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="col-span-full border-b border-indigo-200 pb-2 mb-2"><h4 className="font-bold text-indigo-900 text-sm">Form End of Day (EOD) Kasir</h4></div>
-          <div className="space-y-1"><label className="text-sm font-bold text-indigo-800">Tanggal Laporan</label><input type="date" required value={date} onChange={e => setDate(e.target.value)} className="w-full p-2 border rounded-lg" /></div>
-          <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1"><label className="text-sm font-bold text-indigo-800">Produksi (Mika)</label><input type="number" min="0" required value={produksiMika} onChange={e => setProduksiMika(e.target.value)} className="w-full p-2 border rounded-lg" placeholder="Cth: 120" /></div>
-              <div className="space-y-1"><label className="text-sm font-bold text-indigo-800">Pesanan (Mika)</label><input type="number" min="0" required value={pesananMika} onChange={e => setPesananMika(e.target.value)} className="w-full p-2 border rounded-lg" placeholder="Cth: 120" /></div>
+    <div className="space-y-6 animate-in fade-in pb-10 flex justify-center items-start mt-10">
+      
+      <div className="bg-white rounded-3xl shadow-xl border border-slate-100 p-8 max-w-lg w-full relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-2 bg-red-600"></div>
+          
+          <div className="flex flex-col items-center text-center mb-8">
+              <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mb-4">
+                  <Lock size={40} className="text-red-600" />
+              </div>
+              <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight">Tutup Buku Harian</h2>
+              <p className="text-sm font-medium text-slate-500 mt-2">Kunci sistem untuk mencegah manipulasi data kasir di hari yang sudah berlalu.</p>
           </div>
-          
-          <div className="space-y-1"><label className="text-sm font-bold text-indigo-800">Stok Freezer (Fisik Aktual)</label><input type="text" required value={stokFreezer} onChange={e => setStokFreezer(e.target.value)} className="w-full p-2 border rounded-lg uppercase" placeholder="Cth: KOSONG atau SISA 10 MIKA" /></div>
-          <div className="space-y-1"><label className="text-sm font-bold text-indigo-800">Stok Ayam (Fisik Aktual)</label><input type="text" required value={stokAyam} onChange={e => setStokAyam(e.target.value)} className="w-full p-2 border rounded-lg uppercase" placeholder="Cth: HABIS atau SISA 2 KANTONG" /></div>
-          
-          <div className="space-y-1"><label className="text-sm font-bold text-indigo-800">Nominal Setoran Tunai</label><input type="text" required value={formatRp(nominal)} onChange={e => setNominal(parseRp(e.target.value))} className="w-full p-2 border rounded-lg font-bold text-lg" /></div>
-          <div className="space-y-1"><label className="text-sm font-bold text-indigo-800">Transfer Ke Rekening</label><select value={transferDestination} onChange={e => setTransferDestination(e.target.value)} className="w-full p-2 border rounded-lg font-bold h-[46px]"><option>BCA (WASTAM)</option><option>BRI (WASTAM)</option><option>LAINNYA</option></select></div>
-          <div className="col-span-full flex justify-end mt-2 pt-4 border-t border-indigo-200"><button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-2.5 rounded-lg font-bold shadow-md">Simpan Laporan EOD</button></div>
-        </form>
-      )}
 
-      <div className="bg-white rounded-xl border mt-4 overflow-hidden">
-        <table className="w-full text-sm text-left block md:table">
-          <thead className="bg-slate-50 border-b">
-            <tr><th className="px-4 py-3">Tanggal & ID</th><th className="px-4 py-3 text-center">Produksi / Pesanan</th><th className="px-4 py-3">Stok Dimsum Fisik</th><th className="px-4 py-3">Stok Ayam Fisik</th><th className="px-4 py-3 text-right">Uang Disetor</th><th className="px-4 py-3 text-center">Aksi</th></tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {displayReports.length === 0 ? <tr><td colSpan="6" className="text-center py-12 text-slate-400">Belum ada riwayat laporan harian.</td></tr> : displayReports.map((rep) => (
-              <tr key={rep.id} className="hover:bg-slate-50">
-                <td className="px-4 py-3"><div className="font-bold">{formatDate(rep.date)}</div><div className="text-[10px] text-slate-400 font-mono">{rep.id}</div></td>
-                <td className="px-4 py-3 text-center font-bold text-slate-600">{rep.produksiMika} M / {rep.pesananMika} M</td>
-                <td className="px-4 py-3 font-black text-indigo-700">{rep.stokFreezer}</td>
-                <td className="px-4 py-3 font-black text-orange-700">{rep.stokAyam || '-'}</td>
-                <td className="px-4 py-3 text-right"><div className="font-black text-emerald-600">{formatRp(rep.nominal)}</div><div className="text-[10px] text-slate-500">Ke: {rep.transferDestination}</div></td>
-                <td className="px-4 py-3 text-center"><button onClick={() => requestDelete(rep.id)} className="text-red-500 bg-red-50 p-2 rounded-lg hover:bg-red-100 transition shadow-sm"><Trash2 size={16} /></button></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3 mb-6">
+              <ShieldAlert size={24} className="text-amber-600 shrink-0"/>
+              <div className="text-xs font-bold text-amber-800">
+                  Transaksi yang diinput pada atau sebelum tanggal Closing akan <b>DITOLAK OTOMATIS</b> oleh Server Pusat. Hanya Super Admin yang dapat membuka gembok ini.
+              </div>
+          </div>
+
+          <form onSubmit={handleTutupBuku} className="space-y-6">
+              <div className="space-y-2">
+                  <label className="text-xs font-black text-slate-700 uppercase tracking-widest text-center block">Pilih Tanggal Closing</label>
+                  <input 
+                      type="date" 
+                      required 
+                      value={closingDate} 
+                      onChange={e => setClosingDate(e.target.value)} 
+                      className="w-full p-4 bg-slate-50 border-2 border-slate-200 rounded-xl font-black text-slate-800 text-center text-lg outline-none focus:border-red-500 transition" 
+                  />
+              </div>
+
+              <button type="submit" className="w-full bg-red-600 hover:bg-red-700 text-white font-black py-4 rounded-xl shadow-lg shadow-red-600/30 transition flex justify-center items-center gap-2 uppercase tracking-wide">
+                  <Lock size={18}/> Kunci & Tutup Buku Sekarang
+              </button>
+          </form>
       </div>
     </div>
   );
