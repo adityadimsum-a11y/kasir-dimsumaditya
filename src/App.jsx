@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, ShoppingCart, Wallet, 
   Clock, Store, Loader2, LogOut, 
-  Package, Truck, Users, AlertCircle, Activity, Send, DollarSign, ShieldAlert
+  Package, Truck, Users, AlertCircle, Activity, Send, ShieldAlert
 } from 'lucide-react';
 
 // === IMPORT TABS PUSAT ===
@@ -20,12 +20,8 @@ import TabMonitoringPemalang from './components/tabs/TabMonitoringPemalang';
 // === IMPORT TABS CABANG ===
 import TabDashboardBranch from './components/tabs/TabDashboardBranch';
 
-// === IMPORT CETAKAN ===
+// === IMPORT CETAKAN (Hanya yang sudah kita buat) ===
 import PrintDotMatrix from './components/PrintDotMatrix';
-import { 
-  PrintInvoiceDotMatrix, PrintPurchase, PrintVoucher, PrintReceipt, 
-  PrintReport, PrintReportBranch, PrintSPK, PrintBuktiStok
-} from './components/print/PrintTemplates';
 
 import { safeSort } from './utils/helpers';
 
@@ -183,7 +179,7 @@ export default function App() {
   const [stockMovements, setStockMovements] = useState([]); 
   const [productionBatches, setProductionBatches] = useState([]); 
   const [distributionOrders, setDistributionOrders] = useState([]); 
-  const [stokData, setStokData] = useState([]); // Legacy support
+  const [stokData, setStokData] = useState([]); 
   
   const [supplierLedger, setSupplierLedger] = useState([]);
   const [cashflowTransactions, setCashflowTransactions] = useState([]);
@@ -266,11 +262,9 @@ export default function App() {
   // HARD LOCK SECURITY ENGINE UNTUK MENGIRIM DATA
   // ==========================================
   const sendToSheet = async (action, data, table) => {
-    // 1. Tampilkan Indikator Loading untuk mencegah klik ganda dari sisi UI
     setIsLoading(true);
 
     try { 
-        // 2. Tembak ke Backend dengan KTP Executor (Identitas User)
         const response = await fetch(SCRIPT_URL, { 
             method: 'POST', 
             headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
@@ -279,20 +273,16 @@ export default function App() {
         
         const result = await response.json();
         
-        // 3. TANGKAP PENOLAKAN DARI BACKEND (HARD LOCKS: Stok Minus, Dobel Eksekusi, Closing)
         if (result.status === 'forbidden' || result.status === 'error') {
             setIsLoading(false);
             alert(`⛔ SISTEM MENOLAK AKSI ANDA!\n\nAlasan: ${result.data?.message || result.message || 'Terjadi pelanggaran aturan sistem.'}`);
-            return false; // Hentikan eksekusi
+            return false;
         }
 
-        // 4. JIKA SUKSES
         if (result.status === 'success') {
-            // Tampilkan alert hanya untuk notifikasi khusus yang ada pesannya
             if (result.data?.message) {
                 alert(`✅ ${result.data.message}`);
             }
-            // Tarik ulang data asli dari server
             await fetchData();
             setIsLoading(false);
             return true;
@@ -342,7 +332,6 @@ export default function App() {
     );
   }
 
-  // Tampilan Loading Universal agar tidak bisa di-klik dobel
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50/80 backdrop-blur-sm z-50 fixed inset-0">
