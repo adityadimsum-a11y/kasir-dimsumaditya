@@ -5,7 +5,6 @@ import {
   Package, Truck, Users, AlertCircle, Activity, Send, ShieldAlert
 } from 'lucide-react';
 
-// === IMPORT TABS PUSAT ===
 import TabDashboard from './components/tabs/TabDashboard';
 import TabOrders from './components/tabs/TabOrders';
 import TabPurchases from './components/tabs/TabPurchases';
@@ -16,19 +15,11 @@ import TabStok from './components/tabs/TabStok';
 import TabDistribusi from './components/tabs/TabDistribusi';
 import TabKaryawan from './components/tabs/TabKaryawan';
 import TabMonitoringPemalang from './components/tabs/TabMonitoringPemalang';
-
-// === IMPORT TABS CABANG ===
 import TabDashboardBranch from './components/tabs/TabDashboardBranch';
-
-// === IMPORT CETAKAN ===
 import PrintDotMatrix from './components/PrintDotMatrix';
 
-// Ganti SCRIPT_URL jika Anda melakukan deploy ulang Apps Script
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqSM572mbUIGozcghhh8LHNMNw2e83O7Wkyu-SkjdVTO3zpTb64PA/exec'; 
 
-// ==========================================
-// KOMPONEN NAVIGASI MENU
-// ==========================================
 function NavItem({ icon, label, active, onClick, badge }) {
   return (
     <button onClick={onClick} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-sm font-medium ${active ? 'bg-red-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}>
@@ -39,9 +30,6 @@ function NavItem({ icon, label, active, onClick, badge }) {
   );
 }
 
-// ==========================================
-// LAYOUT KHUSUS PUSAT (SUPER ADMIN)
-// ==========================================
 function LayoutPusat({ user, activeTab, handleTabChange, handleLogout, data, sendToSheet, setPrintData, setConfirmDialog }) {
   const pendingDO = data.distributionOrders.filter(d => d.status === 'DIKIRIM').length;
 
@@ -95,9 +83,6 @@ function LayoutPusat({ user, activeTab, handleTabChange, handleLogout, data, sen
   );
 }
 
-// ==========================================
-// LAYOUT KHUSUS CABANG / RESTO
-// ==========================================
 function LayoutBranch({ user, activeTab, handleTabChange, handleLogout, data, sendToSheet, setPrintData, setConfirmDialog }) {
   const incomingDO = data.distributionOrders.filter(d => d.status === 'DIKIRIM' && d.to_branch === user.branch_id).length;
 
@@ -139,9 +124,6 @@ function LayoutBranch({ user, activeTab, handleTabChange, handleLogout, data, se
   );
 }
 
-// ==========================================
-// MAIN APP COMPONENT
-// ==========================================
 export default function App() {
   const [user, setUser] = useState(() => {
     try { return window.localStorage.getItem('dimsum_user_session') ? JSON.parse(window.localStorage.getItem('dimsum_user_session')) : null; } 
@@ -161,24 +143,18 @@ export default function App() {
   const [printData, setPrintData] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null); 
   
-  // ==========================================
-  // SEMUA STATE DATABASE ERP
-  // ==========================================
   const [masterUsers, setMasterUsers] = useState([]);
   const [masterBranches, setMasterBranches] = useState([]);
-
   const [orders, setOrders] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [piutangPayments, setPiutangPayments] = useState([]);
   const [pemalangReports, setPemalangReports] = useState([]);
   const [purchases, setPurchases] = useState([]);
   const [karyawan, setKaryawan] = useState([]); 
-  
   const [stockMovements, setStockMovements] = useState([]); 
   const [productionBatches, setProductionBatches] = useState([]); 
   const [distributionOrders, setDistributionOrders] = useState([]); 
   const [stokData, setStokData] = useState([]); 
-  
   const [supplierLedger, setSupplierLedger] = useState([]);
   const [cashflowTransactions, setCashflowTransactions] = useState([]);
   const [marketplaceSettlement, setMarketplaceSettlement] = useState([]);
@@ -198,29 +174,24 @@ export default function App() {
       if (result.status === 'success') {
         const data = result.data || [];
         
-        // PENGURUTAN MANUAL JAVASCRIPT (ANTI-ERROR VERCEL)
         const sortData = (arr) => arr.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 
         setMasterUsers(data.filter(item => item && item.table === 'users' && !item.isDeleted));
         setMasterBranches(data.filter(item => item && item.table === 'branches' && !item.isDeleted));
-
         setOrders(sortData(data.filter(item => item && item.table === 'orders' && !item.isDeleted)));
         setExpenses(sortData(data.filter(item => item && item.table === 'expenses' && !item.isDeleted)));
         setPiutangPayments(sortData(data.filter(item => item && item.table === 'payments' && !item.isDeleted)));
         setPemalangReports(sortData(data.filter(item => item && item.table === 'pemalang' && !item.isDeleted)));
         setPurchases(sortData(data.filter(item => item && item.table === 'purchases' && !item.isDeleted)));
         setKaryawan(sortData(data.filter(item => item && item.table === 'karyawan' && !item.isDeleted)));
-        
         setStockMovements(sortData(data.filter(item => item && item.table === 'stock_movements' && !item.isDeleted)));
         setProductionBatches(sortData(data.filter(item => item && item.table === 'production_batches' && !item.isDeleted)));
         setDistributionOrders(sortData(data.filter(item => item && item.table === 'distribution_orders' && !item.isDeleted)));
         setStokData(sortData(data.filter(item => item && item.table === 'stok' && !item.isDeleted))); 
-        
         setSupplierLedger(sortData(data.filter(item => item && item.table === 'supplier_ledger' && !item.isDeleted)));
         setCashflowTransactions(sortData(data.filter(item => item && item.table === 'cashflow_transactions' && !item.isDeleted)));
         setMarketplaceSettlement(sortData(data.filter(item => item && item.table === 'marketplace_settlement' && !item.isDeleted)));
         setInventoryCostLayers(sortData(data.filter(item => item && item.table === 'inventory_cost_layers' && !item.isDeleted)));
-        
         setDiscrepancyLogs(sortData(data.filter(item => item && item.table === 'discrepancy_logs' && !item.isDeleted)));
         setFinancialClosings(sortData(data.filter(item => item && item.table === 'financial_closings' && !item.isDeleted)));
         setSystemTasks(sortData(data.filter(item => item && item.table === 'system_tasks' && !item.isDeleted))); 
@@ -236,21 +207,12 @@ export default function App() {
     e.preventDefault();
     const { username, password } = loginForm;
     const foundUser = masterUsers.find(u => String(u.username).toLowerCase() === String(username).toLowerCase() && String(u.password) === String(password));
-    
     let loggedInUser = null;
     if (foundUser) {
       const formattedBranchId = String(foundUser.branch_id).toUpperCase();
       const branchInfo = masterBranches.find(b => String(b.branch_id).toUpperCase() === formattedBranchId) || { branch_name: 'Cabang', branch_type: 'Branch' };
-      
-      loggedInUser = { 
-          role: foundUser.role, 
-          name: username, 
-          branch_id: formattedBranchId, 
-          branch_name: branchInfo.branch_name, 
-          branch_type: branchInfo.branch_type 
-      };
+      loggedInUser = { role: foundUser.role, name: username, branch_id: formattedBranchId, branch_name: branchInfo.branch_name, branch_type: branchInfo.branch_type };
     } 
-
     if (loggedInUser) {
       setUser(loggedInUser); window.localStorage.setItem('dimsum_user_session', JSON.stringify(loggedInUser));
       handleTabChange('dashboard'); setLoginError(''); 
@@ -259,41 +221,22 @@ export default function App() {
 
   const handleLogout = () => { setUser(null); setLoginForm({ username: '', password: '' }); window.localStorage.removeItem('dimsum_user_session'); window.localStorage.removeItem('dimsum_active_tab'); };
 
-  // ==========================================
-  // HARD LOCK SECURITY ENGINE UNTUK MENGIRIM DATA
-  // ==========================================
   const sendToSheet = async (action, data, table) => {
     setIsLoading(true);
-
     try { 
         const response = await fetch(SCRIPT_URL, { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
-            body: JSON.stringify({ action, table, data, executor: user }) 
+            method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, table, data, executor: user }) 
         }); 
-        
         const result = await response.json();
-        
         if (result.status === 'forbidden' || result.status === 'error') {
-            setIsLoading(false);
-            alert(`⛔ SISTEM MENOLAK AKSI ANDA!\n\nAlasan: ${result.data?.message || result.message || 'Terjadi pelanggaran aturan sistem.'}`);
-            return false;
+            setIsLoading(false); alert(`⛔ SISTEM MENOLAK AKSI ANDA!\n\nAlasan: ${result.data?.message || result.message || 'Terjadi pelanggaran aturan sistem.'}`); return false;
         }
-
         if (result.status === 'success') {
-            if (result.data?.message) {
-                alert(`✅ ${result.data.message}`);
-            }
-            await fetchData();
-            setIsLoading(false);
-            return true;
+            if (result.data?.message) alert(`✅ ${result.data.message}`);
+            await fetchData(); setIsLoading(false); return true;
         }
-
     } catch (error) { 
-        console.error("Gagal kirim ke Server:", error); 
-        alert("🚨 TERJADI KESALAHAN JARINGAN ATAU SERVER!\nData Anda belum tersimpan. Silakan coba lagi.");
-        setIsLoading(false);
-        return false;
+        console.error("Gagal kirim ke Server:", error); alert("🚨 TERJADI KESALAHAN JARINGAN ATAU SERVER!\nData Anda belum tersimpan. Silakan coba lagi."); setIsLoading(false); return false;
     }
   };
 
@@ -308,9 +251,7 @@ export default function App() {
     else if (type === 'stok') colName = 'stok';
     else if (type === 'purchase') colName = 'purchases';
     else if (type === 'karyawan') colName = 'karyawan';
-    
-    await sendToSheet('delete', { id }, colName); 
-    setConfirmDialog(null);
+    await sendToSheet('delete', { id }, colName); setConfirmDialog(null);
   };
 
   if (!user) {
@@ -355,10 +296,7 @@ export default function App() {
   return (
     <>
       {user.role === 'super_admin' ? <LayoutPusat {...globalProps} /> : <LayoutBranch {...globalProps} />}
-      
-      {/* MESIN CETAK DOT MATRIX */}
       <PrintDotMatrix printData={printData} onClose={() => setPrintData(null)} />
-
       {confirmDialog && (
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 text-center">
