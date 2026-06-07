@@ -9,9 +9,6 @@ export default function TabDistribusi({ distributionOrders, stockMovements, mast
   const PCS_PER_MIKA = 50;
   const PCS_PER_PORSI = 4;
 
-  // ==========================================
-  // CALCULATE STOK FREEZER PUSAT (REALTIME)
-  // ==========================================
   const stockRealtime = useMemo(() => {
       let frozenStock = 0;
       (stockMovements || []).forEach(m => {
@@ -24,37 +21,18 @@ export default function TabDistribusi({ distributionOrders, stockMovements, mast
       return frozenStock;
   }, [stockMovements]);
 
-  // ==========================================
-  // EKSEKUSI PENGIRIMAN
-  // ==========================================
   const handleSubmit = (e) => {
     e.preventDefault();
-
-    // HARD LOCK: Cegah minus stok!
     if (Number(form.qty) > stockRealtime) {
         alert(`⛔ PENGIRIMAN DITOLAK!\n\nStok Freezer Pusat tidak mencukupi.\nAnda mencoba mengirim ${Number(form.qty).toLocaleString('id-ID')} Pcs, sementara stok hanya tersisa ${stockRealtime.toLocaleString('id-ID')} Pcs.`);
         return;
     }
-
     const doId = generateId('DO', form.date);
-    
-    // 1. Buat Surat Jalan (DO)
-    const payloadDO = {
-      id: doId, date: form.date, from_branch: 'PUSAT', to_branch: form.to_branch,
-      item_name: 'DIMSUM FROZEN', qty: Number(form.qty), status: 'DIKIRIM', branch_id: 'PUSAT'
-    };
+    const payloadDO = { id: doId, date: form.date, from_branch: 'PUSAT', to_branch: form.to_branch, item_name: 'DIMSUM FROZEN', qty: Number(form.qty), status: 'DIKIRIM', branch_id: 'PUSAT' };
+    const payloadMovement = { id: 'MOV-RES-' + doId, date: form.date, item_name: 'DIMSUM', from_location: 'FREEZER_PUSAT', to_location: 'RESERVED_DELIVERY', qty: Number(form.qty), unit: 'PCS', movement_type: 'RESERVATION', branch_id: 'PUSAT', reference_id: doId };
 
-    // 2. Potong Stok Freezer & Pindahkan ke Status "Di Perjalanan / Reserved"
-    const payloadMovement = {
-      id: 'MOV-RES-' + doId, date: form.date, item_name: 'DIMSUM',
-      from_location: 'FREEZER_PUSAT', to_location: 'RESERVED_DELIVERY',
-      qty: Number(form.qty), unit: 'PCS', movement_type: 'RESERVATION', branch_id: 'PUSAT', reference_id: doId
-    };
-
-    // Tembak berbarengan
     sendToSheet('insert', payloadDO, 'distribution_orders');
     sendToSheet('insert', payloadMovement, 'stock_movements');
-
     setForm({ ...form, to_branch: '', qty: '' });
   };
 
@@ -63,31 +41,18 @@ export default function TabDistribusi({ distributionOrders, stockMovements, mast
 
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
-      
-      {/* WIDGET STOK FREEZER PUSAT */}
       <div className="bg-blue-900 rounded-2xl p-6 relative overflow-hidden shadow-lg border border-blue-800">
           <div className="absolute top-0 right-0 p-4 opacity-10"><Package size={80} className="text-white"/></div>
           <h3 className="text-xs font-bold text-blue-300 uppercase tracking-widest mb-1">STOK FREEZER PUSAT (SIAP KIRIM)</h3>
           <div className="text-4xl font-black text-white">{stockRealtime.toLocaleString('id-ID')} <span className="text-sm text-cyan-300">PCS</span></div>
           <div className="mt-4 pt-4 border-t border-blue-800/50 flex gap-6">
-              <div>
-                <div className="text-[10px] text-blue-400 uppercase font-bold">Total Pack ({PCS_PER_MIKA} Pcs)</div>
-                <div className="font-bold text-emerald-300">{(stockRealtime / PCS_PER_MIKA).toLocaleString('id-ID')} Mika</div>
-              </div>
-              <div>
-                <div className="text-[10px] text-blue-400 uppercase font-bold">Total Porsi ({PCS_PER_PORSI} Pcs)</div>
-                <div className="font-bold text-blue-200">{(stockRealtime / PCS_PER_PORSI).toLocaleString('id-ID')} Porsi</div>
-              </div>
+              <div><div className="text-[10px] text-blue-400 uppercase font-bold">Total Pack ({PCS_PER_MIKA} Pcs)</div><div className="font-bold text-emerald-300">{(stockRealtime / PCS_PER_MIKA).toLocaleString('id-ID')} Mika</div></div>
+              <div><div className="text-[10px] text-blue-400 uppercase font-bold">Total Porsi ({PCS_PER_PORSI} Pcs)</div><div className="font-bold text-blue-200">{(stockRealtime / PCS_PER_PORSI).toLocaleString('id-ID')} Porsi</div></div>
           </div>
       </div>
 
-      {/* FORM BUAT DO */}
       <div className="bg-white rounded-2xl border shadow-sm p-6">
-          <div className="flex items-center gap-3 mb-6 border-b pb-4">
-              <div className="bg-blue-100 text-blue-600 p-2 rounded-lg"><Send size={20}/></div>
-              <div><h3 className="font-black text-slate-800 text-lg uppercase tracking-wide">Delivery Order (Manual)</h3><p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Barang akan masuk status perjalanan & stok di-reserve</p></div>
-          </div>
-          
+          <div className="flex items-center gap-3 mb-6 border-b pb-4"><div className="bg-blue-100 text-blue-600 p-2 rounded-lg"><Send size={20}/></div><div><h3 className="font-black text-slate-800 text-lg uppercase tracking-wide">Delivery Order (Manual)</h3><p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Barang akan masuk status perjalanan & stok di-reserve</p></div></div>
           <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-600 uppercase">Tgl Pengiriman</label><input type="date" required value={form.date} onChange={e=>setForm({...form, date: e.target.value})} className="w-full p-3 bg-slate-50 border rounded-xl font-bold text-sm" /></div>
@@ -103,7 +68,6 @@ export default function TabDistribusi({ distributionOrders, stockMovements, mast
           </form>
       </div>
 
-      {/* TABEL TRACKER */}
       <div className="bg-white rounded-2xl border shadow-sm overflow-hidden mt-6">
           <div className="p-4 border-b bg-slate-50 flex items-center gap-3"><Clock size={18} className="text-slate-600"/><h4 className="font-bold text-slate-800 tracking-wide uppercase text-sm">Distribution Lifecycle Tracker</h4></div>
           <div className="overflow-x-auto">
@@ -124,14 +88,7 @@ export default function TabDistribusi({ distributionOrders, stockMovements, mast
                                           : <span className="bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase w-max mx-auto inline-block">RECEIVED (DITERIMA)</span>}
                               </td>
                               <td className="px-4 py-3 text-right">
-                                  {/* TOMBOL PRINT YANG SUDAH AKTIF */}
-                                  <button 
-                                     onClick={() => setPrintData({ type: 'DO', data: d })} 
-                                     className="bg-slate-100 hover:bg-slate-200 text-slate-600 p-2 rounded-lg transition" 
-                                     title="Print Surat Jalan"
-                                  >
-                                     <Printer size={16}/>
-                                  </button>
+                                  <button onClick={() => setPrintData({ type: 'DO', data: d })} className="bg-slate-100 hover:bg-slate-200 text-slate-600 p-2 rounded-lg transition" title="Print Surat Jalan"><Printer size={16}/></button>
                               </td>
                           </tr>
                       )})}
