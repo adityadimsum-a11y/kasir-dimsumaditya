@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Activity, Wallet, TrendingUp, AlertCircle, Package, DollarSign, PieChart, ShieldAlert } from 'lucide-react';
+import { Activity, Wallet, TrendingUp, AlertCircle, Package, DollarSign, PieChart, ShieldAlert, CheckCircle } from 'lucide-react';
 import { formatRp, getTodayStr } from '../../utils/helpers';
 
 export default function TabDashboard({ 
