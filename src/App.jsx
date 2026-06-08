@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, ShoppingCart, Wallet, Clock, Store, Loader2, LogOut, 
-  Package, Truck, Users, AlertCircle, Activity, Send, ShieldAlert, TrendingUp, WifiOff, PieChart, Menu, X, Search, Bell, CheckCircle, Radar
+  Package, Truck, Users, AlertCircle, Activity, Send, ShieldAlert, TrendingUp, WifiOff, PieChart, Menu, X, Search, Bell, CheckCircle, Radar, BookOpen
 } from 'lucide-react';
 
 import TabDashboard from './components/tabs/TabDashboard';
@@ -18,7 +18,8 @@ import TabDashboardBranch from './components/tabs/TabDashboardBranch';
 import TabCashWarRoom from './components/tabs/TabCashWarRoom';
 import TabSCMWarRoom from './components/tabs/TabSCMWarRoom'; 
 import TabAnalytics from './components/tabs/TabAnalytics'; 
-import TabBusinessRadar from './components/tabs/TabBusinessRadar'; // MODUL PHASE 8
+import TabBusinessRadar from './components/tabs/TabBusinessRadar'; 
+import TabAccounting from './components/tabs/TabAccounting'; // MODUL PHASE 9
 import PrintDotMatrix from './components/PrintDotMatrix';
 
 import { generateRequestId } from './utils/helpers'; 
@@ -29,9 +30,9 @@ const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqSM
 // CENTRAL CAPABILITY ENGINE
 // =====================================================================
 const CAPABILITY_CONFIG = {
-  'HQ_FACTORY': { can_production: true, can_supplier: true, can_global_dashboard: true, can_pos: true, can_distribute: true, can_hrd: true, can_treasury: true, can_scm_warroom: true, can_analytics: true, can_radar: true },
-  'PRODUCTION_BRANCH': { can_production: true, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: true, can_hrd: false, can_treasury: false, can_scm_warroom: false, can_analytics: false, can_radar: false },
-  'OUTLET_RESTO': { can_production: false, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: false, can_hrd: false, can_treasury: false, can_scm_warroom: false, can_analytics: false, can_radar: false }
+  'HQ_FACTORY': { can_production: true, can_supplier: true, can_global_dashboard: true, can_pos: true, can_distribute: true, can_hrd: true, can_treasury: true, can_scm_warroom: true, can_analytics: true, can_radar: true, can_accounting: true },
+  'PRODUCTION_BRANCH': { can_production: true, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: true, can_hrd: false, can_treasury: false, can_scm_warroom: false, can_analytics: false, can_radar: false, can_accounting: false },
+  'OUTLET_RESTO': { can_production: false, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: false, can_hrd: false, can_treasury: false, can_scm_warroom: false, can_analytics: false, can_radar: false, can_accounting: false }
 };
 
 function NavItem({ icon, label, active, onClick, badge, disabled }) {
@@ -98,6 +99,7 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
             {caps.can_global_dashboard ? <NavItem icon={<Activity size={18} />} label="Command Center" active={activeTab === 'dashboard'} onClick={() => navigateTab('dashboard')} disabled={isLoading} /> : <NavItem icon={<LayoutDashboard size={18} />} label="Dashboard Node" active={activeTab === 'dashboard'} onClick={() => navigateTab('dashboard')} disabled={isLoading} />}
             {caps.can_radar && <NavItem icon={<Radar size={18} />} label="Business Radar" active={activeTab === 'radar'} onClick={() => navigateTab('radar')} disabled={isLoading} />}
             {caps.can_treasury && <NavItem icon={<TrendingUp size={18} />} label="Cash War Room" active={activeTab === 'cash_war_room'} onClick={() => navigateTab('cash_war_room')} disabled={isLoading} />}
+            {caps.can_accounting && <NavItem icon={<BookOpen size={18} />} label="Financial ERP" active={activeTab === 'accounting'} onClick={() => navigateTab('accounting')} disabled={isLoading} />}
             {caps.can_analytics && <NavItem icon={<PieChart size={18} />} label="Executive Analytics" active={activeTab === 'analytics'} onClick={() => navigateTab('analytics')} disabled={isLoading} />}
             {caps.can_scm_warroom && <NavItem icon={<Truck size={18} />} label="SCM War Room" active={activeTab === 'scm_war_room'} onClick={() => navigateTab('scm_war_room')} disabled={isLoading} />}
 
@@ -155,6 +157,7 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
             {activeTab === 'dashboard' && (caps.can_global_dashboard ? <TabDashboard {...data} sendToSheet={sendToSheet} setPrintData={setPrintData} user={user} showToast={showToast} /> : <TabDashboardBranch orders={data.orders} pemalangReports={data.pemalangReports} piutangPayments={data.piutangPayments} setPrintData={setPrintData} stokData={data.stokData} showToast={showToast} />)}
             {activeTab === 'radar' && caps.can_radar && <TabBusinessRadar orders={data.orders} stockMovements={data.stockMovements} expenses={data.expenses} supplierLedger={data.supplierLedger} cashflowTransactions={data.cashflowTransactions} inventoryCostLayers={data.inventoryCostLayers} marketplaceSettlement={data.marketplaceSettlement} masterBranches={data.masterBranches} discrepancyLogs={data.discrepancyLogs} />}
             {activeTab === 'cash_war_room' && caps.can_treasury && <TabCashWarRoom orders={data.orders} purchases={data.purchases} expenses={data.expenses} cashflowTransactions={data.cashflowTransactions} marketplaceSettlement={data.marketplaceSettlement} supplierLedger={data.supplierLedger} masterBranches={data.masterBranches} inventoryCostLayers={data.inventoryCostLayers} discrepancyLogs={data.discrepancyLogs} financialClosings={data.financialClosings} />}
+            {activeTab === 'accounting' && caps.can_accounting && <TabAccounting generalLedger={data.generalLedger} chartOfAccounts={data.chartOfAccounts} />}
             {activeTab === 'analytics' && caps.can_analytics && <TabAnalytics orders={data.orders} masterBranches={data.masterBranches} discrepancyLogs={data.discrepancyLogs} />}
             {activeTab === 'scm_war_room' && caps.can_scm_warroom && <TabSCMWarRoom distributionOrders={data.distributionOrders} inventoryCostLayers={data.inventoryCostLayers} discrepancyLogs={data.discrepancyLogs} masterBranches={data.masterBranches} />}
             {activeTab === 'orders' && <TabOrders orders={data.orders} payments={data.piutangPayments} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'order', id})} role={user.role} showToast={showToast} />}
@@ -211,6 +214,10 @@ export default function App() {
   const [discrepancyLogs, setDiscrepancyLogs] = useState([]);
   const [financialClosings, setFinancialClosings] = useState([]);
   const [systemTasks, setSystemTasks] = useState([]); 
+  
+  // DATA BARU PHASE 9 (ACCOUNTING)
+  const [generalLedger, setGeneralLedger] = useState([]);
+  const [chartOfAccounts, setChartOfAccounts] = useState([]);
 
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
@@ -251,6 +258,10 @@ export default function App() {
         setDiscrepancyLogs(sortData(data.filter(item => item && item.table === 'discrepancy_logs' && !item.isDeleted)));
         setFinancialClosings(sortData(data.filter(item => item && item.table === 'financial_closings' && !item.isDeleted)));
         setSystemTasks(sortData(data.filter(item => item && item.table === 'system_tasks' && !item.isDeleted))); 
+        
+        // Phase 9
+        setGeneralLedger(sortData(data.filter(item => item && item.table === 'general_ledger' && !item.isDeleted)));
+        setChartOfAccounts(data.filter(item => item && item.table === 'chart_of_accounts' && !item.isDeleted));
       }
     } catch (error) { console.error(error); } finally { setIsLoading(false); }
   };
@@ -361,7 +372,12 @@ export default function App() {
 
   const globalProps = {
     user, activeTab, handleTabChange, handleLogout, sendToSheet, setPrintData, setConfirmDialog, isLoading, isOffline, showToast,
-    data: { orders, expenses, purchases, piutangPayments, pemalangReports, stokData, karyawan, stockMovements, productionBatches, distributionOrders, masterBranches, supplierLedger, cashflowTransactions, marketplaceSettlement, inventoryCostLayers, discrepancyLogs, financialClosings, systemTasks }
+    data: { 
+      orders, expenses, purchases, piutangPayments, pemalangReports, stokData, karyawan, stockMovements, 
+      productionBatches, distributionOrders, masterBranches, supplierLedger, cashflowTransactions, 
+      marketplaceSettlement, inventoryCostLayers, discrepancyLogs, financialClosings, systemTasks,
+      generalLedger, chartOfAccounts // DATA PHASE 9
+    }
   };
 
   return (
