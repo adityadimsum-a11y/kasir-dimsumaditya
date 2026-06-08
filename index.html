@@ -6,10 +6,47 @@
     <title>Kasir Dimsum Aditya</title>
     <!-- Tailwind CSS (Desain) -->
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- ENTERPRISE UI & PRINTING SYSTEM -->
     <style>
+      /* CUSTOM ENTERPRISE SCROLLBAR */
+      ::-webkit-scrollbar { width: 6px; height: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+      ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+      .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+
+      /* SHIMMER / SKELETON LOADING ANIMATION */
+      @keyframes shimmer {
+        0% { background-position: -1000px 0; }
+        100% { background-position: 1000px 0; }
+      }
+      .skeleton {
+        background: #f1f5f9;
+        background-image: linear-gradient(to right, #f1f5f9 0%, #e2e8f0 20%, #f1f5f9 40%, #f1f5f9 100%);
+        background-repeat: no-repeat;
+        background-size: 1000px 100%;
+        animation: shimmer 2s infinite linear forwards;
+      }
+
+      /* SMART TABLE OPTIMIZATION */
+      .table-compact th, .table-compact td { padding: 8px 12px !important; font-size: 0.75rem !important; }
+      .table-sticky-header th { position: sticky; top: 0; background-color: #f8fafc; z-index: 10; }
+
+      /* ENTERPRISE PRINTING SYSTEM (A4 & THERMAL) */
       @media print {
-        @page { size: auto; margin: 0mm; }
-        body { margin: 1.5cm; }
+        body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; background-color: white !important; }
+        aside, header, .no-print { display: none !important; }
+        main { width: 100% !important; margin: 0 !important; padding: 0 !important; overflow: visible !important; }
+        
+        /* DEFAULT A4 LANDSCAPE UNTUK ANALYTICS & REPORT */
+        @page { size: A4 landscape; margin: 10mm; }
+
+        /* THERMAL 58mm POS RECEIPT OVERRIDE */
+        .thermal-58 @page { size: 58mm auto; margin: 2mm; }
+        .thermal-58 { width: 54mm !important; margin: 0 auto; font-family: 'Courier New', Courier, monospace; font-size: 11px; line-height: 1.2; color: black; }
+        .thermal-58 th, .thermal-58 td { padding: 2px 0; }
+        .thermal-58 .dashed-line { border-top: 1px dashed black; margin: 4px 0; }
       }
     </style>
   </head>
