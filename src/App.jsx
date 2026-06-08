@@ -29,16 +29,13 @@ import { generateRequestId } from './utils/helpers';
 
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqSM572mbUIGozcghhh8LHNMNw2e83O7Wkyu-SkjdVTO3zpTb64PA/exec'; 
 
-// =====================================================================
-// CENTRAL ROLES & CAPABILITY CONFIG
-// =====================================================================
 const CAPABILITY_CONFIG = {
   'HQ_FACTORY': { can_production: true, can_supplier: true, can_global_dashboard: true, can_pos: true, can_distribute: true, can_hrd: true, can_treasury: true, can_scm_warroom: true, can_analytics: true, can_radar: true, can_accounting: true, can_audit: true, can_master_data: true },
   'PRODUCTION_BRANCH': { can_production: true, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: true, can_hrd: false, can_treasury: false, can_scm_warroom: false, can_analytics: false, can_radar: false, can_accounting: false, can_audit: false, can_master_data: false },
   'OUTLET_RESTO': { can_production: false, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: false, can_hrd: false, can_treasury: false, can_scm_warroom: false, can_analytics: false, can_radar: false, can_accounting: false, can_audit: false, can_master_data: false }
 };
 
-const CACHE_TTL = 60000; // 60 Detik Memory Cache Layer
+const CACHE_TTL = 30000; // Dikompres menjadi 30 Detik untuk akurasi data closing real-time
 let globalCache = { data: null, timestamp: 0 };
 
 function NavItem({ icon, label, active, onClick, badge, disabled }) {
@@ -46,32 +43,26 @@ function NavItem({ icon, label, active, onClick, badge, disabled }) {
     <button 
       disabled={disabled} 
       onClick={onClick} 
-      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-sm font-medium ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${active ? 'bg-red-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}
+      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-xs font-bold ${disabled ? 'opacity-30 cursor-not-allowed' : ''} ${active ? 'bg-red-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}
     >
-      {icon} <span className="flex-1 text-left">{label}</span>
-      {badge > 0 && <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{badge}</span>}
+      {icon} <span className="flex-1 text-left tracking-wide">{label}</span>
+      {badge > 0 && <span className="bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">{badge}</span>}
     </button>
   );
 }
 
-// =====================================================================
-// GLOBAL TOAST NOTIFICATION COMPONENT
-// =====================================================================
 function ToastNotification({ toast, onClose }) {
-  useEffect(() => { if(toast) { const timer = setTimeout(onClose, 4000); return () => clearTimeout(timer); } }, [toast, onClose]);
+  useEffect(() => { if(toast) { const timer = setTimeout(onClose, 3500); return () => clearTimeout(timer); } }, [toast, onClose]);
   if (!toast) return null;
   return (
-    <div className={`fixed bottom-6 right-6 z-[100] flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl animate-in slide-in-from-bottom-5 text-sm font-bold border ${toast.type === 'success' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-red-50 text-red-800 border-red-200'}`}>
-      {toast.type === 'success' ? <CheckCircle size={20} className="text-emerald-600"/> : <AlertCircle size={20} className="text-red-600"/>}
-      <span className="max-w-xs">{toast.message}</span>
-      <button onClick={onClose} className="ml-2 text-slate-400 hover:text-slate-600"><X size={16}/></button>
+    <div className={`fixed bottom-6 right-6 z-[100] flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl animate-in slide-in-from-bottom-5 text-xs font-black border ${toast.type === 'success' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-rose-50 text-rose-800 border-rose-200'}`}>
+      {toast.type === 'success' ? <CheckCircle size={16} className="text-emerald-600"/> : <AlertCircle size={16} className="text-rose-600"/>}
+      <span className="max-w-xs uppercase tracking-wide">{toast.message}</span>
+      <button onClick={onClose} className="ml-2 text-slate-400 hover:text-slate-600"><X size={14}/></button>
     </div>
   );
 }
 
-// =====================================================================
-// UNIVERSAL NODE ARCHITECTURE LAYOUT
-// =====================================================================
 function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, data, sendToSheet, setPrintData, setConfirmDialog, isLoading, isOffline, showToast }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const caps = user.permissions;
@@ -83,6 +74,7 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
 
   return (
     <div className="h-screen bg-slate-50 flex overflow-hidden pointer-events-auto">
+      {isLoading && <div className="fixed inset-0 z-[100] bg-slate-900/10 backdrop-blur-[1px] cursor-wait flex items-center justify-center"><Loader2 className="w-10 h-10 text-red-600 animate-spin"/></div>}
       {isMobileMenuOpen && <div className="fixed inset-0 bg-slate-900/50 z-40 md:hidden" onClick={() => setIsMobileMenuOpen(false)} />}
 
       <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 text-white flex flex-col transform transition-transform duration-300 md:relative md:translate-x-0 shadow-2xl md:shadow-none ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
@@ -98,7 +90,7 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
         </div>
         
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto custom-scrollbar">
-            <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 mt-2 px-2">Dashboard & Analytics</div>
+            <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 mt-2 px-2">Monitoring & Eksekutif</div>
             {caps.can_global_dashboard ? <NavItem icon={<Activity size={18} />} label="Command Center" active={activeTab === 'dashboard'} onClick={() => navigateTab('dashboard')} disabled={isLoading} /> : <NavItem icon={<LayoutDashboard size={18} />} label="Dashboard Node" active={activeTab === 'dashboard'} onClick={() => navigateTab('dashboard')} disabled={isLoading} />}
             {caps.can_radar && <NavItem icon={<Radar size={18} />} label="Business Radar" active={activeTab === 'radar'} onClick={() => navigateTab('radar')} disabled={isLoading} />}
             {caps.can_treasury && <NavItem icon={<TrendingUp size={18} />} label="Cash War Room" active={activeTab === 'cash_war_room'} onClick={() => navigateTab('cash_war_room')} disabled={isLoading} />}
@@ -138,18 +130,18 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
         <header className="bg-white border-b px-4 py-3 shadow-sm z-10 flex justify-between items-center no-print">
             <div className="flex items-center gap-3">
               <button onClick={() => setIsMobileMenuOpen(true)} className="md:hidden text-slate-600 hover:text-slate-900 bg-slate-100 p-2 rounded-lg"><Menu size={20}/></button>
-              <h2 className="text-lg md:text-xl font-black capitalize text-slate-800 hidden sm:block">{activeTab.replace(/_/g, ' ')}</h2>
+              <h2 className="text-sm font-black uppercase tracking-wider text-slate-800 hidden sm:block">{activeTab.replace(/_/g, ' ')}</h2>
             </div>
             
             <div className="flex items-center gap-4 w-full justify-end sm:w-auto">
               <div className="relative hidden md:block w-64">
                 <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
-                <input type="text" placeholder="Global Search..." className="w-full pl-9 pr-4 py-2 bg-slate-100 border-none rounded-full text-xs font-medium focus:ring-2 focus:ring-red-500 outline-none transition-all" />
+                <input type="text" placeholder="Global Search..." className="w-full pl-9 pr-4 py-2 bg-slate-100 border-none rounded-full text-xs font-bold outline-none transition-all" />
               </div>
               <div className="flex items-center gap-3">
-                {isOffline ? <span className="bg-red-100 text-red-600 p-2 rounded-full"><WifiOff size={16}/></span> : <span className="bg-slate-100 text-slate-600 p-2 rounded-full hover:bg-slate-200 cursor-pointer"><Bell size={16}/></span>}
+                {isOffline ? <span className="bg-rose-100 text-rose-600 p-2 rounded-full"><WifiOff size={16}/></span> : <span className="bg-slate-100 text-slate-600 p-2 rounded-full"><Bell size={16}/></span>}
                 <div className="hidden sm:block text-right">
-                  <div className="text-[10px] font-bold text-slate-400">Log: <span className="text-red-600 uppercase">{user.name}</span></div>
+                  <div className="text-[10px] font-black text-slate-400">Operator: <span className="text-red-600 uppercase">{user.name}</span></div>
                 </div>
               </div>
             </div>
@@ -157,7 +149,7 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
         
         <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 bg-slate-50 custom-scrollbar">
           <div className="max-w-7xl mx-auto w-full">
-            {activeTab === 'dashboard' && (caps.can_global_dashboard ? <TabDashboard {...data} sendToSheet={sendToSheet} setPrintData={setPrintData} user={user} showToast={showToast} /> : <TabDashboardBranch orders={data.orders} pemalangReports={data.pemalangReports} piutangPayments={data.piutangPayments} setPrintData={setPrintData} stokData={data.stokData} showToast={showToast} />)}
+            {activeTab === 'dashboard' && <TabDashboard {...data} sendToSheet={sendToSheet} setPrintData={setPrintData} user={user} showToast={showToast} handleTabChange={navigateTab} />}
             {activeTab === 'master_data' && caps.can_master_data && <TabMasterData masterProducts={data.masterProducts} masterRawMaterials={data.masterRawMaterials} masterSuppliers={data.masterSuppliers} sendToSheet={sendToSheet} showToast={showToast} />}
             {activeTab === 'radar' && caps.can_radar && <TabBusinessRadar orders={data.orders} stockMovements={data.stockMovements} expenses={data.expenses} supplierLedger={data.supplierLedger} cashflowTransactions={data.cashflowTransactions} inventoryCostLayers={data.inventoryCostLayers} marketplaceSettlement={data.marketplaceSettlement} masterBranches={data.masterBranches} discrepancyLogs={data.discrepancyLogs} />}
             {activeTab === 'cash_war_room' && caps.can_treasury && <TabCashWarRoom orders={data.orders} purchases={data.purchases} expenses={data.expenses} cashflowTransactions={data.cashflowTransactions} marketplaceSettlement={data.marketplaceSettlement} supplierLedger={data.supplierLedger} masterBranches={data.masterBranches} inventoryCostLayers={data.inventoryCostLayers} discrepancyLogs={data.discrepancyLogs} financialClosings={data.financialClosings} />}
@@ -166,7 +158,6 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
             {activeTab === 'analytics' && caps.can_analytics && <TabAnalytics orders={data.orders} masterBranches={data.masterBranches} discrepancyLogs={data.discrepancyLogs} />}
             {activeTab === 'scm_war_room' && caps.can_scm_warroom && <TabSCMWarRoom distributionOrders={data.distributionOrders} inventoryCostLayers={data.inventoryCostLayers} discrepancyLogs={data.discrepancyLogs} masterBranches={data.masterBranches} />}
             
-            {/* CORE CHANNELS */}
             {activeTab === 'orders' && <TabOrders orders={data.orders} payments={data.piutangPayments} masterProducts={data.masterProducts} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'order', id})} role={user.role} showToast={showToast} user={user} />}
             {activeTab === 'purchases' && caps.can_supplier && <TabPurchases purchases={data.purchases} masterSuppliers={data.masterSuppliers} masterRawMaterials={data.masterRawMaterials} sendToSheet={sendToSheet} setPrintData={setPrintData} showToast={showToast} user={user} />}
             {activeTab === 'expenses' && caps.can_global_dashboard && <TabExpenses expenses={data.expenses} karyawan={data.karyawan} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'expense', id})} showToast={showToast} />}
@@ -183,9 +174,6 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
   );
 }
 
-// =====================================================================
-// MAIN CORE APP
-// =====================================================================
 export default function App() {
   const [user, setUser] = useState(() => { try { return window.localStorage.getItem('dimsum_user_session') ? JSON.parse(window.localStorage.getItem('dimsum_user_session')) : null; } catch (e) { return null; } }); 
   const [activeTab, setActiveTab] = useState(() => { try { return window.localStorage.getItem('dimsum_active_tab') || 'dashboard'; } catch (e) { return 'dashboard'; } });
@@ -195,23 +183,32 @@ export default function App() {
   const [printData, setPrintData] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null); 
   const [toast, setToast] = useState(null); 
-
-  const showToast = (message, type = 'success') => setToast({ message, type });
-
-  const handleTabChange = (tabName) => { setActiveTab(tabName); window.localStorage.setItem('dimsum_active_tab', tabName); };
-
-  // DATA ENGINE HOOK CONNECTOR
-  const [data, setData] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [data, setData] = useState({});
   
   const offlineQueueRef = useRef([]);
+
+  const showToast = (message, type = 'success') => setToast({ message, type });
+  const handleTabChange = (tabName) => { setActiveTab(tabName); window.localStorage.setItem('dimsum_active_tab', tabName); };
+
+  // 🌟 SMART SHORTCUT ENGINE (PHASE 12)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setConfirmDialog(null);
+        setPrintData(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   useEffect(() => {
     offlineQueueRef.current = JSON.parse(window.localStorage.getItem('erp_offline_queue') || '[]');
     const handleOnline = async () => {
         setIsOffline(false);
-        showToast("🌐 Koneksi pulih. Memproses antrean data...", 'success');
+        showToast("🌐 Jaringan Terhubung, Menyinkronkan Database...", 'success');
         if (offlineQueueRef.current.length > 0) await processOfflineQueue();
     };
     const handleOffline = () => setIsOffline(true);
@@ -235,7 +232,7 @@ export default function App() {
       }
       offlineQueueRef.current = newQueue;
       window.localStorage.setItem('erp_offline_queue', JSON.stringify(newQueue));
-      if(newQueue.length === 0) showToast("✅ Semua antrean offline disinkronisasi.", 'success');
+      if(newQueue.length === 0) showToast("✅ Sinkronisasi Offline Tuntas.", 'success');
       fetchData(true);
   };
 
@@ -290,11 +287,11 @@ export default function App() {
     if (isOffline) { 
         offlineQueueRef.current.push(requestPayload);
         window.localStorage.setItem('erp_offline_queue', JSON.stringify(offlineQueueRef.current));
-        showToast("⚠️ OFFLINE: Transaksi masuk antrean latar belakang.", 'error'); 
+        showToast("⚠️ DATA DIAMANKAN DI ANTRIAN OFFLINE LOCAL", 'error'); 
         return true; 
     }
 
-    if (isLoading) { showToast("⏳ Mencegah double click, mohon tunggu...", 'error'); return false; }
+    if (isLoading) { showToast("⏳ TRANSAKSI SEDANG DIPROSES ENGINE, MOHON TUNGGU...", 'error'); return false; }
     setIsLoading(true);
     
     try { 
@@ -305,13 +302,13 @@ export default function App() {
             showToast(`⛔ DITOLAK: ${result.message || 'Validasi Gagal'}`, 'error'); 
             setIsLoading(false); return false;
         }
-        showToast(`✅ Data Terpelihara Di Jurnal & Ledger.`, 'success');
+        showToast(`✅ OPERASI SELESAI`, 'success');
         await fetchData(true); 
         return true;
     } catch (error) { 
         offlineQueueRef.current.push(requestPayload);
         window.localStorage.setItem('erp_offline_queue', JSON.stringify(offlineQueueRef.current));
-        showToast("🚨 Jaringan bermasalah. Masuk antrean lokal.", 'error'); 
+        showToast("🚨 KONEKSI DROP, DATA DIALIKHAN KE BACKGROUND SYNC", 'error'); 
         setIsLoading(false); return true;
     }
   };
@@ -361,10 +358,10 @@ export default function App() {
             <h1 className="text-xl font-black text-slate-800 text-center tracking-tight">Enterprise ERP Control</h1>
           </div>
           <form onSubmit={handleLogin} className="space-y-4">
-            {loginError && <div className="p-3 bg-red-50 text-red-600 rounded-xl text-xs font-bold flex items-center gap-2 border border-red-100"><AlertCircle size={14}/> <span>{loginError}</span></div>}
-            <div><label className="text-[10px] font-bold text-slate-500 uppercase ml-1">Username / Akses</label><input type="text" required value={loginForm.username} onChange={e => setLoginForm({...loginForm, username: e.target.value})} className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl font-medium text-sm focus:ring-2 focus:ring-red-500 outline-none" /></div>
-            <div><label className="text-[10px] font-bold text-slate-500 uppercase ml-1">Password</label><input type="password" required value={loginForm.password} onChange={e => setLoginForm({...loginForm, password: e.target.value})} className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl font-medium text-sm focus:ring-2 focus:ring-red-500 outline-none" /></div>
-            <button type="submit" disabled={isLoading} className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 rounded-xl shadow-md mt-6 disabled:opacity-50 tracking-wide text-sm flex justify-center items-center gap-2">{isLoading ? <Loader2 size={16} className="animate-spin"/> : 'Secure Login'}</button>
+            {loginError && <div className="p-3 bg-rose-50 text-rose-600 rounded-xl text-xs font-bold flex items-center gap-2 border border-rose-100"><AlertCircle size={14}/> <span>{loginError}</span></div>}
+            <div><label className="text-[10px] font-black text-slate-500 uppercase ml-1">Username / Akses</label><input type="text" required value={loginForm.username} onChange={e => setLoginForm({...loginForm, username: e.target.value})} className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm outline-none" /></div>
+            <div><label className="text-[10px] font-black text-slate-500 uppercase ml-1">Password</label><input type="password" required value={loginForm.password} onChange={e => setLoginForm({...loginForm, password: e.target.value})} className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm outline-none" /></div>
+            <button type="submit" disabled={isLoading} className="w-full bg-slate-900 hover:bg-slate-800 text-white font-black py-3.5 rounded-xl shadow-md mt-6 disabled:opacity-50 tracking-wide text-xs flex justify-center items-center gap-2">{isLoading ? <Loader2 size={16} className="animate-spin"/> : 'Secure Login'}</button>
           </form>
         </div>
       </div>
@@ -376,7 +373,7 @@ export default function App() {
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50/80 backdrop-blur-sm z-50 fixed inset-0">
         <div className="bg-white p-6 rounded-2xl shadow-xl flex flex-col items-center border border-slate-100">
           <Loader2 className="w-10 h-10 text-red-600 animate-spin mb-4" />
-          <div className="text-xs font-bold text-slate-600 tracking-widest uppercase">Initial Enterprise Sync...</div>
+          <div className="text-xs font-black text-slate-600 tracking-widest uppercase">Initial Enterprise Sync...</div>
         </div>
       </div>
     );
@@ -392,14 +389,14 @@ export default function App() {
       <ToastNotification toast={toast} onClose={() => setToast(null)} />
       <PrintDotMatrix printData={printData} onClose={() => setPrintData(null)} />
       {confirmDialog && (
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4 animate-in fade-in duration-200">
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 text-center">
-              <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-5"><AlertCircle size={32} className="text-red-600" /></div>
-              <h3 className="text-xl font-black text-slate-800 mb-2">Hapus Permanen?</h3>
-              <p className="text-xs text-slate-500 mb-6 font-medium">Data yang dihapus akan dicatat di Audit Log.</p>
-              <div className="flex gap-3 justify-center">
-                <button disabled={isLoading} onClick={() => setConfirmDialog(null)} className="w-1/2 px-4 py-3 bg-slate-100 text-slate-700 font-bold text-sm rounded-xl hover:bg-slate-200 transition disabled:opacity-50">Batal</button>
-                <button disabled={isLoading} onClick={executeDelete} className="w-1/2 px-4 py-3 bg-red-600 text-white font-bold text-sm rounded-xl hover:bg-red-700 shadow-md transition disabled:opacity-50 flex justify-center items-center gap-2">{isLoading ? <Loader2 size={16} className="animate-spin"/> : 'Hapus'}</button>
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4 animate-in fade-in duration-150">
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 text-center">
+              <div className="w-12 h-12 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4"><AlertCircle size={24} className="text-rose-600" /></div>
+              <h3 className="text-base font-black text-slate-800 mb-1">Konfirmasi Aksi</h3>
+              <p className="text-xs text-slate-500 mb-5 font-bold">Apakah Anda yakin ingin memproses/menghapus data ini?</p>
+              <div className="flex gap-2 justify-center">
+                <button disabled={isLoading} onClick={() => setConfirmDialog(null)} className="w-1/2 px-4 py-2.5 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-200 transition">Batal (ESC)</button>
+                <button disabled={isLoading} onClick={executeDelete} className="w-1/2 px-4 py-2.5 bg-red-600 text-white font-bold text-xs rounded-xl hover:bg-red-700 shadow-md transition flex justify-center items-center gap-2">{isLoading ? <Loader2 size={12} className="animate-spin"/> : 'Eksekusi'}</button>
               </div>
             </div>
           </div>
