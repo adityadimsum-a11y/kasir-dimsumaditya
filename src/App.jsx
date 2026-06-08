@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, ShoppingCart, Wallet, 
   Clock, Store, Loader2, LogOut, 
-  Package, Truck, Users, AlertCircle, Activity, Send, ShieldAlert, Factory, TrendingUp, WifiOff
+  Package, Truck, Users, AlertCircle, Activity, Send, ShieldAlert, Factory, TrendingUp, WifiOff, PieChart
 } from 'lucide-react';
 
 import TabDashboard from './components/tabs/TabDashboard';
@@ -18,16 +18,18 @@ import TabMonitoringPemalang from './components/tabs/TabMonitoringPemalang';
 import TabDashboardBranch from './components/tabs/TabDashboardBranch';
 import TabCashWarRoom from './components/tabs/TabCashWarRoom';
 import TabSCMWarRoom from './components/tabs/TabSCMWarRoom'; 
+import TabAnalytics from './components/tabs/TabAnalytics'; // MODUL ANALYTICS PHASE 6
 import PrintDotMatrix from './components/PrintDotMatrix';
 
-import { generateRequestId } from './utils/helpers'; // PASTIKAN HELPER INI SUDAH DITAMBAHKAN
+import { generateRequestId } from './utils/helpers'; 
 
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqSM572mbUIGozcghhh8LHNMNw2e83O7Wkyu-SkjdVTO3zpTb64PA/exec'; 
 
+// CENTRAL CAPABILITY ENGINE AT FRONTEND
 const CAPABILITY_CONFIG = {
-  'HQ_FACTORY': { can_production: true, can_supplier: true, can_global_dashboard: true, can_pos: true, can_distribute: true, can_hrd: true, can_treasury: true, can_scm_warroom: true },
-  'PRODUCTION_BRANCH': { can_production: true, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: true, can_hrd: false, can_treasury: false, can_scm_warroom: false },
-  'OUTLET_RESTO': { can_production: false, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: false, can_hrd: false, can_treasury: false, can_scm_warroom: false }
+  'HQ_FACTORY': { can_production: true, can_supplier: true, can_global_dashboard: true, can_pos: true, can_distribute: true, can_hrd: true, can_treasury: true, can_scm_warroom: true, can_analytics: true },
+  'PRODUCTION_BRANCH': { can_production: true, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: true, can_hrd: false, can_treasury: false, can_scm_warroom: false, can_analytics: false },
+  'OUTLET_RESTO': { can_production: false, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: false, can_hrd: false, can_treasury: false, can_scm_warroom: false, can_analytics: false }
 };
 
 function NavItem({ icon, label, active, onClick, badge, disabled }) {
@@ -44,6 +46,9 @@ function NavItem({ icon, label, active, onClick, badge, disabled }) {
   );
 }
 
+// =====================================================================
+// DYNAMIC NODE SYSTEM LAYOUT
+// =====================================================================
 function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, data, sendToSheet, setPrintData, setConfirmDialog, isLoading, isOffline }) {
   const caps = user.permissions;
   const pendingDO = data.distributionOrders.filter(d => d.status === 'DIKIRIM' || d.status === 'IN_TRANSIT').length;
@@ -51,7 +56,6 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
 
   return (
     <div className="min-h-screen bg-slate-50 flex pointer-events-auto">
-      {/* Jika global isLoading true, berikan overlay transparan agar user tidak bisa click apapun di layar */}
       {isLoading && <div className="fixed inset-0 z-[100] cursor-wait" />}
 
       <aside className="w-64 bg-slate-900 text-white flex flex-col shrink-0 relative shadow-xl z-20">
@@ -74,14 +78,23 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
               <NavItem icon={<LayoutDashboard size={20} />} label="Dashboard Node" active={activeTab === 'dashboard'} onClick={() => handleTabChange('dashboard')} disabled={isLoading} />
             )}
 
-            {caps.can_treasury && <NavItem icon={<TrendingUp size={20} />} label="Cash War Room" active={activeTab === 'cash_war_room'} onClick={() => handleTabChange('cash_war_room')} disabled={isLoading} />}
-            {caps.can_scm_warroom && <NavItem icon={<Truck size={20} />} label="SCM War Room" active={activeTab === 'scm_war_room'} onClick={() => handleTabChange('scm_war_room')} disabled={isLoading} />}
+            {caps.can_treasury && (
+              <NavItem icon={<TrendingUp size={20} />} label="Cash War Room" active={activeTab === 'cash_war_room'} onClick={() => handleTabChange('cash_war_room')} disabled={isLoading} />
+            )}
+            
+            {caps.can_analytics && (
+              <NavItem icon={<PieChart size={20} />} label="Executive Analytics" active={activeTab === 'analytics'} onClick={() => handleTabChange('analytics')} disabled={isLoading} />
+            )}
+
+            {caps.can_scm_warroom && (
+              <NavItem icon={<Truck size={20} />} label="SCM War Room" active={activeTab === 'scm_war_room'} onClick={() => handleTabChange('scm_war_room')} disabled={isLoading} />
+            )}
 
             {caps.can_pos && (
               <>
                 <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 mt-4 px-2">Transaksi Node</div>
                 <NavItem icon={<ShoppingCart size={20} />} label={caps.can_global_dashboard ? "Order Penjualan" : "POS / Transaksi"} active={activeTab === 'orders'} onClick={() => handleTabChange('orders')} disabled={isLoading} />
-                {caps.can_global_dashboard && <NavItem icon={<Wallet size={20} />} label="Kas & Operasional" active={activeTab === 'expenses'} onClick={() => handleTabChange('expenses')} disabled={isLoading} />}
+                {caps.can_global_dashboard && <NavItem icon={<Wallet size={20} />} label="Kas & Operasional" active={activeTab === 'expenses'} onClick={() => handleTabChange('expenses')} disabled={isLoading} /> }
                 <NavItem icon={<Clock size={20} />} label={caps.can_global_dashboard ? "Piutang Berjalan" : "Piutang Customer"} active={activeTab === 'piutang'} onClick={() => handleTabChange('piutang')} disabled={isLoading} />
               </>
             )}
@@ -110,7 +123,7 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
             <h2 className="text-xl font-bold capitalize text-slate-800 flex items-center gap-2">{activeTab.replace(/_/g, ' ')}</h2>
             <div className="flex items-center gap-3">
               {isOffline && <div className="text-xs font-bold text-red-600 bg-red-50 px-3 py-1 rounded-full flex items-center gap-1"><WifiOff size={14}/> OFFLINE QUEUE</div>}
-              <div className="text-xs font-bold text-slate-500">Node: <span className="text-red-600 font-black">{user.branch_id}</span></div>
+              <div className="text-xs font-bold text-slate-500">Node Architecture: <span className="text-red-600 font-black">{user.branch_id} ({user.branch_type})</span></div>
             </div>
         </header>
         
@@ -119,8 +132,30 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
               <TabDashboard {...data} sendToSheet={sendToSheet} setPrintData={setPrintData} user={user} /> : 
               <TabDashboardBranch orders={data.orders} pemalangReports={data.pemalangReports} piutangPayments={data.piutangPayments} setPrintData={setPrintData} stokData={data.stokData} />
           )}
-          {activeTab === 'cash_war_room' && caps.can_treasury && <TabCashWarRoom orders={data.orders} purchases={data.purchases} expenses={data.expenses} cashflowTransactions={data.cashflowTransactions} marketplaceSettlement={data.marketplaceSettlement} supplierLedger={data.supplierLedger} masterBranches={data.masterBranches} inventoryCostLayers={data.inventoryCostLayers} discrepancyLogs={data.discrepancyLogs} financialClosings={data.financialClosings} />}
-          {activeTab === 'scm_war_room' && caps.can_scm_warroom && <TabSCMWarRoom distributionOrders={data.distributionOrders} inventoryCostLayers={data.inventoryCostLayers} discrepancyLogs={data.discrepancyLogs} masterBranches={data.masterBranches} />}
+          {activeTab === 'cash_war_room' && caps.can_treasury && (
+              <TabCashWarRoom 
+                orders={data.orders} purchases={data.purchases} expenses={data.expenses} 
+                cashflowTransactions={data.cashflowTransactions} marketplaceSettlement={data.marketplaceSettlement} 
+                supplierLedger={data.supplierLedger} masterBranches={data.masterBranches} 
+                inventoryCostLayers={data.inventoryCostLayers} discrepancyLogs={data.discrepancyLogs}
+                financialClosings={data.financialClosings} 
+              />
+          )}
+          {activeTab === 'analytics' && caps.can_analytics && (
+              <TabAnalytics 
+                orders={data.orders} 
+                masterBranches={data.masterBranches} 
+                discrepancyLogs={data.discrepancyLogs} 
+              />
+          )}
+          {activeTab === 'scm_war_room' && caps.can_scm_warroom && (
+              <TabSCMWarRoom 
+                distributionOrders={data.distributionOrders} 
+                inventoryCostLayers={data.inventoryCostLayers} 
+                discrepancyLogs={data.discrepancyLogs} 
+                masterBranches={data.masterBranches} 
+              />
+          )}
           {activeTab === 'orders' && <TabOrders orders={data.orders} payments={data.piutangPayments} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'order', id})} role={user.role} />}
           {activeTab === 'purchases' && caps.can_supplier && <TabPurchases purchases={data.purchases} sendToSheet={sendToSheet} setPrintData={setPrintData} />}
           {activeTab === 'expenses' && caps.can_global_dashboard && <TabExpenses expenses={data.expenses} karyawan={data.karyawan} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'expense', id})} />}
@@ -136,6 +171,9 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
   );
 }
 
+// =====================================================================
+// MAIN APP COMPONENT
+// =====================================================================
 export default function App() {
   const [user, setUser] = useState(() => {
     try { return window.localStorage.getItem('dimsum_user_session') ? JSON.parse(window.localStorage.getItem('dimsum_user_session')) : null; } 
@@ -255,19 +293,17 @@ export default function App() {
   const sendToSheet = async (action, data, table) => {
     if (isOffline) {
       alert("⚠️ ANDA SEDANG OFFLINE. Transaksi dimasukkan ke antrean lokal.");
-      // Di sistem enterprise penuh, antrean disimpan di IndexedDB/localStorage. 
-      // Untuk stabilitas fase ini, kita cegah submission jika offline untuk menghindari korupsi data.
       return false; 
     }
 
-    if (isLoading) return false; // ANTI DOUBLE CLICK LOCK
+    if (isLoading) return false; 
     setIsLoading(true);
 
-    const reqId = generateRequestId(); // GENERATE UNIQUE REQUEST ID
+    const reqId = generateRequestId(); 
     try { 
         const response = await fetch(SCRIPT_URL, { 
             method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
-            body: JSON.stringify({ action, table, data, executor: user, request_id: reqId }) // Inject request_id
+            body: JSON.stringify({ action, table, data, executor: user, request_id: reqId }) 
         }); 
         const result = await response.json();
         
@@ -301,7 +337,7 @@ export default function App() {
     else if (type === 'stok') colName = 'stok';
     else if (type === 'purchase') colName = 'purchases';
     else if (type === 'karyawan') colName = 'karyawan';
-    await sendToSheet('delete', { id, editCount: 0 }, colName); // Include edit count untuk conflict prevention
+    await sendToSheet('delete', { id, editCount: 0 }, colName); 
     setConfirmDialog(null);
   };
 
@@ -325,7 +361,6 @@ export default function App() {
     );
   }
 
-  // GLOBAL LOADING STATE UNTUK INITIAL LOAD
   if (isLoading && masterUsers.length === 0) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50/80 backdrop-blur-sm z-50 fixed inset-0">
