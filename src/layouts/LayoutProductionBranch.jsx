@@ -1,30 +1,29 @@
 import React, { useState } from 'react';
 import { 
-  LayoutDashboard, ShoppingCart, Factory, Send, 
-  LogOut, Menu, X, ShieldCheck, Clock
+  LayoutDashboard, ShoppingCart, Store, LogOut, 
+  Menu, X, ShieldCheck, Clock, Lock
 } from 'lucide-react';
 import { getTodayStr, formatDate } from '../utils/helpers';
 
-export default function LayoutProductionBranch({ user, activeTab, setActiveTab, handleLogout, children }) {
+export default function LayoutOutletResto({ user, activeTab, setActiveTab, handleLogout, children }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const today = new Date();
+  const todayStr = getTodayStr();
 
   // =====================================
-  // STRUKTUR MENU CABANG PRODUKSI (ISOLATED)
+  // STRUKTUR MENU OUTLET RESTO (SLIM POS)
   // =====================================
   const menuGroups = [
     {
-      groupName: "Operasional Cabang",
+      groupName: "Pelayanan Resto",
       items: [
-        { id: 'dashboard_branch', label: 'Dashboard Cabang', icon: LayoutDashboard },
-        { id: 'orders', label: 'POS & Kasir', icon: ShoppingCart },
+        { id: 'dashboard_branch', label: 'Dashboard Toko', icon: LayoutDashboard },
+        { id: 'orders', label: 'Kasir (POS Engine)', icon: ShoppingCart },
       ]
     },
     {
-      groupName: "Dapur & Logistik",
+      groupName: "Akhir Operasional",
       items: [
-        { id: 'stok', label: 'Produksi & Yield', icon: Factory },
-        { id: 'distribusi', label: 'Pengiriman (DO)', icon: Send },
+        { id: 'pemalang', label: 'Closing & Tutup Buku', icon: Lock },
       ]
     }
   ];
@@ -38,7 +37,7 @@ export default function LayoutProductionBranch({ user, activeTab, setActiveTab, 
     <div className="min-h-screen bg-slate-50 flex overflow-hidden font-sans">
       
       {/* ======================================= */}
-      {/* 1. SIDEBAR (DESKTOP & MOBILE)             */}
+      {/* 1. SIDEBAR (STOREFRONT ORANGE THEME)    */}
       {/* ======================================= */}
       {/* Mobile Overlay */}
       {isMobileMenuOpen && (
@@ -53,12 +52,12 @@ export default function LayoutProductionBranch({ user, activeTab, setActiveTab, 
         {/* Sidebar Header */}
         <div className="h-20 flex items-center px-6 border-b border-slate-800 bg-slate-950/50">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-600/20">
-              <Factory size={24} className="text-white"/>
+            <div className="w-10 h-10 bg-orange-600 rounded-xl flex items-center justify-center shadow-lg shadow-orange-600/20">
+              <Store size={22} className="text-white"/>
             </div>
             <div>
-              <h1 className="font-black text-white text-lg tracking-wider leading-tight uppercase">NODE PRODUKSI</h1>
-              <div className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest">Phase 12.5 Connected</div>
+              <h1 className="font-black text-white text-lg tracking-wider leading-tight uppercase">OUTLET RESTO</h1>
+              <div className="text-[9px] font-bold text-orange-400 uppercase tracking-widest">Garis Depan POS</div>
             </div>
           </div>
           <button onClick={() => setIsMobileMenuOpen(false)} className="ml-auto lg:hidden text-slate-400 hover:text-white">
@@ -81,7 +80,7 @@ export default function LayoutProductionBranch({ user, activeTab, setActiveTab, 
                       onClick={() => handleNavClick(item.id)}
                       className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${
                         isActive 
-                          ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20' 
+                          ? 'bg-orange-600 text-white shadow-md shadow-orange-600/20' 
                           : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
                       }`}
                     >
@@ -95,22 +94,22 @@ export default function LayoutProductionBranch({ user, activeTab, setActiveTab, 
           ))}
         </nav>
 
-        {/* Sidebar Footer (User Info & Logout) */}
+        {/* Sidebar Footer (Kasir Info & Logout) */}
         <div className="p-4 border-t border-slate-800 bg-slate-900/50">
           <div className="flex items-center gap-3 px-3 py-2 mb-3 bg-slate-800/50 rounded-xl border border-slate-700/50">
-            <div className="w-8 h-8 rounded-full bg-indigo-700 flex items-center justify-center font-black text-white text-xs uppercase">
+            <div className="w-8 h-8 rounded-full bg-orange-700 flex items-center justify-center font-black text-white text-xs uppercase">
               {user.name.charAt(0)}
             </div>
             <div className="flex-1 overflow-hidden">
               <div className="text-xs font-black text-white truncate uppercase">{user.name}</div>
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">Cabang {user.branch_id}</div>
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">KASIR: {user.branch_id}</div>
             </div>
           </div>
           <button 
             onClick={handleLogout}
             className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-black text-rose-500 hover:bg-rose-500/10 hover:text-rose-400 transition-colors uppercase tracking-wide"
           >
-            <LogOut size={16} /> Logout Sistem
+            <LogOut size={16} /> Keluar Aplikasi
           </button>
         </div>
       </aside>
@@ -131,26 +130,26 @@ export default function LayoutProductionBranch({ user, activeTab, setActiveTab, 
             </button>
             <div>
               <div className="font-black text-slate-800 text-lg uppercase tracking-wide flex items-center gap-2">
-                Sistem Cabang <span className="hidden sm:inline-block text-slate-300">/</span> <span className="text-indigo-600 hidden sm:inline-block">{user.branch_id}</span>
+                Terminal POS <span className="hidden sm:inline-block text-slate-300">/</span> <span className="text-orange-600 hidden sm:inline-block">{user.branch_id}</span>
               </div>
               <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5 flex items-center gap-1">
-                <Clock size={10}/> {formatDate(getTodayStr())}
+                <Clock size={10}/> {formatDate(todayStr)}
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-4">
-            {/* Status Indikator Sinkronisasi Pusat */}
-            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-full">
-              <ShieldCheck size={14} className="text-blue-600" />
-              <span className="text-[10px] font-black text-blue-700 uppercase tracking-widest">Tersinkronisasi</span>
+            {/* Status Indikator Proteksi Kasir */}
+            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-orange-50 border border-orange-200 rounded-full">
+              <ShieldCheck size={14} className="text-orange-600" />
+              <span className="text-[10px] font-black text-orange-700 uppercase tracking-widest">Kas POS Terkunci</span>
             </div>
           </div>
         </header>
 
         {/* Ruang Konten Tab (Scrollable) */}
         <main className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 lg:p-8 bg-slate-50/50 relative">
-           <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-indigo-50/50 to-transparent pointer-events-none"></div>
+           <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-orange-50/40 to-transparent pointer-events-none"></div>
            
            <div className="relative z-10 max-w-7xl mx-auto">
              {children}
