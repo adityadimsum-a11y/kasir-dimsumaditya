@@ -1,170 +1,268 @@
-import React, { useState, useMemo } from 'react';
-import { Users, Plus, X, Trash2, Calculator, FileText, CheckCircle } from 'lucide-react';
-import { getTodayStr, formatRp, parseRp, generateId } from '../../utils/helpers';
+import React, { useState } from 'react';
+import { Users, FileText, CheckCircle, Plus, Printer, Wallet, AlertCircle } from 'lucide-react';
+import { formatRp, getTodayStr, generateId, formatDate } from '../../utils/helpers';
 
-export default function TabKaryawan({ karyawan, expenses, sendToSheet, requestDelete, setPrintData }) {
-  const [showForm, setShowForm] = useState(false);
-  const [isEdit, setIsEdit] = useState(false);
-  const [editId, setEditId] = useState(null);
-
+export default function TabKaryawan({ karyawan, expenses, sendToSheet, setPrintData }) {
   const todayStr = getTodayStr();
-  const [name, setName] = useState('');
-  const [jabatan, setJabatan] = useState('Produksi');
-  const [gajiPokok, setGajiPokok] = useState(0);
-  const [uangMakan, setUangMakan] = useState(0);
+  const [activeSubTab, setActiveSubTab] = useState('payroll'); // 'master', 'kasbon', 'payroll'
 
-  // State untuk Modal Hitung Gaji
-  const [calcModal, setCalcModal] = useState(null); // null atau object karyawan
-  const [gajiBulan, setGajiBulan] = useState(todayStr.substring(0, 7)); // format "YYYY-MM"
-  const [hariKerja, setHariKerja] = useState(26);
-  const [lembur, setLembur] = useState(0);
-  const [bonus, setBonus] = useState(0);
+  // =====================================
+  // STATE FORMS
+  // =====================================
+  const [formMaster, setFormMaster] = useState({ name: '', position: 'PRODUKSI', baseSalary: '' });
+  const [formKasbon, setFormKasbon] = useState({ date: todayStr, employeeId: '', amount: '', notes: '' });
+  
+  const [formPayroll, setFormPayroll] = useState({ 
+      date: todayStr, employeeId: '', 
+      baseSalary: 0, allowance: '', kasbonDeduction: '', otherDeduction: '', paymentMethod: 'CASH' 
+  });
 
-  const resetForm = () => {
-    setShowForm(false); setIsEdit(false); setEditId(null);
-    setName(''); setJabatan('Produksi'); setGajiPokok(0); setUangMakan(0);
-  };
-
-  const handleEdit = (item) => {
-    setName(item.name); setJabatan(item.jabatan); 
-    setGajiPokok(item.gajiPokok); setUangMakan(item.uangMakan);
-    setEditId(item.id); setIsEdit(true); setShowForm(true);
-  };
-
-  const handleSimpan = (e) => {
-    e.preventDefault();
-    const newData = {
-        id: isEdit ? editId : generateId('EMP', todayStr),
-        date: todayStr,
-        name: name.toUpperCase(),
-        jabatan,
-        gajiPokok: Number(gajiPokok) || 0,
-        uangMakan: Number(uangMakan) || 0
-    };
-    sendToSheet(isEdit ? 'update' : 'insert', newData, 'karyawan');
-    resetForm();
-  };
-
-  // LOGIC PERHITUNGAN GAJI & KASBON
-  const kasbonBulanIni = useMemo(() => {
-      if (!calcModal) return 0;
-      return (expenses || [])
-        .filter(e => e.category === 'Kasbon Karyawan' && e.recipient === calcModal.name && String(e.date).startsWith(gajiBulan))
-        .reduce((sum, e) => sum + (Number(e.total) || 0), 0);
-  }, [expenses, calcModal, gajiBulan]);
-
-  const totalUangMakan = hariKerja * (Number(calcModal?.uangMakan) || 0);
-  const totalPendapatan = (Number(calcModal?.gajiPokok) || 0) + totalUangMakan + Number(lembur) + Number(bonus);
-  const takeHomePay = totalPendapatan - kasbonBulanIni;
-
-  const handleBayarGaji = () => {
-      const confirmBayar = window.confirm(`Cetak Slip Gaji & Bayar Take Home Pay sebesar ${formatRp(takeHomePay)} kepada ${calcModal.name}? \n\nIni akan otomatis memotong Saldo Kas Anda.`);
-      if (!confirmBayar) return;
-
-      const newExpense = {
-          id: generateId('OUT', todayStr), 
-          date: todayStr,
-          recipient: calcModal.name,
-          category: 'Gaji Karyawan',
-          description: `Gaji Bulan ${gajiBulan} (Termasuk UM, Lembur, Potong Kasbon)`,
-          qty: 1,
-          price: takeHomePay,
-          total: takeHomePay,
-          type: 'OUT',
-          paymentMethod: 'Cash',
-          editCount: 0
+  // =====================================
+  // HANDLERS
+  // =====================================
+  const handleSimpanMaster = (e) => {
+      e.preventDefault();
+      const payload = {
+          id: generateId('EMP', todayStr),
+          name: formMaster.name.toUpperCase(),
+          position: formMaster.position,
+          base_salary: Number(formMaster.baseSalary),
+          status: 'AKTIF'
       };
-      
-      sendToSheet('insert', newExpense, 'expenses');
-      alert("Gaji berhasil dibayarkan dan Kas berkurang otomatis!");
-      setCalcModal(null);
+      sendToSheet('insert', payload, 'karyawan');
+      setFormMaster({ name: '', position: 'PRODUKSI', baseSalary: '' });
   };
+
+  const handleSimpanKasbon = (e) => {
+      e.preventDefault();
+      const emp = karyawan.find(k => k.id === formKasbon.employeeId);
+      if(!emp) return;
+
+      const payload = {
+          id: generateId('KSB', formKasbon.date),
+          date: formKasbon.date,
+          category: 'KASBON_KARYAWAN',
+          description: `Kasbon: ${emp.name} - ${formKasbon.notes}`,
+          amount: Number(formKasbon.amount),
+          payment_method: 'CASH',
+          employee_id: emp.id,
+          employee_name: emp.name
+      };
+      // Kasbon memotong kas operasional
+      sendToSheet('insert', payload, 'expenses');
+      setFormKasbon({ ...formKasbon, amount: '', notes: '' });
+  };
+
+  const handleSelectEmployeeForPayroll = (empId) => {
+      const emp = karyawan.find(k => k.id === empId);
+      if(emp) {
+          setFormPayroll({ ...formPayroll, employeeId: empId, baseSalary: emp.base_salary, allowance: '0', kasbonDeduction: '0', otherDeduction: '0' });
+      }
+  };
+
+  const totalPenerimaan = Number(formPayroll.baseSalary) + Number(formPayroll.allowance);
+  const totalPotongan = Number(formPayroll.kasbonDeduction) + Number(formPayroll.otherDeduction);
+  const netSalary = totalPenerimaan - totalPotongan;
+
+  const handleSimpanPayroll = (e) => {
+      e.preventDefault();
+      const emp = karyawan.find(k => k.id === formPayroll.employeeId);
+      if(!emp) return;
+
+      const payrollId = generateId('PAY', formPayroll.date);
+      const payload = {
+          id: payrollId,
+          date: formPayroll.date,
+          category: 'GAJI_KARYAWAN',
+          description: `Gaji & Upah: ${emp.name}`,
+          amount: netSalary, // Yang memotong kas perusahaan adalah Gaji Bersih
+          payment_method: formPayroll.paymentMethod,
+          
+          // Meta data untuk dicetak di slip gaji
+          employee_name: emp.name,
+          position: emp.position,
+          base_salary: formPayroll.baseSalary,
+          allowance: formPayroll.allowance,
+          kasbon_deduction: formPayroll.kasbonDeduction,
+          other_deduction: formPayroll.otherDeduction,
+          net_salary: netSalary
+      };
+
+      sendToSheet('insert', payload, 'expenses');
+      
+      // Langsung munculkan jendela cetak Slip Gaji
+      setPrintData({ type: 'SLIP_GAJI', data: payload });
+      setFormPayroll({ ...formPayroll, employeeId: '', baseSalary: 0, allowance: '', kasbonDeduction: '', otherDeduction: '' });
+  };
+
+  // =====================================
+  // RENDERERS
+  // =====================================
+  const listKasbon = (expenses || []).filter(e => e.category === 'KASBON_KARYAWAN').sort((a,b) => new Date(b.date) - new Date(a.date));
+  const listPayroll = (expenses || []).filter(e => e.category === 'GAJI_KARYAWAN').sort((a,b) => new Date(b.date) - new Date(a.date));
 
   return (
-    <div className="space-y-4 animate-in fade-in relative">
-      <div className="flex justify-between items-center">
-        <div><h3 className="font-bold text-lg text-slate-800">Data Karyawan & Gaji</h3></div>
-        <button onClick={() => { if(showForm) resetForm(); else setShowForm(true); }} className={`px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium transition shadow-sm text-white ${showForm ? 'bg-slate-500' : 'bg-blue-600'}`}>{showForm ? <X size={16} /> : <Plus size={16} />} {showForm ? 'Batal' : 'Tambah Karyawan'}</button>
+    <div className="space-y-6 animate-in fade-in pb-10">
+
+      {/* TOP NAVIGATION TABS */}
+      <div className="flex bg-slate-200 p-1.5 rounded-2xl w-max shadow-inner">
+          <button onClick={() => setActiveSubTab('payroll')} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition ${activeSubTab === 'payroll' ? 'bg-white text-blue-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}><Wallet size={16}/> Payroll & Slip Gaji</button>
+          <button onClick={() => setActiveSubTab('kasbon')} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition ${activeSubTab === 'kasbon' ? 'bg-white text-orange-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}><AlertCircle size={16}/> Kasbon (Pinjaman)</button>
+          <button onClick={() => setActiveSubTab('master')} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition ${activeSubTab === 'master' ? 'bg-white text-slate-800 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}><Users size={16}/> Master Karyawan</button>
       </div>
 
-      {showForm && (
-        <form onSubmit={handleSimpan} className="bg-white p-6 rounded-xl border border-blue-200 shadow-sm grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="lg:col-span-4 mb-2 border-b border-slate-100 pb-2"><h4 className="font-bold text-blue-800 text-sm flex gap-2"><Users size={16}/> Form Data Karyawan</h4></div>
-          <div className="space-y-1 lg:col-span-2"><label className="text-sm font-medium">Nama Lengkap</label><input type="text" required value={name} onChange={e => setName(e.target.value)} className="w-full p-2 border rounded-lg uppercase" /></div>
-          <div className="space-y-1 lg:col-span-2"><label className="text-sm font-medium">Jabatan / Divisi</label><select value={jabatan} onChange={e => setJabatan(e.target.value)} className="w-full p-2 border rounded-lg"><option>Produksi</option><option>Admin Kasir</option><option>Driver / Kurir</option><option>Lainnya</option></select></div>
-          <div className="space-y-1 lg:col-span-2"><label className="text-sm font-medium">Gaji Pokok (Bulanan)</label><input type="text" required value={formatRp(gajiPokok)} onChange={e => setGajiPokok(parseRp(e.target.value))} className="w-full p-2 border rounded-lg font-bold" /></div>
-          <div className="space-y-1 lg:col-span-2"><label className="text-sm font-medium">Uang Harian / Makan (Per Hari)</label><input type="text" required value={formatRp(uangMakan)} onChange={e => setUangMakan(parseRp(e.target.value))} className="w-full p-2 border rounded-lg font-bold" /></div>
-          <div className="lg:col-span-4 flex justify-end mt-2 pt-4 border-t"><button type="submit" className="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-medium">Simpan Data</button></div>
-        </form>
-      )}
+      {/* ========================================================= */}
+      {/* 1. TAB: PAYROLL & SLIP GAJI */}
+      {/* ========================================================= */}
+      {activeSubTab === 'payroll' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              
+              {/* KIRI: FORM PAYROLL */}
+              <div className="lg:col-span-1 bg-white rounded-2xl border shadow-sm p-6 border-t-4 border-t-blue-500 h-max">
+                  <h3 className="font-black text-slate-800 text-lg uppercase tracking-wide mb-1 flex items-center gap-2"><FileText size={20} className="text-blue-500"/> Kalkulator Gaji</h3>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-6">Hitung dan terbitkan slip gaji</p>
+                  
+                  <form onSubmit={handleSimpanPayroll} className="space-y-4">
+                      <div className="space-y-1"><label className="text-[10px] font-bold text-slate-600 uppercase">Tgl Pembayaran</label><input type="date" required value={formPayroll.date} onChange={e=>setFormPayroll({...formPayroll, date: e.target.value})} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold text-sm" /></div>
+                      <div className="space-y-1"><label className="text-[10px] font-bold text-slate-600 uppercase">Pilih Karyawan</label>
+                          <select required value={formPayroll.employeeId} onChange={e=>handleSelectEmployeeForPayroll(e.target.value)} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold text-sm">
+                              <option value="">-- Pilih --</option>
+                              {(karyawan||[]).filter(k=>k.status==='AKTIF').map(k => <option key={k.id} value={k.id}>{k.name} ({k.position})</option>)}
+                          </select>
+                      </div>
 
-      {/* MODAL HITUNG GAJI */}
-      {calcModal && (
-          <div className="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center p-4">
-              <div className="bg-white rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col">
-                  <div className="p-4 border-b flex justify-between items-center bg-slate-50">
-                      <h3 className="font-bold text-lg flex items-center gap-2"><Calculator size={20}/> Kalkulator Payroll: {calcModal.name}</h3>
-                      <button onClick={() => setCalcModal(null)} className="p-1 hover:bg-slate-200 rounded-lg"><X size={20} /></button>
-                  </div>
-                  <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50">
-                      <div className="space-y-4">
-                          <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Bulan Gaji</label><input type="month" value={gajiBulan} onChange={e=>setGajiBulan(e.target.value)} className="w-full p-2 border rounded-lg bg-white" /></div>
-                          <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Total Hari Kerja Hadir</label><input type="number" min="0" value={hariKerja} onChange={e=>setHariKerja(e.target.value)} className="w-full p-2 border rounded-lg bg-white font-bold text-lg" /></div>
-                          <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Tambahan Lembur (Rp)</label><input type="text" value={formatRp(lembur)} onChange={e=>setLembur(parseRp(e.target.value))} className="w-full p-2 border rounded-lg bg-white text-blue-600 font-bold" /></div>
-                          <div className="space-y-1"><label className="text-xs font-bold text-slate-500 uppercase">Bonus Lainnya (Rp)</label><input type="text" value={formatRp(bonus)} onChange={e=>setBonus(parseRp(e.target.value))} className="w-full p-2 border rounded-lg bg-white text-emerald-600 font-bold" /></div>
-                      </div>
-                      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-                          <div className="space-y-2 text-sm">
-                              <div className="flex justify-between"><span className="text-slate-500">Gaji Pokok</span><span className="font-bold">{formatRp(calcModal.gajiPokok)}</span></div>
-                              <div className="flex justify-between"><span className="text-slate-500">Uang Makan ({hariKerja} Hari)</span><span className="font-bold">{formatRp(totalUangMakan)}</span></div>
-                              <div className="flex justify-between"><span className="text-slate-500">Lembur & Bonus</span><span className="font-bold text-emerald-600">{formatRp(Number(lembur) + Number(bonus))}</span></div>
-                              <div className="border-t border-dashed pt-2 flex justify-between font-bold"><span>Total Pendapatan</span><span>{formatRp(totalPendapatan)}</span></div>
+                      {formPayroll.employeeId && (
+                          <div className="space-y-3 pt-4 border-t border-dashed">
+                              <div><label className="text-[10px] font-black text-slate-500 uppercase">Gaji Pokok / Harian (Standar)</label><input type="number" readOnly value={formPayroll.baseSalary} className="w-full p-2 bg-slate-100 border rounded-lg font-black text-slate-600 cursor-not-allowed outline-none" /></div>
+                              <div><label className="text-[10px] font-black text-emerald-600 uppercase">Uang Tunjangan / Lembur (+)</label><input type="number" required placeholder="0" value={formPayroll.allowance} onChange={e=>setFormPayroll({...formPayroll, allowance: e.target.value})} className="w-full p-2 bg-emerald-50 border border-emerald-200 rounded-lg font-black text-emerald-700" /></div>
+                              <div><label className="text-[10px] font-black text-red-600 uppercase">Potongan Kasbon (-)</label><input type="number" required placeholder="0" value={formPayroll.kasbonDeduction} onChange={e=>setFormPayroll({...formPayroll, kasbonDeduction: e.target.value})} className="w-full p-2 bg-red-50 border border-red-200 rounded-lg font-black text-red-700" /></div>
+                              <div><label className="text-[10px] font-black text-red-600 uppercase">Potongan Absen / Lainnya (-)</label><input type="number" required placeholder="0" value={formPayroll.otherDeduction} onChange={e=>setFormPayroll({...formPayroll, otherDeduction: e.target.value})} className="w-full p-2 bg-red-50 border border-red-200 rounded-lg font-black text-red-700" /></div>
                               
-                              <div className="flex justify-between items-center mt-4 bg-red-50 p-2 rounded border border-red-100">
-                                  <span className="text-red-800 text-xs font-bold uppercase">Potongan Kasbon Bulan Ini</span>
-                                  <span className="font-black text-red-600">-{formatRp(kasbonBulanIni)}</span>
+                              <div className="space-y-1"><label className="text-[10px] font-bold text-slate-600 uppercase">Bayar Dari Rekening Kas</label>
+                                  <select value={formPayroll.paymentMethod} onChange={e=>setFormPayroll({...formPayroll, paymentMethod: e.target.value})} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold text-sm">
+                                      <option value="CASH">Cash Tunai</option>
+                                      <option value="TRANSFER">Transfer Bank</option>
+                                  </select>
                               </div>
-                          </div>
-                          <div className="border-t-2 border-black pt-3 mt-4">
-                              <div className="flex justify-between items-end">
-                                  <span className="font-black uppercase text-sm">TAKE HOME PAY</span>
-                                  <span className="text-2xl font-black text-emerald-600">{formatRp(takeHomePay)}</span>
+
+                              <div className="bg-slate-900 p-4 rounded-xl text-white mt-4 shadow-inner">
+                                  <div className="text-[10px] font-black uppercase text-slate-400">Take Home Pay (Net)</div>
+                                  <div className="text-2xl font-black">{formatRp(netSalary)}</div>
                               </div>
+
+                              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl shadow-md transition flex items-center justify-center gap-2"><CheckCircle size={18}/> Bayar & Cetak Slip Gaji</button>
                           </div>
-                      </div>
-                  </div>
-                  <div className="p-4 border-t flex justify-end gap-3 bg-white">
-                      <button onClick={() => setCalcModal(null)} className="px-4 py-2 bg-slate-100 rounded-lg font-bold text-slate-600">Batal</button>
-                      <button onClick={handleBayarGaji} className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold flex items-center gap-2"><CheckCircle size={18}/> Bayar & Catat Pengeluaran</button>
+                      )}
+                  </form>
+              </div>
+
+              {/* KANAN: HISTORI PAYROLL */}
+              <div className="lg:col-span-2 bg-white rounded-2xl border shadow-sm overflow-hidden">
+                  <div className="p-4 border-b bg-slate-50"><h4 className="font-bold text-slate-800 tracking-wide uppercase text-sm">Histori Pembayaran Gaji</h4></div>
+                  <div className="overflow-x-auto">
+                      <table className="w-full text-sm text-left">
+                          <thead className="bg-white border-b text-[10px] text-slate-500 uppercase">
+                              <tr><th className="px-4 py-3">Tgl Bayar</th><th className="px-4 py-3">Nama Karyawan</th><th className="px-4 py-3 text-right">Net Gaji (Rp)</th><th className="px-4 py-3 text-center">Aksi</th></tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                              {listPayroll.map(p => (
+                                  <tr key={p.id} className="hover:bg-slate-50 transition">
+                                      <td className="px-4 py-3"><div className="font-bold text-slate-700">{formatDate(p.date)}</div><div className="text-[10px] text-slate-500">{p.id}</div></td>
+                                      <td className="px-4 py-3 font-black text-slate-800 uppercase">{p.employee_name} <span className="text-[10px] font-bold text-slate-400 block">{p.position}</span></td>
+                                      <td className="px-4 py-3 text-right font-black text-blue-600 bg-blue-50/50">{formatRp(p.amount)}</td>
+                                      <td className="px-4 py-3 text-center">
+                                          <button onClick={() => setPrintData({ type: 'SLIP_GAJI', data: p })} className="bg-slate-100 hover:bg-slate-200 text-slate-600 p-2 rounded-lg transition" title="Print Ulang Slip Gaji"><Printer size={16}/></button>
+                                      </td>
+                                  </tr>
+                              ))}
+                          </tbody>
+                      </table>
                   </div>
               </div>
           </div>
       )}
 
-      <div className="bg-white rounded-xl border overflow-hidden mt-4">
-        <table className="w-full text-sm text-left block md:table">
-          <thead className="bg-slate-50 text-slate-800 text-xs uppercase border-b"><tr><th className="px-4 py-3">Nama Karyawan</th><th className="px-4 py-3">Jabatan</th><th className="px-4 py-3 text-right">Gaji Pokok</th><th className="px-4 py-3 text-right">Uang Harian</th><th className="px-4 py-3 text-center">Aksi (Payroll)</th></tr></thead>
-          <tbody className="divide-y divide-slate-100">
-            {(!karyawan || karyawan.length === 0) ? <tr><td colSpan="5" className="text-center py-12 text-slate-400">Belum ada data karyawan.</td></tr> : karyawan.map((emp) => (
-              <tr key={emp.id} className="hover:bg-slate-50">
-                <td className="px-4 py-3 font-black text-slate-800 uppercase">{emp.name}</td>
-                <td className="px-4 py-3 font-bold text-slate-500">{emp.jabatan}</td>
-                <td className="px-4 py-3 text-right font-bold text-blue-600">{formatRp(emp.gajiPokok)}</td>
-                <td className="px-4 py-3 text-right font-bold text-emerald-600">{formatRp(emp.uangMakan)}</td>
-                <td className="px-4 py-3 text-center">
-                  <div className="flex justify-center gap-2">
-                    <button onClick={() => setCalcModal(emp)} className="text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg font-bold text-xs border border-emerald-200 hover:bg-emerald-100 transition shadow-sm flex items-center gap-1">
-                      <Calculator size={14}/> Hitung Gaji
-                    </button>
-                    <button onClick={() => handleEdit(emp)} className="text-blue-600 bg-blue-50 px-2 py-1 rounded-lg font-bold text-[10px] border border-blue-200 hover:bg-blue-100 transition shadow-sm">EDIT</button>
-                    <button onClick={() => requestDelete(emp.id)} className="text-red-500 bg-red-50 p-1.5 rounded-lg border border-red-200 hover:bg-red-100 transition shadow-sm"><Trash2 size={16} /></button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {/* ========================================================= */}
+      {/* 2. TAB: KASBON KARYAWAN */}
+      {/* ========================================================= */}
+      {activeSubTab === 'kasbon' && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-white rounded-2xl border shadow-sm p-6 border-t-4 border-t-orange-500">
+                  <h3 className="font-black text-slate-800 text-lg uppercase tracking-wide mb-4">Input Kasbon</h3>
+                  <form onSubmit={handleSimpanKasbon} className="space-y-4">
+                      <div className="space-y-1"><label className="text-[10px] font-bold text-slate-600 uppercase">Tanggal</label><input type="date" required value={formKasbon.date} onChange={e=>setFormKasbon({...formKasbon, date: e.target.value})} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold text-sm" /></div>
+                      <div className="space-y-1"><label className="text-[10px] font-bold text-slate-600 uppercase">Karyawan</label>
+                          <select required value={formKasbon.employeeId} onChange={e=>setFormKasbon({...formKasbon, employeeId: e.target.value})} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold text-sm">
+                              <option value="">-- Pilih --</option>
+                              {(karyawan||[]).filter(k=>k.status==='AKTIF').map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
+                          </select>
+                      </div>
+                      <div className="space-y-1"><label className="text-[10px] font-bold text-slate-600 uppercase">Nominal (Rp)</label><input type="number" required placeholder="0" value={formKasbon.amount} onChange={e=>setFormKasbon({...formKasbon, amount: e.target.value})} className="w-full p-2.5 bg-orange-50 border border-orange-200 rounded-xl font-black text-orange-700" /></div>
+                      <div className="space-y-1"><label className="text-[10px] font-bold text-slate-600 uppercase">Keterangan / Alasan</label><input type="text" required value={formKasbon.notes} onChange={e=>setFormKasbon({...formKasbon, notes: e.target.value})} className="w-full p-2.5 bg-slate-50 border rounded-xl font-medium text-sm" /></div>
+                      <button type="submit" className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-3.5 rounded-xl shadow-md transition flex items-center justify-center gap-2"><Plus size={18}/> Catat Hutang Karyawan</button>
+                  </form>
+              </div>
+
+              <div className="md:col-span-2 bg-white rounded-2xl border shadow-sm overflow-hidden">
+                  <div className="p-4 border-b bg-slate-50"><h4 className="font-bold text-slate-800 tracking-wide uppercase text-sm">Log Pinjaman Berjalan</h4></div>
+                  <table className="w-full text-sm text-left">
+                      <thead className="bg-white border-b text-[10px] text-slate-500 uppercase"><tr><th className="px-4 py-3">Tgl & ID</th><th className="px-4 py-3">Nama Karyawan</th><th className="px-4 py-3">Keterangan</th><th className="px-4 py-3 text-right">Nominal</th></tr></thead>
+                      <tbody className="divide-y divide-slate-100">
+                          {listKasbon.map(k => (
+                              <tr key={k.id} className="hover:bg-slate-50">
+                                  <td className="px-4 py-3"><div className="font-bold text-slate-700">{formatDate(k.date)}</div></td>
+                                  <td className="px-4 py-3 font-black text-slate-800 uppercase">{k.employee_name}</td>
+                                  <td className="px-4 py-3 text-xs text-slate-500">{k.description}</td>
+                                  <td className="px-4 py-3 text-right font-black text-orange-600">{formatRp(k.amount)}</td>
+                              </tr>
+                          ))}
+                      </tbody>
+                  </table>
+              </div>
+          </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 3. TAB: MASTER DATA KARYAWAN */}
+      {/* ========================================================= */}
+      {activeSubTab === 'master' && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-white rounded-2xl border shadow-sm p-6 border-t-4 border-t-slate-800">
+                  <h3 className="font-black text-slate-800 text-lg uppercase tracking-wide mb-4">Tambah Karyawan Baru</h3>
+                  <form onSubmit={handleSimpanMaster} className="space-y-4">
+                      <div className="space-y-1"><label className="text-[10px] font-bold text-slate-600 uppercase">Nama Lengkap</label><input type="text" required value={formMaster.name} onChange={e=>setFormMaster({...formMaster, name: e.target.value})} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold text-sm uppercase" /></div>
+                      <div className="space-y-1"><label className="text-[10px] font-bold text-slate-600 uppercase">Posisi / Jabatan</label>
+                          <select required value={formMaster.position} onChange={e=>setFormMaster({...formMaster, position: e.target.value})} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold text-sm">
+                              <option value="PRODUKSI">Tim Produksi (Dapur)</option>
+                              <option value="KASIR">Kasir / Frontliner</option>
+                              <option value="DRIVER">Driver / Ekspedisi</option>
+                              <option value="ADMIN">Admin / Backoffice</option>
+                          </select>
+                      </div>
+                      <div className="space-y-1"><label className="text-[10px] font-bold text-slate-600 uppercase">Gaji Pokok Standar (Rp)</label><input type="number" required placeholder="0" value={formMaster.baseSalary} onChange={e=>setFormMaster({...formMaster, baseSalary: e.target.value})} className="w-full p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl font-black text-emerald-700" /></div>
+                      <button type="submit" className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3.5 rounded-xl shadow-md transition flex items-center justify-center gap-2"><Plus size={18}/> Simpan Master Data</button>
+                  </form>
+              </div>
+
+              <div className="md:col-span-2 bg-white rounded-2xl border shadow-sm overflow-hidden">
+                  <div className="p-4 border-b bg-slate-50"><h4 className="font-bold text-slate-800 tracking-wide uppercase text-sm">Database SDM Aktif</h4></div>
+                  <table className="w-full text-sm text-left">
+                      <thead className="bg-white border-b text-[10px] text-slate-500 uppercase"><tr><th className="px-4 py-3">ID Karyawan</th><th className="px-4 py-3">Nama Lengkap</th><th className="px-4 py-3">Posisi</th><th className="px-4 py-3 text-right">Base Salary</th></tr></thead>
+                      <tbody className="divide-y divide-slate-100">
+                          {(karyawan || []).filter(k => k.status === 'AKTIF').map(k => (
+                              <tr key={k.id} className="hover:bg-slate-50">
+                                  <td className="px-4 py-3 font-mono text-[10px] font-bold text-slate-500">{k.id}</td>
+                                  <td className="px-4 py-3 font-black text-slate-800 uppercase">{k.name}</td>
+                                  <td className="px-4 py-3"><span className="bg-slate-100 text-slate-700 px-2 py-1 rounded text-[10px] font-bold uppercase">{k.position}</span></td>
+                                  <td className="px-4 py-3 text-right font-black text-emerald-600">{formatRp(k.base_salary)}</td>
+                              </tr>
+                          ))}
+                      </tbody>
+                  </table>
+              </div>
+          </div>
+      )}
+
     </div>
   );
 }
