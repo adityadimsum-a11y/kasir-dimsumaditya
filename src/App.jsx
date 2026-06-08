@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, ShoppingCart, Wallet, Clock, Store, Loader2, LogOut, 
-  Package, Truck, Users, AlertCircle, Activity, Send, ShieldAlert, TrendingUp, WifiOff, PieChart, Menu, X, Search, Bell, CheckCircle, Radar, BookOpen
+  Package, Truck, Users, AlertCircle, Activity, Send, ShieldAlert, TrendingUp, WifiOff, PieChart, Menu, X, Search, Bell, CheckCircle, Radar, BookOpen, ShieldCheck
 } from 'lucide-react';
 
 import TabDashboard from './components/tabs/TabDashboard';
@@ -19,7 +19,8 @@ import TabCashWarRoom from './components/tabs/TabCashWarRoom';
 import TabSCMWarRoom from './components/tabs/TabSCMWarRoom'; 
 import TabAnalytics from './components/tabs/TabAnalytics'; 
 import TabBusinessRadar from './components/tabs/TabBusinessRadar'; 
-import TabAccounting from './components/tabs/TabAccounting'; // MODUL PHASE 9
+import TabAccounting from './components/tabs/TabAccounting'; 
+import TabAccountingAudit from './components/tabs/TabAccountingAudit'; // MODUL PHASE 9.5
 import PrintDotMatrix from './components/PrintDotMatrix';
 
 import { generateRequestId } from './utils/helpers'; 
@@ -30,9 +31,9 @@ const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqSM
 // CENTRAL CAPABILITY ENGINE
 // =====================================================================
 const CAPABILITY_CONFIG = {
-  'HQ_FACTORY': { can_production: true, can_supplier: true, can_global_dashboard: true, can_pos: true, can_distribute: true, can_hrd: true, can_treasury: true, can_scm_warroom: true, can_analytics: true, can_radar: true, can_accounting: true },
-  'PRODUCTION_BRANCH': { can_production: true, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: true, can_hrd: false, can_treasury: false, can_scm_warroom: false, can_analytics: false, can_radar: false, can_accounting: false },
-  'OUTLET_RESTO': { can_production: false, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: false, can_hrd: false, can_treasury: false, can_scm_warroom: false, can_analytics: false, can_radar: false, can_accounting: false }
+  'HQ_FACTORY': { can_production: true, can_supplier: true, can_global_dashboard: true, can_pos: true, can_distribute: true, can_hrd: true, can_treasury: true, can_scm_warroom: true, can_analytics: true, can_radar: true, can_accounting: true, can_audit: true },
+  'PRODUCTION_BRANCH': { can_production: true, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: true, can_hrd: false, can_treasury: false, can_scm_warroom: false, can_analytics: false, can_radar: false, can_accounting: false, can_audit: false },
+  'OUTLET_RESTO': { can_production: false, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: false, can_hrd: false, can_treasury: false, can_scm_warroom: false, can_analytics: false, can_radar: false, can_accounting: false, can_audit: false }
 };
 
 function NavItem({ icon, label, active, onClick, badge, disabled }) {
@@ -60,7 +61,7 @@ function ToastNotification({ toast, onClose }) {
 }
 
 // =====================================================================
-// DYNAMIC NODE SYSTEM LAYOUT (MOBILE RESPONSIVE + GLOBAL SEARCH)
+// DYNAMIC NODE SYSTEM LAYOUT
 // =====================================================================
 function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, data, sendToSheet, setPrintData, setConfirmDialog, isLoading, isOffline, showToast }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -69,19 +70,13 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
   const incomingDO = data.distributionOrders.filter(d => (d.status === 'DIKIRIM' || d.status === 'IN_TRANSIT') && d.to_branch === user.branch_id).length;
 
   const navigateTab = (tab) => { handleTabChange(tab); setIsMobileMenuOpen(false); };
-
-  // STYLE ENGINE PER ROLE
   const roleColor = user.branch_type === 'HQ_FACTORY' ? 'text-emerald-400 bg-emerald-400/10' : user.branch_type === 'PRODUCTION_BRANCH' ? 'text-purple-400 bg-purple-400/10' : 'text-orange-400 bg-orange-400/10';
 
   return (
     <div className="h-screen bg-slate-50 flex overflow-hidden pointer-events-auto">
-      {/* HARD LOCK OVERLAY */}
       {isLoading && <div className="fixed inset-0 z-[100] bg-slate-900/10 backdrop-blur-[1px] cursor-wait flex items-center justify-center"><Loader2 className="w-10 h-10 text-red-600 animate-spin"/></div>}
-
-      {/* MOBILE OVERLAY */}
       {isMobileMenuOpen && <div className="fixed inset-0 bg-slate-900/50 z-40 md:hidden" onClick={() => setIsMobileMenuOpen(false)} />}
 
-      {/* SIDEBAR */}
       <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 text-white flex flex-col transform transition-transform duration-300 md:relative md:translate-x-0 shadow-2xl md:shadow-none ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="p-5 border-b border-slate-800 bg-slate-900/50 flex justify-between items-center">
             <div>
@@ -95,11 +90,14 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
         </div>
         
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto custom-scrollbar">
-            <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 mt-2 px-2">Dashboard & Analytics</div>
+            <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 mt-2 px-2">Monitoring & Eksekutif</div>
             {caps.can_global_dashboard ? <NavItem icon={<Activity size={18} />} label="Command Center" active={activeTab === 'dashboard'} onClick={() => navigateTab('dashboard')} disabled={isLoading} /> : <NavItem icon={<LayoutDashboard size={18} />} label="Dashboard Node" active={activeTab === 'dashboard'} onClick={() => navigateTab('dashboard')} disabled={isLoading} />}
             {caps.can_radar && <NavItem icon={<Radar size={18} />} label="Business Radar" active={activeTab === 'radar'} onClick={() => navigateTab('radar')} disabled={isLoading} />}
             {caps.can_treasury && <NavItem icon={<TrendingUp size={18} />} label="Cash War Room" active={activeTab === 'cash_war_room'} onClick={() => navigateTab('cash_war_room')} disabled={isLoading} />}
+            
             {caps.can_accounting && <NavItem icon={<BookOpen size={18} />} label="Financial ERP" active={activeTab === 'accounting'} onClick={() => navigateTab('accounting')} disabled={isLoading} />}
+            {caps.can_audit && <NavItem icon={<ShieldCheck size={18} />} label="Accounting Audit" active={activeTab === 'accounting_audit'} onClick={() => navigateTab('accounting_audit')} disabled={isLoading} />}
+            
             {caps.can_analytics && <NavItem icon={<PieChart size={18} />} label="Executive Analytics" active={activeTab === 'analytics'} onClick={() => navigateTab('analytics')} disabled={isLoading} />}
             {caps.can_scm_warroom && <NavItem icon={<Truck size={18} />} label="SCM War Room" active={activeTab === 'scm_war_room'} onClick={() => navigateTab('scm_war_room')} disabled={isLoading} />}
 
@@ -130,7 +128,6 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
       </aside>
 
       <main className="flex-1 flex flex-col h-screen overflow-hidden relative w-full">
-        {/* GLOBAL HEADER */}
         <header className="bg-white border-b px-4 py-3 shadow-sm z-10 flex justify-between items-center no-print">
             <div className="flex items-center gap-3">
               <button onClick={() => setIsMobileMenuOpen(true)} className="md:hidden text-slate-600 hover:text-slate-900 bg-slate-100 p-2 rounded-lg"><Menu size={20}/></button>
@@ -140,7 +137,7 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
             <div className="flex items-center gap-4 w-full justify-end sm:w-auto">
               <div className="relative hidden md:block w-64">
                 <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
-                <input type="text" placeholder="Global Search (Inv, DO)..." className="w-full pl-9 pr-4 py-2 bg-slate-100 border-none rounded-full text-xs font-medium focus:ring-2 focus:ring-red-500 outline-none transition-all" />
+                <input type="text" placeholder="Global Search..." className="w-full pl-9 pr-4 py-2 bg-slate-100 border-none rounded-full text-xs font-medium focus:ring-2 focus:ring-red-500 outline-none transition-all" />
               </div>
               <div className="flex items-center gap-3">
                 {isOffline ? <span className="bg-red-100 text-red-600 p-2 rounded-full"><WifiOff size={16}/></span> : <span className="bg-slate-100 text-slate-600 p-2 rounded-full hover:bg-slate-200 cursor-pointer"><Bell size={16}/></span>}
@@ -151,13 +148,13 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
             </div>
         </header>
         
-        {/* VIEWPORT CONTROLLER */}
         <div className={`flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 bg-slate-50 custom-scrollbar ${isLoading ? 'opacity-60 grayscale-[30%] transition-opacity duration-300' : 'transition-opacity duration-300'}`}>
           <div className="max-w-7xl mx-auto w-full">
             {activeTab === 'dashboard' && (caps.can_global_dashboard ? <TabDashboard {...data} sendToSheet={sendToSheet} setPrintData={setPrintData} user={user} showToast={showToast} /> : <TabDashboardBranch orders={data.orders} pemalangReports={data.pemalangReports} piutangPayments={data.piutangPayments} setPrintData={setPrintData} stokData={data.stokData} showToast={showToast} />)}
             {activeTab === 'radar' && caps.can_radar && <TabBusinessRadar orders={data.orders} stockMovements={data.stockMovements} expenses={data.expenses} supplierLedger={data.supplierLedger} cashflowTransactions={data.cashflowTransactions} inventoryCostLayers={data.inventoryCostLayers} marketplaceSettlement={data.marketplaceSettlement} masterBranches={data.masterBranches} discrepancyLogs={data.discrepancyLogs} />}
             {activeTab === 'cash_war_room' && caps.can_treasury && <TabCashWarRoom orders={data.orders} purchases={data.purchases} expenses={data.expenses} cashflowTransactions={data.cashflowTransactions} marketplaceSettlement={data.marketplaceSettlement} supplierLedger={data.supplierLedger} masterBranches={data.masterBranches} inventoryCostLayers={data.inventoryCostLayers} discrepancyLogs={data.discrepancyLogs} financialClosings={data.financialClosings} />}
             {activeTab === 'accounting' && caps.can_accounting && <TabAccounting generalLedger={data.generalLedger} chartOfAccounts={data.chartOfAccounts} />}
+            {activeTab === 'accounting_audit' && caps.can_audit && <TabAccountingAudit generalLedger={data.generalLedger} inventoryCostLayers={data.inventoryCostLayers} cashflowTransactions={data.cashflowTransactions} marketplaceSettlement={data.marketplaceSettlement} />}
             {activeTab === 'analytics' && caps.can_analytics && <TabAnalytics orders={data.orders} masterBranches={data.masterBranches} discrepancyLogs={data.discrepancyLogs} />}
             {activeTab === 'scm_war_room' && caps.can_scm_warroom && <TabSCMWarRoom distributionOrders={data.distributionOrders} inventoryCostLayers={data.inventoryCostLayers} discrepancyLogs={data.discrepancyLogs} masterBranches={data.masterBranches} />}
             {activeTab === 'orders' && <TabOrders orders={data.orders} payments={data.piutangPayments} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'order', id})} role={user.role} showToast={showToast} />}
@@ -176,9 +173,6 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
   );
 }
 
-// =====================================================================
-// MAIN APP ENTRY COMPONENT
-// =====================================================================
 export default function App() {
   const [user, setUser] = useState(() => { try { return window.localStorage.getItem('dimsum_user_session') ? JSON.parse(window.localStorage.getItem('dimsum_user_session')) : null; } catch (error) { return null; } }); 
   const [activeTab, setActiveTab] = useState(() => { try { return window.localStorage.getItem('dimsum_active_tab') || 'dashboard'; } catch (error) { return 'dashboard'; } });
@@ -214,8 +208,6 @@ export default function App() {
   const [discrepancyLogs, setDiscrepancyLogs] = useState([]);
   const [financialClosings, setFinancialClosings] = useState([]);
   const [systemTasks, setSystemTasks] = useState([]); 
-  
-  // DATA BARU PHASE 9 (ACCOUNTING)
   const [generalLedger, setGeneralLedger] = useState([]);
   const [chartOfAccounts, setChartOfAccounts] = useState([]);
 
@@ -258,8 +250,6 @@ export default function App() {
         setDiscrepancyLogs(sortData(data.filter(item => item && item.table === 'discrepancy_logs' && !item.isDeleted)));
         setFinancialClosings(sortData(data.filter(item => item && item.table === 'financial_closings' && !item.isDeleted)));
         setSystemTasks(sortData(data.filter(item => item && item.table === 'system_tasks' && !item.isDeleted))); 
-        
-        // Phase 9
         setGeneralLedger(sortData(data.filter(item => item && item.table === 'general_ledger' && !item.isDeleted)));
         setChartOfAccounts(data.filter(item => item && item.table === 'chart_of_accounts' && !item.isDeleted));
       }
@@ -286,7 +276,7 @@ export default function App() {
   const handleLogout = () => { setUser(null); setLoginForm({ username: '', password: '' }); window.localStorage.removeItem('dimsum_user_session'); window.localStorage.removeItem('dimsum_active_tab'); };
 
   const sendToSheet = async (action, data, table) => {
-    if (isOffline) { showToast("⚠️ OFFLINE: Tidak ada koneksi internet. Transaksi diblokir demi keamanan data.", 'error'); return false; }
+    if (isOffline) { showToast("⚠️ OFFLINE: Tidak ada koneksi internet. Transaksi diblokir.", 'error'); return false; }
     if (isLoading) { showToast("⏳ Mohon tunggu, sistem sedang memproses transaksi sebelumnya...", 'error'); return false; }
     
     setIsLoading(true);
@@ -372,12 +362,7 @@ export default function App() {
 
   const globalProps = {
     user, activeTab, handleTabChange, handleLogout, sendToSheet, setPrintData, setConfirmDialog, isLoading, isOffline, showToast,
-    data: { 
-      orders, expenses, purchases, piutangPayments, pemalangReports, stokData, karyawan, stockMovements, 
-      productionBatches, distributionOrders, masterBranches, supplierLedger, cashflowTransactions, 
-      marketplaceSettlement, inventoryCostLayers, discrepancyLogs, financialClosings, systemTasks,
-      generalLedger, chartOfAccounts // DATA PHASE 9
-    }
+    data: { orders, expenses, purchases, piutangPayments, pemalangReports, stokData, karyawan, stockMovements, productionBatches, distributionOrders, masterBranches, supplierLedger, cashflowTransactions, marketplaceSettlement, inventoryCostLayers, discrepancyLogs, financialClosings, systemTasks, generalLedger, chartOfAccounts }
   };
 
   return (
