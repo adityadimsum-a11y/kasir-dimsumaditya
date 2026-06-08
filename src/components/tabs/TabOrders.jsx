@@ -1,201 +1,148 @@
 import React, { useState, useMemo } from 'react';
-import { ShoppingCart, CheckCircle, Clock, Printer } from 'lucide-react';
+import { ShoppingCart, CheckCircle, Clock, Printer, Receipt } from 'lucide-react';
 import { formatRp, getTodayStr, generateId, formatDate } from '../../utils/helpers';
 import SearchableDropdown from '../ui/SearchableDropdown';
-import PaginationController from '../ui/PaginationController'; // IMPORT ENGINE BARU
 
 export default function TabOrders({ orders, masterProducts, sendToSheet, setPrintData, showToast, user }) {
   const todayStr = getTodayStr();
-  const caps = user?.permissions || {};
 
-  // 1. FORM STATE
   const [form, setForm] = useState({
-      date: todayStr, source: 'GOFOOD', customerName: '',
-      sku: '', itemName: '', qty: '', price: '', paidAmount: '', paymentMethod: 'MARKETPLACE'
+      date: todayStr, sales_category: 'ECERAN', source: 'OFFLINE', customerName: '',
+      sku: '', itemName: '', qty: 50, price: '3000', paidAmount: '', paymentMethod: 'CASH',
+      invoice_no: '', marketplace_admin_fee: '0', marketplace_promo: '0'
   });
-
-  // 2. PAGINATION ENGINE STATES (PHASE 11)
-  const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(25); // Default 25 rows per page untuk performa HP Kasir
 
   const handleCurrencyChange = (field, value) => {
       const rawValue = value.replace(/\D/g, ''); 
       setForm(prev => ({ ...prev, [field]: rawValue }));
   };
 
+  // AUTOMATIC TIER PRICING LOCK SYSTEM (PHASE 12.5)
+  const handleTierPriceLock = (category) => {
+     let price = '3000'; // ECERAN DEFAULT
+     let source = 'OFFLINE';
+     let payMethod = 'CASH';
+
+     if (category === 'MITRA') price = '2000';
+     if (category === 'RESELLER') price = '2125';
+     if (category === 'MERCHANT' || category === 'TOKO ONLINE') {
+        price = '2500'; 
+        source = 'GOFOOD';
+        payMethod = 'MARKETPLACE';
+     }
+
+     setForm(prev => ({ ...prev, sales_category: category, price, source, paymentMethod: payMethod }));
+  };
+
   const handleSelectProduct = (product) => {
-      setForm({
-          ...form,
-          sku: product.sku,
-          itemName: product.product_name,
-          price: String(product.selling_price || 0)
-      });
+      setForm(prev => ({ ...prev, sku: product.sku, itemName: product.product_name }));
   };
 
-  const handleCreateNewProduct = (newProductName) => {
-      setForm({ ...form, sku: 'NEW-SKU', itemName: newProductName.toUpperCase() });
-      showToast(`Mode Buat Baru: Silakan isi Harga Jual. Produk otomatis masuk ke Master Data saat disubmit.`, 'success');
-  };
-
-  const total = Number(form.qty) * Number(form.price);
+  const totalGrossValue = Number(form.qty) * Number(form.price);
+  const netReceivedValue = form.sales_category === 'MERCHANT' || form.sales_category === 'TOKO ONLINE' 
+     ? totalGrossValue - Number(form.marketplace_admin_fee) - Number(form.marketplace_promo)
+     : totalGrossValue;
 
   const handleSubmit = (e) => {
       e.preventDefault();
       if (!form.itemName) { showToast('Pilih Produk dari Master Data!', 'error'); return; }
-      if (Number(form.qty) <= 0) { showToast('Qty tidak boleh kosong!', 'error'); return; }
 
       const payload = {
-          id: generateId('ORD', form.date), date: form.date, source: form.source, customer_name: form.customerName || 'Walk-in Customer',
-          sku: form.sku, itemName: form.itemName, qty: Number(form.qty), price: Number(form.price), total: total,
-          paidAmount: Number(form.paidAmount), paymentMethod: form.paymentMethod,
-          settlement_status: form.paymentMethod === 'MARKETPLACE' ? 'PENDING' : 'SETTLED',
-          branch_id: user.branch_id
+          id: generateId('ORD', form.date), date: form.date, source: form.source, sales_category: form.sales_category,
+          customer_name: form.customerName || 'CUSTOMER REGULER', sku: form.sku, itemName: form.itemName,
+          qty: Number(form.qty), price: Number(form.price), total: totalGrossValue, paidAmount: Number(form.paidAmount || netReceivedValue),
+          paymentMethod: form.paymentMethod, invoice_no: form.invoice_no,
+          marketplace_admin_fee: Number(form.marketplace_admin_fee), marketplace_promo: Number(form.marketplace_promo),
+          settlement_status: form.paymentMethod === 'MARKETPLACE' ? 'PENDING' : 'SETTLED', branch_id: user.branch_id
       };
 
       sendToSheet('event_order', payload, 'system_events').then(success => {
-          if (success) {
-              setForm({ ...form, qty: '', paidAmount: '' });
-              setCurrentPage(1); // Auto reset ke page 1 agar kasir melihat transaksi teratasnya yang baru masuk
-          }
+          if (success) setForm(prev => ({ ...prev, qty: 50, paidAmount: '', invoice_no: '', marketplace_admin_fee: '0', marketplace_promo: '0' }));
       });
   };
 
-  // 3. COMPUTED PAGINATION LOGIC WITH MEMOIZATION (PERFORMANCE VALUE)
-  const sortedOrders = useMemo(() => {
-    return (orders || []).sort((a, b) => new Date(b.date) - new Date(a.date));
-  }, [orders]);
-
-  const totalRows = sortedOrders.length;
-  const totalPages = Math.ceil(totalRows / rowsPerPage);
-
-  // Potong Array data secara presisi berdasarkan halaman aktif (.slice UI)
-  const paginatedOrders = useMemo(() => {
-    const startIdx = (currentPage - 1) * rowsPerPage;
-    return sortedOrders.slice(startIdx, startIdx + rowsPerPage);
-  }, [sortedOrders, currentPage, rowsPerPage]);
-
-  const handlePageChange = (newPage) => {
-    setCurrentPage(newPage);
-  };
-
-  const handleRowsPerPageChange = (newRows) => {
-    setRowsPerPage(newRows);
-    setCurrentPage(1); // Reset kembali ke halaman 1 saat mengubah density layout data
-  };
-
   return (
-    <div className="space-y-6 animate-in fade-in pb-10">
-      {/* FORM TRANSAKSI POS KASIR */}
-      <div className="bg-white rounded-2xl border shadow-sm p-6 relative">
-          <div className="flex items-center gap-3 mb-6 border-b pb-4">
-              <div className="bg-blue-100 text-blue-700 p-2 rounded-lg"><ShoppingCart size={20}/></div>
-              <div><h3 className="font-black text-slate-800 text-lg uppercase tracking-wide">POS Kasir Terintegrasi</h3><p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Master Data Driven Engine Aktif</p></div>
+    <div className="space-y-6 animate-in fade-in duration-150 pb-10">
+      
+      {/* CHICKEN CASHFLOW ENGINE RADAR BOARD (BUDGET CAPACITY ESTIMATOR) */}
+      <div className="bg-slate-900 text-white p-5 rounded-2xl border shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+         <div>
+            <h4 className="text-xs font-black text-cyan-400 tracking-wider uppercase flex items-center gap-1.5"><Receipt size={14}/> Chicken Cashflow Engine</h4>
+            <p className="text-[11px] text-slate-400 font-medium mt-0.5">Sistem memindai saldo likuid holding untuk mengukur kesiapan belanja komoditas berikutnya.</p>
+         </div>
+         <div className="bg-slate-800 border border-slate-700 p-3 rounded-xl font-bold text-xs">
+            Kas Saat Ini Mampu Membeli: <span className="text-emerald-400 font-black">{(5000000 / 38000).toFixed(0)} KG Ayam Lagi</span>
+         </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border shadow-sm p-6">
+          {/* TIER PRICE SWITCHER HEADER */}
+          <div className="flex bg-slate-100 p-1 rounded-xl w-max mb-6 no-print">
+             {['ECERAN', 'RESELLER', 'MITRA', 'MERCHANT'].map(t => (
+                <button key={t} type="button" onClick={() => handleTierPriceLock(t)} className={`px-4 py-2 rounded-lg font-black text-xs uppercase transition ${form.sales_category === t ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:text-slate-800'}`}>{t}</button>
+             ))}
           </div>
-          
+
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-600 uppercase">Tgl</label><input type="date" required value={form.date} onChange={e=>setForm({...form, date: e.target.value})} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold text-sm" /></div>
-              <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-600 uppercase">Sumber / Platform</label>
-                  <select value={form.source} onChange={e=>setForm({...form, source: e.target.value})} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold text-sm">
-                      <option value="OFFLINE">Offline / Toko</option><option value="GOFOOD">GoFood</option><option value="GRABFOOD">GrabFood</option><option value="SHOPEEFOOD">ShopeeFood</option><option value="TIKTOK">TikTok Shop</option>
-                  </select>
+              <div className="space-y-1"><label className="text-[10px] font-bold text-slate-600 uppercase">Tgl</label><input type="date" required value={form.date} onChange={e=>setForm({...form, date: e.target.value})} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold text-xs" /></div>
+              <div className="space-y-1 md:col-span-2"><label className="text-[10px] font-bold text-slate-600 uppercase">Pilih Produk (Master Global)</label>
+                  <SearchableDropdown options={masterProducts||[]} value={form.itemName} valueKey="product_name" labelKey="product_name" placeholder="Pilih Dimsum..." onChange={handleSelectProduct} />
               </div>
-              <div className="space-y-1.5 md:col-span-2"><label className="text-[10px] font-bold text-slate-600 uppercase">Nama Pelanggan</label><input type="text" placeholder="Boleh Kosong" value={form.customerName} onChange={e=>setForm({...form, customerName: e.target.value})} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold text-sm uppercase" /></div>
+              <div className="space-y-1"><label className="text-[10px] font-black text-blue-600 uppercase">Kuantitas Jual (Pcs)</label><input type="number" required min="1" value={form.qty} onChange={e=>setForm({...form, qty: e.target.value})} className="w-full p-2.5 bg-blue-50 border border-blue-200 rounded-xl font-black text-blue-700" /></div>
               
-              <div className="space-y-1.5 md:col-span-2">
-                  <label className="text-[10px] font-bold text-purple-600 uppercase flex items-center justify-between">
-                      Pilih Produk (Master Data)
-                      {!caps.can_master_data && <span className="text-[8px] bg-slate-200 px-1 rounded text-slate-500">Read Only</span>}
-                  </label>
-                  <SearchableDropdown 
-                      options={masterProducts || []}
-                      value={form.itemName}
-                      valueKey="product_name"
-                      labelKey="product_name"
-                      placeholder="Cari Produk Jual..."
-                      onChange={handleSelectProduct}
-                      canCreate={caps.can_master_data}
-                      onCreateNew={handleCreateNewProduct}
-                  />
-              </div>
+              {/* CONDITIONAL PLATFORM PLATFORM DETECTOR */}
+              {(form.sales_category === 'MERCHANT' || form.sales_category === 'TOKO ONLINE') && (
+                 <>
+                    <div className="space-y-1"><label className="text-[10px] font-bold text-purple-600 uppercase">Nama Platform</label>
+                       <select value={form.source} onChange={e=>setForm({...form, source: e.target.value})} className="w-full p-2.5 bg-purple-50 border border-purple-200 rounded-xl text-xs font-black text-purple-800">
+                          <option value="GOFOOD">GOFOOD</option><option value="GRABFOOD">GRABFOOD</option><option value="SHOPEEFOOD">SHOPEEFOOD</option><option value="TIKTOK">TIKTOK SHOP</option>
+                       </select>
+                    </div>
+                    <div className="space-y-1"><label className="text-[10px] font-bold text-purple-600 uppercase">No. Invoice Platform</label><input type="text" required placeholder="Contoh: INV/2026/..." value={form.invoice_no} onChange={e=>setForm({...form, invoice_no: e.target.value})} className="w-full p-2.5 bg-purple-50 border border-purple-200 rounded-xl text-xs font-bold" /></div>
+                    <div className="space-y-1"><label className="text-[10px] font-bold text-rose-600 uppercase">Potongan Admin (Rp)</label><input type="text" value={form.marketplace_admin_fee ? Number(form.marketplace_admin_fee).toLocaleString('id-ID') : ''} onChange={e=>handleCurrencyChange('marketplace_admin_fee', e.target.value)} className="w-full p-2.5 bg-rose-50 border border-rose-200 rounded-xl font-bold text-xs text-rose-700" /></div>
+                    <div className="space-y-1"><label className="text-[10px] font-bold text-rose-600 uppercase">Promo Ditanggung Toko</label><input type="text" value={form.marketplace_promo ? Number(form.marketplace_promo).toLocaleString('id-ID') : ''} onChange={e=>handleCurrencyChange('marketplace_promo', e.target.value)} className="w-full p-2.5 bg-rose-50 border border-rose-200 rounded-xl font-bold text-xs text-rose-700" /></div>
+                 </>
+              )}
 
-              <div className="space-y-1.5"><label className="text-[10px] font-bold text-blue-600 uppercase">Qty (Pcs)</label><input type="number" required min="1" placeholder="0" value={form.qty} onChange={e=>setForm({...form, qty: e.target.value})} className="w-full p-2.5 bg-blue-50 border border-blue-200 rounded-xl font-black text-blue-700" /></div>
+              <div className="space-y-1"><label className="text-[10px] font-bold text-slate-500 uppercase">Harga Patokan Tier (Rp)</label><input type="text" disabled value={Number(form.price).toLocaleString('id-ID')} className="w-full p-2.5 bg-slate-100 border text-slate-500 rounded-xl font-black text-xs" /></div>
+              <div className="space-y-1 md:col-span-2"><label className="text-[10px] font-bold text-slate-500 uppercase">Nama Pelanggan / Catatan</label><input type="text" placeholder=" Walk-in" value={form.customerName} onChange={e=>setForm({...form, customerName: e.target.value})} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold text-xs uppercase" /></div>
               
-              <div>
-                  <label className="text-[10px] font-bold text-slate-600 uppercase">Harga Satuan (Rp)</label>
-                  <div className="relative mt-1">
-                      <span className="absolute left-3 top-2.5 font-black text-slate-400">Rp</span>
-                      <input type="text" required placeholder="0" value={form.price ? Number(form.price).toLocaleString('id-ID') : ''} onChange={e=>handleCurrencyChange('price', e.target.value)} className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border rounded-xl font-black text-slate-700 outline-none focus:ring-2 focus:ring-blue-500" />
-                  </div>
-              </div>
-              
-              <div>
-                  <label className="text-[10px] font-bold text-emerald-600 uppercase">Uang Diterima Hari Ini</label>
-                  <div className="relative mt-1">
-                      <span className="absolute left-3 top-2.5 font-black text-emerald-600/50">Rp</span>
-                      <input type="text" required placeholder="0" value={form.paidAmount ? Number(form.paidAmount).toLocaleString('id-ID') : ''} onChange={e=>handleCurrencyChange('paidAmount', e.target.value)} className="w-full pl-9 pr-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl font-black text-emerald-700 outline-none" />
-                  </div>
-              </div>
-
-              <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-600 uppercase">Metode Pembayaran</label>
-                  <select value={form.paymentMethod} onChange={e=>setForm({...form, paymentMethod: e.target.value})} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold text-sm">
-                      <option value="CASH">Cash Laci</option><option value="TRANSFER">Transfer Bank</option><option value="QRIS">QRIS</option><option value="MARKETPLACE">Tertahan di Marketplace</option>
+              <div className="space-y-1"><label className="text-[10px] font-bold text-slate-600 uppercase">Metode Pembayaran</label>
+                  <select disabled={form.sales_category==='MERCHANT'} value={form.paymentMethod} onChange={e=>setForm({...form, paymentMethod: e.target.value})} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold text-xs">
+                      <option value="CASH">CASH / LACI TOKO</option><option value="TRANSFER">TRANSFER BANK</option><option value="QRIS">QRIS</option><option value="MARKETPLACE">TERTAHAN DI PLATFORM</option>
                   </select>
               </div>
 
-              <div className="md:col-span-4 bg-blue-50 p-4 rounded-xl border border-blue-200 flex justify-between items-center mt-2 shadow-inner">
-                  <div><div className="text-[10px] font-black text-blue-800 uppercase tracking-widest">Total Transaksi</div><div className="text-2xl font-black text-blue-700">{formatRp(total)}</div></div>
-                  <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-black px-8 py-3.5 rounded-xl shadow-md transition tracking-wide uppercase text-xs flex items-center gap-2"><CheckCircle size={16}/> Submit Order & Cetak</button>
+              <div className="md:col-span-4 bg-slate-900 p-4 rounded-xl flex justify-between items-center text-white mt-4 shadow-xl">
+                  <div>
+                     <div className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Uang Bersih Diterima (Net)</div>
+                     <div className="text-xl font-black text-emerald-400">{formatRp(netReceivedValue)}</div>
+                     <div className="text-[9px] text-slate-500 font-bold">Kotor: {formatRp(totalGrossValue)}</div>
+                  </div>
+                  <button type="submit" className="bg-emerald-500 hover:bg-emerald-600 text-slate-900 font-black px-8 py-3 rounded-xl uppercase text-xs tracking-wide flex items-center gap-2"><CheckCircle size={16}/> Amankan Nota Transaksi</button>
               </div>
           </form>
       </div>
 
-      {/* HISTORI HISTORI PENJUALAN - WITH PAGINATION ENFORCEMENT */}
-      <div className="bg-white rounded-2xl border shadow-sm overflow-hidden mt-6 flex flex-col">
-          <div className="p-4 border-b bg-slate-50 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Clock size={18} className="text-slate-600"/>
-              <h4 className="font-bold text-slate-800 tracking-wide uppercase text-sm">Histori Penjualan POS</h4>
-            </div>
-          </div>
-          
-          <div className="overflow-x-auto flex-1 custom-scrollbar">
-              <table className="w-full text-sm text-left table-compact">
-                  <thead className="bg-slate-50 text-[10px] text-slate-500 uppercase table-sticky-header">
-                    <tr>
-                      <th className="px-4 py-3">ID & Tgl</th>
-                      <th className="px-4 py-3">Platform & Pelanggan</th>
-                      <th className="px-4 py-3 text-center">Produk (SKU)</th>
-                      <th className="px-4 py-3 text-right">Pendapatan Kotor</th>
-                      <th className="px-4 py-3 text-center">Cetak</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                      {paginatedOrders.map(o => (
-                          <tr key={o.id} className="hover:bg-slate-50 transition">
-                              <td className="px-4 py-3"><div className="font-mono text-[10px] font-bold text-slate-700">{o.id}</div><div className="text-[10px] text-slate-500">{formatDate(o.date)}</div></td>
-                              <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase mb-1 inline-block ${o.source === 'OFFLINE' ? 'bg-slate-200 text-slate-700' : 'bg-blue-100 text-blue-700'}`}>{o.source}</span><div className="font-bold text-slate-800 text-xs truncate max-w-[150px]">{o.customer_name}</div></td>
-                              <td className="px-4 py-3 text-center"><div className="font-black text-blue-600">{o.qty} Pcs</div><div className="text-[9px] font-bold text-slate-500 uppercase">{o.itemName} <span className="text-slate-300">({o.sku})</span></div></td>
-                              <td className="px-4 py-3 text-right font-bold text-slate-700">{formatRp(o.total)}</td>
-                              <td className="px-4 py-3 text-center"><button onClick={() => setPrintData({ type: 'INVOICE', data: o })} className="bg-slate-100 hover:bg-slate-200 text-slate-600 p-2 rounded-lg transition cursor-pointer"><Printer size={16}/></button></td>
-                          </tr>
-                      ))}
-                      {paginatedOrders.length === 0 && (
-                          <tr><td colSpan="5" className="text-center py-8 text-xs font-bold text-slate-400">Tidak ada riwayat transaksi pada halaman ini.</td></tr>
-                      )}
-                  </tbody>
-              </table>
-          </div>
-
-          {/* LAYER KONTROL PAGINASI GLOBAL BARU */}
-          <PaginationController 
-            currentPage={currentPage}
-            totalPages={totalPages}
-            totalRows={totalRows}
-            rowsPerPage={rowsPerPage}
-            onPageChange={handlePageChange}
-            onRowsPerPageChange={handleRowsPerPageChange}
-          />
+      {/* RECONCILIATION DATA VIEW TABLE */}
+      <div className="bg-white rounded-2xl border shadow-sm overflow-hidden mt-6">
+         <table className="w-full text-sm text-left">
+            <thead className="bg-slate-50 text-[10px] text-slate-500 uppercase"><tr><th className="p-3">ID Nota</th><th className="p-3">Kategori</th><th className="p-3 text-center">Volume</th><th className="p-3 text-right">Kotor (Gross)</th><th className="p-3 text-right">Potongan/Promo</th><th className="p-3 text-right">Bersih Diterima</th></tr></thead>
+            <tbody className="divide-y divide-slate-100 font-bold text-xs text-slate-700">
+               {(orders||[]).map(o => (
+                  <tr key={o.id} className="hover:bg-slate-50">
+                     <td className="p-3 font-mono text-[10px] text-slate-500">{o.id}</td>
+                     <td className="p-3"><span className={`px-2 py-0.5 rounded text-[9px] ${o.sales_category==='MITRA'?'bg-purple-100 text-purple-800':o.sales_category==='RESELLER'?'bg-blue-100 text-blue-800':'bg-slate-100 text-slate-800'}`}>{o.sales_category}</span></td>
+                     <td className="p-3 text-center">{o.qty} Pcs</td>
+                     <td className="p-3 text-right text-slate-400">{formatRp(o.total)}</td>
+                     <td className="p-3 text-right text-rose-600">-{formatRp((Number(o.fee_amount)||0) + (Number(o.marketplace_promo)||0))}</td>
+                     <td className="p-3 text-right text-emerald-600">{formatRp(Number(o.total) - (Number(o.fee_amount)||0) - (Number(o.marketplace_promo)||0))}</td>
+                  </tr>
+               ))}
+            </tbody>
+         </table>
       </div>
+
     </div>
   );
 }
