@@ -151,11 +151,11 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
                                   {o.hpp_total && <div className="text-[9px] text-slate-500 font-normal">HPP: -{formatRp(o.hpp_total)}</div>}
                               </td>
                               <td className="px-4 py-3 text-center">
-                                  {/* TOMBOL CETAK STRUK KASIR */}
+                                  {/* TOMBOL CETAK INVOICE CONTINUOUS */}
                                   <button 
-                                      onClick={() => setPrintData({ type: 'RECEIPT', data: o })} 
+                                      onClick={() => setPrintData({ type: 'INVOICE', data: o })} 
                                       className="bg-slate-100 hover:bg-slate-200 text-slate-600 p-2 rounded-lg transition" 
-                                      title="Cetak Struk Kasir Thermal"
+                                      title="Cetak Invoice Dot Matrix"
                                   >
                                       <Printer size={16}/>
                                   </button>
