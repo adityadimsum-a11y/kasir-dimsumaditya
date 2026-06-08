@@ -1,17 +1,15 @@
 import React, { useState, useMemo } from 'react';
 import { Layers, CheckCircle, Scale, CookingPot, Package } from 'lucide-react';
 import { formatRp, getTodayStr, generateId } from '../../utils/helpers';
-import PaginationController from '../ui/PaginationController'; // Kunci Phase 11 & 12
+import PaginationController from '../ui/PaginationController';
 
 export default function TabStok({ productionBatches, stockMovements, inventoryCostLayers, purchases, orders, sendToSheet, requestDelete, role, user, distributionOrders, showToast }) {
   const todayStr = getTodayStr();
   
-  // 1. FORM STATE
   const [formProd, setFormProd] = useState({
      date: todayStr, adukan_used: 1, result_pcs: 1000, overhead_cost: 50000, notes: ''
   });
 
-  // 2. PAGINATION STATES
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(25);
 
@@ -50,7 +48,6 @@ export default function TabStok({ productionBatches, stockMovements, inventoryCo
      });
   };
 
-  // 3. COMPUTED MEMOIZED PACINATION LOGIC (ANTI BREAK)
   const sortedBatches = useMemo(() => {
     return (productionBatches || []).sort((a, b) => new Date(b.date) - new Date(a.date));
   }, [productionBatches]);
@@ -68,8 +65,6 @@ export default function TabStok({ productionBatches, stockMovements, inventoryCo
 
   return (
     <div className="space-y-6 animate-in fade-in duration-150 pb-10">
-      
-      {/* CONVERSION PANEL */}
       <div className="bg-slate-900 text-white rounded-2xl p-5 border border-slate-800 grid grid-cols-2 md:grid-cols-5 gap-4 shadow-xl">
          <div className="p-3 bg-slate-800/60 rounded-xl text-center"><div className="text-[10px] text-slate-400 font-bold uppercase">1 Kantong</div><div className="text-lg font-black text-cyan-400">10 KG Ayam</div></div>
          <div className="p-3 bg-slate-800/60 rounded-xl text-center"><div className="text-[10px] text-slate-400 font-bold uppercase">1 Adukan</div><div className="text-lg font-black text-purple-400">30 KG Ayam</div></div>
@@ -79,7 +74,6 @@ export default function TabStok({ productionBatches, stockMovements, inventoryCo
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-         {/* PRODUCTION FORM */}
          <div className="bg-white p-6 rounded-2xl border shadow-sm h-max">
             <div className="flex items-center gap-2 mb-4 border-b pb-3 text-slate-800 font-black text-sm uppercase">
                <CookingPot size={18} className="text-purple-600"/> Entry Batch Produksi
@@ -96,7 +90,6 @@ export default function TabStok({ productionBatches, stockMovements, inventoryCo
             </form>
          </div>
 
-         {/* LIVE YIELD RENDER */}
          <div className="lg:col-span-2 bg-white rounded-2xl border shadow-sm p-6 flex flex-col justify-between">
             <div>
                <div className="flex items-center gap-2 mb-4 border-b pb-3 text-slate-800 font-black text-sm uppercase"><Scale size={18} className="text-amber-500"/> Live Yield Rendering & Costing</div>
@@ -125,7 +118,6 @@ export default function TabStok({ productionBatches, stockMovements, inventoryCo
          </div>
       </div>
 
-      {/* HISTORI TABLE WITH INTEGRATED PAGINATION */}
       <div className="bg-white rounded-2xl border shadow-sm overflow-hidden mt-6 flex flex-col">
          <table className="w-full text-sm text-left">
             <thead className="bg-slate-50 text-[10px] text-slate-500 uppercase"><tr><th className="p-3">ID Batch</th><th className="p-3 text-center">Adukan (KG)</th><th className="p-3 text-right">Hasil Jadi (Pcs)</th><th className="p-3 text-right">Konversi Mika</th><th className="p-3 text-center">Yield %</th><th className="p-3 text-right">HPP / Pcs</th><th className="p-3 text-center">Aksi</th></tr></thead>
@@ -148,7 +140,6 @@ export default function TabStok({ productionBatches, stockMovements, inventoryCo
             </tbody>
          </table>
 
-         {/* CONTROLLER INTEGRASI PHASE 11 */}
          <PaginationController 
             currentPage={currentPage}
             totalPages={totalPages}
@@ -158,7 +149,6 @@ export default function TabStok({ productionBatches, stockMovements, inventoryCo
             onRowsPerPageChange={handleRowsPerPageChange}
          />
       </div>
-
     </div>
   );
 }
