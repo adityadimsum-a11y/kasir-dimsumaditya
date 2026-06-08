@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Calculator, AlertTriangle, Wallet, Building2, Truck, RefreshCcw, Landmark, ShieldCheck } from 'lucide-react';
-import { formatRp, formatDate } from '../../utils/helpers';
+import { formatRp } from '../../utils/helpers'; // <-- Sudah dibersihkan, tanpa formatDate
 
 export default function TabCashWarRoom({ 
   orders, 
@@ -20,10 +20,8 @@ export default function TabCashWarRoom({
     let cashHq = 0;
     const branchCashMap = {};
 
-    // 1. HITUNG REAL CASH BERDASARKAN NODE (Single Source of Truth)
     (cashflow_transactions || []).forEach(tx => {
       if (tx.isDeleted || String(tx.isDeleted).toUpperCase() === 'TRUE') return;
-      // Hanya hitung kas nyata (CASH/TRANSFER), abaikan PIUTANG/MARKETPLACE_AR
       if (tx.payment_method === 'PIUTANG' || tx.payment_method === 'MARKETPLACE_AR') return;
 
       const amt = Number(tx.amount || 0);
@@ -39,17 +37,14 @@ export default function TabCashWarRoom({
       if (bId === 'PUSAT' || bId === 'HQ_FACTORY') cashHq += netAmt;
     });
 
-    // 2. HITUNG PIUTANG MARKETPLACE (Uang Mengambang)
     let pendingMarketplaceAR = 0;
     (orders || []).forEach(o => {
       if (o.isDeleted || String(o.isDeleted).toUpperCase() === 'TRUE') return;
       if (o.paymentMethod === 'MARKETPLACE_AR') {
-        // Hitung Net Profit setelah potong fee
         pendingMarketplaceAR += (Number(o.total || 0) - Number(o.fee_amount || 0) - Number(o.marketplace_promo || 0));
       }
     });
 
-    // 3. HITUNG HUTANG SUPPLIER (AP)
     let supplierDue = 0;
     (supplier_ledger || []).forEach(l => {
       if (l.isDeleted || String(l.isDeleted).toUpperCase() === 'TRUE') return;
@@ -57,7 +52,6 @@ export default function TabCashWarRoom({
       if (l.transaction_type === 'PAYMENT') supplierDue -= Number(l.amount || 0);
     });
 
-    // 4. CEK HARGA AYAM TERAKHIR (Forecast Acuan)
     const ayamPurchases = (purchases || []).filter(p => {
       const isNotDeleted = !p.isDeleted && String(p.isDeleted).toUpperCase() !== 'TRUE';
       const isAyam = String(p.item_name || p.itemName || '').toUpperCase().includes('AYAM');
@@ -66,12 +60,10 @@ export default function TabCashWarRoom({
     
     const latestChickenPrice = ayamPurchases.length > 0 ? Number(ayamPurchases[0].price || 35000) : 35000;
 
-    // 5. KALKULASI RUNWAY (SAFE RESERVE)
     const disposableCash = totalCashGlobal - supplierDue;
     const chickenRunwayKg = disposableCash > 0 ? Math.floor(disposableCash / latestChickenPrice) : 0;
     const isDeficit = disposableCash <= 0;
 
-    // 6. VALUASI INVENTORY BEKU (Harta Mengendap)
     let totalInventoryValue = 0;
     (inventory_cost_layers || []).forEach(l => {
       if (l.isDeleted || String(l.isDeleted).toUpperCase() === 'TRUE') return;
@@ -94,7 +86,6 @@ export default function TabCashWarRoom({
     };
   }, [cashflow_transactions, orders, supplier_ledger, purchases, inventory_cost_layers]);
 
-  // Validasi Keamanan: Jika bukan HQ, jangan tampilkan data Global.
   const isHQ = user?.branch_type === 'HQ_FACTORY';
 
   if (!isHQ) {
@@ -111,9 +102,6 @@ export default function TabCashWarRoom({
 
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
-      {/* ========================================= */}
-      {/* HERO WIDGET: CHICKEN RUNWAY ENGINE        */}
-      {/* ========================================= */}
       <div className="bg-slate-900 rounded-3xl border border-slate-800 shadow-2xl overflow-hidden relative">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"></div>
         
@@ -133,7 +121,6 @@ export default function TabCashWarRoom({
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-slate-800/80 relative z-10">
-            {/* 1. KAS GLOBAL */}
             <div className="p-6 md:p-8 bg-slate-900/50">
                 <div className="flex items-center gap-2 mb-2">
                   <Landmark size={16} className="text-emerald-400"/>
@@ -146,7 +133,6 @@ export default function TabCashWarRoom({
                 </div>
             </div>
 
-            {/* 2. HUTANG SUPPLIER (AP) */}
             <div className="p-6 md:p-8 bg-rose-950/10">
                 <div className="flex items-center gap-2 mb-2">
                   <Truck size={16} className="text-rose-400"/>
@@ -156,7 +142,6 @@ export default function TabCashWarRoom({
                 <div className="text-[10px] text-rose-500/80 font-bold mt-4 uppercase">Uang wajib ditahan untuk proteksi arus suplai ayam.</div>
             </div>
 
-            {/* 3. CORE ANSWER: SAFE RESERVE */}
             <div className={`p-6 md:p-8 ${treasuryMetrics.isDeficit ? 'bg-rose-900/20' : 'bg-blue-900/20'}`}>
                 <div className="flex items-center gap-2 mb-2">
                   <Wallet size={16} className={treasuryMetrics.isDeficit ? 'text-rose-400' : 'text-blue-400'}/>
@@ -180,9 +165,6 @@ export default function TabCashWarRoom({
         </div>
       </div>
 
-      {/* ========================================= */}
-      {/* SECONDARY ROW: ASSETS & RECEIVABLES       */}
-      {/* ========================================= */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden">
              <div className="absolute right-0 top-0 w-32 h-32 bg-orange-50 rounded-bl-full -z-0 opacity-50"></div>
@@ -207,9 +189,6 @@ export default function TabCashWarRoom({
           </div>
       </div>
 
-      {/* ========================================= */}
-      {/* TERTIARY ROW: UNSETTLED BRANCH CASH MATRIX*/}
-      {/* ========================================= */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
          <div className="p-6 border-b bg-slate-50 flex items-center justify-between">
             <h4 className="font-black text-slate-800 tracking-widest uppercase text-xs">Node Cash Matrix (Posisi Kas Cabang)</h4>
@@ -217,12 +196,29 @@ export default function TabCashWarRoom({
          <div className="overflow-x-auto p-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                {Object.entries(treasuryMetrics.branchCashMap).map(([branchName, amount]) => {
-                  if (branchName === 'PUSAT' || branchName === 'HQ_FACTORY') return null; // Sembunyikan pusat dari grid cabang
+                  if (branchName === 'PUSAT' || branchName === 'HQ_FACTORY') return null; 
                   
-                  // Cari info cabang dari master data
                   const bInfo = (master_branches || []).find(b => String(b.branch_id).toUpperCase() === branchName);
                   const bType = bInfo ? bInfo.branch_type : 'NODE';
 
                   return (
                      <div key={branchName} className="p-5 border border-slate-200 rounded-2xl hover:border-blue-400 transition group bg-white shadow-sm">
-                        <div className="text-[10px] font-black
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{bType.replace('_', ' ')}</div>
+                        <div className="text-sm font-black text-slate-800 uppercase mb-4">{branchName}</div>
+                        <div className="text-2xl font-black text-slate-900 group-hover:text-blue-600 transition">{formatRp(amount)}</div>
+                        <div className="text-[9px] font-bold text-slate-400 mt-3 uppercase border-t pt-2 border-slate-100">Status: Belum di-settlement ke Pusat</div>
+                     </div>
+                  );
+               })}
+               {Object.keys(treasuryMetrics.branchCashMap).filter(k => k !== 'PUSAT' && k !== 'HQ_FACTORY').length === 0 && (
+                 <div className="col-span-3 text-center py-8 text-xs font-bold text-slate-400 uppercase tracking-widest border-2 border-dashed rounded-2xl">
+                    Belum ada data kasir dari Node Produksi maupun Outlet.
+                 </div>
+               )}
+            </div>
+         </div>
+      </div>
+
+    </div>
+  );
+}
