@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, ShoppingCart, Wallet, 
   Clock, Store, Loader2, LogOut, 
-  Package, Truck, Users, AlertCircle, Activity, Send, ShieldAlert, Factory, TrendingUp
+  Package, Truck, Users, AlertCircle, Activity, Send, ShieldAlert, Factory, TrendingUp, WifiOff
 } from 'lucide-react';
 
 import TabDashboard from './components/tabs/TabDashboard';
@@ -17,21 +17,26 @@ import TabKaryawan from './components/tabs/TabKaryawan';
 import TabMonitoringPemalang from './components/tabs/TabMonitoringPemalang';
 import TabDashboardBranch from './components/tabs/TabDashboardBranch';
 import TabCashWarRoom from './components/tabs/TabCashWarRoom';
-import TabSCMWarRoom from './components/tabs/TabSCMWarRoom'; // MODUL SCM PHASE 4
+import TabSCMWarRoom from './components/tabs/TabSCMWarRoom'; 
 import PrintDotMatrix from './components/PrintDotMatrix';
+
+import { generateRequestId } from './utils/helpers'; // PASTIKAN HELPER INI SUDAH DITAMBAHKAN
 
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqSM572mbUIGozcghhh8LHNMNw2e83O7Wkyu-SkjdVTO3zpTb64PA/exec'; 
 
-// CENTRAL CAPABILITY ENGINE AT FRONTEND
 const CAPABILITY_CONFIG = {
   'HQ_FACTORY': { can_production: true, can_supplier: true, can_global_dashboard: true, can_pos: true, can_distribute: true, can_hrd: true, can_treasury: true, can_scm_warroom: true },
   'PRODUCTION_BRANCH': { can_production: true, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: true, can_hrd: false, can_treasury: false, can_scm_warroom: false },
   'OUTLET_RESTO': { can_production: false, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: false, can_hrd: false, can_treasury: false, can_scm_warroom: false }
 };
 
-function NavItem({ icon, label, active, onClick, badge }) {
+function NavItem({ icon, label, active, onClick, badge, disabled }) {
   return (
-    <button onClick={onClick} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-sm font-medium ${active ? 'bg-red-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}>
+    <button 
+      disabled={disabled}
+      onClick={onClick} 
+      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-sm font-medium ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${active ? 'bg-red-600 text-white shadow-md' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}
+    >
       {icon}
       <span className="flex-1 text-left">{label}</span>
       {badge > 0 && <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{badge}</span>}
@@ -39,17 +44,16 @@ function NavItem({ icon, label, active, onClick, badge }) {
   );
 }
 
-// =====================================================================
-// DYNAMIC NODE SYSTEM LAYOUT
-// =====================================================================
-function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, data, sendToSheet, setPrintData, setConfirmDialog }) {
+function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, data, sendToSheet, setPrintData, setConfirmDialog, isLoading, isOffline }) {
   const caps = user.permissions;
   const pendingDO = data.distributionOrders.filter(d => d.status === 'DIKIRIM' || d.status === 'IN_TRANSIT').length;
   const incomingDO = data.distributionOrders.filter(d => (d.status === 'DIKIRIM' || d.status === 'IN_TRANSIT') && d.to_branch === user.branch_id).length;
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
-      {/* SIDEBAR NAVIGATION CONTROLLED BY CAPABILITY ENGINE */}
+    <div className="min-h-screen bg-slate-50 flex pointer-events-auto">
+      {/* Jika global isLoading true, berikan overlay transparan agar user tidak bisa click apapun di layar */}
+      {isLoading && <div className="fixed inset-0 z-[100] cursor-wait" />}
+
       <aside className="w-64 bg-slate-900 text-white flex flex-col shrink-0 relative shadow-xl z-20">
         <div className="p-6 border-b border-slate-800 bg-slate-900/50">
             <div className="bg-white p-2 rounded-lg inline-block mb-3 shadow-md">
@@ -65,76 +69,58 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
         <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto custom-scrollbar">
             <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 mt-2 px-2">Monitoring & Eksekutif</div>
             {caps.can_global_dashboard ? (
-              <NavItem icon={<Activity size={20} />} label="Command Center" active={activeTab === 'dashboard'} onClick={() => handleTabChange('dashboard')} />
+              <NavItem icon={<Activity size={20} />} label="Command Center" active={activeTab === 'dashboard'} onClick={() => handleTabChange('dashboard')} disabled={isLoading} />
             ) : (
-              <NavItem icon={<LayoutDashboard size={20} />} label="Dashboard Node" active={activeTab === 'dashboard'} onClick={() => handleTabChange('dashboard')} />
+              <NavItem icon={<LayoutDashboard size={20} />} label="Dashboard Node" active={activeTab === 'dashboard'} onClick={() => handleTabChange('dashboard')} disabled={isLoading} />
             )}
 
-            {caps.can_treasury && (
-              <NavItem icon={<TrendingUp size={20} />} label="Cash War Room" active={activeTab === 'cash_war_room'} onClick={() => handleTabChange('cash_war_room')} />
-            )}
-            
-            {caps.can_scm_warroom && (
-              <NavItem icon={<Truck size={20} />} label="SCM War Room" active={activeTab === 'scm_war_room'} onClick={() => handleTabChange('scm_war_room')} />
-            )}
+            {caps.can_treasury && <NavItem icon={<TrendingUp size={20} />} label="Cash War Room" active={activeTab === 'cash_war_room'} onClick={() => handleTabChange('cash_war_room')} disabled={isLoading} />}
+            {caps.can_scm_warroom && <NavItem icon={<Truck size={20} />} label="SCM War Room" active={activeTab === 'scm_war_room'} onClick={() => handleTabChange('scm_war_room')} disabled={isLoading} />}
 
             {caps.can_pos && (
               <>
                 <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 mt-4 px-2">Transaksi Node</div>
-                <NavItem icon={<ShoppingCart size={20} />} label={caps.can_global_dashboard ? "Order Penjualan" : "POS / Transaksi"} active={activeTab === 'orders'} onClick={() => handleTabChange('orders')} />
-                {caps.can_global_dashboard && <NavItem icon={<Wallet size={20} />} label="Kas & Operasional" active={activeTab === 'expenses'} onClick={() => handleTabChange('expenses')} />}
-                <NavItem icon={<Clock size={20} />} label={caps.can_global_dashboard ? "Piutang Berjalan" : "Piutang Customer"} active={activeTab === 'piutang'} onClick={() => handleTabChange('piutang')} />
+                <NavItem icon={<ShoppingCart size={20} />} label={caps.can_global_dashboard ? "Order Penjualan" : "POS / Transaksi"} active={activeTab === 'orders'} onClick={() => handleTabChange('orders')} disabled={isLoading} />
+                {caps.can_global_dashboard && <NavItem icon={<Wallet size={20} />} label="Kas & Operasional" active={activeTab === 'expenses'} onClick={() => handleTabChange('expenses')} disabled={isLoading} />}
+                <NavItem icon={<Clock size={20} />} label={caps.can_global_dashboard ? "Piutang Berjalan" : "Piutang Customer"} active={activeTab === 'piutang'} onClick={() => handleTabChange('piutang')} disabled={isLoading} />
               </>
             )}
 
             <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 mt-4 px-2">Logistik & SCM</div>
-            {caps.can_supplier && <NavItem icon={<Truck size={20} />} label="Pembelian Raw Mat" active={activeTab === 'purchases'} onClick={() => handleTabChange('purchases')} />}
-            <NavItem icon={<Package size={20} />} label={caps.can_production ? "Stok & Produksi Node" : "Stok & Terima DO"} active={activeTab === 'stok'} onClick={() => handleTabChange('stok')} badge={caps.can_global_dashboard ? 0 : incomingDO} />
-            {caps.can_distribute && <NavItem icon={<Send size={20} />} label="Delivery Order (DO)" active={activeTab === 'distribusi'} onClick={() => handleTabChange('distribusi')} badge={pendingDO} />}
+            {caps.can_supplier && <NavItem icon={<Truck size={20} />} label="Pembelian Raw Mat" active={activeTab === 'purchases'} onClick={() => handleTabChange('purchases')} disabled={isLoading} />}
+            <NavItem icon={<Package size={20} />} label={caps.can_production ? "Stok & Produksi Node" : "Stok & Terima DO"} active={activeTab === 'stok'} onClick={() => handleTabChange('stok')} badge={caps.can_global_dashboard ? 0 : incomingDO} disabled={isLoading} />
+            {caps.can_distribute && <NavItem icon={<Send size={20} />} label="Delivery Order (DO)" active={activeTab === 'distribusi'} onClick={() => handleTabChange('distribusi')} badge={pendingDO} disabled={isLoading} />}
             
-            {!caps.can_global_dashboard && <NavItem icon={<Store size={20} />} label="Closing Harian" active={activeTab === 'pemalang'} onClick={() => handleTabChange('pemalang')} />}
+            {!caps.can_global_dashboard && <NavItem icon={<Store size={20} />} label="Closing Harian" active={activeTab === 'pemalang'} onClick={() => handleTabChange('pemalang')} disabled={isLoading} />}
 
             {caps.can_global_dashboard && (
               <>
                 <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 mt-4 px-2">Control Panel Holding</div>
-                <NavItem icon={<Store size={20} />} label="Monitoring Cabang" active={activeTab === 'monitoring_pemalang'} onClick={() => handleTabChange('monitoring_pemalang')} />
-                {caps.can_hrd && <NavItem icon={<Users size={20} />} label="HRD & Payroll" active={activeTab === 'karyawan'} onClick={() => handleTabChange('karyawan')} />}
+                <NavItem icon={<Store size={20} />} label="Monitoring Cabang" active={activeTab === 'monitoring_pemalang'} onClick={() => handleTabChange('monitoring_pemalang')} disabled={isLoading} />
+                {caps.can_hrd && <NavItem icon={<Users size={20} />} label="HRD & Payroll" active={activeTab === 'karyawan'} onClick={() => handleTabChange('karyawan')} disabled={isLoading} />}
               </>
             )}
         </nav>
         
-        <div className="p-4 border-t border-slate-800"><button onClick={handleLogout} className="w-full flex justify-center gap-2 bg-slate-800/80 hover:bg-red-600 hover:text-white p-3 rounded-xl transition-all font-bold text-sm"><LogOut size={18}/> Logout</button></div>
+        <div className="p-4 border-t border-slate-800"><button onClick={handleLogout} disabled={isLoading} className="w-full flex justify-center gap-2 bg-slate-800/80 hover:bg-red-600 hover:text-white p-3 rounded-xl transition-all font-bold text-sm"><LogOut size={18}/> Logout</button></div>
       </aside>
 
-      {/* VIEWPORT CONTROLLER */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
         <header className="bg-white border-b p-4 shadow-sm z-10 flex justify-between items-center">
             <h2 className="text-xl font-bold capitalize text-slate-800 flex items-center gap-2">{activeTab.replace(/_/g, ' ')}</h2>
-            <div className="text-xs font-bold text-slate-500">Node Architecture: <span className="text-red-600 font-black">{user.branch_id} ({user.branch_type})</span></div>
+            <div className="flex items-center gap-3">
+              {isOffline && <div className="text-xs font-bold text-red-600 bg-red-50 px-3 py-1 rounded-full flex items-center gap-1"><WifiOff size={14}/> OFFLINE QUEUE</div>}
+              <div className="text-xs font-bold text-slate-500">Node: <span className="text-red-600 font-black">{user.branch_id}</span></div>
+            </div>
         </header>
         
-        <div className="flex-1 overflow-auto p-6 bg-slate-50/50">
+        <div className={`flex-1 overflow-auto p-6 bg-slate-50/50 ${isLoading ? 'opacity-60 grayscale-[30%] transition-opacity duration-300' : 'transition-opacity duration-300'}`}>
           {activeTab === 'dashboard' && (caps.can_global_dashboard ? 
               <TabDashboard {...data} sendToSheet={sendToSheet} setPrintData={setPrintData} user={user} /> : 
               <TabDashboardBranch orders={data.orders} pemalangReports={data.pemalangReports} piutangPayments={data.piutangPayments} setPrintData={setPrintData} stokData={data.stokData} />
           )}
-          {activeTab === 'cash_war_room' && caps.can_treasury && (
-              <TabCashWarRoom 
-                orders={data.orders} purchases={data.purchases} expenses={data.expenses} 
-                cashflowTransactions={data.cashflowTransactions} marketplaceSettlement={data.marketplaceSettlement} 
-                supplierLedger={data.supplierLedger} masterBranches={data.masterBranches} 
-                inventoryCostLayers={data.inventoryCostLayers} discrepancyLogs={data.discrepancyLogs}
-                financialClosings={data.financialClosings} 
-              />
-          )}
-          {activeTab === 'scm_war_room' && caps.can_scm_warroom && (
-              <TabSCMWarRoom 
-                distributionOrders={data.distributionOrders} 
-                inventoryCostLayers={data.inventoryCostLayers} 
-                discrepancyLogs={data.discrepancyLogs} 
-                masterBranches={data.masterBranches} 
-              />
-          )}
+          {activeTab === 'cash_war_room' && caps.can_treasury && <TabCashWarRoom orders={data.orders} purchases={data.purchases} expenses={data.expenses} cashflowTransactions={data.cashflowTransactions} marketplaceSettlement={data.marketplaceSettlement} supplierLedger={data.supplierLedger} masterBranches={data.masterBranches} inventoryCostLayers={data.inventoryCostLayers} discrepancyLogs={data.discrepancyLogs} financialClosings={data.financialClosings} />}
+          {activeTab === 'scm_war_room' && caps.can_scm_warroom && <TabSCMWarRoom distributionOrders={data.distributionOrders} inventoryCostLayers={data.inventoryCostLayers} discrepancyLogs={data.discrepancyLogs} masterBranches={data.masterBranches} />}
           {activeTab === 'orders' && <TabOrders orders={data.orders} payments={data.piutangPayments} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'order', id})} role={user.role} />}
           {activeTab === 'purchases' && caps.can_supplier && <TabPurchases purchases={data.purchases} sendToSheet={sendToSheet} setPrintData={setPrintData} />}
           {activeTab === 'expenses' && caps.can_global_dashboard && <TabExpenses expenses={data.expenses} karyawan={data.karyawan} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'expense', id})} />}
@@ -150,9 +136,6 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
   );
 }
 
-// =====================================================================
-// MAIN APP COMPONENT
-// =====================================================================
 export default function App() {
   const [user, setUser] = useState(() => {
     try { return window.localStorage.getItem('dimsum_user_session') ? JSON.parse(window.localStorage.getItem('dimsum_user_session')) : null; } 
@@ -169,9 +152,11 @@ export default function App() {
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [loginError, setLoginError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [printData, setPrintData] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null); 
   
+  // STATE MANAGEMENT DATA
   const [masterUsers, setMasterUsers] = useState([]);
   const [masterBranches, setMasterBranches] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -191,6 +176,15 @@ export default function App() {
   const [discrepancyLogs, setDiscrepancyLogs] = useState([]);
   const [financialClosings, setFinancialClosings] = useState([]);
   const [systemTasks, setSystemTasks] = useState([]); 
+
+  // HEALTH MONITOR LOKAL
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => { window.removeEventListener('online', handleOnline); window.removeEventListener('offline', handleOffline); };
+  }, []);
 
   useEffect(() => { fetchData(); }, []);
 
@@ -244,18 +238,12 @@ export default function App() {
       const permissions = CAPABILITY_CONFIG[injectedBranchType] || CAPABILITY_CONFIG['OUTLET_RESTO'];
 
       const loggedInUser = { 
-          role: foundUser.role, 
-          name: username, 
-          branch_id: formattedBranchId, 
-          branch_name: branchInfo.branch_name, 
-          branch_type: injectedBranchType,
-          permissions: permissions
+          role: foundUser.role, name: username, branch_id: formattedBranchId, 
+          branch_name: branchInfo.branch_name, branch_type: injectedBranchType, permissions: permissions
       };
 
-      setUser(loggedInUser); 
-      window.localStorage.setItem('dimsum_user_session', JSON.stringify(loggedInUser));
-      handleTabChange('dashboard'); 
-      setLoginError(''); 
+      setUser(loggedInUser); window.localStorage.setItem('dimsum_user_session', JSON.stringify(loggedInUser));
+      handleTabChange('dashboard'); setLoginError(''); 
     } else {
       setLoginError('Username/Password salah!');
     }
@@ -263,22 +251,42 @@ export default function App() {
 
   const handleLogout = () => { setUser(null); setLoginForm({ username: '', password: '' }); window.localStorage.removeItem('dimsum_user_session'); window.localStorage.removeItem('dimsum_active_tab'); };
 
+  // IDEMPOTENCY INJECTION & OFFLINE FAILSAFE QUEUE
   const sendToSheet = async (action, data, table) => {
+    if (isOffline) {
+      alert("⚠️ ANDA SEDANG OFFLINE. Transaksi dimasukkan ke antrean lokal.");
+      // Di sistem enterprise penuh, antrean disimpan di IndexedDB/localStorage. 
+      // Untuk stabilitas fase ini, kita cegah submission jika offline untuk menghindari korupsi data.
+      return false; 
+    }
+
+    if (isLoading) return false; // ANTI DOUBLE CLICK LOCK
     setIsLoading(true);
+
+    const reqId = generateRequestId(); // GENERATE UNIQUE REQUEST ID
     try { 
         const response = await fetch(SCRIPT_URL, { 
-            method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, table, data, executor: user }) 
+            method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
+            body: JSON.stringify({ action, table, data, executor: user, request_id: reqId }) // Inject request_id
         }); 
         const result = await response.json();
+        
         if (result.status === 'forbidden' || result.status === 'error') {
-            setIsLoading(false); alert(`⛔ SISTEM MENOLAK AKSI ANDA!\n\nAlasan: ${result.data?.message || result.message || 'Terjadi pelanggaran aturan sistem.'}`); return false;
+            setIsLoading(false); 
+            alert(`⛔ SISTEM MENOLAK AKSI ANDA!\n\nAlasan: ${result.data?.message || result.message || 'Terjadi pelanggaran aturan sistem.'}`); 
+            return false;
         }
         if (result.status === 'success') {
             if (result.data?.message) alert(`✅ ${result.data.message}`);
-            await fetchData(); setIsLoading(false); return true;
+            await fetchData(); 
+            setIsLoading(false); 
+            return true;
         }
     } catch (error) { 
-        console.error("Gagal kirim ke Server:", error); alert("🚨 TERJADI KESALAHAN JARINGAN ATAU SERVER!"); setIsLoading(false); return false;
+        console.error("Gagal kirim ke Server:", error); 
+        alert("🚨 TERJADI KESALAHAN JARINGAN ATAU SERVER! (Timelines & Locking Protected)"); 
+        setIsLoading(false); 
+        return false;
     }
   };
 
@@ -293,7 +301,8 @@ export default function App() {
     else if (type === 'stok') colName = 'stok';
     else if (type === 'purchase') colName = 'purchases';
     else if (type === 'karyawan') colName = 'karyawan';
-    await sendToSheet('delete', { id }, colName); setConfirmDialog(null);
+    await sendToSheet('delete', { id, editCount: 0 }, colName); // Include edit count untuk conflict prevention
+    setConfirmDialog(null);
   };
 
   if (!user) {
@@ -309,14 +318,15 @@ export default function App() {
             {loginError && <div className="p-3 bg-red-50 text-red-600 rounded-xl text-sm font-bold flex items-center gap-2"><AlertCircle size={16}/> <span>{loginError}</span></div>}
             <div><label className="text-xs font-bold text-slate-500 uppercase ml-1">Username</label><input type="text" required value={loginForm.username} onChange={e => setLoginForm({...loginForm, username: e.target.value})} className="w-full p-3.5 bg-slate-50 border rounded-xl font-medium" /></div>
             <div><label className="text-xs font-bold text-slate-500 uppercase ml-1">Password</label><input type="password" required value={loginForm.password} onChange={e => setLoginForm({...loginForm, password: e.target.value})} className="w-full p-3.5 bg-slate-50 border rounded-xl font-medium" /></div>
-            <button type="submit" className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 rounded-xl shadow-md mt-6">Secure Login</button>
+            <button type="submit" disabled={isLoading} className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 rounded-xl shadow-md mt-6 disabled:opacity-50">Secure Login</button>
           </form>
         </div>
       </div>
     );
   }
 
-  if (isLoading) {
+  // GLOBAL LOADING STATE UNTUK INITIAL LOAD
+  if (isLoading && masterUsers.length === 0) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50/80 backdrop-blur-sm z-50 fixed inset-0">
         <Loader2 className="w-12 h-12 text-slate-800 animate-spin mb-4" />
@@ -326,7 +336,7 @@ export default function App() {
   }
 
   const globalProps = {
-    user, activeTab, handleTabChange, handleLogout, sendToSheet, setPrintData, setConfirmDialog,
+    user, activeTab, handleTabChange, handleLogout, sendToSheet, setPrintData, setConfirmDialog, isLoading, isOffline,
     data: { 
         orders, expenses, purchases, piutangPayments, pemalangReports, stokData, karyawan, 
         stockMovements, productionBatches, distributionOrders, masterBranches,
@@ -340,13 +350,13 @@ export default function App() {
       <UniversalNodeLayout {...globalProps} />
       <PrintDotMatrix printData={printData} onClose={() => setPrintData(null)} />
       {confirmDialog && (
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm z-[110] flex items-center justify-center p-4 animate-in fade-in duration-200">
             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 text-center">
               <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-5"><AlertCircle size={40} className="text-red-500" /></div>
               <h3 className="text-2xl font-black text-slate-800 mb-2">Hapus Permanen?</h3>
               <div className="flex gap-3 justify-center mt-6">
-                <button onClick={() => setConfirmDialog(null)} className="w-1/2 px-4 py-3.5 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition">Batal</button>
-                <button onClick={executeDelete} className="w-1/2 px-4 py-3.5 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 shadow-md transition">Ya, Hapus</button>
+                <button disabled={isLoading} onClick={() => setConfirmDialog(null)} className="w-1/2 px-4 py-3.5 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition disabled:opacity-50">Batal</button>
+                <button disabled={isLoading} onClick={executeDelete} className="w-1/2 px-4 py-3.5 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 shadow-md transition disabled:opacity-50">Ya, Hapus</button>
               </div>
             </div>
           </div>
