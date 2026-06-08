@@ -313,25 +313,6 @@ export default function App() {
     }
   };
 
-  const handleLogin = (e) => {
-    e.preventDefault();
-    const { username, password } = loginForm;
-    const foundUser = data.masterUsers?.find(u => String(u.username).toLowerCase() === String(username).toLowerCase() && String(u.password) === String(password));
-    
-    if (foundUser) {
-      const formattedBranchId = String(foundUser.branch_id || 'TANGERANG').toUpperCase();
-      const branchInfo = data.masterBranches?.find(b => String(b.branch_id).toUpperCase() === formattedBranchId) || { branch_name: 'HQ Factory', branch_type: 'HQ_FACTORY' };
-      const injectedBranchType = branchInfo.branch_type || 'HQ_FACTORY';
-      const permissions = CAPABILITY_CONFIG[injectedBranchType] || CAPABILITY_CONFIG['OUTLET_RESTO'];
-
-      const loggedInUser = { role: foundUser.role, name: username, branch_id: formattedBranchId, branch_name: branchInfo.branch_name, branch_type: injectedBranchType, permissions: permissions };
-      setUser(loggedInUser); window.localStorage.setItem('dimsum_user_session', JSON.stringify(loggedInUser));
-      handleTabChange('dashboard'); setLoginError(''); 
-    } else { setLoginError('Username/Password salah!'); }
-  };
-
-  const handleLogout = () => { setUser(null); setLoginForm({ username: '', password: '' }); window.localStorage.removeItem('dimsum_user_session'); window.localStorage.removeItem('dimsum_active_tab'); };
-
   const handleExecuteDelete = async () => {
     if(!confirmDialog) return;
     const { type, id } = confirmDialog;
@@ -348,17 +329,25 @@ export default function App() {
     if (success) { setConfirmDialog(null); }
   };
 
-  const globalProps = {
-    user, activeTab, handleTabChange, handleLogout, sendToSheet, setPrintData, setConfirmDialog, isLoading, isOffline, showToast, data
-  };
-
   return (
     <>
-      <UniversalNodeLayout {...globalProps} />
+      <UniversalNodeLayout 
+        user={user}
+        activeTab={activeTab}
+        handleTabChange={handleTabChange}
+        handleLogout={handleLogout}
+        data={data}
+        sendToSheet={sendToSheet}
+        setPrintData={setPrintData}
+        setConfirmDialog={setConfirmDialog}
+        isLoading={isLoading}
+        isOffline={isOffline}
+        showToast={showToast}
+      />
       <ToastNotification toast={toast} onClose={() => setToast(null)} />
       <PrintDotMatrix printData={printData} onClose={() => setPrintData(null)} />
       {confirmDialog && (
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-[1px] z-[110] flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[1px] z-[110] flex items-center justify-center p-4 animate-in fade-in duration-150">
             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 text-center border">
               <div className="w-12 h-12 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4"><AlertCircle size={24} className="text-rose-600" /></div>
               <h3 className="text-base font-black text-slate-800 mb-1">Konfirmasi Aksi</h3>
