@@ -2,45 +2,106 @@
 <html lang="id">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Kasir Dimsum Aditya</title>
-    <!-- Tailwind CSS (Desain) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Dimsum Aditya - Enterprise ERP Control Center</title>
+    
+    <!-- Tailwind CSS Engine -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-<!-- KODE CSS KHUSUS PERFORMA & CETAK (PHASE 11) -->
+    <!-- ENTERPRISE DESIGN SYSTEM & PERFORMANCE PROTECTION -->
     <style>
-      /* PAGINATION & LAZY LOAD SKELETON */
-      @keyframes shimmer { 0% { background-position: -1000px 0; } 100% { background-position: 1000px 0; } }
+      /* 1. GLOBAL UI & ENTERPRISE SCROLLBAR */
+      ::-webkit-scrollbar { width: 6px; height: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+      ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+      
+      /* Mobile Hardware Acceleration Scroll */
+      .custom-scrollbar { 
+        -webkit-overflow-scrolling: touch; 
+        will-change: transform; 
+      }
+
+      /* 2. SHIMMER / SKELETON LOADING UI (PHASE 11) */
+      @keyframes shimmer {
+        0% { background-position: -1000px 0; }
+        100% { background-position: 1000px 0; }
+      }
       .skeleton {
         background: #f1f5f9;
         background-image: linear-gradient(to right, #f1f5f9 0%, #e2e8f0 20%, #f1f5f9 40%, #f1f5f9 100%);
-        background-repeat: no-repeat; background-size: 1000px 100%;
+        background-repeat: no-repeat;
+        background-size: 1000px 100%;
         animation: shimmer 1.5s infinite linear forwards;
-        border-radius: 8px;
+        border-radius: 12px;
       }
-      .skeleton-text { height: 16px; margin-bottom: 8px; width: 100%; }
 
-      /* MOBILE SCROLL OPTIMIZATION (Hardware Acceleration) */
-      .custom-scrollbar { -webkit-overflow-scrolling: touch; will-change: transform; }
+      /* 3. SMART TABLE OPTIMIZATION */
+      .table-compact th, .table-compact td { 
+        padding: 8px 12px !important; 
+        font-size: 0.75rem !important; 
+      }
+      .table-sticky-header th { 
+        position: sticky; 
+        top: 0; 
+        background-color: #f8fafc; 
+        z-index: 10; 
+      }
 
-      /* PRINT STABILITY ENGINE (ANTI BLANK/CUT) */
+      /* 4. PRINT STABILITY ENGINE (A4 & THERMAL POS 58mm/80mm) */
       @media print {
-        body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; background-color: white !important; }
-        aside, header, .no-print { display: none !important; }
-        main { width: 100% !important; margin: 0 !important; padding: 0 !important; overflow: visible !important; position: static !important; }
+        body { 
+          -webkit-print-color-adjust: exact !important; 
+          print-color-adjust: exact !important; 
+          background-color: white !important; 
+          color: black !important;
+        }
         
-        @page { size: A4 landscape; margin: 10mm; }
+        /* Sembunyikan Navigasi, Header, dan Elemen no-print */
+        aside, header, .no-print, button { 
+          display: none !important; 
+        }
         
-        .thermal-58 @page { size: 58mm auto; margin: 2mm; }
+        /* Maksimalkan Viewport Cetak */
+        main { 
+          width: 100% !important; 
+          margin: 0 !important; 
+          padding: 0 !important; 
+          overflow: visible !important; 
+          position: static !important;
+        }
+        
+        /* DEFAULT SETTING: A4 LANDSCAPE (REPORTS & ANALYTICS) */
+        @page { 
+          size: A4 landscape; 
+          margin: 10mm; 
+        }
+
+        /* OVERRIDE FOR THERMAL 58mm POS RECEIPT (KASIR OUTLET) */
+        .thermal-58 @page { 
+          size: 58mm auto; 
+          margin: 2mm 0mm; 
+        }
         .thermal-58 { 
-            width: 54mm !important; margin: 0 auto; 
-            font-family: 'Courier New', Courier, monospace; font-size: 11px; 
-            color: black; page-break-after: auto; overflow: hidden;
+          width: 54mm !important; 
+          margin: 0 auto !important; 
+          font-family: 'Courier New', Courier, monospace !important; 
+          font-size: 11px !important; 
+          line-height: 1.3 !important; 
+          page-break-after: auto;
+          overflow: hidden;
+        }
+        .thermal-58 th, .thermal-58 td { 
+          padding: 3px 0 !important; 
+        }
+        .thermal-58 .dashed-line { 
+          border-top: 1px dashed black !important; 
+          margin: 6px 0 !important; 
         }
       }
     </style>
   </head>
-  <body>
+  <body class="bg-slate-50 antialiased text-slate-800 selection:bg-red-500 selection:text-white">
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
