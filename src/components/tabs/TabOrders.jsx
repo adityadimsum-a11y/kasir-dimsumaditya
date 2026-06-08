@@ -2,15 +2,21 @@ import React, { useState, useMemo } from 'react';
 import { ShoppingCart, CheckCircle, Clock, Printer, Receipt } from 'lucide-react';
 import { formatRp, getTodayStr, generateId, formatDate } from '../../utils/helpers';
 import SearchableDropdown from '../ui/SearchableDropdown';
+import PaginationController from '../ui/PaginationController'; // Kunci Phase 11 & 12
 
-export default function TabOrders({ orders, masterProducts, sendToSheet, setPrintData, showToast, user }) {
+export default function TabOrders({ orders, payments, masterProducts, sendToSheet, setPrintData, requestDelete, role, showToast, user }) {
   const todayStr = getTodayStr();
 
+  // 1. FORM STATE
   const [form, setForm] = useState({
       date: todayStr, sales_category: 'ECERAN', source: 'OFFLINE', customerName: '',
       sku: '', itemName: '', qty: 50, price: '3000', paidAmount: '', paymentMethod: 'CASH',
       invoice_no: '', marketplace_admin_fee: '0', marketplace_promo: '0'
   });
+
+  // 2. PAGINATION STATES
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
 
   const handleCurrencyChange = (field, value) => {
       const rawValue = value.replace(/\D/g, ''); 
@@ -19,7 +25,7 @@ export default function TabOrders({ orders, masterProducts, sendToSheet, setPrin
 
   // AUTOMATIC TIER PRICING LOCK SYSTEM (PHASE 12.5)
   const handleTierPriceLock = (category) => {
-     let price = '3000'; // ECERAN DEFAULT
+     let price = '3000'; 
      let source = 'OFFLINE';
      let payMethod = 'CASH';
 
@@ -57,26 +63,40 @@ export default function TabOrders({ orders, masterProducts, sendToSheet, setPrin
       };
 
       sendToSheet('event_order', payload, 'system_events').then(success => {
-          if (success) setForm(prev => ({ ...prev, qty: 50, paidAmount: '', invoice_no: '', marketplace_admin_fee: '0', marketplace_promo: '0' }));
+          if (success) {
+              setForm(prev => ({ ...prev, qty: 50, paidAmount: '', invoice_no: '', marketplace_admin_fee: '0', marketplace_promo: '0' }));
+              setCurrentPage(1);
+          }
       });
   };
 
+  // 3. COMPUTED MEMOIZED PACINATION LOGIC (ANTI BREAK)
+  const sortedOrders = useMemo(() => {
+    return (orders || []).sort((a, b) => new Date(b.date) - new Date(a.date));
+  }, [orders]);
+
+  const totalRows = sortedOrders.length;
+  const totalPages = Math.ceil(totalRows / rowsPerPage);
+
+  const paginatedOrders = useMemo(() => {
+    const startIdx = (currentPage - 1) * rowsPerPage;
+    return sortedOrders.slice(startIdx, startIdx + rowsPerPage);
+  }, [sortedOrders, currentPage, rowsPerPage]);
+
   return (
     <div className="space-y-6 animate-in fade-in duration-150 pb-10">
-      
-      {/* CHICKEN CASHFLOW ENGINE RADAR BOARD (BUDGET CAPACITY ESTIMATOR) */}
+      {/* CHICKEN CASHFLOW ESTIMATOR */}
       <div className="bg-slate-900 text-white p-5 rounded-2xl border shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
          <div>
             <h4 className="text-xs font-black text-cyan-400 tracking-wider uppercase flex items-center gap-1.5"><Receipt size={14}/> Chicken Cashflow Engine</h4>
-            <p className="text-[11px] text-slate-400 font-medium mt-0.5">Sistem memindai saldo likuid holding untuk mengukur kesiapan belanja komoditas berikutnya.</p>
+            <p className="text-[11px] text-slate-400 font-medium mt-0.5">Sistem mengukur kesiapan operasional belanja komoditas berikutnya secara real-time.</p>
          </div>
          <div className="bg-slate-800 border border-slate-700 p-3 rounded-xl font-bold text-xs">
-            Kas Saat Ini Mampu Membeli: <span className="text-emerald-400 font-black">{(5000000 / 38000).toFixed(0)} KG Ayam Lagi</span>
+            Estimasi Kemampuan Kas Sisa: <span className="text-emerald-400 font-black">Ready Lini Belanja</span>
          </div>
       </div>
 
       <div className="bg-white rounded-2xl border shadow-sm p-6">
-          {/* TIER PRICE SWITCHER HEADER */}
           <div className="flex bg-slate-100 p-1 rounded-xl w-max mb-6 no-print">
              {['ECERAN', 'RESELLER', 'MITRA', 'MERCHANT'].map(t => (
                 <button key={t} type="button" onClick={() => handleTierPriceLock(t)} className={`px-4 py-2 rounded-lg font-black text-xs uppercase transition ${form.sales_category === t ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:text-slate-800'}`}>{t}</button>
@@ -90,7 +110,6 @@ export default function TabOrders({ orders, masterProducts, sendToSheet, setPrin
               </div>
               <div className="space-y-1"><label className="text-[10px] font-black text-blue-600 uppercase">Kuantitas Jual (Pcs)</label><input type="number" required min="1" value={form.qty} onChange={e=>setForm({...form, qty: e.target.value})} className="w-full p-2.5 bg-blue-50 border border-blue-200 rounded-xl font-black text-blue-700" /></div>
               
-              {/* CONDITIONAL PLATFORM PLATFORM DETECTOR */}
               {(form.sales_category === 'MERCHANT' || form.sales_category === 'TOKO ONLINE') && (
                  <>
                     <div className="space-y-1"><label className="text-[10px] font-bold text-purple-600 uppercase">Nama Platform</label>
@@ -125,22 +144,37 @@ export default function TabOrders({ orders, masterProducts, sendToSheet, setPrin
       </div>
 
       {/* RECONCILIATION DATA VIEW TABLE */}
-      <div className="bg-white rounded-2xl border shadow-sm overflow-hidden mt-6">
+      <div className="bg-white rounded-2xl border shadow-sm overflow-hidden mt-6 flex flex-col">
          <table className="w-full text-sm text-left">
-            <thead className="bg-slate-50 text-[10px] text-slate-500 uppercase"><tr><th className="p-3">ID Nota</th><th className="p-3">Kategori</th><th className="p-3 text-center">Volume</th><th className="p-3 text-right">Kotor (Gross)</th><th className="p-3 text-right">Potongan/Promo</th><th className="p-3 text-right">Bersih Diterima</th></tr></thead>
+            <thead className="bg-slate-50 text-[10px] text-slate-500 uppercase"><tr><th className="p-3">ID Nota</th><th className="p-3">Kategori</th><th className="p-3 text-center">Volume</th><th className="p-3 text-right">Kotor (Gross)</th><th className="p-3 text-right">Potongan/Promo</th><th className="p-3 text-center">Aksi</th></tr></thead>
             <tbody className="divide-y divide-slate-100 font-bold text-xs text-slate-700">
-               {(orders||[]).map(o => (
+               {paginatedOrders.map(o => (
                   <tr key={o.id} className="hover:bg-slate-50">
                      <td className="p-3 font-mono text-[10px] text-slate-500">{o.id}</td>
                      <td className="p-3"><span className={`px-2 py-0.5 rounded text-[9px] ${o.sales_category==='MITRA'?'bg-purple-100 text-purple-800':o.sales_category==='RESELLER'?'bg-blue-100 text-blue-800':'bg-slate-100 text-slate-800'}`}>{o.sales_category}</span></td>
                      <td className="p-3 text-center">{o.qty} Pcs</td>
                      <td className="p-3 text-right text-slate-400">{formatRp(o.total)}</td>
                      <td className="p-3 text-right text-rose-600">-{formatRp((Number(o.fee_amount)||0) + (Number(o.marketplace_promo)||0))}</td>
-                     <td className="p-3 text-right text-emerald-600">{formatRp(Number(o.total) - (Number(o.fee_amount)||0) - (Number(o.marketplace_promo)||0))}</td>
+                     <td className="p-3 text-center flex items-center justify-center gap-2">
+                        <button type="button" onClick={() => setPrintData({ type: 'INVOICE', data: o })} className="bg-slate-100 text-slate-700 p-1 rounded hover:bg-slate-200"><Printer size={14}/></button>
+                        {(role === 'super_admin' || role === 'admin') && (
+                          <button type="button" onClick={() => requestDelete(o.id)} className="text-rose-600 p-1 hover:bg-rose-50 rounded">Hapus</button>
+                        )}
+                     </td>
                   </tr>
                ))}
             </tbody>
          </table>
+
+         {/* CONTROLLER INTEGRASI PHASE 11 */}
+         <PaginationController 
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalRows={totalRows}
+            rowsPerPage={rowsPerPage}
+            onPageChange={handlePageChange}
+            onRowsPerPageChange={handleRowsPerPageChange}
+         />
       </div>
 
     </div>
