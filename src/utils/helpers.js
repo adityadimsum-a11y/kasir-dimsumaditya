@@ -93,3 +93,8 @@ export const SATUAN_BARANG = ['Kg', 'Gram', 'Pack', 'Kantong', 'Pcs', 'Bungkus',
 export const KATEGORI_PENGELUARAN = [
   'Operasional & Transport', 'Konsumsi Karyawan', 'Kasbon', 'Jamuan', 'Setoran / Closing Kas Harian', 'Lainnya'
 ];
+
+// Tambahkan di dalam src/utils/helpers.js
+export const generateRequestId = () => {
+    return 'REQ-' + Math.random().toString(36).substr(2, 9) + '-' + Date.now();
+};
