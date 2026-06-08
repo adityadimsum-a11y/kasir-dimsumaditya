@@ -87,7 +87,7 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
                 {user.branch_id} ({user.branch_type.split('_')[0]})
               </p>
             </div>
-            <button className="md:hidden text-slate-400 hover:text-white" onClick={() => setIsMobileMenuOpen(false)}><X size={20}/></button>
+            <button type="button" className="md:hidden text-slate-400 hover:text-white" onClick={() => setIsMobileMenuOpen(false)}><X size={20}/></button>
         </div>
         
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto custom-scrollbar">
@@ -347,6 +347,10 @@ export default function App() {
     
     const success = await sendToSheet('delete', { id, editCount: 0 }, colName); 
     if (success) { setConfirmDialog(null); }
+  };
+
+  const globalProps = {
+    user, activeTab, handleTabChange, handleLogout, sendToSheet, setPrintData, setConfirmDialog, isLoading, isOffline, showToast, data
   };
 
   return (
