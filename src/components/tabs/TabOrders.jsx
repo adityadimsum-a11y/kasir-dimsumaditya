@@ -2,28 +2,25 @@ import React, { useState, useMemo } from 'react';
 import { ShoppingCart, CheckCircle, Clock, Printer, Receipt } from 'lucide-react';
 import { formatRp, getTodayStr, generateId, formatDate } from '../../utils/helpers';
 import SearchableDropdown from '../ui/SearchableDropdown';
-import PaginationController from '../ui/PaginationController'; // Kunci Phase 11 & 12
+import PaginationController from '../ui/PaginationController';
 
 export default function TabOrders({ orders, payments, masterProducts, sendToSheet, setPrintData, requestDelete, role, showToast, user }) {
   const todayStr = getTodayStr();
 
-  // 1. FORM STATE
   const [form, setForm] = useState({
       date: todayStr, sales_category: 'ECERAN', source: 'OFFLINE', customerName: '',
       sku: '', itemName: '', qty: 50, price: '3000', paidAmount: '', paymentMethod: 'CASH',
       invoice_no: '', marketplace_admin_fee: '0', marketplace_promo: '0'
   });
 
-  // 2. PAGINATION STATES
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(25);
 
   const handleCurrencyChange = (field, value) => {
-      const rawValue = value.replace(/\D/g, ''); 
+      const rawValue = value.replace(/\\D/g, ''); 
       setForm(prev => ({ ...prev, [field]: rawValue }));
   };
 
-  // AUTOMATIC TIER PRICING LOCK SYSTEM (PHASE 12.5)
   const handleTierPriceLock = (category) => {
      let price = '3000'; 
      let source = 'OFFLINE';
@@ -70,7 +67,6 @@ export default function TabOrders({ orders, payments, masterProducts, sendToShee
       });
   };
 
-  // 3. COMPUTED MEMOIZED PACINATION LOGIC (ANTI BREAK)
   const sortedOrders = useMemo(() => {
     return (orders || []).sort((a, b) => new Date(b.date) - new Date(a.date));
   }, [orders]);
@@ -83,9 +79,11 @@ export default function TabOrders({ orders, payments, masterProducts, sendToShee
     return sortedOrders.slice(startIdx, startIdx + rowsPerPage);
   }, [sortedOrders, currentPage, rowsPerPage]);
 
+  const handlePageChange = (newPage) => setCurrentPage(newPage);
+  const handleRowsPerPageChange = (newRows) => { setRowsPerPage(newRows); setCurrentPage(1); };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-150 pb-10">
-      {/* CHICKEN CASHFLOW ESTIMATOR */}
       <div className="bg-slate-900 text-white p-5 rounded-2xl border shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
          <div>
             <h4 className="text-xs font-black text-cyan-400 tracking-wider uppercase flex items-center gap-1.5"><Receipt size={14}/> Chicken Cashflow Engine</h4>
@@ -143,7 +141,6 @@ export default function TabOrders({ orders, payments, masterProducts, sendToShee
           </form>
       </div>
 
-      {/* RECONCILIATION DATA VIEW TABLE */}
       <div className="bg-white rounded-2xl border shadow-sm overflow-hidden mt-6 flex flex-col">
          <table className="w-full text-sm text-left">
             <thead className="bg-slate-50 text-[10px] text-slate-500 uppercase"><tr><th className="p-3">ID Nota</th><th className="p-3">Kategori</th><th className="p-3 text-center">Volume</th><th className="p-3 text-right">Kotor (Gross)</th><th className="p-3 text-right">Potongan/Promo</th><th className="p-3 text-center">Aksi</th></tr></thead>
@@ -166,7 +163,6 @@ export default function TabOrders({ orders, payments, masterProducts, sendToShee
             </tbody>
          </table>
 
-         {/* CONTROLLER INTEGRASI PHASE 11 */}
          <PaginationController 
             currentPage={currentPage}
             totalPages={totalPages}
@@ -176,7 +172,6 @@ export default function TabOrders({ orders, payments, masterProducts, sendToShee
             onRowsPerPageChange={handleRowsPerPageChange}
          />
       </div>
-
     </div>
   );
 }
