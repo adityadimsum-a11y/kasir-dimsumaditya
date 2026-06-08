@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, ShoppingCart, Wallet, Clock, Store, Loader2, LogOut, 
-  Package, Truck, Users, AlertCircle, Activity, Send, ShieldAlert, TrendingUp, WifiOff, PieChart, Menu, X, Search, Bell, CheckCircle, Radar, BookOpen, ShieldCheck
+  Package, Truck, Users, AlertCircle, Activity, Send, ShieldAlert, TrendingUp, WifiOff, PieChart, Menu, X, Search, Bell, CheckCircle, Radar, BookOpen, ShieldCheck, Database
 } from 'lucide-react';
 
 import TabDashboard from './components/tabs/TabDashboard';
@@ -20,7 +20,8 @@ import TabSCMWarRoom from './components/tabs/TabSCMWarRoom';
 import TabAnalytics from './components/tabs/TabAnalytics'; 
 import TabBusinessRadar from './components/tabs/TabBusinessRadar'; 
 import TabAccounting from './components/tabs/TabAccounting'; 
-import TabAccountingAudit from './components/tabs/TabAccountingAudit'; // MODUL PHASE 9.5
+import TabAccountingAudit from './components/tabs/TabAccountingAudit'; 
+import TabMasterData from './components/tabs/TabMasterData'; // MODUL PHASE 10
 import PrintDotMatrix from './components/PrintDotMatrix';
 
 import { generateRequestId } from './utils/helpers'; 
@@ -31,9 +32,9 @@ const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqSM
 // CENTRAL CAPABILITY ENGINE
 // =====================================================================
 const CAPABILITY_CONFIG = {
-  'HQ_FACTORY': { can_production: true, can_supplier: true, can_global_dashboard: true, can_pos: true, can_distribute: true, can_hrd: true, can_treasury: true, can_scm_warroom: true, can_analytics: true, can_radar: true, can_accounting: true, can_audit: true },
-  'PRODUCTION_BRANCH': { can_production: true, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: true, can_hrd: false, can_treasury: false, can_scm_warroom: false, can_analytics: false, can_radar: false, can_accounting: false, can_audit: false },
-  'OUTLET_RESTO': { can_production: false, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: false, can_hrd: false, can_treasury: false, can_scm_warroom: false, can_analytics: false, can_radar: false, can_accounting: false, can_audit: false }
+  'HQ_FACTORY': { can_production: true, can_supplier: true, can_global_dashboard: true, can_pos: true, can_distribute: true, can_hrd: true, can_treasury: true, can_scm_warroom: true, can_analytics: true, can_radar: true, can_accounting: true, can_audit: true, can_master_data: true },
+  'PRODUCTION_BRANCH': { can_production: true, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: true, can_hrd: false, can_treasury: false, can_scm_warroom: false, can_analytics: false, can_radar: false, can_accounting: false, can_audit: false, can_master_data: false },
+  'OUTLET_RESTO': { can_production: false, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: false, can_hrd: false, can_treasury: false, can_scm_warroom: false, can_analytics: false, can_radar: false, can_accounting: false, can_audit: false, can_master_data: false }
 };
 
 function NavItem({ icon, label, active, onClick, badge, disabled }) {
@@ -45,9 +46,6 @@ function NavItem({ icon, label, active, onClick, badge, disabled }) {
   );
 }
 
-// =====================================================================
-// ENTERPRISE UI COMPONENT: TOAST NOTIFICATION
-// =====================================================================
 function ToastNotification({ toast, onClose }) {
   useEffect(() => { if(toast) { const timer = setTimeout(onClose, 4000); return () => clearTimeout(timer); } }, [toast, onClose]);
   if (!toast) return null;
@@ -94,10 +92,8 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
             {caps.can_global_dashboard ? <NavItem icon={<Activity size={18} />} label="Command Center" active={activeTab === 'dashboard'} onClick={() => navigateTab('dashboard')} disabled={isLoading} /> : <NavItem icon={<LayoutDashboard size={18} />} label="Dashboard Node" active={activeTab === 'dashboard'} onClick={() => navigateTab('dashboard')} disabled={isLoading} />}
             {caps.can_radar && <NavItem icon={<Radar size={18} />} label="Business Radar" active={activeTab === 'radar'} onClick={() => navigateTab('radar')} disabled={isLoading} />}
             {caps.can_treasury && <NavItem icon={<TrendingUp size={18} />} label="Cash War Room" active={activeTab === 'cash_war_room'} onClick={() => navigateTab('cash_war_room')} disabled={isLoading} />}
-            
             {caps.can_accounting && <NavItem icon={<BookOpen size={18} />} label="Financial ERP" active={activeTab === 'accounting'} onClick={() => navigateTab('accounting')} disabled={isLoading} />}
             {caps.can_audit && <NavItem icon={<ShieldCheck size={18} />} label="Accounting Audit" active={activeTab === 'accounting_audit'} onClick={() => navigateTab('accounting_audit')} disabled={isLoading} />}
-            
             {caps.can_analytics && <NavItem icon={<PieChart size={18} />} label="Executive Analytics" active={activeTab === 'analytics'} onClick={() => navigateTab('analytics')} disabled={isLoading} />}
             {caps.can_scm_warroom && <NavItem icon={<Truck size={18} />} label="SCM War Room" active={activeTab === 'scm_war_room'} onClick={() => navigateTab('scm_war_room')} disabled={isLoading} />}
 
@@ -118,7 +114,8 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
 
             {caps.can_global_dashboard && (
               <>
-                <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 mt-3 px-2">Data Holding</div>
+                <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 mt-3 px-2">Data Holding & Konfigurasi</div>
+                {caps.can_master_data && <NavItem icon={<Database size={18} />} label="Master Data Center" active={activeTab === 'master_data'} onClick={() => navigateTab('master_data')} disabled={isLoading} />}
                 <NavItem icon={<Store size={18} />} label="Pantau Cabang" active={activeTab === 'monitoring_pemalang'} onClick={() => navigateTab('monitoring_pemalang')} disabled={isLoading} />
                 {caps.can_hrd && <NavItem icon={<Users size={18} />} label="HRD & Payroll" active={activeTab === 'karyawan'} onClick={() => navigateTab('karyawan')} disabled={isLoading} />}
               </>
@@ -151,14 +148,17 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
         <div className={`flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 bg-slate-50 custom-scrollbar ${isLoading ? 'opacity-60 grayscale-[30%] transition-opacity duration-300' : 'transition-opacity duration-300'}`}>
           <div className="max-w-7xl mx-auto w-full">
             {activeTab === 'dashboard' && (caps.can_global_dashboard ? <TabDashboard {...data} sendToSheet={sendToSheet} setPrintData={setPrintData} user={user} showToast={showToast} /> : <TabDashboardBranch orders={data.orders} pemalangReports={data.pemalangReports} piutangPayments={data.piutangPayments} setPrintData={setPrintData} stokData={data.stokData} showToast={showToast} />)}
+            {activeTab === 'master_data' && caps.can_master_data && <TabMasterData masterProducts={data.masterProducts} masterRawMaterials={data.masterRawMaterials} masterSuppliers={data.masterSuppliers} sendToSheet={sendToSheet} showToast={showToast} />}
             {activeTab === 'radar' && caps.can_radar && <TabBusinessRadar orders={data.orders} stockMovements={data.stockMovements} expenses={data.expenses} supplierLedger={data.supplierLedger} cashflowTransactions={data.cashflowTransactions} inventoryCostLayers={data.inventoryCostLayers} marketplaceSettlement={data.marketplaceSettlement} masterBranches={data.masterBranches} discrepancyLogs={data.discrepancyLogs} />}
             {activeTab === 'cash_war_room' && caps.can_treasury && <TabCashWarRoom orders={data.orders} purchases={data.purchases} expenses={data.expenses} cashflowTransactions={data.cashflowTransactions} marketplaceSettlement={data.marketplaceSettlement} supplierLedger={data.supplierLedger} masterBranches={data.masterBranches} inventoryCostLayers={data.inventoryCostLayers} discrepancyLogs={data.discrepancyLogs} financialClosings={data.financialClosings} />}
             {activeTab === 'accounting' && caps.can_accounting && <TabAccounting generalLedger={data.generalLedger} chartOfAccounts={data.chartOfAccounts} />}
             {activeTab === 'accounting_audit' && caps.can_audit && <TabAccountingAudit generalLedger={data.generalLedger} inventoryCostLayers={data.inventoryCostLayers} cashflowTransactions={data.cashflowTransactions} marketplaceSettlement={data.marketplaceSettlement} />}
             {activeTab === 'analytics' && caps.can_analytics && <TabAnalytics orders={data.orders} masterBranches={data.masterBranches} discrepancyLogs={data.discrepancyLogs} />}
             {activeTab === 'scm_war_room' && caps.can_scm_warroom && <TabSCMWarRoom distributionOrders={data.distributionOrders} inventoryCostLayers={data.inventoryCostLayers} discrepancyLogs={data.discrepancyLogs} masterBranches={data.masterBranches} />}
-            {activeTab === 'orders' && <TabOrders orders={data.orders} payments={data.piutangPayments} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'order', id})} role={user.role} showToast={showToast} />}
-            {activeTab === 'purchases' && caps.can_supplier && <TabPurchases purchases={data.purchases} sendToSheet={sendToSheet} setPrintData={setPrintData} showToast={showToast} />}
+            
+            {/* CORE OPERATIONS */}
+            {activeTab === 'orders' && <TabOrders orders={data.orders} payments={data.piutangPayments} masterProducts={data.masterProducts} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'order', id})} role={user.role} showToast={showToast} />}
+            {activeTab === 'purchases' && caps.can_supplier && <TabPurchases purchases={data.purchases} masterSuppliers={data.masterSuppliers} masterRawMaterials={data.masterRawMaterials} sendToSheet={sendToSheet} setPrintData={setPrintData} showToast={showToast} />}
             {activeTab === 'expenses' && caps.can_global_dashboard && <TabExpenses expenses={data.expenses} karyawan={data.karyawan} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'expense', id})} showToast={showToast} />}
             {activeTab === 'piutang' && <TabPiutang orders={data.orders} purchases={caps.can_global_dashboard ? data.purchases : []} payments={data.piutangPayments} sendToSheet={sendToSheet} requestDelete={(id) => setConfirmDialog({type: 'payment', id})} setPrintData={setPrintData} role={user.role} showToast={showToast} />}
             {activeTab === 'stok' && <TabStok stockMovements={data.stockMovements} productionBatches={data.productionBatches} purchases={caps.can_global_dashboard ? data.purchases : []} orders={data.orders} sendToSheet={sendToSheet} requestDelete={(id) => setConfirmDialog({type: 'stok', id})} role={user.role} user={user} distributionOrders={data.distributionOrders} showToast={showToast} />}
@@ -173,6 +173,9 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
   );
 }
 
+// =====================================================================
+// MAIN APP ENTRY COMPONENT
+// =====================================================================
 export default function App() {
   const [user, setUser] = useState(() => { try { return window.localStorage.getItem('dimsum_user_session') ? JSON.parse(window.localStorage.getItem('dimsum_user_session')) : null; } catch (error) { return null; } }); 
   const [activeTab, setActiveTab] = useState(() => { try { return window.localStorage.getItem('dimsum_active_tab') || 'dashboard'; } catch (error) { return 'dashboard'; } });
@@ -210,6 +213,11 @@ export default function App() {
   const [systemTasks, setSystemTasks] = useState([]); 
   const [generalLedger, setGeneralLedger] = useState([]);
   const [chartOfAccounts, setChartOfAccounts] = useState([]);
+  
+  // PHASE 10: MASTER DATA
+  const [masterProducts, setMasterProducts] = useState([]);
+  const [masterRawMaterials, setMasterRawMaterials] = useState([]);
+  const [masterSuppliers, setMasterSuppliers] = useState([]);
 
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
@@ -252,6 +260,11 @@ export default function App() {
         setSystemTasks(sortData(data.filter(item => item && item.table === 'system_tasks' && !item.isDeleted))); 
         setGeneralLedger(sortData(data.filter(item => item && item.table === 'general_ledger' && !item.isDeleted)));
         setChartOfAccounts(data.filter(item => item && item.table === 'chart_of_accounts' && !item.isDeleted));
+        
+        // Phase 10
+        setMasterProducts(data.filter(item => item && item.table === 'master_products' && !item.isDeleted));
+        setMasterRawMaterials(data.filter(item => item && item.table === 'master_raw_materials' && !item.isDeleted));
+        setMasterSuppliers(data.filter(item => item && item.table === 'master_suppliers' && !item.isDeleted));
       }
     } catch (error) { console.error(error); } finally { setIsLoading(false); }
   };
@@ -276,8 +289,8 @@ export default function App() {
   const handleLogout = () => { setUser(null); setLoginForm({ username: '', password: '' }); window.localStorage.removeItem('dimsum_user_session'); window.localStorage.removeItem('dimsum_active_tab'); };
 
   const sendToSheet = async (action, data, table) => {
-    if (isOffline) { showToast("⚠️ OFFLINE: Tidak ada koneksi internet. Transaksi diblokir.", 'error'); return false; }
-    if (isLoading) { showToast("⏳ Mohon tunggu, sistem sedang memproses transaksi sebelumnya...", 'error'); return false; }
+    if (isOffline) { showToast("⚠️ OFFLINE: Tidak ada koneksi internet.", 'error'); return false; }
+    if (isLoading) { showToast("⏳ Mohon tunggu, sistem sedang memproses...", 'error'); return false; }
     
     setIsLoading(true);
     const reqId = generateRequestId(); 
@@ -292,7 +305,7 @@ export default function App() {
         
         if (result.status === 'forbidden' || result.status === 'error') {
             setIsLoading(false); 
-            const errorMsg = result.data?.message || result.message || 'Terjadi pelanggaran validasi sistem.';
+            const errorMsg = result.data?.message || result.message || 'Terjadi pelanggaran sistem.';
             showToast(`⛔ GAGAL: ${errorMsg}`, 'error'); 
             return false;
         }
@@ -307,7 +320,7 @@ export default function App() {
         }
     } catch (error) { 
         console.error("Gagal kirim ke Server:", error); 
-        showToast("🚨 FATAL ERROR: Gagal terhubung ke server. Pastikan koneksi stabil.", 'error'); 
+        showToast("🚨 FATAL ERROR: Gagal terhubung ke server.", 'error'); 
         setIsLoading(false); 
         return false;
     }
@@ -362,7 +375,13 @@ export default function App() {
 
   const globalProps = {
     user, activeTab, handleTabChange, handleLogout, sendToSheet, setPrintData, setConfirmDialog, isLoading, isOffline, showToast,
-    data: { orders, expenses, purchases, piutangPayments, pemalangReports, stokData, karyawan, stockMovements, productionBatches, distributionOrders, masterBranches, supplierLedger, cashflowTransactions, marketplaceSettlement, inventoryCostLayers, discrepancyLogs, financialClosings, systemTasks, generalLedger, chartOfAccounts }
+    data: { 
+      orders, expenses, purchases, piutangPayments, pemalangReports, stokData, karyawan, stockMovements, 
+      productionBatches, distributionOrders, masterBranches, supplierLedger, cashflowTransactions, 
+      marketplaceSettlement, inventoryCostLayers, discrepancyLogs, financialClosings, systemTasks,
+      generalLedger, chartOfAccounts, 
+      masterProducts, masterRawMaterials, masterSuppliers // PHASE 10 DATA
+    }
   };
 
   return (
