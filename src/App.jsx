@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, ShoppingCart, Wallet, 
   Clock, Store, Loader2, LogOut, 
-  Package, Truck, Users, AlertCircle, Activity, Send, ShieldAlert, Factory
+  Package, Truck, Users, AlertCircle, Activity, Send, ShieldAlert, Factory, TrendingUp
 } from 'lucide-react';
 
 import TabDashboard from './components/tabs/TabDashboard';
@@ -16,15 +16,15 @@ import TabDistribusi from './components/tabs/TabDistribusi';
 import TabKaryawan from './components/tabs/TabKaryawan';
 import TabMonitoringPemalang from './components/tabs/TabMonitoringPemalang';
 import TabDashboardBranch from './components/tabs/TabDashboardBranch';
+import TabCashWarRoom from './components/tabs/TabCashWarRoom'; // IMPORT MODUL BARU
 import PrintDotMatrix from './components/PrintDotMatrix';
 
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqSM572mbUIGozcghhh8LHNMNw2e83O7Wkyu-SkjdVTO3zpTb64PA/exec'; 
 
-// CENTRAL CAPABILITY ENGINE AT FRONTEND
 const CAPABILITY_CONFIG = {
-  'HQ_FACTORY': { can_production: true, can_supplier: true, can_global_dashboard: true, can_pos: true, can_distribute: true, can_hrd: true },
-  'PRODUCTION_BRANCH': { can_production: true, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: true, can_hrd: false },
-  'OUTLET_RESTO': { can_production: false, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: false, can_hrd: false }
+  'HQ_FACTORY': { can_production: true, can_supplier: true, can_global_dashboard: true, can_pos: true, can_distribute: true, can_hrd: true, can_treasury: true },
+  'PRODUCTION_BRANCH': { can_production: true, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: true, can_hrd: false, can_treasury: false },
+  'OUTLET_RESTO': { can_production: false, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: false, can_hrd: false, can_treasury: false }
 };
 
 function NavItem({ icon, label, active, onClick, badge }) {
@@ -37,9 +37,6 @@ function NavItem({ icon, label, active, onClick, badge }) {
   );
 }
 
-// =====================================================================
-// DYNAMIC NODE SYSTEM LAYOUT (NO MORE LAYOUT PUSAT / LAYOUT BRANCH HARDCODE)
-// =====================================================================
 function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, data, sendToSheet, setPrintData, setConfirmDialog }) {
   const caps = user.permissions;
   const pendingDO = data.distributionOrders.filter(d => d.status === 'DIKIRIM').length;
@@ -47,7 +44,6 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
-      {/* SIDEBAR NAVIGATION CONTROLLED BY CAPABILITY ENGINE */}
       <aside className="w-64 bg-slate-900 text-white flex flex-col shrink-0 relative shadow-xl z-20">
         <div className="p-6 border-b border-slate-800 bg-slate-900/50">
             <div className="bg-white p-2 rounded-lg inline-block mb-3 shadow-md"><img src="https://dimsumaditya.id/wp-content/uploads/2026/06/Dimsum-Aditya-New-Logo-scaled.webp" alt="Logo" className="h-8 w-auto" /></div>
@@ -64,6 +60,11 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
               <NavItem icon={<Activity size={20} />} label="Command Center" active={activeTab === 'dashboard'} onClick={() => handleTabChange('dashboard')} />
             ) : (
               <NavItem icon={<LayoutDashboard size={20} />} label="Dashboard Node" active={activeTab === 'dashboard'} onClick={() => handleTabChange('dashboard')} />
+            )}
+
+            {/* KENDALI TREASURY EKSEKUTIF */}
+            {caps.can_treasury && (
+              <NavItem icon={<TrendingUp size={20} />} label="Cash War Room" active={activeTab === 'cash_war_room'} onClick={() => handleTabChange('cash_war_room')} />
             )}
 
             {caps.can_pos && (
@@ -94,7 +95,6 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
         <div className="p-4 border-t border-slate-800"><button onClick={handleLogout} className="w-full flex justify-center gap-2 bg-slate-800/80 hover:bg-red-600 hover:text-white p-3 rounded-xl transition-all font-bold text-sm"><LogOut size={18}/> Logout</button></div>
       </aside>
 
-      {/* VIEWPORT CONTROLLER */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
         <header className="bg-white border-b p-4 shadow-sm z-10 flex justify-between items-center">
             <h2 className="text-xl font-bold capitalize text-slate-800 flex items-center gap-2">{activeTab.replace('_', ' ')}</h2>
@@ -105,6 +105,14 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
           {activeTab === 'dashboard' && (caps.can_global_dashboard ? 
               <TabDashboard {...data} sendToSheet={sendToSheet} setPrintData={setPrintData} user={user} /> : 
               <TabDashboardBranch orders={data.orders} pemalangReports={data.pemalangReports} piutangPayments={data.piutangPayments} setPrintData={setPrintData} stokData={data.stokData} />
+          )}
+          {activeTab === 'cash_war_room' && caps.can_treasury && (
+              <TabCashWarRoom 
+                orders={data.orders} purchases={data.purchases} expenses={data.expenses} 
+                cashflowTransactions={data.cashflowTransactions} marketplaceSettlement={data.marketplaceSettlement} 
+                supplierLedger={data.supplierLedger} masterBranches={data.masterBranches} 
+                financialClosings={data.financialClosings} 
+              />
           )}
           {activeTab === 'orders' && <TabOrders orders={data.orders} payments={data.piutangPayments} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'order', id})} role={user.role} />}
           {activeTab === 'purchases' && caps.can_supplier && <TabPurchases purchases={data.purchases} sendToSheet={sendToSheet} setPrintData={setPrintData} />}
@@ -211,7 +219,6 @@ export default function App() {
       const injectedBranchType = branchInfo.branch_type || 'HQ_FACTORY';
       const permissions = CAPABILITY_CONFIG[injectedBranchType] || CAPABILITY_CONFIG['OUTLET_RESTO'];
 
-      // USER SESSION INJECTION CONTROL
       const loggedInUser = { 
           role: foundUser.role, 
           name: username, 
@@ -247,7 +254,7 @@ export default function App() {
             await fetchData(); setIsLoading(false); return true;
         }
     } catch (error) { 
-        console.error("Gagal kirim ke Server:", error); alert("🚨 TERJADI KESALAHAN JARINGAN ATAU SERVER!\nData Anda belum tersimpan."); setIsLoading(false); return false;
+        console.error("Gagal kirim ke Server:", error); alert("🚨 TERJADI KESALAHAN JARINGAN ATAU SERVER!"); setIsLoading(false); return false;
     }
   };
 
