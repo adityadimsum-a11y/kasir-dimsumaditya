@@ -75,7 +75,6 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
 
   return (
     <div className="h-screen bg-slate-50 flex overflow-hidden pointer-events-auto">
-      {isLoading && <div className="fixed inset-0 z-[100] bg-slate-900/10 backdrop-blur-[1px] cursor-wait flex items-center justify-center"><Loader2 className="w-10 h-10 text-red-600 animate-spin"/></div>}
       {isMobileMenuOpen && <div className="fixed inset-0 bg-slate-900/50 z-40 md:hidden" onClick={() => setIsMobileMenuOpen(false)} />}
 
       <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 text-white flex flex-col transform transition-transform duration-300 md:relative md:translate-x-0 shadow-2xl md:shadow-none ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
@@ -359,7 +358,7 @@ export default function App() {
       <ToastNotification toast={toast} onClose={() => setToast(null)} />
       <PrintDotMatrix printData={printData} onClose={() => setPrintData(null)} />
       {confirmDialog && (
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[1px] z-[110] flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-[1px] z-[110] flex items-center justify-center p-4 animate-in fade-in duration-150">
             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 text-center border">
               <div className="w-12 h-12 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4"><AlertCircle size={24} className="text-rose-600" /></div>
               <h3 className="text-base font-black text-slate-800 mb-1">Konfirmasi Aksi</h3>
