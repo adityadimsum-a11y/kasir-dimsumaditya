@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
-import { ShoppingCart, CheckCircle, Clock } from 'lucide-react';
+import { ShoppingCart, CheckCircle, Clock, Printer } from 'lucide-react';
 import { formatRp, getTodayStr, generateId, formatDate } from '../../utils/helpers';
 
 export default function TabOrders({ orders, payments, sendToSheet, setPrintData, role }) {
   const todayStr = getTodayStr();
   
-  // Tarik identitas user dari memori browser agar transaksi masuk ke cabang yang benar
   const userSession = JSON.parse(window.localStorage.getItem('dimsum_user_session')) || { branch_id: 'PUSAT' };
 
   const [form, setForm] = useState({
@@ -50,7 +49,7 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
           paidAmount: Number(form.paidAmount),
           paymentMethod: form.paymentMethod,
           settlement_status: settlementStatus,
-          branch_id: userSession.branch_id // 🔥 Pastikan masuk ke Cabang yang login!
+          branch_id: userSession.branch_id
       };
 
       sendToSheet('event_order', payload, 'system_events');
@@ -126,6 +125,7 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
                           <th className="px-4 py-3 text-right">Pendapatan Kotor</th>
                           <th className="px-4 py-3 text-center">Potongan Fee</th>
                           <th className="px-4 py-3 text-right bg-emerald-50">Net Profit (Laba)</th>
+                          <th className="px-4 py-3 text-center">Cetak</th>
                       </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -149,6 +149,16 @@ export default function TabOrders({ orders, payments, sendToSheet, setPrintData,
                               <td className="px-4 py-3 text-right font-black bg-emerald-50 border-l border-emerald-100">
                                   <div className="text-emerald-700">{o.net_profit !== undefined ? formatRp(o.net_profit) : 'Menghitung...'}</div>
                                   {o.hpp_total && <div className="text-[9px] text-slate-500 font-normal">HPP: -{formatRp(o.hpp_total)}</div>}
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                  {/* TOMBOL CETAK STRUK KASIR */}
+                                  <button 
+                                      onClick={() => setPrintData({ type: 'RECEIPT', data: o })} 
+                                      className="bg-slate-100 hover:bg-slate-200 text-slate-600 p-2 rounded-lg transition" 
+                                      title="Cetak Struk Kasir Thermal"
+                                  >
+                                      <Printer size={16}/>
+                                  </button>
                               </td>
                           </tr>
                       ))}
