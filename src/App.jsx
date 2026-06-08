@@ -37,7 +37,7 @@ import TabStokOutlet from './components/tabs/TabStokOutlet'; // Manajemen Logist
 import PrintDotMatrix from './components/PrintDotMatrix';
 
 // Ganti string kosong di bawah ini dengan URL Web App dari Google Apps Script Anda yang sudah di-deploy!
-const API_URL_GAS = 'URL_WEBAPP_GOOGLE_APPS_SCRIPT_ANDA_DISINI';
+const API_URL_GAS = 'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqSM572mbUIGozcghhh8LHNMNw2e83O7Wkyu-SkjdVTO3zpTb64PA/exec';
 
 // =====================================
 // FLOATING NOTIFICATION SYSTEM (TOAST)
