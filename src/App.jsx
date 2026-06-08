@@ -19,10 +19,14 @@ import TabCashWarRoom from './components/tabs/TabCashWarRoom';
 import TabSCMWarRoom from './components/tabs/TabSCMWarRoom'; 
 import TabAnalytics from './components/tabs/TabAnalytics'; 
 import PrintDotMatrix from './components/PrintDotMatrix';
+
 import { generateRequestId } from './utils/helpers'; 
 
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqSM572mbUIGozcghhh8LHNMNw2e83O7Wkyu-SkjdVTO3zpTb64PA/exec'; 
 
+// =====================================================================
+// CENTRAL CAPABILITY ENGINE
+// =====================================================================
 const CAPABILITY_CONFIG = {
   'HQ_FACTORY': { can_production: true, can_supplier: true, can_global_dashboard: true, can_pos: true, can_distribute: true, can_hrd: true, can_treasury: true, can_scm_warroom: true, can_analytics: true },
   'PRODUCTION_BRANCH': { can_production: true, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: true, can_hrd: false, can_treasury: false, can_scm_warroom: false, can_analytics: false },
@@ -69,6 +73,7 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
 
   return (
     <div className="h-screen bg-slate-50 flex overflow-hidden pointer-events-auto">
+      {/* HARD LOCK OVERLAY: Cegah klik apapun saat loading processing */}
       {isLoading && <div className="fixed inset-0 z-[100] bg-slate-900/10 backdrop-blur-[1px] cursor-wait flex items-center justify-center"><Loader2 className="w-10 h-10 text-red-600 animate-spin"/></div>}
 
       {/* MOBILE OVERLAY */}
@@ -143,7 +148,7 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
         </header>
         
         {/* VIEWPORT CONTROLLER */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 bg-slate-50 custom-scrollbar">
+        <div className={`flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 bg-slate-50 custom-scrollbar ${isLoading ? 'opacity-60 grayscale-[30%] transition-opacity duration-300' : 'transition-opacity duration-300'}`}>
           <div className="max-w-7xl mx-auto w-full">
             {activeTab === 'dashboard' && (caps.can_global_dashboard ? <TabDashboard {...data} sendToSheet={sendToSheet} setPrintData={setPrintData} user={user} showToast={showToast} /> : <TabDashboardBranch orders={data.orders} pemalangReports={data.pemalangReports} piutangPayments={data.piutangPayments} setPrintData={setPrintData} stokData={data.stokData} showToast={showToast} />)}
             {activeTab === 'cash_war_room' && caps.can_treasury && <TabCashWarRoom orders={data.orders} purchases={data.purchases} expenses={data.expenses} cashflowTransactions={data.cashflowTransactions} marketplaceSettlement={data.marketplaceSettlement} supplierLedger={data.supplierLedger} masterBranches={data.masterBranches} inventoryCostLayers={data.inventoryCostLayers} discrepancyLogs={data.discrepancyLogs} financialClosings={data.financialClosings} />}
@@ -165,6 +170,9 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
   );
 }
 
+// =====================================================================
+// MAIN APP ENTRY COMPONENT
+// =====================================================================
 export default function App() {
   const [user, setUser] = useState(() => { try { return window.localStorage.getItem('dimsum_user_session') ? JSON.parse(window.localStorage.getItem('dimsum_user_session')) : null; } catch (error) { return null; } }); 
   const [activeTab, setActiveTab] = useState(() => { try { return window.localStorage.getItem('dimsum_active_tab') || 'dashboard'; } catch (error) { return 'dashboard'; } });
@@ -176,7 +184,7 @@ export default function App() {
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [printData, setPrintData] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null); 
-  const [toast, setToast] = useState(null); // TOAST STATE
+  const [toast, setToast] = useState(null); 
 
   const showToast = (message, type = 'success') => setToast({ message, type });
   
@@ -263,25 +271,44 @@ export default function App() {
 
   const handleLogout = () => { setUser(null); setLoginForm({ username: '', password: '' }); window.localStorage.removeItem('dimsum_user_session'); window.localStorage.removeItem('dimsum_active_tab'); };
 
+  // =====================================================================
+  // HARDENED OPERATION FLOW (ANTI DOUBLE CLICK & ERROR HANDLING)
+  // =====================================================================
   const sendToSheet = async (action, data, table) => {
-    if (isOffline) { showToast("⚠️ OFFLINE: Data masuk antrean lokal.", 'error'); return false; }
-    if (isLoading) return false; 
+    if (isOffline) { showToast("⚠️ OFFLINE: Tidak ada koneksi internet. Transaksi diblokir demi keamanan data.", 'error'); return false; }
+    if (isLoading) { showToast("⏳ Mohon tunggu, sistem sedang memproses transaksi sebelumnya...", 'error'); return false; }
+    
     setIsLoading(true);
-
     const reqId = generateRequestId(); 
+    
     try { 
-        const response = await fetch(SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action, table, data, executor: user, request_id: reqId }) }); 
+        const response = await fetch(SCRIPT_URL, { 
+            method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
+            body: JSON.stringify({ action, table, data, executor: user, request_id: reqId }) 
+        }); 
+        
         const result = await response.json();
         
         if (result.status === 'forbidden' || result.status === 'error') {
-            setIsLoading(false); showToast(`⛔ DITOLAK: ${result.data?.message || result.message}`, 'error'); return false;
+            setIsLoading(false); 
+            const errorMsg = result.data?.message || result.message || 'Terjadi pelanggaran validasi sistem.';
+            showToast(`⛔ GAGAL: ${errorMsg}`, 'error'); 
+            return false;
         }
+        
         if (result.status === 'success') {
-            if (result.data?.message) showToast(`✅ ${result.data.message}`, 'success');
-            await fetchData(); setIsLoading(false); return true;
+            if (result.data?.message) { showToast(`✅ ${result.data.message}`, 'success'); } 
+            else { showToast(`✅ Transaksi berhasil disimpan.`, 'success'); }
+            
+            await fetchData(); 
+            setIsLoading(false); 
+            return true;
         }
     } catch (error) { 
-        showToast("🚨 Gagal memproses data ke server.", 'error'); setIsLoading(false); return false;
+        console.error("Gagal kirim ke Server:", error); 
+        showToast("🚨 FATAL ERROR: Gagal terhubung ke server. Pastikan koneksi stabil.", 'error'); 
+        setIsLoading(false); 
+        return false;
     }
   };
 
@@ -296,8 +323,9 @@ export default function App() {
     else if (type === 'stok') colName = 'stok';
     else if (type === 'purchase') colName = 'purchases';
     else if (type === 'karyawan') colName = 'karyawan';
-    await sendToSheet('delete', { id, editCount: 0 }, colName); 
-    setConfirmDialog(null);
+    
+    const success = await sendToSheet('delete', { id, editCount: 0 }, colName); 
+    if (success) { setConfirmDialog(null); }
   };
 
   if (!user) {
