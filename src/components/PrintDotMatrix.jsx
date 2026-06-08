@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { formatDate } from '../utils/helpers';
+import { formatDate, formatRp } from '../utils/helpers';
 
 export default function PrintDotMatrix({ printData, onClose }) {
   useEffect(() => {
@@ -15,19 +15,45 @@ export default function PrintDotMatrix({ printData, onClose }) {
   const { type, data } = printData;
 
   return (
-    <div id="print-section" className="fixed inset-0 z-[9999] bg-white text-black print-only-wrapper">
-      <style>{`
-        @media print {
-          body * { visibility: hidden; }
-          #print-section, #print-section * { visibility: visible; }
-          #print-section { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; }
-          @page { size: 8.5in 5.5in; margin: 0.15in; }
-          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color: #000 !important; }
-        }
-        .dot-matrix-font { font-family: 'Courier New', Courier, monospace; color: #000; line-height: 1.3; }
-        .dot-table th, .dot-table td { border: 1px solid #000; padding: 6px 8px; }
-      `}</style>
+    <div id="print-section" className="fixed inset-0 z-[9999] bg-white text-black print-only-wrapper overflow-y-auto">
+      
+      {/* ========================================== */}
+      {/* 1. CSS KHUSUS DOT MATRIX (SURAT JALAN) */}
+      {/* ========================================== */}
+      {type === 'DO' && (
+        <style>{`
+          @media print {
+            body * { visibility: hidden; }
+            #print-section, #print-section * { visibility: visible; }
+            #print-section { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; }
+            @page { size: 8.5in 5.5in; margin: 0.15in; }
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color: #000 !important; }
+          }
+          .dot-matrix-font { font-family: 'Courier New', Courier, monospace; color: #000; line-height: 1.3; }
+          .dot-table th, .dot-table td { border: 1px solid #000; padding: 6px 8px; }
+        `}</style>
+      )}
 
+      {/* ========================================== */}
+      {/* 2. CSS KHUSUS THERMAL PRINTER (STRUK KASIR) */}
+      {/* ========================================== */}
+      {type === 'RECEIPT' && (
+        <style>{`
+          @media print {
+            body * { visibility: hidden; }
+            #print-section, #print-section * { visibility: visible; }
+            #print-section { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; }
+            /* Ukuran Thermal Standar 58mm, tinggi otomatis menyesuaikan isi konten */
+            @page { size: 58mm auto; margin: 2mm; }
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color: #000 !important; }
+          }
+          .thermal-font { font-family: 'Courier New', Courier, monospace; color: #000; line-height: 1.2; font-size: 11px; }
+        `}</style>
+      )}
+
+      {/* ========================================================= */}
+      {/* TEMPLATE 1: SURAT JALAN (DELIVERY ORDER) */}
+      {/* ========================================================= */}
       {type === 'DO' && (
         <div className="dot-matrix-font p-2 w-[8.2in] mx-auto">
           <div className="flex justify-between items-start border-b-2 border-black pb-2 mb-4">
@@ -82,6 +108,56 @@ export default function PrintDotMatrix({ printData, onClose }) {
         </div>
       )}
 
+      {/* ========================================================= */}
+      {/* TEMPLATE 2: STRUK KASIR (THERMAL 58mm / 80mm) */}
+      {/* ========================================================= */}
+      {type === 'RECEIPT' && (
+        <div className="thermal-font p-2 w-[54mm] mx-auto text-center mt-4">
+          <h1 className="text-base font-black uppercase tracking-tight">DIMSUM ADITYA</h1>
+          <p className="text-[10px] font-bold uppercase">{data.branch_id === 'PUSAT' ? 'PUSAT DISTRIBUSI' : `CABANG ${data.branch_id}`}</p>
+          
+          <div className="border-b border-black border-dashed my-2"></div>
+          
+          <div className="text-left text-[10px] space-y-0.5">
+            <div>No : {data.id}</div>
+            <div>Tgl: {formatDate(data.date)}</div>
+            <div className="truncate">Plg: {data.customer_name} ({data.source})</div>
+          </div>
+          
+          <div className="border-b border-black border-dashed my-2"></div>
+          
+          <div className="text-left text-[10px]">
+            <div className="font-bold uppercase">{data.itemName}</div>
+            <div className="flex justify-between mt-0.5">
+              <span>{data.qty} x {formatRp(data.price)}</span>
+              <span>{formatRp(data.total)}</span>
+            </div>
+          </div>
+
+          <div className="border-b border-black border-dashed my-2"></div>
+
+          <div className="text-left text-[10px] font-bold space-y-1">
+            <div className="flex justify-between">
+              <span>TOTAL</span>
+              <span>{formatRp(data.total)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>BAYAR</span>
+              <span className="uppercase">{data.paymentMethod}</span>
+            </div>
+          </div>
+
+          <div className="border-b border-black border-dashed my-2"></div>
+          
+          <p className="text-[10px] mt-2 text-center font-bold">Terima Kasih!</p>
+          <p className="text-[8px] mt-1 text-center">Powered by ERP Dimsum Aditya</p>
+          
+          {/* Margin ekstra di bawah agar kertas bisa dipotong dengan rapi oleh printer thermal */}
+          <div className="pb-10"></div>
+        </div>
+      )}
+
+      {/* TOMBOL TUTUP (Untuk Layar Monitor) */}
       <div className="fixed top-4 right-4 print:hidden">
         <button onClick={onClose} className="bg-red-600 text-white font-bold px-6 py-2 rounded-lg shadow-lg hover:bg-red-700">Tutup Layar Cetak (X)</button>
       </div>
