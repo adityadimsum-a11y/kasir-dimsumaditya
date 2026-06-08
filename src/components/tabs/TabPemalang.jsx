@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Lock, Send, AlertTriangle, FileText, CheckCircle, Calculator, Landmark } from 'lucide-react';
+import { Lock, Send, AlertTriangle, CheckCircle, Calculator, Landmark } from 'lucide-react'; // <-- FileText sudah dihapus
 import { formatRp, getTodayStr, generateId, formatDate } from '../../utils/helpers';
 
 export default function TabPemalang({ 
@@ -28,7 +28,6 @@ export default function TabPemalang({
     let marketplaceAR = 0;
     let totalExpenses = 0;
 
-    // 1. Hitung Penjualan Hari Ini (Node Ini Saja)
     (orders || []).forEach(o => {
       if (o.isDeleted || String(o.isDeleted).toUpperCase() === 'TRUE') return;
       if (o.date !== todayStr || String(o.branch_id).toUpperCase() !== currentBranch.toUpperCase()) return;
@@ -38,11 +37,10 @@ export default function TabPemalang({
       if (o.paymentMethod === 'MARKETPLACE_AR') {
         marketplaceAR += netSales;
       } else {
-        cashSales += netSales; // Kas masuk laci (Tunai/QRIS)
+        cashSales += netSales;
       }
     });
 
-    // 2. Hitung Pengeluaran Hari Ini (Node Ini Saja)
     (expenses || []).forEach(e => {
       if (e.isDeleted || String(e.isDeleted).toUpperCase() === 'TRUE') return;
       if (e.date !== todayStr || String(e.branch_id).toUpperCase() !== currentBranch.toUpperCase()) return;
@@ -52,7 +50,6 @@ export default function TabPemalang({
 
     const expectedCash = cashSales - totalExpenses;
 
-    // 3. Cek apakah hari ini sudah di-closing?
     const isClosed = (financial_closings || []).some(c => 
       c.date === todayStr && 
       String(c.branch_id).toUpperCase() === currentBranch.toUpperCase() &&
@@ -62,7 +59,6 @@ export default function TabPemalang({
     return { cashSales, marketplaceAR, totalExpenses, expectedCash, isClosed };
   }, [orders, expenses, financial_closings, currentBranch, todayStr]);
 
-  // Kalkulasi Selisih Laci
   const actualCashNum = Number(form.actual_cash || 0);
   const discrepancy = actualCashNum - dailyMetrics.expectedCash;
 
@@ -84,7 +80,6 @@ export default function TabPemalang({
     const settlementId = generateId('SETTLE', todayStr);
     const transferAmt = Number(form.transfer_amount || 0);
 
-    // 1. Kunci Pembukuan Cabang (Closing)
     const closingPayload = {
       id: closingId,
       date: todayStr,
@@ -95,7 +90,6 @@ export default function TabPemalang({
       closed_by: user?.name || 'KASIR'
     };
 
-    // 2. Buat Dokumen Setoran (Settlement)
     const settlementPayload = {
       settlement_id: settlementId,
       branch_id: currentBranch,
@@ -108,41 +102,36 @@ export default function TabPemalang({
       transfer_date: todayStr
     };
 
-    // 3. Mutasi Single Source Cashflow (Kas Keluar Cabang & Kas Masuk Pusat)
     const cashflowPayloads = [
       {
         id: generateId('CFO', new Date()), date: todayStr, branch_id: currentBranch,
         transaction_type: 'OUTFLOW', category: 'BRANCH_SETTLEMENT', amount: transferAmt,
         payment_method: form.transfer_method, reference_id: settlementId,
-        description: `Setoran kasir harian ke Pusat`
+        description: `Setoran kasir harian ke Pusat. Catatan: ${form.notes || '-'}`
       },
       {
-        id: generateId('CFI', new Date()), date: todayStr, branch_id: 'HQ_FACTORY', // Paksa masuk brankas pusat
+        id: generateId('CFI', new Date()), date: todayStr, branch_id: 'HQ_FACTORY', 
         transaction_type: 'INFLOW', category: 'BRANCH_SETTLEMENT', amount: transferAmt,
         payment_method: form.transfer_method, reference_id: settlementId,
         description: `Terima setoran dari cabang ${currentBranch}`
       }
     ];
 
-    // Eksekusi beruntun ke backend
     const ok1 = await sendToSheet('insert', closingPayload, 'financial_closings');
     if (ok1) {
       await sendToSheet('insert', settlementPayload, 'branch_settlements');
       await sendToSheet('insert', cashflowPayloads, 'cashflow_transactions');
-      
-      // Auto-reset form
       setForm({ actual_cash: '', transfer_amount: '', transfer_method: 'BCA_PUSAT', notes: '' });
     }
   };
 
   const mySettlements = (branch_settlements || [])
     .filter(s => String(s.branch_id).toUpperCase() === currentBranch.toUpperCase() && (!s.isDeleted || String(s.isDeleted).toUpperCase() !== 'TRUE'))
-    .sort((a, b) => new Date(b.transfer_date) - new Date(a.transfer_date));
+    .sort((a, b) => new Date(b.transfer_date) - new Date(a.period || todayStr));
 
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
       
-      {/* HEADER WIDGET */}
       <div className="bg-slate-900 rounded-3xl p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-4 shadow-xl border border-slate-800 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
         <div className="relative z-10 text-center md:text-left w-full">
@@ -166,8 +155,6 @@ export default function TabPemalang({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* KOLOM KIRI: METRIK HARIAN OTOMATIS */}
         <div className="lg:col-span-1 space-y-4">
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
             <h3 className="font-black text-slate-800 text-xs uppercase tracking-widest flex items-center gap-2 border-b pb-3 mb-4">
@@ -195,7 +182,6 @@ export default function TabPemalang({
           </div>
         </div>
 
-        {/* KOLOM KANAN: FORM SETORAN */}
         <div className="lg:col-span-2">
           <div className={`bg-white rounded-3xl border shadow-sm overflow-hidden ${dailyMetrics.isClosed ? 'opacity-70 pointer-events-none' : 'border-blue-200'}`}>
             <div className={`p-4 border-b ${dailyMetrics.isClosed ? 'bg-slate-50' : 'bg-blue-50'} flex items-center justify-between`}>
@@ -207,8 +193,6 @@ export default function TabPemalang({
             
             <form onSubmit={handleClosingSubmit} className="p-6 md:p-8 space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                
-                {/* INPUT UANG FISIK */}
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">1. Hitung Uang Fisik Riil di Laci</label>
                   <div className="relative">
@@ -222,7 +206,6 @@ export default function TabPemalang({
                       placeholder="0" 
                     />
                   </div>
-                  {/* Indikator Selisih */}
                   {form.actual_cash && (
                     <div className={`text-[10px] font-bold mt-2 px-3 py-2 rounded-xl flex items-center gap-1 ${discrepancy === 0 ? 'bg-emerald-50 text-emerald-600' : discrepancy > 0 ? 'bg-blue-50 text-blue-600' : 'bg-rose-50 text-rose-600'}`}>
                       {discrepancy === 0 ? <CheckCircle size={12}/> : <AlertTriangle size={12}/>}
@@ -231,7 +214,6 @@ export default function TabPemalang({
                   )}
                 </div>
 
-                {/* INPUT TRANSFER PUSAT */}
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest">2. Nominal Disetor/Transfer ke Pusat</label>
                   <div className="relative">
@@ -247,7 +229,6 @@ export default function TabPemalang({
                   </div>
                   <div className="text-[9px] font-bold text-slate-400 mt-1 uppercase">Masukkan nominal yang benar-benar ditransfer.</div>
                 </div>
-
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
@@ -287,7 +268,6 @@ export default function TabPemalang({
         </div>
       </div>
 
-      {/* TABEL HISTORI SETORAN */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col mt-6">
          <div className="p-6 border-b bg-slate-50 flex items-center justify-between">
             <h4 className="font-black text-slate-800 tracking-widest uppercase text-xs flex items-center gap-2"><Landmark size={16}/> Histori Setoran Cabang Ini</h4>
