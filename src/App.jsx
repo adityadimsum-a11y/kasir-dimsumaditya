@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, ShoppingCart, Wallet, Clock, Store, Loader2, LogOut, 
-  Package, Truck, Users, AlertCircle, Activity, Send, ShieldAlert, TrendingUp, WifiOff, PieChart, Menu, X, Search, Bell, CheckCircle
+  Package, Truck, Users, AlertCircle, Activity, Send, ShieldAlert, TrendingUp, WifiOff, PieChart, Menu, X, Search, Bell, CheckCircle, Radar
 } from 'lucide-react';
 
 import TabDashboard from './components/tabs/TabDashboard';
@@ -18,6 +18,7 @@ import TabDashboardBranch from './components/tabs/TabDashboardBranch';
 import TabCashWarRoom from './components/tabs/TabCashWarRoom';
 import TabSCMWarRoom from './components/tabs/TabSCMWarRoom'; 
 import TabAnalytics from './components/tabs/TabAnalytics'; 
+import TabBusinessRadar from './components/tabs/TabBusinessRadar'; // MODUL PHASE 8
 import PrintDotMatrix from './components/PrintDotMatrix';
 
 import { generateRequestId } from './utils/helpers'; 
@@ -28,9 +29,9 @@ const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqSM
 // CENTRAL CAPABILITY ENGINE
 // =====================================================================
 const CAPABILITY_CONFIG = {
-  'HQ_FACTORY': { can_production: true, can_supplier: true, can_global_dashboard: true, can_pos: true, can_distribute: true, can_hrd: true, can_treasury: true, can_scm_warroom: true, can_analytics: true },
-  'PRODUCTION_BRANCH': { can_production: true, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: true, can_hrd: false, can_treasury: false, can_scm_warroom: false, can_analytics: false },
-  'OUTLET_RESTO': { can_production: false, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: false, can_hrd: false, can_treasury: false, can_scm_warroom: false, can_analytics: false }
+  'HQ_FACTORY': { can_production: true, can_supplier: true, can_global_dashboard: true, can_pos: true, can_distribute: true, can_hrd: true, can_treasury: true, can_scm_warroom: true, can_analytics: true, can_radar: true },
+  'PRODUCTION_BRANCH': { can_production: true, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: true, can_hrd: false, can_treasury: false, can_scm_warroom: false, can_analytics: false, can_radar: false },
+  'OUTLET_RESTO': { can_production: false, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: false, can_hrd: false, can_treasury: false, can_scm_warroom: false, can_analytics: false, can_radar: false }
 };
 
 function NavItem({ icon, label, active, onClick, badge, disabled }) {
@@ -73,7 +74,7 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
 
   return (
     <div className="h-screen bg-slate-50 flex overflow-hidden pointer-events-auto">
-      {/* HARD LOCK OVERLAY: Cegah klik apapun saat loading processing */}
+      {/* HARD LOCK OVERLAY */}
       {isLoading && <div className="fixed inset-0 z-[100] bg-slate-900/10 backdrop-blur-[1px] cursor-wait flex items-center justify-center"><Loader2 className="w-10 h-10 text-red-600 animate-spin"/></div>}
 
       {/* MOBILE OVERLAY */}
@@ -93,8 +94,9 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
         </div>
         
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto custom-scrollbar">
-            <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 mt-2 px-2">Dashboard</div>
+            <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 mt-2 px-2">Dashboard & Analytics</div>
             {caps.can_global_dashboard ? <NavItem icon={<Activity size={18} />} label="Command Center" active={activeTab === 'dashboard'} onClick={() => navigateTab('dashboard')} disabled={isLoading} /> : <NavItem icon={<LayoutDashboard size={18} />} label="Dashboard Node" active={activeTab === 'dashboard'} onClick={() => navigateTab('dashboard')} disabled={isLoading} />}
+            {caps.can_radar && <NavItem icon={<Radar size={18} />} label="Business Radar" active={activeTab === 'radar'} onClick={() => navigateTab('radar')} disabled={isLoading} />}
             {caps.can_treasury && <NavItem icon={<TrendingUp size={18} />} label="Cash War Room" active={activeTab === 'cash_war_room'} onClick={() => navigateTab('cash_war_room')} disabled={isLoading} />}
             {caps.can_analytics && <NavItem icon={<PieChart size={18} />} label="Executive Analytics" active={activeTab === 'analytics'} onClick={() => navigateTab('analytics')} disabled={isLoading} />}
             {caps.can_scm_warroom && <NavItem icon={<Truck size={18} />} label="SCM War Room" active={activeTab === 'scm_war_room'} onClick={() => navigateTab('scm_war_room')} disabled={isLoading} />}
@@ -151,6 +153,7 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
         <div className={`flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 bg-slate-50 custom-scrollbar ${isLoading ? 'opacity-60 grayscale-[30%] transition-opacity duration-300' : 'transition-opacity duration-300'}`}>
           <div className="max-w-7xl mx-auto w-full">
             {activeTab === 'dashboard' && (caps.can_global_dashboard ? <TabDashboard {...data} sendToSheet={sendToSheet} setPrintData={setPrintData} user={user} showToast={showToast} /> : <TabDashboardBranch orders={data.orders} pemalangReports={data.pemalangReports} piutangPayments={data.piutangPayments} setPrintData={setPrintData} stokData={data.stokData} showToast={showToast} />)}
+            {activeTab === 'radar' && caps.can_radar && <TabBusinessRadar orders={data.orders} stockMovements={data.stockMovements} expenses={data.expenses} supplierLedger={data.supplierLedger} cashflowTransactions={data.cashflowTransactions} inventoryCostLayers={data.inventoryCostLayers} marketplaceSettlement={data.marketplaceSettlement} masterBranches={data.masterBranches} discrepancyLogs={data.discrepancyLogs} />}
             {activeTab === 'cash_war_room' && caps.can_treasury && <TabCashWarRoom orders={data.orders} purchases={data.purchases} expenses={data.expenses} cashflowTransactions={data.cashflowTransactions} marketplaceSettlement={data.marketplaceSettlement} supplierLedger={data.supplierLedger} masterBranches={data.masterBranches} inventoryCostLayers={data.inventoryCostLayers} discrepancyLogs={data.discrepancyLogs} financialClosings={data.financialClosings} />}
             {activeTab === 'analytics' && caps.can_analytics && <TabAnalytics orders={data.orders} masterBranches={data.masterBranches} discrepancyLogs={data.discrepancyLogs} />}
             {activeTab === 'scm_war_room' && caps.can_scm_warroom && <TabSCMWarRoom distributionOrders={data.distributionOrders} inventoryCostLayers={data.inventoryCostLayers} discrepancyLogs={data.discrepancyLogs} masterBranches={data.masterBranches} />}
@@ -271,9 +274,6 @@ export default function App() {
 
   const handleLogout = () => { setUser(null); setLoginForm({ username: '', password: '' }); window.localStorage.removeItem('dimsum_user_session'); window.localStorage.removeItem('dimsum_active_tab'); };
 
-  // =====================================================================
-  // HARDENED OPERATION FLOW (ANTI DOUBLE CLICK & ERROR HANDLING)
-  // =====================================================================
   const sendToSheet = async (action, data, table) => {
     if (isOffline) { showToast("⚠️ OFFLINE: Tidak ada koneksi internet. Transaksi diblokir demi keamanan data.", 'error'); return false; }
     if (isLoading) { showToast("⏳ Mohon tunggu, sistem sedang memproses transaksi sebelumnya...", 'error'); return false; }
