@@ -29,16 +29,13 @@ import { generateRequestId } from './utils/helpers';
 
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqSM572mbUIGozcghhh8LHNMNw2e83O7Wkyu-SkjdVTO3zpTb64PA/exec'; 
 
-// =====================================================================
-// CENTRAL ROLES & CAPABILITY CONFIG
-// =====================================================================
 const CAPABILITY_CONFIG = {
   'HQ_FACTORY': { can_production: true, can_supplier: true, can_global_dashboard: true, can_pos: true, can_distribute: true, can_hrd: true, can_treasury: true, can_scm_warroom: true, can_analytics: true, can_radar: true, can_accounting: true, can_audit: true, can_master_data: true },
   'PRODUCTION_BRANCH': { can_production: true, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: true, can_hrd: false, can_treasury: false, can_scm_warroom: false, can_analytics: false, can_radar: false, can_accounting: false, can_audit: false, can_master_data: false },
   'OUTLET_RESTO': { can_production: false, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: false, can_hrd: false, can_treasury: false, can_scm_warroom: false, can_analytics: false, can_radar: false, can_accounting: false, can_audit: false, can_master_data: false }
 };
 
-const CACHE_TTL = 30000; // 30 Detik Memory Cache Layer
+const CACHE_TTL = 30000;
 let globalCache = { data: null, timestamp: 0 };
 
 function NavItem({ icon, label, active, onClick, badge, disabled }) {
@@ -54,9 +51,6 @@ function NavItem({ icon, label, active, onClick, badge, disabled }) {
   );
 }
 
-// =====================================================================
-// GLOBAL TOAST NOTIFICATION COMPONENT
-// =====================================================================
 function ToastNotification({ toast, onClose }) {
   useEffect(() => { if(toast) { const timer = setTimeout(onClose, 3500); return () => clearTimeout(timer); } }, [toast, onClose]);
   if (!toast) return null;
@@ -69,9 +63,6 @@ function ToastNotification({ toast, onClose }) {
   );
 }
 
-// =====================================================================
-// UNIVERSAL NODE ARCHITECTURE LAYOUT
-// =====================================================================
 function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, data, sendToSheet, setPrintData, setConfirmDialog, isLoading, isOffline, showToast }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const caps = user.permissions;
@@ -83,7 +74,6 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
 
   return (
     <div className="h-screen bg-slate-50 flex overflow-hidden pointer-events-auto">
-      {isLoading && <div className="fixed inset-0 z-[100] bg-slate-900/10 backdrop-blur-[1px] cursor-wait flex items-center justify-center"><Loader2 className="w-10 h-10 text-red-600 animate-spin"/></div>}
       {isMobileMenuOpen && <div className="fixed inset-0 bg-slate-900/50 z-40 md:hidden" onClick={() => setIsMobileMenuOpen(false)} />}
 
       <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 text-white flex flex-col transform transition-transform duration-300 md:relative md:translate-x-0 shadow-2xl md:shadow-none ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
@@ -103,10 +93,8 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
             {caps.can_global_dashboard ? <NavItem icon={<Activity size={18} />} label="Command Center" active={activeTab === 'dashboard'} onClick={() => navigateTab('dashboard')} disabled={isLoading} /> : <NavItem icon={<LayoutDashboard size={18} />} label="Dashboard Node" active={activeTab === 'dashboard'} onClick={() => navigateTab('dashboard')} disabled={isLoading} />}
             {caps.can_radar && <NavItem icon={<Radar size={18} />} label="Business Radar" active={activeTab === 'radar'} onClick={() => navigateTab('radar')} disabled={isLoading} />}
             {caps.can_treasury && <NavItem icon={<TrendingUp size={18} />} label="Cash War Room" active={activeTab === 'cash_war_room'} onClick={() => navigateTab('cash_war_room')} disabled={isLoading} />}
-            
             {caps.can_accounting && <NavItem icon={<BookOpen size={18} />} label="Financial ERP" active={activeTab === 'accounting'} onClick={() => navigateTab('accounting')} disabled={isLoading} />}
             {caps.can_audit && <NavItem icon={<ShieldCheck size={18} />} label="Accounting Audit" active={activeTab === 'accounting_audit'} onClick={() => navigateTab('accounting_audit')} disabled={isLoading} />}
-            
             {caps.can_analytics && <NavItem icon={<PieChart size={18} />} label="Executive Analytics" active={activeTab === 'analytics'} onClick={() => navigateTab('analytics')} disabled={isLoading} />}
             {caps.can_scm_warroom && <NavItem icon={<Truck size={18} />} label="SCM War Room" active={activeTab === 'scm_war_room'} onClick={() => navigateTab('scm_war_room')} disabled={isLoading} />}
 
@@ -185,9 +173,6 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
   );
 }
 
-// =====================================================================
-// MAIN APP ROOT ENGINE
-// =====================================================================
 export default function App() {
   const [user, setUser] = useState(() => { try { return window.localStorage.getItem('dimsum_user_session') ? JSON.parse(window.localStorage.getItem('dimsum_user_session')) : null; } catch (e) { return null; } }); 
   const [activeTab, setActiveTab] = useState(() => { try { return window.localStorage.getItem('dimsum_active_tab') || 'dashboard'; } catch (e) { return 'dashboard'; } });
@@ -206,7 +191,6 @@ export default function App() {
   const showToast = (message, type = 'success') => setToast({ message, type });
   const handleTabChange = (tabName) => { setActiveTab(tabName); window.localStorage.setItem('dimsum_active_tab', tabName); };
 
-  // SMART KEYBOARD SHORTCUTS
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
@@ -347,7 +331,7 @@ export default function App() {
 
   const handleLogout = () => { setUser(null); setLoginForm({ username: '', password: '' }); window.localStorage.removeItem('dimsum_user_session'); window.localStorage.removeItem('dimsum_active_tab'); };
 
-  const executeDelete = async () => {
+  const handleExecuteDelete = async () => {
     if(!confirmDialog) return;
     const { type, id } = confirmDialog;
     let colName = 'orders';
@@ -411,7 +395,7 @@ export default function App() {
               <p className="text-xs text-slate-500 mb-5 font-bold">Apakah Anda yakin ingin memproses/menghapus data ini?</p>
               <div className="flex gap-2 justify-center">
                 <button disabled={isLoading} onClick={() => setConfirmDialog(null)} className="w-1/2 px-4 py-2.5 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-200 transition">Batal (ESC)</button>
-                <button disabled={isLoading} onClick={executeDelete} className="w-1/2 px-4 py-2.5 bg-red-600 text-white font-bold text-xs rounded-xl hover:bg-red-700 shadow-md transition flex justify-center items-center gap-2">{isLoading ? <Loader2 size={12} className="animate-spin"/> : 'Eksekusi'}</button>
+                <button disabled={isLoading} onClick={handleExecuteDelete} className="w-1/2 px-4 py-2.5 bg-red-600 text-white font-bold text-xs rounded-xl hover:bg-red-700 shadow-md transition flex justify-center items-center gap-2">{isLoading ? <Loader2 size={12} className="animate-spin"/> : 'Eksekusi'}</button>
               </div>
             </div>
           </div>
