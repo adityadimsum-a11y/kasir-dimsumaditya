@@ -18,6 +18,14 @@ export default function TabKaryawan({ karyawan, expenses, sendToSheet, setPrintD
   });
 
   // =====================================
+  // HELPER: INPUT RUPIAH OTOMATIS
+  // =====================================
+  const handleCurrencyChange = (setter, field, value) => {
+      const rawValue = value.replace(/\D/g, ''); // Buang semua karakter selain angka
+      setter(prev => ({ ...prev, [field]: rawValue }));
+  };
+
+  // =====================================
   // HANDLERS
   // =====================================
   const handleSimpanMaster = (e) => {
@@ -53,10 +61,33 @@ export default function TabKaryawan({ karyawan, expenses, sendToSheet, setPrintD
       setFormKasbon({ ...formKasbon, amount: '', notes: '' });
   };
 
+  // 🔥 ENGINE AUTO-HITUNG KASBON SAAT KARYAWAN DIPILIH
   const handleSelectEmployeeForPayroll = (empId) => {
       const emp = karyawan.find(k => k.id === empId);
       if(emp) {
-          setFormPayroll({ ...formPayroll, employeeId: empId, baseSalary: emp.base_salary, allowance: '0', kasbonDeduction: '0', otherDeduction: '0' });
+          // 1. Hitung total hutang kasbon karyawan ini
+          const totalKasbon = (expenses || [])
+              .filter(e => e.category === 'KASBON_KARYAWAN' && e.employee_id === empId)
+              .reduce((sum, e) => sum + Number(e.amount), 0);
+          
+          // 2. Hitung total kasbon yang sudah pernah dibayar/dipotong di gaji sebelumnya
+          const totalDibayar = (expenses || [])
+              .filter(e => e.category === 'GAJI_KARYAWAN' && e.employee_name === emp.name)
+              .reduce((sum, e) => sum + Number(e.kasbon_deduction || 0), 0);
+
+          // 3. Sisa hutang aktual
+          const sisaKasbon = totalKasbon - totalDibayar;
+
+          setFormPayroll({ 
+              ...formPayroll, 
+              employeeId: empId, 
+              baseSalary: emp.base_salary, 
+              allowance: '', 
+              kasbonDeduction: sisaKasbon > 0 ? String(sisaKasbon) : '', // Auto-Isi jika ada hutang!
+              otherDeduction: '' 
+          });
+      } else {
+          setFormPayroll({ ...formPayroll, employeeId: '', baseSalary: 0, allowance: '', kasbonDeduction: '', otherDeduction: '' });
       }
   };
 
@@ -68,6 +99,11 @@ export default function TabKaryawan({ karyawan, expenses, sendToSheet, setPrintD
       e.preventDefault();
       const emp = karyawan.find(k => k.id === formPayroll.employeeId);
       if(!emp) return;
+
+      if (netSalary < 0) {
+          alert('⛔ ERROR: Gaji Bersih (Take Home Pay) tidak boleh minus! Cek kembali potongan Kasbon.');
+          return;
+      }
 
       const payrollId = generateId('PAY', formPayroll.date);
       const payload = {
@@ -133,10 +169,44 @@ export default function TabKaryawan({ karyawan, expenses, sendToSheet, setPrintD
 
                       {formPayroll.employeeId && (
                           <div className="space-y-3 pt-4 border-t border-dashed">
-                              <div><label className="text-[10px] font-black text-slate-500 uppercase">Gaji Pokok / Harian (Standar)</label><input type="number" readOnly value={formPayroll.baseSalary} className="w-full p-2 bg-slate-100 border rounded-lg font-black text-slate-600 cursor-not-allowed outline-none" /></div>
-                              <div><label className="text-[10px] font-black text-emerald-600 uppercase">Uang Tunjangan / Lembur (+)</label><input type="number" required placeholder="0" value={formPayroll.allowance} onChange={e=>setFormPayroll({...formPayroll, allowance: e.target.value})} className="w-full p-2 bg-emerald-50 border border-emerald-200 rounded-lg font-black text-emerald-700" /></div>
-                              <div><label className="text-[10px] font-black text-red-600 uppercase">Potongan Kasbon (-)</label><input type="number" required placeholder="0" value={formPayroll.kasbonDeduction} onChange={e=>setFormPayroll({...formPayroll, kasbonDeduction: e.target.value})} className="w-full p-2 bg-red-50 border border-red-200 rounded-lg font-black text-red-700" /></div>
-                              <div><label className="text-[10px] font-black text-red-600 uppercase">Potongan Absen / Lainnya (-)</label><input type="number" required placeholder="0" value={formPayroll.otherDeduction} onChange={e=>setFormPayroll({...formPayroll, otherDeduction: e.target.value})} className="w-full p-2 bg-red-50 border border-red-200 rounded-lg font-black text-red-700" /></div>
+                              {/* DISPLAY GAJI POKOK (READONLY) */}
+                              <div>
+                                  <label className="text-[10px] font-black text-slate-500 uppercase">Gaji Pokok / Harian (Standar)</label>
+                                  <div className="relative">
+                                      <span className="absolute left-3 top-2 font-black text-slate-400">Rp</span>
+                                      <input type="text" readOnly value={formPayroll.baseSalary ? Number(formPayroll.baseSalary).toLocaleString('id-ID') : '0'} className="w-full pl-9 pr-3 py-2 bg-slate-100 border rounded-lg font-black text-slate-600 cursor-not-allowed outline-none" />
+                                  </div>
+                              </div>
+                              
+                              {/* INPUT TUNJANGAN */}
+                              <div>
+                                  <label className="text-[10px] font-black text-emerald-600 uppercase">Uang Tunjangan / Lembur (+)</label>
+                                  <div className="relative">
+                                      <span className="absolute left-3 top-2 font-black text-emerald-600/50">Rp</span>
+                                      <input type="text" placeholder="0" value={formPayroll.allowance ? Number(formPayroll.allowance).toLocaleString('id-ID') : ''} onChange={e=>handleCurrencyChange(setFormPayroll, 'allowance', e.target.value)} className="w-full pl-9 pr-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg font-black text-emerald-700 outline-none focus:ring-2 focus:ring-emerald-500" />
+                                  </div>
+                              </div>
+                              
+                              {/* INPUT POTONGAN KASBON (AUTO) */}
+                              <div>
+                                  <div className="flex justify-between items-end">
+                                      <label className="text-[10px] font-black text-red-600 uppercase">Potongan Kasbon (-)</label>
+                                      {formPayroll.kasbonDeduction > 0 && <span className="text-[9px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-bold uppercase animate-pulse">Sisa Hutang Ditemukan!</span>}
+                                  </div>
+                                  <div className="relative mt-1">
+                                      <span className="absolute left-3 top-2 font-black text-red-600/50">Rp</span>
+                                      <input type="text" placeholder="0" value={formPayroll.kasbonDeduction ? Number(formPayroll.kasbonDeduction).toLocaleString('id-ID') : ''} onChange={e=>handleCurrencyChange(setFormPayroll, 'kasbonDeduction', e.target.value)} className="w-full pl-9 pr-3 py-2 bg-red-50 border border-red-200 rounded-lg font-black text-red-700 outline-none focus:ring-2 focus:ring-red-500" />
+                                  </div>
+                              </div>
+                              
+                              {/* INPUT POTONGAN LAIN */}
+                              <div>
+                                  <label className="text-[10px] font-black text-red-600 uppercase">Potongan Absen / Lainnya (-)</label>
+                                  <div className="relative">
+                                      <span className="absolute left-3 top-2 font-black text-red-600/50">Rp</span>
+                                      <input type="text" placeholder="0" value={formPayroll.otherDeduction ? Number(formPayroll.otherDeduction).toLocaleString('id-ID') : ''} onChange={e=>handleCurrencyChange(setFormPayroll, 'otherDeduction', e.target.value)} className="w-full pl-9 pr-3 py-2 bg-red-50 border border-red-200 rounded-lg font-black text-red-700 outline-none focus:ring-2 focus:ring-red-500" />
+                                  </div>
+                              </div>
                               
                               <div className="space-y-1"><label className="text-[10px] font-bold text-slate-600 uppercase">Bayar Dari Rekening Kas</label>
                                   <select value={formPayroll.paymentMethod} onChange={e=>setFormPayroll({...formPayroll, paymentMethod: e.target.value})} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold text-sm">
@@ -187,7 +257,7 @@ export default function TabKaryawan({ karyawan, expenses, sendToSheet, setPrintD
       {/* ========================================================= */}
       {activeSubTab === 'kasbon' && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-white rounded-2xl border shadow-sm p-6 border-t-4 border-t-orange-500">
+              <div className="bg-white rounded-2xl border shadow-sm p-6 border-t-4 border-t-orange-500 h-max">
                   <h3 className="font-black text-slate-800 text-lg uppercase tracking-wide mb-4">Input Kasbon</h3>
                   <form onSubmit={handleSimpanKasbon} className="space-y-4">
                       <div className="space-y-1"><label className="text-[10px] font-bold text-slate-600 uppercase">Tanggal</label><input type="date" required value={formKasbon.date} onChange={e=>setFormKasbon({...formKasbon, date: e.target.value})} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold text-sm" /></div>
@@ -197,7 +267,16 @@ export default function TabKaryawan({ karyawan, expenses, sendToSheet, setPrintD
                               {(karyawan||[]).filter(k=>k.status==='AKTIF').map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
                           </select>
                       </div>
-                      <div className="space-y-1"><label className="text-[10px] font-bold text-slate-600 uppercase">Nominal (Rp)</label><input type="number" required placeholder="0" value={formKasbon.amount} onChange={e=>setFormKasbon({...formKasbon, amount: e.target.value})} className="w-full p-2.5 bg-orange-50 border border-orange-200 rounded-xl font-black text-orange-700" /></div>
+                      
+                      {/* INPUT KASBON (FORMAT RUPIAH) */}
+                      <div>
+                          <label className="text-[10px] font-bold text-slate-600 uppercase">Nominal (Rp)</label>
+                          <div className="relative mt-1">
+                              <span className="absolute left-3 top-2.5 font-black text-orange-600/50">Rp</span>
+                              <input type="text" required placeholder="0" value={formKasbon.amount ? Number(formKasbon.amount).toLocaleString('id-ID') : ''} onChange={e=>handleCurrencyChange(setFormKasbon, 'amount', e.target.value)} className="w-full pl-9 pr-3 py-2.5 bg-orange-50 border border-orange-200 rounded-xl font-black text-orange-700 outline-none focus:ring-2 focus:ring-orange-500" />
+                          </div>
+                      </div>
+
                       <div className="space-y-1"><label className="text-[10px] font-bold text-slate-600 uppercase">Keterangan / Alasan</label><input type="text" required value={formKasbon.notes} onChange={e=>setFormKasbon({...formKasbon, notes: e.target.value})} className="w-full p-2.5 bg-slate-50 border rounded-xl font-medium text-sm" /></div>
                       <button type="submit" className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-3.5 rounded-xl shadow-md transition flex items-center justify-center gap-2"><Plus size={18}/> Catat Hutang Karyawan</button>
                   </form>
@@ -227,7 +306,7 @@ export default function TabKaryawan({ karyawan, expenses, sendToSheet, setPrintD
       {/* ========================================================= */}
       {activeSubTab === 'master' && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-white rounded-2xl border shadow-sm p-6 border-t-4 border-t-slate-800">
+              <div className="bg-white rounded-2xl border shadow-sm p-6 border-t-4 border-t-slate-800 h-max">
                   <h3 className="font-black text-slate-800 text-lg uppercase tracking-wide mb-4">Tambah Karyawan Baru</h3>
                   <form onSubmit={handleSimpanMaster} className="space-y-4">
                       <div className="space-y-1"><label className="text-[10px] font-bold text-slate-600 uppercase">Nama Lengkap</label><input type="text" required value={formMaster.name} onChange={e=>setFormMaster({...formMaster, name: e.target.value})} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold text-sm uppercase" /></div>
@@ -239,7 +318,16 @@ export default function TabKaryawan({ karyawan, expenses, sendToSheet, setPrintD
                               <option value="ADMIN">Admin / Backoffice</option>
                           </select>
                       </div>
-                      <div className="space-y-1"><label className="text-[10px] font-bold text-slate-600 uppercase">Gaji Pokok Standar (Rp)</label><input type="number" required placeholder="0" value={formMaster.baseSalary} onChange={e=>setFormMaster({...formMaster, baseSalary: e.target.value})} className="w-full p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl font-black text-emerald-700" /></div>
+
+                      {/* INPUT MASTER GAJI POKOK (FORMAT RUPIAH) */}
+                      <div>
+                          <label className="text-[10px] font-bold text-slate-600 uppercase">Gaji Pokok Standar (Rp)</label>
+                          <div className="relative mt-1">
+                              <span className="absolute left-3 top-2.5 font-black text-emerald-600/50">Rp</span>
+                              <input type="text" required placeholder="0" value={formMaster.baseSalary ? Number(formMaster.baseSalary).toLocaleString('id-ID') : ''} onChange={e=>handleCurrencyChange(setFormMaster, 'baseSalary', e.target.value)} className="w-full pl-9 pr-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl font-black text-emerald-700 outline-none focus:ring-2 focus:ring-emerald-500" />
+                          </div>
+                      </div>
+
                       <button type="submit" className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3.5 rounded-xl shadow-md transition flex items-center justify-center gap-2"><Plus size={18}/> Simpan Master Data</button>
                   </form>
               </div>
