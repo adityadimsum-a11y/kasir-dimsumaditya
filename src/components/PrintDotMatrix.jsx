@@ -88,7 +88,7 @@ export default function PrintDotMatrix({ printData, onClose }) {
       )}
 
       {/* ========================================================= */}
-      {/* TEMPLATE 2: INVOICE PENJUALAN (OFFLINE & MARKETPLACE) */}
+      {/* TEMPLATE 2: INVOICE PENJUALAN */}
       {/* ========================================================= */}
       {type === 'INVOICE' && (
         <div className="dot-matrix-font p-2 w-[8.2in] mx-auto">
@@ -133,12 +133,10 @@ export default function PrintDotMatrix({ printData, onClose }) {
                 <td className="text-right">{formatRp(data.price)}</td>
                 <td className="text-right font-black">{formatRp(data.total)}</td>
               </tr>
-              {/* Spacing estetika */}
               <tr><td className="py-2 border-b-0 border-t-0"></td><td className="border-b-0 border-t-0"></td><td className="border-b-0 border-t-0"></td><td className="border-b-0 border-t-0"></td><td className="border-b-0 border-t-0"></td></tr>
             </tbody>
           </table>
 
-          {/* TOTAL & TERBILANG */}
           <div className="flex justify-end mb-6">
               <div className="w-1/2">
                   <div className="flex justify-between border-t-2 border-black pt-2 font-black text-lg">
@@ -149,18 +147,73 @@ export default function PrintDotMatrix({ printData, onClose }) {
           </div>
 
           <div className="grid grid-cols-2 gap-4 text-center text-sm font-bold mt-4 w-2/3 mx-auto">
+            <div><p className="mb-12">Kasir / Diserahkan Oleh,</p><p className="border-t border-black border-dashed pt-1 w-3/4 mx-auto">( .................... )</p></div>
+            <div><p className="mb-12">Pelanggan / Driver {data.source !== 'OFFLINE' ? data.source : ''},</p><p className="border-t border-black border-dashed pt-1 w-3/4 mx-auto">( .................... )</p></div>
+          </div>
+          <div className="mt-4 text-xs font-bold text-center border-t border-black pt-2">*Terima kasih telah berbelanja di Dimsum Aditya. Barang yang sudah dibeli tidak dapat ditukar/dikembalikan.</div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* TEMPLATE 3: SLIP GAJI KARYAWAN */}
+      {/* ========================================================= */}
+      {type === 'SLIP_GAJI' && (
+        <div className="dot-matrix-font p-2 w-[8.2in] mx-auto">
+          <div className="flex justify-between items-start border-b-2 border-black pb-2 mb-6">
             <div>
-              <p className="mb-12">Kasir / Diserahkan Oleh,</p>
-              <p className="border-t border-black border-dashed pt-1 w-3/4 mx-auto">( .................... )</p>
+              <h1 className="text-2xl font-black uppercase tracking-widest">DIMSUM ADITYA</h1>
+              <p className="text-sm font-bold">Dokumen HRD & Payroll</p>
             </div>
-            <div>
-              <p className="mb-12">Pelanggan / Driver {data.source !== 'OFFLINE' ? data.source : ''},</p>
-              <p className="border-t border-black border-dashed pt-1 w-3/4 mx-auto">( .................... )</p>
+            <div className="text-right">
+              <h2 className="text-2xl font-black uppercase">SLIP GAJI KARYAWAN</h2>
+              <div className="text-sm font-bold border border-black p-1 mt-1 inline-block">REF: {data.id}</div>
             </div>
           </div>
+
+          <div className="flex justify-between mb-8 text-sm font-bold border-b border-black border-dashed pb-4">
+            <div className="space-y-1">
+              <div><span className="inline-block w-32">NAMA KARYAWAN</span>: <span className="uppercase text-lg font-black">{data.employee_name}</span></div>
+              <div><span className="inline-block w-32">POSISI / JABATAN</span>: <span className="uppercase">{data.position}</span></div>
+            </div>
+            <div className="space-y-1">
+              <div><span className="inline-block w-28">TANGGAL CETAK</span>: {formatDate(data.date)}</div>
+              <div><span className="inline-block w-28">METODE BAYAR</span>: <span className="uppercase">{data.payment_method}</span></div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-8 mb-8 text-sm">
+            {/* KOLOM PENERIMAAN */}
+            <div>
+                <h3 className="font-black border-b border-black mb-2 pb-1">KOMPONEN PENERIMAAN (+)</h3>
+                <div className="flex justify-between font-bold mb-1"><span>Gaji Pokok / Harian</span><span>{formatRp(data.base_salary)}</span></div>
+                <div className="flex justify-between font-bold mb-1"><span>Tunjangan / Lembur</span><span>{formatRp(data.allowance)}</span></div>
+                <div className="flex justify-between font-black mt-4 pt-2 border-t border-black"><span>TOTAL PENERIMAAN</span><span>{formatRp(Number(data.base_salary) + Number(data.allowance))}</span></div>
+            </div>
+
+            {/* KOLOM POTONGAN */}
+            <div>
+                <h3 className="font-black border-b border-black mb-2 pb-1">KOMPONEN POTONGAN (-)</h3>
+                <div className="flex justify-between font-bold text-red-600 mb-1"><span>Cicilan Kasbon</span><span>{formatRp(data.kasbon_deduction)}</span></div>
+                <div className="flex justify-between font-bold text-red-600 mb-1"><span>Potongan Absen / Lainnya</span><span>{formatRp(data.other_deduction)}</span></div>
+                <div className="flex justify-between font-black mt-4 pt-2 border-t border-black text-red-600"><span>TOTAL POTONGAN</span><span>{formatRp(Number(data.kasbon_deduction) + Number(data.other_deduction))}</span></div>
+            </div>
+          </div>
+
+          {/* TAKE HOME PAY */}
+          <div className="border-4 border-black p-4 mb-8">
+              <div className="flex justify-between items-center font-black text-xl">
+                  <span>TAKE HOME PAY (GAJI BERSIH):</span>
+                  <span className="text-2xl">{formatRp(data.net_salary)}</span>
+              </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 text-center text-sm font-bold mt-4 w-2/3 mx-auto">
+            <div><p className="mb-12">Diterima Oleh,</p><p className="border-t border-black border-dashed pt-1 w-3/4 mx-auto">( {data.employee_name} )</p></div>
+            <div><p className="mb-12">Disetujui Oleh (Finance/HRD),</p><p className="border-t border-black border-dashed pt-1 w-3/4 mx-auto">( .................... )</p></div>
+          </div>
           
-          <div className="mt-4 text-xs font-bold text-center border-t border-black pt-2">
-            *Terima kasih telah berbelanja di Dimsum Aditya. Barang yang sudah dibeli tidak dapat ditukar/dikembalikan.
+          <div className="mt-8 text-xs font-bold text-center border-t border-black pt-2">
+            *Slip gaji ini dicetak otomatis oleh Sistem ERP Dimsum Aditya dan sah sebagai bukti pembayaran upah yang sah.
           </div>
         </div>
       )}
