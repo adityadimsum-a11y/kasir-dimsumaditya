@@ -96,21 +96,24 @@ export default function TabCashWarRoom({ orders, purchases, cashflow_transaction
         <div className="bg-orange-50 border border-orange-200 rounded-3xl p-6 shadow-sm">
           <h3 className="font-black text-orange-800 text-sm tracking-widest uppercase mb-4 flex items-center gap-2"><AlertTriangle size={18}/> Validasi Uang Masuk Cabang ({pendingSettlements.length})</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {pendingSettlements.map(s => (
-              <div key={s.settlement_id} className="bg-white p-5 rounded-2xl border border-orange-100 shadow-sm flex flex-col justify-between">
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-[10px] font-black text-orange-600 bg-orange-100 px-2 py-1 rounded uppercase">{s.branch_id}</span>
-                    <span className="text-[9px] font-bold text-slate-400">{s.transfer_method}</span>
-                  </div>
-                  <div className="text-2xl font-black text-slate-800">{formatRp(s.amount_transferred)}</div>
-                  <div className="text-[10px] text-slate-500 font-bold mt-1">Sistem mencatat pengiriman kas.</div>
-                </div>
-                <button onClick={() => handleApproveSettlement(s)} className="w-full mt-4 bg-orange-500 hover:bg-orange-600 text-white text-xs font-black py-2.5 rounded-xl uppercase tracking-wider flex justify-center items-center gap-1 transition">
-                  <CheckCircle size={14}/> Approve & Terima Kas
-                </button>
-              </div>
-            ))}
+{pendingSettlements.map(s => (
+  <div key={s.settlement_id} className="bg-white p-5 rounded-22xl border border-orange-200 shadow-md flex flex-col justify-between">
+    <div>
+      <div className="flex justify-between items-center mb-3">
+        <span className="text-[10px] font-black text-orange-600 bg-orange-100 px-2 py-1 rounded uppercase tracking-widest">{s.branch_id}</span>
+        <span className="text-[9px] font-bold text-slate-400 font-mono">{s.settlement_id}</span>
+      </div>
+      <div className="text-2xl font-black text-slate-800">{formatRp(s.amount_transferred)}</div>
+      <div className="text-[10px] text-slate-500 font-bold mt-2 border-t pt-2">
+        Tanggal Setoran: {s.transfer_date || s.period} <br/>
+        Metode: {s.transfer_method}
+      </div>
+    </div>
+    <button onClick={() => handleApproveSettlement(s)} className="w-full mt-4 bg-orange-500 hover:bg-orange-600 text-white text-xs font-black py-2.5 rounded-xl uppercase tracking-wider flex justify-center items-center gap-1 transition">
+      <CheckCircle size={14}/> Approve & Terima Kas
+    </button>
+  </div>
+))}
           </div>
         </div>
       )}
