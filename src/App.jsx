@@ -28,7 +28,7 @@ import TabStokOutlet from './components/tabs/TabStokOutlet';
 import PrintDotMatrix from './components/PrintDotMatrix';
 
 // ⚠️ WAJIB GANTI DENGAN URL GOOGLE APPS SCRIPT ANDA
-const API_URL_GAS = 'URL_WEBAPP_GOOGLE_APPS_SCRIPT_ANDA_DISINI';
+const API_URL_GAS = 'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqSM572mbUIGozcghhh8LHNMNw2e83O7Wkyu-SkjdVTO3zpTb64PA/exec';
 
 const ToastNotification = ({ toast, onClose }) => {
   if (!toast) return null;
