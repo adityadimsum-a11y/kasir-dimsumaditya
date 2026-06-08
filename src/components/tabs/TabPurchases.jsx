@@ -1,20 +1,14 @@
-import React, { useState, useMemo } from 'react';
-import { Truck, Package, Database, ShieldAlert } from 'lucide-react';
+import React, { useState } from 'react';
+import { Truck, Package, Database, ShieldAlert, Trash2, Printer } from 'lucide-react';
 import { formatRp, getTodayStr, generateId, formatDate } from '../../utils/helpers';
 
-export default function TabPurchases({ purchases, masterSuppliers, masterRawMaterials, sendToSheet, showToast, user }) {
+// TAMBAHKAN setPrintData dan requestDelete DI PROPS BAWAAN
+export default function TabPurchases({ purchases, masterSuppliers, masterRawMaterials, sendToSheet, showToast, setPrintData, requestDelete, user }) {
   const todayStr = getTodayStr();
   const currentBranch = user?.branch_id || 'PUSAT';
 
   const [form, setForm] = useState({
-      date: todayStr,
-      supplierName: '',
-      itemName: '',
-      qty: '',
-      unit: 'KG',
-      price: '',
-      paidAmount: '',
-      paymentMethod: 'CASH'
+      date: todayStr, supplierName: '', itemName: '', qty: '', unit: 'KG', price: '', paidAmount: '', paymentMethod: 'CASH'
   });
 
   const totalTagihan = Number(form.qty || 0) * Number(form.price || 0);
@@ -30,61 +24,22 @@ export default function TabPurchases({ purchases, masterSuppliers, masterRawMate
   const handleSubmit = async (e) => {
       e.preventDefault();
       if (!form.supplierName || !form.itemName || Number(form.qty) <= 0 || Number(form.price) <= 0) {
-          alert("Mohon isi Kuantitas dan Harga Satuan terlebih dahulu (Tidak boleh 0)!");
-          return;
+          alert("Mohon isi Kuantitas dan Harga Satuan!"); return;
       }
 
       const upperSupplier = form.supplierName.toUpperCase();
       const upperItem = form.itemName.toUpperCase();
 
-      // 1. AUTO-SAVE SUPPLIER BARU
-      const isSupplierExist = (masterSuppliers || []).some(s => String(s.supplier_name || s.supplierName || '').toUpperCase() === upperSupplier);
-      if (!isSupplierExist) {
-          await sendToSheet('insert', { 
-              id: generateId('SUP', new Date()), 
-              supplier_name: upperSupplier, 
-              supplierName: upperSupplier, 
-              payment_term: 'CASH', 
-              status: 'ACTIVE' 
-          }, 'master_suppliers');
-      }
-
-      // 2. AUTO-SAVE BAHAN BAKU BARU
-      const isItemExist = (masterRawMaterials || []).some(m => String(m.raw_name || m.itemName || '').toUpperCase() === upperItem);
-      if (!isItemExist) {
-          await sendToSheet('insert', { 
-              id: generateId('RAW', new Date()), 
-              raw_name: upperItem, 
-              rawName: upperItem,
-              unit: form.unit, 
-              average_cost: Number(form.price), 
-              category: 'BAHAN_BAKU', 
-              status: 'ACTIVE' 
-          }, 'master_raw_materials');
-      }
-
-      // 3. PROSES PEMBELIAN UTAMA (DOUBLE-MAPPING ANTI-MELESET)
       const purchaseId = generateId('PUR', form.date);
       const purchasePayload = {
-          id: purchaseId,
-          date: form.date,
-          branch_id: currentBranch,
-          // Mengirim dua versi sekaligus agar COCOK dengan kolom Sheets jenis apa pun
-          supplierName: upperSupplier,
-          supplier_name: upperSupplier,
-          itemName: upperItem,
-          item_name: upperItem,
-          qty: Number(form.qty),
-          unit: form.unit,
-          price: Number(form.price),
-          totalAmount: totalTagihan,
-          total_amount: totalTagihan,
-          paidAmount: dpDibayar,
-          paid_amount: dpDibayar,
-          paymentMethod: form.paymentMethod,
-          payment_method: form.paymentMethod,
-          paymentStatus: isHutang ? 'HUTANG' : 'LUNAS',
-          payment_status: isHutang ? 'HUTANG' : 'LUNAS'
+          id: purchaseId, date: form.date, branch_id: currentBranch,
+          supplierName: upperSupplier, supplier_name: upperSupplier,
+          itemName: upperItem, item_name: upperItem,
+          qty: Number(form.qty), unit: form.unit, price: Number(form.price),
+          totalAmount: totalTagihan, total_amount: totalTagihan,
+          paidAmount: dpDibayar, paid_amount: dpDibayar,
+          paymentMethod: form.paymentMethod, payment_method: form.paymentMethod,
+          paymentStatus: isHutang ? 'HUTANG' : 'LUNAS', payment_status: isHutang ? 'HUTANG' : 'LUNAS'
       };
 
       const success = await sendToSheet('insert', purchasePayload, 'purchases');
@@ -93,9 +48,8 @@ export default function TabPurchases({ purchases, masterSuppliers, masterRawMate
           if (isHutang) {
               await sendToSheet('insert', {
                   id: generateId('AP', form.date), date: form.date, branch_id: currentBranch, 
-                  supplier_name: upperSupplier, supplierName: upperSupplier,
-                  transaction_type: 'PURCHASE', amount: sisaHutang, reference_id: purchaseId,
-                  notes: `Hutang Beli ${form.qty} ${form.unit} ${upperItem}`
+                  supplier_name: upperSupplier, transaction_type: 'PURCHASE', amount: sisaHutang, 
+                  reference_id: purchaseId, notes: `Hutang Beli ${form.qty} ${form.unit} ${upperItem}`
               }, 'supplier_ledger');
           }
 
@@ -114,11 +68,11 @@ export default function TabPurchases({ purchases, masterSuppliers, masterRawMate
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+         {/* ... BAGIAN FORM INPUT (SAMA SEPERTI SEBELUMNYA) ... */}
          <div className="bg-slate-900 px-6 py-4 flex items-center justify-between">
             <h3 className="font-black text-white text-sm tracking-wide uppercase flex items-center gap-2">
                 <Truck size={18} className="text-blue-400"/> Input Pembelian Logistik
             </h3>
-            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1"><Database size={12}/> Jaringan Cloud Aktif</span>
          </div>
          
          <div className="p-6">
@@ -165,7 +119,6 @@ export default function TabPurchases({ purchases, masterSuppliers, masterRawMate
                     <div>
                         <label className="text-[10px] font-bold text-emerald-600 uppercase">DP Dibayar Hari Ini</label>
                         <div className="relative mt-1"><span className="absolute left-3 top-2.5 font-black text-emerald-400">Rp</span><input type="text" value={form.paidAmount ? Number(form.paidAmount).toLocaleString('id-ID') : ''} onChange={e=>handleCurrencyChange('paidAmount', e.target.value)} className="w-full pl-9 pr-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl font-black text-emerald-700 outline-none" placeholder="Kosongkan jika hutang penuh" /></div>
-                        {isHutang && totalTagihan > 0 && <div className="text-[9px] font-bold text-rose-500 mt-1 flex items-center gap-1"><ShieldAlert size={10}/> Tercatat Hutang: {formatRp(sisaHutang)}</div>}
                     </div>
                     <div>
                         <label className="text-[10px] font-bold text-slate-500 uppercase">Metode Kas Keluar</label>
@@ -186,20 +139,19 @@ export default function TabPurchases({ purchases, masterSuppliers, masterRawMate
          </div>
       </div>
 
-      {/* TABEL RIWAYAT BELANJA (READ SAFE) */}
+      {/* TABEL RIWAYAT BELANJA + TOMBOL AKSI */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col mt-6">
          <div className="p-4 border-b bg-slate-50"><h4 className="font-bold text-slate-800 tracking-wide uppercase text-sm">Riwayat Belanja Bahan Baku</h4></div>
          <div className="overflow-x-auto flex-1">
             <table className="w-full text-sm text-left">
                <thead className="bg-slate-50 text-[10px] text-slate-500 uppercase">
-                  <tr><th>Tanggal</th><th>Supplier</th><th>Item</th><th className="text-center">Kuantitas</th><th className="text-right">Harga Satuan</th><th className="text-right">Total Tagihan</th><th className="text-center">Status</th></tr>
+                  <tr><th>Tanggal</th><th>Supplier</th><th>Item</th><th className="text-center">Kuantitas</th><th className="text-right">Total Tagihan</th><th className="text-center">Status</th><th className="text-center">Aksi</th></tr>
                </thead>
                <tbody className="divide-y divide-slate-100 text-xs font-bold">
                   {validPurchases.length === 0 ? (
-                      <tr><td colSpan="7" className="text-center py-6 text-slate-400 font-bold">Belum ada data transaksi belanja terdeteksi di tabel sheet.</td></tr>
+                      <tr><td colSpan="7" className="text-center py-6 text-slate-400 font-bold">Belum ada data transaksi.</td></tr>
                   ) : (
                       validPurchases.slice(0, 50).map(p => {
-                          // Toleransi pembacaan data jika kolom sheet berbentuk camelCase atau underscore
                           const sName = p.supplierName || p.supplier_name || 'UNKNOWN';
                           const iName = p.itemName || p.item_name || 'UNKNOWN';
                           const tAmt = Number(p.totalAmount || p.total_amount || 0);
@@ -213,13 +165,21 @@ export default function TabPurchases({ purchases, masterSuppliers, masterRawMate
                                 <td className="px-4 py-3 font-black uppercase text-slate-800">{sName}</td>
                                 <td className="px-4 py-3 text-slate-600 uppercase">{iName}</td>
                                 <td className="px-4 py-3 text-center text-blue-600 font-black">{p.qty} {p.unit}</td>
-                                <td className="px-4 py-3 text-right text-slate-500">{formatRp(p.price)}</td>
                                 <td className="px-4 py-3 text-right text-slate-800 font-black">{formatRp(tAmt)}</td>
                                 <td className="px-4 py-3 text-center">
                                     {pStatus === 'LUNAS' || sHutang <= 0 ? 
                                       <span className="px-2 py-1 rounded bg-emerald-100 text-emerald-700 text-[9px] font-black uppercase">Lunas</span> : 
                                       <div className="flex flex-col items-center"><span className="px-2 py-0.5 rounded bg-rose-100 text-rose-700 text-[9px] font-black uppercase">Hutang</span><span className="text-[8px] text-rose-500 mt-0.5">Sisa: {formatRp(sHutang)}</span></div>
                                     }
+                                </td>
+                                {/* TOMBOL AKSI: PRINT DAN HAPUS */}
+                                <td className="px-4 py-3 flex items-center justify-center gap-2">
+                                    <button onClick={() => setPrintData({ type: 'PURCHASE', data: p })} className="p-1.5 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition" title="Print Bukti">
+                                        <Printer size={14} />
+                                    </button>
+                                    <button onClick={() => requestDelete(p.id)} className="p-1.5 bg-rose-50 text-rose-600 rounded hover:bg-rose-100 transition" title="Batalkan (Void)">
+                                        <Trash2 size={14} />
+                                    </button>
                                 </td>
                              </tr>
                           )
