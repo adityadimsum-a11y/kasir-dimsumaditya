@@ -2,11 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { AlertCircle, Loader2, ShieldCheck, Trash2 } from 'lucide-react';
 
 // =====================================
-// IMPOR LAYOUT (ROLE CONTROL)
+// IMPOR DYNAMIC LAYOUT ENGINE (BARU)
 // =====================================
-import LayoutHQFactory from './layouts/LayoutHQFactory';
-import LayoutProductionBranch from './layouts/LayoutProductionBranch';
-import LayoutOutletResto from './layouts/LayoutOutletResto';
+import LayoutEngine from './layouts/LayoutEngine';
 
 // =====================================
 // IMPOR SELURUH TAB OPERASIONAL
@@ -57,7 +55,6 @@ export default function App() {
   // CORE APP STATES (PERSISTENT SESSION)
   // =====================================
   const [user, setUser] = useState(() => {
-    // Tarik memori sesi agar tidak ke-logout saat di-refresh
     const savedUser = localStorage.getItem('dimsum_user');
     return savedUser ? JSON.parse(savedUser) : null;
   });
@@ -80,7 +77,9 @@ export default function App() {
     distributionOrders: [], inventoryCostLayers: [], marketplaceFeeRules: [],
     auditLogs: [], discrepancyLogs: [], chartOfAccounts: [], generalLedger: [],
     financialClosings: [], systemTasks: [], masterProducts: [], masterRawMaterials: [],
-    masterRecipeBom: [], masterSuppliers: [], masterConversionRules: [], marketplaceInvoices: []
+    masterRecipeBom: [], masterSuppliers: [], masterConversionRules: [], marketplaceInvoices: [],
+    master_branch_types: [], master_branch_capabilities: [], interbranch_treasury: [], 
+    branch_settlements: [], master_customers: [], master_locations: []
   });
 
   const showToast = useCallback((message, type = 'success') => {
@@ -89,12 +88,10 @@ export default function App() {
   }, []);
 
   // =====================================
-  // ENGINE 1: METODE PENARIKAN DATA (READ)
+  // ENGINE 1: PENARIKAN DATA (READ)
   // =====================================
   const fetchAllDatabase = async (currentBranchId, isBackground = false) => {
     if (!API_URL_GAS || API_URL_GAS.includes('URL_WEBAPP_')) return;
-    
-    // Jangan tampilkan loading layar penuh jika ini adalah background sync
     if (!isBackground) setIsLoading(true); 
     
     try {
@@ -110,17 +107,13 @@ export default function App() {
     }
   };
 
-  // Sinkronisasi diam-diam (Background Sync) berjalan otomatis
+  // Sinkronisasi diam-diam (Background Sync) berjalan otomatis setiap 1 Menit
   useEffect(() => {
     if (user) {
-      // Tarik data saat baru buka aplikasi (muncul loading)
       fetchAllDatabase(user.branch_id, false); 
-      
-      // Interval penarikan data diam-diam setiap 1 Menit (60.000 ms)
       const syncInterval = setInterval(() => {
         fetchAllDatabase(user.branch_id, true); 
       }, 60000);
-      
       return () => clearInterval(syncInterval);
     }
   }, [user]);
@@ -147,9 +140,8 @@ export default function App() {
       });
       const resJson = await response.json();
       if (resJson.status === 'success') {
-        showToast('Data berhasil disimpan ke cloud!', 'success');
-        // Update data diam-diam di background setelah sukses
-        fetchAllDatabase(user?.branch_id, true); 
+        showToast('Data berhasil disimpan ke server!', 'success');
+        fetchAllDatabase(user?.branch_id, true); // Update data diam-diam
         return true;
       } else {
         showToast(`Ditolak: ${resJson.message}`, 'error'); return false;
@@ -182,13 +174,15 @@ export default function App() {
 
       if (resJson.status === 'success' && resJson.data?.success) {
         const activeUser = resJson.data.user;
-        
-        // Simpan sesi ke penyimpanan browser (agar tidak ter-logout saat refresh)
         localStorage.setItem('dimsum_user', JSON.stringify(activeUser));
         setUser(activeUser);
         
-        // Arahkan dashboard sesuai role
-        setActiveTab(activeUser.branch_type === 'OUTLET_RESTO' || activeUser.branch_type === 'PRODUCTION_BRANCH' ? 'dashboard_branch' : 'dashboard');
+        // Cek kapabilitas secara dinamis, arahkan default dashboard
+        if (activeUser.branch_type === 'HQ_FACTORY') {
+            setActiveTab('dashboard');
+        } else {
+            setActiveTab('dashboard_branch');
+        }
       } else {
         setLoginError(resJson.data?.message || 'Username atau Password salah.');
       }
@@ -201,7 +195,6 @@ export default function App() {
 
   const handleLogout = () => {
     if (window.confirm("Apakah Anda yakin ingin logout dari sistem?")) {
-      // Hapus data sesi dari browser
       localStorage.removeItem('dimsum_user');
       setUser(null);
       setLoginForm({ username: '', password: '' });
@@ -216,7 +209,6 @@ export default function App() {
   
   const handleExecuteDelete = async () => {
     if (!confirmDialog) return;
-    // Panggil action delete dengan table 'auto' agar backend yang mencari letak datanya
     const isSuccess = await sendToSheet('delete', { id: confirmDialog.id }, 'auto');
     if (isSuccess) setConfirmDialog(null);
   };
@@ -250,7 +242,7 @@ export default function App() {
   };
 
   // =====================================
-  // UI 1: GERBANG LOGIN JIKA BELUM OTENTIK
+  // UI 1: GERBANG LOGIN
   // =====================================
   if (!user) {
     return (
@@ -262,7 +254,7 @@ export default function App() {
               <ShieldCheck size={32} className="text-white"/>
             </div>
             <h1 className="text-2xl font-black text-slate-800 uppercase tracking-wide">Dimsum Aditya</h1>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Sistem ERP Internal</p>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Multi-Node ERP System</p>
           </div>
 
           {loginError && (
@@ -290,17 +282,19 @@ export default function App() {
   }
 
   // =====================================
-  // UI 2: RENDER APLIKASI (LAYOUT)
+  // UI 2: RENDER APLIKASI (DYNAMIC LAYOUT ENGINE)
   // =====================================
-  let LayoutComponent = LayoutHQFactory;
-  if (user?.branch_type === 'OUTLET_RESTO') LayoutComponent = LayoutOutletResto;
-  else if (user?.branch_type === 'PRODUCTION_BRANCH') LayoutComponent = LayoutProductionBranch;
-
   return (
     <>
-      <LayoutComponent user={user} activeTab={activeTab} setActiveTab={setActiveTab} handleLogout={handleLogout}>
+      <LayoutEngine 
+        user={user} 
+        activeTab={activeTab} 
+        setActiveTab={setActiveTab} 
+        handleLogout={handleLogout}
+        masterCapabilities={dbData.master_branch_capabilities}
+      >
         {renderContent()}
-      </LayoutComponent>
+      </LayoutEngine>
 
       {/* Komponen Floating */}
       <ToastNotification toast={toast} onClose={() => setToast(null)} />
@@ -325,7 +319,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Layar Loading - HANYA MUNCUL SAAT SUBMIT / DELETE */}
+      {/* Layar Loading - HANYA MUNCUL SAAT SUBMIT / DELETE / LOGIN */}
       {isLoading && (
         <div className="fixed inset-0 bg-white/60 backdrop-blur-sm z-[9999] flex flex-col items-center justify-center">
           <Loader2 size={48} className="text-blue-600 animate-spin mb-4" />
