@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, Loader2, ShieldCheck } from 'lucide-react';
 
 // =====================================
-// IMPOR LAYOUT (BERDASARKAN ROLE)
+// IMPOR LAYOUT VARIASI (ROLE CONTROL)
 // =====================================
 import LayoutHQFactory from './layouts/LayoutHQFactory';
 import LayoutProductionBranch from './layouts/LayoutProductionBranch';
 import LayoutOutletResto from './layouts/LayoutOutletResto';
 
 // =====================================
-// IMPOR SEMUA TAB COMPONENTS
+// IMPOR SELURUH TAB OPERASIONAL
 // =====================================
 import TabDashboard from './components/tabs/TabDashboard';
 import TabOrders from './components/tabs/TabOrders';
@@ -29,48 +29,46 @@ import TabBusinessRadar from './components/tabs/TabBusinessRadar';
 import TabAccounting from './components/tabs/TabAccounting';
 import TabAccountingAudit from './components/tabs/TabAccountingAudit';
 import TabMasterData from './components/tabs/TabMasterData';
-import TabStokOutlet from './components/tabs/TabStokOutlet'; // Komponen Baru Phase 12.5
+import TabStokOutlet from './components/tabs/TabStokOutlet'; // Manajemen Logistik Outlet
 
 // =====================================
-// IMPOR KOMPONEN PENDUKUNG
+// IMPOR MODUL UTALITAS CETAK & DOT-MATRIX
 // =====================================
 import PrintDotMatrix from './components/PrintDotMatrix';
 
-// (Opsional) Jika Anda punya komponen Toast terpisah:
+// Ganti string kosong di bawah ini dengan URL Web App dari Google Apps Script Anda yang sudah di-deploy!
+const API_URL_GAS = 'URL_WEBAPP_GOOGLE_APPS_SCRIPT_ANDA_DISINI';
+
+// =====================================
+// FLOATING NOTIFICATION SYSTEM (TOAST)
+// =====================================
 const ToastNotification = ({ toast, onClose }) => {
   if (!toast) return null;
   return (
-    <div className={`fixed top-4 right-4 z-[9999] px-6 py-3 rounded-xl shadow-xl font-bold text-sm flex items-center gap-2 animate-in slide-in-from-top-5 ${toast.type === 'error' ? 'bg-rose-600 text-white' : 'bg-emerald-600 text-white'}`}>
+    <div className={`fixed top-4 right-4 z-[9999] px-6 py-3.5 rounded-2xl shadow-xl font-black text-xs uppercase tracking-wide flex items-center gap-2 animate-in slide-in-from-top-5 border duration-200 ${toast.type === 'error' ? 'bg-rose-600 text-white border-rose-500 shadow-rose-600/10' : 'bg-emerald-600 text-white border-emerald-500 shadow-emerald-600/10'}`}>
       <span>{toast.message}</span>
-      <button onClick={onClose} className="ml-4 opacity-70 hover:opacity-100 font-black">X</button>
+      <button onClick={onClose} className="ml-4 opacity-60 hover:opacity-100 transition font-mono text-sm">✕</button>
     </div>
   );
 };
 
 export default function App() {
   // =====================================
-  // STATE SISTEM & USER
+  // CORE APP STATES
   // =====================================
-  // Ganti initial state user sesuai mekanisme login Anda. 
-  // Contoh Bypass Login untuk UAT (Hapus jika menggunakan form login asli):
-  const [user, setUser] = useState({
-    name: 'Super Admin',
-    username: 'admin',
-    branch_id: 'PUSAT',
-    branch_type: 'HQ_FACTORY', // 'HQ_FACTORY' | 'PRODUCTION_BRANCH' | 'OUTLET_RESTO'
-    role: 'super_admin'
-  });
-
+  const [user, setUser] = useState(null); // Mulai dari null agar wajib melewati gerbang login asli
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isLoading, setIsLoading] = useState(false);
   const [toast, setToast] = useState(null);
   const [printData, setPrintData] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
+  const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+  const [loginError, setLoginError] = useState('');
 
   // =====================================
-  // STATE DATA DATABASE (DARI GOOGLE SHEETS)
+  // DATA MASTER & TRANSAKSI STATE
   // =====================================
-  const [data, setData] = useState({
+  const [dbData, setDbData] = useState({
     orders: [], purchases: [], expenses: [], payments: [], pemalang: [],
     karyawan: [], stockMovements: [], productionBatches: [], supplierLedger: [],
     cashflowTransactions: [], marketplaceSettlement: [], masterBranches: [],
@@ -81,111 +79,232 @@ export default function App() {
   });
 
   // =====================================
-  // FUNGSI HELPER GLOBAL
+  // TOAST HANDLER CALLBACK
   // =====================================
   const showToast = useCallback((message, type = 'success') => {
     setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
+    setTimeout(() => setToast(null), 3500);
   }, []);
 
-  const handleLogout = () => {
-    const confirmOut = window.confirm("Apakah Anda yakin ingin keluar dari sistem?");
-    if (confirmOut) {
-      setUser(null);
-      // Hapus token/localStorage jika ada
+  // =====================================
+  // ENGINE 1: METODE PENARIKAN DATA (READ)
+  // =====================================
+  const fetchAllDatabase = async (currentBranchId) => {
+    if (!API_URL_GAS || API_URL_GAS.includes('URL_WEBAPP_')) return;
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${API_URL_GAS}?action=read_all&branch_id=${currentBranchId || 'ALL'}`);
+      const resJson = await response.json();
+      if (resJson.status === 'success' && resJson.data) {
+        // Gabungkan skema data default dengan data real spreadsheet agar aman dari error map/filter
+        setDbData(prev => ({ ...prev, ...resJson.data }));
+      }
+    } catch (err) {
+      showToast('⚠️ Jaringan tidak stabil. Gagal menyinkronkan database cloud!', 'error');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Dummy / Placeholder fungsi sendToSheet (Ganti dengan fetch ke API Google Apps Script Anda)
-  const sendToSheet = async (action, payload, table) => {
+  // Otomatis tarik data berkala ketika user berhasil masuk sistem
+  useEffect(() => {
+    if (user) {
+      fetchAllDatabase(user.branch_id);
+      
+      // Sinkronisasi otomatis di latar belakang setiap 2 menit sekali
+      const syncInterval = setInterval(() => {
+        fetchAllDatabase(user.branch_id);
+      }, 120000);
+      
+      return () => clearInterval(syncInterval);
+    }
+  }, [user]);
+
+  // =====================================
+  // ENGINE 2: METODE PENGIRIMAN DATA (WRITE)
+  // =====================================
+  const sendToSheet = async (action, payload, tableName) => {
+    if (!API_URL_GAS || API_URL_GAS.includes('URL_WEBAPP_')) {
+      showToast('⛔ URL Google Apps Script belum dikonfigurasi di App.jsx!', 'error');
+      return false;
+    }
+
     setIsLoading(true);
     try {
-      // TODO: Masukkan script fetch API GAS Anda di sini
-      console.log(`[SIMULASI API] Action: ${action}, Table: ${table}`, payload);
-      
-      // Simulasi delay jaringan
-      await new Promise(res => setTimeout(res, 800));
-      showToast(`Data berhasil disimpan ke ${table}`, 'success');
-      return true;
-    } catch (error) {
-      showToast('Gagal memproses data!', 'error');
+      const response = await fetch(API_URL_GAS, {
+        method: 'POST',
+        body: JSON.stringify({
+          action: action,
+          table: tableName,
+          data: payload,
+          executor: { name: user?.name || 'SYSTEM', branch_id: user?.branch_id || 'PUSAT' },
+          request_id: 'REQ-' + new Date().getTime() + Math.floor(Math.random() * 1000)
+        })
+      });
+
+      const resJson = await response.json();
+      if (resJson.status === 'success') {
+        showToast('🎉 Data berhasil divalidasi dan disimpan ke cloud.', 'success');
+        // Tarik ulang database agar UI ter-update data terbarunya
+        fetchAllDatabase(user?.branch_id);
+        return true;
+      } else {
+        showToast(`❌ Server ditolak: ${resJson.message}`, 'error');
+        return false;
+      }
+    } catch (err) {
+      showToast('⛔ Gagal menghubungi server. Data masuk antrean offline!', 'error');
       return false;
     } finally {
       setIsLoading(false);
     }
   };
 
-  const requestDelete = (id) => {
-    setConfirmDialog({ id });
+  // =====================================
+  // ENGINE 3: AUTENTIKASI LOGIN ASLI
+  // =====================================
+  const handleLoginSubmit = async (e) => {
+    e.preventDefault();
+    if (!API_URL_GAS || API_URL_GAS.includes('URL_WEBAPP_')) {
+      setLoginError('Konfigurasi Sistem Belum Lengkap. Hubungi Developer.');
+      return;
+    }
+    
+    setIsLoading(true);
+    setLoginError('');
+
+    try {
+      const response = await fetch(API_URL_GAS, {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'login',
+          data: { username: loginForm.username, password: loginForm.password }
+        })
+      });
+
+      const resJson = await response.json();
+
+      if (resJson.status === 'success' && resJson.data?.success) {
+        // Login berhasil, set data user ke state utama
+        const activeUser = resJson.data.user;
+        setUser(activeUser);
+        
+        // Arahkan halaman dashboard default berdasarkan perannya masing-masing
+        if (activeUser.branch_type === 'OUTLET_RESTO') {
+          setActiveTab('dashboard_branch');
+        } else if (activeUser.branch_type === 'PRODUCTION_BRANCH') {
+          setActiveTab('dashboard_branch');
+        } else {
+          setActiveTab('dashboard');
+        }
+      } else {
+        setLoginError(resJson.data?.message || 'Kredensial salah. Periksa username & password.');
+      }
+    } catch (err) {
+      setLoginError('Server tidak merespons. Periksa jaringan internet Anda.');
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  const handleLogout = () => {
+    if (window.confirm("Apakah Anda yakin ingin logout dari sistem?")) {
+      setUser(null);
+      setLoginForm({ username: '', password: '' });
+      setLoginError('');
+      setActiveTab('dashboard');
+    }
+  };
+
+  const requestDelete = (id) => setConfirmDialog({ id });
 
   const handleExecuteDelete = async () => {
     if (!confirmDialog) return;
-    await sendToSheet('delete', { id: confirmDialog.id }, 'auto');
-    setConfirmDialog(null);
+    const isSuccess = await sendToSheet('delete', { id: confirmDialog.id }, 'auto');
+    if (isSuccess) setConfirmDialog(null);
   };
 
   // =====================================
-  // LOGIC RENDER TABS
+  // GATEKEEPER ROUTING: FILTERING TAB RENDER
   // =====================================
   const renderContent = () => {
     switch (activeTab) {
-      // EXECUTIVE & DASHBOARD
-      case 'dashboard': return <TabDashboard user={user} handleTabChange={setActiveTab} {...data} />;
-      case 'dashboard_branch': return <TabDashboardBranch user={user} setPrintData={setPrintData} {...data} />;
-      case 'cash_war_room': return <TabCashWarRoom user={user} {...data} />;
-      case 'scm_war_room': return <TabSCMWarRoom user={user} {...data} />;
-      case 'business_radar': return <TabBusinessRadar user={user} {...data} />;
-      case 'analytics': return <TabAnalytics user={user} {...data} />;
+      // EXECUTIVE OVERVIEW
+      case 'dashboard': return <TabDashboard user={user} handleTabChange={setActiveTab} {...dbData} />;
+      case 'dashboard_branch': return <TabDashboardBranch user={user} setPrintData={setPrintData} {...dbData} />;
+      case 'cash_war_room': return <TabCashWarRoom user={user} {...dbData} />;
+      case 'scm_war_room': return <TabSCMWarRoom user={user} {...dbData} />;
+      case 'business_radar': return <TabBusinessRadar user={user} {...dbData} />;
+      case 'analytics': return <TabAnalytics user={user} {...dbData} />;
       
-      // CORE OPERATIONS
-      case 'orders': return <TabOrders user={user} role={user?.role} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={requestDelete} showToast={showToast} {...data} />;
-      case 'purchases': return <TabPurchases user={user} sendToSheet={sendToSheet} showToast={showToast} {...data} />;
-      case 'expenses': return <TabExpenses user={user} sendToSheet={sendToSheet} showToast={showToast} {...data} />;
+      // TRANSAKSI UTAMA (POS)
+      case 'orders': return <TabOrders user={user} role={user?.role} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={requestDelete} showToast={showToast} {...dbData} />;
+      case 'purchases': return <TabPurchases user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
+      case 'expenses': return <TabExpenses user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
       
-      // PRODUCTION & LOGISTICS
-      case 'stok': return <TabStok user={user} role={user?.role} sendToSheet={sendToSheet} requestDelete={requestDelete} showToast={showToast} {...data} />;
-      case 'stok_outlet': return <TabStokOutlet user={user} sendToSheet={sendToSheet} showToast={showToast} {...data} />; // TAB BARU OUTLET
-      case 'distribusi': return <TabDistribusi user={user} sendToSheet={sendToSheet} setPrintData={setPrintData} {...data} />;
+      // LOGISTIK & PROSES PRODUKSI
+      case 'stok': return <TabStok user={user} role={user?.role} sendToSheet={sendToSheet} requestDelete={requestDelete} showToast={showToast} {...dbData} />;
+      case 'stok_outlet': return <TabStokOutlet user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
+      case 'distribusi': return <TabDistribusi user={user} sendToSheet={sendToSheet} setPrintData={setPrintData} {...dbData} />;
       
-      // FINANCE & HR
-      case 'accounting': return <TabAccounting user={user} {...data} />;
-      case 'accounting_audit': return <TabAccountingAudit user={user} {...data} />;
-      case 'piutang': return <TabPiutang user={user} role={user?.role} sendToSheet={sendToSheet} setPrintData={setPrintData} {...data} />;
-      case 'karyawan': return <TabKaryawan user={user} sendToSheet={sendToSheet} setPrintData={setPrintData} showToast={showToast} {...data} />;
+      // FINANSIAL, AKUNTANSI & SDM
+      case 'accounting': return <TabAccounting user={user} {...dbData} />;
+      case 'accounting_audit': return <TabAccountingAudit user={user} {...dbData} />;
+      case 'piutang': return <TabPiutang user={user} role={user?.role} sendToSheet={sendToSheet} setPrintData={setPrintData} {...dbData} />;
+      case 'karyawan': return <TabKaryawan user={user} sendToSheet={sendToSheet} setPrintData={setPrintData} showToast={showToast} {...dbData} />;
       
-      // SYSTEM & MASTER
-      case 'master_data': return <TabMasterData user={user} sendToSheet={sendToSheet} showToast={showToast} {...data} />;
-      case 'pemalang': return <TabPemalang user={user} sendToSheet={sendToSheet} {...data} />;
-      case 'monitoring_pemalang': return <TabMonitoringPemalang user={user} {...data} />;
+      // PENGATURAN DAN SISTEM TASKS
+      case 'master_data': return <TabMasterData user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
+      case 'pemalang': return <TabPemalang user={user} sendToSheet={sendToSheet} {...dbData} />;
+      case 'monitoring_pemalang': return <TabMonitoringPemalang user={user} {...dbData} />;
       
-      default: return <TabDashboard user={user} handleTabChange={setActiveTab} {...data} />;
+      default: return <TabDashboard user={user} handleTabChange={setActiveTab} {...dbData} />;
     }
   };
 
   // =====================================
-  // RENDER APP
+  // UI 1: GERBANG LOGIN JIKA BELUM OTENTIK
   // =====================================
-  
-  // Jika belum login, tampilkan layar login sederhana (Mencegah Blank Screen)
   if (!user) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-        <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full text-center">
-          <h1 className="text-2xl font-black text-slate-800 mb-2 uppercase">Dimsum Aditya</h1>
-          <p className="text-sm font-bold text-slate-500 mb-6">Enterprise ERP Login</p>
-          <button onClick={() => setUser({ name: 'Admin Pusat', username: 'admin', branch_id: 'PUSAT', branch_type: 'HQ_FACTORY', role: 'super_admin' })} className="w-full bg-blue-600 text-white font-black py-3 rounded-xl hover:bg-blue-700 transition">
-            Login UAT (Pusat)
-          </button>
-          <button onClick={() => setUser({ name: 'Kasir Toko', username: 'kasir', branch_id: 'OUTLET_1', branch_type: 'OUTLET_RESTO', role: 'branch' })} className="w-full bg-orange-600 text-white font-black py-3 rounded-xl hover:bg-orange-700 transition mt-3">
-            Login UAT (Outlet)
-          </button>
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 50% 0%, #3b82f6 0%, transparent 70%)' }}></div>
+        <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full relative z-10 border border-slate-100">
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-600/30">
+              <ShieldCheck size={32} className="text-white"/>
+            </div>
+            <h1 className="text-2xl font-black text-slate-800 uppercase tracking-wide">Dimsum Aditya</h1>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Sistem ERP Internal</p>
+          </div>
+
+          {loginError && (
+            <div className="bg-rose-50 border border-rose-200 text-rose-600 text-xs font-bold p-3 rounded-xl mb-4 flex items-center gap-2">
+              <AlertCircle size={16} className="shrink-0"/> {loginError}
+            </div>
+          )}
+
+          <form onSubmit={handleLoginSubmit} className="space-y-4">
+            <div>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Username</label>
+              <input type="text" required value={loginForm.username} onChange={e => setLoginForm({...loginForm, username: e.target.value})} className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-blue-500 transition" placeholder="Masukkan username" />
+            </div>
+            <div>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Password</label>
+              <input type="password" required value={loginForm.password} onChange={e => setLoginForm({...loginForm, password: e.target.value})} className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-blue-500 transition" placeholder="••••••••" />
+            </div>
+            <button type="submit" disabled={isLoading} className="w-full bg-blue-600 text-white font-black py-4 rounded-xl hover:bg-blue-700 transition shadow-lg shadow-blue-600/20 uppercase tracking-wide text-xs mt-2 disabled:opacity-50 flex justify-center items-center gap-2">
+              {isLoading ? <><Loader2 size={16} className="animate-spin"/> Memverifikasi...</> : 'Masuk Sistem'}
+            </button>
+          </form>
         </div>
       </div>
     );
   }
 
-  // Pilih Layout berdasarkan tipe cabang User
+  // =====================================
+  // UI 2: RESOLVER SWAP LAYOUT KENDALI
+  // =====================================
   let LayoutComponent = LayoutHQFactory;
   if (user?.branch_type === 'OUTLET_RESTO') {
     LayoutComponent = LayoutOutletResto;
@@ -201,11 +320,11 @@ export default function App() {
         setActiveTab={setActiveTab} 
         handleLogout={handleLogout}
       >
-        {/* Render Tab yang Aktif */}
+        {/* Render Konten Tab Dinamis */}
         {renderContent()}
       </LayoutComponent>
 
-      {/* Komponen Mengambang (Floating/Overlay) */}
+      {/* OVERLAY MODALS & FLOATING SYSTEMS */}
       <ToastNotification toast={toast} onClose={() => setToast(null)} />
       <PrintDotMatrix printData={printData} onClose={() => setPrintData(null)} />
       
@@ -226,9 +345,9 @@ export default function App() {
         </div>
       )}
 
-      {/* Loading Overlay */}
+      {/* Global Synchronizing Overlay */}
       {isLoading && (
-        <div className="fixed inset-0 bg-white/50 backdrop-blur-sm z-[9999] flex flex-col items-center justify-center">
+        <div className="fixed inset-0 bg-white/60 backdrop-blur-sm z-[9999] flex flex-col items-center justify-center">
           <Loader2 size={48} className="text-blue-600 animate-spin mb-4" />
           <div className="font-black text-slate-800 tracking-widest uppercase text-sm animate-pulse">Menyinkronkan Data...</div>
         </div>
