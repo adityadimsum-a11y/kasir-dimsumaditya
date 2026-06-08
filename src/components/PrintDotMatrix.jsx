@@ -3,225 +3,99 @@ import { formatDate, formatRp } from '../utils/helpers';
 
 export default function PrintDotMatrix({ printData, onClose }) {
   useEffect(() => {
-    if (printData) {
-      setTimeout(() => {
-        window.print();
-      }, 500); 
-    }
+    if (printData) { setTimeout(() => { window.print(); }, 500); }
   }, [printData]);
 
   if (!printData) return null;
-
   const { type, data } = printData;
 
-  return (
-    <div id="print-section" className="fixed inset-0 z-[9999] bg-white text-black print-only-wrapper">
-      
-      {/* CSS UNIVERSAL UNTUK EPSON LX-310 (KERTAS SETENGAH LETTER) */}
-      <style>{`
-        @media print {
-          body * { visibility: hidden; }
-          #print-section, #print-section * { visibility: visible; }
-          #print-section { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; }
-          @page { size: 8.5in 5.5in; margin: 0.15in; }
-          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color: #000 !important; }
-        }
-        .dot-matrix-font { font-family: 'Courier New', Courier, monospace; color: #000; line-height: 1.3; }
-        .dot-table th, .dot-table td { border: 1px solid #000; padding: 6px 8px; }
-      `}</style>
+  // 1. THERMAL 58mm RECEIPT (KASIR OUTLET)
+  if (type === 'receipt' || type === 'INVOICE') {
+    const isReceipt = type === 'receipt';
+    const orderData = isReceipt ? data.order : data;
+    const paymentData = isReceipt ? data.payment : null;
 
-      {/* ========================================================= */}
-      {/* TEMPLATE 1: SURAT JALAN (DELIVERY ORDER) */}
-      {/* ========================================================= */}
-      {type === 'DO' && (
-        <div className="dot-matrix-font p-2 w-[8.2in] mx-auto">
-          <div className="flex justify-between items-start border-b-2 border-black pb-2 mb-4">
-            <div>
-              <h1 className="text-2xl font-black uppercase tracking-widest">DIMSUM ADITYA</h1>
-              <p className="text-sm font-bold">Pusat Produksi & Distribusi F&B</p>
-              <p className="text-xs mt-1">Sistem ERP Terintegrasi</p>
-            </div>
-            <div className="text-right">
-              <h2 className="text-2xl font-black uppercase">SURAT JALAN</h2>
-              <div className="text-sm font-bold border border-black p-1 mt-1 inline-block">NO: {data.id}</div>
-            </div>
+    return (
+      <div className="fixed inset-0 z-[9999] bg-white text-black flex justify-center items-start pt-4 print:pt-0 thermal-58">
+        <div className="w-[54mm] pb-10">
+          <div className="text-center mb-2">
+            <h1 className="font-bold text-sm uppercase">DIMSUM ADITYA</h1>
+            <div className="text-[10px]">{orderData.branch_id === 'PUSAT' ? 'HQ FACTORY' : `NODE: ${orderData.branch_id}`}</div>
+            <div className="text-[10px]">Tgl: {formatDate(orderData.date)}</div>
           </div>
-
-          <div className="flex justify-between mb-4 text-sm font-bold">
-            <div className="space-y-1">
-              <div><span className="inline-block w-24">TANGGAL</span>: {formatDate(data.date)}</div>
-              <div><span className="inline-block w-24">PENGIRIM</span>: GUDANG PUSAT</div>
-            </div>
-            <div className="space-y-1">
-              <div><span className="inline-block w-24">TUJUAN</span>: CABANG {data.to_branch}</div>
-              <div><span className="inline-block w-24">STATUS</span>: {data.status}</div>
-            </div>
-          </div>
-
-          <table className="w-full text-sm font-bold dot-table mb-6 text-left">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="w-16 text-center">NO</th>
-                <th>NAMA BARANG / DESKRIPSI</th>
-                <th className="w-32 text-center">QTY (PCS)</th>
-                <th className="w-40 text-center">KETERANGAN</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td className="text-center">1</td>
-                <td className="uppercase">{data.item_name || 'DIMSUM FROZEN'}</td>
-                <td className="text-center font-black text-lg">{Number(data.qty).toLocaleString('id-ID')}</td>
-                <td></td>
-              </tr>
-              <tr><td className="py-4 border-b-0 border-t-0"></td><td className="border-b-0 border-t-0"></td><td className="border-b-0 border-t-0"></td><td className="border-b-0 border-t-0"></td></tr>
-            </tbody>
-          </table>
-
-          <div className="grid grid-cols-3 gap-4 text-center text-sm font-bold mt-8">
-            <div><p className="mb-12">Dibuat Oleh (Pusat),</p><p className="border-t border-black border-dashed pt-1 w-3/4 mx-auto">( .................... )</p></div>
-            <div><p className="mb-12">Pengirim / Driver,</p><p className="border-t border-black border-dashed pt-1 w-3/4 mx-auto">( .................... )</p></div>
-            <div><p className="mb-12">Diterima Oleh (Cabang),</p><p className="border-t border-black border-dashed pt-1 w-3/4 mx-auto">( .................... )</p></div>
-          </div>
-          <div className="mt-4 text-xs font-bold text-center border-t border-black pt-2">*Dokumen ini dicetak otomatis oleh Sistem ERP Dimsum Aditya. Harap simpan sesuai lembar peruntukan.</div>
-        </div>
-      )}
-
-      {/* ========================================================= */}
-      {/* TEMPLATE 2: INVOICE PENJUALAN */}
-      {/* ========================================================= */}
-      {type === 'INVOICE' && (
-        <div className="dot-matrix-font p-2 w-[8.2in] mx-auto">
-          <div className="flex justify-between items-start border-b-2 border-black pb-2 mb-4">
-            <div>
-              <h1 className="text-2xl font-black uppercase tracking-widest">DIMSUM ADITYA</h1>
-              <p className="text-sm font-bold">{data.branch_id === 'PUSAT' ? 'PUSAT DISTRIBUSI' : `CABANG ${data.branch_id}`}</p>
-              <p className="text-xs mt-1">Invoice Resmi Penjualan</p>
-            </div>
-            <div className="text-right">
-              <h2 className="text-2xl font-black uppercase">INVOICE / FAKTUR</h2>
-              <div className="text-sm font-bold border border-black p-1 mt-1 inline-block">NO: {data.id}</div>
-            </div>
-          </div>
-
-          <div className="flex justify-between mb-4 text-sm font-bold">
-            <div className="space-y-1">
-              <div><span className="inline-block w-24">TANGGAL</span>: {formatDate(data.date)}</div>
-              <div><span className="inline-block w-24">PELANGGAN</span>: <span className="uppercase">{data.customer_name}</span></div>
-            </div>
-            <div className="space-y-1">
-              <div><span className="inline-block w-28">SUMBER ORDER</span>: <span className="uppercase">{data.source}</span></div>
-              <div><span className="inline-block w-28">PEMBAYARAN</span>: <span className="uppercase">{data.paymentMethod}</span></div>
-            </div>
-          </div>
-
-          <table className="w-full text-sm font-bold dot-table mb-2 text-left">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="w-12 text-center">NO</th>
-                <th>DESKRIPSI BARANG</th>
-                <th className="w-24 text-center">QTY</th>
-                <th className="w-32 text-right">HARGA SATUAN</th>
-                <th className="w-40 text-right">SUB TOTAL</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td className="text-center">1</td>
-                <td className="uppercase">{data.itemName}</td>
-                <td className="text-center font-black">{data.qty} Pcs</td>
-                <td className="text-right">{formatRp(data.price)}</td>
-                <td className="text-right font-black">{formatRp(data.total)}</td>
-              </tr>
-              <tr><td className="py-2 border-b-0 border-t-0"></td><td className="border-b-0 border-t-0"></td><td className="border-b-0 border-t-0"></td><td className="border-b-0 border-t-0"></td><td className="border-b-0 border-t-0"></td></tr>
-            </tbody>
-          </table>
-
-          <div className="flex justify-end mb-6">
-              <div className="w-1/2">
-                  <div className="flex justify-between border-t-2 border-black pt-2 font-black text-lg">
-                      <span>GRAND TOTAL:</span>
-                      <span>{formatRp(data.total)}</span>
-                  </div>
-              </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4 text-center text-sm font-bold mt-4 w-2/3 mx-auto">
-            <div><p className="mb-12">Kasir / Diserahkan Oleh,</p><p className="border-t border-black border-dashed pt-1 w-3/4 mx-auto">( .................... )</p></div>
-            <div><p className="mb-12">Pelanggan / Driver {data.source !== 'OFFLINE' ? data.source : ''},</p><p className="border-t border-black border-dashed pt-1 w-3/4 mx-auto">( .................... )</p></div>
-          </div>
-          <div className="mt-4 text-xs font-bold text-center border-t border-black pt-2">*Terima kasih telah berbelanja di Dimsum Aditya. Barang yang sudah dibeli tidak dapat ditukar/dikembalikan.</div>
-        </div>
-      )}
-
-      {/* ========================================================= */}
-      {/* TEMPLATE 3: SLIP GAJI KARYAWAN */}
-      {/* ========================================================= */}
-      {type === 'SLIP_GAJI' && (
-        <div className="dot-matrix-font p-2 w-[8.2in] mx-auto">
-          <div className="flex justify-between items-start border-b-2 border-black pb-2 mb-6">
-            <div>
-              <h1 className="text-2xl font-black uppercase tracking-widest">DIMSUM ADITYA</h1>
-              <p className="text-sm font-bold">Dokumen HRD & Payroll</p>
-            </div>
-            <div className="text-right">
-              <h2 className="text-2xl font-black uppercase">SLIP GAJI KARYAWAN</h2>
-              <div className="text-sm font-bold border border-black p-1 mt-1 inline-block">REF: {data.id}</div>
-            </div>
-          </div>
-
-          <div className="flex justify-between mb-8 text-sm font-bold border-b border-black border-dashed pb-4">
-            <div className="space-y-1">
-              <div><span className="inline-block w-32">NAMA KARYAWAN</span>: <span className="uppercase text-lg font-black">{data.employee_name}</span></div>
-              <div><span className="inline-block w-32">POSISI / JABATAN</span>: <span className="uppercase">{data.position}</span></div>
-            </div>
-            <div className="space-y-1">
-              <div><span className="inline-block w-28">TANGGAL CETAK</span>: {formatDate(data.date)}</div>
-              <div><span className="inline-block w-28">METODE BAYAR</span>: <span className="uppercase">{data.payment_method}</span></div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-8 mb-8 text-sm">
-            {/* KOLOM PENERIMAAN */}
-            <div>
-                <h3 className="font-black border-b border-black mb-2 pb-1">KOMPONEN PENERIMAAN (+)</h3>
-                <div className="flex justify-between font-bold mb-1"><span>Gaji Pokok / Harian</span><span>{formatRp(data.base_salary)}</span></div>
-                <div className="flex justify-between font-bold mb-1"><span>Tunjangan / Lembur</span><span>{formatRp(data.allowance)}</span></div>
-                <div className="flex justify-between font-black mt-4 pt-2 border-t border-black"><span>TOTAL PENERIMAAN</span><span>{formatRp(Number(data.base_salary) + Number(data.allowance))}</span></div>
-            </div>
-
-            {/* KOLOM POTONGAN */}
-            <div>
-                <h3 className="font-black border-b border-black mb-2 pb-1">KOMPONEN POTONGAN (-)</h3>
-                <div className="flex justify-between font-bold text-red-600 mb-1"><span>Cicilan Kasbon</span><span>{formatRp(data.kasbon_deduction)}</span></div>
-                <div className="flex justify-between font-bold text-red-600 mb-1"><span>Potongan Absen / Lainnya</span><span>{formatRp(data.other_deduction)}</span></div>
-                <div className="flex justify-between font-black mt-4 pt-2 border-t border-black text-red-600"><span>TOTAL POTONGAN</span><span>{formatRp(Number(data.kasbon_deduction) + Number(data.other_deduction))}</span></div>
-            </div>
-          </div>
-
-          {/* TAKE HOME PAY */}
-          <div className="border-4 border-black p-4 mb-8">
-              <div className="flex justify-between items-center font-black text-xl">
-                  <span>TAKE HOME PAY (GAJI BERSIH):</span>
-                  <span className="text-2xl">{formatRp(data.net_salary)}</span>
-              </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4 text-center text-sm font-bold mt-4 w-2/3 mx-auto">
-            <div><p className="mb-12">Diterima Oleh,</p><p className="border-t border-black border-dashed pt-1 w-3/4 mx-auto">( {data.employee_name} )</p></div>
-            <div><p className="mb-12">Disetujui Oleh (Finance/HRD),</p><p className="border-t border-black border-dashed pt-1 w-3/4 mx-auto">( .................... )</p></div>
-          </div>
+          <div className="dashed-line"></div>
+          <div className="text-[10px] mb-1">Inv: {orderData.id}</div>
+          <div className="text-[10px] mb-2 uppercase">Plg: {orderData.customer_name || orderData.customer}</div>
+          <div className="dashed-line"></div>
           
-          <div className="mt-8 text-xs font-bold text-center border-t border-black pt-2">
-            *Slip gaji ini dicetak otomatis oleh Sistem ERP Dimsum Aditya dan sah sebagai bukti pembayaran upah yang sah.
+          <table className="w-full text-[10px] text-left mb-2">
+            <tbody>
+              <tr>
+                <td colSpan="3" className="uppercase pb-1">{orderData.itemName || 'DIMSUM'}</td>
+              </tr>
+              <tr>
+                <td>{orderData.qty}x</td>
+                <td>{formatRp(orderData.price || (orderData.totalTagihan/orderData.qty)).replace('Rp','')}</td>
+                <td className="text-right font-bold">{formatRp(orderData.total || orderData.totalTagihan).replace('Rp','')}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div className="dashed-line"></div>
+          
+          <div className="flex justify-between text-[11px] font-bold mt-1">
+            <span>TOTAL:</span>
+            <span>{formatRp(orderData.total || orderData.totalTagihan)}</span>
+          </div>
+
+          {isReceipt && (
+            <>
+              <div className="flex justify-between text-[10px] mt-1">
+                <span>DIBAYAR ({paymentData.paymentMethod}):</span>
+                <span>{formatRp(paymentData.amount)}</span>
+              </div>
+              <div className="dashed-line mt-2"></div>
+              <div className="flex justify-between text-[10px] font-bold">
+                <span>SISA TAGIHAN:</span>
+                <span>{formatRp(paymentData.sisaAtThisPoint)}</span>
+              </div>
+            </>
+          )}
+
+          <div className="text-center text-[9px] mt-4 pt-2 border-t border-black">
+            <div>Terima Kasih!</div>
+            <div>Powered by DimsumAditya ERP</div>
+          </div>
+        </div>
+        <button onClick={onClose} className="fixed top-4 right-4 bg-red-600 text-white font-bold px-4 py-2 rounded-lg no-print">Tutup (X)</button>
+      </div>
+    );
+  }
+
+  // 2. A4 / SETENGAH SURAT (DO, SLIP GAJI, LAPORAN)
+  return (
+    <div className="fixed inset-0 z-[9999] bg-white text-black print-only-wrapper p-8">
+      {type === 'DO' && (
+        <div className="w-full max-w-4xl mx-auto font-mono text-sm">
+          <div className="flex justify-between items-start border-b-2 border-black pb-4 mb-6">
+            <div><h1 className="text-2xl font-black uppercase tracking-widest">DIMSUM ADITYA</h1><p className="font-bold">Surat Jalan Logistik / Delivery Order</p></div>
+            <div className="text-right"><h2 className="text-xl font-black uppercase">NO: {data.id}</h2><div className="font-bold mt-1">TGL: {formatDate(data.date)}</div></div>
+          </div>
+          <div className="flex justify-between mb-8 font-bold text-base p-4 bg-gray-100 border border-black">
+            <div><span className="inline-block w-32">DARI NODE:</span> {data.source_branch}</div>
+            <div><span className="inline-block w-32">TUJUAN NODE:</span> {data.destination_branch}</div>
+          </div>
+          <table className="w-full border-collapse border border-black mb-8">
+            <thead><tr className="bg-gray-200"><th className="border border-black p-3 text-left">Deskripsi Barang</th><th className="border border-black p-3 text-center">Qty (Pcs)</th></tr></thead>
+            <tbody><tr><td className="border border-black p-3 font-bold uppercase">{data.item_name}</td><td className="border border-black p-3 text-center font-black text-xl">{Number(data.qty).toLocaleString('id-ID')}</td></tr></tbody>
+          </table>
+          <div className="grid grid-cols-3 gap-8 text-center mt-16 font-bold">
+            <div><p className="mb-20">Pengirim ({data.source_branch})</p><p className="border-t border-black pt-2">( .................... )</p></div>
+            <div><p className="mb-20">Driver / Ekspedisi</p><p className="border-t border-black pt-2">( .................... )</p></div>
+            <div><p className="mb-20">Penerima ({data.destination_branch})</p><p className="border-t border-black pt-2">( .................... )</p></div>
           </div>
         </div>
       )}
-
-      {/* TOMBOL TUTUP */}
-      <div className="fixed top-4 right-4 print:hidden">
-        <button onClick={onClose} className="bg-red-600 text-white font-bold px-6 py-2 rounded-lg shadow-lg hover:bg-red-700">Tutup Layar Cetak (X)</button>
-      </div>
+      <button onClick={onClose} className="fixed top-4 right-4 bg-red-600 text-white font-bold px-6 py-2 rounded-lg shadow-lg no-print">Tutup Layar Cetak (X)</button>
     </div>
   );
 }
