@@ -1,18 +1,22 @@
-import React, { useState } from 'react';
-import { ShoppingCart, CheckCircle, Clock, Printer, Plus } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { ShoppingCart, CheckCircle, Clock, Printer } from 'lucide-react';
 import { formatRp, getTodayStr, generateId, formatDate } from '../../utils/helpers';
 import SearchableDropdown from '../ui/SearchableDropdown';
+import PaginationController from '../ui/PaginationController'; // IMPORT ENGINE BARU
 
-export default function TabOrders({ orders, payments, masterProducts, sendToSheet, setPrintData, role, showToast, user }) {
+export default function TabOrders({ orders, masterProducts, sendToSheet, setPrintData, showToast, user }) {
   const todayStr = getTodayStr();
+  const caps = user?.permissions || {};
 
+  // 1. FORM STATE
   const [form, setForm] = useState({
       date: todayStr, source: 'GOFOOD', customerName: '',
       sku: '', itemName: '', qty: '', price: '', paidAmount: '', paymentMethod: 'MARKETPLACE'
   });
 
-  // PROTEKSI MASTER DATA CAPABILITY
-  const caps = user?.permissions || {};
+  // 2. PAGINATION ENGINE STATES (PHASE 11)
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(25); // Default 25 rows per page untuk performa HP Kasir
 
   const handleCurrencyChange = (field, value) => {
       const rawValue = value.replace(/\D/g, ''); 
@@ -29,9 +33,8 @@ export default function TabOrders({ orders, payments, masterProducts, sendToShee
   };
 
   const handleCreateNewProduct = (newProductName) => {
-      // Shortcut Super Admin: Auto Fill Text
       setForm({ ...form, sku: 'NEW-SKU', itemName: newProductName.toUpperCase() });
-      showToast(`Mode Buat Baru: Silakan isi Harga Jual. Produk akan otomatis masuk ke Master Data saat disubmit.`, 'success');
+      showToast(`Mode Buat Baru: Silakan isi Harga Jual. Produk otomatis masuk ke Master Data saat disubmit.`, 'success');
   };
 
   const total = Number(form.qty) * Number(form.price);
@@ -50,14 +53,39 @@ export default function TabOrders({ orders, payments, masterProducts, sendToShee
       };
 
       sendToSheet('event_order', payload, 'system_events').then(success => {
-          if (success) setForm({ ...form, qty: '', paidAmount: '' });
+          if (success) {
+              setForm({ ...form, qty: '', paidAmount: '' });
+              setCurrentPage(1); // Auto reset ke page 1 agar kasir melihat transaksi teratasnya yang baru masuk
+          }
       });
   };
 
-  const listOrders = (orders || []).sort((a,b) => new Date(b.date) - new Date(a.date));
+  // 3. COMPUTED PAGINATION LOGIC WITH MEMOIZATION (PERFORMANCE VALUE)
+  const sortedOrders = useMemo(() => {
+    return (orders || []).sort((a, b) => new Date(b.date) - new Date(a.date));
+  }, [orders]);
+
+  const totalRows = sortedOrders.length;
+  const totalPages = Math.ceil(totalRows / rowsPerPage);
+
+  // Potong Array data secara presisi berdasarkan halaman aktif (.slice UI)
+  const paginatedOrders = useMemo(() => {
+    const startIdx = (currentPage - 1) * rowsPerPage;
+    return sortedOrders.slice(startIdx, startIdx + rowsPerPage);
+  }, [sortedOrders, currentPage, rowsPerPage]);
+
+  const handlePageChange = (newPage) => {
+    setCurrentPage(newPage);
+  };
+
+  const handleRowsPerPageChange = (newRows) => {
+    setRowsPerPage(newRows);
+    setCurrentPage(1); // Reset kembali ke halaman 1 saat mengubah density layout data
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
+      {/* FORM TRANSAKSI POS KASIR */}
       <div className="bg-white rounded-2xl border shadow-sm p-6 relative">
           <div className="flex items-center gap-3 mb-6 border-b pb-4">
               <div className="bg-blue-100 text-blue-700 p-2 rounded-lg"><ShoppingCart size={20}/></div>
@@ -73,7 +101,6 @@ export default function TabOrders({ orders, payments, masterProducts, sendToShee
               </div>
               <div className="space-y-1.5 md:col-span-2"><label className="text-[10px] font-bold text-slate-600 uppercase">Nama Pelanggan</label><input type="text" placeholder="Boleh Kosong" value={form.customerName} onChange={e=>setForm({...form, customerName: e.target.value})} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold text-sm uppercase" /></div>
               
-              {/* MASTER DATA DROPDOWN ENFORCEMENT */}
               <div className="space-y-1.5 md:col-span-2">
                   <label className="text-[10px] font-bold text-purple-600 uppercase flex items-center justify-between">
                       Pilih Produk (Master Data)
@@ -105,7 +132,7 @@ export default function TabOrders({ orders, payments, masterProducts, sendToShee
                   <label className="text-[10px] font-bold text-emerald-600 uppercase">Uang Diterima Hari Ini</label>
                   <div className="relative mt-1">
                       <span className="absolute left-3 top-2.5 font-black text-emerald-600/50">Rp</span>
-                      <input type="text" required placeholder="0" value={form.paidAmount ? Number(form.paidAmount).toLocaleString('id-ID') : ''} onChange={e=>handleCurrencyChange('paidAmount', e.target.value)} className="w-full pl-9 pr-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl font-black text-emerald-700 outline-none focus:ring-2 focus:ring-emerald-500" />
+                      <input type="text" required placeholder="0" value={form.paidAmount ? Number(form.paidAmount).toLocaleString('id-ID') : ''} onChange={e=>handleCurrencyChange('paidAmount', e.target.value)} className="w-full pl-9 pr-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl font-black text-emerald-700 outline-none" />
                   </div>
               </div>
 
@@ -122,24 +149,52 @@ export default function TabOrders({ orders, payments, masterProducts, sendToShee
           </form>
       </div>
 
-      <div className="bg-white rounded-2xl border shadow-sm overflow-hidden mt-6">
-          <div className="p-4 border-b bg-slate-50 flex items-center justify-between"><div className="flex items-center gap-3"><Clock size={18} className="text-slate-600"/><h4 className="font-bold text-slate-800 tracking-wide uppercase text-sm">Histori Penjualan POS</h4></div></div>
-          <div className="overflow-x-auto">
+      {/* HISTORI HISTORI PENJUALAN - WITH PAGINATION ENFORCEMENT */}
+      <div className="bg-white rounded-2xl border shadow-sm overflow-hidden mt-6 flex flex-col">
+          <div className="p-4 border-b bg-slate-50 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Clock size={18} className="text-slate-600"/>
+              <h4 className="font-bold text-slate-800 tracking-wide uppercase text-sm">Histori Penjualan POS</h4>
+            </div>
+          </div>
+          
+          <div className="overflow-x-auto flex-1 custom-scrollbar">
               <table className="w-full text-sm text-left table-compact">
-                  <thead className="bg-slate-50 text-[10px] text-slate-500 uppercase table-sticky-header"><tr><th className="px-4 py-3">ID & Tgl</th><th className="px-4 py-3">Platform & Pelanggan</th><th className="px-4 py-3 text-center">Produk (SKU)</th><th className="px-4 py-3 text-right">Pendapatan Kotor</th><th className="px-4 py-3 text-center">Cetak</th></tr></thead>
+                  <thead className="bg-slate-50 text-[10px] text-slate-500 uppercase table-sticky-header">
+                    <tr>
+                      <th className="px-4 py-3">ID & Tgl</th>
+                      <th className="px-4 py-3">Platform & Pelanggan</th>
+                      <th className="px-4 py-3 text-center">Produk (SKU)</th>
+                      <th className="px-4 py-3 text-right">Pendapatan Kotor</th>
+                      <th className="px-4 py-3 text-center">Cetak</th>
+                    </tr>
+                  </thead>
                   <tbody className="divide-y divide-slate-100">
-                      {listOrders.map(o => (
+                      {paginatedOrders.map(o => (
                           <tr key={o.id} className="hover:bg-slate-50 transition">
                               <td className="px-4 py-3"><div className="font-mono text-[10px] font-bold text-slate-700">{o.id}</div><div className="text-[10px] text-slate-500">{formatDate(o.date)}</div></td>
                               <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase mb-1 inline-block ${o.source === 'OFFLINE' ? 'bg-slate-200 text-slate-700' : 'bg-blue-100 text-blue-700'}`}>{o.source}</span><div className="font-bold text-slate-800 text-xs truncate max-w-[150px]">{o.customer_name}</div></td>
                               <td className="px-4 py-3 text-center"><div className="font-black text-blue-600">{o.qty} Pcs</div><div className="text-[9px] font-bold text-slate-500 uppercase">{o.itemName} <span className="text-slate-300">({o.sku})</span></div></td>
                               <td className="px-4 py-3 text-right font-bold text-slate-700">{formatRp(o.total)}</td>
-                              <td className="px-4 py-3 text-center"><button onClick={() => setPrintData({ type: 'INVOICE', data: o })} className="bg-slate-100 hover:bg-slate-200 text-slate-600 p-2 rounded-lg transition"><Printer size={16}/></button></td>
+                              <td className="px-4 py-3 text-center"><button onClick={() => setPrintData({ type: 'INVOICE', data: o })} className="bg-slate-100 hover:bg-slate-200 text-slate-600 p-2 rounded-lg transition cursor-pointer"><Printer size={16}/></button></td>
                           </tr>
                       ))}
+                      {paginatedOrders.length === 0 && (
+                          <tr><td colSpan="5" className="text-center py-8 text-xs font-bold text-slate-400">Tidak ada riwayat transaksi pada halaman ini.</td></tr>
+                      )}
                   </tbody>
               </table>
           </div>
+
+          {/* LAYER KONTROL PAGINASI GLOBAL BARU */}
+          <PaginationController 
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalRows={totalRows}
+            rowsPerPage={rowsPerPage}
+            onPageChange={handlePageChange}
+            onRowsPerPageChange={handleRowsPerPageChange}
+          />
       </div>
     </div>
   );
