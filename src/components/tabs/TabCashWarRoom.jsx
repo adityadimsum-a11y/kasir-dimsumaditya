@@ -1,95 +1,228 @@
-import React, { useMemo, useState } from 'react';
-import { Layers, ShieldAlert, DollarSign, Package, AlertTriangle, Calculator } from 'lucide-react';
-import { formatRp, getTodayStr, getLocalYMD } from '../../utils/helpers';
+import React, { useMemo } from 'react';
+import { Calculator, AlertTriangle, Wallet, Building2, Truck, RefreshCcw, Landmark, ShieldCheck } from 'lucide-react';
+import { formatRp, formatDate } from '../../utils/helpers';
 
-export default function TabCashWarRoom({ orders, purchases, expenses, marketplaceSettlement, supplierLedger, inventoryCostLayers }) {
-  const todayStr = getTodayStr();
+export default function TabCashWarRoom({ 
+  orders, 
+  purchases, 
+  cashflow_transactions, 
+  supplier_ledger, 
+  master_branches, 
+  inventory_cost_layers, 
+  user 
+}) {
+  
+  // ========================================================
+  // CORE TREASURY CALCULATION ENGINE
+  // ========================================================
+  const treasuryMetrics = useMemo(() => {
+    let totalCashGlobal = 0;
+    let cashHq = 0;
+    const branchCashMap = {};
 
-  const warRoomData = useMemo(() => {
-    let cashIn = 0;
-    (orders || []).forEach(o => { if (!o.isDeleted && o.paymentMethod !== 'MARKETPLACE') cashIn += Number(o.total) || 0; });
+    // 1. HITUNG REAL CASH BERDASARKAN NODE (Single Source of Truth)
+    (cashflow_transactions || []).forEach(tx => {
+      if (tx.isDeleted || String(tx.isDeleted).toUpperCase() === 'TRUE') return;
+      // Hanya hitung kas nyata (CASH/TRANSFER), abaikan PIUTANG/MARKETPLACE_AR
+      if (tx.payment_method === 'PIUTANG' || tx.payment_method === 'MARKETPLACE_AR') return;
 
-    let cashOutExp = 0;
-    (expenses || []).forEach(e => { if (!e.isDeleted) cashOutExp += Number(e.amount) || 0; });
+      const amt = Number(tx.amount || 0);
+      const isOutflow = tx.transaction_type === 'OUTFLOW';
+      const netAmt = isOutflow ? -amt : amt;
 
-    let cashOutPur = 0;
-    (purchases || []).forEach(p => { if (!p.isDeleted && p.paymentMethod === 'CASH') cashOutPur += Number(p.paidAmount) || 0; });
+      totalCashGlobal += netAmt;
+      
+      const bId = String(tx.branch_id).toUpperCase();
+      if (!branchCashMap[bId]) branchCashMap[bId] = 0;
+      branchCashMap[bId] += netAmt;
 
-    let hutangAyam = 0; let cicilanPay = 0;
-    (supplierLedger || []).forEach(l => {
-        if (!l.isDeleted) {
-            if (l.transaction_type === 'PURCHASE') hutangAyam += Number(l.amount) || 0;
-            if (l.transaction_type === 'PAYMENT') { hutangAyam -= Number(l.amount) || 0; cicilanPay += Number(l.amount) || 0; }
-        }
+      if (bId === 'PUSAT' || bId === 'HQ_FACTORY') cashHq += netAmt;
     });
 
-    const netCash = cashIn - cashOutExp - cashOutPur - cicilanPay;
-    const ayamPurchases = (purchases || []).filter(p => !p.isDeleted && String(p.itemName).toUpperCase().includes('AYAM')).sort((a, b) => new Date(b.date) - new Date(a.date));
-    const latestPrice = ayamPurchases.length > 0 ? Number(ayamPurchases[0].price) : 35000;
+    // 2. HITUNG PIUTANG MARKETPLACE (Uang Mengambang)
+    let pendingMarketplaceAR = 0;
+    (orders || []).forEach(o => {
+      if (o.isDeleted || String(o.isDeleted).toUpperCase() === 'TRUE') return;
+      if (o.paymentMethod === 'MARKETPLACE_AR') {
+        // Hitung Net Profit setelah potong fee
+        pendingMarketplaceAR += (Number(o.total || 0) - Number(o.fee_amount || 0) - Number(o.marketplace_promo || 0));
+      }
+    });
 
-    const disposable = netCash - hutangAyam;
-    const kgBisaBeli = disposable > 0 ? Math.floor(disposable / latestPrice) : 0;
+    // 3. HITUNG HUTANG SUPPLIER (AP)
+    let supplierDue = 0;
+    (supplier_ledger || []).forEach(l => {
+      if (l.isDeleted || String(l.isDeleted).toUpperCase() === 'TRUE') return;
+      if (l.transaction_type === 'PURCHASE') supplierDue += Number(l.amount || 0);
+      if (l.transaction_type === 'PAYMENT') supplierDue -= Number(l.amount || 0);
+    });
 
-    let pendingMarketplace = 0;
-    (marketplaceSettlement || []).forEach(m => { if (!m.isDeleted && m.status === 'PENDING') pendingMarketplace += Number(m.net_received || m.net) || 0; });
+    // 4. CEK HARGA AYAM TERAKHIR (Forecast Acuan)
+    const ayamPurchases = (purchases || []).filter(p => {
+      const isNotDeleted = !p.isDeleted && String(p.isDeleted).toUpperCase() !== 'TRUE';
+      const isAyam = String(p.item_name || p.itemName || '').toUpperCase().includes('AYAM');
+      return isNotDeleted && isAyam;
+    }).sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    const latestChickenPrice = ayamPurchases.length > 0 ? Number(ayamPurchases[0].price || 35000) : 35000;
 
-    let assetVal = 0;
-    (inventoryCostLayers || []).forEach(l => { if (!l.isDeleted && l.status === 'ACTIVE') assetVal += (Number(l.qty_remaining) * Number(l.unit_cost)); });
+    // 5. KALKULASI RUNWAY (SAFE RESERVE)
+    const disposableCash = totalCashGlobal - supplierDue;
+    const chickenRunwayKg = disposableCash > 0 ? Math.floor(disposableCash / latestChickenPrice) : 0;
+    const isDeficit = disposableCash <= 0;
 
-    return { netCash, cashIn, cashOutExp, hutangAyam, latestPrice, disposable, kgBisaBeli, pendingMarketplace, assetVal };
-  }, [orders, purchases, expenses, supplierLedger, marketplaceSettlement, inventoryCostLayers]);
+    // 6. VALUASI INVENTORY BEKU (Harta Mengendap)
+    let totalInventoryValue = 0;
+    (inventory_cost_layers || []).forEach(l => {
+      if (l.isDeleted || String(l.isDeleted).toUpperCase() === 'TRUE') return;
+      if (l.status === 'ACTIVE') {
+        totalInventoryValue += (Number(l.qty_remaining || 0) * Number(l.unit_cost || 0));
+      }
+    });
+
+    return {
+      totalCashGlobal,
+      cashHq,
+      branchCashMap,
+      pendingMarketplaceAR,
+      supplierDue,
+      latestChickenPrice,
+      disposableCash,
+      chickenRunwayKg,
+      isDeficit,
+      totalInventoryValue
+    };
+  }, [cashflow_transactions, orders, supplier_ledger, purchases, inventory_cost_layers]);
+
+  // Validasi Keamanan: Jika bukan HQ, jangan tampilkan data Global.
+  const isHQ = user?.branch_type === 'HQ_FACTORY';
+
+  if (!isHQ) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[70vh] text-center px-4">
+        <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-4 border-4 border-slate-200">
+          <ShieldCheck size={32} className="text-slate-400" />
+        </div>
+        <h2 className="text-xl font-black text-slate-800 uppercase tracking-wider mb-2">Akses Terbatas</h2>
+        <p className="text-sm font-bold text-slate-500 max-w-md">Global Treasury Dashboard ini secara eksklusif hanya dapat diakses oleh Pusat Komando (HQ_FACTORY).</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
-      <div className="bg-slate-900 rounded-2xl border border-slate-800 shadow-xl overflow-hidden relative">
-        <div className="p-6 border-b border-slate-800 flex justify-between items-center relative z-10">
+      {/* ========================================= */}
+      {/* HERO WIDGET: CHICKEN RUNWAY ENGINE        */}
+      {/* ========================================= */}
+      <div className="bg-slate-900 rounded-3xl border border-slate-800 shadow-2xl overflow-hidden relative">
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"></div>
+        
+        <div className="p-6 md:p-8 border-b border-slate-800/80 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-10">
             <div>
-                <h2 className="text-lg font-black text-white uppercase flex items-center gap-2"><Calculator className="text-amber-400"/> Chicken Cashflow Engine</h2>
-                <p className="text-xs text-slate-400 mt-1">Simulasi daya beli modal mengacu pada timbunan hutang berjalan.</p>
+                <h2 className="text-xl md:text-2xl font-black text-white uppercase flex items-center gap-3">
+                  <Calculator className="text-blue-400"/> Chicken Treasury Engine
+                </h2>
+                <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Global Liquidity & Runway Simulator</p>
             </div>
-            <div className="bg-slate-800 px-4 py-2 rounded-xl text-right">
-                <div className="text-[10px] font-bold text-slate-400 uppercase">Harga Ayam Terakhir</div>
-                <div className="text-lg font-black text-amber-400">{formatRp(warRoomData.latestPrice)} <span className="text-xs text-slate-500">/ KG</span></div>
+            <div className="bg-slate-800/80 backdrop-blur border border-slate-700 px-5 py-3 rounded-2xl text-right flex items-center gap-4">
+                <div>
+                  <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Market Price (Ayam)</div>
+                  <div className="text-lg font-black text-blue-400">{formatRp(treasuryMetrics.latestChickenPrice)} <span className="text-xs text-slate-500">/ KG</span></div>
+                </div>
             </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-slate-800 relative z-10">
-            <div className="p-6">
-                <div className="text-[10px] font-black text-emerald-400 uppercase mb-2">Estimasi Kas Tersedia</div>
-                <div className="text-3xl font-black text-white">{formatRp(warRoomData.netCash)}</div>
-                <div className="text-[9px] text-slate-500 font-bold mt-4">Kotor Masuk Laci: {formatRp(warRoomData.cashIn)}</div>
+        <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-slate-800/80 relative z-10">
+            {/* 1. KAS GLOBAL */}
+            <div className="p-6 md:p-8 bg-slate-900/50">
+                <div className="flex items-center gap-2 mb-2">
+                  <Landmark size={16} className="text-emerald-400"/>
+                  <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Total Kas Global Tersedia</div>
+                </div>
+                <div className="text-3xl md:text-4xl font-black text-white">{formatRp(treasuryMetrics.totalCashGlobal)}</div>
+                <div className="text-[10px] text-slate-500 font-bold mt-4 uppercase flex justify-between">
+                  <span>Pusat (HQ):</span>
+                  <span className="text-white">{formatRp(treasuryMetrics.cashHq)}</span>
+                </div>
             </div>
 
-            <div className="p-6 bg-slate-800/20">
-                <div className="text-[10px] font-black text-rose-400 uppercase mb-2">Hutang Bahan Baku (AP)</div>
-                <div className="text-3xl font-black text-rose-400">{formatRp(warRoomData.hutangAyam)}</div>
-                <div className="text-[9px] text-slate-500 font-bold mt-4">Wajib dilunasi untuk proteksi supplier.</div>
+            {/* 2. HUTANG SUPPLIER (AP) */}
+            <div className="p-6 md:p-8 bg-rose-950/10">
+                <div className="flex items-center gap-2 mb-2">
+                  <Truck size={16} className="text-rose-400"/>
+                  <div className="text-[10px] font-black text-rose-400 uppercase tracking-widest">Kewajiban Hutang (AP)</div>
+                </div>
+                <div className="text-3xl md:text-4xl font-black text-rose-400">{formatRp(treasuryMetrics.supplierDue)}</div>
+                <div className="text-[10px] text-rose-500/80 font-bold mt-4 uppercase">Uang wajib ditahan untuk proteksi arus suplai ayam.</div>
             </div>
 
-            <div className="p-6 bg-amber-500/10">
-                <div className="text-[10px] font-black text-amber-400 uppercase mb-2">Sisa Kemampuan Beli Anggaran</div>
-                {warRoomData.disposable <= 0 ? (
-                    <div className="text-sm font-black text-rose-400 uppercase flex items-center gap-1 mt-2"><AlertTriangle size={16}/> DEFISIT KAS OPERASIONAL</div>
+            {/* 3. CORE ANSWER: SAFE RESERVE */}
+            <div className={`p-6 md:p-8 ${treasuryMetrics.isDeficit ? 'bg-rose-900/20' : 'bg-blue-900/20'}`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Wallet size={16} className={treasuryMetrics.isDeficit ? 'text-rose-400' : 'text-blue-400'}/>
+                  <div className={`text-[10px] font-black uppercase tracking-widest ${treasuryMetrics.isDeficit ? 'text-rose-400' : 'text-blue-400'}`}>Net Disposable Cash (Runway)</div>
+                </div>
+                
+                {treasuryMetrics.isDeficit ? (
+                    <div className="mt-3 bg-rose-950/50 border border-rose-800/50 rounded-xl p-4">
+                      <div className="text-sm font-black text-rose-400 uppercase flex items-center gap-2 mb-1"><AlertTriangle size={18}/> DEFISIT ANGGARAN</div>
+                      <div className="text-[10px] text-rose-300/80 font-bold">Arus kas negatif. Tahan pembelian ayam sebelum hutang dilunasi atau ada setoran cabang.</div>
+                    </div>
                 ) : (
                     <div>
-                        <div className="text-4xl font-black text-amber-400">{warRoomData.kgBisaBeli.toLocaleString('id-ID')} <span className="text-sm font-bold">KG AYAM</span></div>
-                        <div className="text-[10px] text-slate-400 mt-2">Setara {Math.floor(warRoomData.kgBisaBeli/10)} Kantong mentah aman.</div>
+                        <div className="text-4xl md:text-5xl font-black text-blue-400">{treasuryMetrics.chickenRunwayKg.toLocaleString('id-ID')} <span className="text-sm font-bold text-blue-400/60 tracking-wider">KG AYAM</span></div>
+                        <div className="text-[10px] font-bold text-slate-400 mt-3 uppercase bg-slate-950/50 border border-slate-800 px-3 py-2 rounded-lg">
+                          Setara dengan dana tunai aman bernilai <span className="text-white font-black">{formatRp(treasuryMetrics.disposableCash)}</span>
+                        </div>
                     </div>
                 )}
             </div>
         </div>
       </div>
 
+      {/* ========================================= */}
+      {/* SECONDARY ROW: ASSETS & RECEIVABLES       */}
+      {/* ========================================= */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-white p-6 rounded-2xl border shadow-sm">
-             <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wide mb-3">Piutang Mengambang Marketplace</h4>
-             <div className="bg-slate-50 p-4 rounded-xl font-black text-xl text-orange-600 border">{formatRp(warRoomData.pendingMarketplace)}</div>
+          <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden">
+             <div className="absolute right-0 top-0 w-32 h-32 bg-orange-50 rounded-bl-full -z-0 opacity-50"></div>
+             <div className="relative z-10">
+               <h4 className="font-black text-slate-800 text-xs uppercase tracking-widest mb-4 flex items-center gap-2">
+                 <RefreshCcw size={16} className="text-orange-500" /> Piutang Mengambang Marketplace (AR)
+               </h4>
+               <div className="text-3xl font-black text-slate-900">{formatRp(treasuryMetrics.pendingMarketplaceAR)}</div>
+               <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase">Uang nyangkut di GoFood/ShopeeFood yang belum cair ke rekening.</p>
+             </div>
           </div>
-          <div className="bg-white p-6 rounded-2xl border shadow-sm">
-             <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wide mb-3">Valuasi Lapisan Aset Beku</h4>
-             <div className="bg-slate-50 p-4 rounded-xl font-black text-xl text-purple-700 border">{formatRp(warRoomData.assetVal)}</div>
+
+          <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden">
+             <div className="absolute right-0 top-0 w-32 h-32 bg-indigo-50 rounded-bl-full -z-0 opacity-50"></div>
+             <div className="relative z-10">
+               <h4 className="font-black text-slate-800 text-xs uppercase tracking-widest mb-4 flex items-center gap-2">
+                 <Building2 size={16} className="text-indigo-500" /> Valuasi Aset Fisik & Frozen
+               </h4>
+               <div className="text-3xl font-black text-slate-900">{formatRp(treasuryMetrics.totalInventoryValue)}</div>
+               <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase">Total nilai HPP barang yang saat ini menumpuk di Gudang dan Freezer.</p>
+             </div>
           </div>
       </div>
-    </div>
-  );
-}
+
+      {/* ========================================= */}
+      {/* TERTIARY ROW: UNSETTLED BRANCH CASH MATRIX*/}
+      {/* ========================================= */}
+      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+         <div className="p-6 border-b bg-slate-50 flex items-center justify-between">
+            <h4 className="font-black text-slate-800 tracking-widest uppercase text-xs">Node Cash Matrix (Posisi Kas Cabang)</h4>
+         </div>
+         <div className="overflow-x-auto p-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+               {Object.entries(treasuryMetrics.branchCashMap).map(([branchName, amount]) => {
+                  if (branchName === 'PUSAT' || branchName === 'HQ_FACTORY') return null; // Sembunyikan pusat dari grid cabang
+                  
+                  // Cari info cabang dari master data
+                  const bInfo = (master_branches || []).find(b => String(b.branch_id).toUpperCase() === branchName);
+                  const bType = bInfo ? bInfo.branch_type : 'NODE';
+
+                  return (
+                     <div key={branchName} className="p-5 border border-slate-200 rounded-2xl hover:border-blue-400 transition group bg-white shadow-sm">
+                        <div className="text-[10px] font-black
