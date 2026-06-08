@@ -57,13 +57,11 @@ export default function TabCashWarRoom({ orders, purchases, cashflow_transaction
     );
   }, [branch_settlements]);
 
-  const handleApproveSettlement = async (settlement) => {
+const handleApproveSettlement = async (settlement) => {
     if (!window.confirm(`Konfirmasi Uang Masuk\n\nApakah transfer/tunai dari ${settlement.branch_id} sebesar ${formatRp(settlement.amount_transferred)} sudah Anda terima fisik/mutasinya di Pusat?`)) return;
 
-    // 1. Ganti Status Settlement
     const updatedSettlement = { ...settlement, transfer_status: 'SETTLED' };
 
-    // 2. Tembak UANG MASUK ke Kas Global Pusat
     const cfiPayload = {
       id: generateId('CFI', new Date()), date: getTodayStr(), branch_id: 'HQ_FACTORY',
       transaction_type: 'INFLOW', category: 'BRANCH_SETTLEMENT', amount: settlement.amount_transferred,
@@ -74,7 +72,8 @@ export default function TabCashWarRoom({ orders, purchases, cashflow_transaction
     const ok = await sendToSheet('update', updatedSettlement, 'branch_settlements');
     if (ok) {
       await sendToSheet('insert', cfiPayload, 'cashflow_transactions');
-      if (showToast) showToast(`Setoran ${settlement.branch_id} berhasil divalidasi dan masuk Kas Pusat!`, 'success');
+      alert("Setoran berhasil divalidasi! Aplikasi akan memuat ulang saldo.");
+      window.location.reload(); // <--- BARIS INI PENTING: Memaksa aplikasi ambil data baru
     }
   };
 
