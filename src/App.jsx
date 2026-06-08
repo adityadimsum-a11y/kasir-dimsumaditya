@@ -16,15 +16,17 @@ import TabDistribusi from './components/tabs/TabDistribusi';
 import TabKaryawan from './components/tabs/TabKaryawan';
 import TabMonitoringPemalang from './components/tabs/TabMonitoringPemalang';
 import TabDashboardBranch from './components/tabs/TabDashboardBranch';
-import TabCashWarRoom from './components/tabs/TabCashWarRoom'; // IMPORT MODUL BARU
+import TabCashWarRoom from './components/tabs/TabCashWarRoom';
+import TabSCMWarRoom from './components/tabs/TabSCMWarRoom'; // MODUL SCM PHASE 4
 import PrintDotMatrix from './components/PrintDotMatrix';
 
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqSM572mbUIGozcghhh8LHNMNw2e83O7Wkyu-SkjdVTO3zpTb64PA/exec'; 
 
+// CENTRAL CAPABILITY ENGINE AT FRONTEND
 const CAPABILITY_CONFIG = {
-  'HQ_FACTORY': { can_production: true, can_supplier: true, can_global_dashboard: true, can_pos: true, can_distribute: true, can_hrd: true, can_treasury: true },
-  'PRODUCTION_BRANCH': { can_production: true, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: true, can_hrd: false, can_treasury: false },
-  'OUTLET_RESTO': { can_production: false, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: false, can_hrd: false, can_treasury: false }
+  'HQ_FACTORY': { can_production: true, can_supplier: true, can_global_dashboard: true, can_pos: true, can_distribute: true, can_hrd: true, can_treasury: true, can_scm_warroom: true },
+  'PRODUCTION_BRANCH': { can_production: true, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: true, can_hrd: false, can_treasury: false, can_scm_warroom: false },
+  'OUTLET_RESTO': { can_production: false, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: false, can_hrd: false, can_treasury: false, can_scm_warroom: false }
 };
 
 function NavItem({ icon, label, active, onClick, badge }) {
@@ -37,16 +39,22 @@ function NavItem({ icon, label, active, onClick, badge }) {
   );
 }
 
+// =====================================================================
+// DYNAMIC NODE SYSTEM LAYOUT
+// =====================================================================
 function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, data, sendToSheet, setPrintData, setConfirmDialog }) {
   const caps = user.permissions;
-  const pendingDO = data.distributionOrders.filter(d => d.status === 'DIKIRIM').length;
-  const incomingDO = data.distributionOrders.filter(d => d.status === 'DIKIRIM' && d.to_branch === user.branch_id).length;
+  const pendingDO = data.distributionOrders.filter(d => d.status === 'DIKIRIM' || d.status === 'IN_TRANSIT').length;
+  const incomingDO = data.distributionOrders.filter(d => (d.status === 'DIKIRIM' || d.status === 'IN_TRANSIT') && d.to_branch === user.branch_id).length;
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
+      {/* SIDEBAR NAVIGATION CONTROLLED BY CAPABILITY ENGINE */}
       <aside className="w-64 bg-slate-900 text-white flex flex-col shrink-0 relative shadow-xl z-20">
         <div className="p-6 border-b border-slate-800 bg-slate-900/50">
-            <div className="bg-white p-2 rounded-lg inline-block mb-3 shadow-md"><img src="https://dimsumaditya.id/wp-content/uploads/2026/06/Dimsum-Aditya-New-Logo-scaled.webp" alt="Logo" className="h-8 w-auto" /></div>
+            <div className="bg-white p-2 rounded-lg inline-block mb-3 shadow-md">
+              <img src="https://dimsumaditya.id/wp-content/uploads/2026/06/Dimsum-Aditya-New-Logo-scaled.webp" alt="Logo" className="h-8 w-auto" />
+            </div>
             <h1 className="font-black text-lg tracking-wide uppercase">Dimsum Aditya</h1>
             <p className="text-[10px] font-bold text-cyan-400 bg-cyan-400/10 px-2 py-0.5 rounded w-max mt-1 flex items-center gap-1 uppercase">
               {user.branch_type === 'HQ_FACTORY' ? <Activity size={12}/> : <Store size={12}/>}
@@ -55,16 +63,19 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
         </div>
         
         <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto custom-scrollbar">
-            <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 mt-2 px-2">Monitoring & Bisnis</div>
+            <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 mt-2 px-2">Monitoring & Eksekutif</div>
             {caps.can_global_dashboard ? (
               <NavItem icon={<Activity size={20} />} label="Command Center" active={activeTab === 'dashboard'} onClick={() => handleTabChange('dashboard')} />
             ) : (
               <NavItem icon={<LayoutDashboard size={20} />} label="Dashboard Node" active={activeTab === 'dashboard'} onClick={() => handleTabChange('dashboard')} />
             )}
 
-            {/* KENDALI TREASURY EKSEKUTIF */}
             {caps.can_treasury && (
               <NavItem icon={<TrendingUp size={20} />} label="Cash War Room" active={activeTab === 'cash_war_room'} onClick={() => handleTabChange('cash_war_room')} />
+            )}
+            
+            {caps.can_scm_warroom && (
+              <NavItem icon={<Truck size={20} />} label="SCM War Room" active={activeTab === 'scm_war_room'} onClick={() => handleTabChange('scm_war_room')} />
             )}
 
             {caps.can_pos && (
@@ -95,9 +106,10 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
         <div className="p-4 border-t border-slate-800"><button onClick={handleLogout} className="w-full flex justify-center gap-2 bg-slate-800/80 hover:bg-red-600 hover:text-white p-3 rounded-xl transition-all font-bold text-sm"><LogOut size={18}/> Logout</button></div>
       </aside>
 
+      {/* VIEWPORT CONTROLLER */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
         <header className="bg-white border-b p-4 shadow-sm z-10 flex justify-between items-center">
-            <h2 className="text-xl font-bold capitalize text-slate-800 flex items-center gap-2">{activeTab.replace('_', ' ')}</h2>
+            <h2 className="text-xl font-bold capitalize text-slate-800 flex items-center gap-2">{activeTab.replace(/_/g, ' ')}</h2>
             <div className="text-xs font-bold text-slate-500">Node Architecture: <span className="text-red-600 font-black">{user.branch_id} ({user.branch_type})</span></div>
         </header>
         
@@ -111,7 +123,16 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
                 orders={data.orders} purchases={data.purchases} expenses={data.expenses} 
                 cashflowTransactions={data.cashflowTransactions} marketplaceSettlement={data.marketplaceSettlement} 
                 supplierLedger={data.supplierLedger} masterBranches={data.masterBranches} 
+                inventoryCostLayers={data.inventoryCostLayers} discrepancyLogs={data.discrepancyLogs}
                 financialClosings={data.financialClosings} 
+              />
+          )}
+          {activeTab === 'scm_war_room' && caps.can_scm_warroom && (
+              <TabSCMWarRoom 
+                distributionOrders={data.distributionOrders} 
+                inventoryCostLayers={data.inventoryCostLayers} 
+                discrepancyLogs={data.discrepancyLogs} 
+                masterBranches={data.masterBranches} 
               />
           )}
           {activeTab === 'orders' && <TabOrders orders={data.orders} payments={data.piutangPayments} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={(id) => setConfirmDialog({type: 'order', id})} role={user.role} />}
@@ -129,6 +150,9 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
   );
 }
 
+// =====================================================================
+// MAIN APP COMPONENT
+// =====================================================================
 export default function App() {
   const [user, setUser] = useState(() => {
     try { return window.localStorage.getItem('dimsum_user_session') ? JSON.parse(window.localStorage.getItem('dimsum_user_session')) : null; } 
