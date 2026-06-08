@@ -29,13 +29,16 @@ import { generateRequestId } from './utils/helpers';
 
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqSM572mbUIGozcghhh8LHNMNw2e83O7Wkyu-SkjdVTO3zpTb64PA/exec'; 
 
+// =====================================================================
+// CENTRAL ROLES & CAPABILITY CONFIG
+// =====================================================================
 const CAPABILITY_CONFIG = {
   'HQ_FACTORY': { can_production: true, can_supplier: true, can_global_dashboard: true, can_pos: true, can_distribute: true, can_hrd: true, can_treasury: true, can_scm_warroom: true, can_analytics: true, can_radar: true, can_accounting: true, can_audit: true, can_master_data: true },
   'PRODUCTION_BRANCH': { can_production: true, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: true, can_hrd: false, can_treasury: false, can_scm_warroom: false, can_analytics: false, can_radar: false, can_accounting: false, can_audit: false, can_master_data: false },
   'OUTLET_RESTO': { can_production: false, can_supplier: false, can_global_dashboard: false, can_pos: true, can_distribute: false, can_hrd: false, can_treasury: false, can_scm_warroom: false, can_analytics: false, can_radar: false, can_accounting: false, can_audit: false, can_master_data: false }
 };
 
-const CACHE_TTL = 30000; // Dikompres menjadi 30 Detik untuk akurasi data closing real-time
+const CACHE_TTL = 30000; // 30 Detik Memory Cache Layer
 let globalCache = { data: null, timestamp: 0 };
 
 function NavItem({ icon, label, active, onClick, badge, disabled }) {
@@ -51,6 +54,9 @@ function NavItem({ icon, label, active, onClick, badge, disabled }) {
   );
 }
 
+// =====================================================================
+// GLOBAL TOAST NOTIFICATION COMPONENT
+// =====================================================================
 function ToastNotification({ toast, onClose }) {
   useEffect(() => { if(toast) { const timer = setTimeout(onClose, 3500); return () => clearTimeout(timer); } }, [toast, onClose]);
   if (!toast) return null;
@@ -63,6 +69,9 @@ function ToastNotification({ toast, onClose }) {
   );
 }
 
+// =====================================================================
+// UNIVERSAL NODE ARCHITECTURE LAYOUT
+// =====================================================================
 function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, data, sendToSheet, setPrintData, setConfirmDialog, isLoading, isOffline, showToast }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const caps = user.permissions;
@@ -94,8 +103,10 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
             {caps.can_global_dashboard ? <NavItem icon={<Activity size={18} />} label="Command Center" active={activeTab === 'dashboard'} onClick={() => navigateTab('dashboard')} disabled={isLoading} /> : <NavItem icon={<LayoutDashboard size={18} />} label="Dashboard Node" active={activeTab === 'dashboard'} onClick={() => navigateTab('dashboard')} disabled={isLoading} />}
             {caps.can_radar && <NavItem icon={<Radar size={18} />} label="Business Radar" active={activeTab === 'radar'} onClick={() => navigateTab('radar')} disabled={isLoading} />}
             {caps.can_treasury && <NavItem icon={<TrendingUp size={18} />} label="Cash War Room" active={activeTab === 'cash_war_room'} onClick={() => navigateTab('cash_war_room')} disabled={isLoading} />}
+            
             {caps.can_accounting && <NavItem icon={<BookOpen size={18} />} label="Financial ERP" active={activeTab === 'accounting'} onClick={() => navigateTab('accounting')} disabled={isLoading} />}
             {caps.can_audit && <NavItem icon={<ShieldCheck size={18} />} label="Accounting Audit" active={activeTab === 'accounting_audit'} onClick={() => navigateTab('accounting_audit')} disabled={isLoading} />}
+            
             {caps.can_analytics && <NavItem icon={<PieChart size={18} />} label="Executive Analytics" active={activeTab === 'analytics'} onClick={() => navigateTab('analytics')} disabled={isLoading} />}
             {caps.can_scm_warroom && <NavItem icon={<Truck size={18} />} label="SCM War Room" active={activeTab === 'scm_war_room'} onClick={() => navigateTab('scm_war_room')} disabled={isLoading} />}
 
@@ -174,6 +185,9 @@ function UniversalNodeLayout({ user, activeTab, handleTabChange, handleLogout, d
   );
 }
 
+// =====================================================================
+// MAIN APP ROOT ENGINE
+// =====================================================================
 export default function App() {
   const [user, setUser] = useState(() => { try { return window.localStorage.getItem('dimsum_user_session') ? JSON.parse(window.localStorage.getItem('dimsum_user_session')) : null; } catch (e) { return null; } }); 
   const [activeTab, setActiveTab] = useState(() => { try { return window.localStorage.getItem('dimsum_active_tab') || 'dashboard'; } catch (e) { return 'dashboard'; } });
@@ -192,7 +206,7 @@ export default function App() {
   const showToast = (message, type = 'success') => setToast({ message, type });
   const handleTabChange = (tabName) => { setActiveTab(tabName); window.localStorage.setItem('dimsum_active_tab', tabName); };
 
-  // 🌟 SMART SHORTCUT ENGINE (PHASE 12)
+  // SMART KEYBOARD SHORTCUTS
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
@@ -272,7 +286,8 @@ export default function App() {
             marketplaceSettlement: sortData(raw.filter(i => i.table === 'marketplace_settlement' && !i.isDeleted)),
             inventoryCostLayers: sortData(raw.filter(i => i.table === 'inventory_cost_layers' && !i.isDeleted)),
             discrepancyLogs: sortData(raw.filter(i => i.table === 'discrepancy_logs' && !i.isDeleted)),
-            financialClosings: sortData(raw.filter(i => i.table === 'financial_closings' && !i.isDeleted))
+            financialClosings: sortData(raw.filter(i => i.table === 'financial_closings' && !i.isDeleted)),
+            marketplaceInvoices: raw.filter(i => i.table === 'marketplace_invoices' && !i.isDeleted)
         };
         globalCache = { data: processed, timestamp: now };
         setData(processed);
@@ -359,8 +374,8 @@ export default function App() {
           </div>
           <form onSubmit={handleLogin} className="space-y-4">
             {loginError && <div className="p-3 bg-rose-50 text-rose-600 rounded-xl text-xs font-bold flex items-center gap-2 border border-rose-100"><AlertCircle size={14}/> <span>{loginError}</span></div>}
-            <div><label className="text-[10px] font-black text-slate-500 uppercase ml-1">Username / Akses</label><input type="text" required value={loginForm.username} onChange={e => setLoginForm({...loginForm, username: e.target.value})} className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm outline-none" /></div>
-            <div><label className="text-[10px] font-black text-slate-500 uppercase ml-1">Password</label><input type="password" required value={loginForm.password} onChange={e => setLoginForm({...loginForm, password: e.target.value})} className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm outline-none" /></div>
+            <div><label className="text-[10px] font-bold text-slate-500 uppercase ml-1">Username / Akses</label><input type="text" required value={loginForm.username} onChange={e => setLoginForm({...loginForm, username: e.target.value})} className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm outline-none" /></div>
+            <div><label className="text-[10px] font-bold text-slate-500 uppercase ml-1">Password</label><input type="password" required value={loginForm.password} onChange={e => setLoginForm({...loginForm, password: e.target.value})} className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm outline-none" /></div>
             <button type="submit" disabled={isLoading} className="w-full bg-slate-900 hover:bg-slate-800 text-white font-black py-3.5 rounded-xl shadow-md mt-6 disabled:opacity-50 tracking-wide text-xs flex justify-center items-center gap-2">{isLoading ? <Loader2 size={16} className="animate-spin"/> : 'Secure Login'}</button>
           </form>
         </div>
