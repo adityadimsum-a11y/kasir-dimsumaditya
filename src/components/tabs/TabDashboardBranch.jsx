@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
-import { Store, TrendingUp, Users, ShoppingBag, Clock, Receipt, Activity, CreditCard, Package, HandCoins, AlertTriangle, Beef, AlertCircle } from 'lucide-react';
-import { formatRp, getTodayStr, formatDate } from '../../utils/helpers';
+import { Store, TrendingUp, Users, ShoppingBag, Clock, Receipt, Activity, CreditCard, Package, Coins, AlertTriangle, Box, AlertCircle } from 'lucide-react';
+import { formatRp, getTodayStr } from '../../utils/helpers';
 
 export default function TabDashboardBranch({ orders, master_customers, inventory_cost_layers, supplier_ledger, cashflow_transactions, user }) {
   const todayStr = getTodayStr();
@@ -20,14 +20,12 @@ export default function TabDashboardBranch({ orders, master_customers, inventory
     const recentOrders = [];
     const customerStats = {};
 
-    // 1. Data Order (Omset Harian & Piutang Gantung All Time)
     (orders || []).forEach(o => {
       if (o.isDeleted || String(o.isDeleted).toUpperCase() === 'TRUE') return;
       if (String(o.branch_id).toUpperCase() !== currentBranch.toUpperCase()) return;
 
       const netTotal = Number(o.total || 0) - Number(o.fee_amount || 0) - Number(o.marketplace_promo || 0);
 
-      // Metrik Hari Ini
       if (o.date === todayStr) {
         todayOmset += netTotal;
         todayTrxCount += 1;
@@ -42,7 +40,6 @@ export default function TabDashboardBranch({ orders, master_customers, inventory
         customerStats[cName] += netTotal;
       }
 
-      // Hitung Piutang Mengambang Cabang
       if (o.paymentMethod === 'PIUTANG' || o.paymentMethod === 'MARKETPLACE_AR') {
         totalPiutangCabang += netTotal;
       }
@@ -50,7 +47,6 @@ export default function TabDashboardBranch({ orders, master_customers, inventory
       recentOrders.push(o);
     });
 
-    // Kurangi Piutang Cabang jika ada pelunasan
     (cashflow_transactions || []).forEach(tx => {
       if (tx.isDeleted || String(tx.isDeleted).toUpperCase() === 'TRUE') return;
       if (String(tx.branch_id).toUpperCase() !== currentBranch.toUpperCase()) return;
@@ -59,7 +55,6 @@ export default function TabDashboardBranch({ orders, master_customers, inventory
       }
     });
 
-    // 2. Hitung Hutang Lokal Cabang
     (supplier_ledger || []).forEach(l => {
       if (l.isDeleted || String(l.isDeleted).toUpperCase() === 'TRUE') return;
       if (String(l.branch_id).toUpperCase() !== currentBranch.toUpperCase()) return;
@@ -71,7 +66,6 @@ export default function TabDashboardBranch({ orders, master_customers, inventory
     const topCustomers = Object.entries(customerStats)
       .map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total).slice(0, 5);
 
-    // 3. Stok Barang Cabang
     let stockDimsum = 0;
     (inventory_cost_layers || []).forEach(l => {
       if (l.isDeleted || String(l.isDeleted).toUpperCase() === 'TRUE' || l.status !== 'ACTIVE') return;
@@ -110,7 +104,7 @@ export default function TabDashboardBranch({ orders, master_customers, inventory
         </div>
         <div className="relative z-10 bg-slate-800/80 border border-slate-700 px-6 py-3 rounded-2xl shrink-0 w-full md:w-auto text-center md:text-right backdrop-blur-sm">
           <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tanggal Operasional</div>
-          <div className="text-sm font-bold text-white uppercase">{formatDate(todayStr)}</div>
+          <div className="text-sm font-bold text-white uppercase">{todayStr}</div>
         </div>
       </div>
 
@@ -128,7 +122,7 @@ export default function TabDashboardBranch({ orders, master_customers, inventory
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full lg:flex-1">
             <div className={`p-4 rounded-xl border flex items-center justify-between ${metrics.totalPiutangCabang > 0 ? 'bg-amber-50 border-amber-200' : 'bg-white border-slate-200'}`}>
               <div>
-                <div className="text-[9px] font-black text-amber-600 uppercase tracking-widest mb-1 flex items-center gap-1"><HandCoins size={12}/> Piutang Lokal</div>
+                <div className="text-[9px] font-black text-amber-600 uppercase tracking-widest mb-1 flex items-center gap-1"><Coins size={12}/> Piutang Lokal</div>
                 <div className={`text-xl font-black ${metrics.totalPiutangCabang > 0 ? 'text-amber-600' : 'text-slate-400'}`}>{formatRp(metrics.totalPiutangCabang)}</div>
               </div>
             </div>
@@ -140,7 +134,7 @@ export default function TabDashboardBranch({ orders, master_customers, inventory
             </div>
             <div className={`p-4 rounded-xl border flex items-center justify-between ${metrics.stokAyamKg < 30 ? 'bg-rose-50 border-rose-200 animate-pulse' : 'bg-emerald-50 border-emerald-200'}`}>
               <div>
-                <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 flex items-center gap-1"><Beef size={12}/> Daging Ayam (Gudang)</div>
+                <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 flex items-center gap-1"><Box size={12}/> Daging Ayam (Gudang)</div>
                 <div className={`text-xl font-black ${metrics.stokAyamKg < 30 ? 'text-rose-600' : 'text-emerald-600'}`}>{metrics.stokAyamKg} <span className="text-xs font-bold opacity-70">KG</span></div>
               </div>
             </div>
@@ -199,7 +193,7 @@ export default function TabDashboardBranch({ orders, master_customers, inventory
                 ) : (
                   metrics.recentOrders.map(tx => (
                     <tr key={tx.id} className="hover:bg-slate-50 transition">
-                      <td className="px-6 py-4"><div className="text-slate-800">{formatDate(tx.date)}</div><div className="text-[9px] text-slate-400 font-mono mt-0.5">{tx.invoice_no || tx.id}</div></td>
+                      <td className="px-6 py-4"><div className="text-slate-800">{tx.date}</div><div className="text-[9px] text-slate-400 font-mono mt-0.5">{tx.invoice_no || tx.id}</div></td>
                       <td className="px-6 py-4"><div className="text-slate-800 uppercase font-black">{tx.customer_name}</div><div className="text-[9px] text-blue-600 bg-blue-50 w-max px-1.5 py-0.5 rounded mt-1 uppercase tracking-wider">{tx.source}</div></td>
                       <td className="px-6 py-4 text-center text-slate-700">{tx.qty} Pcs</td>
                       <td className="px-6 py-4 text-right text-emerald-600 font-black text-sm">{formatRp(Number(tx.total) - Number(tx.fee_amount || 0) - Number(tx.marketplace_promo || 0))}</td>
