@@ -2,7 +2,6 @@ import React, { useState, useMemo } from 'react';
 import { Users, FileText, CheckCircle, Banknote, Landmark, UserPlus, Layers } from 'lucide-react';
 import { formatRp, getTodayStr, generateId, formatDate } from '../../utils/helpers';
 
-// FIX: Pastikan nama parameter menggunakan master_branches sesuai database Google Sheet
 export default function TabKaryawan({ karyawan, expenses, master_branches, sendToSheet, showToast, user }) {
   const todayStr = getTodayStr();
   const currentBranch = user?.branch_id || 'PUSAT';
@@ -11,7 +10,7 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
   // Navigasi sub-tab dalam payroll
   const [activeSubTab, setActiveSubTab] = useState(isHQ ? 'payroll' : 'kasbon');
   
-  // State filter cabang aktif (Default melihat pusat terlebih dahulu)
+  // State filter cabang aktif (Default melihat PUSAT)
   const [selectedBranchFilter, setSelectedBranchFilter] = useState('PUSAT');
 
   // Menentukan wilayah data yang sedang dibongkar
@@ -29,25 +28,38 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
     paymentMethod: 'CASH' 
   });
 
-  // FIX: Mengambil daftar ID Cabang langsung menggunakan key master_branches yang valid
-  const daftarCabang = useMemo(() => {
-    const list = (master_branches || []).filter(b => !b.isDeleted).map(b => b.branch_id);
-    if (!list.includes('PUSAT')) list.unshift('PUSAT');
-    return list;
+  // UPGRADE REQ 2: MAP DYNAMIC BRANCH NAME (Mengubah OUTLET_1 menjadi Produksi Pemalang secara otomatis dari DB)
+  const petaNamaCabang = useMemo(() => {
+    const mapping = { PUSAT: '🍊 TANGERANG PUSAT' };
+    (master_branches || []).forEach(b => {
+      if (!b.isDeleted && b.branch_id) {
+        // Simpan id sebagai KEY besar, dan nama asli dari excel sebagai VALUE
+        mapping[String(b.branch_id).trim().toUpperCase()] = `🏪 ${String(b.branch_name).toUpperCase()}`;
+      }
+    });
+    return mapping;
   }, [master_branches]);
 
-  // ENGINE FILTER DATA KARYAWAN & LOG PINJAMAN PER CABANG (ANTI-CAMPUR)
+  // Generate daftar key cabang untuk tombol-tombol di atas layar
+  const daftarCabangId = useMemo(() => {
+    return Object.keys(petaNamaCabang);
+  }, [petaNamaCabang]);
+
+  // ENGINE FILTER DATA KARYAWAN & LOG PINJAMAN PER CABANG (ANTI-CAMPUR + DEFENSIVE TRIM)
   const employeeData = useMemo(() => {
       const balances = {};
+      const targetBId = String(activeProcessingBranch || '').trim().toUpperCase();
       
-      // Saring staf: Hanya munculkan staf yang branch_id nya COCOK dengan tombol cabang yang sedang diklik
+      // Saring staf dengan Trim Engine kencang untuk menghindari bug spasi hantu di Excel
       (karyawan || []).forEach(k => {
-          if (k.isDeleted) return;
-          if (String(k.branch_id).toUpperCase() === activeProcessingBranch.toUpperCase()) {
+          if (k.isDeleted || !k.branch_id) return;
+          const stafBId = String(k.branch_id).trim().toUpperCase();
+          
+          if (stafBId === targetBId) {
               balances[k.id] = { 
                 id: k.id, 
-                name: k.name, 
-                position: k.position, 
+                name: k.name || 'TANPA NAMA', 
+                position: k.position || 'STAF', 
                 baseSalary: Number(k.baseSalary || 0),
                 branch_id: k.branch_id, 
                 totalKasbon: 0, 
@@ -57,7 +69,7 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
           }
       });
 
-      // Tarik histori uang kasbon & potong gaji yang selaras dengan data staf tersebut
+      // Tarik pengeluaran kasbon & payroll yang selaras
       (expenses || []).forEach(e => {
           if (e.isDeleted || !e.employee_id || !balances[e.employee_id]) return;
           if (e.category === 'KASBON') {
@@ -79,8 +91,9 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
 
   // LOG HISTORI PENGGAJIAN BULANAN PADA CABANG TERPILIH
   const payrollHistory = useMemo(() => {
+    const targetBId = String(activeProcessingBranch || '').trim().toUpperCase();
     return (expenses || [])
-      .filter(e => !e.isDeleted && e.category === 'PAYROLL' && String(e.branch_id).toUpperCase() === activeProcessingBranch.toUpperCase())
+      .filter(e => !e.isDeleted && e.category === 'PAYROLL' && String(e.branch_id || '').trim().toUpperCase() === targetBId)
       .sort((a, b) => new Date(b.date) - new Date(a.date));
   }, [expenses, activeProcessingBranch]);
 
@@ -180,7 +193,7 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
       
-      {/* FILTER BUTTON PER-WILAYAH CABANG (UNTUK AKUN TANGERANG PUSAT) */}
+      {/* UPGRADE TOMBOL FILTER: SEKARANG OTOMATIS MEMBACA NAMA ASLI DARI EXCEL */}
       {isHQ && (
         <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 flex flex-col md:flex-row items-center justify-between shadow-lg">
           <div className="flex items-center gap-2 mb-3 md:mb-0">
@@ -188,14 +201,14 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
             <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Pilih Cabang untuk Manajemen Keuangan Staf:</span>
           </div>
           <div className="flex flex-wrap gap-2">
-            {daftarCabang.map(brId => (
+            {daftarCabangId.map(brId => (
               <button 
                 key={brId} 
                 type="button"
                 onClick={() => setSelectedBranchFilter(brId)} 
                 className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wide transition-all ${activeProcessingBranch.toUpperCase() === brId.toUpperCase() ? 'bg-red-600 text-white shadow-md scale-105' : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200'}`}
               >
-                {brId === 'PUSAT' ? '🍊 Tangerang Pusat' : `🏪 Node ${brId}`}
+                {petaNamaCabang[brId]}
               </button>
             ))}
           </div>
@@ -396,7 +409,7 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
                         <div>
                           <label className="text-[10px] font-bold text-red-600 uppercase">Ditempatkan di Cabang mana?</label>
                           <select value={formMaster.targetBranch} onChange={e=>setFormMaster({...formMaster, targetBranch: e.target.value})} className="w-full p-2.5 bg-red-50 border border-red-200 rounded-xl font-black text-sm uppercase outline-none">
-                            {daftarCabang.map(br => <option key={br} value={br}>{br === 'PUSAT' ? 'Tangerang Pusat' : `Cabang ${br}`}</option>)}
+                            {daftarCabangId.map(br => <option key={br} value={br}>{br === 'PUSAT' ? 'Tangerang Pusat' : (petaNamaCabang[br] || br)}</option>)}
                           </select>
                         </div>
                       )}
