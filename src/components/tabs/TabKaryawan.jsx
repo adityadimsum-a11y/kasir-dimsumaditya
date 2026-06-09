@@ -1,16 +1,15 @@
 import React, { useState, useMemo } from 'react';
-import { Users, Landmark, Banknote, UserPlus, Layers, TrendingDown, ShieldAlert, Trash2, Edit2, Check, X, Phone, Image, Eye, MapPin, Undo, Link } from 'lucide-react';
+import { Users, Landmark, Banknote, UserPlus, Layers, TrendingDown, ShieldAlert, Trash2, Edit2, Check, X, Phone, Image, Eye, MapPin, Undo, Link, Printer } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
+import { triggerPrint } from '../../utils/PrintUtility'; // 🔥 IMPORT MESIN CETAK
 
 const formatRupiah = (angka) => "Rp. " + Number(angka || 0).toLocaleString('id-ID');
 
-// 🔥 BYPASS GOOGLE DRIVE 2024: Menggunakan Thumbnail Endpoint agar tidak diblokir Cookies!
 const parseDriveLink = (url) => {
   if (!url) return '';
   if (url.includes('drive.google.com/file/d/')) {
     const match = url.match(/\/d\/(.*?)\//);
     if (match && match[1]) {
-      // Mengubah link viewer menjadi link gambar HD yang bebas akses
       return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w1000`;
     }
   }
@@ -101,26 +100,6 @@ export default function TabKaryawan({
     return { kasbonCabang, gajiCabangBulanIni, kasbonGlobal, gajiGlobal };
   }, [globalEmployeeCompiled, expenses, activeProcessingBranch, todayStr, optimisticDeletedIds]);
 
-  const kecukupanDanaPusat = useMemo(() => {
-    const totalWajibGajiNasional = Object.values(globalEmployeeCompiled).filter(e => e.status === 'AKTIF' && !optimisticDeletedIds.has(e.id)).reduce((sum, emp) => sum + emp.baseSalary, 0);
-    const sisaWajibBayarBulanIni = Math.max(0, totalWajibGajiNasional - metrikSDM.gajiGlobal);
-    let totalKasCairPusat = 0;
-    (realCashflowTransactions || []).forEach(c => {
-      if (!c || c.isDeleted) return;
-      if (['HQ_FACTORY', 'PUSAT'].includes(String(c.branch_id).toUpperCase())) {
-        if (String(c.transaction_type).toUpperCase() === 'INFLOW') totalKasCairPusat += Number(c.amount || 0);
-        else totalKasCairPusat -= Number(c.amount || 0);
-      }
-    });
-    let status = 'AMAN'; let warnaBadge = 'bg-emerald-500 text-white';
-    let rekomendasi = '🔥 AMAN! Saldo kas liquid pusat sangat mencukupi untuk meng-cover sisa kewajiban gaji seluruh cabang nasional.';
-    if (sisaWajibBayarBulanIni > totalKasCairPusat) {
-      status = 'BAHAYA / KRITIS'; warnaBadge = 'bg-rose-600 text-white animate-pulse';
-      rekomendasi = '🚨 KAS TIDAK CUKUP! Segera tarik setoran omzet dari Pemalang & Cibinong untuk mengamankan runway payroll.';
-    }
-    return { sisaWajibBayarBulanIni, totalKasCairPusat, status, warnaBadge, rekomendasi };
-  }, [globalEmployeeCompiled, metrikSDM.gajiGlobal, realCashflowTransactions, optimisticDeletedIds]);
-
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
       
@@ -139,14 +118,6 @@ export default function TabKaryawan({
           <div><div className="text-[9px] font-black text-orange-400 uppercase">Total Kasbon Company</div><div className="text-base font-black">{formatRupiah(metrikSDM.kasbonGlobal)}</div></div>
         </div>
       </div>
-
-      {/* FINANCIAL RADAR */}
-      {isHQ && (
-        <div className="p-4 rounded-2xl border border-blue-200 bg-blue-50/40 flex items-center justify-between text-xs font-bold text-blue-800">
-          <div>💡 <strong>Radar Gaji Nasional:</strong> {kecukupanDanaPusat.rekomendasi}</div>
-          <span className={`px-3 py-1 rounded-full uppercase font-black text-[9px] ${kecukupanDanaPusat.warnaBadge}`}>Sisa Wajib Gaji: {formatRupiah(kecukupanDanaPusat.sisaWajibBayarBulanIni)}</span>
-        </div>
-      )}
 
       {/* PIL SWITCHER CABANG */}
       {isHQ && (
@@ -169,10 +140,10 @@ export default function TabKaryawan({
 
       {/* SWITCH MODUL COMPONENT */}
       {activeSubTab === 'payroll' && isHQ && (
-        <PayrollModule employees={employeesDiCabangAktif} expenses={expenses} globalCompiled={globalEmployeeCompiled} activeBranch={activeProcessingBranch} todayStr={todayStr} sendToSheet={sendToSheet} onViewDetails={setSelectedEmployeeDetails} />
+        <PayrollModule employees={employeesDiCabangAktif} expenses={expenses} globalCompiled={globalEmployeeCompiled} activeBranch={activeProcessingBranch} todayStr={todayStr} sendToSheet={sendToSheet} onViewDetails={setSelectedEmployeeDetails} user={user} />
       )}
       {activeSubTab === 'kasbon' && (
-        <KasbonModule employees={employeesDiCabangAktif} expenses={expenses} globalCompiled={globalEmployeeCompiled} activeBranch={activeProcessingBranch} todayStr={todayStr} sendToSheet={sendToSheet} onViewDetails={setSelectedEmployeeDetails} />
+        <KasbonModule employees={employeesDiCabangAktif} expenses={expenses} globalCompiled={globalEmployeeCompiled} activeBranch={activeProcessingBranch} todayStr={todayStr} sendToSheet={sendToSheet} onViewDetails={setSelectedEmployeeDetails} user={user} />
       )}
       {activeSubTab === 'master' && (
         <MasterSDMModule employees={employeesDiCabangAktif} branchListId={daftarCabangId} branchMapName={petaNamaCabang} activeBranch={activeProcessingBranch} isHQ={isHQ} sendToSheet={sendToSheet} showToast={showToast} onViewDetails={setSelectedEmployeeDetails} setOptimisticDeletedIds={setOptimisticDeletedIds} />
@@ -229,7 +200,7 @@ export default function TabKaryawan({
 }
 
 // SUB-COMPONENT 1: MODUL GAJI & PAYROLL
-function PayrollModule({ employees, expenses, globalCompiled, activeBranch, todayStr, sendToSheet, onViewDetails }) {
+function PayrollModule({ employees, expenses, globalCompiled, activeBranch, todayStr, sendToSheet, onViewDetails, user }) {
   const [form, setForm] = useState({ date: todayStr, employeeId: '', baseSalary: '0', allowance: '0', otherDeduction: '0', paymentMethod: 'CASH' });
   const selectedStafKasbon = useMemo(() => { if (!form.employeeId || !globalCompiled[form.employeeId]) return 0; return globalCompiled[form.employeeId].sisaHutang || 0; }, [form.employeeId, globalCompiled]);
   const hitungNetto = useMemo(() => { const gapok = Number(form.baseSalary || 0); const tunj = Number(form.allowance || 0); const potLain = Number(form.otherDeduction || 0); const potKasbon = Math.min(selectedStafKasbon, gapok + tunj); return { potKasbon, totalCair: (gapok + tunj) - (potKasbon + potLain) }; }, [form.baseSalary, form.allowance, form.otherDeduction, selectedStafKasbon]);
@@ -265,7 +236,7 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
       <div className="lg:col-span-2 bg-white rounded-2xl border overflow-hidden flex flex-col">
         <div className="p-4 bg-slate-50 border-b font-bold text-xs uppercase text-slate-700">Histori Gaji Jurnal Wilayah {activeBranch}</div>
         <table className="w-full text-sm text-left">
-          <thead className="bg-slate-50 text-[10px] uppercase text-slate-400 border-b"><tr><th>Tanggal</th><th>Karyawan</th><th className="text-right">Gaji+Tunj</th><th className="text-right text-orange-600">Pot. Kasbon</th><th className="text-right text-emerald-600">Netto Cair</th><th className="text-center">Profil</th></tr></thead>
+          <thead className="bg-slate-50 text-[10px] uppercase text-slate-400 border-b"><tr><th>Tanggal</th><th>Karyawan</th><th className="text-right">Gaji+Tunj</th><th className="text-right text-orange-600">Pot. Kasbon</th><th className="text-right text-emerald-600">Netto Cair</th><th className="text-center">Aksi</th></tr></thead>
           <tbody className="divide-y divide-slate-100 text-xs font-bold">
             {historyGaji.map(p => {
               const emp = globalCompiled[p.employee_id];
@@ -279,7 +250,29 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
                   <td className="px-4 py-3 text-right">{formatRupiah((p.base_salary||0)+(p.allowance||0))}</td>
                   <td className="px-4 py-3 text-right text-orange-600">{formatRupiah(p.kasbon_deduction)}</td>
                   <td className="px-4 py-3 text-right text-emerald-600">{formatRupiah(p.amount)}</td>
-                  <td className="px-4 py-3 text-center"><button type="button" onClick={() => emp && onViewDetails(emp)} className="p-1 text-blue-600 bg-blue-50 rounded"><Eye size={12}/></button></td>
+                  <td className="px-4 py-3 text-center">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <button type="button" onClick={() => emp && onViewDetails(emp)} className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg"><Eye size={12}/></button>
+                      
+                      {/* 🔥 TOMBOL CETAK DOT MATRIX PAYROLL */}
+                      <button type="button" onClick={() => triggerPrint('NOTA_DOTMATRIX', {
+                        id: p.id,
+                        date: formatDate(p.date),
+                        branch_name: activeBranch,
+                        admin_name: user?.name || 'ADMIN',
+                        customer_name: emp?.name || 'STAF',
+                        description: `Pembayaran Gaji & Payroll`,
+                        amount: p.amount,
+                        qty: 1,
+                        previous_debt: (emp?.sisaHutang || 0) + (p.kasbon_deduction || 0), // Hutang sebelum dipotong
+                        paid_amount: p.amount, // Netto yang diterima
+                        paymentMethod: p.payment_method || 'CASH',
+                        remaining_balance: emp?.sisaHutang || 0 // Sisa hutang setelah dipotong
+                      })} className="p-1.5 text-white bg-slate-800 hover:bg-slate-900 shadow rounded-lg" title="Cetak Slip Gaji">
+                        <Printer size={12}/>
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               );
             })}
@@ -291,7 +284,7 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
 }
 
 // SUB-COMPONENT 2: MODUL KASBON
-function KasbonModule({ employees, expenses, globalCompiled, activeBranch, todayStr, sendToSheet, onViewDetails }) {
+function KasbonModule({ employees, expenses, globalCompiled, activeBranch, todayStr, sendToSheet, onViewDetails, user }) {
   const [form, setForm] = useState({ date: todayStr, employeeId: '', amount: '', notes: '' });
   const selectedStaf = form.employeeId ? globalCompiled[form.employeeId] : null;
   const isOverlimit = useMemo(() => { if (!selectedStaf) return false; return (Number(form.amount || 0) + selectedStaf.sisaHutang) > selectedStaf.baseSalary; }, [form.amount, selectedStaf]);
@@ -320,7 +313,7 @@ function KasbonModule({ employees, expenses, globalCompiled, activeBranch, today
       <div className="lg:col-span-2 bg-white rounded-2xl border flex flex-col overflow-hidden">
         <div className="p-4 bg-slate-50 border-b font-bold text-xs uppercase text-slate-700">Buku Jurnal Kasbon Riil per Nota (Filter: {activeBranch})</div>
         <table className="w-full text-sm text-left">
-          <thead className="bg-slate-50 text-[10px] uppercase text-slate-400 border-b"><tr><th>Tanggal & ID</th><th>Karyawan</th><th>Keterangan</th><th className="text-right">Nominal Pinjam</th></tr></thead>
+          <thead className="bg-slate-50 text-[10px] uppercase text-slate-400 border-b"><tr><th>Tanggal & ID</th><th>Karyawan</th><th>Keterangan</th><th className="text-right">Nominal Pinjam</th><th className="text-center">Aksi</th></tr></thead>
           <tbody className="divide-y divide-slate-100 text-xs font-bold">
             {historyKasbonLog.map(log => {
               const emp = globalCompiled[log.employee_id];
@@ -333,6 +326,29 @@ function KasbonModule({ employees, expenses, globalCompiled, activeBranch, today
                   </td>
                   <td className="px-4 py-3 text-slate-500 font-normal">{log.description}</td>
                   <td className="px-4 py-3 text-right text-orange-600 bg-orange-50/20">{formatRupiah(log.amount)}</td>
+                  <td className="px-4 py-3 text-center">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <button type="button" onClick={() => emp && onViewDetails(emp)} className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg"><Eye size={12}/></button>
+                      
+                      {/* 🔥 TOMBOL CETAK DOT MATRIX KASBON */}
+                      <button type="button" onClick={() => triggerPrint('NOTA_DOTMATRIX', {
+                        id: log.id,
+                        date: formatDate(log.date),
+                        branch_name: activeBranch,
+                        admin_name: user?.name || 'ADMIN',
+                        customer_name: emp?.name || 'STAF',
+                        description: log.description,
+                        amount: log.amount,
+                        qty: 1,
+                        previous_debt: Math.max(0, (emp?.sisaHutang || 0) - log.amount), // Hutang sebelum kasbon ini
+                        paid_amount: log.amount, // Nominal yang dicairkan laci
+                        paymentMethod: 'CASH',
+                        remaining_balance: emp?.sisaHutang || 0 // Total hutang sekarang
+                      })} className="p-1.5 text-white bg-slate-800 hover:bg-slate-900 shadow rounded-lg" title="Cetak Bukti Kasbon">
+                        <Printer size={12}/>
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               );
             })}
@@ -407,7 +423,6 @@ function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch,
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">Nama Lengkap</label><input type="text" required readOnly={isEditingMode} value={form.name} onChange={e=>setForm({...form, name: e.target.value})} className={`w-full p-2 border rounded-lg text-sm uppercase outline-none ${isEditingMode ? 'bg-slate-100 font-black text-slate-500 cursor-not-allowed' : ''}`} /></div>
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">No. WhatsApp</label><input type="text" required placeholder="Contoh: 081234567" value={form.phone} onChange={e=>setForm({...form, phone: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold" /></div>
           
-          {/* INPUT LINK MANUAL ANTI GAGAL DENGAN PANDUAN */}
           <div>
             <label className="text-[10px] font-black text-slate-500 uppercase flex items-center gap-1 mb-1"><Link size={10}/> Link Pas Foto Profil Baru</label>
             <input type="text" placeholder="Paste link foto dari Google Drive..." value={form.photo_url} onChange={e => setForm({...form, photo_url: e.target.value})} className="w-full p-2 border rounded-lg text-xs" />
