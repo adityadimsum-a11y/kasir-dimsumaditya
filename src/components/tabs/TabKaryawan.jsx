@@ -300,7 +300,7 @@ export default function TabKaryawan({
 }
 
 // =========================================================================
-// 📇 SUB-COMPONENT 1: PAYROLL (TIDAK BERUBAH)
+// 📇 SUB-COMPONENT 1: PAYROLL 
 // =========================================================================
 function PayrollModule({ employees, expenses, globalCompiled, activeBranch, todayStr, sendToSheet, onViewDetails, user, setOptimisticDeletedIds, isHQ, showToast, optimisticDeletedIds }) {
   const currentMonthValue = todayStr.substring(0, 7);
@@ -488,12 +488,11 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
 }
 
 // =========================================================================
-// 📇 SUB-COMPONENT 2: LEMBUR & BONUS HARIAN (NEW! MULTI-PESERTA & AUTO-PIC)
+// 📇 SUB-COMPONENT 2: LEMBUR & BONUS HARIAN
 // =========================================================================
-function LemburModule({ employees, expenses, globalCompiled, activeBranch, todayStr, sendToSheet, user, setOptimisticDeletedIds, isHQ, showToast, optimisticDeletedIds, totalPorsiHariIni }) {
+function LemburModule({ employees, expenses, globalCompiled, activeBranch, todayStr, sendToSheet, onViewDetails, user, setOptimisticDeletedIds, isHQ, showToast, optimisticDeletedIds, totalPorsiHariIni }) {
   const [form, setForm] = useState({ date: todayStr, picId: '', participants: [], isLembur: false, isBonus: false, isJamuan: false });
   
-  // Auto-set "LEADER TIM" sebagai PIC Penerima Uang
   React.useEffect(() => {
     if (!form.picId && employees.length > 0) {
       const leader = employees.find(e => e.position === 'LEADER_TIM');
@@ -568,13 +567,11 @@ function LemburModule({ employees, expenses, globalCompiled, activeBranch, today
           
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">Tgl Eksekusi</label><input type="date" required value={form.date} onChange={e=>setForm({...form, date: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold outline-none" /></div>
           
-          {/* 🔥 1. PILIH LEADER SEBAGAI PIC PENERIMA UANG KAS */}
           <div>
             <label className="text-[10px] font-bold text-blue-600 uppercase">1. Penanggung Jawab (PIC Penerima Kas)</label>
             <select required value={form.picId} onChange={e=>setForm({...form, picId: e.target.value})} className="w-full p-2.5 border border-blue-200 bg-blue-50 rounded-xl font-black text-sm uppercase outline-none"><option value="">-- Pilih Leader / PIC --</option>{employees.map(k => <option key={k.id} value={k.id}>{k.name} ({k.position}) - CAB {k.branch_id}</option>)}</select>
           </div>
 
-          {/* 🔥 2. MULTI-SELECT KARYAWAN YANG IKUT LEMBUR (CHECKLIST) */}
           <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
             <label className="text-[10px] font-black text-slate-700 uppercase mb-2 flex items-center gap-1"><UsersRound size={12}/> 2. Daftar Peserta Lembur/Bonus ({qtyPeserta} Orang)</label>
             <div className="flex flex-wrap gap-2 mt-2">
@@ -628,7 +625,10 @@ function LemburModule({ employees, expenses, globalCompiled, activeBranch, today
               return (
                 <tr key={log.id} className="hover:bg-slate-50/50 transition">
                   <td className="px-4 py-3"><div>{formatDate(log.date)}</div><div className="text-[9px] font-mono text-slate-400 mt-0.5">{log.id}</div></td>
-                  <td className="px-4 py-3"><div className="uppercase text-blue-800 font-black">{emp?.name || 'TIM OPERASIONAL'}</div><div className="text-[9px] text-slate-400">CAB: {emp?.branch_id || activeBranch}</div></td>
+                  <td onClick={() => emp && onViewDetails(emp)} className="px-4 py-3 cursor-pointer group">
+                    <div className="uppercase text-blue-800 font-black group-hover:text-blue-600 transition-colors flex items-center gap-1">{emp?.name || 'TIM OPERASIONAL'} <Eye size={10} className="text-slate-400"/></div>
+                    <div className="text-[9px] text-slate-400">CAB: {emp?.branch_id || activeBranch}</div>
+                  </td>
                   <td className="px-4 py-3 text-[10px] text-slate-600 leading-relaxed uppercase">{log.description}</td>
                   <td className="px-4 py-3 text-right text-emerald-600 font-black">{formatRupiah(log.amount)}</td>
                   <td className="px-4 py-3 text-center">
@@ -786,7 +786,6 @@ function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch,
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">Gaji Pokok</label><input type="text" required value={formatRupiah(form.baseSalary)} onChange={e=>setForm({...form, baseSalary: e.target.value.replace(/\D/g, '')})} className="w-full p-2 border rounded-lg font-bold text-sm" /></div>
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">Alamat Rumah KTP</label><textarea required rows="2" value={form.address} onChange={e=>setForm({...form, address: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold uppercase none outline-none" placeholder="Isi nama jalan..."></textarea></div>
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">Posisi Kerja</label><select value={form.position} onChange={e=>setForm({...form, position: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold uppercase">
-             {/* 🔥 OPSI BARU: LEADER TIM UNTUK PIC LEMBUR */}
              <option value="LEADER_TIM">LEADER TIM / KEPALA CABANG</option>
              <option value="KASIR">KASIR / RESTO FRONT</option>
              <option value="DAPUR_RESTO">COOK / DAPUR RESTO</option>
