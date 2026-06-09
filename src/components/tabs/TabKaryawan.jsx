@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { Users, FileText, CheckCircle, Banknote, Landmark, UserPlus, Layers, TrendingDown, ShieldAlert } from 'lucide-react';
+import { Users, FileText, CheckCircle, Banknote, Landmark, UserPlus, Layers, TrendingDown, ShieldAlert, ShieldCheck, Activity } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 
-export default function TabKaryawan({ karyawan, expenses, master_branches, sendToSheet, showToast, user }) {
+// UPGRADE: Menambahkan cashflow_transactions ke dalam parameter komponen
+export default function TabKaryawan({ karyawan, expenses, master_branches, cashflow_transactions, sendToSheet, showToast, user }) {
   const todayStr = getTodayStr();
   const currentBranch = user?.branch_id || 'PUSAT';
   const isHQ = user?.branch_type === 'HQ_FACTORY' || currentBranch === 'PUSAT';
@@ -23,7 +24,6 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
     paymentMethod: 'CASH' 
   });
 
-  // Helper fungsi format rupiah lokal khusus internal tab
   const formatRupiahLokal = (angka) => {
     return "Rp. " + Number(angka || 0).toLocaleString('id-ID');
   };
@@ -43,7 +43,7 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
     return Object.keys(petaNamaCabang);
   }, [petaNamaCabang]);
 
-  // 2. ENGINE EVALUASI HUTANG & KASBON KARYAWAN (GLOBAL DAN REGIONAL)
+  // 2. ENGINE EVALUASI HUTANG & KASBON KARYAWAN GLOBAL
   const masterEmployeeDataGlobal = useMemo(() => {
       const balances = {};
       
@@ -78,13 +78,12 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
       return balances;
   }, [karyawan, expenses]);
 
-  // Saring karyawan khusus untuk cabang yang sedang dipilih saat ini
   const activeEmployees = useMemo(() => {
     const targetBId = String(activeProcessingBranch || '').trim().toUpperCase();
     return Object.values(masterEmployeeDataGlobal).filter(k => k.branch_id === targetBId);
   }, [masterEmployeeDataGlobal, activeProcessingBranch]);
 
-  // 3. ENGINE TOTALIZER INSIGHT (REQ POINT 1: TOTALAN PER CABANG + GLOBAL COMBON)
+  // 3. HITUNG REALISASI BEBAN GAJI LOKAL VS GLOBAL
   const ringkasanFinansialSDM = useMemo(() => {
     let kasbonCabangIni = 0;
     let gajiCabangIniBulanIni = 0;
@@ -94,7 +93,6 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
     const targetBId = String(activeProcessingBranch || '').trim().toUpperCase();
     const curMonth = todayStr.substring(0, 7);
 
-    // Hitung sisa kasbon
     Object.values(masterEmployeeDataGlobal).forEach(emp => {
       kasbonGlobalSeluruhPerusahaan += emp.sisaHutang;
       if (emp.branch_id === targetBId) {
@@ -102,7 +100,6 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
       }
     });
 
-    // Hitung realisasi pengeluaran gaji dari tabel pengeluaran (expenses)
     (expenses || []).forEach(e => {
       if (e.isDeleted) return;
       const bId = String(e.branch_id || '').trim().toUpperCase();
@@ -116,15 +113,70 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
       }
     });
 
-    return {
-      kasbonCabangIni,
-      gajiCabangIniBulanIni,
-      kasbonGlobalSeluruhPerusahaan,
-      gajiGlobalSeluruhPerusahaan
-    };
+    return { kasbonCabangIni, gajiCabangIniBulanIni, kasbonGlobalSeluruhPerusahaan, gajiGlobalSeluruhPerusahaan };
   }, [masterEmployeeDataGlobal, expenses, activeProcessingBranch, todayStr]);
 
-  // LOG HISTORI PENGGAJIAN BULANAN
+  // ========================================================
+  // 🔥 BARU: ALGORITMA SMART PAYROLL SUFFICIENCY ENGINE (AI RUNWAY CALCULATOR)
+  // ========================================================
+  const analisisKecukupanGajiPusat = useMemo(() => {
+    // A. Hitung total kebutuhan rupiah untuk melunasi seluruh staf nasional (Aktif)
+    const totalKebutuhanKotorNasional = Object.values(masterEmployeeDataGlobal)
+      .reduce((sum, emp) => sum + emp.baseSalary, 0);
+
+    // B. Sisa kewajiban bulan ini (Total kebutuhan dikurangi yang sudah dibayar)
+    const sisaKewajibanPayrollBulanIni = Math.max(0, totalKebutuhanKotorNasional - ringkasanFinansialSDM.gajiGlobalSeluruhPerusahaan);
+
+    // C. Hitung sisa kas likuid bersih milik Tangerang Pusat saat ini (Inflow - Outflow)
+    let totalKasPusatAktif = 0;
+    (cashflow_transactions || []).forEach(c => {
+      if (c.isDeleted) return;
+      const bId = String(c.branch_id || '').trim().toUpperCase();
+      if (bId === 'HQ_FACTORY' || bId === 'PUSAT') {
+        const amt = Number(c.amount || 0);
+        if (String(c.transaction_type).toUpperCase() === 'INFLOW') totalKasPusatAktif += amt;
+        else if (String(c.transaction_type).toUpperCase() === 'OUTFLOW') totalKasPusatAktif -= amt;
+      }
+    });
+
+    // D. Evaluasi kecukupan dana menggunakan AI Logic Rules
+    let statusFinansial = 'AMAN';
+    let warnaBadge = 'bg-emerald-500 text-white';
+    let warnaBorder = 'border-emerald-200 bg-emerald-50/50';
+    let warnaTeks = 'text-emerald-700';
+    let pesanRekomendasi = '🔥 AMAN, BOS! Saldo penjualan bersih Tangerang sangat melimpah. Likuiditas kas siap melunasi seluruh sisa gaji nasional bulan ini.';
+
+    if (sisaKewajibanPayrollBulanIni > 0) {
+      if (totalKasPusatAktif < sisaKewajibanPayrollBulanIni) {
+        statusFinansial = 'KRITIS / BAHAYA';
+        warnaBadge = 'bg-rose-600 text-white animate-pulse';
+        warnaBorder = 'border-rose-200 bg-rose-50/60';
+        warnaTeks = 'text-rose-700';
+        pesanRekomendasi = '🚨 KAS TIDAK CUKUP! Saldo liquid kas Pusat lebih kecil dari sisa kewajiban gaji. Genjot penjualan, tarik setoran dari Pemalang & Cibinong, dan kunci pengeluaran non-prioritas!';
+      } else if (totalKasPusatAktif <= sisaKewajibanPayrollBulanIni * 1.3) {
+        statusFinansial = 'SIAGA MEPEET';
+        warnaBadge = 'bg-amber-500 text-slate-900';
+        warnaBorder = 'border-amber-200 bg-amber-50/60';
+        warnaTeks = 'text-amber-800';
+        pesanRekomendasi = '⚠️ SIAGA! Kas mencukupi untuk bayar gaji, tapi posisinya sangat mepet dengan batas aman operasional. Amankan dana laci sekarang.';
+      }
+    } else {
+      pesanRekomendasi = '✅ MERDEKA! Seluruh kewajiban payroll nasional bulan ini sudah lunas dibayarkan secara merata.';
+    }
+
+    return {
+      totalKebutuhanKotorNasional,
+      sisaKewajibanPayrollBulanIni,
+      totalKasPusatAktif,
+      statusFinansial,
+      warnaBadge,
+      warnaBorder,
+      warnaTeks,
+      pesanRekomendasi
+    };
+  }, [masterEmployeeDataGlobal, ringkasanFinansialSDM.gajiGlobalSeluruhPerusahaan, cashflow_transactions]);
+
+  // HISTORI JURNAL
   const payrollHistory = useMemo(() => {
     const targetBId = String(activeProcessingBranch || '').trim().toUpperCase();
     return (expenses || [])
@@ -154,9 +206,6 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
     return { potKasbon, netto };
   }, [formPayroll.baseSalary, formPayroll.allowance, formPayroll.otherDeduction, selectedEmpKasbon]);
 
-  // ========================================================
-  // PROCESS SUBMIT GAJI DENGAN SMART TREASURY DEDUCTION (SINKRONISASI KAS TANGERANG)
-  // ========================================================
   const handleSimpanPayroll = async (e) => {
     e.preventDefault();
     if (!formPayroll.employeeId) { showToast('Pilih karyawan terlebih dahulu!', 'error'); return; }
@@ -164,46 +213,27 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
     const emp = masterEmployeeDataGlobal[formPayroll.employeeId];
     const expenseId = generateId('PRL', formPayroll.date);
 
-    // 1. Payload Utama pencatatan biaya operasional cabang
     const payloadExpense = {
-      id: expenseId,
-      date: formPayroll.date,
-      branch_id: activeProcessingBranch,
-      category: 'PAYROLL',
-      employee_id: formPayroll.employeeId,
-      base_salary: Number(formPayroll.baseSalary),
-      allowance: Number(formPayroll.allowance),
-      kasbon_deduction: hitungNettoCair.potKasbon,
-      other_deduction: Number(formPayroll.otherDeduction),
-      amount: hitungNettoCair.netto,
-      payment_method: formPayroll.paymentMethod,
+      id: expenseId, date: formPayroll.date, branch_id: activeProcessingBranch, category: 'PAYROLL', employee_id: formPayroll.employeeId,
+      base_salary: Number(formPayroll.baseSalary), allowance: Number(formPayroll.allowance), kasbon_deduction: hitungNettoCair.potKasbon,
+      other_deduction: Number(formPayroll.otherDeduction), amount: hitungNettoCair.netto, payment_method: formPayroll.paymentMethod,
       description: `Gaji Bulanan [${activeProcessingBranch}] - ${emp.name} (${emp.position}).`
     };
 
     const successExpense = await sendToSheet('insert', payloadExpense, 'expenses');
     
     if (successExpense) {
-      // REQ POINT 2: SINKRONISASI OTOMATIS DENGAN KAS UTAMA TANGERANG
-      // Jika dibayar pakai TF, kas yang terpotong secara dinamis adalah Kas Besar Tangerang (HQ_FACTORY)
       const dynamicCashflowBranch = formPayroll.paymentMethod === 'TF' ? 'HQ_FACTORY' : activeProcessingBranch;
       const descCashflow = formPayroll.paymentMethod === 'TF' 
-        ? `[PAYROLL CENTRAL] Pemotongan Penjualan Bersih Tangerang untuk Gaji Staf Cabang ${activeProcessingBranch} atas nama ${emp.name}`
-        : `[PAYROLL LOKAL] Pemotongan Kas Laci Tunai Cabang ${activeProcessingBranch} untuk Gaji Staf ${emp.name}`;
+        ? `[PAYROLL CENTRAL] Potong penjualan bersih Tangerang Pusat untuk Gaji Cabang ${activeProcessingBranch} - Staf: ${emp.name}`
+        : `[PAYROLL LOKAL] Gaji dibayar via laci tunai cabang ${activeProcessingBranch} - Staf: ${emp.name}`;
 
       const payloadCashflow = {
-        id: 'CFO-' + new Date().getTime(),
-        date: formPayroll.date,
-        branch_id: dynamicCashflowBranch, // Smart Routing Kas
-        transaction_type: 'OUTFLOW',
-        category: 'OPERATIONAL_EXPENSE',
-        amount: hitungNettoCair.netto,
-        payment_method: formPayroll.paymentMethod,
-        reference_id: expenseId,
-        description: descCashflow
+        id: 'CFO-' + new Date().getTime(), date: formPayroll.date, branch_id: dynamicCashflowBranch, transaction_type: 'OUTFLOW',
+        category: 'OPERATIONAL_EXPENSE', amount: hitungNettoCair.netto, payment_method: formPayroll.paymentMethod, reference_id: expenseId, description: descCashflow
       };
 
       await sendToSheet('insert', payloadCashflow, 'cashflow_transactions');
-
       setFormPayroll({ date: todayStr, employeeId: '', baseSalary: '0', allowance: '0', otherDeduction: '0', paymentMethod: 'CASH' });
       if (showToast) showToast(`Payroll ${emp.name} Berhasil Disinkronkan dengan Kas Tangerang!`, 'success');
     }
@@ -212,38 +242,22 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
   const handleSimpanKasbon = async (e) => {
       e.preventDefault();
       if (!formKasbon.employeeId) { showToast('Pilih nama karyawan!', 'error'); return; }
-      if (Number(formKasbon.amount) <= 0) { showToast('Nominal kasbon tidak valid!', 'error'); return; }
-      
       const targetEmp = masterEmployeeDataGlobal[formKasbon.employeeId];
       const expenseId = generateId('KSB', formKasbon.date);
 
       const payloadExpense = {
-          id: expenseId, 
-          date: formKasbon.date, 
-          branch_id: activeProcessingBranch, 
-          employee_id: formKasbon.employeeId, 
-          category: 'KASBON', 
-          amount: Number(formKasbon.amount), 
-          description: `Kasbon Tunai Cabang [${activeProcessingBranch}] - Staf: ${targetEmp.name}.`, 
-          payment_method: 'CASH'
+          id: expenseId, date: formKasbon.date, branch_id: activeProcessingBranch, employee_id: formKasbon.employeeId, 
+          category: 'KASBON', amount: Number(formKasbon.amount), description: `Kasbon Tunai Cabang [${activeProcessingBranch}] - Staf: ${targetEmp.name}.`, payment_method: 'CASH'
       };
 
       const successExpense = await sendToSheet('insert', payloadExpense, 'expenses');
       if(successExpense) {
-          // Kasbon memotong laci kas cabang lokal
           const payloadCashflow = {
-            id: 'CFO-' + new Date().getTime(),
-            date: formKasbon.date,
-            branch_id: activeProcessingBranch,
-            transaction_type: 'OUTFLOW',
-            category: 'KARYAWAN_KASBON',
-            amount: Number(formKasbon.amount),
-            payment_method: 'CASH',
-            reference_id: expenseId,
-            description: `[KASBON] Pengambilan kas laci oleh staf ${targetEmp.name} di Node ${activeProcessingBranch}`
+            id: 'CFO-' + new Date().getTime(), date: formKasbon.date, branch_id: activeProcessingBranch, transaction_type: 'OUTFLOW',
+            category: 'KARYAWAN_KASBON', amount: Number(formKasbon.amount), payment_method: 'CASH', reference_id: expenseId,
+            description: `[KASBON LOKAL] Pengambilan laci kas oleh staf ${targetEmp.name} di Node ${activeProcessingBranch}`
           };
           await sendToSheet('insert', payloadCashflow, 'cashflow_transactions');
-
           setFormKasbon({ date: todayStr, employeeId: '', amount: '', notes: '' });
           if(showToast) showToast('Buku kasbon berhasil di-update!', 'success');
       }
@@ -255,51 +269,75 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
       const targetBranch = isHQ ? formMaster.targetBranch : currentBranch;
       
       const payload = { 
-        id: generateId('EMP', new Date()), 
-        name: formMaster.name.toUpperCase(), 
-        position: formMaster.position, 
-        baseSalary: Number(formMaster.baseSalary || 0), 
-        branch_id: targetBranch, 
-        status: 'AKTIF' 
+        id: generateId('EMP', new Date()), name: formMaster.name.toUpperCase(), position: formMaster.position, 
+        baseSalary: Number(formMaster.baseSalary || 0), branch_id: targetBranch, status: 'AKTIF' 
       };
       
       const success = await sendToSheet('insert', payload, 'karyawan');
       if(success) {
         setFormMaster({ name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT' });
-        if(showToast) showToast('Karyawan sukses didaftarkan!', 'success');
       }
   };
 
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
       
-      {/* 📊 BARU: DASHBOARD SUMMARY METRICS BAR (REQ POINT 1: TOTALAN TOTAL RUPIAH) */}
+      {/* 📊 INDIKATOR FINANSIAL HR GLOBAL */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white p-5 rounded-2xl border shadow-sm border-l-4 border-l-orange-500">
-          <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Kasbon Wilayah ({activeProcessingBranch})</div>
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Kasbon Aktif Cabang ({activeProcessingBranch})</div>
           <div className="text-xl font-black text-orange-600 mt-1">{formatRupiahLokal(ringkasanFinansialSDM.kasbonCabangIni)}</div>
-          <div className="text-[9px] text-slate-400 font-bold mt-1 uppercase">Sisa saldo piutang staf cabang</div>
+          <div className="text-[9px] text-slate-400 font-bold mt-1 uppercase">Sisa piutang internal staf node</div>
         </div>
         <div className="bg-white p-5 rounded-2xl border shadow-sm border-l-4 border-l-red-500">
-          <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Beban Gaji ({activeProcessingBranch}) Bulan Ini</div>
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Gaji Terbayar ({activeProcessingBranch}) Bulan Ini</div>
           <div className="text-xl font-black text-red-600 mt-1">{formatRupiahLokal(ringkasanFinansialSDM.gajiCabangIniBulanIni)}</div>
-          <div className="text-[9px] text-slate-400 font-bold mt-1 uppercase">Realisasi netto cair terdistribusi</div>
+          <div className="text-[9px] text-slate-400 font-bold mt-1 uppercase">Realisasi dana lunas berjalan</div>
         </div>
         <div className="bg-slate-900 p-5 rounded-2xl shadow-md border border-slate-800 md:col-span-2 grid grid-cols-2 gap-2 relative overflow-hidden">
           <div className="absolute top-0 right-0 p-2 opacity-5"><TrendingDown size={80} className="text-white"/></div>
           <div>
-            <div className="text-[9px] font-black text-red-400 uppercase tracking-widest">Grand Total Gaji Global</div>
+            <div className="text-[9px] font-black text-red-400 uppercase tracking-widest">Total Pengeluaran Gaji Global</div>
             <div className="text-base font-black text-white mt-0.5">{formatRupiahLokal(ringkasanFinansialSDM.gajiGlobalSeluruhPerusahaan)}</div>
           </div>
           <div>
-            <div className="text-[9px] font-black text-orange-400 uppercase tracking-widest">Grand Total Kasbon Company</div>
+            <div className="text-[9px] font-black text-orange-400 uppercase tracking-widest">Total Kasbon Company</div>
             <div className="text-base font-black text-white mt-0.5">{formatRupiahLokal(ringkasanFinansialSDM.kasbonGlobalSeluruhPerusahaan)}</div>
           </div>
           <div className="col-span-2 border-t border-slate-800 pt-1.5 text-[8px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
-            <ShieldAlert size={10} className="text-yellow-400"/> Konsolidasi Keuangan Direktur Utama Tangerang Pusat
+            <ShieldAlert size={10} className="text-yellow-400"/> Konsolidasi Finansial Direktur Utama Dimsum Aditya
           </div>
         </div>
       </div>
+
+      {/* ======================================================== */}
+      {/* 🚀 WIDGET BARU: ENGINE RADAR KESANGGUPAN BAYAR GAJI NASIONAL */}
+      {/* ======================================================== */}
+      {isHQ && (
+        <div className={`p-6 rounded-3xl border shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition-all ${analisisKecukupanGajiPusat.warnaBorder}`}>
+          <div className="space-y-1 flex-1">
+            <div className="flex items-center gap-2">
+              <Activity size={16} className="text-slate-700 animate-pulse" />
+              <h4 className="font-black text-slate-800 text-xs uppercase tracking-wider">Radar Kesanggupan Gaji Nasional (Buku Penjualan Bersih)</h4>
+              <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider shadow-sm ${analisisKecukupanGajiPusat.warnaBadge}`}>
+                STATUS: {analisisKecukupanGajiPusat.statusFinansial}
+              </span>
+            </div>
+            <p className={`text-xs font-bold leading-relaxed ${analisisKecukupanGajiPusat.warnaTeks}`}>{analisisKecukupanGajiPusat.pesanRekomendasi}</p>
+          </div>
+          <div className="flex gap-4 bg-white/80 backdrop-blur border p-4 rounded-2xl shadow-inner shrink-0 w-full md:w-auto justify-between md:justify-start">
+            <div className="text-center px-2">
+              <div className="text-[8px] font-black text-slate-400 uppercase">Kas Liquid Tangerang</div>
+              <div className="text-sm font-black text-slate-800 mt-0.5">{formatRupiahLokal(analisisKecukupanGajiPusat.totalKasCentric || analisisKecukupanGajiPusat.totalKasPusatAktif)}</div>
+            </div>
+            <div className="border-l my-1"></div>
+            <div className="text-center px-2">
+              <div className="text-[8px] font-black text-red-500 uppercase">Sisa Wajib Payroll</div>
+              <div className="text-sm font-black text-red-600 mt-0.5">{formatRupiahLokal(analisisKecukupanGajiPusat.sisaKewajibanPayrollBulanIni)}</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* FILTER BUTTON PER-WILAYAH CABANG */}
       {isHQ && (
@@ -311,9 +349,7 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
           <div className="flex flex-wrap gap-2">
             {daftarCabangId.map(brId => (
               <button 
-                key={brId} 
-                type="button"
-                onClick={() => setSelectedBranchFilter(brId)} 
+                key={brId} type="button" onClick={() => setSelectedBranchFilter(brId)} 
                 className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wide transition-all ${activeProcessingBranch.toUpperCase() === brId.toUpperCase() ? 'bg-red-600 text-white shadow-md scale-105' : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200'}`}
               >
                 {petaNamaCabang[brId]}
@@ -358,8 +394,7 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
                 <div>
                   <label className="text-[10px] font-bold text-slate-600 uppercase">Gaji Pokok</label>
                   <input 
-                    type="text" required
-                    value={formatRupiahLokal(formPayroll.baseSalary)}
+                    type="text" required value={formatRupiahLokal(formPayroll.baseSalary)}
                     onChange={(e) => setFormPayroll({ ...formPayroll, baseSalary: e.target.value.replace(/\D/g, '') })}
                     className="w-full p-2.5 bg-slate-50 border rounded-xl font-black text-sm"
                   />
@@ -367,8 +402,7 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
                 <div>
                   <label className="text-[10px] font-bold text-emerald-600 uppercase">Tunjangan/Lembur</label>
                   <input 
-                    type="text" required
-                    value={formatRupiahLokal(formPayroll.allowance)}
+                    type="text" required value={formatRupiahLokal(formPayroll.allowance)}
                     onChange={(e) => setFormPayroll({ ...formPayroll, allowance: e.target.value.replace(/\D/g, '') })}
                     className="w-full p-2.5 bg-white border border-emerald-200 text-emerald-900 rounded-xl font-black text-sm outline-none"
                   />
@@ -384,8 +418,7 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
               <div>
                 <label className="text-[10px] font-bold text-rose-600 uppercase">Potongan Lain (Absen/Alfa)</label>
                 <input 
-                  type="text" required
-                  value={formatRupiahLokal(formPayroll.otherDeduction)}
+                  type="text" required value={formatRupiahLokal(formPayroll.otherDeduction)}
                   onChange={(e) => setFormPayroll({ ...formPayroll, otherDeduction: e.target.value.replace(/\D/g, '') })}
                   className="w-full p-2.5 bg-white border border-rose-200 text-rose-900 rounded-xl font-black text-sm outline-none"
                 />
@@ -470,8 +503,7 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
                     <div>
                         <label className="text-[10px] font-bold text-orange-600 uppercase">Nominal Uang Kasbon</label>
                         <input 
-                            type="text" required 
-                            value={formatRupiahLokal(formKasbon.amount)} 
+                            type="text" required value={formatRupiahLokal(formKasbon.amount)} 
                             onChange={(e) => setFormKasbon({ ...formKasbon, amount: e.target.value.replace(/\D/g, '') })}
                             className="w-full p-2.5 bg-orange-50 border border-orange-200 text-orange-900 rounded-xl font-black text-sm" 
                         />
@@ -525,8 +557,7 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
                       <div>
                         <label className="text-[10px] font-bold text-slate-600 uppercase">Gaji Pokok Standar</label>
                         <input 
-                          type="text" required 
-                          value={formatRupiahLokal(formMaster.baseSalary)} 
+                          type="text" required value={formatRupiahLokal(formMaster.baseSalary)} 
                           onChange={(e) => setFormMaster({ ...formMaster, baseSalary: e.target.value.replace(/\D/g, '') })}
                           className="w-full p-2.5 bg-white border rounded-xl font-black text-sm" 
                         />
