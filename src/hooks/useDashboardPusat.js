@@ -10,9 +10,6 @@ export default function useDashboardPusat({
     const todayStr = getTodayStr();
     const todayObj = new Date(todayStr);
 
-    // ==========================================
-    // 1. FINANCIAL RADAR (CASH, AR, AP)
-    // ==========================================
     let inCash = 0, outCash = 0, pendingMarketplace = 0, hutangAyamAktif = 0;
     let totalPiutangPelanggan = 0;
 
@@ -29,7 +26,6 @@ export default function useDashboardPusat({
         if(c.transaction_type === 'OUTFLOW' || c.type === 'CASH_OUT') outCash += Number(c.amount); 
     });
     
-    // Piutang Pelanggan logic
     const groupOrders = {};
     (orders || []).forEach(o => {
         if(o.isDeleted) return;
@@ -46,9 +42,6 @@ export default function useDashboardPusat({
 
     const cashReadyTotal = inCash - outCash;
 
-    // ==========================================
-    // 2. INVENTORY VALUATION & VOLUME
-    // ==========================================
     let ayamGudangQty = 0, totalStokDimsumPcs = 0;
     let totalValuasiGudang = 0;
     
@@ -63,9 +56,6 @@ export default function useDashboardPusat({
       else if (String(l.item_name).toUpperCase().includes('DIMSUM')) totalStokDimsumPcs += qty;
     });
 
-    // ==========================================
-    // 3. VELOCITY, LEADERBOARD, & AI TASKS
-    // ==========================================
     let ayamUsed30d = 0;
     const branchStocks = {};
     const branchSales = {};
@@ -116,16 +106,15 @@ export default function useDashboardPusat({
     const avgAyamPerDay = Math.max((ayamUsed30d / 30), 1);
     const ayamDaysRemaining = Math.max(0, ayamGudangQty / avgAyamPerDay);
 
-    // AI TASK QUEUE (Rekomendasi Operasional)
     const operationTasks = [];
     const executedTaskIds = (systemTasks || []).map(t => t.id);
 
-    // RULE: 1020 KG Ayam per Turun (Berdasarkan insight user)
+    // FIX POINT 2: Menggunakan Acuan Rp 37.500 per Kg
     if (ayamDaysRemaining <= 4) {
         const taskId = 'TASK-PURCHASE-' + todayStr;
         if (!executedTaskIds.includes(taskId)) {
             const targetAyam = 1020; 
-            const estCost = targetAyam * 38000; // Asumsi harga pasar, bisa ditarik dari db jika mau
+            const estCost = targetAyam * 37500; // Harga akurat 37.500 sesuai aturan dapur
             const priority = ayamDaysRemaining <= 2 ? 'CRITICAL' : 'HIGH';
             operationTasks.push({ 
                 id: taskId, type: 'PURCHASE', priority,
@@ -136,7 +125,6 @@ export default function useDashboardPusat({
         }
     }
 
-    // RULE: Distribusi Cabang
     (masterBranches || []).forEach(br => {
         if (br.branch_type === 'HQ_FACTORY') return;
         const brData = branchStocks[br.branch_id];
@@ -146,7 +134,7 @@ export default function useDashboardPusat({
             if (brDaysRemain <= 3) {
                 const taskId = `TASK-DO-${br.branch_id}-${todayStr}`;
                 if (!executedTaskIds.includes(taskId)) {
-                    const targetKirim = Math.ceil(avgSoldBr * 7); // Standar kirim stok untuk 7 hari
+                    const targetKirim = Math.ceil(avgSoldBr * 7);
                     operationTasks.push({ 
                         id: taskId, type: 'DISTRIBUTION', priority: brDaysRemain <= 1 ? 'CRITICAL' : 'HIGH',
                         title: `Auto-DO: Kirim Stok ke ${br.branch_name || br.branch_id}`, 
@@ -163,9 +151,6 @@ export default function useDashboardPusat({
         return w[b.priority] - w[a.priority];
     });
 
-    // ==========================================
-    // 4. CHART DATA (Tren Omzet 7 Hari Terakhir)
-    // ==========================================
     const trendDataMap = {};
     for(let i=6; i>=0; i--) {
         const d = new Date(todayObj); d.setDate(d.getDate() - i);
@@ -178,7 +163,7 @@ export default function useDashboardPusat({
         }
     });
     const trendData = Object.keys(trendDataMap).sort().map(k => ({
-        label: k.substring(5), // Ambil MM-DD
+        label: k.substring(5),
         value: trendDataMap[k]
     }));
 
