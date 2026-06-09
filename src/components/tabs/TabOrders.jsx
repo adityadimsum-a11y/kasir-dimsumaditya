@@ -6,25 +6,18 @@ import PaginationController from '../ui/PaginationController';
 export default function TabOrders({ orders, stockMovements, master_customers, sendToSheet, setPrintData, requestDelete, showToast, user }) {
   const todayStr = getTodayStr();
   const currentBranch = user?.branch_id || 'CIBINONG';
-  const isCibinong = String(currentBranch).toUpperCase().includes('CIBINONG') || user?.branch_type === 'OUTLET_RESTO';
 
-  // 1. GENERATE MASTER DATA BUKU MENU LOKAL DARI TABEL STOCK_MOVEMENTS
+  // 1. DYNAMIC BUKU MENU ENGINE DARI MEMORI LOKAL STOK
   const bukuMenuLokal = useMemo(() => {
     const menuMap = {};
-    // Ambil semua item unik menu lokal yang pernah didaftarkan di cabang ini
     (stockMovements || []).forEach(m => {
       if (!m.isDeleted && String(m.branch_id).toUpperCase() === currentBranch.toUpperCase()) {
         const name = String(m.item_name).toUpperCase();
-        // Cari data awal jika ada harga tersimpan di deskripsi/ref atau gunakan default resto
         if (!menuMap[name]) {
-          menuMap[name] = { 
-            item_name: name, 
-            price: name === 'DIMSUM' ? 15000 : 12000 // default baseline resto cibinong
-          };
+          menuMap[name] = { item_name: name, price: name === 'DIMSUM' ? 15000 : 12000 };
         }
       }
     });
-    // Pastikan menu utama selalu ada
     if (!menuMap['DIMSUM']) menuMap['DIMSUM'] = { item_name: 'DIMSUM', price: 15000 };
     return Object.values(menuMap);
   }, [stockMovements, currentBranch]);
@@ -37,16 +30,16 @@ export default function TabOrders({ orders, stockMovements, master_customers, se
       invoice_no: '',
       selected_item: 'DIMSUM',
       qty: 1, 
-      price: isCibinong ? 15000 : 3000, 
+      price: 15000, 
       paymentMethod: 'CASH'
   });
 
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(25);
 
-  const isMerchant = form.sales_category === 'MERCHANT';
-  const isLainnya = form.sales_category === 'LAINNYA';
-  const isManualPrice = isMerchant || isLainnya;
+  // FIX POINT 2: Deteksi pemisahan merchant ojek online individual
+  const isOnlineMerchant = ['GOFOOD', 'SHOPEEFOOD', 'GRABFOOD'].includes(form.sales_category);
+  const isManualPrice = isOnlineMerchant || form.sales_category === 'LAINNYA';
 
   const totalGross = useMemo(() => {
       return Number(form.qty || 0) * Number(form.price || 0);
@@ -61,15 +54,16 @@ export default function TabOrders({ orders, stockMovements, master_customers, se
     }
   };
 
+  // FIX POINT 2: Alokasi otomatis platform & source saat kategori dipisahkan
   const handleCategoryChange = (e) => {
       const cat = e.target.value;
       let newSource = 'OFFLINE'; 
       let newPayMethod = 'CASH';
       let currentItemPrice = form.price;
 
-      if (cat === 'MERCHANT') { 
-          newSource = 'GOFOOD'; 
-          newPayMethod = 'PIUTANG'; 
+      if (['GOFOOD', 'SHOPEEFOOD', 'GRABFOOD'].includes(cat)) {
+          newSource = cat;
+          newPayMethod = 'PIUTANG'; // Mengambang di dompet digital aplikasi
       } else if (cat === 'LAINNYA') {
           newSource = 'LAINNYA';
           newPayMethod = 'TF';
@@ -95,20 +89,17 @@ export default function TabOrders({ orders, stockMovements, master_customers, se
           return;
       }
       
-      if(isMerchant && !form.invoice_no) {
-          if(showToast) showToast('Nomor Order/Invoice aplikasi wajib diisi!', 'error');
+      if(isOnlineMerchant && !form.invoice_no) {
+          if(showToast) showToast('Nomor ID Pesanan Aplikasi wajib diisi!', 'error');
           return;
       }
-
-      const upperCustomerName = form.customer_name.toUpperCase();
-      let customerId = 'CUST-RESTO-WALKIN';
 
       const payload = {
           id: generateId('INV', form.date), 
           date: form.date, 
           branch_id: currentBranch,
-          customer_id: customerId, 
-          customer_name: upperCustomerName, 
+          customer_id: 'CUST-RESTO-WALKIN', 
+          customer_name: form.customer_name.toUpperCase(), 
           sales_category: form.sales_category, 
           source: form.source, 
           invoice_no: form.invoice_no, 
@@ -123,7 +114,6 @@ export default function TabOrders({ orders, stockMovements, master_customers, se
       const success = await sendToSheet('event_order', payload, 'auto');
       if (success) {
           setForm(prev => ({ ...prev, qty: 1, invoice_no: '', customer_name: 'PELANGGAN RESTO' }));
-          if(showToast) showToast('Pesanan Resto berhasil dicatat!', 'success');
       }
   };
 
@@ -137,7 +127,7 @@ export default function TabOrders({ orders, stockMovements, master_customers, se
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
          <div className="bg-slate-900 px-6 py-4 flex items-center justify-between">
             <h3 className="font-black text-white text-lg tracking-wide uppercase flex items-center gap-2"><ShoppingCart size={20} className="text-amber-400"/> Sistem Kasir Penjualan Resto</h3>
-            <span className="text-[9px] font-bold text-amber-400 border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 rounded-full uppercase tracking-widest flex items-center gap-1"><BookOpen size={12}/> Mode Buku Menu Aktif</span>
+            <span className="text-[9px] font-bold text-amber-400 border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 rounded-full uppercase tracking-wide flex items-center gap-1"><BookOpen size={12}/> Mode Buku Menu Aktif</span>
          </div>
          <div className="p-6">
             <form onSubmit={handleSubmit} className="space-y-5">
@@ -150,12 +140,14 @@ export default function TabOrders({ orders, stockMovements, master_customers, se
                         <label className="text-[10px] font-bold text-blue-600 uppercase tracking-wide">Kategori Pricing</label>
                         <select value={form.sales_category} onChange={handleCategoryChange} className="w-full p-3 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl text-sm font-black mt-1 uppercase outline-none focus:ring-2 focus:ring-blue-500">
                             <option value="OFFLINE_RESTO">Offline di Resto (Makan Di Tempat)</option>
-                            <option value="MERCHANT">Online : Merchant (GoFood/Grab/Shopee)</option>
+                            <option value="GOFOOD">GOFOOD (Online Merchant)</option>
+                            <option value="SHOPEEFOOD">SHOPEEFOOD (Online Merchant)</option>
+                            <option value="GRABFOOD">GRABFOOD (Online Merchant)</option>
                             <option value="LAINNYA">Lain-nya</option>
                         </select>
                     </div>
                     <div>
-                        <label className="text-[10px] font-bold text-slate-500 uppercase">Pilih Menu (Dari Master Buku Menu)</label>
+                        <label className="text-[10px] font-bold text-slate-500 uppercase">Pilih Menu Makanan/Minuman</label>
                         <select value={form.selected_item} onChange={e => handleMenuChange(e.target.value)} className="w-full p-3 bg-white border border-slate-300 rounded-xl text-sm font-black mt-1 uppercase outline-none focus:ring-2 focus:ring-blue-500">
                             {bukuMenuLokal.map((m, idx) => (
                                 <option key={idx} value={m.item_name}>{m.item_name}</option>
@@ -166,22 +158,11 @@ export default function TabOrders({ orders, stockMovements, master_customers, se
 
                 <div className={`grid grid-cols-1 md:grid-cols-4 gap-4 p-5 rounded-xl border ${isManualPrice ? 'bg-orange-50/50 border-orange-200' : 'bg-slate-50 border-slate-200'}`}>
                     
-                    {isMerchant && (
-                        <>
-                            <div className="md:col-span-2">
-                                <label className="text-[10px] font-bold text-orange-700 uppercase">Pilih Aplikasi Merchant</label>
-                                <select value={form.source} onChange={e=>setForm({...form, source: e.target.value})} className="w-full p-3 bg-white border border-orange-200 rounded-xl text-xs font-bold mt-1 uppercase outline-none">
-                                    <option value="GOFOOD">GoFood</option>
-                                    <option value="SHOPEEFOOD">ShopeeFood</option>
-                                    <option value="GRABFOOD">GrabFood</option>
-                                </select>
-                            </div>
-                            <div className="md:col-span-2">
-                                <label className="text-[10px] font-bold text-orange-700 uppercase">Nomor ID Pesanan Aplikasi</label>
-                                <input type="text" required={isMerchant} value={form.invoice_no} onChange={e=>setForm({...form, invoice_no: e.target.value.toUpperCase()})} placeholder="Contoh: APL-89234" className="w-full p-3 bg-white border border-orange-200 rounded-xl text-xs font-bold mt-1 outline-none" />
-                            </div>
-                            <div className="md:col-span-4 border-b border-orange-100 my-1"></div>
-                        </>
+                    {isOnlineMerchant && (
+                        <div className="md:col-span-4">
+                            <label className="text-[10px] font-bold text-orange-700 uppercase">Nomor ID Pesanan Aplikasi ({form.source})</label>
+                            <input type="text" required value={form.invoice_no} onChange={e=>setForm({...form, invoice_no: e.target.value.toUpperCase()})} placeholder="Contoh: APL-GRAB-89234" className="w-full p-3 bg-white border border-orange-200 rounded-xl text-xs font-bold mt-1 outline-none" />
+                        </div>
                     )}
 
                     <div>
@@ -192,14 +173,12 @@ export default function TabOrders({ orders, stockMovements, master_customers, se
                     <div className="md:col-span-2 relative group">
                         <label className={`text-[10px] font-bold uppercase flex items-center gap-1 ${isManualPrice ? 'text-orange-600' : 'text-slate-500'}`}>
                             {isManualPrice ? <Edit3 size={12}/> : <Lock size={12} className="text-emerald-500"/>} 
-                            {isManualPrice ? 'Harga Aktual Merchant (Bebas Input)' : 'Harga Buku Menu Terkunci'}
+                            {isManualPrice ? 'Harga Aktual Aplikasi (Bebas Input)' : 'Harga Buku Menu Terkunci'}
                         </label>
                         <div className="relative mt-1">
                           <span className="absolute left-4 top-3.5 font-black text-slate-400">Rp</span>
                           <input 
-                              type="text" 
-                              required
-                              readOnly={!isManualPrice} 
+                              type="text" required readOnly={!isManualPrice} 
                               value={form.price ? Number(form.price).toLocaleString('id-ID') : ''} 
                               onChange={(e) => isManualPrice && setForm({...form, price: e.target.value.replace(/\D/g, '')})}
                               className={`w-full pl-10 p-3 border rounded-xl font-black outline-none transition-colors ${!isManualPrice ? 'bg-slate-200/60 border-slate-200 text-slate-600 cursor-not-allowed' : 'bg-white border-orange-200 text-slate-900 focus:ring-2 focus:ring-orange-500'}`} 
@@ -211,14 +190,14 @@ export default function TabOrders({ orders, stockMovements, master_customers, se
                         <label className="text-[10px] font-bold text-slate-500 uppercase">Metode Kas Masuk</label>
                         <select value={form.paymentMethod} onChange={e=>setForm({...form, paymentMethod: e.target.value})} className="w-full p-3 bg-white border rounded-xl text-xs font-bold mt-1 outline-none">
                             <option value="CASH">CASH (Laci Tunai)</option>
-                            <option value="TF">TF (Transfer Mandiri / BCA)</option>
-                            <option value="PIUTANG">PIUTANG (Mengambang di Ojek Online)</option>
+                            <option value="TF">TF (Transfer Kasir)</option>
+                            <option value="PIUTANG">PIUTANG (Mengambang di Aplikasi)</option>
                         </select>
                     </div>
                 </div>
 
                 <div>
-                    <label className="text-[10px] font-bold text-slate-500 uppercase">Nama Pelanggan / Catatan Meja</label>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">Nama Pelanggan / Nomor Meja</label>
                     <input type="text" value={form.customer_name} onChange={e=>setForm({...form, customer_name: e.target.value})} className="w-full p-3 border bg-slate-50 rounded-xl font-bold text-sm uppercase mt-1 outline-none" />
                 </div>
 
@@ -235,7 +214,7 @@ export default function TabOrders({ orders, stockMovements, master_customers, se
          </div>
       </div>
 
-      {/* LOG TRANSAKSI */}
+      {/* TABLE */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
          <div className="p-4 border-b bg-slate-50"><h4 className="font-bold text-slate-800 tracking-wide uppercase text-sm">Log Transaksi Kasir Node Resto</h4></div>
          <div className="overflow-x-auto flex-1">
@@ -253,7 +232,7 @@ export default function TabOrders({ orders, stockMovements, master_customers, se
                             <td className="px-4 py-3"><div className="font-black uppercase text-slate-800">{o.customer_name}</div></td>
                             <td className="px-4 py-3">
                                 <div className="px-2 py-0.5 rounded bg-amber-100 text-[9px] font-black uppercase text-amber-800 w-max mb-0.5">{o.itemName || 'DIMSUM'}</div>
-                                <div className="text-[9px] text-slate-500">{o.sales_category} • {o.source}</div>
+                                <div className="text-[9px] text-slate-500">{o.sales_category}</div>
                             </td>
                             <td className="px-4 py-3 text-center">
                                 <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-slate-100 text-slate-700">{o.paymentMethod}</span>
@@ -262,7 +241,7 @@ export default function TabOrders({ orders, stockMovements, master_customers, se
                             <td className="px-4 py-3 text-right text-emerald-600 font-black">{formatRp(o.total)}</td>
                             <td className="px-4 py-3 flex items-center justify-center gap-2">
                                 <button type="button" onClick={() => setPrintData({ type: 'INVOICE', data: o })} className="p-1.5 bg-blue-50 text-blue-600 rounded hover:bg-blue-100"><Printer size={14}/></button>
-                                <button type="button" onClick={() => requestDelete(o.id)} className="p-1.5 bg-rose-50 text-rose-600 rounded hover:bg-rose-100" title="Void Nota"><AlertTriangle size={14}/></button>
+                                <button type="button" onClick={() => requestDelete(o.id)} className="p-1.5 bg-rose-50 text-rose-600 rounded hover:bg-rose-100"><AlertTriangle size={14}/></button>
                             </td>
                          </tr>
                       ))
