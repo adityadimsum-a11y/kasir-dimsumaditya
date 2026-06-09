@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Users, Landmark, Banknote, UserPlus, Layers, TrendingDown, ShieldAlert, Trash2, Edit2, Check, X, Phone, Image, Eye, MapPin, Undo } from 'lucide-react';
+import { Users, Landmark, Banknote, UserPlus, Layers, TrendingDown, ShieldAlert, Trash2, Edit2, Check, X, Phone, Image, Eye, MapPin, Undo, Link } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 
 const formatRupiah = (angka) => "Rp. " + Number(angka || 0).toLocaleString('id-ID');
@@ -15,10 +15,7 @@ export default function TabKaryawan({
   const [selectedBranchFilter, setSelectedBranchFilter] = useState('PUSAT');
   const activeProcessingBranch = isHQ ? selectedBranchFilter : currentBranch;
 
-  // State Pop-up Detail Berkas Karyawan (Sultan View)
   const [selectedEmployeeDetails, setSelectedEmployeeDetails] = useState(null);
-
-  // 🔥 STATE BARU: Optimistic UI Deletion (Menyembunyikan data secara instan sebelum server selesai)
   const [optimisticDeletedIds, setOptimisticDeletedIds] = useState(new Set());
 
   const realMasterBranches = master_branches || masterBranches || [];
@@ -61,7 +58,6 @@ export default function TabKaryawan({
     return dataStaf;
   }, [karyawan, expenses]);
 
-  // Filter Karyawan Berdasarkan Cabang & Sembunyikan yang barusan dihapus secara instan!
   const employeesDiCabangAktif = useMemo(() => {
     const targetBId = String(activeProcessingBranch || 'PUSAT').trim().toUpperCase();
     return Object.values(globalEmployeeCompiled).filter(k => k.branch_id === targetBId && !optimisticDeletedIds.has(k.id));
@@ -113,7 +109,7 @@ export default function TabKaryawan({
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
       
-      {/* CARD INDICATORS */}
+      {/* BOARDS METRICS */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white p-5 rounded-2xl border shadow-sm border-l-4 border-l-orange-500">
           <div className="text-[10px] font-black text-slate-400 uppercase">Kasbon Aktif Wilayah ({activeProcessingBranch})</div>
@@ -149,14 +145,14 @@ export default function TabKaryawan({
         </div>
       )}
 
-      {/* SUB NAV TAB BAR */}
+      {/* SUB NAV TABS */}
       <div className="flex gap-2 border-b pb-4">
         {isHQ && <button onClick={() => setActiveSubTab('payroll')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase ${activeSubTab === 'payroll' ? 'bg-red-600 text-white shadow-md' : 'bg-white text-slate-500'}`}>Gaji & Payroll</button>}
         <button onClick={() => setActiveSubTab('kasbon')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase ${activeSubTab === 'kasbon' ? 'bg-orange-600 text-white shadow-md' : 'bg-white text-slate-500'}`}>Kasbon Karyawan</button>
         <button onClick={() => setActiveSubTab('master')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase ${activeSubTab === 'master' ? 'bg-slate-800 text-white shadow-md' : 'bg-white text-slate-500'}`}>Master SDM Wilayah</button>
       </div>
 
-      {/* ROUTING DIVISION MODULE */}
+      {/* SWITCH MODUL COMPONENT */}
       {activeSubTab === 'payroll' && isHQ && (
         <PayrollModule employees={employeesDiCabangAktif} expenses={expenses} globalCompiled={globalEmployeeCompiled} activeBranch={activeProcessingBranch} todayStr={todayStr} sendToSheet={sendToSheet} onViewDetails={setSelectedEmployeeDetails} />
       )}
@@ -203,7 +199,7 @@ export default function TabKaryawan({
                   {selectedEmployeeDetails.ktp_url ? (
                     <img src={selectedEmployeeDetails.ktp_url} alt="KTP Gede" className="w-full h-auto max-h-[350px] object-contain" />
                   ) : (
-                    <div className="text-center p-8 text-slate-400 text-xs font-bold space-y-1"><div>📁 Berkas KTP Belum Diunggah</div><div className="text-[10px] text-slate-400 font-normal">Silakan klik tombol edit (pensil biru) di menu Master SDM untuk mengunggah KTP.</div></div>
+                    <div className="text-center p-8 text-slate-400 text-xs font-bold space-y-1"><div>📁 Berkas KTP Belum Diunggah</div><div className="text-[10px] text-slate-400 font-normal">Silakan isi link gambar KTP di menu Master SDM.</div></div>
                   )}
                 </div>
               </div>
@@ -262,7 +258,7 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
                 <tr key={p.id} className="hover:bg-slate-50/50 transition">
                   <td className="px-4 py-3 text-slate-500">{formatDate(p.date)}</td>
                   <td onClick={() => emp && onViewDetails(emp)} className="px-4 py-3 flex items-center gap-2.5 cursor-pointer group">
-                    <img src={emp?.photo_url} alt="Profile" className="w-7 h-7 rounded-full object-cover border" onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
+                    <img src={emp?.photo_url} alt="Profile" className="w-7 h-7 rounded-full object-cover border group-hover:scale-110 transition-transform" onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
                     <span className="uppercase group-hover:text-blue-600 transition-colors">{emp?.name || 'STAF'}</span>
                   </td>
                   <td className="px-4 py-3 text-right">{formatRupiah((p.base_salary||0)+(p.allowance||0))}</td>
@@ -333,58 +329,36 @@ function KasbonModule({ employees, expenses, globalCompiled, activeBranch, today
 }
 
 // =========================================================================
-// 📇 SUB-COMPONENT 3: MASTER DATA SDM (WITH OPTIMISTIC HIDE UI)
+// 📇 SUB-COMPONENT 3: MASTER DATA SDM (MODE KLASIK - COPY PASTE URL)
 // =========================================================================
 function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch, isHQ, sendToSheet, showToast, onViewDetails, setOptimisticDeletedIds }) {
-  const [form, setForm] = useState({ id: '', name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT', phone: '', address: '', photo_base64: '', ktp_base64: '' });
+  const [form, setForm] = useState({ id: '', name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT', phone: '', address: '', photo_url: '', ktp_url: '' });
   const [isEditingMode, setIsEditingMode] = useState(false);
 
-  const prosesDanKompresGambarSultan = (file, keyName) => {
-    if(!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        const maxDimension = 600; 
-        let width = img.width; let height = img.height;
-        if (width > height) { if (width > maxDimension) { height *= maxDimension / width; width = maxDimension; } } 
-        else { if (height > maxDimension) { width *= maxDimension / height; height = maxDimension; } }
-        canvas.width = width; canvas.height = height;
-        ctx.drawImage(img, 0, 0, width, height);
-        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.5);
-        setForm(prev => ({ ...prev, [keyName]: compressedBase64 }));
-      };
-      img.src = event.target.result;
-    };
-    reader.readAsDataURL(file);
-  };
-
   const handleTriggerEditPencil = (k) => {
-    setForm({ id: k.id, name: k.name, position: k.position, baseSalary: String(k.baseSalary || 0), targetBranch: k.branch_id, phone: k.phone === '-' ? '' : k.phone, address: k.address === 'ALAMAT BELUM DIISI' ? '' : k.address, photo_base64: '', ktp_base64: '' });
+    setForm({ 
+      id: k.id, 
+      name: k.name, 
+      position: k.position, 
+      baseSalary: String(k.baseSalary || 0), 
+      targetBranch: k.branch_id, 
+      phone: k.phone === '-' ? '' : k.phone, 
+      address: k.address === 'ALAMAT BELUM DIISI' ? '' : k.address, 
+      photo_url: k.photo_url || '', 
+      ktp_url: k.ktp_url || '' 
+    });
     setIsEditingMode(true);
-    if (showToast) showToast(`Data ${k.name} siap dilengkapi di form kiri!`, 'success');
+    if (showToast) showToast(`Data ${k.name} siap diedit di form kiri!`, 'success');
   };
 
-  // 🔥 ENGINE HAPUS INSTAN (OPTIMISTIC DELETION)
   const handleDeleteEmployeeInstantly = async (k) => {
     if (window.confirm(`Apakah Anda yakin ingin menghapus data staf ${k.name} dari sistem?`)) {
-      // 1. Sembunyikan baris seketika tanpa menunggu respon server!
       setOptimisticDeletedIds(prev => new Set(prev).add(k.id));
-      
-      // 2. Kirim perintah hapus di belakang layar (Pakai jalur resmi 'delete')
       const success = await sendToSheet('delete', { id: k.id }, 'karyawan');
-      
       if (success) {
         if (showToast) showToast(`Staf ${k.name} telah berhasil dihapus.`, 'success');
       } else {
-        // Jika server gagal hapus karena error/offline, kembalikan barisnya ke layar
-        setOptimisticDeletedIds(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(k.id);
-          return newSet;
-        });
+        setOptimisticDeletedIds(prev => { const newSet = new Set(prev); newSet.delete(k.id); return newSet; });
         if (showToast) showToast('Gagal menghapus data. Periksa koneksi internet.', 'error');
       }
     }
@@ -395,20 +369,21 @@ function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch,
       <div className={`p-6 rounded-2xl border border-t-4 transition-colors duration-300 h-max ${isEditingMode ? 'bg-amber-50/50 border-t-amber-500 border-amber-200' : 'bg-white border-t-slate-800'}`}>
         <form onSubmit={async (e) => {
           e.preventDefault(); if (!form.name) return; const penempatan = isHQ ? form.targetBranch : activeBranch;
-          const payload = { name: form.name.toUpperCase(), position: form.position, baseSalary: Number(form.baseSalary || 0), branch_id: penempatan, status: 'AKTIF', phone: form.phone || '-', address: form.address || 'ALAMAT BELUM DIISI' };
-          
-          if (form.photo_base64) payload.photo_base64 = form.photo_base64;
-          if (form.ktp_base64) payload.ktp_base64 = form.ktp_base64;
+          const payload = { 
+            name: form.name.toUpperCase(), position: form.position, baseSalary: Number(form.baseSalary || 0), branch_id: penempatan, status: 'AKTIF', 
+            phone: form.phone || '-', address: form.address || 'ALAMAT BELUM DIISI',
+            photo_url: form.photo_url || '', ktp_url: form.ktp_url || ''
+          };
           
           let success = false;
           if (isEditingMode && form.id) { payload.id = form.id; success = await sendToSheet('update', payload, 'karyawan'); } 
           else { payload.id = generateId('EMP', new Date()); success = await sendToSheet('insert', payload, 'karyawan'); }
-          if (success) { setForm({ id: '', name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT', phone: '', address: '', photo_base64: '', ktp_base64: '' }); setIsEditingMode(false); }
+          if (success) { setForm({ id: '', name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT', phone: '', address: '', photo_url: '', ktp_url: '' }); setIsEditingMode(false); }
         }} className="space-y-3">
           <div className="flex items-center justify-between border-b pb-2">
             <h3 className="font-black text-sm uppercase text-slate-800">{isEditingMode ? `🔄 Update Staf: ${form.name}` : 'Registrasi Identitas Staf'}</h3>
             {isEditingMode && (
-              <button type="button" onClick={() => { setIsEditingMode(false); setForm({ id: '', name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT', phone: '', address: '', photo_base64: '', ktp_base64: '' }); }} className="text-[10px] font-black uppercase text-slate-500 border px-2 py-0.5 rounded flex items-center gap-1 bg-white"><Undo size={10}/> Batal</button>
+              <button type="button" onClick={() => { setIsEditingMode(false); setForm({ id: '', name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT', phone: '', address: '', photo_url: '', ktp_url: '' }); }} className="text-[10px] font-black uppercase text-slate-500 border px-2 py-0.5 rounded flex items-center gap-1 bg-white"><Undo size={10}/> Batal</button>
             )}
           </div>
           {isHQ && (
@@ -417,29 +392,20 @@ function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch,
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">Nama Lengkap</label><input type="text" required readOnly={isEditingMode} value={form.name} onChange={e=>setForm({...form, name: e.target.value})} className={`w-full p-2 border rounded-lg text-sm uppercase outline-none ${isEditingMode ? 'bg-slate-100 font-black text-slate-500 cursor-not-allowed' : ''}`} /></div>
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">No. WhatsApp</label><input type="text" required placeholder="Contoh: 081234567" value={form.phone} onChange={e=>setForm({...form, phone: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold" /></div>
           
+          {/* INPUT LINK MANUAL ANTI GAGAL */}
           <div>
-            <label className="text-[10px] font-black text-slate-500 uppercase block mb-1">Upload Pas Foto Profil Baru</label>
-            <input type="file" accept="image/*" onChange={e => prosesDanKompresGambarSultan(e.target.files[0], 'photo_base64')} className="w-full text-xs font-bold text-slate-500 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-black file:bg-slate-900 file:text-white cursor-pointer" />
-            {form.photo_base64 && (
-              <div className="mt-2 flex items-center gap-2 bg-emerald-50 border border-emerald-200 p-2 rounded-xl">
-                <img src={form.photo_base64} alt="Preview Mini" className="w-10 h-10 rounded-full object-cover border" />
-                <span className="text-[9px] font-black text-emerald-700 uppercase">✨ Foto Siap! Ukuran File Sudah Dikompres Otomatis</span>
-              </div>
-            )}
+            <label className="text-[10px] font-black text-slate-500 uppercase flex items-center gap-1 mb-1"><Link size={10}/> Link Pas Foto Profil Baru</label>
+            <input type="text" placeholder="Paste link foto dari postimages.org..." value={form.photo_url} onChange={e => setForm({...form, photo_url: e.target.value})} className="w-full p-2 border rounded-lg text-xs" />
+            <p className="text-[8px] text-slate-400 mt-1 font-bold">Gunakan situs seperti postimages.org atau imgbb.com</p>
           </div>
 
           <div>
-            <label className="text-[10px] font-black text-orange-600 uppercase block mb-1">Upload Berkas Foto KTP</label>
-            <input type="file" accept="image/*" onChange={e => prosesDanKompresGambarSultan(e.target.files[0], 'ktp_base64')} className="w-full text-xs font-bold text-slate-500 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-black file:bg-orange-600 file:text-white cursor-pointer" />
-            {form.ktp_base64 && (
-              <div className="mt-2 bg-orange-50 border border-orange-200 p-2 rounded-xl text-center">
-                <span className="text-[9px] font-black text-orange-700 uppercase">✅ Berkas KTP Berhasil Di-Kompres</span>
-              </div>
-            )}
+            <label className="text-[10px] font-black text-orange-600 uppercase flex items-center gap-1 mb-1"><Link size={10}/> Link Berkas Foto KTP</label>
+            <input type="text" placeholder="Paste link KTP dari postimages.org..." value={form.ktp_url} onChange={e => setForm({...form, ktp_url: e.target.value})} className="w-full p-2 border border-orange-200 bg-orange-50 rounded-lg text-xs" />
           </div>
 
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">Gaji Pokok</label><input type="text" required value={formatRupiah(form.baseSalary)} onChange={e=>setForm({...form, baseSalary: e.target.value.replace(/\D/g, '')})} className="w-full p-2 border rounded-lg font-bold text-sm" /></div>
-          <div><label className="text-[10px] font-bold text-slate-500 uppercase">Alamat Rumah KTP</label><textarea required rows="2" value={form.address} onChange={e=>setForm({...form, address: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold uppercase outline-none" placeholder="Isi nama jalan..."></textarea></div>
+          <div><label className="text-[10px] font-bold text-slate-500 uppercase">Alamat Rumah KTP</label><textarea required rows="2" value={form.address} onChange={e=>setForm({...form, address: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold uppercase none outline-none" placeholder="Isi nama jalan..."></textarea></div>
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">Posisi Kerja</label><select value={form.position} onChange={e=>setForm({...form, position: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold uppercase"><option value="KASIR">KASIR / RESTO FRONT</option><option value="DAPUR_RESTO">COOK / DAPUR RESTO</option><option value="WAITRESS">PRAMUSAJI / WAITRESS</option><option value="PRODUKSI_PABREK">STAFF PRODUKSI ADUKAN</option><option value="DRIVER">DRIVING LOGISTIK</option></select></div>
           <button type="submit" className={`w-full text-white font-black py-3 rounded-xl text-xs uppercase shadow transition-all ${isEditingMode ? 'bg-amber-500 hover:bg-amber-600' : 'bg-slate-800 hover:bg-slate-900'}`}>{isEditingMode ? '💾 Terapkan & Timpa Data' : 'Simpan Data Staf'}</button>
         </form>
@@ -464,7 +430,6 @@ function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch,
                 <td className="px-4 py-3 text-center">
                   <div className="flex items-center justify-center gap-1.5">
                     <button type="button" onClick={() => handleTriggerEditPencil(k)} className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100" title="Lengkapi / Edit Berkas Karyawan"><Edit2 size={13}/></button>
-                    {/* 🔥 TOMBOL HAPUS DENGAN SISTEM OPTIMISTIC UI KILAT */}
                     <button type="button" onClick={() => handleDeleteEmployeeInstantly(k)} className="p-1.5 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100" title="Hapus"><Trash2 size={13}/></button>
                   </div>
                 </td>
