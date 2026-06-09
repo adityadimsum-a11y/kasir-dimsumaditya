@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Factory, Package, Activity, Scale, CheckCircle2, AlertTriangle, Printer, Edit2, Trash2, CalendarDays, Undo, PlusSquare, ArrowRight, TrendingDown } from 'lucide-react';
+import { Factory, Package, Activity, Scale, AlertTriangle, Printer, Edit2, Trash2, CalendarDays, Undo, PlusSquare, TrendingDown } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
 
@@ -31,7 +31,6 @@ export default function TabStok({
   const [optimisticDeletedIds, setOptimisticDeletedIds] = useState(new Set());
   const [isEditing, setIsEditing] = useState(false);
 
-  // Form Input State
   const [form, setForm] = useState({
     id: '', date: todayStr, branchId: currentBranch, picId: '', adukan: '1', notes: ''
   });
@@ -43,12 +42,10 @@ export default function TabStok({
     return realMasterBranches.filter(b => b && !b.isDeleted && b.branch_id).map(b => b.branch_id);
   }, [realMasterBranches]);
 
-  // 1. Data Pegawai Aktif (Hanya untuk dropdown PIC)
   const activeEmployees = useMemo(() => {
     return (karyawan || []).filter(k => k && !k.isDeleted && k.status === 'AKTIF' && (isHQ || k.branch_id === currentBranch));
   }, [karyawan, currentBranch, isHQ]);
 
-  // 2. Kalkulator Real-Time BOM (Preview)
   const kalkulasiOtomatis = useMemo(() => {
     const qty = Number(form.adukan || 0);
     return {
@@ -61,7 +58,6 @@ export default function TabStok({
     };
   }, [form.adukan]);
 
-  // 3. Filter History Log
   const historyProduksi = useMemo(() => {
     return realProductionBatches.filter(p => {
       if (!p || p.isDeleted || optimisticDeletedIds.has(p.id)) return false;
@@ -70,7 +66,6 @@ export default function TabStok({
     }).sort((a, b) => new Date(b.date) - new Date(a.date));
   }, [realProductionBatches, activeBranchFilter, optimisticDeletedIds]);
 
-  // 4. Kalkulasi Metrik Radar (Hari Ini & Bulan Ini)
   const metrikRadar = useMemo(() => {
     let adukanHariIni = 0; let pcsHariIni = 0; let ayamKgHariIni = 0;
     let adukanBulanIni = 0; let pcsBulanIni = 0; let hppBulanIni = 0;
@@ -95,7 +90,6 @@ export default function TabStok({
     return { adukanHariIni, pcsHariIni, ayamKgHariIni, adukanBulanIni, pcsBulanIni, hppBulanIni };
   }, [historyProduksi, todayStr]);
 
-  // Handler Submit Produksi
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.picId) return alert("Pilih penanggung jawab (PIC) produksi!");
@@ -146,7 +140,6 @@ export default function TabStok({
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
       
-      {/* 📊 RADAR METRIK PRODUKSI */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white p-5 rounded-2xl border shadow-sm border-l-4 border-l-emerald-500 relative overflow-hidden">
           <Activity className="absolute -right-4 -bottom-4 text-emerald-50 opacity-50" size={100} />
@@ -173,7 +166,6 @@ export default function TabStok({
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* 📝 FORM INPUT PRODUKSI */}
         <div className={`p-6 rounded-2xl border border-t-4 transition-all h-max shadow-sm ${isEditing ? 'bg-amber-50/50 border-t-amber-500 border-amber-200' : 'bg-white border-t-emerald-600'}`}>
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
@@ -208,7 +200,6 @@ export default function TabStok({
               </label>
               <input type="number" min="1" step="0.5" required value={form.adukan} onChange={e=>setForm({...form, adukan: e.target.value})} className="w-full p-3 border-2 border-emerald-300 bg-white rounded-xl font-black text-2xl text-center text-emerald-700 outline-none focus:border-emerald-500 focus:shadow-[0_0_15px_rgba(16,185,129,0.2)] transition-all" />
               
-              {/* LAYAR PREVIEW KONVERSI OTOMATIS */}
               <div className="mt-4 pt-3 border-t border-emerald-200/60 grid grid-cols-2 gap-x-2 gap-y-3">
                 <div>
                   <div className="text-[9px] font-black uppercase text-emerald-600/70 tracking-widest">Potong Stok Ayam</div>
@@ -232,7 +223,6 @@ export default function TabStok({
           </form>
         </div>
         
-        {/* 📚 TABEL ARSIP PRODUKSI */}
         <div className="lg:col-span-2 bg-white rounded-2xl border flex flex-col overflow-hidden shadow-sm">
           <div className="p-4 bg-slate-50 border-b flex items-center justify-between">
             <h4 className="font-black text-xs uppercase text-slate-700 tracking-widest flex items-center gap-2"><CalendarDays size={14} className="text-emerald-600"/> Buku Jurnal Produksi &amp; Yield</h4>
