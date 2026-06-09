@@ -68,32 +68,12 @@ export default function TabCashWarRoom({
   }, [branch_settlements]);
 
   const handleApproveSettlement = async (settlement) => {
-    if (!window.confirm(`Konfirmasi Uang Masuk\n\nApakah setoran ${formatRp(settlement.amount_transferred)} dari ${settlement.branch_id} sudah diterima?`)) return;
+    if (!window.confirm(`Konfirmasi Uang Masuk\n\nApakah setoran ${formatRp(settlement.amount_transferred)} dari ${settlement.branch_id} sudah diterima fisik/mutasinya?`)) return;
 
     try {
-      // PERBAIKAN: Hanya kirim data yang butuh diupdate agar Server tidak Error
-      const updatedSettlement = { 
-        id: settlement.settlement_id, // Identitas baris
-        settlement_id: settlement.settlement_id, 
-        transfer_status: 'SETTLED', 
-        transfer_date: getTodayStr() 
-      };
-      
-      const cfiPayload = {
-        id: generateId('CFI', new Date()), 
-        date: getTodayStr(), 
-        branch_id: 'HQ_FACTORY', 
-        transaction_type: 'INFLOW', 
-        category: 'BRANCH_SETTLEMENT', 
-        amount: Number(settlement.amount_transferred),
-        payment_method: settlement.transfer_method || 'BANK_TRANSFER', 
-        reference_id: settlement.settlement_id,
-        description: `Penerimaan setoran dari cabang ${settlement.branch_id}`
-      };
-
-      // Tembak dua aksi ke backend
-      await sendToSheet('update', updatedSettlement, 'branch_settlements');
-      await sendToSheet('insert', cfiPayload, 'cashflow_transactions');
+      // PERBAIKAN FATAL: Memanggil aksi khusus yang ada di backend (Apps Script).
+      // Backend akan melakukan UPDATE dan INSERT secara atomik (bersamaan dan aman).
+      await sendToSheet('event_approve_settlement', settlement, 'auto');
       
       if (showToast) showToast("Setoran Berhasil Divalidasi!", "success");
       window.location.reload(); 
