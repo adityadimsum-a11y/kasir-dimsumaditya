@@ -10,7 +10,6 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const todayStr = getTodayStr();
 
-  // 1. EXTRAK KAPABILITAS (DNA) CABANG SAAT INI DARI DATABASE
   const nodeCapability = useMemo(() => {
     if (!masterCapabilities || masterCapabilities.length === 0) {
       return { branch_type: user?.branch_type || 'UNKNOWN' };
@@ -18,11 +17,9 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
     return masterCapabilities.find(c => c.branch_type === user?.branch_type) || {};
   }, [masterCapabilities, user?.branch_type]);
 
-  // 2. DYNAMIC MENU GENERATOR BERDASARKAN KAPABILITAS
   const menuGroups = useMemo(() => {
     const groups = [];
 
-    // GROUP A: COMMAND CENTER (Terpusat vs Cabang)
     const dashboardItems = [];
     if (nodeCapability.can_global_dashboard === true || nodeCapability.can_global_dashboard === 'true') {
         dashboardItems.push({ id: 'dashboard', label: 'Global HQ Radar', icon: Globe });
@@ -32,7 +29,6 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
     }
     if (dashboardItems.length > 0) groups.push({ groupName: "Command Center", items: dashboardItems });
 
-    // GROUP B: OPERASIONAL INTI & PRODUKSI
     const coreItems = [];
     if (nodeCapability.can_marketplace === true || nodeCapability.can_marketplace === 'true') {
         coreItems.push({ id: 'orders', label: 'POS & Penjualan', icon: ShoppingCart });
@@ -51,7 +47,6 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
     }
     if (coreItems.length > 0) groups.push({ groupName: "Core Operations", items: coreItems });
 
-    // GROUP C: TREASURY, FINANCE & HR
     const financeItems = [];
     if (nodeCapability.can_treasury === true || nodeCapability.can_treasury === 'true') {
         financeItems.push({ id: 'cash_war_room', label: 'Treasury Consolidation', icon: Wallet });
@@ -62,12 +57,10 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
     if (nodeCapability.can_payroll === true || nodeCapability.can_payroll === 'true') {
         financeItems.push({ id: 'karyawan', label: 'Smart Payroll', icon: Users });
     }
-    // Semua Node wajib bisa closing (Setoran)
     financeItems.push({ id: 'pemalang', label: 'Closing & Settlement', icon: Lock });
     
     if (financeItems.length > 0) groups.push({ groupName: "Finance & Settlement", items: financeItems });
 
-    // GROUP D: MASTER DATA & SYSTEM
     if (nodeCapability.can_global_dashboard === true || nodeCapability.can_global_dashboard === 'true') {
         groups.push({ 
             groupName: "System Configuration", 
@@ -78,7 +71,6 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
     return groups;
   }, [nodeCapability]);
 
-  // 3. DYNAMIC THEME COLOR GENERATOR (SESUAI IDENTITAS LOGO BARU DIMSUM ADITYA)
   const themeConfig = useMemo(() => {
       const type = user?.branch_type;
       if (type === 'HQ_FACTORY') return { bg: 'bg-red-600', text: 'text-red-600', ring: 'ring-red-500', icon: ShieldCheck, title: 'HQ FACTORY' };
@@ -96,13 +88,24 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
 
       <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-slate-900 text-slate-300 transition-transform duration-300 ease-in-out flex flex-col ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 lg:static lg:flex-shrink-0 shadow-2xl`}>
         
-        {/* BAGIAN POJOK KIRI ATAS: LOGO DIMSUM ADITYA */}
-        <div className="h-20 flex items-center justify-between px-6 border-b border-slate-800 bg-slate-950/50">
-          <img 
-            src="https://dimsumaditya.id/wp-content/uploads/2026/06/Dimsum-Aditya-New-Logo-scaled.webp" 
-            alt="Logo Dimsum Aditya" 
-            className="h-14 w-auto object-contain drop-shadow-md hover:scale-105 transition-transform cursor-pointer"
-          />
+        {/* ======================================================== */}
+        {/* HEADER SIDEBAR DIPERBAIKI: LOGO + BACKGROUND PUTIH ELEGAN  */}
+        {/* ======================================================== */}
+        <div className="h-20 flex items-center px-6 border-b border-slate-800 bg-slate-950/50 justify-between">
+          <div className="flex items-center gap-3">
+            {/* Bantalan putih agar logo terlihat kontras */}
+            <div className="bg-white p-1.5 rounded-xl shadow-[0_0_10px_rgba(255,255,255,0.1)] flex items-center justify-center shrink-0">
+              <img 
+                src="https://dimsumaditya.id/wp-content/uploads/2026/06/Dimsum-Aditya-New-Logo-scaled.webp" 
+                alt="Logo Dimsum Aditya" 
+                className="h-10 w-10 object-contain hover:scale-105 transition-transform cursor-pointer"
+              />
+            </div>
+            <div>
+              <h1 className="font-black text-white text-base tracking-wider uppercase leading-none">{themeConfig.title}</h1>
+              <span className={`text-[9px] font-bold ${themeConfig.text} brightness-150 uppercase tracking-widest block mt-1 transition-colors`}>Dimsum Aditya ERP</span>
+            </div>
+          </div>
           <button onClick={() => setIsMobileMenuOpen(false)} className="ml-auto lg:hidden text-slate-400 hover:text-white"><X size={24} /></button>
         </div>
 
