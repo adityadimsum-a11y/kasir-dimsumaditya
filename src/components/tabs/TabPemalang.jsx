@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Lock, Send, AlertTriangle, CheckCircle, Calculator, Landmark, Clock } from 'lucide-react';
-import { formatRp, getTodayStr, generateId, formatDate } from '../../utils/helpers';
+import { formatRp, getTodayStr, generateId } from '../../utils/helpers';
 
 export default function TabPemalang({ orders, expenses, financial_closings, branch_settlements, sendToSheet, user }) {
   const todayStr = getTodayStr();
@@ -48,14 +48,12 @@ export default function TabPemalang({ orders, expenses, financial_closings, bran
       total_sales: dailyMetrics.cashSales + dailyMetrics.marketplaceAR, status: 'LOCKED', closed_by: user?.name || 'KASIR'
     };
 
-    // STATUS UANG MENJADI PENDING_APPROVAL (Belum diakui pusat)
     const settlementPayload = {
       settlement_id: settlementId, branch_id: currentBranch, period: todayStr, cash_collected: actualCashNum,
       amount_to_transfer: transferAmt, amount_transferred: transferAmt, transfer_method: form.transfer_method,
       transfer_status: 'PENDING_APPROVAL', transfer_date: todayStr
     };
 
-    // HANYA CATAT UANG KELUAR DARI CABANG (Uang masuk ke pusat tunggu tombol Approve ditekan bos)
     const cashflowPayload = {
       id: generateId('CFO', new Date()), date: todayStr, branch_id: currentBranch, transaction_type: 'OUTFLOW', 
       category: 'BRANCH_SETTLEMENT', amount: transferAmt, payment_method: form.transfer_method, reference_id: settlementId,
@@ -177,7 +175,7 @@ export default function TabPemalang({ orders, expenses, financial_closings, bran
                   ) : (
                       mySettlements.slice(0, 10).map(s => (
                          <tr key={s.settlement_id} className="hover:bg-slate-50 transition">
-                            <td className="px-6 py-4"><div className="text-slate-800">{formatDate(s.transfer_date || s.period)}</div><div className="text-[9px] text-slate-400 font-mono mt-0.5">{s.settlement_id}</div></td>
+                            <td className="px-6 py-4"><div className="text-slate-800">{s.transfer_date || s.period}</div><div className="text-[9px] text-slate-400 font-mono mt-0.5">{s.settlement_id}</div></td>
                             <td className="px-6 py-4 text-center"><span className="px-2 py-1 rounded-lg bg-slate-100 text-slate-600 text-[9px] uppercase tracking-wider">{s.transfer_method}</span></td>
                             <td className="px-6 py-4 text-right text-blue-600 font-black text-sm">{formatRp(s.amount_transferred)}</td>
                             <td className="px-6 py-4 text-center">
