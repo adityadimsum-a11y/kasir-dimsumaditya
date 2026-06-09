@@ -18,6 +18,9 @@ export default function TabKaryawan({
   // State Pop-up Detail Berkas Karyawan (Sultan View)
   const [selectedEmployeeDetails, setSelectedEmployeeDetails] = useState(null);
 
+  // 🔥 STATE BARU: Optimistic UI Deletion (Menyembunyikan data secara instan sebelum server selesai)
+  const [optimisticDeletedIds, setOptimisticDeletedIds] = useState(new Set());
+
   const realMasterBranches = master_branches || masterBranches || [];
   const realCashflowTransactions = cashflow_transactions || cashflowTransactions || [];
 
@@ -58,10 +61,11 @@ export default function TabKaryawan({
     return dataStaf;
   }, [karyawan, expenses]);
 
+  // Filter Karyawan Berdasarkan Cabang & Sembunyikan yang barusan dihapus secara instan!
   const employeesDiCabangAktif = useMemo(() => {
     const targetBId = String(activeProcessingBranch || 'PUSAT').trim().toUpperCase();
-    return Object.values(globalEmployeeCompiled).filter(k => k.branch_id === targetBId);
-  }, [globalEmployeeCompiled, activeProcessingBranch]);
+    return Object.values(globalEmployeeCompiled).filter(k => k.branch_id === targetBId && !optimisticDeletedIds.has(k.id));
+  }, [globalEmployeeCompiled, activeProcessingBranch, optimisticDeletedIds]);
 
   const metrikSDM = useMemo(() => {
     let kasbonCabang = 0; let gajiCabangBulanIni = 0; let kasbonGlobal = 0; let gajiGlobal = 0;
@@ -69,7 +73,7 @@ export default function TabKaryawan({
     const curMonth = todayStr.substring(0, 7);
 
     Object.values(globalEmployeeCompiled).forEach(emp => {
-      if (emp.status === 'AKTIF') {
+      if (emp.status === 'AKTIF' && !optimisticDeletedIds.has(emp.id)) {
         kasbonGlobal += emp.sisaHutang;
         if (emp.branch_id === targetBId) kasbonCabang += emp.sisaHutang;
       }
@@ -84,10 +88,10 @@ export default function TabKaryawan({
       }
     });
     return { kasbonCabang, gajiCabangBulanIni, kasbonGlobal, gajiGlobal };
-  }, [globalEmployeeCompiled, expenses, activeProcessingBranch, todayStr]);
+  }, [globalEmployeeCompiled, expenses, activeProcessingBranch, todayStr, optimisticDeletedIds]);
 
   const kecukupanDanaPusat = useMemo(() => {
-    const totalWajibGajiNasional = Object.values(globalEmployeeCompiled).filter(e => e.status === 'AKTIF').reduce((sum, emp) => sum + emp.baseSalary, 0);
+    const totalWajibGajiNasional = Object.values(globalEmployeeCompiled).filter(e => e.status === 'AKTIF' && !optimisticDeletedIds.has(e.id)).reduce((sum, emp) => sum + emp.baseSalary, 0);
     const sisaWajibBayarBulanIni = Math.max(0, totalWajibGajiNasional - metrikSDM.gajiGlobal);
     let totalKasCairPusat = 0;
     (realCashflowTransactions || []).forEach(c => {
@@ -104,7 +108,7 @@ export default function TabKaryawan({
       rekomendasi = '🚨 KAS TIDAK CUKUP! Segera tarik setoran omzet dari Pemalang & Cibinong untuk mengamankan runway payroll.';
     }
     return { sisaWajibBayarBulanIni, totalKasCairPusat, status, warnaBadge, rekomendasi };
-  }, [globalEmployeeCompiled, metrikSDM.gajiGlobal, realCashflowTransactions]);
+  }, [globalEmployeeCompiled, metrikSDM.gajiGlobal, realCashflowTransactions, optimisticDeletedIds]);
 
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
@@ -160,7 +164,7 @@ export default function TabKaryawan({
         <KasbonModule employees={employeesDiCabangAktif} expenses={expenses} globalCompiled={globalEmployeeCompiled} activeBranch={activeProcessingBranch} todayStr={todayStr} sendToSheet={sendToSheet} onViewDetails={setSelectedEmployeeDetails} />
       )}
       {activeSubTab === 'master' && (
-        <MasterSDMModule employees={employeesDiCabangAktif} branchListId={daftarCabangId} branchMapName={petaNamaCabang} activeBranch={activeProcessingBranch} isHQ={isHQ} sendToSheet={sendToSheet} showToast={showToast} onViewDetails={setSelectedEmployeeDetails} />
+        <MasterSDMModule employees={employeesDiCabangAktif} branchListId={daftarCabangId} branchMapName={petaNamaCabang} activeBranch={activeProcessingBranch} isHQ={isHQ} sendToSheet={sendToSheet} showToast={showToast} onViewDetails={setSelectedEmployeeDetails} setOptimisticDeletedIds={setOptimisticDeletedIds} />
       )}
 
       {/* POP-UP MODAL PROFIL FULL VIEW */}
@@ -246,6 +250,7 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
           <button type="submit" className="w-full bg-red-600 text-white text-xs font-black py-3 rounded-xl uppercase tracking-wider">Record & Potong Gaji</button>
         </form>
       </div>
+      
       <div className="lg:col-span-2 bg-white rounded-2xl border overflow-hidden flex flex-col">
         <div className="p-4 bg-slate-50 border-b font-bold text-xs uppercase text-slate-700">Histori Gaji Jurnal Wilayah {activeBranch}</div>
         <table className="w-full text-sm text-left">
@@ -328,13 +333,12 @@ function KasbonModule({ employees, expenses, globalCompiled, activeBranch, today
 }
 
 // =========================================================================
-// 📇 SUB-COMPONENT 3: MASTER DATA SDM (REVISI ULTRA RINGAN & ANTI-TOLAK SERVER)
+// 📇 SUB-COMPONENT 3: MASTER DATA SDM (WITH OPTIMISTIC HIDE UI)
 // =========================================================================
-function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch, isHQ, sendToSheet, showToast, onViewDetails }) {
+function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch, isHQ, sendToSheet, showToast, onViewDetails, setOptimisticDeletedIds }) {
   const [form, setForm] = useState({ id: '', name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT', phone: '', address: '', photo_base64: '', ktp_base64: '' });
   const [isEditingMode, setIsEditingMode] = useState(false);
 
-  // 🔥 CORE ENGINE: AUTO COMPRESSOR ULTRA-POWERFUL (Paksa Gambar Mengecil Menjadi 30KB - 80KB)
   const prosesDanKompresGambarSultan = (file, keyName) => {
     if(!file) return;
     const reader = new FileReader();
@@ -343,23 +347,12 @@ function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch,
       img.onload = () => {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-        
-        // Batasi ukuran dimensi foto maksimal 600px saja agar file sangat ringan!
         const maxDimension = 600; 
-        let width = img.width;
-        let height = img.height;
-        
-        if (width > height) {
-          if (width > maxDimension) { height *= maxDimension / width; width = maxDimension; }
-        } else {
-          if (height > maxDimension) { width *= maxDimension / height; height = maxDimension; }
-        }
-        
-        canvas.width = width;
-        canvas.height = height;
+        let width = img.width; let height = img.height;
+        if (width > height) { if (width > maxDimension) { height *= maxDimension / width; width = maxDimension; } } 
+        else { if (height > maxDimension) { width *= maxDimension / height; height = maxDimension; } }
+        canvas.width = width; canvas.height = height;
         ctx.drawImage(img, 0, 0, width, height);
-        
-        // Ekspor paksa sebagai JPEG Kualitas Sedang (0.5) agar kompresi maksimal dan anti-ditolak Google!
         const compressedBase64 = canvas.toDataURL('image/jpeg', 0.5);
         setForm(prev => ({ ...prev, [keyName]: compressedBase64 }));
       };
@@ -372,6 +365,29 @@ function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch,
     setForm({ id: k.id, name: k.name, position: k.position, baseSalary: String(k.baseSalary || 0), targetBranch: k.branch_id, phone: k.phone === '-' ? '' : k.phone, address: k.address === 'ALAMAT BELUM DIISI' ? '' : k.address, photo_base64: '', ktp_base64: '' });
     setIsEditingMode(true);
     if (showToast) showToast(`Data ${k.name} siap dilengkapi di form kiri!`, 'success');
+  };
+
+  // 🔥 ENGINE HAPUS INSTAN (OPTIMISTIC DELETION)
+  const handleDeleteEmployeeInstantly = async (k) => {
+    if (window.confirm(`Apakah Anda yakin ingin menghapus data staf ${k.name} dari sistem?`)) {
+      // 1. Sembunyikan baris seketika tanpa menunggu respon server!
+      setOptimisticDeletedIds(prev => new Set(prev).add(k.id));
+      
+      // 2. Kirim perintah hapus di belakang layar (Pakai jalur resmi 'delete')
+      const success = await sendToSheet('delete', { id: k.id }, 'karyawan');
+      
+      if (success) {
+        if (showToast) showToast(`Staf ${k.name} telah berhasil dihapus.`, 'success');
+      } else {
+        // Jika server gagal hapus karena error/offline, kembalikan barisnya ke layar
+        setOptimisticDeletedIds(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(k.id);
+          return newSet;
+        });
+        if (showToast) showToast('Gagal menghapus data. Periksa koneksi internet.', 'error');
+      }
+    }
   };
 
   return (
@@ -401,7 +417,6 @@ function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch,
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">Nama Lengkap</label><input type="text" required readOnly={isEditingMode} value={form.name} onChange={e=>setForm({...form, name: e.target.value})} className={`w-full p-2 border rounded-lg text-sm uppercase outline-none ${isEditingMode ? 'bg-slate-100 font-black text-slate-500 cursor-not-allowed' : ''}`} /></div>
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">No. WhatsApp</label><input type="text" required placeholder="Contoh: 081234567" value={form.phone} onChange={e=>setForm({...form, phone: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold" /></div>
           
-          {/* INPUT PAS FOTO ULTRA RINGAN TANPA LIVE SLIDER */}
           <div>
             <label className="text-[10px] font-black text-slate-500 uppercase block mb-1">Upload Pas Foto Profil Baru</label>
             <input type="file" accept="image/*" onChange={e => prosesDanKompresGambarSultan(e.target.files[0], 'photo_base64')} className="w-full text-xs font-bold text-slate-500 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-black file:bg-slate-900 file:text-white cursor-pointer" />
@@ -413,10 +428,9 @@ function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch,
             )}
           </div>
 
-          {/* INPUT FILE FOTO KTP COMPRESSED */}
           <div>
             <label className="text-[10px] font-black text-orange-600 uppercase block mb-1">Upload Berkas Foto KTP</label>
-            <input type="file" accept="image/*" onChange={e => prosesDanKompresGambarSultan(e.target.files[0], 'ktp_base64')} className="w-full text-xs font-bold text-slate-500 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-orange-600 file:text-white cursor-pointer" />
+            <input type="file" accept="image/*" onChange={e => prosesDanKompresGambarSultan(e.target.files[0], 'ktp_base64')} className="w-full text-xs font-bold text-slate-500 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-black file:bg-orange-600 file:text-white cursor-pointer" />
             {form.ktp_base64 && (
               <div className="mt-2 bg-orange-50 border border-orange-200 p-2 rounded-xl text-center">
                 <span className="text-[9px] font-black text-orange-700 uppercase">✅ Berkas KTP Berhasil Di-Kompres</span>
@@ -450,7 +464,8 @@ function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch,
                 <td className="px-4 py-3 text-center">
                   <div className="flex items-center justify-center gap-1.5">
                     <button type="button" onClick={() => handleTriggerEditPencil(k)} className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100" title="Lengkapi / Edit Berkas Karyawan"><Edit2 size={13}/></button>
-                    <button type="button" onClick={async () => { if (window.confirm("Apakah Anda yakin ingin menghapus data karyawan ini dari sistem?")) { const success = await sendToSheet('update', { id: k.id, isDeleted: true }, 'karyawan'); if (success && showToast) showToast('Karyawan telah berhasil dihapus.', 'success'); } }} className="p-1.5 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100" title="Hapus"><Trash2 size={13}/></button>
+                    {/* 🔥 TOMBOL HAPUS DENGAN SISTEM OPTIMISTIC UI KILAT */}
+                    <button type="button" onClick={() => handleDeleteEmployeeInstantly(k)} className="p-1.5 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100" title="Hapus"><Trash2 size={13}/></button>
                   </div>
                 </td>
               </tr>
