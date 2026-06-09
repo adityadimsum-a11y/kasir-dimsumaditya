@@ -4,13 +4,14 @@ import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 
 const formatRupiah = (angka) => "Rp. " + Number(angka || 0).toLocaleString('id-ID');
 
-// 🔥 AUTO-CONVERTER GOOGLE DRIVE LINK: Mengubah link sharing biasa jadi link gambar langsung!
+// 🔥 BYPASS GOOGLE DRIVE 2024: Menggunakan Thumbnail Endpoint agar tidak diblokir Cookies!
 const parseDriveLink = (url) => {
   if (!url) return '';
   if (url.includes('drive.google.com/file/d/')) {
     const match = url.match(/\/d\/(.*?)\//);
     if (match && match[1]) {
-      return `https://drive.google.com/uc?export=view&id=${match[1]}`;
+      // Mengubah link viewer menjadi link gambar HD yang bebas akses
+      return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w1000`;
     }
   }
   return url;
@@ -54,7 +55,6 @@ export default function TabKaryawan({
         id: k.id, name: k.name || 'TANPA NAMA', position: k.position || 'STAF', baseSalary: Number(k.baseSalary || 0), branch_id: bId, status: k.status || 'AKTIF',
         phone: k.phone || '-',
         address: k.address || 'ALAMAT BELUM DIISI',
-        // Terapkan penerjemah Google Drive di sini
         photo_url: parseDriveLink(k.photo_url) || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
         ktp_url: parseDriveLink(k.ktp_url) || '',
         raw_photo_link: k.photo_url || '',
@@ -359,7 +359,6 @@ function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch,
       targetBranch: k.branch_id, 
       phone: k.phone === '-' ? '' : k.phone, 
       address: k.address === 'ALAMAT BELUM DIISI' ? '' : k.address, 
-      // Ambil kembali link asli mentahnya agar tidak bingung kalau mau diedit lagi
       photo_url: k.raw_photo_link || '', 
       ktp_url: k.raw_ktp_link || '' 
     });
@@ -408,7 +407,7 @@ function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch,
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">Nama Lengkap</label><input type="text" required readOnly={isEditingMode} value={form.name} onChange={e=>setForm({...form, name: e.target.value})} className={`w-full p-2 border rounded-lg text-sm uppercase outline-none ${isEditingMode ? 'bg-slate-100 font-black text-slate-500 cursor-not-allowed' : ''}`} /></div>
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">No. WhatsApp</label><input type="text" required placeholder="Contoh: 081234567" value={form.phone} onChange={e=>setForm({...form, phone: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold" /></div>
           
-          {/* KOLOM LINK FOTO DENGAN PANDUAN GOOGLE DRIVE */}
+          {/* INPUT LINK MANUAL ANTI GAGAL DENGAN PANDUAN */}
           <div>
             <label className="text-[10px] font-black text-slate-500 uppercase flex items-center gap-1 mb-1"><Link size={10}/> Link Pas Foto Profil Baru</label>
             <input type="text" placeholder="Paste link foto dari Google Drive..." value={form.photo_url} onChange={e => setForm({...form, photo_url: e.target.value})} className="w-full p-2 border rounded-lg text-xs" />
