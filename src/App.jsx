@@ -217,9 +217,20 @@ export default function App() {
   // GATEKEEPER ROUTING (TAB RENDER)
   // =====================================
   const renderContent = () => {
-    switch (activeTab) {
+    // 🛡️ KUNCI PENGAMAN OTOMATIS: 
+    // Jika cabang klik menu "Dashboard", belokkan paksa ke Dashboard Cabang (TabPemalang)
+    let safeTab = activeTab;
+    if (activeTab === 'dashboard' && user?.branch_type !== 'HQ_FACTORY') {
+      safeTab = 'pemalang';
+    }
+
+    switch (safeTab) {
       case 'dashboard': return <TabDashboard user={user} handleTabChange={setActiveTab} {...dbData} />;
-      case 'dashboard_branch': return <TabDashboardBranch user={user} setPrintData={setPrintData} {...dbData} />;
+      
+      // Belokkan juga jika ada yang memanggil dashboard_branch atau pemalang
+      case 'dashboard_branch': 
+      case 'pemalang': return <TabPemalang user={user} sendToSheet={sendToSheet} {...dbData} />;
+      
       case 'cash_war_room': return <TabCashWarRoom user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
       case 'scm_war_room': return <TabSCMWarRoom user={user} {...dbData} />;
       case 'business_radar': return <TabBusinessRadar user={user} {...dbData} />;
@@ -229,15 +240,14 @@ export default function App() {
       case 'expenses': return <TabExpenses user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
       case 'stok': return <TabStok user={user} role={user?.role} sendToSheet={sendToSheet} requestDelete={requestDelete} showToast={showToast} {...dbData} />;
       case 'stok_outlet': return <TabStokOutlet user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
-      case 'distribusi': return <TabDistribusi user={user} sendToSheet={sendToSheet} setPrintData={setPrintData} {...dbData} />;
+      case 'distribusi': return <TabDistribusi user={user} sendToSheet={sendToSheet} setPrintData={setPrintData} showToast={showToast} {...dbData} />;
       case 'accounting': return <TabAccounting user={user} {...dbData} />;
       case 'accounting_audit': return <TabAccountingAudit user={user} {...dbData} />;
       case 'piutang': return <TabPiutang user={user} role={user?.role} sendToSheet={sendToSheet} setPrintData={setPrintData} {...dbData} />;
       case 'karyawan': return <TabKaryawan user={user} sendToSheet={sendToSheet} setPrintData={setPrintData} showToast={showToast} {...dbData} />;
       case 'master_data': return <TabMasterData user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
-      case 'pemalang': return <TabPemalang user={user} sendToSheet={sendToSheet} {...dbData} />;
       case 'monitoring_pemalang': return <TabMonitoringPemalang user={user} {...dbData} />;
-      default: return <TabDashboard user={user} handleTabChange={setActiveTab} {...dbData} />;
+      default: return <TabPemalang user={user} sendToSheet={sendToSheet} {...dbData} />;
     }
   };
 
