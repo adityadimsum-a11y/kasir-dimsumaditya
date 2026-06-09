@@ -73,8 +73,8 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
 
   const themeConfig = useMemo(() => {
       const type = user?.branch_type;
-      if (type === 'HQ_FACTORY') return { bg: 'bg-red-600', text: 'text-red-600', ring: 'ring-red-500', icon: ShieldCheck, title: 'HQ FACTORY' };
-      if (type === 'PRODUCTION_BRANCH') return { bg: 'bg-orange-600', text: 'text-orange-600', ring: 'ring-orange-500', icon: Factory, title: 'PRODUCTION NODE' };
+      if (type === 'HQ_FACTORY') return { bg: 'bg-red-600', text: 'text-red-600', ring: 'ring-red-500', icon: ShieldCheck, title: 'TANGERANG PUSAT' };
+      if (type === 'PRODUCTION_BRANCH') return { bg: 'bg-orange-600', text: 'text-orange-600', ring: 'ring-orange-500', icon: Factory, title: 'PRODUKSI PEMALANG' };
       if (type === 'OUTLET_RESTO') return { bg: 'bg-amber-500', text: 'text-amber-500', ring: 'ring-amber-400', icon: Store, title: 'OUTLET RESTO' };
       if (type === 'FRANCHISE') return { bg: 'bg-rose-600', text: 'text-rose-600', ring: 'ring-rose-500', icon: Package, title: 'FRANCHISE NODE' };
       return { bg: 'bg-slate-800', text: 'text-slate-800', ring: 'ring-slate-700', icon: LayoutDashboard, title: 'SYSTEM NODE' };
