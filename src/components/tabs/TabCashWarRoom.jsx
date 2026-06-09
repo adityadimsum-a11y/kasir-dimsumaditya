@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Wallet, TrendingUp, TrendingDown, DollarSign, Calendar, PlusCircle, Printer, Edit2, Trash2, Building, Activity, AlertTriangle } from 'lucide-react';
+import { CalendarDays, Plus, Printer, Edit2, Trash2, AlertTriangle } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
 
@@ -136,14 +136,14 @@ export default function TabCashWarRoom({
       {/* 📊 RADAR KEUANGAN & SALDO */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800 shadow-xl relative overflow-hidden text-white md:col-span-2">
-          <Wallet className="absolute -right-4 -bottom-4 text-emerald-500 opacity-20" size={120} />
+          <div className="absolute -right-4 -bottom-6 text-emerald-500 opacity-20 text-[120px]">💰</div>
           <div className="relative z-10 flex justify-between items-start">
             <div>
-              <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest flex items-center gap-1"><DollarSign size={12}/> UANG TUNAI LACI (CASH)</div>
+              <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">💵 UANG TUNAI LACI (CASH)</div>
               <div className="text-3xl font-black mt-1">{formatRupiah(metrikKas.saldoCash)}</div>
             </div>
             <div className="text-right">
-              <div className="text-[10px] font-black text-blue-400 uppercase tracking-widest flex items-center gap-1 justify-end"><Activity size={12}/> SALDO BANK (TF)</div>
+              <div className="text-[10px] font-black text-blue-400 uppercase tracking-widest justify-end">💳 SALDO BANK (TF)</div>
               <div className="text-xl font-black mt-1">{formatRupiah(metrikKas.saldoTf)}</div>
             </div>
           </div>
@@ -153,12 +153,12 @@ export default function TabCashWarRoom({
         </div>
         
         <div className="bg-white p-5 rounded-2xl border shadow-sm border-l-4 border-l-emerald-500 relative overflow-hidden">
-          <TrendingUp className="absolute -right-4 -bottom-4 text-emerald-50 opacity-50" size={100} />
+          <div className="absolute -right-4 -bottom-6 text-emerald-50 opacity-50 text-[100px]">📈</div>
           <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest relative z-10">Total Uang Masuk Bulan Ini</div>
           <div className="text-xl font-black text-emerald-600 mt-1 relative z-10">{formatRupiah(metrikKas.inBulanIni)}</div>
         </div>
         <div className="bg-white p-5 rounded-2xl border shadow-sm border-l-4 border-l-rose-500 relative overflow-hidden">
-          <TrendingDown className="absolute -right-4 -bottom-4 text-rose-50 opacity-50" size={100} />
+          <div className="absolute -right-4 -bottom-6 text-rose-50 opacity-50 text-[100px]">📉</div>
           <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest relative z-10">Total Uang Keluar Bulan Ini</div>
           <div className="text-xl font-black text-rose-600 mt-1 relative z-10">{formatRupiah(metrikKas.outBulanIni)}</div>
         </div>
@@ -171,20 +171,19 @@ export default function TabCashWarRoom({
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <h3 className="font-black text-sm uppercase text-slate-800 flex items-center gap-2">
-                <Wallet size={16} className={isEditing ? "text-amber-600" : "text-blue-600"}/> 
-                {isEditing ? 'Revisi Transaksi Kas' : 'Input Transaksi Manual'}
+                💳 {isEditing ? 'Revisi Transaksi Kas' : 'Input Transaksi Manual'}
               </h3>
             </div>
 
             <div className="flex gap-2 bg-slate-100 p-1 rounded-xl">
-              <button type="button" onClick={() => setForm({...form, type: 'INFLOW', category: 'MODAL_AWAL'})} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition-all flex items-center justify-center gap-1 ${form.type === 'INFLOW' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500'}`}><TrendingUp size={12}/> Pemasukan</button>
-              <button type="button" onClick={() => setForm({...form, type: 'OUTFLOW', category: 'BAHAN_BAKU'})} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition-all flex items-center justify-center gap-1 ${form.type === 'OUTFLOW' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500'}`}><TrendingDown size={12}/> Pengeluaran</button>
+              <button type="button" onClick={() => setForm({...form, type: 'INFLOW', category: 'MODAL_AWAL'})} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition-all flex items-center justify-center gap-1 ${form.type === 'INFLOW' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500'}`}>📈 Pemasukan</button>
+              <button type="button" onClick={() => setForm({...form, type: 'OUTFLOW', category: 'BAHAN_BAKU'})} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition-all flex items-center justify-center gap-1 ${form.type === 'OUTFLOW' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500'}`}>📉 Pengeluaran</button>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Tanggal</label><input type="date" required value={form.date} onChange={e=>setForm({...form, date: e.target.value})} className="w-full p-2.5 mt-1 border rounded-xl text-xs font-bold outline-none bg-slate-50" /></div>
               {isHQ && (
-                <div><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1"><Building size={10}/> Cabang Trx</label><select value={form.branchId} onChange={e=>setForm({...form, branchId: e.target.value})} className="w-full p-2.5 mt-1 border rounded-xl text-xs font-black uppercase outline-none bg-slate-50 cursor-pointer">
+                <div><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">🏢 Cabang Trx</label><select value={form.branchId} onChange={e=>setForm({...form, branchId: e.target.value})} className="w-full p-2.5 mt-1 border rounded-xl text-xs font-black uppercase outline-none bg-slate-50 cursor-pointer">
                   {daftarCabangId.map(b => <option key={b} value={b}>{b}</option>)}
                 </select></div>
               )}
@@ -213,10 +212,10 @@ export default function TabCashWarRoom({
               </div>
             </div>
 
-            <div><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Deskripsi (Untuk Laporan)</label><input type="text" required value={form.notes} onChange={e=>setForm({...form, notes: e.target.value})} placeholder="Contoh: Beli Bensin Lalamove..." className="w-full p-2.5 mt-1 border rounded-xl text-xs uppercase outline-none bg-slate-50" /></div>
+            <div><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Deskripsi (Laporan)</label><input type="text" required value={form.notes} onChange={e=>setForm({...form, notes: e.target.value})} placeholder="Contoh: Beli Bensin..." className="w-full p-2.5 mt-1 border rounded-xl text-xs uppercase outline-none bg-slate-50" /></div>
             
             <button type="submit" className={`w-full text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest shadow-lg transition-all flex items-center justify-center gap-2 ${isEditing ? 'bg-amber-500 hover:bg-amber-600' : 'bg-blue-600 hover:bg-blue-700'}`}>
-              <PlusCircle size={16}/> {isEditing ? 'Simpan Revisi' : 'Catat ke Buku Kas'}
+              <Plus size={16}/> {isEditing ? 'Simpan Revisi' : 'Catat ke Buku Kas'}
             </button>
           </form>
         </div>
@@ -224,7 +223,7 @@ export default function TabCashWarRoom({
         {/* 📚 TABEL ARSIP BUKU KAS (CONSOLIDATION) */}
         <div className="lg:col-span-2 bg-white rounded-2xl border flex flex-col overflow-hidden shadow-sm">
           <div className="p-4 bg-slate-50 border-b flex items-center justify-between">
-            <h4 className="font-black text-xs uppercase text-slate-700 tracking-widest flex items-center gap-2"><Calendar size={14} className="text-blue-600"/> Buku Jurnal Arus Kas (Cashflow)</h4>
+            <h4 className="font-black text-xs uppercase text-slate-700 tracking-widest flex items-center gap-2"><CalendarDays size={14} className="text-blue-600"/> Buku Jurnal Arus Kas</h4>
             {isHQ && (
               <select value={activeBranchFilter} onChange={e => setActiveBranchFilter(e.target.value)} className="text-[10px] font-black uppercase bg-white border rounded-lg px-2 py-1 outline-none text-slate-600 cursor-pointer shadow-sm">
                 <option value="SEMUA_CABANG">🌍 KONSOLIDASI NASIONAL</option>
@@ -273,7 +272,6 @@ export default function TabCashWarRoom({
                           )}
                           {isHQ && (
                             <>
-                              {/* Transaksi yang di-generate otomatis oleh sistem lain tidak boleh diedit manual, kecuali didelete/void */}
                               {!log.reference_id || log.reference_id === '-' ? (
                                 <button type="button" onClick={() => handleEdit(log)} className="p-1.5 bg-amber-50 text-amber-600 hover:bg-amber-100 rounded-lg"><Edit2 size={12}/></button>
                               ) : null}
