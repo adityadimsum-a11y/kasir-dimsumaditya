@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Store, TrendingUp, Users, ShoppingBag, Clock, Receipt, Activity, CreditCard } from 'lucide-react';
+import { Store, TrendingUp, Users, ShoppingBag, Clock, Receipt, Activity, CreditCard, Package } from 'lucide-react';
 import { formatRp, getTodayStr, formatDate } from '../../utils/helpers';
 
 export default function TabDashboardBranch({ orders, master_customers, inventory_cost_layers, user }) {
@@ -17,11 +17,9 @@ export default function TabDashboardBranch({ orders, master_customers, inventory
     const customerStats = {};
 
     (orders || []).forEach(o => {
-      // Filter hanya data cabang ini dan tidak dihapus
       if (o.isDeleted || String(o.isDeleted).toUpperCase() === 'TRUE') return;
       if (String(o.branch_id).toUpperCase() !== currentBranch.toUpperCase()) return;
 
-      // Ambil transaksi hari ini
       if (o.date === todayStr) {
         const netTotal = Number(o.total || 0) - Number(o.fee_amount || 0) - Number(o.marketplace_promo || 0);
         todayOmset += netTotal;
@@ -33,26 +31,22 @@ export default function TabDashboardBranch({ orders, master_customers, inventory
           todayCash += netTotal;
         }
 
-        // Hitung Pelanggan Teratas
         const cName = o.customer_name || 'Pelanggan Anonim';
         if (!customerStats[cName]) customerStats[cName] = 0;
         customerStats[cName] += netTotal;
       }
 
-      // Kumpulkan untuk list transaksi terbaru (maksimal 10)
       recentOrders.push(o);
     });
 
-    // Urutkan transaksi dari yang terbaru
     recentOrders.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-    // Urutkan pelanggan top
     const topCustomers = Object.entries(customerStats)
       .map(([name, total]) => ({ name, total }))
       .sort((a, b) => b.total - a.total)
       .slice(0, 5);
 
-    // Hitung sisa stok cabang ini (Dimsum saja sebagai patokan utama)
+    // Hitung sisa stok cabang ini
     let stockDimsum = 0;
     (inventory_cost_layers || []).forEach(l => {
       if (l.isDeleted || String(l.isDeleted).toUpperCase() === 'TRUE') return;
@@ -61,7 +55,11 @@ export default function TabDashboardBranch({ orders, master_customers, inventory
       }
     });
 
-    return { todayOmset, todayTrxCount, todayCash, todayAR, recentOrders: recentOrders.slice(0, 8), topCustomers, stockDimsum };
+    // RUMUS KONVERSI OTOMATIS
+    const stockMika = Math.floor(stockDimsum / 50);
+    const stockPorsi = Math.floor(stockDimsum / 4);
+
+    return { todayOmset, todayTrxCount, todayCash, todayAR, recentOrders: recentOrders.slice(0, 8), topCustomers, stockDimsum, stockMika, stockPorsi };
   }, [orders, currentBranch, todayStr, inventory_cost_layers]);
 
   return (
@@ -117,11 +115,22 @@ export default function TabDashboardBranch({ orders, master_customers, inventory
           </div>
         </div>
 
-        <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-xl">
-          <h4 className="font-black text-white text-xs uppercase tracking-widest mb-2 flex items-center gap-2"><Store size={16} className="text-indigo-400" /> Sisa Stok Dimsum</h4>
-          <div className="text-3xl md:text-4xl font-black text-indigo-400 my-2">{metrics.stockDimsum.toLocaleString('id-ID')} <span className="text-sm text-slate-400 font-bold">Pcs</span></div>
-          <div className="text-[10px] font-bold text-slate-400 mt-4 pt-4 border-t border-slate-800 flex items-center gap-1">
-            Sisa fisik tercatat di Freezer Cabang
+        {/* KARTU STOK DENGAN KONVERSI OTOMATIS */}
+        <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-xl flex flex-col justify-between">
+          <div>
+            <h4 className="font-black text-white text-xs uppercase tracking-widest mb-2 flex items-center gap-2"><Package size={16} className="text-indigo-400" /> Sisa Stok Dimsum</h4>
+            <div className="text-3xl md:text-4xl font-black text-indigo-400 my-2">{metrics.stockDimsum.toLocaleString('id-ID')} <span className="text-sm text-slate-400 font-bold">Pcs</span></div>
+            
+            {/* TAMPILAN KONVERSI */}
+            <div className="flex flex-wrap gap-2 mt-3">
+               <span className="bg-indigo-500/20 text-indigo-300 text-[10px] font-black px-2 py-1 rounded uppercase border border-indigo-500/30">Setara {metrics.stockMika.toLocaleString('id-ID')} Mika</span>
+               <span className="bg-purple-500/20 text-purple-300 text-[10px] font-black px-2 py-1 rounded uppercase border border-purple-500/30">Setara {metrics.stockPorsi.toLocaleString('id-ID')} Porsi</span>
+            </div>
+          </div>
+
+          <div className="text-[9px] font-bold text-slate-500 mt-4 pt-4 border-t border-slate-800 flex items-center justify-between">
+            <span>Tercatat di Freezer Cabang</span>
+            <span>1 Mika = 50 | 1 Porsi = 4</span>
           </div>
         </div>
       </div>
@@ -172,7 +181,6 @@ export default function TabDashboardBranch({ orders, master_customers, inventory
 
         {/* PANEL KANAN: PELANGGAN TOP & SHORTCUT */}
         <div className="lg:col-span-1 space-y-6">
-          {/* Top Customers Card */}
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
             <h4 className="font-black text-slate-800 text-xs uppercase tracking-widest mb-4 flex items-center gap-2"><Users size={16} className="text-orange-500" /> Top Pelanggan Hari Ini</h4>
             {metrics.topCustomers.length === 0 ? (
@@ -192,7 +200,6 @@ export default function TabDashboardBranch({ orders, master_customers, inventory
             )}
           </div>
 
-          {/* Quick Info Card */}
           <div className="bg-blue-50 rounded-3xl border border-blue-100 p-6">
             <h4 className="font-black text-blue-900 text-xs uppercase tracking-widest mb-2 flex items-center gap-2"><CreditCard size={16} /> Informasi Kasir</h4>
             <p className="text-xs text-blue-700 font-medium mb-4">Pastikan Anda selalu melakukan <b>Closing & Settlement</b> di penghujung hari operasional untuk menyetorkan kas ke Pusat.</p>
