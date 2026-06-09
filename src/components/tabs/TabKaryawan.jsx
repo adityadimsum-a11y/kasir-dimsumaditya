@@ -1,10 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { Users, Landmark, Banknote, UserPlus, Layers, TrendingDown, ShieldAlert, Trash2, Edit2, Check, X, Phone, Image, Eye, MapPin, Undo, Link, Printer } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
-import { triggerPrint } from '../../utils/PrintUtility'; // 🔥 IMPORT MESIN CETAK
+import { triggerPrint } from '../../utils/PrintUtility';
 
 const formatRupiah = (angka) => "Rp. " + Number(angka || 0).toLocaleString('id-ID');
 
+// 🔥 BYPASS GOOGLE DRIVE 2024: Menggunakan Thumbnail Endpoint agar tidak diblokir Cookies!
 const parseDriveLink = (url) => {
   if (!url) return '';
   if (url.includes('drive.google.com/file/d/')) {
@@ -100,6 +101,26 @@ export default function TabKaryawan({
     return { kasbonCabang, gajiCabangBulanIni, kasbonGlobal, gajiGlobal };
   }, [globalEmployeeCompiled, expenses, activeProcessingBranch, todayStr, optimisticDeletedIds]);
 
+  const kecukupanDanaPusat = useMemo(() => {
+    const totalWajibGajiNasional = Object.values(globalEmployeeCompiled).filter(e => e.status === 'AKTIF' && !optimisticDeletedIds.has(e.id)).reduce((sum, emp) => sum + emp.baseSalary, 0);
+    const sisaWajibBayarBulanIni = Math.max(0, totalWajibGajiNasional - metrikSDM.gajiGlobal);
+    let totalKasCairPusat = 0;
+    (realCashflowTransactions || []).forEach(c => {
+      if (!c || c.isDeleted) return;
+      if (['HQ_FACTORY', 'PUSAT'].includes(String(c.branch_id).toUpperCase())) {
+        if (String(c.transaction_type).toUpperCase() === 'INFLOW') totalKasCairPusat += Number(c.amount || 0);
+        else totalKasCairPusat -= Number(c.amount || 0);
+      }
+    });
+    let status = 'AMAN'; let warnaBadge = 'bg-emerald-500 text-white';
+    let rekomendasi = '🔥 AMAN! Saldo kas liquid pusat sangat mencukupi untuk meng-cover sisa kewajiban gaji seluruh cabang nasional.';
+    if (sisaWajibBayarBulanIni > totalKasCairPusat) {
+      status = 'BAHAYA / KRITIS'; warnaBadge = 'bg-rose-600 text-white animate-pulse';
+      rekomendasi = '🚨 KAS TIDAK CUKUP! Segera tarik setoran omzet dari Pemalang & Cibinong untuk mengamankan runway payroll.';
+    }
+    return { sisaWajibBayarBulanIni, totalKasCairPusat, status, warnaBadge, rekomendasi };
+  }, [globalEmployeeCompiled, metrikSDM.gajiGlobal, realCashflowTransactions, optimisticDeletedIds]);
+
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
       
@@ -118,6 +139,14 @@ export default function TabKaryawan({
           <div><div className="text-[9px] font-black text-orange-400 uppercase">Total Kasbon Company</div><div className="text-base font-black">{formatRupiah(metrikSDM.kasbonGlobal)}</div></div>
         </div>
       </div>
+
+      {/* FINANCIAL RADAR */}
+      {isHQ && (
+        <div className="p-4 rounded-2xl border border-blue-200 bg-blue-50/40 flex items-center justify-between text-xs font-bold text-blue-800">
+          <div>💡 <strong>Radar Gaji Nasional:</strong> {kecukupanDanaPusat.rekomendasi}</div>
+          <span className={`px-3 py-1 rounded-full uppercase font-black text-[9px] ${kecukupanDanaPusat.warnaBadge}`}>Sisa Wajib Gaji: {formatRupiah(kecukupanDanaPusat.sisaWajibBayarBulanIni)}</span>
+        </div>
+      )}
 
       {/* PIL SWITCHER CABANG */}
       {isHQ && (
@@ -244,7 +273,7 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
                 <tr key={p.id} className="hover:bg-slate-50/50 transition">
                   <td className="px-4 py-3 text-slate-500">{formatDate(p.date)}</td>
                   <td onClick={() => emp && onViewDetails(emp)} className="px-4 py-3 flex items-center gap-2.5 cursor-pointer group">
-                    <img src={emp?.photo_url} alt="Profile" className="w-7 h-7 rounded-full object-cover border" onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
+                    <img src={emp?.photo_url} alt="Profile" className="w-7 h-7 rounded-full object-cover border group-hover:scale-110 transition-transform" onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
                     <span className="uppercase group-hover:text-blue-600 transition-colors">{emp?.name || 'STAF'}</span>
                   </td>
                   <td className="px-4 py-3 text-right">{formatRupiah((p.base_salary||0)+(p.allowance||0))}</td>
@@ -254,20 +283,31 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
                     <div className="flex items-center justify-center gap-1.5">
                       <button type="button" onClick={() => emp && onViewDetails(emp)} className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg"><Eye size={12}/></button>
                       
-                      {/* 🔥 TOMBOL CETAK DOT MATRIX PAYROLL */}
+                      {/* 🔥 TOMBOL CETAK SLIP GAJI DENGAN RINCIAN HISTORI */}
                       <button type="button" onClick={() => triggerPrint('NOTA_DOTMATRIX', {
+                        title: 'SLIP GAJI & PAYROLL',
                         id: p.id,
                         date: formatDate(p.date),
                         branch_name: activeBranch,
                         admin_name: user?.name || 'ADMIN',
                         customer_name: emp?.name || 'STAF',
-                        description: `Pembayaran Gaji & Payroll`,
+                        
+                        items: [
+                          { name: 'Gaji Pokok & Tunjangan', qty: 1, subtotal: (p.base_salary || 0) + (p.allowance || 0) },
+                          { name: 'Potongan Pelunasan Kasbon', qty: 1, subtotal: -(p.kasbon_deduction || 0) },
+                          { name: 'Potongan Lain-Lain', qty: 1, subtotal: -(p.other_deduction || 0) }
+                        ],
                         amount: p.amount,
-                        qty: 1,
-                        previous_debt: (emp?.sisaHutang || 0) + (p.kasbon_deduction || 0), // Hutang sebelum dipotong
-                        paid_amount: p.amount, // Netto yang diterima
                         paymentMethod: p.payment_method || 'CASH',
-                        remaining_balance: emp?.sisaHutang || 0 // Sisa hutang setelah dipotong
+                        
+                        history: {
+                          labelLama: 'Total Hutang Kasbon Awal',
+                          nominalLama: (emp?.sisaHutang || 0) + (p.kasbon_deduction || 0),
+                          labelAksi: 'Dipotong Pada Slip Gaji Ini',
+                          nominalAksi: p.kasbon_deduction || 0,
+                          labelBaru: 'SISA HUTANG KASBON SEKARANG',
+                          nominalBaru: emp?.sisaHutang || 0
+                        }
                       })} className="p-1.5 text-white bg-slate-800 hover:bg-slate-900 shadow rounded-lg" title="Cetak Slip Gaji">
                         <Printer size={12}/>
                       </button>
@@ -330,20 +370,29 @@ function KasbonModule({ employees, expenses, globalCompiled, activeBranch, today
                     <div className="flex items-center justify-center gap-1.5">
                       <button type="button" onClick={() => emp && onViewDetails(emp)} className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg"><Eye size={12}/></button>
                       
-                      {/* 🔥 TOMBOL CETAK DOT MATRIX KASBON */}
+                      {/* 🔥 TOMBOL CETAK BUKTI KASBON DENGAN RINCIAN HISTORI */}
                       <button type="button" onClick={() => triggerPrint('NOTA_DOTMATRIX', {
+                        title: 'BUKTI PENCAIRAN KASBON',
                         id: log.id,
                         date: formatDate(log.date),
                         branch_name: activeBranch,
                         admin_name: user?.name || 'ADMIN',
                         customer_name: emp?.name || 'STAF',
-                        description: log.description,
+                        
+                        items: [
+                          { name: `Pencairan Kasbon: ${log.description}`, qty: 1, subtotal: log.amount }
+                        ],
                         amount: log.amount,
-                        qty: 1,
-                        previous_debt: Math.max(0, (emp?.sisaHutang || 0) - log.amount), // Hutang sebelum kasbon ini
-                        paid_amount: log.amount, // Nominal yang dicairkan laci
                         paymentMethod: 'CASH',
-                        remaining_balance: emp?.sisaHutang || 0 // Total hutang sekarang
+                        
+                        history: {
+                          labelLama: 'Sisa Hutang Kasbon Lama',
+                          nominalLama: Math.max(0, (emp?.sisaHutang || 0) - log.amount),
+                          labelAksi: 'Penambahan Kasbon Baru',
+                          nominalAksi: log.amount,
+                          labelBaru: 'TOTAL HUTANG KASBON SAAT INI',
+                          nominalBaru: emp?.sisaHutang || 0
+                        }
                       })} className="p-1.5 text-white bg-slate-800 hover:bg-slate-900 shadow rounded-lg" title="Cetak Bukti Kasbon">
                         <Printer size={12}/>
                       </button>
