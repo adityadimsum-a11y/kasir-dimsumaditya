@@ -530,7 +530,7 @@ function LemburModule({ employees, expenses, globalCompiled, activeBranch, today
           </div>
         ) : (
           <div className="bg-slate-100 border border-slate-300 text-slate-600 p-3 rounded-xl mb-4 flex items-start gap-3">
-             <div className="text-2xl mt-1">⏳</div><div><div className="font-black uppercase text-sm">Target Belum Tembus</div><div className="text-[10px] font-bold mt-0.5">Adukan hari ini tercatat <b>{totalPorsiHariIni} Porsi</b>. (Butuh >2500 porsi untuk tembus target).</div></div>
+             <div className="text-2xl mt-1">⏳</div><div><div className="font-black uppercase text-sm">Target Belum Tembus</div><div className="text-[10px] font-bold mt-0.5">Adukan hari ini tercatat <b>{totalPorsiHariIni} Porsi</b>. (Butuh &gt;2500 porsi untuk tembus target).</div></div>
           </div>
         )}
 
@@ -625,10 +625,7 @@ function LemburModule({ employees, expenses, globalCompiled, activeBranch, today
               return (
                 <tr key={log.id} className="hover:bg-slate-50/50 transition">
                   <td className="px-4 py-3"><div>{formatDate(log.date)}</div><div className="text-[9px] font-mono text-slate-400 mt-0.5">{log.id}</div></td>
-                  <td onClick={() => emp && onViewDetails(emp)} className="px-4 py-3 cursor-pointer group">
-                    <div className="uppercase text-blue-800 font-black group-hover:text-blue-600 transition-colors flex items-center gap-1">{emp?.name || 'TIM OPERASIONAL'} <Eye size={10} className="text-slate-400"/></div>
-                    <div className="text-[9px] text-slate-400">CAB: {emp?.branch_id || activeBranch}</div>
-                  </td>
+                  <td className="px-4 py-3"><div className="uppercase text-blue-800 font-black">{emp?.name || 'TIM OPERASIONAL'}</div><div className="text-[9px] text-slate-400">CAB: {emp?.branch_id || activeBranch}</div></td>
                   <td className="px-4 py-3 text-[10px] text-slate-600 leading-relaxed uppercase">{log.description}</td>
                   <td className="px-4 py-3 text-right text-emerald-600 font-black">{formatRupiah(log.amount)}</td>
                   <td className="px-4 py-3 text-center">
