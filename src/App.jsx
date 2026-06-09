@@ -213,23 +213,20 @@ export default function App() {
     if (isSuccess) setConfirmDialog(null);
   };
 
-  // =====================================
+ // =====================================
   // GATEKEEPER ROUTING (TAB RENDER)
   // =====================================
   const renderContent = () => {
     // 🛡️ KUNCI PENGAMAN OTOMATIS: 
-    // Jika cabang klik menu "Dashboard", belokkan paksa ke Dashboard Cabang (TabPemalang)
     let safeTab = activeTab;
     if (activeTab === 'dashboard' && user?.branch_type !== 'HQ_FACTORY') {
-      safeTab = 'pemalang';
+      safeTab = 'dashboard_branch'; // KEMBALIKAN KE DASHBOARD CABANG YANG ASLI
     }
 
     switch (safeTab) {
       case 'dashboard': return <TabDashboard user={user} handleTabChange={setActiveTab} {...dbData} />;
-      
-      // Belokkan juga jika ada yang memanggil dashboard_branch atau pemalang
-      case 'dashboard_branch': 
-      case 'pemalang': return <TabPemalang user={user} sendToSheet={sendToSheet} {...dbData} />;
+      case 'dashboard_branch': return <TabDashboardBranch user={user} setPrintData={setPrintData} {...dbData} />; // INI JALUR ASLINYA
+      case 'pemalang': return <TabPemalang user={user} sendToSheet={sendToSheet} {...dbData} />; // INI TAB CLOSING
       
       case 'cash_war_room': return <TabCashWarRoom user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
       case 'scm_war_room': return <TabSCMWarRoom user={user} {...dbData} />;
@@ -247,7 +244,7 @@ export default function App() {
       case 'karyawan': return <TabKaryawan user={user} sendToSheet={sendToSheet} setPrintData={setPrintData} showToast={showToast} {...dbData} />;
       case 'master_data': return <TabMasterData user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
       case 'monitoring_pemalang': return <TabMonitoringPemalang user={user} {...dbData} />;
-      default: return <TabPemalang user={user} sendToSheet={sendToSheet} {...dbData} />;
+      default: return <TabDashboardBranch user={user} {...dbData} />;
     }
   };
 
