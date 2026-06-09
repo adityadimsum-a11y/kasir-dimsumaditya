@@ -220,7 +220,7 @@ export default function App() {
     switch (activeTab) {
       case 'dashboard': return <TabDashboard user={user} handleTabChange={setActiveTab} {...dbData} />;
       case 'dashboard_branch': return <TabDashboardBranch user={user} setPrintData={setPrintData} {...dbData} />;
-      case 'cash_war_room': return <TabCashWarRoom user={user} {...dbData} />;
+      case 'cash_war_room': return <TabCashWarRoom user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
       case 'scm_war_room': return <TabSCMWarRoom user={user} {...dbData} />;
       case 'business_radar': return <TabBusinessRadar user={user} {...dbData} />;
       case 'analytics': return <TabAnalytics user={user} {...dbData} />;
