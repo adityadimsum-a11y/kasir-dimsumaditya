@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { LayoutDashboard, TrendingUp, AlertTriangle, Package, Activity, Wallet, ShoppingCart, Box, AlertCircle, Coins } from 'lucide-react';
-import { formatRp, getTodayStr } from '../../utils/helpers';
+import { formatRp, getTodayStr, formatDate } from '../../utils/helpers';
 
 export default function TabDashboard({ orders, productionBatches, inventory_cost_layers, supplier_ledger, cashflow_transactions }) {
   const todayStr = getTodayStr();
@@ -78,7 +78,7 @@ export default function TabDashboard({ orders, productionBatches, inventory_cost
         </div>
         <div>
           <h2 className="text-2xl font-black text-slate-800 uppercase tracking-wide">HQ DASHBOARD</h2>
-          <p className="text-xs font-bold text-slate-500 mt-1">Sistem Komando Pusat — <span className="text-blue-600">{todayStr}</span></p>
+          <p className="text-xs font-bold text-slate-500 mt-1">Sistem Komando Pusat — <span className="text-blue-600">{formatDate(todayStr)}</span></p>
         </div>
       </div>
 
@@ -152,7 +152,7 @@ export default function TabDashboard({ orders, productionBatches, inventory_cost
               </div>
 
               <div className="bg-slate-800/50 p-6 rounded-2xl border border-slate-700">
-                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Stok Dimsum (Global)</div>
+                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Stok Dimsum Tersedia (Global)</div>
                 <div className="text-4xl font-black text-white my-2">{metrics.totalStokDimsum.toLocaleString('id-ID')} <span className="text-sm text-slate-500">Pcs</span></div>
                 
                 <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-slate-700">
