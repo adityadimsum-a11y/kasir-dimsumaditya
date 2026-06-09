@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { CalendarDays, Plus, Printer, Edit2, Trash2 } from 'lucide-react';
+import { CalendarDays, Printer, Edit2, Trash2 } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
 
@@ -198,7 +198,7 @@ export default function TabCashWarRoom({
               </div>
             </div>
             <div><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Deskripsi (Laporan)</label><input type="text" required value={form.notes} onChange={e=>setForm({...form, notes: e.target.value})} placeholder="Contoh: Beli Bensin..." className="w-full p-2.5 mt-1 border rounded-xl text-xs uppercase outline-none bg-slate-50" /></div>
-            <button type="submit" className={`w-full text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest shadow-lg transition-all ${isEditing ? 'bg-amber-500 hover:bg-amber-600' : 'bg-blue-600 hover:bg-blue-700'}`}><Plus size={16}/> {isEditing ? 'Simpan Revisi' : 'Catat ke Buku Kas'}</button>
+            <button type="submit" className={`w-full text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest shadow-lg transition-all ${isEditing ? 'bg-amber-500 hover:bg-amber-600' : 'bg-blue-600 hover:bg-blue-700'}`}>➕ {isEditing ? 'Simpan Revisi' : 'Catat ke Buku Kas'}</button>
           </form>
         </div>
         
