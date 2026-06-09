@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Users, Landmark, Banknote, UserPlus, Layers, TrendingDown, ShieldAlert, Trash2, Edit2, Check, X, Phone, Image, Eye, MapPin, Undo } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 
+// Helper Format Rupiah Lokal
 const formatRupiah = (angka) => "Rp. " + Number(angka || 0).toLocaleString('id-ID');
 
 export default function TabKaryawan({ 
@@ -16,12 +17,13 @@ export default function TabKaryawan({
   const [selectedBranchFilter, setSelectedBranchFilter] = useState('PUSAT');
   const activeProcessingBranch = isHQ ? selectedBranchFilter : currentBranch;
 
-  // State Pop-up Detail Berkas Karyawan
+  // State Pop-up Detail Berkas Karyawan (Sultan View)
   const [selectedEmployeeDetails, setSelectedEmployeeDetails] = useState(null);
 
   const realMasterBranches = master_branches || masterBranches || [];
   const realCashflowTransactions = cashflow_transactions || cashflowTransactions || [];
 
+  // 1. PETAMAP NAMA CABANG DARI DB
   const petaNamaCabang = useMemo(() => {
     const mapping = { PUSAT: '🍊 TANGERANG PUSAT' };
     (realMasterBranches || []).forEach(b => {
@@ -34,6 +36,7 @@ export default function TabKaryawan({
 
   const daftarCabangId = useMemo(() => Object.keys(petaNamaCabang), [petaNamaCabang]);
 
+  // 2. ENGINE MASTER KARYAWAN & COMPILER KASBON
   const globalEmployeeCompiled = useMemo(() => {
     const dataStaf = {};
     (karyawan || []).forEach(k => {
@@ -64,6 +67,7 @@ export default function TabKaryawan({
     return Object.values(globalEmployeeCompiled).filter(k => k.branch_id === targetBId);
   }, [globalEmployeeCompiled, activeProcessingBranch]);
 
+  // 3. ENGINE RADAR FINANCIAL METRICS
   const metrikSDM = useMemo(() => {
     let kasbonCabang = 0; let gajiCabangBulanIni = 0; let kasbonGlobal = 0; let gajiGlobal = 0;
     const targetBId = String(activeProcessingBranch || 'PUSAT').trim().toUpperCase();
@@ -165,11 +169,11 @@ export default function TabKaryawan({
       )}
 
       {/* ======================================================== */}
-      {/* 🚀 PERBAIKAN UTAMA: MODAL ANTI-POTONG TOP BAR (FIXED VIEW) */}
+      {/* POP-UP MODAL SLIDE VIEW ATAS (DENGAN BINGKAI PORTRAIT UTAN LENGKAP) */}
       {/* ======================================================== */}
       {selectedEmployeeDetails && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[9999] flex justify-center items-start pt-12 md:pt-24 p-4 overflow-y-auto animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl shadow-2xl border max-w-2xl w-full overflow-hidden max-h-[82vh] flex flex-col mb-10">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[9999] flex justify-center items-start pt-12 md:pt-20 p-4 overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl border max-w-2xl w-full overflow-hidden max-h-[85vh] flex flex-col mb-10">
             
             <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2"><Users size={18} className="text-amber-400"/><h3 className="font-black text-sm uppercase tracking-wider">Berkas Profil & Dokumen KTP Staf</h3></div>
@@ -178,8 +182,9 @@ export default function TabKaryawan({
             
             <div className="p-6 overflow-y-auto space-y-6 flex-1">
               <div className="flex flex-col sm:flex-row gap-6 items-center sm:items-start border-b pb-5">
-                <div className="w-36 h-36 rounded-2xl overflow-hidden border-4 border-slate-100 shadow-md shrink-0 bg-slate-100">
-                  <img src={selectedEmployeeDetails.photo_url} alt="Profil Gede" className="w-full h-full object-cover" onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
+                {/* UPGRADE BINGKAI: Diubah menjadi portrait fleksibel w-36 h-48 agar foto full aslinya kelihatan proporsional */}
+                <div className="w-36 h-48 rounded-2xl overflow-hidden border-4 border-slate-100 shadow-md shrink-0 bg-slate-100 flex items-center justify-center">
+                  <img src={selectedEmployeeDetails.photo_url} alt="Profil Full View" className="w-full h-full object-contain bg-slate-50" onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
                 </div>
                 <div className="space-y-2 flex-1 text-center sm:text-left">
                   <h2 className="text-2xl font-black text-slate-900 uppercase tracking-wide">{selectedEmployeeDetails.name}</h2>
@@ -235,7 +240,7 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
           e.preventDefault(); if (!form.employeeId) return; const expenseId = generateId('PRL', form.date);
           const success = await sendToSheet('insert', { id: expenseId, date: form.date, branch_id: activeBranch, category: 'PAYROLL', employee_id: form.employeeId, base_salary: Number(form.baseSalary), allowance: Number(form.allowance), kasbon_deduction: hitungNetto.potKasbon, other_deduction: Number(form.otherDeduction), amount: hitungNetto.totalCair, payment_method: form.paymentMethod, description: `Gaji Bulanan [${activeBranch}]` }, 'expenses');
           if (success) {
-            await sendToSheet('insert', { id: 'CFO-' + new Date().getTime(), date: form.date, branch_id: form.paymentMethod === 'TF' ? 'HQ_FACTORY' : activeBranch, transaction_type: 'OUTFLOW', category: 'OPERATIONAL_EXPENSE', amount: hitungNetto.totalCair, payment_method: form.paymentMethod, reference_id: expenseId, description: `Payroll Jurnal — Cabang: ${activeBranch}` }, 'cashflow_transactions');
+            await sendToSheet('insert', { id: 'CFO-' + new Date().getTime(), date: form.date, branch_id: form.paymentMethod === 'TF' ? 'HQ_FACTORY' : activeBranch, transaction_type: 'OUTFLOW', category: 'OPERATIONAL_EXPENSE', amount: hitungNetto.totalCair, payment_method: form.paymentMethod, reference_id: expenseId, description: `Gaji Jurnal — Cabang: ${activeBranch}` }, 'cashflow_transactions');
             setForm({ date: todayStr, employeeId: '', baseSalary: '0', allowance: '0', otherDeduction: '0', paymentMethod: 'CASH' });
           }
         }} className="space-y-4">
@@ -266,7 +271,7 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
                 <tr key={p.id} className="hover:bg-slate-50/50 transition">
                   <td className="px-4 py-3 text-slate-500">{formatDate(p.date)}</td>
                   <td onClick={() => emp && onViewDetails(emp)} className="px-4 py-3 flex items-center gap-2.5 cursor-pointer group">
-                    <img src={emp?.photo_url} alt="Profile" className="w-7 h-7 rounded-full object-cover border group-hover:scale-110 transition-transform" onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
+                    <img src={emp?.photo_url} alt="Profile" className="w-7 h-7 rounded-full object-cover border" onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
                     <span className="uppercase group-hover:text-blue-600 transition-colors">{emp?.name || 'STAF'}</span>
                   </td>
                   <td className="px-4 py-3 text-right">{formatRupiah((p.base_salary||0)+(p.allowance||0))}</td>
@@ -305,7 +310,7 @@ function KasbonModule({ employees, expenses, globalCompiled, activeBranch, today
           <div>
             <select required value={form.employeeId} onChange={e=>setForm({...form, employeeId: e.target.value})} className="w-full p-2.5 border rounded-xl font-black text-sm uppercase outline-none"><option value="">-- Pilih Karyawan --</option>{employees.map(k => <option key={k.id} value={k.id}>{k.name} ({k.position})</option>)}</select>
           </div>
-          <div><input type="text" required value={formatRupiah(form.amount)} onChange={e=>setForm({...form, amount: e.target.value.replace(/\D/g, '')})} className="w-full p-2.5 bg-orange-50 border border-orange-200 text-orange-900 rounded-xl font-black text-sm" />{isOverlimit && <div className="mt-1.5 p-2 bg-red-600 text-white rounded-lg font-black text-[9px] uppercase">🚨 Overlimit! Total pinjaman melebihi sisa gaji pokok!</div>}</div>
+          <div><input type="text" required value={formatRupiah(form.amount)} onChange={e=>setForm({...form, amount: e.target.value.replace(/\D/g, '')})} className="w-full p-2.5 bg-orange-50 border border-orange-200 text-orange-900 rounded-xl font-black text-sm" />{isOverlimit && <div className="mt-1.5 p-2 bg-red-600 text-white rounded-lg font-black text-[9px] uppercase">🚨 Overlimit! Pinjaman melebihi sisa gaji pokok!</div>}</div>
           <div><input type="text" value={form.notes} onChange={e=>setForm({...form, notes: e.target.value})} className="w-full p-2.5 border rounded-xl text-xs" placeholder="Keperluan" /></div>
           <button type="submit" disabled={isOverlimit || !form.employeeId} className="w-full bg-orange-600 text-white font-black py-3 rounded-xl text-xs uppercase disabled:opacity-40">Simpan Jurnal Kasbon</button>
         </form>
@@ -321,7 +326,7 @@ function KasbonModule({ employees, expenses, globalCompiled, activeBranch, today
                 <tr key={log.id} className="hover:bg-slate-50/50 transition">
                   <td className="px-4 py-3"><div>{formatDate(log.date)}</div><div className="text-[9px] font-mono text-slate-400 font-bold mt-0.5">{log.id}</div></td>
                   <td onClick={() => emp && onViewDetails(emp)} className="px-4 py-3 flex items-center gap-2.5 cursor-pointer group">
-                    <img src={emp?.photo_url} alt="Profile" className="w-7 h-7 rounded-full object-cover border group-hover:scale-110 transition-transform" onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
+                    <img src={emp?.photo_url} alt="Profile" className="w-7 h-7 rounded-full object-cover border" onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
                     <span className="uppercase group-hover:text-blue-600 transition-colors">{emp?.name || 'STAF'}</span>
                   </td>
                   <td className="px-4 py-3 text-slate-500 font-normal">{log.description}</td>
@@ -341,10 +346,36 @@ function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch,
   const [form, setForm] = useState({ id: '', name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT', phone: '', address: '', photo_base64: '', ktp_base64: '' });
   const [isEditingMode, setIsEditingMode] = useState(false);
 
-  const konversiFileKeBase64 = (file, keyName) => {
+  // ========================================================
+  // 🔥 PERBAIKAN ENGINE SULTAN: Jaga Rasio Full View Saat Kompresi
+  // ========================================================
+  const prosesDanKompresGambarSultan = (file, keyName) => {
     if(!file) return;
     const reader = new FileReader();
-    reader.onloadend = () => { setForm(prev => ({ ...prev, [keyName]: reader.result })); };
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // 🎯 UPGRADE: Jangan dipangkas 1:1! Turunkan skala proporsional agar filenya ringan tapi bentuk aslinya utuh!
+        const maxDim = 800; // Maks resolusi 800px (Sangat ramah Google Sheets payload)
+        let width = img.width; let height = img.height;
+        if (width > height) {
+          if (width > maxDim) { height *= maxDim / width; width = maxDim; }
+        } else {
+          if (height > maxDim) { width *= maxDim / height; height = maxDim; }
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+        setForm(prev => ({ ...prev, [keyName]: compressedBase64 }));
+      };
+      img.src = event.target.result;
+    };
     reader.readAsDataURL(file);
   };
 
@@ -378,8 +409,8 @@ function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch,
           )}
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">Nama Lengkap</label><input type="text" required readOnly={isEditingMode} value={form.name} onChange={e=>setForm({...form, name: e.target.value})} className={`w-full p-2 border rounded-lg text-sm uppercase outline-none ${isEditingMode ? 'bg-slate-100 font-black text-slate-500 cursor-not-allowed' : ''}`} /></div>
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">No. WhatsApp</label><input type="text" required placeholder="Contoh: 081234567" value={form.phone} onChange={e=>setForm({...form, phone: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold" /></div>
-          <div><label className="text-[10px] font-black text-slate-500 uppercase block mb-1">Upload Pas Foto Profil Baru</label><input type="file" accept="image/*" onChange={e => konversiFileKeBase64(e.target.files[0], 'photo_base64')} className="w-full text-xs font-bold text-slate-500 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-slate-900 file:text-white" /></div>
-          <div><label className="text-[10px] font-black text-orange-600 uppercase block mb-1">Upload Berkas Foto KTP</label><input type="file" accept="image/*" onChange={e => konversiFileKeBase64(e.target.files[0], 'ktp_base64')} className="w-full text-xs font-bold text-slate-500 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-orange-600 file:text-white" /></div>
+          <div><label className="text-[10px] font-black text-slate-500 uppercase block mb-1">Upload Pas Foto Profil Baru</label><input type="file" accept="image/*" onChange={e => prosesDanKompresGambarSultan(e.target.files[0], 'photo_base64')} className="w-full text-xs font-bold text-slate-500 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-slate-900 file:text-white" /></div>
+          <div><label className="text-[10px] font-black text-orange-600 uppercase block mb-1">Upload Berkas Foto KTP</label><input type="file" accept="image/*" onChange={e => prosesDanKompresGambarSultan(e.target.files[0], 'ktp_base64')} className="w-full text-xs font-bold text-slate-500 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-orange-600 file:text-white" /></div>
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">Gaji Pokok</label><input type="text" required value={formatRupiah(form.baseSalary)} onChange={e=>setForm({...form, baseSalary: e.target.value.replace(/\D/g, '')})} className="w-full p-2 border rounded-lg font-bold text-sm" /></div>
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">Alamat Rumah KTP</label><textarea required rows="2" value={form.address} onChange={e=>setForm({...form, address: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold uppercase none outline-none" placeholder="Isi nama jalan..."></textarea></div>
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">Posisi Kerja</label><select value={form.position} onChange={e=>setForm({...form, position: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold uppercase"><option value="KASIR">KASIR / RESTO FRONT</option><option value="DAPUR_RESTO">COOK / DAPUR RESTO</option><option value="WAITRESS">PRAMUSAJI / WAITRESS</option><option value="PRODUKSI_PABREK">STAFF PRODUKSI ADUKAN</option><option value="DRIVER">DRIVING LOGISTIK</option></select></div>
