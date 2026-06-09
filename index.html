@@ -100,6 +100,46 @@
         }
       }
     </style>
+    <style>
+      /* ========================================================
+         🔥 DIMSUM ADITYA - UNIVERSAL PRINT ENGINE STYLES
+         ======================================================== */
+      @media print {
+        body > #root { display: none !important; }
+        #print-root { display: block !important; }
+
+        .print-dot-matrix {
+          font-family: 'Courier New', Courier, monospace !important;
+          font-size: 12px !important;
+          line-height: 1.2 !important;
+          color: black !important;
+          background: white !important;
+          width: 100%;
+          margin: 0;
+          padding: 10px;
+        }
+        
+        @page { margin: 0; }
+
+        .print-a4-recap {
+          font-family: Arial, sans-serif !important;
+          font-size: 11px !important;
+          color: black !important;
+          background: white !important;
+          width: 210mm;
+          min-height: 297mm;
+          padding: 15mm;
+          margin: 0 auto;
+        }
+
+        a[href]:after { content: none !important; }
+        .no-print { display: none !important; }
+      }
+
+      @media screen {
+        #print-root { display: none !important; }
+      }
+    </style>
   </head>
   <body class="bg-slate-50 antialiased text-slate-800 selection:bg-red-500 selection:text-white">
     <div id="root"></div>
