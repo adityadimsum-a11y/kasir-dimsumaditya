@@ -2,21 +2,22 @@ import React, { useState, useMemo } from 'react';
 import { Users, FileText, CheckCircle, Banknote, Landmark, UserPlus, Layers } from 'lucide-react';
 import { formatRp, getTodayStr, generateId, formatDate } from '../../utils/helpers';
 
-export default function TabKaryawan({ karyawan, expenses, masterBranches, sendToSheet, showToast, user }) {
+// FIX: Pastikan nama parameter menggunakan master_branches sesuai database Google Sheet
+export default function TabKaryawan({ karyawan, expenses, master_branches, sendToSheet, showToast, user }) {
   const todayStr = getTodayStr();
   const currentBranch = user?.branch_id || 'PUSAT';
   const isHQ = user?.branch_type === 'HQ_FACTORY' || currentBranch === 'PUSAT';
 
-  // State navigasi utama
+  // Navigasi sub-tab dalam payroll
   const [activeSubTab, setActiveSubTab] = useState(isHQ ? 'payroll' : 'kasbon');
   
-  // FIX CRITICAL: State filter cabang aktif khusus untuk pandangan Tangerang Pusat
+  // State filter cabang aktif (Default melihat pusat terlebih dahulu)
   const [selectedBranchFilter, setSelectedBranchFilter] = useState('PUSAT');
 
-  // Menentukan cabang mana yang sedang diproses datanya
+  // Menentukan wilayah data yang sedang dibongkar
   const activeProcessingBranch = isHQ ? selectedBranchFilter : currentBranch;
 
-  // State Form Dinamis dengan Masking Rupiah
+  // State Form dengan Live Masking Rupiah
   const [formKasbon, setFormKasbon] = useState({ date: todayStr, employeeId: '', amount: '', notes: '' });
   const [formMaster, setFormMaster] = useState({ name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT' });
   const [formPayroll, setFormPayroll] = useState({ 
@@ -28,18 +29,18 @@ export default function TabKaryawan({ karyawan, expenses, masterBranches, sendTo
     paymentMethod: 'CASH' 
   });
 
-  // 1. DAFTAR WILAYAH UNTUK TOMBOL SWITCHER PUSAT
+  // FIX: Mengambil daftar ID Cabang langsung menggunakan key master_branches yang valid
   const daftarCabang = useMemo(() => {
-    const list = (masterBranches || []).filter(b => !b.isDeleted).map(b => b.branch_id);
+    const list = (master_branches || []).filter(b => !b.isDeleted).map(b => b.branch_id);
     if (!list.includes('PUSAT')) list.unshift('PUSAT');
     return list;
-  }, [masterBranches]);
+  }, [master_branches]);
 
-  // 2. ENGINE EVALUASI HUTANG & KASBON KARYAWAN TERISOLASI PER CABANG
+  // ENGINE FILTER DATA KARYAWAN & LOG PINJAMAN PER CABANG (ANTI-CAMPUR)
   const employeeData = useMemo(() => {
       const balances = {};
       
-      // Filter Karyawan ketat berdasarkan Cabang yang sedang dipilih di atas layar
+      // Saring staf: Hanya munculkan staf yang branch_id nya COCOK dengan tombol cabang yang sedang diklik
       (karyawan || []).forEach(k => {
           if (k.isDeleted) return;
           if (String(k.branch_id).toUpperCase() === activeProcessingBranch.toUpperCase()) {
@@ -56,7 +57,7 @@ export default function TabKaryawan({ karyawan, expenses, masterBranches, sendTo
           }
       });
 
-      // Olah data arus pengeluaran kasbon & payroll
+      // Tarik histori uang kasbon & potong gaji yang selaras dengan data staf tersebut
       (expenses || []).forEach(e => {
           if (e.isDeleted || !e.employee_id || !balances[e.employee_id]) return;
           if (e.category === 'KASBON') {
@@ -76,28 +77,22 @@ export default function TabKaryawan({ karyawan, expenses, masterBranches, sendTo
 
   const activeEmployees = Object.values(employeeData);
 
-  // 3. LOG SEJARAH GAJI YANG SUDAH DIBAYARKAN DI CABANG TERPILIH
+  // LOG HISTORI PENGGAJIAN BULANAN PADA CABANG TERPILIH
   const payrollHistory = useMemo(() => {
     return (expenses || [])
       .filter(e => !e.isDeleted && e.category === 'PAYROLL' && String(e.branch_id).toUpperCase() === activeProcessingBranch.toUpperCase())
       .sort((a, b) => new Date(b.date) - new Date(a.date));
   }, [expenses, activeProcessingBranch]);
 
-  // Handler Auto-Fill ketika admin memilih nama karyawan di form payroll
   const handlePayrollEmployeeChange = (empId) => {
     const emp = employeeData[empId];
     if (emp) {
-      setFormPayroll(prev => ({
-        ...prev,
-        employeeId: empId,
-        baseSalary: String(emp.baseSalary || 0)
-      }));
+      setFormPayroll(prev => ({ ...prev, employeeId: empId, baseSalary: String(emp.baseSalary || 0) }));
     } else {
       setFormPayroll(prev => ({ ...prev, employeeId: '', baseSalary: '0' }));
     }
   };
 
-  // Hitung Potongan Kasbon Otomatis & Netto Cair
   const selectedEmpKasbon = formPayroll.employeeId ? (employeeData[formPayroll.employeeId]?.sisaHutang || 0) : 0;
   
   const hitungNettoCair = useMemo(() => {
@@ -105,14 +100,12 @@ export default function TabKaryawan({ karyawan, expenses, masterBranches, sendTo
     const tunjangan = Number(formPayroll.allowance || 0);
     const potLain = Number(formPayroll.otherDeduction || 0);
     
-    // Potong kasbon otomatis: jika hutang lebih besar dari gaji, potong maksimal senilai total gaji berjalan
     const potKasbon = Math.min(selectedEmpKasbon, gapok + tunjangan);
     const netto = (gapok + tunjangan) - (potKasbon + potLain);
     
     return { potKasbon, netto };
   }, [formPayroll.baseSalary, formPayroll.allowance, formPayroll.otherDeduction, selectedEmpKasbon]);
 
-  // ACTIONS TO CLOUD SHEET
   const handleSimpanPayroll = async (e) => {
     e.preventDefault();
     if (!formPayroll.employeeId) { showToast('Pilih karyawan terlebih dahulu!', 'error'); return; }
@@ -128,15 +121,15 @@ export default function TabKaryawan({ karyawan, expenses, masterBranches, sendTo
       allowance: Number(formPayroll.allowance),
       kasbon_deduction: hitungNettoCair.potKasbon,
       other_deduction: Number(formPayroll.otherDeduction),
-      amount: hitungNettoCair.netto, // Netto Cair yang memotong kas global
+      amount: hitungNettoCair.netto,
       payment_method: formPayroll.paymentMethod,
-      description: `Gaji Bulanan [${activeProcessingBranch}] - ${emp.name} (${emp.position}). Bersih: ${formatRp(hitungNettoCair.netto)}`
+      description: `Gaji [${activeProcessingBranch}] - ${emp.name} (${emp.position}). Bersih: ${formatRp(hitungNettoCair.netto)}`
     };
 
     const success = await sendToSheet('insert', payload, 'expenses');
     if (success) {
       setFormPayroll({ date: todayStr, employeeId: '', baseSalary: '0', allowance: '0', otherDeduction: '0', paymentMethod: 'CASH' });
-      if (showToast) showToast('Payroll berhasil diproses & tercatat di pembukuan!', 'success');
+      if (showToast) showToast('Payroll berhasil diproses & tercatat!', 'success');
     }
   };
 
@@ -187,7 +180,7 @@ export default function TabKaryawan({ karyawan, expenses, masterBranches, sendTo
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
       
-      {/* FIX REQ POINT 1: SWITCHER WILAYAH CABANG KHUSUS UNTUK TANGERANG PUSAT */}
+      {/* FILTER BUTTON PER-WILAYAH CABANG (UNTUK AKUN TANGERANG PUSAT) */}
       {isHQ && (
         <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 flex flex-col md:flex-row items-center justify-between shadow-lg">
           <div className="flex items-center gap-2 mb-3 md:mb-0">
@@ -209,7 +202,7 @@ export default function TabKaryawan({ karyawan, expenses, masterBranches, sendTo
         </div>
       )}
 
-      {/* NAVIGASI SUB-TAB OPERASIONAL */}
+      {/* SUB-TAB NAVIGASI */}
       <div className="flex flex-wrap gap-2 border-b pb-4">
         {isHQ && (
           <button onClick={() => setActiveSubTab('payroll')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase transition-all ${activeSubTab === 'payroll' ? 'bg-red-600 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-100'}`}><Landmark size={14} className="inline mr-2"/> Gaji & Payroll</button>
@@ -218,7 +211,7 @@ export default function TabKaryawan({ karyawan, expenses, masterBranches, sendTo
         <button onClick={() => setActiveSubTab('master')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase transition-all ${activeSubTab === 'master' ? 'bg-slate-800 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-100'}`}><UserPlus size={14} className="inline mr-2"/> {isHQ ? 'Master SDM Wilayah' : 'Registrasi Staf Lokal'}</button>
       </div>
 
-      {/* FIX REQ POINT 2: SUB-TAB PAYROLL AKTIF (ANTI-BLANK ENGINE) */}
+      {/* SUB-TAB PAYROLL */}
       {activeSubTab === 'payroll' && isHQ && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-1 bg-white rounded-2xl border shadow-sm p-6 border-t-4 border-t-red-600 h-max">
@@ -333,7 +326,7 @@ export default function TabKaryawan({ karyawan, expenses, masterBranches, sendTo
         </div>
       )}
 
-      {/* TAB KASBON KARYAWAN (TERISOLASI DENGAN AMAN PER CABANG) */}
+      {/* SUB-TAB KASBON KARYAWAN */}
       {activeSubTab === 'kasbon' && (
          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-1 bg-white rounded-2xl border shadow-sm p-6 border-t-4 border-t-orange-500 h-max">
@@ -393,7 +386,7 @@ export default function TabKaryawan({ karyawan, expenses, masterBranches, sendTo
          </div>
       )}
 
-      {/* REGISTRASI MASTER DATA SDM */}
+      {/* SUB-TAB MASTER DATA SDM */}
       {activeSubTab === 'master' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-1 bg-white rounded-2xl border shadow-sm p-6 border-t-4 border-t-slate-800 h-max">
