@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Users, Landmark, Banknote, Layers, TrendingDown, ShieldAlert, Trash2, Edit2, Check, X, Phone, Image, Eye, MapPin, Undo, Link, Printer, CalendarDays, History, ShoppingCart, CheckCircle2, Calculator } from 'lucide-react';
+import { Users, Landmark, Banknote, Layers, TrendingDown, ShieldAlert, Trash2, Edit2, Check, X, Phone, Image, Eye, MapPin, Undo, Link, Printer, CalendarDays, History, ShoppingCart, CheckCircle2, Calculator, Clock, Coffee, Target, Flame } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
 
@@ -9,9 +9,7 @@ const parseDriveLink = (url) => {
   if (!url) return '';
   if (url.includes('drive.google.com/file/d/')) {
     const match = url.match(/\/d\/(.*?)\//);
-    if (match && match[1]) {
-      return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w1000`;
-    }
+    if (match && match[1]) { return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w1000`; }
   }
   return url;
 };
@@ -21,7 +19,6 @@ export default function TabKaryawan({
 }) {
   const todayStr = getTodayStr();
   const currentBranch = user?.branch_id || 'PUSAT';
-  // HAK AKSES DIREKTUR / PUSAT
   const isHQ = user?.branch_type === 'HQ_FACTORY' || currentBranch === 'PUSAT';
 
   const [activeSubTab, setActiveSubTab] = useState(isHQ ? 'payroll' : 'kasbon');
@@ -36,9 +33,7 @@ export default function TabKaryawan({
   const petaNamaCabang = useMemo(() => {
     const mapping = { PUSAT: '🍊 TANGERANG PUSAT' };
     (realMasterBranches || []).forEach(b => {
-      if (b && !b.isDeleted && b.branch_id) {
-        mapping[String(b.branch_id).trim().toUpperCase()] = `🏪 ${String(b.branch_name || b.branch_id).toUpperCase()}`;
-      }
+      if (b && !b.isDeleted && b.branch_id) { mapping[String(b.branch_id).trim().toUpperCase()] = `🏪 ${String(b.branch_name || b.branch_id).toUpperCase()}`; }
     });
     return mapping;
   }, [realMasterBranches]);
@@ -53,65 +48,46 @@ export default function TabKaryawan({
       dataStaf[k.id] = {
         id: k.id, name: k.name || 'TANPA NAMA', position: k.position || 'STAF', baseSalary: Number(k.baseSalary || 0), branch_id: bId, status: k.status || 'AKTIF',
         phone: k.phone || '-', address: k.address || 'ALAMAT BELUM DIISI',
-        photo_url: parseDriveLink(k.photo_url) || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-        ktp_url: parseDriveLink(k.ktp_url) || '', raw_photo_link: k.photo_url || '', raw_ktp_link: k.ktp_url || '',
+        photo_url: parseDriveLink(k.photo_url) || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150', ktp_url: parseDriveLink(k.ktp_url) || '', raw_photo_link: k.photo_url || '', raw_ktp_link: k.ktp_url || '',
         totalKasbon: 0, totalDibayar: 0, sisaHutang: 0, 
-        raw_debts: [], payroll_list: [], 
-        history_kredit: [], history_kasbon: []
+        raw_debts: [], payroll_list: [], history_kredit: [], history_kasbon: []
       };
     });
 
     (expenses || []).forEach(e => {
       if (!e || e.isDeleted || optimisticDeletedIds.has(e.id) || !e.employee_id || !dataStaf[e.employee_id]) return;
       if (e.category === 'KASBON' || e.category === 'KREDIT_BARANG') {
-        dataStaf[e.employee_id].totalKasbon += Number(e.amount || 0);
-        dataStaf[e.employee_id].raw_debts.push(e); 
+        dataStaf[e.employee_id].totalKasbon += Number(e.amount || 0); dataStaf[e.employee_id].raw_debts.push(e); 
       }
       if (e.category === 'PAYROLL') {
-        dataStaf[e.employee_id].totalDibayar += Number(e.kasbon_deduction || 0);
-        dataStaf[e.employee_id].payroll_list.push(e); 
+        dataStaf[e.employee_id].totalDibayar += Number(e.kasbon_deduction || 0); dataStaf[e.employee_id].payroll_list.push(e); 
       }
     });
 
     Object.values(dataStaf).forEach(emp => { 
       emp.sisaHutang = Math.max(0, emp.totalKasbon - emp.totalDibayar); 
       emp.payroll_list.sort((a, b) => new Date(b.date) - new Date(a.date));
-      
       let poolDibayar = emp.totalDibayar;
       emp.raw_debts.sort((a, b) => new Date(a.date) - new Date(b.date));
       
       emp.raw_debts.forEach(debt => {
-        let nominalHutang = Number(debt.amount || 0);
-        let terbayarUntukIni = 0;
-        
-        if (poolDibayar >= nominalHutang) {
-          terbayarUntukIni = nominalHutang;
-          poolDibayar -= nominalHutang;
-        } else if (poolDibayar > 0) {
-          terbayarUntukIni = poolDibayar;
-          poolDibayar = 0;
-        }
+        let nominalHutang = Number(debt.amount || 0); let terbayarUntukIni = 0;
+        if (poolDibayar >= nominalHutang) { terbayarUntukIni = nominalHutang; poolDibayar -= nominalHutang; } 
+        else if (poolDibayar > 0) { terbayarUntukIni = poolDibayar; poolDibayar = 0; }
 
         let sisa = nominalHutang - terbayarUntukIni;
         let status = sisa === 0 ? 'LUNAS' : (terbayarUntukIni > 0 ? 'BERJALAN' : 'BELUM BAYAR');
-        
         let processedDebt = { ...debt, terbayar: terbayarUntukIni, sisa: sisa, status: status };
 
         if (debt.category === 'KREDIT_BARANG') {
-          let tenor = Number(debt.tenor || 1);
-          let cicilanPerBulan = nominalHutang / tenor;
+          let tenor = Number(debt.tenor || 1); let cicilanPerBulan = nominalHutang / tenor;
           processedDebt.cicilanKe = sisa === 0 ? tenor : Math.floor(terbayarUntukIni / cicilanPerBulan);
           processedDebt.cicilanSaranPerBulan = cicilanPerBulan;
           emp.history_kredit.push(processedDebt);
-        } else {
-          emp.history_kasbon.push(processedDebt);
-        }
+        } else { emp.history_kasbon.push(processedDebt); }
       });
-      
-      emp.history_kredit.reverse();
-      emp.history_kasbon.reverse();
+      emp.history_kredit.reverse(); emp.history_kasbon.reverse();
     });
-
     return dataStaf;
   }, [karyawan, expenses, optimisticDeletedIds]);
 
@@ -130,9 +106,7 @@ export default function TabKaryawan({
     Object.values(globalEmployeeCompiled).forEach(emp => {
       if (emp.status === 'AKTIF' && !optimisticDeletedIds.has(emp.id)) {
         kasbonGlobal += emp.sisaHutang;
-        if (activeProcessingBranch === 'SEMUA_CABANG' || emp.branch_id === activeProcessingBranch) {
-          kasbonCabang += emp.sisaHutang;
-        }
+        if (activeProcessingBranch === 'SEMUA_CABANG' || emp.branch_id === activeProcessingBranch) { kasbonCabang += emp.sisaHutang; }
       }
     });
 
@@ -140,9 +114,7 @@ export default function TabKaryawan({
       if (!e || e.isDeleted || optimisticDeletedIds.has(e.id)) return;
       if (e.category === 'PAYROLL' && e.date && e.date.startsWith(curMonth)) {
         gajiGlobal += Number(e.amount || 0);
-        if (activeProcessingBranch === 'SEMUA_CABANG' || String(e.branch_id || '').trim().toUpperCase() === activeProcessingBranch) {
-          gajiCabangBulanIni += Number(e.amount || 0);
-        }
+        if (activeProcessingBranch === 'SEMUA_CABANG' || String(e.branch_id || '').trim().toUpperCase() === activeProcessingBranch) { gajiCabangBulanIni += Number(e.amount || 0); }
       }
     });
     return { kasbonCabang, gajiCabangBulanIni, kasbonGlobal, gajiGlobal };
@@ -178,23 +150,20 @@ export default function TabKaryawan({
         </div>
       )}
 
-      <div className="flex gap-2 border-b pb-4">
+      {/* 🚀 NAVIGASI SUB TABS (DITAMBAH LEMBUR & BONUS) */}
+      <div className="flex flex-wrap gap-2 border-b pb-4">
         {isHQ && <button onClick={() => setActiveSubTab('payroll')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase ${activeSubTab === 'payroll' ? 'bg-emerald-600 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>Gaji & Payroll</button>}
-        <button onClick={() => setActiveSubTab('kasbon')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase ${activeSubTab === 'kasbon' ? 'bg-orange-600 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>Kasbon & Kredit Barang</button>
-        <button onClick={() => setActiveSubTab('master')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase ${activeSubTab === 'master' ? 'bg-slate-800 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>Master SDM Wilayah</button>
+        <button onClick={() => setActiveSubTab('lembur')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase ${activeSubTab === 'lembur' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>Lembur & Bonus</button>
+        <button onClick={() => setActiveSubTab('kasbon')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase ${activeSubTab === 'kasbon' ? 'bg-orange-600 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>Kasbon & Kredit</button>
+        <button onClick={() => setActiveSubTab('master')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase ${activeSubTab === 'master' ? 'bg-slate-800 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>Master SDM</button>
       </div>
 
-      {activeSubTab === 'payroll' && isHQ && (
-        <PayrollModule employees={employeesDiCabangAktif} expenses={expenses} globalCompiled={globalEmployeeCompiled} activeBranch={activeProcessingBranch} todayStr={todayStr} sendToSheet={sendToSheet} onViewDetails={setSelectedEmployeeDetails} user={user} setOptimisticDeletedIds={setOptimisticDeletedIds} isHQ={isHQ} showToast={showToast} optimisticDeletedIds={optimisticDeletedIds} />
-      )}
-      {activeSubTab === 'kasbon' && (
-        <KasbonModule employees={employeesDiCabangAktif} expenses={expenses} globalCompiled={globalEmployeeCompiled} activeBranch={activeProcessingBranch} todayStr={todayStr} sendToSheet={sendToSheet} onViewDetails={setSelectedEmployeeDetails} user={user} setOptimisticDeletedIds={setOptimisticDeletedIds} isHQ={isHQ} showToast={showToast} optimisticDeletedIds={optimisticDeletedIds} />
-      )}
-      {activeSubTab === 'master' && (
-        <MasterSDMModule employees={employeesDiCabangAktif} branchListId={daftarCabangId} branchMapName={petaNamaCabang} activeBranch={activeProcessingBranch} isHQ={isHQ} sendToSheet={sendToSheet} showToast={showToast} onViewDetails={setSelectedEmployeeDetails} setOptimisticDeletedIds={setOptimisticDeletedIds} />
-      )}
+      {activeSubTab === 'payroll' && isHQ && <PayrollModule employees={employeesDiCabangAktif} expenses={expenses} globalCompiled={globalEmployeeCompiled} activeBranch={activeProcessingBranch} todayStr={todayStr} sendToSheet={sendToSheet} onViewDetails={setSelectedEmployeeDetails} user={user} setOptimisticDeletedIds={setOptimisticDeletedIds} isHQ={isHQ} showToast={showToast} optimisticDeletedIds={optimisticDeletedIds} />}
+      {activeSubTab === 'lembur' && <LemburModule employees={employeesDiCabangAktif} expenses={expenses} globalCompiled={globalEmployeeCompiled} activeBranch={activeProcessingBranch} todayStr={todayStr} sendToSheet={sendToSheet} onViewDetails={setSelectedEmployeeDetails} user={user} setOptimisticDeletedIds={setOptimisticDeletedIds} isHQ={isHQ} showToast={showToast} optimisticDeletedIds={optimisticDeletedIds} />}
+      {activeSubTab === 'kasbon' && <KasbonModule employees={employeesDiCabangAktif} expenses={expenses} globalCompiled={globalEmployeeCompiled} activeBranch={activeProcessingBranch} todayStr={todayStr} sendToSheet={sendToSheet} onViewDetails={setSelectedEmployeeDetails} user={user} setOptimisticDeletedIds={setOptimisticDeletedIds} isHQ={isHQ} showToast={showToast} optimisticDeletedIds={optimisticDeletedIds} />}
+      {activeSubTab === 'master' && <MasterSDMModule employees={employeesDiCabangAktif} branchListId={daftarCabangId} branchMapName={petaNamaCabang} activeBranch={activeProcessingBranch} isHQ={isHQ} sendToSheet={sendToSheet} showToast={showToast} onViewDetails={setSelectedEmployeeDetails} setOptimisticDeletedIds={setOptimisticDeletedIds} />}
 
-      {/* POP-UP SULTAN */}
+      {/* POP-UP SULTAN: ARSIP PROFIL */}
       {selectedEmployeeDetails && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[9999] flex justify-center items-start pt-12 md:pt-16 p-4 overflow-y-auto animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl shadow-2xl border max-w-5xl w-full overflow-hidden flex flex-col mb-10">
@@ -205,8 +174,7 @@ export default function TabKaryawan({
             
             <div className="p-6 overflow-y-auto max-h-[78vh]">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                
-                {/* KOLOM 1: PROFIL & KTP */}
+                {/* KOLOM KIRI */}
                 <div className="space-y-6">
                   <div className="w-full aspect-[3/4] rounded-2xl overflow-hidden border shadow-inner bg-slate-50 flex items-center justify-center">
                     <img src={selectedEmployeeDetails.photo_url} alt="Profil Full" className="w-full h-full object-contain" onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
@@ -226,16 +194,13 @@ export default function TabKaryawan({
                   {selectedEmployeeDetails.ktp_url && (
                     <div className="space-y-1.5">
                       <div className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1"><Image size={12}/> Arsip KTP</div>
-                      <div className="w-full bg-slate-100 border rounded-xl overflow-hidden shadow-inner flex items-center justify-center h-32 cursor-pointer hover:opacity-80 transition" onClick={() => window.open(selectedEmployeeDetails.ktp_url, '_blank')}>
-                        <img src={selectedEmployeeDetails.ktp_url} alt="KTP" className="w-full h-full object-cover" />
-                      </div>
+                      <div className="w-full bg-slate-100 border rounded-xl overflow-hidden shadow-inner flex items-center justify-center h-32 cursor-pointer hover:opacity-80 transition" onClick={() => window.open(selectedEmployeeDetails.ktp_url, '_blank')}><img src={selectedEmployeeDetails.ktp_url} alt="KTP" className="w-full h-full object-cover" /></div>
                     </div>
                   )}
                 </div>
 
-                {/* KOLOM 2 & 3: KREDIT BARANG & PAYROLL */}
+                {/* KOLOM KANAN: TRACK RECORD */}
                 <div className="md:col-span-2 space-y-6">
-                  
                   <div className="bg-slate-50 border rounded-2xl p-5">
                     <h4 className="text-xs font-black uppercase text-slate-800 border-b pb-2 mb-4 flex items-center gap-2"><ShoppingCart size={14} className="text-blue-600"/> Buku Mutasi Kredit Barang</h4>
                     {selectedEmployeeDetails.history_kredit.length > 0 ? (
@@ -275,10 +240,7 @@ export default function TabKaryawan({
                           {selectedEmployeeDetails.history_kasbon.map((ks, i) => (
                             <div key={i} className={`flex flex-col border p-3 rounded-xl gap-2 ${ks.status === 'LUNAS' ? 'bg-slate-100/50' : 'bg-white border-l-4 border-l-orange-500 shadow-sm'}`}>
                               <div className="flex justify-between items-start">
-                                <div>
-                                  <div className="text-xs font-black text-slate-800 uppercase">{ks.description}</div>
-                                  <div className="text-[9px] font-mono text-slate-400 mt-0.5">{formatDate(ks.date)}</div>
-                                </div>
+                                <div><div className="text-xs font-black text-slate-800 uppercase">{ks.description}</div><div className="text-[9px] font-mono text-slate-400 mt-0.5">{formatDate(ks.date)}</div></div>
                                 <span className={`px-2 py-0.5 text-[8px] font-black uppercase rounded ${ks.status === 'LUNAS' ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'}`}>{ks.status}</span>
                               </div>
                               <div className="flex justify-between items-center text-[10px] font-bold border-t pt-1">
@@ -297,13 +259,10 @@ export default function TabKaryawan({
                         <div className="space-y-3">
                           {selectedEmployeeDetails.payroll_list.map((pr, i) => {
                             const isDescriptionHasPeriod = pr.description && pr.description.includes('Periode:');
-                            const extractedPeriod = isDescriptionHasPeriod ? pr.description.split('Periode:')[1].trim() : formatDate(pr.date);
+                            const extractedPeriod = isDescriptionHasPeriod ? pr.description.split('Periode:')[1].trim().split('(')[0] : formatDate(pr.date);
                             return (
                               <div key={i} className="flex flex-col justify-between bg-white border p-3 rounded-xl">
-                                <div>
-                                  <div className="text-xs font-black text-slate-800 uppercase">Periode: {extractedPeriod}</div>
-                                  <div className="text-[9px] font-mono text-slate-400 mt-0.5">Tgl: {formatDate(pr.date)}</div>
-                                </div>
+                                <div><div className="text-xs font-black text-slate-800 uppercase">Periode: {extractedPeriod}</div><div className="text-[9px] font-mono text-slate-400 mt-0.5">Tgl: {formatDate(pr.date)}</div></div>
                                 <div className="mt-2 pt-2 border-t">
                                   <div className="flex justify-between text-[10px] font-bold"><span className="text-slate-500">Gaji Kotor:</span><span>{formatRupiah((pr.base_salary||0)+(pr.allowance||0))}</span></div>
                                   <div className="flex justify-between text-[10px] font-bold"><span className="text-slate-500">Potongan Kredit:</span><span className="text-rose-600">-{formatRupiah(pr.kasbon_deduction)}</span></div>
@@ -330,61 +289,53 @@ export default function TabKaryawan({
 }
 
 // =========================================================================
-// 📇 SUB-COMPONENT 1: PAYROLL (SMART PRORATA CALCULATOR & EDIT/DELETE)
+// 📇 SUB-COMPONENT 1: PAYROLL (PRORATA & DETAIL POTONGAN)
 // =========================================================================
 function PayrollModule({ employees, expenses, globalCompiled, activeBranch, todayStr, sendToSheet, onViewDetails, user, setOptimisticDeletedIds, isHQ, showToast, optimisticDeletedIds }) {
   const currentMonthValue = todayStr.substring(0, 7);
   const [form, setForm] = useState({ 
     id: '', date: todayStr, periode_bulan: currentMonthValue, employeeId: '', baseSalary: '0', allowance: '0', potKasbonInput: '', otherDeduction: '0', paymentMethod: 'CASH',
-    isProrata: false, hariNormal: '26', hariHadir: '26' // 🔥 STATE PRORATA
+    isProrata: false, hariNormal: '26', hariHadir: '26' 
   });
   const [isEditing, setIsEditing] = useState(false);
   
   const selectedStafData = form.employeeId ? globalCompiled[form.employeeId] : null;
   const sisaHutangReal = selectedStafData ? selectedStafData.sisaHutang : 0;
+  const masterGapok = selectedStafData ? selectedStafData.baseSalary : 0;
   
+  const gajiPokokDihitung = useMemo(() => {
+    if (!selectedStafData) return 0;
+    if (!form.isProrata) return masterGapok;
+    return Math.floor((Number(form.hariHadir) / Number(form.hariNormal)) * masterGapok);
+  }, [selectedStafData, form.isProrata, form.hariNormal, form.hariHadir, masterGapok]);
+
+  // 🔥 KALKULASI BERAPA TOTAL YANG KEPOTONG (Ditampilkan Merah)
+  const totalMinusProrata = Math.max(0, masterGapok - gajiPokokDihitung);
+
+  React.useEffect(() => {
+    if (form.isProrata && !isEditing && selectedStafData) { setForm(p => ({ ...p, baseSalary: String(gajiPokokDihitung) })); }
+  }, [gajiPokokDihitung, form.isProrata, isEditing, selectedStafData]);
+
   const { batasAmanKredit, rekomendasiCicilanSistem } = useMemo(() => {
     if (!selectedStafData) return { batasAmanKredit: 0, rekomendasiCicilanSistem: 0 };
-    const gapok = Number(selectedStafData.baseSalary || 0);
-    const batas = gapok * 0.3; 
+    const batas = masterGapok * 0.3; 
     let cicilanBarangBerjalan = 0;
     selectedStafData.history_kredit.forEach(k => { if (k.status === 'BERJALAN' || k.status === 'BELUM BAYAR') cicilanBarangBerjalan += (k.cicilanSaranPerBulan || 0); });
     let saranSistem = Math.min(sisaHutangReal, cicilanBarangBerjalan); 
     if (saranSistem === 0 && sisaHutangReal > 0) saranSistem = Math.min(sisaHutangReal, batas); 
     return { batasAmanKredit: batas, rekomendasiCicilanSistem: saranSistem };
-  }, [selectedStafData, sisaHutangReal]);
-
-  // 🔥 ENGINE PRORATA: Otomatis memotong Gaji Master berdasarkan Hari Kehadiran
-  const gajiPokokDihitung = useMemo(() => {
-    if (!selectedStafData) return 0;
-    const masterGapok = selectedStafData.baseSalary;
-    if (!form.isProrata) return masterGapok;
-    const hitungan = (Number(form.hariHadir) / Number(form.hariNormal)) * masterGapok;
-    return Math.floor(hitungan);
-  }, [selectedStafData, form.isProrata, form.hariNormal, form.hariHadir]);
-
-  // Sinkronisasi otomatis input form jika Prorata aktif
-  React.useEffect(() => {
-    if (form.isProrata && !isEditing && selectedStafData) {
-      setForm(p => ({ ...p, baseSalary: String(gajiPokokDihitung) }));
-    }
-  }, [gajiPokokDihitung, form.isProrata, isEditing, selectedStafData]);
+  }, [selectedStafData, sisaHutangReal, masterGapok]);
 
   const handlePilihKaryawan = (e) => {
-    const empId = e.target.value;
-    const emp = globalCompiled[empId];
+    const empId = e.target.value; const emp = globalCompiled[empId];
     if (emp) {
       const gapok = form.isProrata ? ((Number(form.hariHadir) / Number(form.hariNormal)) * emp.baseSalary) : emp.baseSalary;
-      const batas = emp.baseSalary * 0.3;
-      let cicilanBerjalan = 0;
+      const batas = emp.baseSalary * 0.3; let cicilanBerjalan = 0;
       emp.history_kredit.forEach(k => { if (k.status !== 'LUNAS') cicilanBerjalan += (k.cicilanSaranPerBulan || 0); });
       let saran = Math.min(emp.sisaHutang, cicilanBerjalan);
       if (saran === 0 && emp.sisaHutang > 0) saran = Math.min(emp.sisaHutang, batas);
-
       setForm(p => ({ ...p, employeeId: empId, baseSalary: String(Math.floor(gapok)), potKasbonInput: String(Math.floor(saran)) }));
-    } else {
-      setForm(p => ({ ...p, employeeId: '', baseSalary: '0', potKasbonInput: '' }));
-    }
+    } else { setForm(p => ({ ...p, employeeId: '', baseSalary: '0', potKasbonInput: '' })); }
   };
 
   const hitungNetto = useMemo(() => { 
@@ -397,23 +348,21 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
 
   const handleEdit = (log) => {
     const isDescPeriod = log.description && log.description.includes('Periode:');
-    const extractedPeriod = isDescPeriod ? log.description.split('Periode:')[1].trim().split(' ')[0] : currentMonthValue;
+    const extractedPeriod = isDescPeriod ? log.description.split('Periode:')[1].trim().split('(')[0].trim() : currentMonthValue;
     setForm({
       id: log.id, date: log.date.split('T')[0], periode_bulan: extractedPeriod, employeeId: log.employee_id,
       baseSalary: String(log.base_salary || 0), allowance: String(log.allowance || 0), potKasbonInput: String(log.kasbon_deduction || 0),
       otherDeduction: String(log.other_deduction || 0), paymentMethod: log.payment_method || 'CASH',
       isProrata: false, hariNormal: '26', hariHadir: '26'
     });
-    setIsEditing(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setIsEditing(true); window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleDelete = async (id) => {
-    if(window.confirm("Yakin ingin menghapus mutasi gaji ini? Data akan ditarik kembali dari sistem.")) {
+    if(window.confirm("Yakin ingin membatalkan (void) slip gaji ini?")) {
       setOptimisticDeletedIds(prev => new Set(prev).add(id));
       const success = await sendToSheet('delete', { id }, 'expenses');
-      if(success) { if(showToast) showToast('Gaji berhasil divoid.', 'success'); }
-      else { setOptimisticDeletedIds(prev => { const n = new Set(prev); n.delete(id); return n; }); if(showToast) showToast('Gagal menghapus.', 'error'); }
+      if(success) { if(showToast) showToast('Gaji divoid.', 'success'); } else { setOptimisticDeletedIds(prev => { const n = new Set(prev); n.delete(id); return n; }); }
     }
   };
 
@@ -424,19 +373,17 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
           e.preventDefault(); if (!form.employeeId) return; 
           const expenseId = isEditing ? form.id : generateId('PRL', form.date);
           let detailDesc = `Gaji Bulanan | Periode: ${form.periode_bulan}`;
-          if (form.isProrata) detailDesc += ` (Prorata: Masuk ${form.hariHadir}/${form.hariNormal} Hari)`;
+          if (form.isProrata) detailDesc += ` (Prorata Absen: Masuk ${form.hariHadir}/${form.hariNormal} Hr. Potong: Rp ${totalMinusProrata})`;
           
           const penempatanTrx = activeBranch === 'SEMUA_CABANG' ? selectedStafData?.branch_id : activeBranch;
           const payload = { id: expenseId, date: form.date, branch_id: penempatanTrx, category: 'PAYROLL', employee_id: form.employeeId, base_salary: Number(form.baseSalary), allowance: Number(form.allowance), kasbon_deduction: hitungNetto.potKasbonFinal, other_deduction: Number(form.otherDeduction), amount: hitungNetto.totalCair, payment_method: form.paymentMethod, description: detailDesc };
           
           let success = false;
-          if (isEditing) { success = await sendToSheet('update', payload, 'expenses'); }
-          else { success = await sendToSheet('insert', payload, 'expenses'); }
+          if (isEditing) { success = await sendToSheet('update', payload, 'expenses'); } else { success = await sendToSheet('insert', payload, 'expenses'); }
           
           if (success) {
-            if (!isEditing) await sendToSheet('insert', { id: 'CFO-' + new Date().getTime(), date: form.date, branch_id: form.paymentMethod === 'TF' ? 'HQ_FACTORY' : penempatanTrx, transaction_type: 'OUTFLOW', category: 'OPERATIONAL_EXPENSE', amount: hitungNetto.totalCair, payment_method: form.paymentMethod, reference_id: expenseId, description: `Jurnal Payroll: ${selectedStafData?.name} (${form.periode_bulan})` }, 'cashflow_transactions');
-            setForm({ id: '', date: todayStr, periode_bulan: currentMonthValue, employeeId: '', baseSalary: '0', allowance: '0', potKasbonInput: '', otherDeduction: '0', paymentMethod: 'CASH', isProrata: false, hariNormal: '26', hariHadir: '26' });
-            setIsEditing(false);
+            if (!isEditing) await sendToSheet('insert', { id: 'CFO-' + new Date().getTime(), date: form.date, branch_id: form.paymentMethod === 'TF' ? 'HQ_FACTORY' : penempatanTrx, transaction_type: 'OUTFLOW', category: 'OPERATIONAL_EXPENSE', amount: hitungNetto.totalCair, payment_method: form.paymentMethod, reference_id: expenseId, description: `Payroll: ${selectedStafData?.name} (${form.periode_bulan})` }, 'cashflow_transactions');
+            setForm({ id: '', date: todayStr, periode_bulan: currentMonthValue, employeeId: '', baseSalary: '0', allowance: '0', potKasbonInput: '', otherDeduction: '0', paymentMethod: 'CASH', isProrata: false, hariNormal: '26', hariHadir: '26' }); setIsEditing(false);
           }
         }} className="space-y-4">
           <div className="flex justify-between items-center border-b pb-2">
@@ -453,17 +400,14 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
             <select required disabled={isEditing} value={form.employeeId} onChange={handlePilihKaryawan} className={`w-full p-2.5 border rounded-xl font-black text-sm uppercase outline-none ${isEditing ? 'bg-slate-100 text-slate-500' : 'bg-slate-50 focus:bg-white shadow-sm border-slate-300'}`}><option value="">-- Pilih Staf Penerima Gaji --</option>{employees.map(k => <option key={k.id} value={k.id}>{k.name} ({k.position}) - CAB {k.branch_id}</option>)}</select>
           </div>
           
-          {/* 🔥 KALKULATOR PRORATA (CUTI TAK DIBAYAR / LEBARAN) */}
           <div className="bg-slate-100 p-3 rounded-xl border border-slate-200">
             <label className="flex items-center gap-2 cursor-pointer mb-2">
-              <input type="checkbox" disabled={isEditing || !form.employeeId} checked={form.isProrata} onChange={e => {
-                setForm({...form, isProrata: e.target.checked, baseSalary: e.target.checked ? String(Math.floor((Number(form.hariHadir)/Number(form.hariNormal))*selectedStafData?.baseSalary||0)) : String(selectedStafData?.baseSalary||0)});
-              }} className="w-4 h-4 accent-emerald-600" />
+              <input type="checkbox" disabled={isEditing || !form.employeeId} checked={form.isProrata} onChange={e => { setForm({...form, isProrata: e.target.checked, baseSalary: e.target.checked ? String(Math.floor((Number(form.hariHadir)/Number(form.hariNormal))*masterGapok)) : String(masterGapok)}); }} className="w-4 h-4 accent-emerald-600" />
               <span className="text-[10px] font-black uppercase text-slate-700 flex items-center gap-1"><Calculator size={12}/> Aktifkan Potong Gaji Prorata (Cuti / Izin Tak Dibayar)</span>
             </label>
             {form.isProrata && (
               <div className="grid grid-cols-2 gap-2 mt-2 animate-in slide-in-from-top-1">
-                <div><label className="text-[9px] font-bold text-slate-500 uppercase">Standar Hari Kerja (Sebulan)</label><input type="number" min="1" max="31" value={form.hariNormal} onChange={e=>setForm({...form, hariNormal: e.target.value})} className="w-full p-1.5 border rounded text-xs font-bold text-center" /></div>
+                <div><label className="text-[9px] font-bold text-slate-500 uppercase">Standar Hari Kerja Sebulan</label><input type="number" min="1" max="31" value={form.hariNormal} onChange={e=>setForm({...form, hariNormal: e.target.value})} className="w-full p-1.5 border rounded text-xs font-bold text-center" /></div>
                 <div><label className="text-[9px] font-bold text-blue-600 uppercase">Faktual Masuk Bekerja</label><input type="number" min="0" max="31" value={form.hariHadir} onChange={e=>setForm({...form, hariHadir: e.target.value})} className="w-full p-1.5 border border-blue-300 bg-blue-50 rounded text-xs font-black text-center text-blue-800" /></div>
               </div>
             )}
@@ -473,15 +417,16 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
             <div>
               <label className="text-[10px] font-bold text-slate-500 uppercase flex justify-between items-center">Gaji Pokok {form.isProrata && <span className="text-[8px] bg-emerald-100 text-emerald-700 px-1 rounded">Auto</span>}</label>
               <input type="text" required value={formatRupiah(form.baseSalary)} onChange={e=>setForm({...form, baseSalary: e.target.value.replace(/\D/g, '')})} className={`w-full p-2 border rounded-lg font-bold text-sm ${form.isProrata ? 'bg-emerald-50 text-emerald-900 border-emerald-300' : 'bg-slate-50'}`} />
+              {/* 🔥 INDIKATOR POTONGAN PRORATA KARYAWAN */}
+              {form.isProrata && totalMinusProrata > 0 && (
+                <div className="text-[8px] font-black text-rose-600 mt-1 uppercase tracking-wider">Potongan Absensi: -{formatRupiah(totalMinusProrata)}</div>
+              )}
             </div>
             <div><label className="text-[10px] font-bold text-emerald-600 uppercase">Bonus/Tunjangan</label><input type="text" required value={formatRupiah(form.allowance)} onChange={e=>setForm({...form, allowance: e.target.value.replace(/\D/g, '')})} className="w-full p-2 border rounded-lg font-bold text-sm" /></div>
           </div>
           
           <div className="bg-orange-50 p-3 rounded-xl border border-orange-200">
-            <div className="flex justify-between items-end mb-1">
-              <label className="text-[10px] font-black text-orange-800 uppercase flex items-center gap-1"><History size={10}/> Cicilan Kredit Karyawan</label>
-              <span className="text-[9px] font-bold text-orange-600">Total Piutang: {formatRupiah(sisaHutangReal)}</span>
-            </div>
+            <div className="flex justify-between items-end mb-1"><label className="text-[10px] font-black text-orange-800 uppercase flex items-center gap-1"><History size={10}/> Cicilan Kredit Karyawan</label><span className="text-[9px] font-bold text-orange-600">Total Piutang: {formatRupiah(sisaHutangReal)}</span></div>
             <input type="text" value={formatRupiah(form.potKasbonInput)} onChange={e=>setForm({...form, potKasbonInput: e.target.value.replace(/\D/g, '')})} className="w-full p-2 border border-orange-300 bg-white rounded-lg font-black text-sm text-orange-700" placeholder="Rp 0" />
             <div className="text-[8px] font-bold text-orange-500 mt-1 uppercase">💡 Limit Angsuran (30% Gaji): {formatRupiah(batasAmanKredit)} | Rekomendasi Sistem: {formatRupiah(rekomendasiCicilanSistem)}</div>
           </div>
@@ -501,7 +446,12 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
             {historyGaji.map(p => {
               const emp = globalCompiled[p.employee_id];
               const isDescPeriod = p.description && p.description.includes('Periode:');
-              const extractedPeriod = isDescPeriod ? p.description.split('Periode:')[1].trim().split(' ')[0] : formatDate(p.date);
+              const extractedPeriod = isDescPeriod ? p.description.split('Periode:')[1].trim().split('(')[0] : formatDate(p.date);
+
+              // Deteksi nilai prorata jika ada di description DB
+              const isProrataLog = p.description && p.description.includes('Prorata');
+              const stringProrataCut = isProrataLog && p.description.match(/Potong: Rp (\d+)/);
+              const valProrata = stringProrataCut ? Number(stringProrataCut[1]) : 0;
 
               return (
                 <tr key={p.id} className="hover:bg-slate-50/50 transition">
@@ -521,12 +471,18 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
                       <button type="button" onClick={() => triggerPrint('NOTA_DOTMATRIX', {
                         title: 'BUKTI PENGGAJIAN / SLIP GAJI', id: p.id, date: formatDate(p.date), periode: extractedPeriod,
                         branch_name: emp?.branch_id || activeBranch, admin_name: user?.name || 'ADMIN', customer_name: emp?.name || 'STAF', position: emp?.position || 'STAF',
-                        items: [{ name: 'Gaji Pokok & Bonus', qty: 1, subtotal: (p.base_salary || 0) + (p.allowance || 0) }, { name: 'Potongan Cicilan Kredit', qty: 1, subtotal: -(p.kasbon_deduction || 0) }, { name: 'Potongan Lain-Lain', qty: 1, subtotal: -(p.other_deduction || 0) }],
+                        // 🔥 INJEKSI ITEM POTONGAN PRORATA JIKA ADA
+                        items: [
+                          { name: 'Gaji Pokok Master', qty: 1, subtotal: (p.base_salary || 0) + valProrata }, // Tampilkan gaji utuh sebelum dipotong
+                          ...(isProrataLog ? [{ name: 'Potongan Absensi / Izin Tak Dibayar', qty: 1, subtotal: -valProrata }] : []),
+                          { name: 'Bonus / Tunjangan Lainnya', qty: 1, subtotal: (p.allowance || 0) },
+                          { name: 'Potongan Cicilan Kasbon/Kredit', qty: 1, subtotal: -(p.kasbon_deduction || 0) },
+                          { name: 'Potongan Lain-Lain', qty: 1, subtotal: -(p.other_deduction || 0) }
+                        ],
                         amount: p.amount, paymentMethod: p.payment_method || 'CASH',
                         history: { kasbonList: [...(emp?.history_kredit || []), ...(emp?.history_kasbon || [])].slice(0, 3), labelLama: 'Akumulasi Hutang / Kredit Awal', nominalLama: (emp?.sisaHutang || 0) + (p.kasbon_deduction || 0), labelAksi: 'Dipotong Untuk Angsuran Bulan Ini', nominalAksi: p.kasbon_deduction || 0, labelBaru: 'SISA HUTANG / KREDIT SEKARANG', nominalBaru: emp?.sisaHutang || 0 }
                       })} className="p-1.5 text-white bg-slate-800 hover:bg-slate-900 shadow rounded-lg" title="Cetak Slip"><Printer size={12}/></button>
                       
-                      {/* 🔥 FITUR EDIT & DELETE HANYA UNTUK PUSAT (DIREKTUR) */}
                       {isHQ && (
                         <>
                           <button type="button" onClick={() => handleEdit(p)} className="p-1.5 bg-amber-50 text-amber-600 hover:bg-amber-100 rounded-lg" title="Edit Transaksi"><Edit2 size={12}/></button>
@@ -546,137 +502,119 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
 }
 
 // =========================================================================
-// 📇 SUB-COMPONENT 2: KREDIT BARANG & KASBON (DENGAN EDIT / DELETE)
+// 📇 SUB-COMPONENT 2: LEMBUR & BONUS HARIAN (NEW! SESUAI ATURAN OWNER)
 // =========================================================================
-function KasbonModule({ employees, expenses, globalCompiled, activeBranch, todayStr, sendToSheet, onViewDetails, user, setOptimisticDeletedIds, isHQ, showToast, optimisticDeletedIds }) {
-  const [activeTabKasbon, setActiveTabKasbon] = useState('KREDIT'); 
-  const [isEditing, setIsEditing] = useState(false);
-  const [form, setForm] = useState({ id: '', date: todayStr, employeeId: '', amount: '', notes: '', tenor: '1', foto_url: '' });
+function LemburModule({ employees, expenses, globalCompiled, activeBranch, todayStr, sendToSheet, user, setOptimisticDeletedIds, isHQ, showToast, optimisticDeletedIds }) {
+  const [form, setForm] = useState({ date: todayStr, employeeId: '', lemburType: 'NONE', isJamuan: false, omsetAmount: '' });
   
-  const historyKasbonLog = useMemo(() => { const targetBId = String(activeBranch || '').trim().toUpperCase(); return (expenses || []).filter(e => e && !e.isDeleted && !optimisticDeletedIds.has(e.id) && ['KASBON', 'KREDIT_BARANG'].includes(e.category) && (targetBId === 'SEMUA_CABANG' || String(e.branch_id || '').trim().toUpperCase() === targetBId)).sort((a, b) => new Date(b.date) - new Date(a.date)); }, [expenses, activeBranch, optimisticDeletedIds]);
-
-  const handleEdit = (log) => {
-    const isKredit = log.category === 'KREDIT_BARANG';
-    setActiveTabKasbon(isKredit ? 'KREDIT' : 'TUNAI');
-    setForm({
-      id: log.id, date: log.date.split('T')[0], employeeId: log.employee_id, amount: String(log.amount || 0),
-      notes: log.description || '', tenor: String(log.tenor || 1), foto_url: log.foto_url || ''
-    });
-    setIsEditing(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+  // Ambil history transaksi yang kategorinya LEMBUR_BONUS
+  const historyLembur = useMemo(() => { const targetBId = String(activeBranch || '').trim().toUpperCase(); return (expenses || []).filter(e => e && !e.isDeleted && !optimisticDeletedIds.has(e.id) && e.category === 'LEMBUR_BONUS' && (targetBId === 'SEMUA_CABANG' || String(e.branch_id || '').trim().toUpperCase() === targetBId)).sort((a, b) => new Date(b.date) - new Date(a.date)); }, [expenses, activeBranch, optimisticDeletedIds]);
 
   const handleDelete = async (id) => {
-    if(window.confirm("Yakin ingin menghapus data kredit/kasbon ini?")) {
+    if(window.confirm("Yakin ingin membatalkan/void data lembur/bonus ini?")) {
       setOptimisticDeletedIds(prev => new Set(prev).add(id));
       const success = await sendToSheet('delete', { id }, 'expenses');
-      if(success) { if(showToast) showToast('Data berhasil dihapus.', 'success'); }
-      else { setOptimisticDeletedIds(prev => { const n = new Set(prev); n.delete(id); return n; }); if(showToast) showToast('Gagal menghapus.', 'error'); }
+      if(success) { if(showToast) showToast('Data berhasil dihapus.', 'success'); } else { setOptimisticDeletedIds(prev => { const n = new Set(prev); n.delete(id); return n; }); }
     }
   };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <div className={`p-6 rounded-2xl border border-t-4 transition-all h-max shadow-sm ${isEditing ? 'bg-amber-50/50 border-t-amber-500 border-amber-200' : 'bg-white border-t-blue-500'}`}>
-        <div className="flex gap-2 mb-4 bg-slate-100 p-1 rounded-xl">
-          <button type="button" disabled={isEditing} onClick={()=>setActiveTabKasbon('KREDIT')} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition ${activeTabKasbon==='KREDIT' ? 'bg-white shadow text-blue-600' : 'text-slate-500'} disabled:opacity-50`}>Kredit Barang</button>
-          <button type="button" disabled={isEditing} onClick={()=>setActiveTabKasbon('TUNAI')} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition ${activeTabKasbon==='TUNAI' ? 'bg-white shadow text-orange-600' : 'text-slate-500'} disabled:opacity-50`}>Kasbon Tunai</button>
-        </div>
-
+      <div className="bg-white p-6 rounded-2xl border border-t-4 border-t-blue-600 h-max shadow-sm">
         <form onSubmit={async (e) => {
-          e.preventDefault(); if (!form.employeeId) return; 
-          const isKredit = activeTabKasbon === 'KREDIT';
-          const expenseId = isEditing ? form.id : generateId(isKredit ? 'KRD' : 'KSB', form.date);
+          e.preventDefault();
+          const expenseId = generateId('LMB', form.date);
           const empData = globalCompiled[form.employeeId];
           const penempatanTrx = activeBranch === 'SEMUA_CABANG' ? empData?.branch_id : activeBranch;
+          
+          let subtotalLembur = form.lemburType === '19:00' ? 30000 : (form.lemburType === '17:00' ? 20000 : 0);
+          let subtotalJamuan = form.isJamuan ? 100000 : 0;
+          let subtotalOmset = Number(form.omsetAmount || 0);
+          let totalCair = subtotalLembur + subtotalJamuan + subtotalOmset;
 
-          const payload = { id: expenseId, date: form.date, branch_id: penempatanTrx, employee_id: form.employeeId, category: isKredit ? 'KREDIT_BARANG' : 'KASBON', amount: Number(form.amount), description: form.notes.toUpperCase() };
-          if (isKredit) { payload.tenor = Number(form.tenor); payload.foto_url = form.foto_url; }
+          if (totalCair === 0) return alert("Pilih minimal satu komponen lembur atau bonus!");
 
-          let success = false;
-          if(isEditing) { success = await sendToSheet('update', payload, 'expenses'); }
-          else { success = await sendToSheet('insert', payload, 'expenses'); }
+          let descText = [];
+          if (subtotalLembur > 0) descText.push(form.lemburType === '19:00' ? 'Lembur >19:00' : 'Uang Rokok >17:00');
+          if (subtotalJamuan > 0) descText.push('Dana Jamuan Tim');
+          if (subtotalOmset > 0) descText.push('Bonus Target Omset >2500 Porsi');
 
+          const payload = { id: expenseId, date: form.date, branch_id: penempatanTrx, employee_id: form.employeeId || 'GLOBAL', category: 'LEMBUR_BONUS', amount: totalCair, description: descText.join(', ') };
+          
+          const success = await sendToSheet('insert', payload, 'expenses');
           if (success) {
-            if (!isKredit && !isEditing) await sendToSheet('insert', { id: 'CFO-' + new Date().getTime(), date: form.date, branch_id: penempatanTrx, transaction_type: 'OUTFLOW', category: 'KARYAWAN_KASBON', amount: Number(form.amount), payment_method: 'CASH', reference_id: expenseId, description: `Pencairan Kasbon Laci` }, 'cashflow_transactions');
-            setForm({ id: '', date: todayStr, employeeId: '', amount: '', notes: '', tenor: '1', foto_url: '' });
-            setIsEditing(false);
+            await sendToSheet('insert', { id: 'CFO-' + new Date().getTime(), date: form.date, branch_id: penempatanTrx, transaction_type: 'OUTFLOW', category: 'OPERATIONAL_EXPENSE', amount: totalCair, payment_method: 'CASH', reference_id: expenseId, description: `Pencairan Lembur & Bonus: ${descText.join(', ')}` }, 'cashflow_transactions');
+            setForm({ date: todayStr, employeeId: '', lemburType: 'NONE', isJamuan: false, omsetAmount: '' });
           }
-        }} className="space-y-4">
-          
-          <div className="flex justify-between items-center">
-            <h3 className="font-black text-sm uppercase text-slate-800 flex items-center gap-2">{activeTabKasbon === 'KREDIT' ? <ShoppingCart size={16} className={isEditing ? "text-amber-600" : "text-blue-600"}/> : <Banknote size={16} className={isEditing ? "text-amber-600" : "text-orange-600"}/>} {isEditing ? 'Edit Data Pengajuan' : `Pengajuan ${activeTabKasbon}`}</h3>
-            {isEditing && <button type="button" onClick={() => { setIsEditing(false); setForm({ id: '', date: todayStr, employeeId: '', amount: '', notes: '', tenor: '1', foto_url: '' }); }} className="text-[10px] border px-2 py-0.5 rounded font-black uppercase text-slate-500 bg-white shadow-sm">Batal</button>}
+        }} className="space-y-5">
+          <div>
+            <h3 className="font-black text-sm uppercase text-slate-800 flex items-center gap-2"><Clock size={16} className="text-blue-600"/> Klaim Lembur & Bonus Harian</h3>
+            <p className="text-[9px] font-bold text-slate-400 mt-1">Sesuai kebijakan owner, klaim uang lembur dan bonus omset tunai yang diambil dari kas laci operasional.</p>
           </div>
-          
-          <div><select required disabled={isEditing} value={form.employeeId} onChange={e=>setForm({...form, employeeId: e.target.value})} className={`w-full p-2.5 border rounded-xl font-black text-sm uppercase outline-none ${isEditing ? 'bg-slate-100 text-slate-500' : 'bg-slate-50 focus:bg-white shadow-sm border-slate-300'}`}><option value="">-- Pilih Staf Peminjam --</option>{employees.map(k => <option key={k.id} value={k.id}>{k.name} ({k.position}) - CAB {k.branch_id}</option>)}</select></div>
           
           <div>
-            <label className="text-[10px] font-bold text-slate-500 uppercase">{activeTabKasbon === 'KREDIT' ? 'Total Harga Barang (Bukan Cicilan)' : 'Nominal Tarik Laci'}</label>
-            <input type="text" required value={formatRupiah(form.amount)} onChange={e=>setForm({...form, amount: e.target.value.replace(/\D/g, '')})} className={`w-full p-2.5 bg-slate-50 border rounded-xl font-black text-sm ${activeTabKasbon === 'KREDIT' ? 'text-blue-900 border-blue-200' : 'text-orange-900 border-orange-200'}`} placeholder="Rp" />
+            <label className="text-[10px] font-bold text-slate-500 uppercase">Tgl Eksekusi & Penerima Dana</label>
+            <div className="flex gap-2 mt-1">
+              <input type="date" required value={form.date} onChange={e=>setForm({...form, date: e.target.value})} className="w-1/3 p-2.5 border rounded-xl text-xs font-bold outline-none" />
+              <select required value={form.employeeId} onChange={e=>setForm({...form, employeeId: e.target.value})} className="w-2/3 p-2.5 border rounded-xl font-black text-xs uppercase outline-none"><option value="">-- Pilih Penanggung Jawab --</option>{employees.map(k => <option key={k.id} value={k.id}>{k.name} ({k.position})</option>)}</select>
+            </div>
           </div>
 
-          <div>
-            <label className="text-[10px] font-bold text-slate-500 uppercase">{activeTabKasbon === 'KREDIT' ? 'Nama Barang (Misal: HP SAMSUNG)' : 'Keterangan Kebutuhan'}</label>
-            <input type="text" required value={form.notes} onChange={e=>setForm({...form, notes: e.target.value})} className="w-full p-2.5 border rounded-xl text-xs uppercase outline-none" placeholder="..." />
-          </div>
-
-          {activeTabKasbon === 'KREDIT' && (
-            <div className="space-y-4 p-3 bg-blue-50 border border-blue-200 rounded-xl">
-              <div>
-                <label className="text-[10px] font-black text-blue-800 uppercase flex justify-between"><span>Tenor Angsuran (Bulan)</span><span>Cicilan: {formatRupiah((Number(form.amount || 0) / Number(form.tenor || 1)))}/bln</span></label>
-                <input type="number" min="1" max="24" required value={form.tenor} onChange={e=>setForm({...form, tenor: e.target.value})} className="w-full p-2 border rounded-lg text-sm font-black text-center" />
-              </div>
-              <div>
-                <label className="text-[10px] font-black text-blue-800 uppercase flex items-center gap-1 mb-1"><Link size={10}/> Link Bukti Foto Barang (G-Drive)</label>
-                <input type="text" required value={form.foto_url} onChange={e=>setForm({...form, foto_url: e.target.value})} className="w-full p-2 border rounded-lg text-xs" placeholder="Paste link Google Drive produk..." />
+          <div className="space-y-3 bg-slate-50 p-4 border rounded-xl">
+            <div>
+              <label className="text-[10px] font-black text-slate-700 uppercase flex items-center gap-1 mb-2"><Flame size={12} className="text-rose-500"/> Komponen Uang Lembur Per Kepala</label>
+              <div className="flex flex-col gap-2">
+                <label className="flex items-center gap-2 cursor-pointer bg-white p-2 border rounded shadow-sm text-xs font-bold text-slate-600"><input type="radio" name="lembur" checked={form.lemburType === 'NONE'} onChange={() => setForm({...form, lemburType: 'NONE'})} className="accent-blue-600" /> Tanpa Uang Lembur</label>
+                <label className="flex items-center gap-2 cursor-pointer bg-white p-2 border rounded shadow-sm text-xs font-bold text-slate-700"><input type="radio" name="lembur" checked={form.lemburType === '17:00'} onChange={() => setForm({...form, lemburType: '17:00'})} className="accent-blue-600" /> Lewat Jam 17:00 - Uang Rokok (Rp 20.000)</label>
+                <label className="flex items-center gap-2 cursor-pointer bg-white p-2 border rounded shadow-sm text-xs font-black text-blue-700 border-blue-200"><input type="radio" name="lembur" checked={form.lemburType === '19:00'} onChange={() => setForm({...form, lemburType: '19:00'})} className="accent-blue-600" /> Lewat Jam 19:00 - Full Lembur (Rp 30.000)</label>
               </div>
             </div>
-          )}
 
-          <button type="submit" className={`w-full text-white font-black py-3 rounded-xl text-xs uppercase shadow-lg transition ${isEditing ? 'bg-amber-500 hover:bg-amber-600' : (activeTabKasbon === 'KREDIT' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-orange-600 hover:bg-orange-700')}`}>{isEditing ? '💾 Update Transaksi' : `Simpan ${activeTabKasbon} Karyawan`}</button>
+            <div className="border-t pt-3 mt-3">
+              <label className="flex items-center gap-2 cursor-pointer bg-white p-3 border border-orange-200 rounded-lg shadow-sm">
+                <input type="checkbox" checked={form.isJamuan} onChange={(e) => setForm({...form, isJamuan: e.target.checked})} className="w-4 h-4 accent-orange-500" />
+                <div>
+                  <div className="text-[11px] font-black uppercase text-orange-800 flex items-center gap-1"><Coffee size={12}/> Keluarkan Dana Jamuan Tim</div>
+                  <div className="text-[9px] font-bold text-orange-600">Otomatis mengeluarkan Rp 100.000 dari kas laci.</div>
+                </div>
+              </label>
+            </div>
+
+            <div className="border-t pt-3 mt-3">
+              <label className="text-[10px] font-black text-emerald-700 uppercase flex items-center gap-1 mb-2"><Target size={12}/> Tembus Target Omset >2500 Porsi</label>
+              <input type="text" value={formatRupiah(form.omsetAmount)} onChange={e=>setForm({...form, omsetAmount: e.target.value.replace(/\D/g, '')})} className="w-full p-2.5 border border-emerald-200 bg-white rounded-lg font-black text-sm text-emerald-800" placeholder="Ketik Nominal Bonus Cash Rp..." />
+            </div>
+          </div>
+
+          <button type="submit" disabled={!form.employeeId} className="w-full bg-blue-600 text-white font-black py-3.5 rounded-xl text-xs uppercase disabled:opacity-40 shadow-lg hover:bg-blue-700 transition">Cetak Bukti & Cairkan Kas</button>
         </form>
       </div>
 
       <div className="lg:col-span-2 bg-white rounded-2xl border flex flex-col overflow-hidden shadow-sm">
-        <div className="p-4 bg-slate-50 border-b font-bold text-xs uppercase text-slate-700">Daftar Buku Hutang & Kredit Berjalan ({activeBranch === 'SEMUA_CABANG' ? 'NASIONAL' : activeBranch})</div>
+        <div className="p-4 bg-slate-50 border-b font-bold text-xs uppercase text-slate-700">Arsip Pencairan Lembur & Bonus Harian</div>
         <table className="w-full text-sm text-left">
-          <thead className="bg-slate-50 text-[10px] uppercase text-slate-400 border-b"><tr><th>Tgl & ID</th><th>Karyawan</th><th>Tipe / Keterangan</th><th className="text-right">Nominal Awal</th><th className="text-center">Aksi</th></tr></thead>
+          <thead className="bg-slate-50 text-[10px] uppercase text-slate-400 border-b"><tr><th>Tgl & ID</th><th>Penerima Dana</th><th>Komponen Diklaim</th><th className="text-right">Total Cair</th><th className="text-center">Aksi</th></tr></thead>
           <tbody className="divide-y divide-slate-100 text-xs font-bold">
-            {historyKasbonLog.map(log => {
+            {historyLembur.map(log => {
               const emp = globalCompiled[log.employee_id];
-              const isKredit = log.category === 'KREDIT_BARANG';
               return (
                 <tr key={log.id} className="hover:bg-slate-50/50 transition">
-                  <td className="px-4 py-3"><div>{formatDate(log.date)}</div><div className="text-[9px] font-mono text-slate-400 font-bold mt-0.5">{log.id}</div></td>
-                  <td onClick={() => emp && onViewDetails(emp)} className="px-4 py-3 flex items-center gap-2.5 cursor-pointer group">
-                    <img src={emp?.photo_url} alt="Profile" className="w-7 h-7 rounded-full object-cover border" onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
-                    <div>
-                      <span className="uppercase group-hover:text-blue-600 transition-colors block">{emp?.name || 'STAF'}</span>
-                      {activeBranch === 'SEMUA_CABANG' && <span className="text-[8px] text-slate-400">CAB: {emp?.branch_id}</span>}
-                    </div>
-                  </td>
+                  <td className="px-4 py-3"><div>{formatDate(log.date)}</div><div className="text-[9px] font-mono text-slate-400 mt-0.5">{log.id}</div></td>
                   <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 text-[8px] font-black uppercase rounded ${isKredit ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>{isKredit ? 'KREDIT BARANG' : 'KASBON TUNAI'}</span>
-                    <div className="text-slate-600 text-[10px] mt-1 line-clamp-1">{log.description}</div>
+                    <div className="uppercase text-blue-800 font-black">{emp?.name || 'TIM OPERASIONAL'}</div>
+                    <div className="text-[9px] text-slate-400">P. Jawab CAB: {emp?.branch_id || activeBranch}</div>
                   </td>
-                  <td className="px-4 py-3 text-right text-slate-900">{formatRupiah(log.amount)}</td>
+                  <td className="px-4 py-3 text-[10px] text-slate-600 leading-relaxed uppercase">{log.description}</td>
+                  <td className="px-4 py-3 text-right text-emerald-600 font-black">{formatRupiah(log.amount)}</td>
                   <td className="px-4 py-3 text-center">
                     <div className="flex items-center justify-center gap-1.5">
                       <button type="button" onClick={() => triggerPrint('NOTA_DOTMATRIX', {
-                        title: isKredit ? 'BUKTI PERSETUJUAN KREDIT BARANG' : 'BUKTI PENCAIRAN KASBON TUNAI', id: log.id, date: formatDate(log.date), periode: formatDate(log.date).substring(3),
-                        branch_name: emp?.branch_id || activeBranch, admin_name: user?.name || 'ADMIN', customer_name: emp?.name || 'STAF', position: emp?.position || 'STAF',
-                        items: [{ name: `${log.description}`, qty: 1, subtotal: log.amount }], amount: log.amount, paymentMethod: isKredit ? 'AUTO-POTONG GAJI (NON-CASH)' : 'CASH',
-                        history: { kasbonList: [{ ...log, status: 'BARU DIAJUKAN', sisa: log.amount, cicilanKe: 0 }], labelLama: 'Sisa Hutang / Kredit Sebelumnya', nominalLama: Math.max(0, (emp?.sisaHutang || 0) - log.amount), labelAksi: 'Penambahan Kasbon / Kredit Baru', nominalAksi: log.amount, labelBaru: 'TOTAL HUTANG / KREDIT SAAT INI', nominalBaru: emp?.sisaHutang || 0 }
+                        title: 'BUKTI PENCAIRAN LEMBUR & BONUS', id: log.id, date: formatDate(log.date), periode: formatDate(log.date).substring(3),
+                        branch_name: emp?.branch_id || activeBranch, admin_name: user?.name || 'ADMIN', customer_name: emp?.name || 'P. JAWAB TIM', position: emp?.position || 'STAF',
+                        items: [{ name: `Pencairan Tunai: ${log.description}`, qty: 1, subtotal: log.amount }], amount: log.amount, paymentMethod: 'POTONG KAS LACI TUNAI'
                       })} className="p-1.5 text-white bg-slate-800 hover:bg-slate-900 shadow rounded-lg" title="Cetak Nota"><Printer size={12}/></button>
                       
-                      {/* 🔥 FITUR EDIT & DELETE HANYA UNTUK PUSAT (DIREKTUR) */}
-                      {isHQ && (
-                        <>
-                          <button type="button" onClick={() => handleEdit(log)} className="p-1.5 bg-amber-50 text-amber-600 hover:bg-amber-100 rounded-lg" title="Edit Transaksi"><Edit2 size={12}/></button>
-                          <button type="button" onClick={() => handleDelete(log.id)} className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg" title="Void Data"><Trash2 size={12}/></button>
-                        </>
-                      )}
+                      {isHQ && (<button type="button" onClick={() => handleDelete(log.id)} className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg" title="Void Data"><Trash2 size={12}/></button>)}
                     </div>
                   </td>
                 </tr>
@@ -690,7 +628,100 @@ function KasbonModule({ employees, expenses, globalCompiled, activeBranch, today
 }
 
 // =========================================================================
-// 📇 SUB-COMPONENT 3: MASTER DATA SDM
+// 📇 SUB-COMPONENT 3: KREDIT BARANG & KASBON (DENGAN EDIT / DELETE)
+// =========================================================================
+function KasbonModule({ employees, expenses, globalCompiled, activeBranch, todayStr, sendToSheet, onViewDetails, user, setOptimisticDeletedIds, isHQ, showToast, optimisticDeletedIds }) {
+  const [activeTabKasbon, setActiveTabKasbon] = useState('KREDIT'); 
+  const [isEditing, setIsEditing] = useState(false);
+  const [form, setForm] = useState({ id: '', date: todayStr, employeeId: '', amount: '', notes: '', tenor: '1', foto_url: '' });
+  
+  const historyKasbonLog = useMemo(() => { const targetBId = String(activeBranch || '').trim().toUpperCase(); return (expenses || []).filter(e => e && !e.isDeleted && !optimisticDeletedIds.has(e.id) && ['KASBON', 'KREDIT_BARANG'].includes(e.category) && (targetBId === 'SEMUA_CABANG' || String(e.branch_id || '').trim().toUpperCase() === targetBId)).sort((a, b) => new Date(b.date) - new Date(a.date)); }, [expenses, activeBranch, optimisticDeletedIds]);
+
+  const handleEdit = (log) => {
+    const isKredit = log.category === 'KREDIT_BARANG'; setActiveTabKasbon(isKredit ? 'KREDIT' : 'TUNAI');
+    setForm({ id: log.id, date: log.date.split('T')[0], employeeId: log.employee_id, amount: String(log.amount || 0), notes: log.description || '', tenor: String(log.tenor || 1), foto_url: log.foto_url || '' });
+    setIsEditing(true); window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDelete = async (id) => {
+    if(window.confirm("Yakin ingin menghapus data kredit/kasbon ini?")) {
+      setOptimisticDeletedIds(prev => new Set(prev).add(id)); const success = await sendToSheet('delete', { id }, 'expenses');
+      if(success) { if(showToast) showToast('Data dihapus.', 'success'); } else { setOptimisticDeletedIds(prev => { const n = new Set(prev); n.delete(id); return n; }); }
+    }
+  };
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className={`p-6 rounded-2xl border border-t-4 transition-all h-max shadow-sm ${isEditing ? 'bg-amber-50/50 border-t-amber-500 border-amber-200' : 'bg-white border-t-blue-500'}`}>
+        <div className="flex gap-2 mb-4 bg-slate-100 p-1 rounded-xl">
+          <button type="button" disabled={isEditing} onClick={()=>setActiveTabKasbon('KREDIT')} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition ${activeTabKasbon==='KREDIT' ? 'bg-white shadow text-blue-600' : 'text-slate-500'} disabled:opacity-50`}>Kredit Barang</button>
+          <button type="button" disabled={isEditing} onClick={()=>setActiveTabKasbon('TUNAI')} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition ${activeTabKasbon==='TUNAI' ? 'bg-white shadow text-orange-600' : 'text-slate-500'} disabled:opacity-50`}>Kasbon Tunai</button>
+        </div>
+
+        <form onSubmit={async (e) => {
+          e.preventDefault(); if (!form.employeeId) return; 
+          const isKredit = activeTabKasbon === 'KREDIT'; const expenseId = isEditing ? form.id : generateId(isKredit ? 'KRD' : 'KSB', form.date);
+          const empData = globalCompiled[form.employeeId]; const penempatanTrx = activeBranch === 'SEMUA_CABANG' ? empData?.branch_id : activeBranch;
+          const payload = { id: expenseId, date: form.date, branch_id: penempatanTrx, employee_id: form.employeeId, category: isKredit ? 'KREDIT_BARANG' : 'KASBON', amount: Number(form.amount), description: form.notes.toUpperCase() };
+          if (isKredit) { payload.tenor = Number(form.tenor); payload.foto_url = form.foto_url; }
+
+          let success = false;
+          if(isEditing) { success = await sendToSheet('update', payload, 'expenses'); } else { success = await sendToSheet('insert', payload, 'expenses'); }
+          if (success) {
+            if (!isKredit && !isEditing) await sendToSheet('insert', { id: 'CFO-' + new Date().getTime(), date: form.date, branch_id: penempatanTrx, transaction_type: 'OUTFLOW', category: 'KARYAWAN_KASBON', amount: Number(form.amount), payment_method: 'CASH', reference_id: expenseId, description: `Pencairan Kasbon Laci` }, 'cashflow_transactions');
+            setForm({ id: '', date: todayStr, employeeId: '', amount: '', notes: '', tenor: '1', foto_url: '' }); setIsEditing(false);
+          }
+        }} className="space-y-4">
+          <div className="flex justify-between items-center"><h3 className="font-black text-sm uppercase text-slate-800 flex items-center gap-2">{activeTabKasbon === 'KREDIT' ? <ShoppingCart size={16} className={isEditing ? "text-amber-600" : "text-blue-600"}/> : <Banknote size={16} className={isEditing ? "text-amber-600" : "text-orange-600"}/>} {isEditing ? 'Edit Data Pengajuan' : `Pengajuan ${activeTabKasbon}`}</h3>{isEditing && <button type="button" onClick={() => { setIsEditing(false); setForm({ id: '', date: todayStr, employeeId: '', amount: '', notes: '', tenor: '1', foto_url: '' }); }} className="text-[10px] border px-2 py-0.5 rounded font-black uppercase text-slate-500 bg-white shadow-sm">Batal</button>}</div>
+          <div><select required disabled={isEditing} value={form.employeeId} onChange={e=>setForm({...form, employeeId: e.target.value})} className={`w-full p-2.5 border rounded-xl font-black text-sm uppercase outline-none ${isEditing ? 'bg-slate-100 text-slate-500' : 'bg-slate-50 focus:bg-white shadow-sm border-slate-300'}`}><option value="">-- Pilih Staf Peminjam --</option>{employees.map(k => <option key={k.id} value={k.id}>{k.name} ({k.position}) - CAB {k.branch_id}</option>)}</select></div>
+          <div><label className="text-[10px] font-bold text-slate-500 uppercase">{activeTabKasbon === 'KREDIT' ? 'Total Harga Barang (Bukan Cicilan)' : 'Nominal Tarik Laci'}</label><input type="text" required value={formatRupiah(form.amount)} onChange={e=>setForm({...form, amount: e.target.value.replace(/\D/g, '')})} className={`w-full p-2.5 bg-slate-50 border rounded-xl font-black text-sm ${activeTabKasbon === 'KREDIT' ? 'text-blue-900 border-blue-200' : 'text-orange-900 border-orange-200'}`} placeholder="Rp" /></div>
+          <div><label className="text-[10px] font-bold text-slate-500 uppercase">{activeTabKasbon === 'KREDIT' ? 'Nama Barang (Misal: HP SAMSUNG)' : 'Keterangan Kebutuhan'}</label><input type="text" required value={form.notes} onChange={e=>setForm({...form, notes: e.target.value})} className="w-full p-2.5 border rounded-xl text-xs uppercase outline-none" placeholder="..." /></div>
+          {activeTabKasbon === 'KREDIT' && (
+            <div className="space-y-4 p-3 bg-blue-50 border border-blue-200 rounded-xl">
+              <div><label className="text-[10px] font-black text-blue-800 uppercase flex justify-between"><span>Tenor Angsuran (Bulan)</span><span>Cicilan: {formatRupiah((Number(form.amount || 0) / Number(form.tenor || 1)))}/bln</span></label><input type="number" min="1" max="24" required value={form.tenor} onChange={e=>setForm({...form, tenor: e.target.value})} className="w-full p-2 border rounded-lg text-sm font-black text-center" /></div>
+              <div><label className="text-[10px] font-black text-blue-800 uppercase flex items-center gap-1 mb-1"><Link size={10}/> Link Bukti Foto Barang (G-Drive)</label><input type="text" required value={form.foto_url} onChange={e=>setForm({...form, foto_url: e.target.value})} className="w-full p-2 border rounded-lg text-xs" placeholder="Paste link Google Drive produk..." /></div>
+            </div>
+          )}
+          <button type="submit" className={`w-full text-white font-black py-3 rounded-xl text-xs uppercase shadow-lg transition ${isEditing ? 'bg-amber-500 hover:bg-amber-600' : (activeTabKasbon === 'KREDIT' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-orange-600 hover:bg-orange-700')}`}>{isEditing ? '💾 Update Transaksi' : `Simpan ${activeTabKasbon} Karyawan`}</button>
+        </form>
+      </div>
+
+      <div className="lg:col-span-2 bg-white rounded-2xl border flex flex-col overflow-hidden shadow-sm">
+        <div className="p-4 bg-slate-50 border-b font-bold text-xs uppercase text-slate-700">Daftar Buku Hutang & Kredit Berjalan ({activeBranch === 'SEMUA_CABANG' ? 'NASIONAL' : activeBranch})</div>
+        <table className="w-full text-sm text-left">
+          <thead className="bg-slate-50 text-[10px] uppercase text-slate-400 border-b"><tr><th>Tgl & ID</th><th>Karyawan</th><th>Tipe / Keterangan</th><th className="text-right">Nominal Awal</th><th className="text-center">Aksi</th></tr></thead>
+          <tbody className="divide-y divide-slate-100 text-xs font-bold">
+            {historyKasbonLog.map(log => {
+              const emp = globalCompiled[log.employee_id]; const isKredit = log.category === 'KREDIT_BARANG';
+              return (
+                <tr key={log.id} className="hover:bg-slate-50/50 transition">
+                  <td className="px-4 py-3"><div>{formatDate(log.date)}</div><div className="text-[9px] font-mono text-slate-400 font-bold mt-0.5">{log.id}</div></td>
+                  <td onClick={() => emp && onViewDetails(emp)} className="px-4 py-3 flex items-center gap-2.5 cursor-pointer group"><img src={emp?.photo_url} alt="Profile" className="w-7 h-7 rounded-full object-cover border" onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/><div><span className="uppercase group-hover:text-blue-600 transition-colors block">{emp?.name || 'STAF'}</span>{activeBranch === 'SEMUA_CABANG' && <span className="text-[8px] text-slate-400">CAB: {emp?.branch_id}</span>}</div></td>
+                  <td className="px-4 py-3"><span className={`px-2 py-0.5 text-[8px] font-black uppercase rounded ${isKredit ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>{isKredit ? 'KREDIT BARANG' : 'KASBON TUNAI'}</span><div className="text-slate-600 text-[10px] mt-1 line-clamp-1">{log.description}</div></td>
+                  <td className="px-4 py-3 text-right text-slate-900">{formatRupiah(log.amount)}</td>
+                  <td className="px-4 py-3 text-center">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <button type="button" onClick={() => triggerPrint('NOTA_DOTMATRIX', {
+                        title: isKredit ? 'BUKTI PERSETUJUAN KREDIT BARANG' : 'BUKTI PENCAIRAN KASBON TUNAI', id: log.id, date: formatDate(log.date), periode: formatDate(log.date).substring(3),
+                        branch_name: emp?.branch_id || activeBranch, admin_name: user?.name || 'ADMIN', customer_name: emp?.name || 'STAF', position: emp?.position || 'STAF',
+                        items: [{ name: `${log.description}`, qty: 1, subtotal: log.amount }], amount: log.amount, paymentMethod: isKredit ? 'AUTO-POTONG GAJI (NON-CASH)' : 'CASH',
+                        history: { kasbonList: [{ ...log, status: 'BARU DIAJUKAN', sisa: log.amount, cicilanKe: 0 }], labelLama: 'Sisa Hutang / Kredit Sebelumnya', nominalLama: Math.max(0, (emp?.sisaHutang || 0) - log.amount), labelAksi: 'Penambahan Kasbon / Kredit Baru', nominalAksi: log.amount, labelBaru: 'TOTAL HUTANG / KREDIT SAAT INI', nominalBaru: emp?.sisaHutang || 0 }
+                      })} className="p-1.5 text-white bg-slate-800 hover:bg-slate-900 shadow rounded-lg" title="Cetak Nota"><Printer size={12}/></button>
+                      {isHQ && (<><button type="button" onClick={() => handleEdit(log)} className="p-1.5 bg-amber-50 text-amber-600 hover:bg-amber-100 rounded-lg" title="Edit"><Edit2 size={12}/></button><button type="button" onClick={() => handleDelete(log.id)} className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg" title="Void"><Trash2 size={12}/></button></>)}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// =========================================================================
+// 📇 SUB-COMPONENT 4: MASTER DATA SDM
 // =========================================================================
 function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch, isHQ, sendToSheet, showToast, onViewDetails, setOptimisticDeletedIds }) {
   const [form, setForm] = useState({ id: '', name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT', phone: '', address: '', photo_url: '', ktp_url: '' });
@@ -721,10 +752,7 @@ function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch,
           if (isEditingMode && form.id) { payload.id = form.id; success = await sendToSheet('update', payload, 'karyawan'); } else { payload.id = generateId('EMP', new Date()); success = await sendToSheet('insert', payload, 'karyawan'); }
           if (success) { setForm({ id: '', name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT', phone: '', address: '', photo_url: '', ktp_url: '' }); setIsEditingMode(false); }
         }} className="space-y-3">
-          <div className="flex items-center justify-between border-b pb-2">
-            <h3 className="font-black text-sm uppercase text-slate-800">{isEditingMode ? `🔄 Update Staf: ${form.name}` : 'Registrasi Identitas Staf'}</h3>
-            {isEditingMode && <button type="button" onClick={() => { setIsEditingMode(false); setForm({ id: '', name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT', phone: '', address: '', photo_url: '', ktp_url: '' }); }} className="text-[10px] font-black uppercase text-slate-500 border px-2 py-0.5 rounded flex items-center gap-1 bg-white"><Undo size={10}/> Batal</button>}
-          </div>
+          <div className="flex items-center justify-between border-b pb-2"><h3 className="font-black text-sm uppercase text-slate-800">{isEditingMode ? `🔄 Update Staf: ${form.name}` : 'Registrasi Identitas Staf'}</h3>{isEditingMode && <button type="button" onClick={() => { setIsEditingMode(false); setForm({ id: '', name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT', phone: '', address: '', photo_url: '', ktp_url: '' }); }} className="text-[10px] font-black uppercase text-slate-500 border px-2 py-0.5 rounded flex items-center gap-1 bg-white"><Undo size={10}/> Batal</button>}</div>
           {isHQ && <div><label className="text-[10px] font-bold text-slate-500 uppercase">Penempatan Kerja</label><select disabled={isEditingMode} value={form.targetBranch} onChange={e=>setForm({...form, targetBranch: e.target.value})} className="w-full p-2 border rounded-lg text-xs uppercase font-black bg-white">{branchListId.map(br => <option key={br} value={br}>{branchMapName[br]}</option>)}</select></div>}
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">Nama Lengkap</label><input type="text" required readOnly={isEditingMode} value={form.name} onChange={e=>setForm({...form, name: e.target.value})} className={`w-full p-2 border rounded-lg text-sm uppercase outline-none ${isEditingMode ? 'bg-slate-100 font-black text-slate-500 cursor-not-allowed' : ''}`} /></div>
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">No. WhatsApp</label><input type="text" required placeholder="Contoh: 081234567" value={form.phone} onChange={e=>setForm({...form, phone: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold" /></div>
