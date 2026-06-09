@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Users, Landmark, Banknote, UserPlus, Layers, TrendingDown, ShieldAlert, Trash2, Edit2, Check, X, Phone, Image, Eye, MapPin, Undo } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 
-// Helper Format Rupiah Lokal
+// Helper Format Rupiah Lokal agar seragam
 const formatRupiah = (angka) => "Rp. " + Number(angka || 0).toLocaleString('id-ID');
 
 export default function TabKaryawan({ 
@@ -36,7 +36,7 @@ export default function TabKaryawan({
 
   const daftarCabangId = useMemo(() => Object.keys(petaNamaCabang), [petaNamaCabang]);
 
-  // 2. ENGINE MASTER KARYAWAN & COMPILER KASBON
+  // 2. ENGINE MASTER KARYAWAN & COMPILER KASBON (DENGAN SINKRONISASI FITUR POSITIONING)
   const globalEmployeeCompiled = useMemo(() => {
     const dataStaf = {};
     (karyawan || []).forEach(k => {
@@ -47,6 +47,7 @@ export default function TabKaryawan({
         phone: k.phone || '-',
         address: k.address || 'ALAMAT BELUM DIISI',
         photo_url: k.photo_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+        photo_position: k.photo_position || '50% 50%', // Koordinat simpan posisi wajah
         ktp_url: k.ktp_url || '',
         totalKasbon: 0, totalDibayar: 0, sisaHutang: 0
       };
@@ -168,23 +169,19 @@ export default function TabKaryawan({
         <MasterSDMModule employees={employeesDiCabangAktif} branchListId={daftarCabangId} branchMapName={petaNamaCabang} activeBranch={activeProcessingBranch} isHQ={isHQ} sendToSheet={sendToSheet} showToast={showToast} onViewDetails={setSelectedEmployeeDetails} />
       )}
 
-      {/* ======================================================== */}
-      {/* POP-UP MODAL SLIDE VIEW ATAS (DENGAN BINGKAI PORTRAIT UTAN LENGKAP) */}
-      {/* ======================================================== */}
+      {/* POP-UP MODAL SLIDE VIEW ATAS (DENGAN REVISI PORTRAIT FULL VIEW) */}
       {selectedEmployeeDetails && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[9999] flex justify-center items-start pt-12 md:pt-20 p-4 overflow-y-auto animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl shadow-2xl border max-w-2xl w-full overflow-hidden max-h-[85vh] flex flex-col mb-10">
-            
             <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2"><Users size={18} className="text-amber-400"/><h3 className="font-black text-sm uppercase tracking-wider">Berkas Profil & Dokumen KTP Staf</h3></div>
               <button type="button" onClick={() => setSelectedEmployeeDetails(null)} className="p-1 rounded-lg bg-slate-800 text-slate-400 hover:text-white transition"><X size={20}/></button>
             </div>
-            
             <div className="p-6 overflow-y-auto space-y-6 flex-1">
               <div className="flex flex-col sm:flex-row gap-6 items-center sm:items-start border-b pb-5">
-                {/* UPGRADE BINGKAI: Diubah menjadi portrait fleksibel w-36 h-48 agar foto full aslinya kelihatan proporsional */}
-                <div className="w-36 h-48 rounded-2xl overflow-hidden border-4 border-slate-100 shadow-md shrink-0 bg-slate-100 flex items-center justify-center">
-                  <img src={selectedEmployeeDetails.photo_url} alt="Profil Full View" className="w-full h-full object-contain bg-slate-50" onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
+                {/* 🔥 SULTAN VIEW: Di bagian detail popup, kita matikan krop bulatnya agar foto full aslinya kelihatan seutuhnya */}
+                <div className="w-40 h-52 rounded-2xl overflow-hidden border shadow-inner shrink-0 bg-slate-50 flex items-center justify-center">
+                  <img src={selectedEmployeeDetails.photo_url} alt="Profil Asli Full" className="w-full h-full object-contain" onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
                 </div>
                 <div className="space-y-2 flex-1 text-center sm:text-left">
                   <h2 className="text-2xl font-black text-slate-900 uppercase tracking-wide">{selectedEmployeeDetails.name}</h2>
@@ -214,10 +211,7 @@ export default function TabKaryawan({
                 </div>
               </div>
             </div>
-            
-            <div className="bg-slate-50 px-6 py-3 border-t text-right shrink-0">
-              <button type="button" onClick={() => setSelectedEmployeeDetails(null)} className="px-5 py-2 bg-slate-900 text-white font-black text-xs uppercase rounded-xl hover:bg-slate-800 transition">Tutup Berkas</button>
-            </div>
+            <div className="bg-slate-50 px-6 py-3 border-t text-right shrink-0"><button type="button" onClick={() => setSelectedEmployeeDetails(null)} className="px-5 py-2 bg-slate-900 text-white font-black text-xs uppercase rounded-xl hover:bg-slate-800 transition">Tutup Berkas</button></div>
           </div>
         </div>
       )}
@@ -270,8 +264,9 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
               return (
                 <tr key={p.id} className="hover:bg-slate-50/50 transition">
                   <td className="px-4 py-3 text-slate-500">{formatDate(p.date)}</td>
+                  {/* 📸 SMART BULATAN ENGINE: Tetap bulat rapi menggunakan koordinat simpanan excel */}
                   <td onClick={() => emp && onViewDetails(emp)} className="px-4 py-3 flex items-center gap-2.5 cursor-pointer group">
-                    <img src={emp?.photo_url} alt="Profile" className="w-7 h-7 rounded-full object-cover border" onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
+                    <img src={emp?.photo_url} alt="Profile" className="w-7 h-7 rounded-full object-cover border" style={{ objectPosition: emp?.photo_position || '50% 50%' }} onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
                     <span className="uppercase group-hover:text-blue-600 transition-colors">{emp?.name || 'STAF'}</span>
                   </td>
                   <td className="px-4 py-3 text-right">{formatRupiah((p.base_salary||0)+(p.allowance||0))}</td>
@@ -326,7 +321,7 @@ function KasbonModule({ employees, expenses, globalCompiled, activeBranch, today
                 <tr key={log.id} className="hover:bg-slate-50/50 transition">
                   <td className="px-4 py-3"><div>{formatDate(log.date)}</div><div className="text-[9px] font-mono text-slate-400 font-bold mt-0.5">{log.id}</div></td>
                   <td onClick={() => emp && onViewDetails(emp)} className="px-4 py-3 flex items-center gap-2.5 cursor-pointer group">
-                    <img src={emp?.photo_url} alt="Profile" className="w-7 h-7 rounded-full object-cover border" onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
+                    <img src={emp?.photo_url} alt="Profile" className="w-7 h-7 rounded-full object-cover border" style={{ objectPosition: emp?.photo_position || '50% 50%' }} onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
                     <span className="uppercase group-hover:text-blue-600 transition-colors">{emp?.name || 'STAF'}</span>
                   </td>
                   <td className="px-4 py-3 text-slate-500 font-normal">{log.description}</td>
@@ -341,14 +336,18 @@ function KasbonModule({ employees, expenses, globalCompiled, activeBranch, today
   );
 }
 
-// MASTER DATA SDM MODULE
+// =========================================================================
+// 📇 SUB-COMPONENT 3: MASTER DATA SDM (WITH LIVE FACE POSITION SLIDER SLIDER)
+// =========================================================================
 function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch, isHQ, sendToSheet, showToast, onViewDetails }) {
   const [form, setForm] = useState({ id: '', name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT', phone: '', address: '', photo_base64: '', ktp_base64: '' });
   const [isEditingMode, setIsEditingMode] = useState(false);
 
-  // ========================================================
-  // 🔥 PERBAIKAN ENGINE SULTAN: Jaga Rasio Full View Saat Kompresi
-  // ========================================================
+  // 🎛️ STATE MANAJEMEN BARU: Penampung live geser koordinat wajah (X dan Y axis %)
+  const [faceX, setFaceX] = useState(50);
+  const [faceY, setFaceY] = useState(50);
+
+  // Engine kompresor gambar pintar (Skala proporsional utuh, file ciut ~30KB)
   const prosesDanKompresGambarSultan = (file, keyName) => {
     if(!file) return;
     const reader = new FileReader();
@@ -358,21 +357,19 @@ function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch,
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         
-        // 🎯 UPGRADE: Jangan dipangkas 1:1! Turunkan skala proporsional agar filenya ringan tapi bentuk aslinya utuh!
-        const maxDim = 800; // Maks resolusi 800px (Sangat ramah Google Sheets payload)
+        const maxDim = 800; 
         let width = img.width; let height = img.height;
-        if (width > height) {
-          if (width > maxDim) { height *= maxDim / width; width = maxDim; }
-        } else {
-          if (height > maxDim) { width *= maxDim / height; height = maxDim; }
-        }
+        if (width > height) { if (width > maxDim) { height *= maxDim / width; width = maxDim; } } 
+        else { if (height > maxDim) { width *= maxDim / height; height = maxDim; } }
         
-        canvas.width = width;
-        canvas.height = height;
+        canvas.width = width; canvas.height = height;
         ctx.drawImage(img, 0, 0, width, height);
         
         const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
         setForm(prev => ({ ...prev, [keyName]: compressedBase64 }));
+
+        // Reset slider ke posisi tengah setiap ada upload file baru
+        if(keyName === 'photo_base64') { setFaceX(50); setFaceY(50); }
       };
       img.src = event.target.result;
     };
@@ -380,7 +377,19 @@ function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch,
   };
 
   const handleTriggerEditPencil = (k) => {
-    setForm({ id: k.id, name: k.name, position: k.position, baseSalary: String(k.baseSalary || 0), targetBranch: k.branch_id, phone: k.phone === '-' ? '' : k.phone, address: k.address === 'ALAMAT BELUM DIISI' ? '' : k.address, photo_base64: '', ktp_base64: '' });
+    // Bedah string persentase database (misal "45% 20%") menjadi angka slider
+    let posX = 50; let posY = 50;
+    if (k.photo_position) {
+      const parts = k.photo_position.split(' ');
+      if (parts.length === 2) {
+        posX = parseInt(parts[0]) || 50;
+        posY = parseInt(parts[1]) || 50;
+      }
+    }
+
+    setForm({ id: k.id, name: k.name, position: k.position, baseSalary: String(k.baseSalary || 0), targetBranch: k.branch_id, phone: k.phone === '-' ? '' : k.phone, address: k.address === 'ALAMAT BELUM DIISI' ? '' : k.address, photo_base64: k.photo_url.startsWith('data:') ? k.photo_url : '', ktp_base64: '' });
+    setFaceX(posX);
+    setFaceY(posY);
     setIsEditingMode(true);
     if (showToast) showToast(`Data ${k.name} siap dilengkapi di form kiri!`, 'success');
   };
@@ -390,18 +399,27 @@ function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch,
       <div className={`p-6 rounded-2xl border border-t-4 transition-colors duration-300 h-max ${isEditingMode ? 'bg-amber-50/50 border-t-amber-500 border-amber-200' : 'bg-white border-t-slate-800'}`}>
         <form onSubmit={async (e) => {
           e.preventDefault(); if (!form.name) return; const penempatan = isHQ ? form.targetBranch : activeBranch;
-          const payload = { name: form.name.toUpperCase(), position: form.position, baseSalary: Number(form.baseSalary || 0), branch_id: penempatan, status: 'AKTIF', phone: form.phone || '-', address: form.address || 'ALAMAT BELUM DIISI' };
+          
+          // Satukan koordinat slider menjadi string baku CSS (Contoh: "52% 35%")
+          const gabunganKoordinatWajah = `${faceX}% ${faceY}%`;
+
+          const payload = { 
+            name: form.name.toUpperCase(), position: form.position, baseSalary: Number(form.baseSalary || 0), branch_id: penempatan, status: 'AKTIF', phone: form.phone || '-', address: form.address || 'ALAMAT BELUM DIISI',
+            photo_position: gabunganKoordinatWajah // Disimpan aman ke Google Sheets!
+          };
+
           if (form.photo_base64) payload.photo_base64 = form.photo_base64;
           if (form.ktp_base64) payload.ktp_base64 = form.ktp_base64;
+          
           let success = false;
           if (isEditingMode && form.id) { payload.id = form.id; success = await sendToSheet('update', payload, 'karyawan'); } 
           else { payload.id = generateId('EMP', new Date()); success = await sendToSheet('insert', payload, 'karyawan'); }
-          if (success) { setForm({ id: '', name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT', phone: '', address: '', photo_base64: '', ktp_base64: '' }); setIsEditingMode(false); }
+          if (success) { setForm({ id: '', name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT', phone: '', address: '', photo_base64: '', ktp_base64: '' }); setIsEditingMode(false); setFaceX(50); setFaceY(50); }
         }} className="space-y-3">
           <div className="flex items-center justify-between border-b pb-2">
             <h3 className="font-black text-sm uppercase text-slate-800">{isEditingMode ? `🔄 Update Staf: ${form.name}` : 'Registrasi Identitas Staf'}</h3>
             {isEditingMode && (
-              <button type="button" onClick={() => { setIsEditingMode(false); setForm({ id: '', name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT', phone: '', address: '', photo_base64: '', ktp_base64: '' }); }} className="text-[10px] font-black uppercase text-slate-500 border px-2 py-0.5 rounded flex items-center gap-1 bg-white"><Undo size={10}/> Batal</button>
+              <button type="button" onClick={() => { setIsEditingMode(false); setForm({ id: '', name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT', phone: '', address: '', photo_base64: '', ktp_base64: '' }); setFaceX(50); setFaceY(50); }} className="text-[10px] font-black uppercase text-slate-500 border px-2 py-0.5 rounded flex items-center gap-1 bg-white"><Undo size={10}/> Batal</button>
             )}
           </div>
           {isHQ && (
@@ -409,8 +427,43 @@ function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch,
           )}
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">Nama Lengkap</label><input type="text" required readOnly={isEditingMode} value={form.name} onChange={e=>setForm({...form, name: e.target.value})} className={`w-full p-2 border rounded-lg text-sm uppercase outline-none ${isEditingMode ? 'bg-slate-100 font-black text-slate-500 cursor-not-allowed' : ''}`} /></div>
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">No. WhatsApp</label><input type="text" required placeholder="Contoh: 081234567" value={form.phone} onChange={e=>setForm({...form, phone: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold" /></div>
-          <div><label className="text-[10px] font-black text-slate-500 uppercase block mb-1">Upload Pas Foto Profil Baru</label><input type="file" accept="image/*" onChange={e => prosesDanKompresGambarSultan(e.target.files[0], 'photo_base64')} className="w-full text-xs font-bold text-slate-500 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-slate-900 file:text-white" /></div>
-          <div><label className="text-[10px] font-black text-orange-600 uppercase block mb-1">Upload Berkas Foto KTP</label><input type="file" accept="image/*" onChange={e => prosesDanKompresGambarSultan(e.target.files[0], 'ktp_base64')} className="w-full text-xs font-bold text-slate-500 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-orange-600 file:text-white" /></div>
+          
+          {/* INPUT PAS FOTO DENGAN EMULASI FITUR SLIDER MANUAL CROPPING BY CSS */}
+          <div>
+            <label className="text-[10px] font-black text-slate-500 uppercase block mb-1">Upload Pas Foto Profil Baru</label>
+            <input type="file" accept="image/*" onChange={e => prosesDanKompresGambarSultan(e.target.files[0], 'photo_base64')} className="w-full text-xs font-bold text-slate-500 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-black file:bg-slate-900 file:text-white cursor-pointer" />
+            
+            {/* 🛠️ BARU: PANEL SMART FACE ALIGNMENT SLIDERS */}
+            {(form.photo_base64 || (isEditingMode && form.id)) && (
+              <div className="mt-3 p-3 bg-slate-900 rounded-xl space-y-3 border shadow-md text-white">
+                <div className="flex items-center justify-between text-[9px] font-black text-amber-400 uppercase tracking-wider">
+                  <span>🎛️ Live Manual Face Adjuster Panel</span>
+                  <span>({faceX}% , {faceY}%)</span>
+                </div>
+                
+                {/* Live Circle Preview Ter-SINKRONISASI SLIDER */}
+                <div className="flex justify-center py-1">
+                  <div className="w-20 h-20 rounded-full border-2 border-amber-400 overflow-hidden bg-slate-800">
+                    <img src={form.photo_base64 || employees.find(x=>x.id===form.id)?.photo_url} alt="Live Align" className="w-full h-full object-cover transition-none" style={{ objectPosition: `${faceX}% ${faceY}%` }} />
+                  </div>
+                </div>
+
+                {/* Slider Tuas 1: Geser Vertikal Y (Paling penting buat foto portrait) */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[8px] font-bold text-slate-400 uppercase"><span>↕️ Geser Atas / Bawah</span></div>
+                  <input type="range" min="0" max="100" value={faceY} onChange={e => setFaceY(Number(e.target.value))} className="w-full accent-amber-400 bg-slate-800 cursor-pointer h-1 rounded" />
+                </div>
+
+                {/* Slider Tuas 2: Geser Horisontal X */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[8px] font-bold text-slate-400 uppercase"><span>↔️ Geser Kiri / Kanan</span></div>
+                  <input type="range" min="0" max="100" value={faceX} onChange={e => setFaceX(Number(e.target.value))} className="w-full accent-amber-400 bg-slate-800 cursor-pointer h-1 rounded" />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div><label className="text-[10px] font-black text-orange-600 uppercase block mb-1">Upload Foto KTP</label><input type="file" accept="image/*" onChange={e => prosesDanKompresGambarSultan(e.target.files[0], 'ktp_base64')} className="w-full text-xs font-bold text-slate-500 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-orange-600 file:text-white" /></div>
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">Gaji Pokok</label><input type="text" required value={formatRupiah(form.baseSalary)} onChange={e=>setForm({...form, baseSalary: e.target.value.replace(/\D/g, '')})} className="w-full p-2 border rounded-lg font-bold text-sm" /></div>
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">Alamat Rumah KTP</label><textarea required rows="2" value={form.address} onChange={e=>setForm({...form, address: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold uppercase none outline-none" placeholder="Isi nama jalan..."></textarea></div>
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">Posisi Kerja</label><select value={form.position} onChange={e=>setForm({...form, position: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold uppercase"><option value="KASIR">KASIR / RESTO FRONT</option><option value="DAPUR_RESTO">COOK / DAPUR RESTO</option><option value="WAITRESS">PRAMUSAJI / WAITRESS</option><option value="PRODUKSI_PABREK">STAFF PRODUKSI ADUKAN</option><option value="DRIVER">DRIVING LOGISTIK</option></select></div>
@@ -426,7 +479,8 @@ function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch,
             {employees.map(k => (
               <tr key={k.id} className="hover:bg-slate-50/50 transition">
                 <td onClick={() => onViewDetails(k)} className="px-4 py-3 flex items-center gap-3 cursor-pointer group">
-                  <img src={k.photo_url} alt="Ava" className="w-10 h-10 rounded-full object-cover border shrink-0 group-hover:scale-110 transition-transform" onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
+                  {/* 📸 INTEGRASI UNIVERSAL: Database gambar mematuhi koordinat simpanan slider */}
+                  <img src={k.photo_url} alt="Ava" className="w-10 h-10 rounded-full object-cover border shrink-0 group-hover:scale-110 transition-transform" style={{ objectPosition: k.photo_position || '50% 50%' }} onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
                   <div>
                     <div className="font-black text-slate-800 uppercase group-hover:text-blue-600 transition-colors flex items-center gap-1">{k.name} <Eye size={12} className="text-slate-400 inline"/></div>
                     <div className="text-[9px] font-mono text-slate-400">WA: {k.phone}</div>
