@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { AlertCircle, Loader2, ShieldCheck, Trash2 } from 'lucide-react';
+import { AlertCircle, Loader2, Trash2 } from 'lucide-react';
 
 // =====================================
-// IMPOR DYNAMIC LAYOUT ENGINE (BARU)
+// IMPOR DYNAMIC LAYOUT ENGINE
 // =====================================
 import LayoutEngine from './layouts/LayoutEngine';
 
@@ -217,8 +217,7 @@ export default function App() {
   // GATEKEEPER ROUTING (TAB RENDER)
   // =====================================
   const renderContent = () => {
-    // 🛡️ KUNCI PENGAMAN OTOMATIS: 
-    // Jika cabang klik menu "Dashboard", belokkan paksa ke Dashboard Cabang yang Asli
+    // 🛡️ KUNCI PENGAMAN OTOMATIS
     let safeTab = activeTab;
     if (activeTab === 'dashboard' && user?.branch_type !== 'HQ_FACTORY') {
       safeTab = 'dashboard_branch';
@@ -250,19 +249,36 @@ export default function App() {
   };
 
   // =====================================
-  // UI 1: GERBANG LOGIN
+  // UI 1: GERBANG LOGIN (UPDATED)
   // =====================================
   if (!user) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 50% 0%, #3b82f6 0%, transparent 70%)' }}></div>
-        <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full relative z-10 border border-slate-100">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 relative overflow-hidden">
+        
+        {/* ANIMATED FLUID GRADIENT BLOBS (Dimsum Aditya Palette) */}
+        <div className="absolute top-[-10%] left-[-10%] w-[30rem] md:w-[40rem] h-[30rem] md:h-[40rem] bg-red-500 rounded-full mix-blend-multiply filter blur-[100px] opacity-40 animate-pulse"></div>
+        <div className="absolute top-[20%] right-[-10%] w-[25rem] md:w-[35rem] h-[25rem] md:h-[35rem] bg-orange-400 rounded-full mix-blend-multiply filter blur-[100px] opacity-40 animate-pulse" style={{ animationDelay: '2s' }}></div>
+        <div className="absolute bottom-[-20%] left-[20%] w-[35rem] md:w-[45rem] h-[35rem] md:h-[45rem] bg-yellow-400 rounded-full mix-blend-multiply filter blur-[100px] opacity-30 animate-pulse" style={{ animationDelay: '4s' }}></div>
+
+        <div className="bg-white/90 backdrop-blur-xl p-8 rounded-3xl shadow-2xl max-w-sm w-full relative z-10 border border-white/50">
+          
           <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-600/30">
-              <ShieldCheck size={32} className="text-white"/>
+            {/* LOGO BARU */}
+            <div className="flex justify-center mb-4">
+              <img 
+                src="https://dimsumaditya.id/wp-content/uploads/2026/06/Dimsum-Aditya-New-Logo-scaled.webp" 
+                alt="Logo Dimsum Aditya" 
+                className="h-24 w-auto object-contain drop-shadow-sm hover:scale-105 transition-transform duration-300"
+              />
             </div>
-            <h1 className="text-2xl font-black text-slate-800 uppercase tracking-wide">Dimsum Aditya</h1>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Multi-Node ERP System</p>
+            
+            {/* ANCHOR LINK & TAGLINE */}
+            <a href="https://dimsumaditya.id/" target="_blank" rel="noopener noreferrer" className="text-2xl font-black text-slate-800 uppercase tracking-wide hover:text-red-600 transition-colors block">
+              Dimsum Aditya
+            </a>
+            <p className="text-[10px] font-bold text-red-500 uppercase tracking-widest mt-1">
+              Supplier Dimsum Ayam Tangerang.
+            </p>
           </div>
 
           {loginError && (
@@ -274,13 +290,13 @@ export default function App() {
           <form onSubmit={handleLoginSubmit} className="space-y-4">
             <div>
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Username</label>
-              <input type="text" required value={loginForm.username} onChange={e => setLoginForm({...loginForm, username: e.target.value})} className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-blue-500 transition" placeholder="Masukkan username" />
+              <input type="text" required value={loginForm.username} onChange={e => setLoginForm({...loginForm, username: e.target.value})} className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-red-500 transition" placeholder="Masukkan username" />
             </div>
             <div>
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Password</label>
-              <input type="password" required value={loginForm.password} onChange={e => setLoginForm({...loginForm, password: e.target.value})} className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-blue-500 transition" placeholder="••••••••" />
+              <input type="password" required value={loginForm.password} onChange={e => setLoginForm({...loginForm, password: e.target.value})} className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-red-500 transition" placeholder="••••••••" />
             </div>
-            <button type="submit" disabled={isLoading} className="w-full bg-blue-600 text-white font-black py-4 rounded-xl hover:bg-blue-700 transition shadow-lg shadow-blue-600/20 uppercase tracking-wide text-xs mt-2 disabled:opacity-50 flex justify-center items-center gap-2">
+            <button type="submit" disabled={isLoading} className="w-full bg-red-600 text-white font-black py-4 rounded-xl hover:bg-red-700 transition shadow-lg shadow-red-600/30 uppercase tracking-wide text-xs mt-2 disabled:opacity-50 flex justify-center items-center gap-2">
               {isLoading ? <><Loader2 size={16} className="animate-spin"/> Memverifikasi...</> : 'Masuk Sistem'}
             </button>
           </form>
@@ -331,8 +347,8 @@ export default function App() {
 
       {/* Layar Loading - HANYA MUNCUL SAAT SUBMIT / DELETE / LOGIN */}
       {isLoading && (
-        <div className="fixed inset-0 bg-white/60 backdrop-blur-sm z-[9999] flex flex-col items-center justify-center">
-          <Loader2 size={48} className="text-blue-600 animate-spin mb-4" />
+        <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-[9999] flex flex-col items-center justify-center">
+          <Loader2 size={48} className="text-red-600 animate-spin mb-4" />
           <div className="font-black text-slate-800 tracking-widest uppercase text-sm animate-pulse">Menyinkronkan Server...</div>
         </div>
       )}
