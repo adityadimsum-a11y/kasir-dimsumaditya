@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ShoppingCart, Package, Truck, CalendarDays, CreditCard, User, AlertCircle, CheckCircle2, FileText, Printer, Lock, Unlock, Clock, TrendingUp, DollarSign } from 'lucide-react';
+import { ShoppingCart, Package, Truck, CalendarDays, CreditCard, User, AlertCircle, CheckCircle2, FileText, Printer, Lock, Unlock } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
 
@@ -13,7 +13,7 @@ const PRICING = {
   ECERAN: 3000
 };
 
-export default function TabPenjualan({ 
+export default function TabOrders({ 
   salesOrders = [], sales_orders, 
   productionBatches = [], production_batches, 
   sendToSheet, showToast, user 
@@ -23,16 +23,14 @@ export default function TabPenjualan({
   
   const realSalesOrders = sales_orders || salesOrders || [];
   const realProductionBatches = production_batches || productionBatches || [];
-  const [optimisticDeletedIds, setOptimisticDeletedIds] = useState(new Set());
+  const [optimisticDeletedIds] = useState(new Set());
 
-  // STATE FORM INPUT POS
   const [form, setForm] = useState({
     date: todayStr, customerName: '', customerType: 'ECERAN', 
     qtyPcs: '', fulfillmentType: 'DIRECT', deliveryDate: todayStr, 
     karantinaStatus: 'LOCKED', shippingCost: '0', amountPaid: '', paymentMethod: 'CASH', notes: ''
   });
 
-  // 1. KALKULATOR HARGA & PIUTANG OTOMATIS
   const calc = useMemo(() => {
     const qty = Number(form.qtyPcs || 0);
     const hargaSatuan = PRICING[form.customerType] || 0;
@@ -49,20 +47,17 @@ export default function TabPenjualan({
     return { hargaSatuan, subtotal, ongkir, grandTotal, dibayar, sisaPiutang, paymentStatus };
   }, [form.qtyPcs, form.customerType, form.shippingCost, form.amountPaid]);
 
-  // 2. RADAR STOK GUDANG (ANTI PHANTOM STOCK)
   const metrikStok = useMemo(() => {
     let totalFisikMasuk = 0;
     let totalFisikKeluar = 0;
     let totalKarantina = 0;
 
-    // Hitung Barang Jadi dari Pabrik
     realProductionBatches.forEach(p => {
       if (!p.isDeleted && !optimisticDeletedIds.has(p.id)) {
         totalFisikMasuk += Number(p.total_yield_pcs || 0);
       }
     });
 
-    // Hitung Barang Keluar & Karantina dari Data Penjualan
     realSalesOrders.forEach(s => {
       if (!s.isDeleted && !optimisticDeletedIds.has(s.id)) {
         const qty = Number(s.qty_pcs || 0);
@@ -84,7 +79,6 @@ export default function TabPenjualan({
     return realSalesOrders.filter(s => !s.isDeleted && !optimisticDeletedIds.has(s.id)).sort((a,b) => new Date(b.date) - new Date(a.date));
   }, [realSalesOrders, optimisticDeletedIds]);
 
-  // HANDLER SUBMIT PENJUALAN
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (Number(form.qtyPcs) <= 0) return alert("Jumlah QTY Pcs tidak boleh kosong!");
@@ -107,7 +101,6 @@ export default function TabPenjualan({
 
     const success = await sendToSheet('insert', payloadOrder, 'sales_orders');
     if (success) {
-      // JIKA ADA UANG MASUK (CASH/TF), OTOMATIS CATAT KE BUKU KAS/TREASURY!
       if (calc.dibayar > 0) {
         await sendToSheet('insert', {
           id: 'CFI-' + new Date().getTime(), date: form.date, branch_id: form.paymentMethod === 'TF' ? 'HQ_FACTORY' : currentBranch,
@@ -122,7 +115,6 @@ export default function TabPenjualan({
   };
 
   const handleUbahStatusKarantina = async (orderId, statusBaru) => {
-    // Logika buka-tutup gembok karantina by Bos
     await sendToSheet('update', { id: orderId, fulfillment_status: statusBaru }, 'sales_orders');
     if(showToast) showToast(`Status karantina diubah jadi ${statusBaru}`, 'success');
   };
@@ -130,7 +122,6 @@ export default function TabPenjualan({
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
       
-      {/* 📊 RADAR STOK GUDANG FREEZER (REAL-TIME OMS) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-slate-900 p-5 rounded-2xl border shadow-lg border-l-4 border-l-emerald-500 relative overflow-hidden text-white">
           <Package className="absolute -right-4 -bottom-4 text-emerald-400 opacity-20" size={100} />
@@ -153,8 +144,6 @@ export default function TabPenjualan({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* 📝 FORM INPUT POS / KASIR ENTERPRISE */}
         <div className="p-6 rounded-2xl border border-t-4 border-t-emerald-600 bg-white shadow-sm h-max">
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="border-b border-slate-100 pb-3">
@@ -163,7 +152,6 @@ export default function TabPenjualan({
               </h3>
             </div>
 
-            {/* INFO PELANGGAN & HARGA TIER */}
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Nama Pelanggan / ID Cust</label>
@@ -184,9 +172,8 @@ export default function TabPenjualan({
               </div>
             </div>
 
-            {/* METODE PEMENUHAN & KARANTINA */}
             <div className="p-4 border border-slate-200 rounded-2xl bg-slate-50">
-              <label className="text-[10px] font-black text-slate-800 uppercase tracking-widest mb-3 block flex items-center gap-1"><Truck size={12}/> Metode Serah Terima Barang</label>
+              <label className="text-[10px] font-black text-slate-800 uppercase tracking-widest mb-3 flex items-center gap-1"><Truck size={12}/> Metode Serah Terima Barang</label>
               <div className="flex gap-2 mb-3">
                 <button type="button" onClick={()=>setForm({...form, fulfillmentType: 'DIRECT'})} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition border ${form.fulfillmentType==='DIRECT' ? 'bg-emerald-100 border-emerald-300 text-emerald-800 shadow-sm' : 'bg-white text-slate-500 hover:bg-slate-100'}`}>Direct (Ambil Fisik)</button>
                 <button type="button" onClick={()=>setForm({...form, fulfillmentType: 'PO'})} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition border ${form.fulfillmentType==='PO' ? 'bg-orange-100 border-orange-300 text-orange-800 shadow-sm' : 'bg-white text-slate-500 hover:bg-slate-100'}`}>Pre-Order / Kirim Nanti</button>
@@ -202,7 +189,7 @@ export default function TabPenjualan({
                     <label className="text-[9px] font-black text-orange-600 uppercase flex justify-between"><span>Status Gudang</span></label>
                     <select value={form.karantinaStatus} onChange={e=>setForm({...form, karantinaStatus: e.target.value})} className={`w-full p-2 mt-1 border rounded-lg text-xs font-black uppercase outline-none ${form.karantinaStatus==='LOCKED' ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
                       <option value="LOCKED">🔒 Kunci Stok Fisik</option>
-                      <option value="STANDBY">🔓 Biarkan Bebas (Pinjam)</option>
+                      <option value="STANDBY">🔓 Bebas (Pinjam)</option>
                     </select>
                   </div>
                   <div className="col-span-2 text-[8px] mt-1 text-slate-500 font-bold italic">*Jika stok kurang/Standby, alarm SPK Dapur otomatis nyala!</div>
@@ -210,7 +197,6 @@ export default function TabPenjualan({
               )}
             </div>
 
-            {/* BIAYA & PEMBAYARAN */}
             <div className="space-y-3 pt-2 border-t border-slate-100">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold text-slate-500 uppercase">Subtotal Barang:</span>
@@ -251,7 +237,6 @@ export default function TabPenjualan({
           </form>
         </div>
         
-        {/* 📚 TABEL ARSIP PENJUALAN & MANAJEMEN PIUTANG/PO */}
         <div className="lg:col-span-2 bg-white rounded-2xl border flex flex-col overflow-hidden shadow-sm">
           <div className="p-4 bg-slate-50 border-b flex items-center justify-between">
             <h4 className="font-black text-xs uppercase text-slate-700 tracking-widest flex items-center gap-2"><FileText size={14} className="text-blue-600"/> Arsip Invoice &amp; Fulfillment</h4>
