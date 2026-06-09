@@ -27,7 +27,7 @@ export default function TabKaryawan({ karyawan, expenses, masterBranches, cashfl
     return "Rp. " + Number(angka || 0).toLocaleString('id-ID');
   };
 
-  // 1. PETAMAP NAMA CABANG DARI DB (FIXED VARIABEL: masterBranches)
+  // 1. PETAMAP NAMA CABANG DARI DB
   const petaNamaCabang = useMemo(() => {
     const mapping = { PUSAT: '🍊 TANGERANG PUSAT' };
     (masterBranches || []).forEach(b => {
@@ -118,7 +118,7 @@ export default function TabKaryawan({ karyawan, expenses, masterBranches, cashfl
     return { kasbonCabangIni, gajiCabangIniBulanIni, kasbonGlobalSeluruhPerusahaan, gajiGlobalSeluruhPerusahaan };
   }, [masterEmployeeDataGlobal, expenses, activeProcessingBranch, todayStr]);
 
-  // FIX CRITICAL: Membaca memori data cashflowTransactions (tanpa underscore) dengan aman agar tidak memicu error blank putih
+  // Membaca memori data cashflowTransactions dengan aman
   const analisisKecukupanGajiPusat = useMemo(() => {
     const totalKebutuhanKotorNasional = Object.values(masterEmployeeDataGlobal)
       .filter(e => e.status === 'AKTIF').reduce((sum, emp) => sum + emp.baseSalary, 0);
@@ -145,10 +145,19 @@ export default function TabKaryawan({ karyawan, expenses, masterBranches, cashfl
     return { sisaKewajibanPayrollBulanIni, totalKasPusatAktif, statusFinansial, warnaBadge, pesanRekomendasi };
   }, [masterEmployeeDataGlobal, ringkasanFinansialSDM.gajiGlobalSeluruhPerusahaan, cashflowTransactions]);
 
+  // Sisa Hutang Karyawan untuk Payroll
   const selectedEmpKasbon = useMemo(() => {
     if (!formPayroll.employeeId) return 0;
     return masterEmployeeDataGlobal[formPayroll.employeeId]?.sisaHutang || 0;
   }, [formPayroll.employeeId, masterEmployeeDataGlobal]);
+
+  // FIX DEFENSIVE: MENYUNTIKKAN KEMBALI VARIABEL `payrollHistory` YANG HILANG DI GAMBAR TADI
+  const payrollHistory = useMemo(() => {
+    const targetBId = String(activeProcessingBranch || '').trim().toUpperCase();
+    return (expenses || [])
+      .filter(e => !e.isDeleted && e.category === 'PAYROLL' && String(e.branch_id || '').trim().toUpperCase() === targetBId)
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
+  }, [expenses, activeProcessingBranch]);
 
   // ENGINE PENGECEKAN BATAS LIMIT KASBON (MAKSIMAL SENILAI GAJI POKOK)
   const selectedEmpObject = formKasbon.employeeId ? masterEmployeeDataGlobal[formKasbon.employeeId] : null;
@@ -245,7 +254,7 @@ export default function TabKaryawan({ karyawan, expenses, masterBranches, cashfl
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
       
-      {/* 📊 BOARDS METRICS */}
+      {/* BOARDS METRICS */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white p-5 rounded-2xl border shadow-sm border-l-4 border-l-orange-500">
           <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Kasbon Aktif Wilayah ({activeProcessingBranch})</div>
