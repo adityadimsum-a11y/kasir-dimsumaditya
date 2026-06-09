@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Users, Landmark, Banknote, UserPlus, Layers, TrendingDown, ShieldAlert, Trash2, Edit2, Check, X, Phone, Image, Eye, MapPin, Undo } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 
+// Helper Format Rupiah Lokal
 const formatRupiah = (angka) => "Rp. " + Number(angka || 0).toLocaleString('id-ID');
 
 export default function TabKaryawan({ 
@@ -11,16 +12,18 @@ export default function TabKaryawan({
   const currentBranch = user?.branch_id || 'PUSAT';
   const isHQ = user?.branch_type === 'HQ_FACTORY' || currentBranch === 'PUSAT';
 
+  // State Navigasi Sub-Tab
   const [activeSubTab, setActiveSubTab] = useState(isHQ ? 'payroll' : 'kasbon');
   const [selectedBranchFilter, setSelectedBranchFilter] = useState('PUSAT');
   const activeProcessingBranch = isHQ ? selectedBranchFilter : currentBranch;
 
-  // Jendela Detail Modal View
+  // State Pop-up Detail Berkas Karyawan (Sultan View)
   const [selectedEmployeeDetails, setSelectedEmployeeDetails] = useState(null);
 
   const realMasterBranches = master_branches || masterBranches || [];
   const realCashflowTransactions = cashflow_transactions || cashflowTransactions || [];
 
+  // 1. PETAMAP NAMA CABANG DARI DB
   const petaNamaCabang = useMemo(() => {
     const mapping = { PUSAT: '🍊 TANGERANG PUSAT' };
     (realMasterBranches || []).forEach(b => {
@@ -33,6 +36,7 @@ export default function TabKaryawan({
 
   const daftarCabangId = useMemo(() => Object.keys(petaNamaCabang), [petaNamaCabang]);
 
+  // 2. ENGINE MASTER KARYAWAN & COMPILER KASBON
   const globalEmployeeCompiled = useMemo(() => {
     const dataStaf = {};
     (karyawan || []).forEach(k => {
@@ -63,6 +67,7 @@ export default function TabKaryawan({
     return Object.values(globalEmployeeCompiled).filter(k => k.branch_id === targetBId);
   }, [globalEmployeeCompiled, activeProcessingBranch]);
 
+  // 3. ENGINE RADAR FINANCIAL METRICS
   const metrikSDM = useMemo(() => {
     let kasbonCabang = 0; let gajiCabangBulanIni = 0; let kasbonGlobal = 0; let gajiGlobal = 0;
     const targetBId = String(activeProcessingBranch || 'PUSAT').trim().toUpperCase();
@@ -109,10 +114,10 @@ export default function TabKaryawan({
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
       
-      {/* METRICS BOARDS */}
+      {/* CARD INDICATORS */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white p-5 rounded-2xl border shadow-sm border-l-4 border-l-orange-500">
-          <div className="text-[10px] font-black text-slate-400 uppercase">Kasbon Hack Wilayah ({activeProcessingBranch})</div>
+          <div className="text-[10px] font-black text-slate-400 uppercase">Kasbon Aktif Wilayah ({activeProcessingBranch})</div>
           <div className="text-xl font-black text-orange-600 mt-1">{formatRupiah(metrikSDM.kasbonCabang)}</div>
         </div>
         <div className="bg-white p-5 rounded-2xl border shadow-sm border-l-4 border-l-red-500">
@@ -133,7 +138,7 @@ export default function TabKaryawan({
         </div>
       )}
 
-      {/* NAVIGATION TABS */}
+      {/* PIL SWITCHER CABANG */}
       {isHQ && (
         <div className="bg-slate-900 p-4 rounded-2xl flex flex-col md:flex-row items-center justify-between shadow-lg gap-4">
           <div className="flex items-center gap-2 mb-1 md:mb-0"><Layers size={16} className="text-red-400" /><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Pilih Cabang untuk Keuangan Staf:</span></div>
@@ -145,24 +150,25 @@ export default function TabKaryawan({
         </div>
       )}
 
+      {/* SUB NAV TAB BAR */}
       <div className="flex gap-2 border-b pb-4">
         {isHQ && <button onClick={() => setActiveSubTab('payroll')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase ${activeSubTab === 'payroll' ? 'bg-red-600 text-white shadow-md' : 'bg-white text-slate-500'}`}>Gaji & Payroll</button>}
         <button onClick={() => setActiveSubTab('kasbon')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase ${activeSubTab === 'kasbon' ? 'bg-orange-600 text-white shadow-md' : 'bg-white text-slate-500'}`}>Kasbon Karyawan</button>
         <button onClick={() => setActiveSubTab('master')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase ${activeSubTab === 'master' ? 'bg-slate-800 text-white shadow-md' : 'bg-white text-slate-500'}`}>Master SDM Wilayah</button>
       </div>
 
-      {/* MODULE CORNER SWITCH */}
+      {/* ROUTING DIVISION MODULE */}
       {activeSubTab === 'payroll' && isHQ && (
         <PayrollModule employees={employeesDiCabangAktif} expenses={expenses} globalCompiled={globalEmployeeCompiled} activeBranch={activeProcessingBranch} todayStr={todayStr} sendToSheet={sendToSheet} onViewDetails={setSelectedEmployeeDetails} />
       )}
       {activeSubTab === 'kasbon' && (
-        <KasbonModule employees={employeesDiCabangAktif} expenses={expenses} globalCompiled={globalEmployeeCompiled} activeBranch={activeProcessingBranch} todayStr={todayStr} sendToSheet={sendToSheet} />
+        <KasbonModule employees={employeesDiCabangAktif} expenses={expenses} globalCompiled={globalEmployeeCompiled} activeBranch={activeProcessingBranch} todayStr={todayStr} sendToSheet={sendToSheet} onViewDetails={setSelectedEmployeeDetails} />
       )}
       {activeSubTab === 'master' && (
         <MasterSDMModule employees={employeesDiCabangAktif} branchListId={daftarCabangId} branchMapName={petaNamaCabang} activeBranch={activeProcessingBranch} isHQ={isHQ} sendToSheet={sendToSheet} showToast={showToast} onViewDetails={setSelectedEmployeeDetails} />
       )}
 
-      {/* DETAILED MODAL POPUP VIEW */}
+      {/* POP-UP SULTAN MODAL VIEW DETAILS */}
       {selectedEmployeeDetails && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl shadow-2xl border max-w-2xl w-full overflow-hidden my-auto max-h-[90vh] flex flex-col">
@@ -173,7 +179,7 @@ export default function TabKaryawan({
             <div className="p-6 overflow-y-auto space-y-6">
               <div className="flex flex-col sm:flex-row gap-6 items-center sm:items-start border-b pb-5">
                 <div className="w-36 h-36 rounded-2xl overflow-hidden border-4 border-slate-100 shadow-md shrink-0 bg-slate-100">
-                  <img src={selectedEmployeeDetails.photo_url} alt="Ava Gede" className="w-full h-full object-cover" onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
+                  <img src={selectedEmployeeDetails.photo_url} alt="Profil Gede" className="w-full h-full object-cover" onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
                 </div>
                 <div className="space-y-2 flex-1 text-center sm:text-left">
                   <h2 className="text-2xl font-black text-slate-900 uppercase tracking-wide">{selectedEmployeeDetails.name}</h2>
@@ -198,7 +204,7 @@ export default function TabKaryawan({
                   {selectedEmployeeDetails.ktp_url ? (
                     <img src={selectedEmployeeDetails.ktp_url} alt="KTP Gede" className="w-full h-auto max-h-[350px] object-contain" />
                   ) : (
-                    <div className="text-center p-8 text-slate-400 text-xs font-bold space-y-1"><div>📁 Berkas KTP Belum Diunggah</div><div className="text-[10px] text-slate-400 font-normal">Silakan klik tombol edit (pensil biru) untuk mengunggah KTP Mega.</div></div>
+                    <div className="text-center p-8 text-slate-400 text-xs font-bold space-y-1"><div>📁 Berkas KTP Belum Diunggah</div><div className="text-[10px] text-slate-400 font-normal">Silakan klik tombol edit (pensil biru) di menu Master SDM untuk mengunggah KTP.</div></div>
                   )}
                 </div>
               </div>
@@ -212,12 +218,15 @@ export default function TabKaryawan({
   );
 }
 
-// SUB COMPONENT 1: PAYROLL MODULE
+// =========================================================================
+// 🍱 SUB-COMPONENT 1: MODUL GAJI & PAYROLL (WITH AVATAR & CLICK DETECTOR)
+// =========================================================================
 function PayrollModule({ employees, expenses, globalCompiled, activeBranch, todayStr, sendToSheet, onViewDetails }) {
   const [form, setForm] = useState({ date: todayStr, employeeId: '', baseSalary: '0', allowance: '0', otherDeduction: '0', paymentMethod: 'CASH' });
   const selectedStafKasbon = useMemo(() => { if (!form.employeeId || !globalCompiled[form.employeeId]) return 0; return globalCompiled[form.employeeId].sisaHutang || 0; }, [form.employeeId, globalCompiled]);
   const hitungNetto = useMemo(() => { const gapok = Number(form.baseSalary || 0); const tunj = Number(form.allowance || 0); const potLain = Number(form.otherDeduction || 0); const potKasbon = Math.min(selectedStafKasbon, gapok + tunj); return { potKasbon, totalCair: (gapok + tunj) - (potKasbon + potLain) }; }, [form.baseSalary, form.allowance, form.otherDeduction, selectedStafKasbon]);
   const historyGaji = useMemo(() => { const targetBId = String(activeBranch || '').trim().toUpperCase(); return (expenses || []).filter(e => e && !e.isDeleted && e.category === 'PAYROLL' && String(e.branch_id || '').trim().toUpperCase() === targetBId).sort((a, b) => new Date(b.date) - new Date(a.date)); }, [expenses, activeBranch]);
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div className="bg-white rounded-2xl border p-6 border-t-4 border-t-red-600 h-max">
@@ -244,14 +253,29 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
           <button type="submit" className="w-full bg-red-600 text-white text-xs font-black py-3 rounded-xl uppercase tracking-wider">Record & Potong Gaji</button>
         </form>
       </div>
+      
       <div className="lg:col-span-2 bg-white rounded-2xl border overflow-hidden flex flex-col">
         <div className="p-4 bg-slate-50 border-b font-bold text-xs uppercase text-slate-700">Histori Gaji Jurnal Wilayah {activeBranch}</div>
         <table className="w-full text-sm text-left">
           <thead className="bg-slate-50 text-[10px] uppercase text-slate-400 border-b"><tr><th>Tanggal</th><th>Karyawan</th><th className="text-right">Gaji+Tunj</th><th className="text-right text-orange-600">Pot. Kasbon</th><th className="text-right text-emerald-600">Netto Cair</th><th className="text-center">Profil</th></tr></thead>
           <tbody className="divide-y divide-slate-100 text-xs font-bold">
-            {historyGaji.map(p => (
-              <tr key={p.id} className="hover:bg-slate-50"><td className="px-4 py-3 text-slate-500">{formatDate(p.date)}</td><td className="px-4 py-3 uppercase">{globalCompiled[p.employee_id]?.name || 'STAF'}</td><td className="px-4 py-3 text-right">{formatRupiah((p.base_salary||0)+(p.allowance||0))}</td><td className="px-4 py-3 text-right text-orange-600">{formatRupiah(p.kasbon_deduction)}</td><td className="px-4 py-3 text-right text-emerald-600">{formatRupiah(p.amount)}</td><td className="px-4 py-3 text-center"><button type="button" onClick={() => onViewDetails(globalCompiled[p.employee_id])} className="p-1 text-blue-600 bg-blue-50 rounded"><Eye size={12}/></button></td></tr>
-            ))}
+            {historyGaji.map(p => {
+              const emp = globalCompiled[p.employee_id];
+              return (
+                <tr key={p.id} className="hover:bg-slate-50/50 transition">
+                  <td className="px-4 py-3 text-slate-500">{formatDate(p.date)}</td>
+                  {/* 📸 UPGRADE: Thumbnail Foto + Click Viewer di Tabel Payroll */}
+                  <td onClick={() => emp && onViewDetails(emp)} className="px-4 py-3 flex items-center gap-2.5 cursor-pointer group">
+                    <img src={emp?.photo_url} alt="Profile" className="w-7 h-7 rounded-full object-cover border group-hover:scale-110 transition-transform" onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
+                    <span className="uppercase group-hover:text-blue-600 transition-colors">{emp?.name || 'STAF'}</span>
+                  </td>
+                  <td className="px-4 py-3 text-right">{formatRupiah((p.base_salary||0)+(p.allowance||0))}</td>
+                  <td className="px-4 py-3 text-right text-orange-600">{formatRupiah(p.kasbon_deduction)}</td>
+                  <td className="px-4 py-3 text-right text-emerald-600">{formatRupiah(p.amount)}</td>
+                  <td className="px-4 py-3 text-center"><button type="button" onClick={() => emp && onViewDetails(emp)} className="p-1 text-blue-600 bg-blue-50 rounded"><Eye size={12}/></button></td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -259,12 +283,15 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
   );
 }
 
-// SUB COMPONENT 2: KASBON MODULE
-function KasbonModule({ employees, expenses, globalCompiled, activeBranch, todayStr, sendToSheet }) {
+// =========================================================================
+// 💰 SUB-COMPONENT 2: MODUL KASBON (WITH AVATAR & CLICK DETECTOR)
+// =========================================================================
+function KasbonModule({ employees, expenses, globalCompiled, activeBranch, todayStr, sendToSheet, onViewDetails }) {
   const [form, setForm] = useState({ date: todayStr, employeeId: '', amount: '', notes: '' });
   const selectedStaf = form.employeeId ? globalCompiled[form.employeeId] : null;
   const isOverlimit = useMemo(() => { if (!selectedStaf) return false; return (Number(form.amount || 0) + selectedStaf.sisaHutang) > selectedStaf.baseSalary; }, [form.amount, selectedStaf]);
   const historyKasbonLog = useMemo(() => { const targetBId = String(activeBranch || '').trim().toUpperCase(); return (expenses || []).filter(e => e && !e.isDeleted && e.category === 'KASBON' && String(e.branch_id || '').trim().toUpperCase() === targetBId).sort((a, b) => new Date(b.date) - new Date(a.date)); }, [expenses, activeBranch]);
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div className="bg-white p-6 rounded-2xl border border-t-4 border-t-orange-500 h-max">
@@ -290,9 +317,21 @@ function KasbonModule({ employees, expenses, globalCompiled, activeBranch, today
         <table className="w-full text-sm text-left">
           <thead className="bg-slate-50 text-[10px] uppercase text-slate-400 border-b"><tr><th>Tanggal & ID</th><th>Karyawan</th><th>Keterangan</th><th className="text-right">Nominal Pinjam</th></tr></thead>
           <tbody className="divide-y divide-slate-100 text-xs font-bold">
-            {historyKasbonLog.map(log => (
-              <tr key={log.id} className="hover:bg-slate-50"><td className="px-4 py-3"><div>{formatDate(log.date)}</div><div className="text-[9px] font-mono text-slate-400 font-bold mt-0.5">{log.id}</div></td><td className="px-4 py-3 uppercase">{globalCompiled[log.employee_id]?.name || 'STAF'}</td><td className="px-4 py-3 text-slate-500 font-normal">{log.description}</td><td className="px-4 py-3 text-right text-orange-600 bg-orange-50/20">{formatRupiah(log.amount)}</td></tr>
-            ))}
+            {historyKasbonLog.map(log => {
+              const emp = globalCompiled[log.employee_id];
+              return (
+                <tr key={log.id} className="hover:bg-slate-50/50 transition">
+                  <td className="px-4 py-3"><div>{formatDate(log.date)}</div><div className="text-[9px] font-mono text-slate-400 font-bold mt-0.5">{log.id}</div></td>
+                  {/* 📸 UPGRADE: Thumbnail Foto + Click Viewer di Tabel Kasbon (Sesuai Request Gambar image_440a6b.png) */}
+                  <td onClick={() => emp && onViewDetails(emp)} className="px-4 py-3 flex items-center gap-2.5 cursor-pointer group">
+                    <img src={emp?.photo_url} alt="Profile" className="w-7 h-7 rounded-full object-cover border group-hover:scale-110 transition-transform" onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
+                    <span className="uppercase group-hover:text-blue-600 transition-colors">{emp?.name || 'STAF'}</span>
+                  </td>
+                  <td className="px-4 py-3 text-slate-500 font-normal">{log.description}</td>
+                  <td className="px-4 py-3 text-right text-orange-600 bg-orange-50/20">{formatRupiah(log.amount)}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -301,12 +340,10 @@ function KasbonModule({ employees, expenses, globalCompiled, activeBranch, today
 }
 
 // =========================================================================
-// 📇 SUB-COMPONENT 3: MASTER DATA SDM (FIX REQ: DUAL-MODE REGISTER & OVERWRITE)
+// 📇 SUB-COMPONENT 3: MASTER DATA SDM
 // =========================================================================
 function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch, isHQ, sendToSheet, showToast, onViewDetails }) {
   const [form, setForm] = useState({ id: '', name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT', phone: '', address: '', photo_base64: '', ktp_base64: '' });
-  
-  // State Baru: Penentu Mode Form (Tambah vs Timpa)
   const [isEditingMode, setIsEditingMode] = useState(false);
 
   const konversiFileKeBase64 = (file, keyName) => {
@@ -317,108 +354,48 @@ function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch,
   };
 
   const handleTriggerEditPencil = (k) => {
-    // Tarik data lama ke dalam form kiri
-    setForm({
-      id: k.id,
-      name: k.name,
-      position: k.position,
-      baseSalary: String(k.baseSalary || 0),
-      targetBranch: k.branch_id,
-      phone: k.phone === '-' ? '' : k.phone,
-      address: k.address === 'ALAMAT BELUM DIISI' ? '' : k.address,
-      photo_base64: '', 
-      ktp_base64: ''
-    });
+    setForm({ id: k.id, name: k.name, position: k.position, baseSalary: String(k.baseSalary || 0), targetBranch: k.branch_id, phone: k.phone === '-' ? '' : k.phone, address: k.address === 'ALAMAT BELUM DIISI' ? '' : k.address, photo_base64: '', ktp_base64: '' });
     setIsEditingMode(true);
     if (showToast) showToast(`Data ${k.name} siap dilengkapi di form kiri!`, 'success');
-  };
-
-  const submitKaryawanBaru = async (e) => {
-    e.preventDefault();
-    if (!form.name) return;
-    const penempatan = isHQ ? form.targetBranch : activeBranch;
-    
-    // Siapkan bungkusan payload data
-    const payload = {
-      name: form.name.toUpperCase(),
-      position: form.position,
-      baseSalary: Number(form.baseSalary || 0),
-      branch_id: penempatan,
-      status: 'AKTIF',
-      phone: form.phone || '-',
-      address: form.address || 'ALAMAT BELUM DIISI'
-    };
-
-    if (form.photo_base64) payload.photo_base64 = form.photo_base64;
-    if (form.ktp_base64) payload.ktp_base64 = form.ktp_base64;
-
-    let success = false;
-    if (isEditingMode && form.id) {
-      payload.id = form.id; // Gunakan ID lama agar data tertimpa
-      success = await sendToSheet('update', payload, 'karyawan');
-    } else {
-      payload.id = generateId('EMP', new Date()); // Buat ID baru
-      success = await sendToSheet('insert', payload, 'karyawan');
-    }
-
-    if (success) {
-      setForm({ id: '', name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT', phone: '', address: '', photo_base64: '', ktp_base64: '' });
-      setIsEditingMode(false);
-    }
   };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div className={`p-6 rounded-2xl border border-t-4 transition-colors duration-300 h-max ${isEditingMode ? 'bg-amber-50/50 border-t-amber-500 border-amber-200' : 'bg-white border-t-slate-800'}`}>
-        <form onSubmit={submitKaryawanBaru} className="space-y-3">
-          
+        <form onSubmit={async (e) => {
+          e.preventDefault(); if (!form.name) return; const penempatan = isHQ ? form.targetBranch : activeBranch;
+          const payload = { name: form.name.toUpperCase(), position: form.position, baseSalary: Number(form.baseSalary || 0), branch_id: penempatan, status: 'AKTIF', phone: form.phone || '-', address: form.address || 'ALAMAT BELUM DIISI' };
+          if (form.photo_base64) payload.photo_base64 = form.photo_base64;
+          if (form.ktp_base64) payload.ktp_base64 = form.ktp_base64;
+          let success = false;
+          if (isEditingMode && form.id) { payload.id = form.id; success = await sendToSheet('update', payload, 'karyawan'); } 
+          else { payload.id = generateId('EMP', new Date()); success = await sendToSheet('insert', payload, 'karyawan'); }
+          if (success) { setForm({ id: '', name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT', phone: '', address: '', photo_base64: '', ktp_base64: '' }); setIsEditingMode(false); }
+        }} className="space-y-3">
           <div className="flex items-center justify-between border-b pb-2">
-            <h3 className="font-black text-sm uppercase text-slate-800">
-              {isEditingMode ? `🔄 Update Staf: ${form.name}` : 'Registrasi Identitas Staf'}
-            </h3>
+            <h3 className="font-black text-sm uppercase text-slate-800">{isEditingMode ? `🔄 Update Staf: ${form.name}` : 'Registrasi Identitas Staf'}</h3>
             {isEditingMode && (
-              <button type="button" onClick={() => { setIsEditingMode(false); setForm({ id: '', name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT', phone: '', address: '', photo_base64: '', ktp_base64: '' }); }} className="text-[10px] font-black uppercase text-slate-500 border px-2 py-0.5 rounded flex items-center gap-1 bg-white hover:bg-slate-50"><Undo size={10}/> Batal</button>
+              <button type="button" onClick={() => { setIsEditingMode(false); setForm({ id: '', name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT', phone: '', address: '', photo_base64: '', ktp_base64: '' }); }} className="text-[10px] font-black uppercase text-slate-500 border px-2 py-0.5 rounded flex items-center gap-1 bg-white"><Undo size={10}/> Batal</button>
             )}
           </div>
-
           {isHQ && (
-            <div>
-              <label className="text-[10px] font-bold text-slate-500 uppercase">Penempatan Kerja</label>
-              <select disabled={isEditingMode} value={form.targetBranch} onChange={e=>setForm({...form, targetBranch: e.target.value})} className="w-full p-2 border rounded-lg text-xs uppercase font-black bg-white">{branchListId.map(br => <option key={br} value={br}>{branchMapName[br]}</option>)}</select>
-            </div>
+            <div><label className="text-[10px] font-bold text-slate-500 uppercase">Penempatan Kerja</label><select disabled={isEditingMode} value={form.targetBranch} onChange={e=>setForm({...form, targetBranch: e.target.value})} className="w-full p-2 border rounded-lg text-xs uppercase font-black bg-white">{branchListId.map(br => <option key={br} value={br}>{branchMapName[br]}</option>)}</select></div>
           )}
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">Nama Lengkap</label><input type="text" required readOnly={isEditingMode} value={form.name} onChange={e=>setForm({...form, name: e.target.value})} className={`w-full p-2 border rounded-lg text-sm uppercase outline-none ${isEditingMode ? 'bg-slate-100 font-black text-slate-500 cursor-not-allowed' : ''}`} /></div>
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">No. WhatsApp</label><input type="text" required placeholder="Contoh: 081234567" value={form.phone} onChange={e=>setForm({...form, phone: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold" /></div>
-          
-          <div>
-            <label className="text-[10px] font-black text-slate-500 uppercase block mb-1">Upload Pas Foto Profil Baru</label>
-            <input type="file" accept="image/*" onChange={e => konversiFileKeBase64(e.target.files[0], 'photo_base64')} className="w-full text-xs font-bold text-slate-500 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-black file:bg-slate-900 file:text-white hover:file:bg-slate-800 cursor-pointer" />
-          </div>
-
-          <div>
-            <label className="text-[10px] font-black text-orange-600 uppercase block mb-1">Upload Berkas Foto KTP</label>
-            <input type="file" accept="image/*" onChange={e => konversiFileKeBase64(e.target.files[0], 'ktp_base64')} className="w-full text-xs font-bold text-slate-500 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-black file:bg-orange-600 file:text-white hover:file:bg-orange-700 cursor-pointer" />
-          </div>
-
+          <div><label className="text-[10px] font-black text-slate-500 uppercase block mb-1">Upload Pas Foto Profil Baru</label><input type="file" accept="image/*" onChange={e => konversiFileKeBase64(e.target.files[0], 'photo_base64')} className="w-full text-xs font-bold text-slate-500 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-slate-900 file:text-white" /></div>
+          <div><label className="text-[10px] font-black text-orange-600 uppercase block mb-1">Upload Berkas Foto KTP</label><input type="file" accept="image/*" onChange={e => konversiFileKeBase64(e.target.files[0], 'ktp_base64')} className="w-full text-xs font-bold text-slate-500 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-orange-600 file:text-white" /></div>
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">Gaji Pokok</label><input type="text" required value={formatRupiah(form.baseSalary)} onChange={e=>setForm({...form, baseSalary: e.target.value.replace(/\D/g, '')})} className="w-full p-2 border rounded-lg font-bold text-sm" /></div>
-          <div><label className="text-[10px] font-bold text-slate-500 uppercase">Alamat Rumah KTP</label><textarea required rows="2" value={form.address} onChange={e=>setForm({...form, address: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold uppercase outline-none" placeholder="Isi nama jalan, RT/RW, dan kota tinggal..."></textarea></div>
-          <div>
-            <label className="text-[10px] font-bold text-slate-500 uppercase">Posisi Kerja</label>
-            <select value={form.position} onChange={e=>setForm({...form, position: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold uppercase"><option value="KASIR">KASIR / RESTO FRONT</option><option value="DAPUR_RESTO">COOK / DAPUR RESTO</option><option value="WAITRESS">PRAMUSAJI / WAITRESS</option><option value="PRODUKSI_PABREK">STAFF PRODUKSI ADUKAN</option><option value="DRIVER">DRIVING LOGISTIK</option></select>
-          </div>
-          
-          <button type="submit" className={`w-full text-white font-black py-3 rounded-xl text-xs uppercase shadow transition-all ${isEditingMode ? 'bg-amber-500 hover:bg-amber-600' : 'bg-slate-800 hover:bg-slate-900'}`}>
-            {isEditingMode ? '💾 Terapkan & Timpa Data Berkas' : 'Simpan Data Staf'}
-          </button>
+          <div><label className="text-[10px] font-bold text-slate-500 uppercase">Alamat Rumah KTP</label><textarea required rows="2" value={form.address} onChange={e=>setForm({...form, address: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold uppercase outline-none" placeholder="Isi nama jalan..."></textarea></div>
+          <div><label className="text-[10px] font-bold text-slate-500 uppercase">Posisi Kerja</label><select value={form.position} onChange={e=>setForm({...form, position: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold uppercase"><option value="KASIR">KASIR / RESTO FRONT</option><option value="DAPUR_RESTO">COOK / DAPUR RESTO</option><option value="WAITRESS">PRAMUSAJI / WAITRESS</option><option value="PRODUKSI_PABREK">STAFF PRODUKSI ADUKAN</option><option value="DRIVER">DRIVING LOGISTIK</option></select></div>
+          <button type="submit" className={`w-full text-white font-black py-3 rounded-xl text-xs uppercase shadow transition-all ${isEditingMode ? 'bg-amber-500 hover:bg-amber-600' : 'bg-slate-800 hover:bg-slate-900'}`}>{isEditingMode ? '💾 Terapkan & Timpa Data' : 'Simpan Data Staf'}</button>
         </form>
       </div>
 
       <div className="lg:col-span-2 bg-white rounded-2xl border overflow-hidden shadow-sm">
-        <div className="p-4 bg-slate-50 border-b font-bold text-xs uppercase text-slate-700">Database Staf Wilayah Node {activeBranch}</div>
+        <div className="p-4 bg-slate-50 border-b font-bold text-xs uppercase text-slate-700">Database Staf Wilayah penempatan {activeBranch}</div>
         <table className="w-full text-sm text-left">
-          <thead className="bg-slate-50 text-[10px] uppercase text-slate-400 border-b">
-            <tr><th>Profil (Klik untuk Lihat KTP)</th><th>Jabatan & Gaji</th><th className="text-center">Status</th><th className="text-center">Aksi</th></tr>
-          </thead>
+          <thead className="bg-slate-50 text-[10px] uppercase text-slate-400 border-b"><tr><th>Profil (Klik untuk Lihat KTP)</th><th>Jabatan & Gaji</th><th className="text-center">Status</th><th className="text-center">Aksi</th></tr></thead>
           <tbody className="divide-y divide-slate-100 text-xs font-bold">
             {employees.map(k => (
               <tr key={k.id} className="hover:bg-slate-50/50 transition">
@@ -429,15 +406,10 @@ function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch,
                     <div className="text-[9px] font-mono text-slate-400">WA: {k.phone}</div>
                   </div>
                 </td>
-                <td className="px-4 py-3">
-                  <div><div className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[9px] font-black uppercase w-max mb-1">{k.position}</div><div className="text-slate-800 font-black">{formatRupiah(k.baseSalary)}</div></div>
-                </td>
-                <td className="px-4 py-3 text-center">
-                  <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${k.status === 'AKTIF' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>{k.status}</span>
-                </td>
+                <td className="px-4 py-3"><div><div className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[9px] font-black uppercase w-max mb-1">{k.position}</div><div className="text-slate-800 font-black">{formatRupiah(k.baseSalary)}</div></div></td>
+                <td className="px-4 py-3 text-center"><span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${k.status === 'AKTIF' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>{k.status}</span></td>
                 <td className="px-4 py-3 text-center">
                   <div className="flex items-center justify-center gap-1.5">
-                    {/* KLIK TOMBOL INI UNTUK MENIMPA BERKAS LENGKAP KARYAWAN */}
                     <button type="button" onClick={() => handleTriggerEditPencil(k)} className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100" title="Lengkapi / Edit Berkas Karyawan"><Edit2 size={13}/></button>
                     <button type="button" onClick={async () => { if (window.confirm("Apakah Anda yakin ingin menghapus data karyawan ini dari sistem?")) { const success = await sendToSheet('update', { id: k.id, isDeleted: true }, 'karyawan'); if (success && showToast) showToast('Karyawan telah berhasil dihapus.', 'success'); } }} className="p-1.5 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100" title="Hapus"><Trash2 size={13}/></button>
                   </div>
