@@ -100,7 +100,7 @@ export default function TabStok({
     const payload = {
       id: batchId, 
       date: form.date, 
-      branch_id: currentBranch, // Otomatis mengunci ke ID Cabang user login
+      branch_id: currentBranch,
       pic_id: form.picId,
       total_adukan: Number(form.adukan), 
       total_ayam_kg: kalkulasiOtomatis.ayamKg,
@@ -208,7 +208,7 @@ export default function TabStok({
                 <div>
                   <div className="text-[9px] font-black uppercase text-emerald-600/70 tracking-widest">Tambah Stok Frozen</div>
                   <div className="text-sm font-black text-blue-600 flex items-center gap-1 mt-0.5"><Package size={12}/> +{formatNumber(kalkulasiOtomatis.hasilPcs)} Pcs</div>
-                  <div className="text-[9px] font-bold text-slate-500 mt-0.5">({formatNumber(kalkulasiOtomatis.hasilMika)} Mika / {formatNumber(kalkulasiOtematis.hasilPorsi)} Porsi)</div>
+                  <div className="text-[9px] font-bold text-slate-500 mt-0.5">({formatNumber(kalkulasiOtomatis.hasilMika)} Mika / {formatNumber(kalkulasiOtomatis.hasilPorsi)} Porsi)</div>
                 </div>
                 <div className="col-span-2 bg-white/60 p-2 rounded-lg border border-emerald-100 mt-1">
                   <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-600"><span>Estimasi HPP Ayam:</span><span className="text-orange-600">{formatRupiah(kalkulasiOtomatis.hppTotal)}</span></div>
