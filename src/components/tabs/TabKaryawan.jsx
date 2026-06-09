@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Users, Landmark, Banknote, Layers, TrendingDown, ShieldAlert, Trash2, Edit2, Check, X, Phone, Image, Eye, MapPin, Undo, Link, Printer, CalendarDays, History, ShoppingCart, CheckCircle2, Calculator, Clock, Coffee, Target, Flame, Trophy } from 'lucide-react';
+import { Users, Landmark, Banknote, Layers, TrendingDown, ShieldAlert, Trash2, Edit2, Check, X, Phone, Image, Eye, MapPin, Undo, Link, Printer, CalendarDays, History, ShoppingCart, CheckCircle2, Calculator, Clock, Coffee, Target, Flame, Trophy, UsersRound } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
 
@@ -16,7 +16,7 @@ const parseDriveLink = (url) => {
 
 export default function TabKaryawan({ 
   karyawan = [], expenses = [], masterBranches = [], master_branches, cashflowTransactions = [], cashflow_transactions, 
-  productionBatches = [], production_batches, // Ditambahkan untuk membaca data adukan
+  productionBatches = [], production_batches,
   sendToSheet, showToast, user 
 }) {
   const todayStr = getTodayStr();
@@ -43,7 +43,6 @@ export default function TabKaryawan({
 
   const daftarCabangId = useMemo(() => Object.keys(petaNamaCabang), [petaNamaCabang]);
 
-  // 🔥 RADAR DETEKSI TARGET PRODUKSI (2500 PORSI)
   const totalPorsiHariIni = useMemo(() => {
     return realProductionBatches.filter(p => {
       const isToday = p.date && p.date.startsWith(todayStr);
@@ -301,7 +300,7 @@ export default function TabKaryawan({
 }
 
 // =========================================================================
-// 📇 SUB-COMPONENT 1: PAYROLL (PRORATA & DETAIL POTONGAN)
+// 📇 SUB-COMPONENT 1: PAYROLL (TIDAK BERUBAH)
 // =========================================================================
 function PayrollModule({ employees, expenses, globalCompiled, activeBranch, todayStr, sendToSheet, onViewDetails, user, setOptimisticDeletedIds, isHQ, showToast, optimisticDeletedIds }) {
   const currentMonthValue = todayStr.substring(0, 7);
@@ -397,25 +396,17 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
             setForm({ id: '', date: todayStr, periode_bulan: currentMonthValue, employeeId: '', baseSalary: '0', allowance: '0', potKasbonInput: '', otherDeduction: '0', paymentMethod: 'CASH', isProrata: false, hariNormal: '26', hariHadir: '26' }); setIsEditing(false);
           }
         }} className="space-y-4">
-          <div className="flex justify-between items-center border-b pb-2">
-            <h3 className="font-black text-sm uppercase text-slate-800 flex items-center gap-2"><CalendarDays size={16} className={isEditing ? "text-amber-600" : "text-emerald-600"}/> {isEditing ? 'Edit Data Penggajian' : 'Sistem Penggajian Bulanan'}</h3>
-            {isEditing && <button type="button" onClick={() => { setIsEditing(false); setForm({ id: '', date: todayStr, periode_bulan: currentMonthValue, employeeId: '', baseSalary: '0', allowance: '0', potKasbonInput: '', otherDeduction: '0', paymentMethod: 'CASH', isProrata: false, hariNormal: '26', hariHadir: '26' }); }} className="text-[10px] border px-2 py-0.5 rounded font-black uppercase text-slate-500 bg-white shadow-sm">Batal</button>}
-          </div>
+          <div className="flex justify-between items-center border-b pb-2"><h3 className="font-black text-sm uppercase text-slate-800 flex items-center gap-2"><CalendarDays size={16} className={isEditing ? "text-amber-600" : "text-emerald-600"}/> {isEditing ? 'Edit Data Penggajian' : 'Sistem Penggajian Bulanan'}</h3>{isEditing && <button type="button" onClick={() => { setIsEditing(false); setForm({ id: '', date: todayStr, periode_bulan: currentMonthValue, employeeId: '', baseSalary: '0', allowance: '0', potKasbonInput: '', otherDeduction: '0', paymentMethod: 'CASH', isProrata: false, hariNormal: '26', hariHadir: '26' }); }} className="text-[10px] border px-2 py-0.5 rounded font-black uppercase text-slate-500 bg-white shadow-sm">Batal</button>}</div>
           
           <div className="grid grid-cols-2 gap-2">
             <div><label className="text-[10px] font-bold text-slate-500 uppercase">Tgl Eksekusi</label><input type="date" required value={form.date} onChange={e=>setForm({...form, date: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold outline-none" /></div>
             <div><label className="text-[10px] font-bold text-slate-500 uppercase">Periode Bulan</label><input type="month" required value={form.periode_bulan} onChange={e=>setForm({...form, periode_bulan: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold text-emerald-700 bg-emerald-50 outline-none" /></div>
           </div>
 
-          <div>
-            <select required disabled={isEditing} value={form.employeeId} onChange={handlePilihKaryawan} className={`w-full p-2.5 border rounded-xl font-black text-sm uppercase outline-none ${isEditing ? 'bg-slate-100 text-slate-500' : 'bg-slate-50 focus:bg-white shadow-sm border-slate-300'}`}><option value="">-- Pilih Staf Penerima Gaji --</option>{employees.map(k => <option key={k.id} value={k.id}>{k.name} ({k.position}) - CAB {k.branch_id}</option>)}</select>
-          </div>
+          <div><select required disabled={isEditing} value={form.employeeId} onChange={handlePilihKaryawan} className={`w-full p-2.5 border rounded-xl font-black text-sm uppercase outline-none ${isEditing ? 'bg-slate-100 text-slate-500' : 'bg-slate-50 focus:bg-white shadow-sm border-slate-300'}`}><option value="">-- Pilih Staf Penerima Gaji --</option>{employees.map(k => <option key={k.id} value={k.id}>{k.name} ({k.position}) - CAB {k.branch_id}</option>)}</select></div>
           
           <div className="bg-slate-100 p-3 rounded-xl border border-slate-200">
-            <label className="flex items-center gap-2 cursor-pointer mb-2">
-              <input type="checkbox" disabled={isEditing || !form.employeeId} checked={form.isProrata} onChange={e => { setForm({...form, isProrata: e.target.checked, baseSalary: e.target.checked ? String(Math.floor((Number(form.hariHadir)/Number(form.hariNormal))*masterGapok)) : String(masterGapok)}); }} className="w-4 h-4 accent-emerald-600" />
-              <span className="text-[10px] font-black uppercase text-slate-700 flex items-center gap-1"><Calculator size={12}/> Aktifkan Potong Gaji Prorata (Cuti / Izin Tak Dibayar)</span>
-            </label>
+            <label className="flex items-center gap-2 cursor-pointer mb-2"><input type="checkbox" disabled={isEditing || !form.employeeId} checked={form.isProrata} onChange={e => { setForm({...form, isProrata: e.target.checked, baseSalary: e.target.checked ? String(Math.floor((Number(form.hariHadir)/Number(form.hariNormal))*masterGapok)) : String(masterGapok)}); }} className="w-4 h-4 accent-emerald-600" /><span className="text-[10px] font-black uppercase text-slate-700 flex items-center gap-1"><Calculator size={12}/> Aktifkan Potong Gaji Prorata (Cuti / Izin Tak Dibayar)</span></label>
             {form.isProrata && (
               <div className="grid grid-cols-2 gap-2 mt-2 animate-in slide-in-from-top-1">
                 <div><label className="text-[9px] font-bold text-slate-500 uppercase">Standar Hari Kerja Sebulan</label><input type="number" min="1" max="31" value={form.hariNormal} onChange={e=>setForm({...form, hariNormal: e.target.value})} className="w-full p-1.5 border rounded text-xs font-bold text-center" /></div>
@@ -455,7 +446,6 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
               const emp = globalCompiled[p.employee_id];
               const isDescPeriod = p.description && p.description.includes('Periode:');
               const extractedPeriod = isDescPeriod ? p.description.split('Periode:')[1].trim().split('(')[0] : formatDate(p.date);
-
               const isProrataLog = p.description && p.description.includes('Prorata');
               const stringProrataCut = isProrataLog && p.description.match(/Potong: Rp (\d+)/);
               const valProrata = stringProrataCut ? Number(stringProrataCut[1]) : 0;
@@ -484,7 +474,6 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
                         ], amount: p.amount, paymentMethod: p.payment_method || 'CASH',
                         history: { kasbonList: [...(emp?.history_kredit || []), ...(emp?.history_kasbon || [])].slice(0, 3), labelLama: 'Akumulasi Hutang / Kredit Awal', nominalLama: (emp?.sisaHutang || 0) + (p.kasbon_deduction || 0), labelAksi: 'Dipotong Untuk Angsuran Bulan Ini', nominalAksi: p.kasbon_deduction || 0, labelBaru: 'SISA HUTANG / KREDIT SEKARANG', nominalBaru: emp?.sisaHutang || 0 }
                       })} className="p-1.5 text-white bg-slate-800 hover:bg-slate-900 shadow rounded-lg" title="Cetak Slip"><Printer size={12}/></button>
-                      
                       {isHQ && (<><button type="button" onClick={() => handleEdit(p)} className="p-1.5 bg-amber-50 text-amber-600 hover:bg-amber-100 rounded-lg" title="Edit"><Edit2 size={12}/></button><button type="button" onClick={() => handleDelete(p.id)} className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg" title="Void"><Trash2 size={12}/></button></>)}
                     </div>
                   </td>
@@ -499,79 +488,108 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
 }
 
 // =========================================================================
-// 📇 SUB-COMPONENT 2: LEMBUR & BONUS HARIAN (DENGAN RADAR PRODUKSI)
+// 📇 SUB-COMPONENT 2: LEMBUR & BONUS HARIAN (NEW! MULTI-PESERTA & AUTO-PIC)
 // =========================================================================
 function LemburModule({ employees, expenses, globalCompiled, activeBranch, todayStr, sendToSheet, user, setOptimisticDeletedIds, isHQ, showToast, optimisticDeletedIds, totalPorsiHariIni }) {
-  const [form, setForm] = useState({ date: todayStr, employeeId: '', isLembur: false, isBonus: false, isJamuan: false });
+  const [form, setForm] = useState({ date: todayStr, picId: '', participants: [], isLembur: false, isBonus: false, isJamuan: false });
   
+  // Auto-set "LEADER TIM" sebagai PIC Penerima Uang
+  React.useEffect(() => {
+    if (!form.picId && employees.length > 0) {
+      const leader = employees.find(e => e.position === 'LEADER_TIM');
+      if (leader) setForm(p => ({ ...p, picId: leader.id }));
+    }
+  }, [employees, form.picId]);
+
+  const toggleParticipant = (empId) => {
+    setForm(prev => {
+      const current = prev.participants;
+      if (current.includes(empId)) return { ...prev, participants: current.filter(id => id !== empId) };
+      return { ...prev, participants: [...current, empId] };
+    });
+  };
+
   const historyLembur = useMemo(() => { const targetBId = String(activeBranch || '').trim().toUpperCase(); return (expenses || []).filter(e => e && !e.isDeleted && !optimisticDeletedIds.has(e.id) && e.category === 'LEMBUR_BONUS' && (targetBId === 'SEMUA_CABANG' || String(e.branch_id || '').trim().toUpperCase() === targetBId)).sort((a, b) => new Date(b.date) - new Date(a.date)); }, [expenses, activeBranch, optimisticDeletedIds]);
 
   const handleDelete = async (id) => {
     if(window.confirm("Yakin ingin membatalkan/void data lembur/bonus ini?")) {
-      setOptimisticDeletedIds(prev => new Set(prev).add(id));
-      const success = await sendToSheet('delete', { id }, 'expenses');
+      setOptimisticDeletedIds(prev => new Set(prev).add(id)); const success = await sendToSheet('delete', { id }, 'expenses');
       if(success) { if(showToast) showToast('Data dihapus.', 'success'); } else { setOptimisticDeletedIds(prev => { const n = new Set(prev); n.delete(id); return n; }); }
     }
   };
 
   const isTargetTembus = totalPorsiHariIni >= 2500;
+  const qtyPeserta = form.participants.length;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div className="bg-white p-6 rounded-2xl border border-t-4 border-t-blue-600 h-max shadow-sm">
         
-        {/* 🔥 BANNER DETEKTOR TARGET PRODUKSI */}
         {isTargetTembus ? (
           <div className="bg-emerald-100 border border-emerald-300 text-emerald-800 p-3 rounded-xl mb-4 flex items-start gap-3 shadow-inner animate-pulse">
-             <div className="text-2xl mt-1">🎉</div>
-             <div>
-               <div className="font-black uppercase text-sm">Target Tembus!</div>
-               <div className="text-[10px] font-bold mt-0.5">Produksi adukan hari ini mencapai <b>{totalPorsiHariIni} Porsi</b>. Silakan klaim bonus Omset Rp 20.000!</div>
-             </div>
+             <div className="text-2xl mt-1">🎉</div><div><div className="font-black uppercase text-sm">Target Tembus!</div><div className="text-[10px] font-bold mt-0.5">Produksi adukan hari ini mencapai <b>{totalPorsiHariIni} Porsi</b>. Silakan klaim bonus Omset Rp 20.000!</div></div>
           </div>
         ) : (
           <div className="bg-slate-100 border border-slate-300 text-slate-600 p-3 rounded-xl mb-4 flex items-start gap-3">
-             <div className="text-2xl mt-1">⏳</div>
-             <div>
-               <div className="font-black uppercase text-sm">Target Belum Tembus</div>
-               <div className="text-[10px] font-bold mt-0.5">Adukan hari ini tercatat <b>{totalPorsiHariIni} Porsi</b>. (Butuh >2500 porsi untuk tembus target).</div>
-             </div>
+             <div className="text-2xl mt-1">⏳</div><div><div className="font-black uppercase text-sm">Target Belum Tembus</div><div className="text-[10px] font-bold mt-0.5">Adukan hari ini tercatat <b>{totalPorsiHariIni} Porsi</b>. (Butuh >2500 porsi untuk tembus target).</div></div>
           </div>
         )}
 
         <form onSubmit={async (e) => {
-          e.preventDefault(); if (!form.employeeId) return;
+          e.preventDefault(); if (!form.picId) return;
+          if ((form.isLembur || form.isBonus) && qtyPeserta === 0) return alert("Pilih minimal 1 orang peserta lembur/bonus!");
+
           const expenseId = generateId('LMB', form.date);
-          const empData = globalCompiled[form.employeeId];
+          const empData = globalCompiled[form.picId];
           const penempatanTrx = activeBranch === 'SEMUA_CABANG' ? empData?.branch_id : activeBranch;
           
-          let subLembur = form.isLembur ? 30000 : 0;
-          let subBonus = form.isBonus ? 20000 : 0;
+          let subLembur = form.isLembur ? 30000 * qtyPeserta : 0;
+          let subBonus = form.isBonus ? 20000 * qtyPeserta : 0;
           let subJamuan = form.isJamuan ? 100000 : 0;
           let totalCair = subLembur + subBonus + subJamuan;
 
-          if (totalCair === 0) return alert("Pilih minimal satu komponen lembur atau bonus!");
+          if (totalCair === 0) return alert("Pilih minimal satu komponen klaim!");
 
-          let descParts = [];
-          if(form.isLembur) descParts.push('Lembur >17:00 (Rp 30rb)');
-          if(form.isBonus) descParts.push('Bonus Target >2500 Porsi (Rp 20rb)');
-          if(form.isJamuan) descParts.push('Jamuan Tim (Rp 100rb)');
-          const deskripsiFinal = descParts.join(' | ');
+          const participantNames = form.participants.map(id => globalCompiled[id]?.name).join(', ');
+          let descText = [];
+          if(form.isLembur) descText.push(`Lbr ${qtyPeserta}org`);
+          if(form.isBonus) descText.push(`Bns ${qtyPeserta}org`);
+          if(form.isJamuan) descText.push('Jamuan Tim');
+          const deskripsiFinal = `${descText.join(' + ')}. Peserta: ${participantNames || '-'}`;
 
-          const payload = { id: expenseId, date: form.date, branch_id: penempatanTrx, employee_id: form.employeeId, category: 'LEMBUR_BONUS', amount: totalCair, description: deskripsiFinal };
+          const payload = { id: expenseId, date: form.date, branch_id: penempatanTrx, employee_id: form.picId, category: 'LEMBUR_BONUS', amount: totalCair, description: deskripsiFinal };
           
           const success = await sendToSheet('insert', payload, 'expenses');
           if (success) {
-            await sendToSheet('insert', { id: 'CFO-' + new Date().getTime(), date: form.date, branch_id: penempatanTrx, transaction_type: 'OUTFLOW', category: 'OPERATIONAL_EXPENSE', amount: totalCair, payment_method: 'CASH', reference_id: expenseId, description: `Pencairan Lembur & Bonus` }, 'cashflow_transactions');
-            setForm({ date: todayStr, employeeId: '', isLembur: false, isBonus: false, isJamuan: false });
+            await sendToSheet('insert', { id: 'CFO-' + new Date().getTime(), date: form.date, branch_id: penempatanTrx, transaction_type: 'OUTFLOW', category: 'OPERATIONAL_EXPENSE', amount: totalCair, payment_method: 'CASH', reference_id: expenseId, description: `Pencairan Lembur & Bonus (PIC: ${empData?.name})` }, 'cashflow_transactions');
+            setForm({ date: todayStr, picId: '', participants: [], isLembur: false, isBonus: false, isJamuan: false });
           }
         }} className="space-y-4">
           
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">Tgl Eksekusi</label><input type="date" required value={form.date} onChange={e=>setForm({...form, date: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold outline-none" /></div>
-          <div><label className="text-[10px] font-bold text-slate-500 uppercase">Pilih Karyawan / PIC Penerima Uang</label><select required value={form.employeeId} onChange={e=>setForm({...form, employeeId: e.target.value})} className="w-full p-2.5 border rounded-xl font-black text-sm uppercase outline-none bg-slate-50"><option value="">-- Pilih Staf Peminjam --</option>{employees.map(k => <option key={k.id} value={k.id}>{k.name} ({k.position}) - CAB {k.branch_id}</option>)}</select></div>
+          
+          {/* 🔥 1. PILIH LEADER SEBAGAI PIC PENERIMA UANG KAS */}
+          <div>
+            <label className="text-[10px] font-bold text-blue-600 uppercase">1. Penanggung Jawab (PIC Penerima Kas)</label>
+            <select required value={form.picId} onChange={e=>setForm({...form, picId: e.target.value})} className="w-full p-2.5 border border-blue-200 bg-blue-50 rounded-xl font-black text-sm uppercase outline-none"><option value="">-- Pilih Leader / PIC --</option>{employees.map(k => <option key={k.id} value={k.id}>{k.name} ({k.position}) - CAB {k.branch_id}</option>)}</select>
+          </div>
+
+          {/* 🔥 2. MULTI-SELECT KARYAWAN YANG IKUT LEMBUR (CHECKLIST) */}
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+            <label className="text-[10px] font-black text-slate-700 uppercase mb-2 flex items-center gap-1"><UsersRound size={12}/> 2. Daftar Peserta Lembur/Bonus ({qtyPeserta} Orang)</label>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {employees.map(emp => (
+                <label key={emp.id} className={`flex items-center gap-1.5 px-3 py-1.5 border rounded-lg text-[10px] font-black uppercase cursor-pointer transition-all ${form.participants.includes(emp.id) ? 'bg-blue-100 border-blue-400 text-blue-800 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-100'}`}>
+                  <input type="checkbox" className="hidden" checked={form.participants.includes(emp.id)} onChange={() => toggleParticipant(emp.id)} />
+                  {emp.name}
+                </label>
+              ))}
+            </div>
+            {qtyPeserta === 0 && <div className="text-[9px] text-rose-500 mt-2 italic">*Silakan klik nama-nama di atas untuk memilih peserta.</div>}
+          </div>
 
           <div className="space-y-2 mt-4">
-            <label className="flex justify-between items-center bg-white p-3 border rounded-xl shadow-sm cursor-pointer hover:bg-slate-50">
+            <label className={`flex justify-between items-center bg-white p-3 border rounded-xl shadow-sm cursor-pointer hover:bg-slate-50 ${form.isLembur ? 'border-blue-400 bg-blue-50' : ''}`}>
               <div className="flex items-center gap-3">
                 <input type="checkbox" checked={form.isLembur} onChange={e=>setForm({...form, isLembur: e.target.checked})} className="w-4 h-4 accent-blue-600"/>
                 <div><div className="text-[11px] font-black text-slate-800 uppercase flex items-center gap-1"><Clock size={12} className="text-blue-600"/> Lembur Lewat Jam 17:00</div><div className="text-[9px] font-bold text-slate-500">Uang lembur per kepala</div></div>
@@ -582,7 +600,7 @@ function LemburModule({ employees, expenses, globalCompiled, activeBranch, today
             <label className={`flex justify-between items-center bg-white p-3 border rounded-xl shadow-sm cursor-pointer hover:bg-slate-50 ${form.isBonus ? 'border-emerald-400 bg-emerald-50' : ''}`}>
               <div className="flex items-center gap-3">
                 <input type="checkbox" checked={form.isBonus} onChange={e=>setForm({...form, isBonus: e.target.checked})} className="w-4 h-4 accent-emerald-600"/>
-                <div><div className="text-[11px] font-black text-slate-800 uppercase flex items-center gap-1"><Trophy size={12} className="text-emerald-600"/> Bonus Omset > 2500 Porsi</div><div className="text-[9px] font-bold text-slate-500">Bonus target produksi per kepala</div></div>
+                <div><div className="text-[11px] font-black text-slate-800 uppercase flex items-center gap-1"><Trophy size={12} className="text-emerald-600"/> Bonus Omset &gt; 2500 Porsi</div><div className="text-[9px] font-bold text-slate-500">Bonus target produksi per kepala</div></div>
               </div>
               <div className="font-black text-emerald-600 text-sm">Rp 20.000</div>
             </label>
@@ -596,7 +614,7 @@ function LemburModule({ employees, expenses, globalCompiled, activeBranch, today
             </label>
           </div>
 
-          <button type="submit" disabled={!form.employeeId} className="w-full bg-blue-600 text-white font-black py-3.5 rounded-xl text-xs uppercase disabled:opacity-40 shadow-lg hover:bg-blue-700 transition mt-4">Cetak Bukti & Cairkan Kas</button>
+          <button type="submit" disabled={!form.picId} className="w-full bg-blue-600 text-white font-black py-3.5 rounded-xl text-xs uppercase disabled:opacity-40 shadow-lg hover:bg-blue-700 transition mt-4">Cetak Bukti & Cairkan Kas</button>
         </form>
       </div>
 
@@ -620,6 +638,7 @@ function LemburModule({ employees, expenses, globalCompiled, activeBranch, today
                         branch_name: emp?.branch_id || activeBranch, admin_name: user?.name || 'ADMIN', customer_name: emp?.name || 'P. JAWAB TIM', position: emp?.position || 'STAF',
                         items: [{ name: `Pencairan Tunai: ${log.description}`, qty: 1, subtotal: log.amount }], amount: log.amount, paymentMethod: 'POTONG KAS LACI TUNAI'
                       })} className="p-1.5 text-white bg-slate-800 hover:bg-slate-900 shadow rounded-lg" title="Cetak Nota"><Printer size={12}/></button>
+                      
                       {isHQ && (<button type="button" onClick={() => handleDelete(log.id)} className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg" title="Void Data"><Trash2 size={12}/></button>)}
                     </div>
                   </td>
@@ -766,7 +785,15 @@ function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch,
           <div><label className="text-[10px] font-black text-orange-600 uppercase flex items-center gap-1 mb-1"><Link size={10}/> Link Berkas Foto KTP</label><input type="text" placeholder="Paste link KTP dari Google Drive..." value={form.ktp_url} onChange={e => setForm({...form, ktp_url: e.target.value})} className="w-full p-2 border border-orange-200 bg-orange-50 rounded-lg text-xs" /></div>
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">Gaji Pokok</label><input type="text" required value={formatRupiah(form.baseSalary)} onChange={e=>setForm({...form, baseSalary: e.target.value.replace(/\D/g, '')})} className="w-full p-2 border rounded-lg font-bold text-sm" /></div>
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">Alamat Rumah KTP</label><textarea required rows="2" value={form.address} onChange={e=>setForm({...form, address: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold uppercase none outline-none" placeholder="Isi nama jalan..."></textarea></div>
-          <div><label className="text-[10px] font-bold text-slate-500 uppercase">Posisi Kerja</label><select value={form.position} onChange={e=>setForm({...form, position: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold uppercase"><option value="KASIR">KASIR / RESTO FRONT</option><option value="DAPUR_RESTO">COOK / DAPUR RESTO</option><option value="WAITRESS">PRAMUSAJI / WAITRESS</option><option value="PRODUKSI_PABREK">STAFF PRODUKSI ADUKAN</option><option value="DRIVER">DRIVING LOGISTIK</option></select></div>
+          <div><label className="text-[10px] font-bold text-slate-500 uppercase">Posisi Kerja</label><select value={form.position} onChange={e=>setForm({...form, position: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold uppercase">
+             {/* 🔥 OPSI BARU: LEADER TIM UNTUK PIC LEMBUR */}
+             <option value="LEADER_TIM">LEADER TIM / KEPALA CABANG</option>
+             <option value="KASIR">KASIR / RESTO FRONT</option>
+             <option value="DAPUR_RESTO">COOK / DAPUR RESTO</option>
+             <option value="WAITRESS">PRAMUSAJI / WAITRESS</option>
+             <option value="PRODUKSI_PABREK">STAFF PRODUKSI ADUKAN</option>
+             <option value="DRIVER">DRIVING LOGISTIK</option>
+          </select></div>
           <button type="submit" className={`w-full text-white font-black py-3 rounded-xl text-xs uppercase shadow transition-all ${isEditingMode ? 'bg-amber-500 hover:bg-amber-600' : 'bg-slate-800 hover:bg-slate-900'}`}>{isEditingMode ? '💾 Terapkan & Timpa Data' : 'Simpan Data Staf'}</button>
         </form>
       </div>
@@ -785,7 +812,7 @@ function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch,
                     <div className="text-[9px] font-mono text-slate-400">WA: {k.phone} {activeBranch === 'SEMUA_CABANG' && <span className="text-slate-500 font-bold ml-1">| CAB: {k.branch_id}</span>}</div>
                   </div>
                 </td>
-                <td className="px-4 py-3"><div><div className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[9px] font-black uppercase w-max mb-1">{k.position}</div><div className="text-slate-800 font-black">{formatRupiah(k.baseSalary)}</div></div></td>
+                <td className="px-4 py-3"><div><div className={`px-2 py-0.5 rounded text-[9px] font-black uppercase w-max mb-1 ${k.position==='LEADER_TIM'?'bg-blue-100 text-blue-800':'bg-slate-100 text-slate-700'}`}>{k.position}</div><div className="text-slate-800 font-black">{formatRupiah(k.baseSalary)}</div></div></td>
                 <td className="px-4 py-3 text-center"><span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${k.status === 'AKTIF' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>{k.status}</span></td>
                 <td className="px-4 py-3 text-center">
                   <div className="flex items-center justify-center gap-1.5">
