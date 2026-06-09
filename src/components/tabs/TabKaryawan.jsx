@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Users, Landmark, Banknote, Layers, TrendingDown, ShieldAlert, Trash2, Edit2, Check, X, Phone, Image, Eye, MapPin, Undo, Link, Printer, CalendarDays, History, ShoppingCart, CheckCircle2 } from 'lucide-react';
+import { Users, Landmark, Banknote, Layers, TrendingDown, ShieldAlert, Trash2, Edit2, Check, X, Phone, Image, Eye, MapPin, Undo, Link, Printer, CalendarDays, History, ShoppingCart, CheckCircle2, Calculator } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
 
@@ -21,10 +21,11 @@ export default function TabKaryawan({
 }) {
   const todayStr = getTodayStr();
   const currentBranch = user?.branch_id || 'PUSAT';
+  // HAK AKSES DIREKTUR / PUSAT
   const isHQ = user?.branch_type === 'HQ_FACTORY' || currentBranch === 'PUSAT';
 
   const [activeSubTab, setActiveSubTab] = useState(isHQ ? 'payroll' : 'kasbon');
-  const [selectedBranchFilter, setSelectedBranchFilter] = useState(isHQ ? 'SEMUA_CABANG' : currentBranch); // Fitur Global View
+  const [selectedBranchFilter, setSelectedBranchFilter] = useState(isHQ ? 'SEMUA_CABANG' : currentBranch);
   const activeProcessingBranch = isHQ ? selectedBranchFilter : currentBranch;
 
   const [selectedEmployeeDetails, setSelectedEmployeeDetails] = useState(null);
@@ -44,7 +45,6 @@ export default function TabKaryawan({
 
   const daftarCabangId = useMemo(() => Object.keys(petaNamaCabang), [petaNamaCabang]);
 
-  // 🔥 ENGINE ALGORITMA AIR TERJUN (WATERFALL DEBT TRACKER)
   const globalEmployeeCompiled = useMemo(() => {
     const dataStaf = {};
     (karyawan || []).forEach(k => {
@@ -57,16 +57,15 @@ export default function TabKaryawan({
         ktp_url: parseDriveLink(k.ktp_url) || '', raw_photo_link: k.photo_url || '', raw_ktp_link: k.ktp_url || '',
         totalKasbon: 0, totalDibayar: 0, sisaHutang: 0, 
         raw_debts: [], payroll_list: [], 
-        // Data matang untuk UI
         history_kredit: [], history_kasbon: []
       };
     });
 
     (expenses || []).forEach(e => {
-      if (!e || e.isDeleted || !e.employee_id || !dataStaf[e.employee_id]) return;
+      if (!e || e.isDeleted || optimisticDeletedIds.has(e.id) || !e.employee_id || !dataStaf[e.employee_id]) return;
       if (e.category === 'KASBON' || e.category === 'KREDIT_BARANG') {
         dataStaf[e.employee_id].totalKasbon += Number(e.amount || 0);
-        dataStaf[e.employee_id].raw_debts.push(e); // Tampung mentah
+        dataStaf[e.employee_id].raw_debts.push(e); 
       }
       if (e.category === 'PAYROLL') {
         dataStaf[e.employee_id].totalDibayar += Number(e.kasbon_deduction || 0);
@@ -74,14 +73,11 @@ export default function TabKaryawan({
       }
     });
 
-    // Proses Kalkulasi Sisa Cicilan & Status Lunas
     Object.values(dataStaf).forEach(emp => { 
       emp.sisaHutang = Math.max(0, emp.totalKasbon - emp.totalDibayar); 
       emp.payroll_list.sort((a, b) => new Date(b.date) - new Date(a.date));
       
       let poolDibayar = emp.totalDibayar;
-      
-      // Urutkan hutang dari yang paling lama (FIFO)
       emp.raw_debts.sort((a, b) => new Date(a.date) - new Date(b.date));
       
       emp.raw_debts.forEach(debt => {
@@ -112,13 +108,12 @@ export default function TabKaryawan({
         }
       });
       
-      // Reverse agar yang terbaru di atas untuk tampilan
       emp.history_kredit.reverse();
       emp.history_kasbon.reverse();
     });
 
     return dataStaf;
-  }, [karyawan, expenses]);
+  }, [karyawan, expenses, optimisticDeletedIds]);
 
   const employeesDiCabangAktif = useMemo(() => {
     return Object.values(globalEmployeeCompiled).filter(k => {
@@ -142,7 +137,7 @@ export default function TabKaryawan({
     });
 
     (expenses || []).forEach(e => {
-      if (!e || e.isDeleted) return;
+      if (!e || e.isDeleted || optimisticDeletedIds.has(e.id)) return;
       if (e.category === 'PAYROLL' && e.date && e.date.startsWith(curMonth)) {
         gajiGlobal += Number(e.amount || 0);
         if (activeProcessingBranch === 'SEMUA_CABANG' || String(e.branch_id || '').trim().toUpperCase() === activeProcessingBranch) {
@@ -175,7 +170,6 @@ export default function TabKaryawan({
         <div className="bg-slate-900 p-4 rounded-2xl flex flex-col md:flex-row items-center justify-between shadow-lg gap-4">
           <div className="flex items-center gap-2 mb-1 md:mb-0"><Layers size={16} className="text-emerald-400" /><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Pilih Cabang Pantauan:</span></div>
           <div className="flex flex-wrap gap-2">
-            {/* FITUR LIHAT SEMUA CABANG */}
             <button type="button" onClick={() => setSelectedBranchFilter('SEMUA_CABANG')} className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-all ${activeProcessingBranch === 'SEMUA_CABANG' ? 'bg-emerald-600 text-white shadow-md scale-105' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>🌍 NASIONAL (SEMUA CABANG)</button>
             {daftarCabangId.map(brId => (
               <button key={brId} type="button" onClick={() => setSelectedBranchFilter(brId)} className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-all ${activeProcessingBranch === brId ? 'bg-emerald-600 text-white shadow-md scale-105' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>{petaNamaCabang[brId]}</button>
@@ -191,16 +185,16 @@ export default function TabKaryawan({
       </div>
 
       {activeSubTab === 'payroll' && isHQ && (
-        <PayrollModule employees={employeesDiCabangAktif} expenses={expenses} globalCompiled={globalEmployeeCompiled} activeBranch={activeProcessingBranch} todayStr={todayStr} sendToSheet={sendToSheet} onViewDetails={setSelectedEmployeeDetails} user={user} />
+        <PayrollModule employees={employeesDiCabangAktif} expenses={expenses} globalCompiled={globalEmployeeCompiled} activeBranch={activeProcessingBranch} todayStr={todayStr} sendToSheet={sendToSheet} onViewDetails={setSelectedEmployeeDetails} user={user} setOptimisticDeletedIds={setOptimisticDeletedIds} isHQ={isHQ} showToast={showToast} optimisticDeletedIds={optimisticDeletedIds} />
       )}
       {activeSubTab === 'kasbon' && (
-        <KasbonModule employees={employeesDiCabangAktif} expenses={expenses} globalCompiled={globalEmployeeCompiled} activeBranch={activeProcessingBranch} todayStr={todayStr} sendToSheet={sendToSheet} onViewDetails={setSelectedEmployeeDetails} user={user} />
+        <KasbonModule employees={employeesDiCabangAktif} expenses={expenses} globalCompiled={globalEmployeeCompiled} activeBranch={activeProcessingBranch} todayStr={todayStr} sendToSheet={sendToSheet} onViewDetails={setSelectedEmployeeDetails} user={user} setOptimisticDeletedIds={setOptimisticDeletedIds} isHQ={isHQ} showToast={showToast} optimisticDeletedIds={optimisticDeletedIds} />
       )}
       {activeSubTab === 'master' && (
         <MasterSDMModule employees={employeesDiCabangAktif} branchListId={daftarCabangId} branchMapName={petaNamaCabang} activeBranch={activeProcessingBranch} isHQ={isHQ} sendToSheet={sendToSheet} showToast={showToast} onViewDetails={setSelectedEmployeeDetails} setOptimisticDeletedIds={setOptimisticDeletedIds} />
       )}
 
-      {/* 📜 POP-UP SULTAN: PROFIL & TRACK RECORD KREDIT/KASBON LENGKAP DENGAN BUKTI BARANG */}
+      {/* POP-UP SULTAN */}
       {selectedEmployeeDetails && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[9999] flex justify-center items-start pt-12 md:pt-16 p-4 overflow-y-auto animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl shadow-2xl border max-w-5xl w-full overflow-hidden flex flex-col mb-10">
@@ -225,7 +219,7 @@ export default function TabKaryawan({
                     </div>
                     <div className="text-xs font-bold text-slate-600 space-y-2">
                       <div className="flex items-center gap-2"><Phone size={14} className="text-slate-400 font-mono"/> {selectedEmployeeDetails.phone}</div>
-                      <div className="flex items-center gap-2"><Landmark size={14} className="text-slate-400"/> Gaji Standar: <span className="text-slate-900 font-black">{formatRupiah(selectedEmployeeDetails.baseSalary)}</span></div>
+                      <div className="flex items-center gap-2"><Landmark size={14} className="text-slate-400"/> Gaji Standar Master: <span className="text-slate-900 font-black">{formatRupiah(selectedEmployeeDetails.baseSalary)}</span></div>
                       <div className="flex items-center gap-2 text-rose-600"><Banknote size={14}/> Total Sisa Piutang: <span className="font-black">{formatRupiah(selectedEmployeeDetails.sisaHutang)}</span></div>
                     </div>
                   </div>
@@ -242,7 +236,6 @@ export default function TabKaryawan({
                 {/* KOLOM 2 & 3: KREDIT BARANG & PAYROLL */}
                 <div className="md:col-span-2 space-y-6">
                   
-                  {/* BUKTI KREDIT BARANG BERJALAN & LUNAS */}
                   <div className="bg-slate-50 border rounded-2xl p-5">
                     <h4 className="text-xs font-black uppercase text-slate-800 border-b pb-2 mb-4 flex items-center gap-2"><ShoppingCart size={14} className="text-blue-600"/> Buku Mutasi Kredit Barang</h4>
                     {selectedEmployeeDetails.history_kredit.length > 0 ? (
@@ -258,23 +251,15 @@ export default function TabKaryawan({
                                 <div className="text-xs font-black text-slate-800 uppercase line-clamp-2">{kr.description}</div>
                                 <div className="text-[9px] font-mono text-slate-400 mb-2">{formatDate(kr.date)} | ID: {kr.id}</div>
                                 <div className="space-y-1">
-                                  <div className="flex justify-between text-[10px] font-bold">
-                                    <span className="text-slate-500">Harga Total:</span><span className="text-slate-900">{formatRupiah(kr.amount)}</span>
-                                  </div>
-                                  <div className="flex justify-between text-[10px] font-bold">
-                                    <span className="text-slate-500">Terbayar:</span><span className="text-emerald-600">{formatRupiah(kr.terbayar)}</span>
-                                  </div>
-                                  <div className="flex justify-between text-[10px] font-black border-t pt-1 mt-1">
-                                    <span className="text-slate-500">Sisa Piutang:</span><span className="text-rose-600">{formatRupiah(kr.sisa)}</span>
-                                  </div>
+                                  <div className="flex justify-between text-[10px] font-bold"><span className="text-slate-500">Harga Total:</span><span className="text-slate-900">{formatRupiah(kr.amount)}</span></div>
+                                  <div className="flex justify-between text-[10px] font-bold"><span className="text-slate-500">Terbayar:</span><span className="text-emerald-600">{formatRupiah(kr.terbayar)}</span></div>
+                                  <div className="flex justify-between text-[10px] font-black border-t pt-1 mt-1"><span className="text-slate-500">Sisa Piutang:</span><span className="text-rose-600">{formatRupiah(kr.sisa)}</span></div>
                                 </div>
                               </div>
                             </div>
                             <div className="mt-3 bg-slate-100 p-2 rounded-lg text-center">
                               <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Status Angsuran</div>
-                              <div className={`text-xs font-black mt-0.5 uppercase ${kr.status === 'LUNAS' ? 'text-emerald-600' : 'text-blue-600'}`}>
-                                {kr.status === 'LUNAS' ? '✅ SUDAH LUNAS TERARSIP' : `⏳ CICILAN KE-${kr.cicilanKe} DARI ${kr.tenor} BLN`}
-                              </div>
+                              <div className={`text-xs font-black mt-0.5 uppercase ${kr.status === 'LUNAS' ? 'text-emerald-600' : 'text-blue-600'}`}>{kr.status === 'LUNAS' ? '✅ SUDAH LUNAS TERARSIP' : `⏳ CICILAN KE-${kr.cicilanKe} DARI ${kr.tenor} BLN`}</div>
                             </div>
                           </div>
                         ))}
@@ -283,7 +268,6 @@ export default function TabKaryawan({
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    {/* HISTORI KASBON TUNAI */}
                     <div className="bg-slate-50 border rounded-2xl p-5">
                       <h4 className="text-xs font-black uppercase text-slate-800 border-b pb-2 mb-3 flex items-center gap-2"><History size={14} className="text-orange-600"/> Riwayat Kasbon Tunai</h4>
                       {selectedEmployeeDetails.history_kasbon.length > 0 ? (
@@ -307,7 +291,6 @@ export default function TabKaryawan({
                       ) : (<div className="text-center py-6 text-xs font-bold text-slate-400 italic">Tidak ada hutang kasbon.</div>)}
                     </div>
 
-                    {/* HISTORI PAYROLL (BUKTI POTONG) */}
                     <div className="bg-slate-50 border rounded-2xl p-5">
                       <h4 className="text-xs font-black uppercase text-slate-800 border-b pb-2 mb-3 flex items-center gap-2"><CalendarDays size={14} className="text-emerald-600"/> Arsip Bukti Penggajian</h4>
                       {selectedEmployeeDetails.payroll_list.length > 0 ? (
@@ -347,47 +330,58 @@ export default function TabKaryawan({
 }
 
 // =========================================================================
-// 📇 SUB-COMPONENT 1: PAYROLL (SMART INSTALLMENT & AUTO CALCULATOR)
+// 📇 SUB-COMPONENT 1: PAYROLL (SMART PRORATA CALCULATOR & EDIT/DELETE)
 // =========================================================================
-function PayrollModule({ employees, expenses, globalCompiled, activeBranch, todayStr, sendToSheet, onViewDetails, user }) {
+function PayrollModule({ employees, expenses, globalCompiled, activeBranch, todayStr, sendToSheet, onViewDetails, user, setOptimisticDeletedIds, isHQ, showToast, optimisticDeletedIds }) {
   const currentMonthValue = todayStr.substring(0, 7);
-  const [form, setForm] = useState({ date: todayStr, periode_bulan: currentMonthValue, employeeId: '', baseSalary: '0', allowance: '0', potKasbonInput: '', otherDeduction: '0', paymentMethod: 'CASH' });
+  const [form, setForm] = useState({ 
+    id: '', date: todayStr, periode_bulan: currentMonthValue, employeeId: '', baseSalary: '0', allowance: '0', potKasbonInput: '', otherDeduction: '0', paymentMethod: 'CASH',
+    isProrata: false, hariNormal: '26', hariHadir: '26' // 🔥 STATE PRORATA
+  });
+  const [isEditing, setIsEditing] = useState(false);
   
   const selectedStafData = form.employeeId ? globalCompiled[form.employeeId] : null;
   const sisaHutangReal = selectedStafData ? selectedStafData.sisaHutang : 0;
   
-  // Hitung Limit Mampu Bayar dan Rekomendasi Sistem
   const { batasAmanKredit, rekomendasiCicilanSistem } = useMemo(() => {
     if (!selectedStafData) return { batasAmanKredit: 0, rekomendasiCicilanSistem: 0 };
     const gapok = Number(selectedStafData.baseSalary || 0);
-    const batas = gapok * 0.3; // 30% rule
-    
-    // Hitung wajib cicilan per bulan dari barang berjalan
+    const batas = gapok * 0.3; 
     let cicilanBarangBerjalan = 0;
-    selectedStafData.history_kredit.forEach(k => {
-      if (k.status === 'BERJALAN' || k.status === 'BELUM BAYAR') {
-        cicilanBarangBerjalan += (k.cicilanSaranPerBulan || 0);
-      }
-    });
-
-    let saranSistem = Math.min(sisaHutangReal, cicilanBarangBerjalan); // Minimal cicilan barang masuk dulu
-    if (saranSistem === 0 && sisaHutangReal > 0) saranSistem = Math.min(sisaHutangReal, batas); // Kalau gada barang, potong kasbon tunai pakai limit
-    
+    selectedStafData.history_kredit.forEach(k => { if (k.status === 'BERJALAN' || k.status === 'BELUM BAYAR') cicilanBarangBerjalan += (k.cicilanSaranPerBulan || 0); });
+    let saranSistem = Math.min(sisaHutangReal, cicilanBarangBerjalan); 
+    if (saranSistem === 0 && sisaHutangReal > 0) saranSistem = Math.min(sisaHutangReal, batas); 
     return { batasAmanKredit: batas, rekomendasiCicilanSistem: saranSistem };
   }, [selectedStafData, sisaHutangReal]);
+
+  // 🔥 ENGINE PRORATA: Otomatis memotong Gaji Master berdasarkan Hari Kehadiran
+  const gajiPokokDihitung = useMemo(() => {
+    if (!selectedStafData) return 0;
+    const masterGapok = selectedStafData.baseSalary;
+    if (!form.isProrata) return masterGapok;
+    const hitungan = (Number(form.hariHadir) / Number(form.hariNormal)) * masterGapok;
+    return Math.floor(hitungan);
+  }, [selectedStafData, form.isProrata, form.hariNormal, form.hariHadir]);
+
+  // Sinkronisasi otomatis input form jika Prorata aktif
+  React.useEffect(() => {
+    if (form.isProrata && !isEditing && selectedStafData) {
+      setForm(p => ({ ...p, baseSalary: String(gajiPokokDihitung) }));
+    }
+  }, [gajiPokokDihitung, form.isProrata, isEditing, selectedStafData]);
 
   const handlePilihKaryawan = (e) => {
     const empId = e.target.value;
     const emp = globalCompiled[empId];
     if (emp) {
-      const gapok = Number(emp.baseSalary || 0);
-      const batas = gapok * 0.3;
+      const gapok = form.isProrata ? ((Number(form.hariHadir) / Number(form.hariNormal)) * emp.baseSalary) : emp.baseSalary;
+      const batas = emp.baseSalary * 0.3;
       let cicilanBerjalan = 0;
       emp.history_kredit.forEach(k => { if (k.status !== 'LUNAS') cicilanBerjalan += (k.cicilanSaranPerBulan || 0); });
       let saran = Math.min(emp.sisaHutang, cicilanBerjalan);
       if (saran === 0 && emp.sisaHutang > 0) saran = Math.min(emp.sisaHutang, batas);
 
-      setForm(p => ({ ...p, employeeId: empId, baseSalary: String(gapok), potKasbonInput: String(Math.floor(saran)) }));
+      setForm(p => ({ ...p, employeeId: empId, baseSalary: String(Math.floor(gapok)), potKasbonInput: String(Math.floor(saran)) }));
     } else {
       setForm(p => ({ ...p, employeeId: '', baseSalary: '0', potKasbonInput: '' }));
     }
@@ -399,23 +393,56 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
     return { potKasbonFinal, totalCair: (gapok + tunj) - (potKasbonFinal + potLain) }; 
   }, [form.baseSalary, form.allowance, form.otherDeduction, form.potKasbonInput, sisaHutangReal]);
 
-  const historyGaji = useMemo(() => { const targetBId = String(activeBranch || '').trim().toUpperCase(); return (expenses || []).filter(e => e && !e.isDeleted && e.category === 'PAYROLL' && (targetBId === 'SEMUA_CABANG' || String(e.branch_id || '').trim().toUpperCase() === targetBId)).sort((a, b) => new Date(b.date) - new Date(a.date)); }, [expenses, activeBranch]);
+  const historyGaji = useMemo(() => { const targetBId = String(activeBranch || '').trim().toUpperCase(); return (expenses || []).filter(e => e && !e.isDeleted && !optimisticDeletedIds.has(e.id) && e.category === 'PAYROLL' && (targetBId === 'SEMUA_CABANG' || String(e.branch_id || '').trim().toUpperCase() === targetBId)).sort((a, b) => new Date(b.date) - new Date(a.date)); }, [expenses, activeBranch, optimisticDeletedIds]);
+
+  const handleEdit = (log) => {
+    const isDescPeriod = log.description && log.description.includes('Periode:');
+    const extractedPeriod = isDescPeriod ? log.description.split('Periode:')[1].trim().split(' ')[0] : currentMonthValue;
+    setForm({
+      id: log.id, date: log.date.split('T')[0], periode_bulan: extractedPeriod, employeeId: log.employee_id,
+      baseSalary: String(log.base_salary || 0), allowance: String(log.allowance || 0), potKasbonInput: String(log.kasbon_deduction || 0),
+      otherDeduction: String(log.other_deduction || 0), paymentMethod: log.payment_method || 'CASH',
+      isProrata: false, hariNormal: '26', hariHadir: '26'
+    });
+    setIsEditing(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDelete = async (id) => {
+    if(window.confirm("Yakin ingin menghapus mutasi gaji ini? Data akan ditarik kembali dari sistem.")) {
+      setOptimisticDeletedIds(prev => new Set(prev).add(id));
+      const success = await sendToSheet('delete', { id }, 'expenses');
+      if(success) { if(showToast) showToast('Gaji berhasil divoid.', 'success'); }
+      else { setOptimisticDeletedIds(prev => { const n = new Set(prev); n.delete(id); return n; }); if(showToast) showToast('Gagal menghapus.', 'error'); }
+    }
+  };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <div className="bg-white rounded-2xl border p-6 border-t-4 border-t-emerald-600 h-max">
+      <div className={`p-6 rounded-2xl border border-t-4 transition-all h-max ${isEditing ? 'bg-amber-50/50 border-t-amber-500 border-amber-200' : 'bg-white border-t-emerald-600'}`}>
         <form onSubmit={async (e) => {
-          e.preventDefault(); if (!form.employeeId) return; const expenseId = generateId('PRL', form.date);
-          const deskripsiFinal = `Gaji Bulanan | Periode: ${form.periode_bulan}`;
+          e.preventDefault(); if (!form.employeeId) return; 
+          const expenseId = isEditing ? form.id : generateId('PRL', form.date);
+          let detailDesc = `Gaji Bulanan | Periode: ${form.periode_bulan}`;
+          if (form.isProrata) detailDesc += ` (Prorata: Masuk ${form.hariHadir}/${form.hariNormal} Hari)`;
+          
           const penempatanTrx = activeBranch === 'SEMUA_CABANG' ? selectedStafData?.branch_id : activeBranch;
-
-          const success = await sendToSheet('insert', { id: expenseId, date: form.date, branch_id: penempatanTrx, category: 'PAYROLL', employee_id: form.employeeId, base_salary: Number(form.baseSalary), allowance: Number(form.allowance), kasbon_deduction: hitungNetto.potKasbonFinal, other_deduction: Number(form.otherDeduction), amount: hitungNetto.totalCair, payment_method: form.paymentMethod, description: deskripsiFinal }, 'expenses');
+          const payload = { id: expenseId, date: form.date, branch_id: penempatanTrx, category: 'PAYROLL', employee_id: form.employeeId, base_salary: Number(form.baseSalary), allowance: Number(form.allowance), kasbon_deduction: hitungNetto.potKasbonFinal, other_deduction: Number(form.otherDeduction), amount: hitungNetto.totalCair, payment_method: form.paymentMethod, description: detailDesc };
+          
+          let success = false;
+          if (isEditing) { success = await sendToSheet('update', payload, 'expenses'); }
+          else { success = await sendToSheet('insert', payload, 'expenses'); }
+          
           if (success) {
-            await sendToSheet('insert', { id: 'CFO-' + new Date().getTime(), date: form.date, branch_id: form.paymentMethod === 'TF' ? 'HQ_FACTORY' : penempatanTrx, transaction_type: 'OUTFLOW', category: 'OPERATIONAL_EXPENSE', amount: hitungNetto.totalCair, payment_method: form.paymentMethod, reference_id: expenseId, description: `Jurnal Payroll: ${selectedStafData?.name} (${form.periode_bulan})` }, 'cashflow_transactions');
-            setForm({ date: todayStr, periode_bulan: currentMonthValue, employeeId: '', baseSalary: '0', allowance: '0', potKasbonInput: '', otherDeduction: '0', paymentMethod: 'CASH' });
+            if (!isEditing) await sendToSheet('insert', { id: 'CFO-' + new Date().getTime(), date: form.date, branch_id: form.paymentMethod === 'TF' ? 'HQ_FACTORY' : penempatanTrx, transaction_type: 'OUTFLOW', category: 'OPERATIONAL_EXPENSE', amount: hitungNetto.totalCair, payment_method: form.paymentMethod, reference_id: expenseId, description: `Jurnal Payroll: ${selectedStafData?.name} (${form.periode_bulan})` }, 'cashflow_transactions');
+            setForm({ id: '', date: todayStr, periode_bulan: currentMonthValue, employeeId: '', baseSalary: '0', allowance: '0', potKasbonInput: '', otherDeduction: '0', paymentMethod: 'CASH', isProrata: false, hariNormal: '26', hariHadir: '26' });
+            setIsEditing(false);
           }
         }} className="space-y-4">
-          <h3 className="font-black text-sm uppercase text-slate-800 flex items-center gap-2"><CalendarDays size={16} className="text-emerald-600"/> Sistem Penggajian Bulanan</h3>
+          <div className="flex justify-between items-center border-b pb-2">
+            <h3 className="font-black text-sm uppercase text-slate-800 flex items-center gap-2"><CalendarDays size={16} className={isEditing ? "text-amber-600" : "text-emerald-600"}/> {isEditing ? 'Edit Data Penggajian' : 'Sistem Penggajian Bulanan'}</h3>
+            {isEditing && <button type="button" onClick={() => { setIsEditing(false); setForm({ id: '', date: todayStr, periode_bulan: currentMonthValue, employeeId: '', baseSalary: '0', allowance: '0', potKasbonInput: '', otherDeduction: '0', paymentMethod: 'CASH', isProrata: false, hariNormal: '26', hariHadir: '26' }); }} className="text-[10px] border px-2 py-0.5 rounded font-black uppercase text-slate-500 bg-white shadow-sm">Batal</button>}
+          </div>
           
           <div className="grid grid-cols-2 gap-2">
             <div><label className="text-[10px] font-bold text-slate-500 uppercase">Tgl Eksekusi</label><input type="date" required value={form.date} onChange={e=>setForm({...form, date: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold outline-none" /></div>
@@ -423,11 +450,30 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
           </div>
 
           <div>
-            <select required value={form.employeeId} onChange={handlePilihKaryawan} className="w-full p-2.5 border border-slate-300 shadow-sm rounded-xl font-black text-sm uppercase outline-none bg-slate-50 focus:bg-white"><option value="">-- Pilih Staf Penerima Gaji --</option>{employees.map(k => <option key={k.id} value={k.id}>{k.name} ({k.position}) - CAB {k.branch_id}</option>)}</select>
+            <select required disabled={isEditing} value={form.employeeId} onChange={handlePilihKaryawan} className={`w-full p-2.5 border rounded-xl font-black text-sm uppercase outline-none ${isEditing ? 'bg-slate-100 text-slate-500' : 'bg-slate-50 focus:bg-white shadow-sm border-slate-300'}`}><option value="">-- Pilih Staf Penerima Gaji --</option>{employees.map(k => <option key={k.id} value={k.id}>{k.name} ({k.position}) - CAB {k.branch_id}</option>)}</select>
           </div>
           
+          {/* 🔥 KALKULATOR PRORATA (CUTI TAK DIBAYAR / LEBARAN) */}
+          <div className="bg-slate-100 p-3 rounded-xl border border-slate-200">
+            <label className="flex items-center gap-2 cursor-pointer mb-2">
+              <input type="checkbox" disabled={isEditing || !form.employeeId} checked={form.isProrata} onChange={e => {
+                setForm({...form, isProrata: e.target.checked, baseSalary: e.target.checked ? String(Math.floor((Number(form.hariHadir)/Number(form.hariNormal))*selectedStafData?.baseSalary||0)) : String(selectedStafData?.baseSalary||0)});
+              }} className="w-4 h-4 accent-emerald-600" />
+              <span className="text-[10px] font-black uppercase text-slate-700 flex items-center gap-1"><Calculator size={12}/> Aktifkan Potong Gaji Prorata (Cuti / Izin Tak Dibayar)</span>
+            </label>
+            {form.isProrata && (
+              <div className="grid grid-cols-2 gap-2 mt-2 animate-in slide-in-from-top-1">
+                <div><label className="text-[9px] font-bold text-slate-500 uppercase">Standar Hari Kerja (Sebulan)</label><input type="number" min="1" max="31" value={form.hariNormal} onChange={e=>setForm({...form, hariNormal: e.target.value})} className="w-full p-1.5 border rounded text-xs font-bold text-center" /></div>
+                <div><label className="text-[9px] font-bold text-blue-600 uppercase">Faktual Masuk Bekerja</label><input type="number" min="0" max="31" value={form.hariHadir} onChange={e=>setForm({...form, hariHadir: e.target.value})} className="w-full p-1.5 border border-blue-300 bg-blue-50 rounded text-xs font-black text-center text-blue-800" /></div>
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-2 gap-2">
-            <div><label className="text-[10px] font-bold text-slate-500 uppercase">Gaji Pokok</label><input type="text" required value={formatRupiah(form.baseSalary)} onChange={e=>setForm({...form, baseSalary: e.target.value.replace(/\D/g, '')})} className="w-full p-2 bg-slate-50 border rounded-lg font-bold text-sm" /></div>
+            <div>
+              <label className="text-[10px] font-bold text-slate-500 uppercase flex justify-between items-center">Gaji Pokok {form.isProrata && <span className="text-[8px] bg-emerald-100 text-emerald-700 px-1 rounded">Auto</span>}</label>
+              <input type="text" required value={formatRupiah(form.baseSalary)} onChange={e=>setForm({...form, baseSalary: e.target.value.replace(/\D/g, '')})} className={`w-full p-2 border rounded-lg font-bold text-sm ${form.isProrata ? 'bg-emerald-50 text-emerald-900 border-emerald-300' : 'bg-slate-50'}`} />
+            </div>
             <div><label className="text-[10px] font-bold text-emerald-600 uppercase">Bonus/Tunjangan</label><input type="text" required value={formatRupiah(form.allowance)} onChange={e=>setForm({...form, allowance: e.target.value.replace(/\D/g, '')})} className="w-full p-2 border rounded-lg font-bold text-sm" /></div>
           </div>
           
@@ -443,7 +489,7 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
           <div><label className="text-[10px] font-bold text-rose-600 uppercase">Potongan Lain (Lain-Lain)</label><input type="text" required value={formatRupiah(form.otherDeduction)} onChange={e=>setForm({...form, otherDeduction: e.target.value.replace(/\D/g, '')})} className="w-full p-2 border rounded-lg font-bold text-sm" /></div>
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">Sumber Dana Gaji</label><select value={form.paymentMethod} onChange={e=>setForm({...form, paymentMethod: e.target.value})} className="w-full p-2 border rounded-lg font-bold text-xs bg-slate-50"><option value="CASH">CASH TUNAI (POTONG KAS LACI CABANG)</option><option value="TF">TRANSFER BANK (POTONG REKENING PUSAT)</option></select></div>
           <div className="bg-slate-950 p-4 rounded-xl text-center text-emerald-400 font-black"><div className="text-[8px] text-slate-400 uppercase tracking-widest">Total Netto Gaji Diterima Karyawan</div><div className="text-2xl mt-1">{formatRupiah(hitungNetto.totalCair)}</div></div>
-          <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 transition text-white font-black py-3.5 rounded-xl text-xs uppercase tracking-wider shadow-lg">Cetak & Potong Gaji</button>
+          <button type="submit" className={`w-full text-white font-black py-3.5 rounded-xl text-xs uppercase tracking-wider shadow-lg transition ${isEditing ? 'bg-amber-500 hover:bg-amber-600' : 'bg-emerald-600 hover:bg-emerald-700'}`}>{isEditing ? '💾 Update Data Gaji' : 'Cetak & Potong Gaji'}</button>
         </form>
       </div>
       
@@ -455,7 +501,7 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
             {historyGaji.map(p => {
               const emp = globalCompiled[p.employee_id];
               const isDescPeriod = p.description && p.description.includes('Periode:');
-              const extractedPeriod = isDescPeriod ? p.description.split('Periode:')[1].trim() : formatDate(p.date);
+              const extractedPeriod = isDescPeriod ? p.description.split('Periode:')[1].trim().split(' ')[0] : formatDate(p.date);
 
               return (
                 <tr key={p.id} className="hover:bg-slate-50/50 transition">
@@ -472,31 +518,21 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
                   <td className="px-4 py-3 text-right text-emerald-600">{formatRupiah(p.amount)}</td>
                   <td className="px-4 py-3 text-center">
                     <div className="flex items-center justify-center gap-1.5">
-                      <button type="button" onClick={() => emp && onViewDetails(emp)} className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg" title="Lihat Rekam Jejak"><Eye size={12}/></button>
-                      
                       <button type="button" onClick={() => triggerPrint('NOTA_DOTMATRIX', {
-                        title: 'BUKTI PENGGAJIAN / SLIP GAJI',
-                        id: p.id, date: formatDate(p.date), periode: extractedPeriod,
-                        branch_name: emp?.branch_id || activeBranch,
-                        admin_name: user?.name || 'ADMIN', customer_name: emp?.name || 'STAF', position: emp?.position || 'STAF',
-                        items: [
-                          { name: 'Gaji Pokok & Bonus Tunjangan', qty: 1, subtotal: (p.base_salary || 0) + (p.allowance || 0) },
-                          { name: 'Potongan Cicilan Kasbon/Kredit', qty: 1, subtotal: -(p.kasbon_deduction || 0) },
-                          { name: 'Potongan Lain-Lain', qty: 1, subtotal: -(p.other_deduction || 0) }
-                        ],
+                        title: 'BUKTI PENGGAJIAN / SLIP GAJI', id: p.id, date: formatDate(p.date), periode: extractedPeriod,
+                        branch_name: emp?.branch_id || activeBranch, admin_name: user?.name || 'ADMIN', customer_name: emp?.name || 'STAF', position: emp?.position || 'STAF',
+                        items: [{ name: 'Gaji Pokok & Bonus', qty: 1, subtotal: (p.base_salary || 0) + (p.allowance || 0) }, { name: 'Potongan Cicilan Kredit', qty: 1, subtotal: -(p.kasbon_deduction || 0) }, { name: 'Potongan Lain-Lain', qty: 1, subtotal: -(p.other_deduction || 0) }],
                         amount: p.amount, paymentMethod: p.payment_method || 'CASH',
-                        history: {
-                          kasbonList: [...(emp?.history_kredit || []), ...(emp?.history_kasbon || [])].slice(0, 3), // Ambil 3 data hutang berjalan 
-                          labelLama: 'Akumulasi Hutang / Kredit Awal',
-                          nominalLama: (emp?.sisaHutang || 0) + (p.kasbon_deduction || 0),
-                          labelAksi: 'Dipotong Untuk Angsuran Bulan Ini',
-                          nominalAksi: p.kasbon_deduction || 0,
-                          labelBaru: 'SISA HUTANG / KREDIT SEKARANG',
-                          nominalBaru: emp?.sisaHutang || 0
-                        }
-                      })} className="p-1.5 text-white bg-slate-800 hover:bg-slate-900 shadow rounded-lg" title="Cetak Slip Gaji Dot Matrix">
-                        <Printer size={12}/>
-                      </button>
+                        history: { kasbonList: [...(emp?.history_kredit || []), ...(emp?.history_kasbon || [])].slice(0, 3), labelLama: 'Akumulasi Hutang / Kredit Awal', nominalLama: (emp?.sisaHutang || 0) + (p.kasbon_deduction || 0), labelAksi: 'Dipotong Untuk Angsuran Bulan Ini', nominalAksi: p.kasbon_deduction || 0, labelBaru: 'SISA HUTANG / KREDIT SEKARANG', nominalBaru: emp?.sisaHutang || 0 }
+                      })} className="p-1.5 text-white bg-slate-800 hover:bg-slate-900 shadow rounded-lg" title="Cetak Slip"><Printer size={12}/></button>
+                      
+                      {/* 🔥 FITUR EDIT & DELETE HANYA UNTUK PUSAT (DIREKTUR) */}
+                      {isHQ && (
+                        <>
+                          <button type="button" onClick={() => handleEdit(p)} className="p-1.5 bg-amber-50 text-amber-600 hover:bg-amber-100 rounded-lg" title="Edit Transaksi"><Edit2 size={12}/></button>
+                          <button type="button" onClick={() => handleDelete(p.id)} className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg" title="Void Data"><Trash2 size={12}/></button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -510,48 +546,70 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
 }
 
 // =========================================================================
-// 📇 SUB-COMPONENT 2: KREDIT BARANG & KASBON (G-DRIVE PROOF ENABLED)
+// 📇 SUB-COMPONENT 2: KREDIT BARANG & KASBON (DENGAN EDIT / DELETE)
 // =========================================================================
-function KasbonModule({ employees, expenses, globalCompiled, activeBranch, todayStr, sendToSheet, onViewDetails, user }) {
-  const [activeTabKasbon, setActiveTabKasbon] = useState('KREDIT'); // KREDIT atau TUNAI
-  const [form, setForm] = useState({ date: todayStr, employeeId: '', amount: '', notes: '', tenor: '1', foto_url: '' });
+function KasbonModule({ employees, expenses, globalCompiled, activeBranch, todayStr, sendToSheet, onViewDetails, user, setOptimisticDeletedIds, isHQ, showToast, optimisticDeletedIds }) {
+  const [activeTabKasbon, setActiveTabKasbon] = useState('KREDIT'); 
+  const [isEditing, setIsEditing] = useState(false);
+  const [form, setForm] = useState({ id: '', date: todayStr, employeeId: '', amount: '', notes: '', tenor: '1', foto_url: '' });
   
-  const historyKasbonLog = useMemo(() => { const targetBId = String(activeBranch || '').trim().toUpperCase(); return (expenses || []).filter(e => e && !e.isDeleted && ['KASBON', 'KREDIT_BARANG'].includes(e.category) && (targetBId === 'SEMUA_CABANG' || String(e.branch_id || '').trim().toUpperCase() === targetBId)).sort((a, b) => new Date(b.date) - new Date(a.date)); }, [expenses, activeBranch]);
+  const historyKasbonLog = useMemo(() => { const targetBId = String(activeBranch || '').trim().toUpperCase(); return (expenses || []).filter(e => e && !e.isDeleted && !optimisticDeletedIds.has(e.id) && ['KASBON', 'KREDIT_BARANG'].includes(e.category) && (targetBId === 'SEMUA_CABANG' || String(e.branch_id || '').trim().toUpperCase() === targetBId)).sort((a, b) => new Date(b.date) - new Date(a.date)); }, [expenses, activeBranch, optimisticDeletedIds]);
+
+  const handleEdit = (log) => {
+    const isKredit = log.category === 'KREDIT_BARANG';
+    setActiveTabKasbon(isKredit ? 'KREDIT' : 'TUNAI');
+    setForm({
+      id: log.id, date: log.date.split('T')[0], employeeId: log.employee_id, amount: String(log.amount || 0),
+      notes: log.description || '', tenor: String(log.tenor || 1), foto_url: log.foto_url || ''
+    });
+    setIsEditing(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDelete = async (id) => {
+    if(window.confirm("Yakin ingin menghapus data kredit/kasbon ini?")) {
+      setOptimisticDeletedIds(prev => new Set(prev).add(id));
+      const success = await sendToSheet('delete', { id }, 'expenses');
+      if(success) { if(showToast) showToast('Data berhasil dihapus.', 'success'); }
+      else { setOptimisticDeletedIds(prev => { const n = new Set(prev); n.delete(id); return n; }); if(showToast) showToast('Gagal menghapus.', 'error'); }
+    }
+  };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <div className="bg-white p-6 rounded-2xl border border-t-4 border-t-blue-500 h-max shadow-sm">
+      <div className={`p-6 rounded-2xl border border-t-4 transition-all h-max shadow-sm ${isEditing ? 'bg-amber-50/50 border-t-amber-500 border-amber-200' : 'bg-white border-t-blue-500'}`}>
         <div className="flex gap-2 mb-4 bg-slate-100 p-1 rounded-xl">
-          <button type="button" onClick={()=>setActiveTabKasbon('KREDIT')} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition ${activeTabKasbon==='KREDIT' ? 'bg-white shadow text-blue-600' : 'text-slate-500'}`}>Kredit Barang</button>
-          <button type="button" onClick={()=>setActiveTabKasbon('TUNAI')} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition ${activeTabKasbon==='TUNAI' ? 'bg-white shadow text-orange-600' : 'text-slate-500'}`}>Kasbon Tunai</button>
+          <button type="button" disabled={isEditing} onClick={()=>setActiveTabKasbon('KREDIT')} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition ${activeTabKasbon==='KREDIT' ? 'bg-white shadow text-blue-600' : 'text-slate-500'} disabled:opacity-50`}>Kredit Barang</button>
+          <button type="button" disabled={isEditing} onClick={()=>setActiveTabKasbon('TUNAI')} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition ${activeTabKasbon==='TUNAI' ? 'bg-white shadow text-orange-600' : 'text-slate-500'} disabled:opacity-50`}>Kasbon Tunai</button>
         </div>
 
         <form onSubmit={async (e) => {
           e.preventDefault(); if (!form.employeeId) return; 
           const isKredit = activeTabKasbon === 'KREDIT';
-          const expenseId = generateId(isKredit ? 'KRD' : 'KSB', form.date);
+          const expenseId = isEditing ? form.id : generateId(isKredit ? 'KRD' : 'KSB', form.date);
           const empData = globalCompiled[form.employeeId];
           const penempatanTrx = activeBranch === 'SEMUA_CABANG' ? empData?.branch_id : activeBranch;
 
           const payload = { id: expenseId, date: form.date, branch_id: penempatanTrx, employee_id: form.employeeId, category: isKredit ? 'KREDIT_BARANG' : 'KASBON', amount: Number(form.amount), description: form.notes.toUpperCase() };
-          
-          if (isKredit) {
-            payload.tenor = Number(form.tenor);
-            payload.foto_url = form.foto_url; // G-Drive Image Link
-          }
+          if (isKredit) { payload.tenor = Number(form.tenor); payload.foto_url = form.foto_url; }
 
-          const success = await sendToSheet('insert', payload, 'expenses');
+          let success = false;
+          if(isEditing) { success = await sendToSheet('update', payload, 'expenses'); }
+          else { success = await sendToSheet('insert', payload, 'expenses'); }
+
           if (success) {
-            if (!isKredit) { // Kalau tunai, catat pengeluaran laci
-              await sendToSheet('insert', { id: 'CFO-' + new Date().getTime(), date: form.date, branch_id: penempatanTrx, transaction_type: 'OUTFLOW', category: 'KARYAWAN_KASBON', amount: Number(form.amount), payment_method: 'CASH', reference_id: expenseId, description: `Pencairan Kasbon Laci` }, 'cashflow_transactions');
-            }
-            setForm({ date: todayStr, employeeId: '', amount: '', notes: '', tenor: '1', foto_url: '' });
+            if (!isKredit && !isEditing) await sendToSheet('insert', { id: 'CFO-' + new Date().getTime(), date: form.date, branch_id: penempatanTrx, transaction_type: 'OUTFLOW', category: 'KARYAWAN_KASBON', amount: Number(form.amount), payment_method: 'CASH', reference_id: expenseId, description: `Pencairan Kasbon Laci` }, 'cashflow_transactions');
+            setForm({ id: '', date: todayStr, employeeId: '', amount: '', notes: '', tenor: '1', foto_url: '' });
+            setIsEditing(false);
           }
         }} className="space-y-4">
           
-          <h3 className="font-black text-sm uppercase text-slate-800 flex items-center gap-2">{activeTabKasbon === 'KREDIT' ? <><ShoppingCart size={16} className="text-blue-600"/> Pengajuan Kredit Barang</> : <><Banknote size={16} className="text-orange-600"/> Pencairan Kasbon Tunai</>}</h3>
+          <div className="flex justify-between items-center">
+            <h3 className="font-black text-sm uppercase text-slate-800 flex items-center gap-2">{activeTabKasbon === 'KREDIT' ? <ShoppingCart size={16} className={isEditing ? "text-amber-600" : "text-blue-600"}/> : <Banknote size={16} className={isEditing ? "text-amber-600" : "text-orange-600"}/>} {isEditing ? 'Edit Data Pengajuan' : `Pengajuan ${activeTabKasbon}`}</h3>
+            {isEditing && <button type="button" onClick={() => { setIsEditing(false); setForm({ id: '', date: todayStr, employeeId: '', amount: '', notes: '', tenor: '1', foto_url: '' }); }} className="text-[10px] border px-2 py-0.5 rounded font-black uppercase text-slate-500 bg-white shadow-sm">Batal</button>}
+          </div>
           
-          <div><select required value={form.employeeId} onChange={e=>setForm({...form, employeeId: e.target.value})} className="w-full p-2.5 border rounded-xl font-black text-sm uppercase outline-none"><option value="">-- Pilih Staf Peminjam --</option>{employees.map(k => <option key={k.id} value={k.id}>{k.name} ({k.position}) - CAB {k.branch_id}</option>)}</select></div>
+          <div><select required disabled={isEditing} value={form.employeeId} onChange={e=>setForm({...form, employeeId: e.target.value})} className={`w-full p-2.5 border rounded-xl font-black text-sm uppercase outline-none ${isEditing ? 'bg-slate-100 text-slate-500' : 'bg-slate-50 focus:bg-white shadow-sm border-slate-300'}`}><option value="">-- Pilih Staf Peminjam --</option>{employees.map(k => <option key={k.id} value={k.id}>{k.name} ({k.position}) - CAB {k.branch_id}</option>)}</select></div>
           
           <div>
             <label className="text-[10px] font-bold text-slate-500 uppercase">{activeTabKasbon === 'KREDIT' ? 'Total Harga Barang (Bukan Cicilan)' : 'Nominal Tarik Laci'}</label>
@@ -566,10 +624,7 @@ function KasbonModule({ employees, expenses, globalCompiled, activeBranch, today
           {activeTabKasbon === 'KREDIT' && (
             <div className="space-y-4 p-3 bg-blue-50 border border-blue-200 rounded-xl">
               <div>
-                <label className="text-[10px] font-black text-blue-800 uppercase flex justify-between">
-                  <span>Tenor Angsuran (Bulan)</span>
-                  <span>Prediksi Cicilan: {formatRupiah((Number(form.amount || 0) / Number(form.tenor || 1)))}/bln</span>
-                </label>
+                <label className="text-[10px] font-black text-blue-800 uppercase flex justify-between"><span>Tenor Angsuran (Bulan)</span><span>Cicilan: {formatRupiah((Number(form.amount || 0) / Number(form.tenor || 1)))}/bln</span></label>
                 <input type="number" min="1" max="24" required value={form.tenor} onChange={e=>setForm({...form, tenor: e.target.value})} className="w-full p-2 border rounded-lg text-sm font-black text-center" />
               </div>
               <div>
@@ -579,7 +634,7 @@ function KasbonModule({ employees, expenses, globalCompiled, activeBranch, today
             </div>
           )}
 
-          <button type="submit" disabled={!form.employeeId} className={`w-full text-white font-black py-3 rounded-xl text-xs uppercase disabled:opacity-40 shadow-lg ${activeTabKasbon === 'KREDIT' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-orange-600 hover:bg-orange-700'}`}>Simpan {activeTabKasbon} Karyawan</button>
+          <button type="submit" className={`w-full text-white font-black py-3 rounded-xl text-xs uppercase shadow-lg transition ${isEditing ? 'bg-amber-500 hover:bg-amber-600' : (activeTabKasbon === 'KREDIT' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-orange-600 hover:bg-orange-700')}`}>{isEditing ? '💾 Update Transaksi' : `Simpan ${activeTabKasbon} Karyawan`}</button>
         </form>
       </div>
 
@@ -608,26 +663,20 @@ function KasbonModule({ employees, expenses, globalCompiled, activeBranch, today
                   <td className="px-4 py-3 text-right text-slate-900">{formatRupiah(log.amount)}</td>
                   <td className="px-4 py-3 text-center">
                     <div className="flex items-center justify-center gap-1.5">
-                      <button type="button" onClick={() => emp && onViewDetails(emp)} className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg"><Eye size={12}/></button>
                       <button type="button" onClick={() => triggerPrint('NOTA_DOTMATRIX', {
-                        title: isKredit ? 'BUKTI PERSETUJUAN KREDIT BARANG' : 'BUKTI PENCAIRAN KASBON TUNAI',
-                        id: log.id, date: formatDate(log.date), periode: formatDate(log.date).substring(3),
-                        branch_name: emp?.branch_id || activeBranch,
-                        admin_name: user?.name || 'ADMIN', customer_name: emp?.name || 'STAF', position: emp?.position || 'STAF',
-                        items: [{ name: `${log.description}`, qty: 1, subtotal: log.amount }],
-                        amount: log.amount, paymentMethod: isKredit ? 'AUTO-POTONG GAJI (NON-CASH)' : 'CASH',
-                        history: {
-                          kasbonList: [{ ...log, status: 'BARU DIAJUKAN', sisa: log.amount, cicilanKe: 0 }],
-                          labelLama: 'Sisa Hutang / Kredit Sebelumnya',
-                          nominalLama: Math.max(0, (emp?.sisaHutang || 0) - log.amount),
-                          labelAksi: 'Penambahan Kasbon / Kredit Baru',
-                          nominalAksi: log.amount,
-                          labelBaru: 'TOTAL HUTANG / KREDIT SAAT INI',
-                          nominalBaru: emp?.sisaHutang || 0
-                        }
-                      })} className="p-1.5 text-white bg-slate-800 hover:bg-slate-900 shadow rounded-lg" title="Cetak Nota">
-                        <Printer size={12}/>
-                      </button>
+                        title: isKredit ? 'BUKTI PERSETUJUAN KREDIT BARANG' : 'BUKTI PENCAIRAN KASBON TUNAI', id: log.id, date: formatDate(log.date), periode: formatDate(log.date).substring(3),
+                        branch_name: emp?.branch_id || activeBranch, admin_name: user?.name || 'ADMIN', customer_name: emp?.name || 'STAF', position: emp?.position || 'STAF',
+                        items: [{ name: `${log.description}`, qty: 1, subtotal: log.amount }], amount: log.amount, paymentMethod: isKredit ? 'AUTO-POTONG GAJI (NON-CASH)' : 'CASH',
+                        history: { kasbonList: [{ ...log, status: 'BARU DIAJUKAN', sisa: log.amount, cicilanKe: 0 }], labelLama: 'Sisa Hutang / Kredit Sebelumnya', nominalLama: Math.max(0, (emp?.sisaHutang || 0) - log.amount), labelAksi: 'Penambahan Kasbon / Kredit Baru', nominalAksi: log.amount, labelBaru: 'TOTAL HUTANG / KREDIT SAAT INI', nominalBaru: emp?.sisaHutang || 0 }
+                      })} className="p-1.5 text-white bg-slate-800 hover:bg-slate-900 shadow rounded-lg" title="Cetak Nota"><Printer size={12}/></button>
+                      
+                      {/* 🔥 FITUR EDIT & DELETE HANYA UNTUK PUSAT (DIREKTUR) */}
+                      {isHQ && (
+                        <>
+                          <button type="button" onClick={() => handleEdit(log)} className="p-1.5 bg-amber-50 text-amber-600 hover:bg-amber-100 rounded-lg" title="Edit Transaksi"><Edit2 size={12}/></button>
+                          <button type="button" onClick={() => handleDelete(log.id)} className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg" title="Void Data"><Trash2 size={12}/></button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
