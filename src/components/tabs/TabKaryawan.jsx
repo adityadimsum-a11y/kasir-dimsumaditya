@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Users, Landmark, Banknote, UserPlus, Layers, TrendingDown, ShieldAlert, Trash2, Edit2, Check, X, Phone, Image } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 
-export default function TabKaryawan({ karyawan, expenses, master_branches, cashflowTransactions, sendToSheet, showToast, user }) {
+export default function TabKaryawan({ karyawan, expenses, masterBranches, cashflowTransactions, sendToSheet, showToast, user }) {
   const todayStr = getTodayStr();
   const currentBranch = user?.branch_id || 'PUSAT';
   const isHQ = user?.branch_type === 'HQ_FACTORY' || currentBranch === 'PUSAT';
@@ -27,16 +27,16 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, cashf
     return "Rp. " + Number(angka || 0).toLocaleString('id-ID');
   };
 
-  // 1. PETAMAP NAMA CABANG DARI DB
+  // 1. PETAMAP NAMA CABANG DARI DB (FIXED VARIABEL: masterBranches)
   const petaNamaCabang = useMemo(() => {
     const mapping = { PUSAT: '🍊 TANGERANG PUSAT' };
-    (master_branches || []).forEach(b => {
+    (masterBranches || []).forEach(b => {
       if (!b.isDeleted && b.branch_id) {
         mapping[String(b.branch_id).trim().toUpperCase()] = `🏪 ${String(b.branch_name).toUpperCase()}`;
       }
     });
     return mapping;
-  }, [master_branches]);
+  }, [masterBranches]);
 
   const daftarCabangId = useMemo(() => Object.keys(petaNamaCabang), [petaNamaCabang]);
 
@@ -118,7 +118,7 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, cashf
     return { kasbonCabangIni, gajiCabangIniBulanIni, kasbonGlobalSeluruhPerusahaan, gajiGlobalSeluruhPerusahaan };
   }, [masterEmployeeDataGlobal, expenses, activeProcessingBranch, todayStr]);
 
-  // Membaca memori data cashflowTransactions dengan aman
+  // FIX CRITICAL: Membaca memori data cashflowTransactions (tanpa underscore) dengan aman agar tidak memicu error blank putih
   const analisisKecukupanGajiPusat = useMemo(() => {
     const totalKebutuhanKotorNasional = Object.values(masterEmployeeDataGlobal)
       .filter(e => e.status === 'AKTIF').reduce((sum, emp) => sum + emp.baseSalary, 0);
@@ -128,8 +128,9 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, cashf
     (cashflowTransactions || []).forEach(c => {
       if (c.isDeleted) return;
       if (['HQ_FACTORY', 'PUSAT'].includes(String(c.branch_id).toUpperCase())) {
-        if (String(c.transaction_type).toUpperCase() === 'INFLOW') totalKasPusatAktif += Number(c.amount || 0);
-        else totalKasPusatAktif -= Number(c.amount || 0);
+        const amt = Number(c.amount || 0);
+        if (String(c.transaction_type).toUpperCase() === 'INFLOW') totalKasPusatAktif += amt;
+        else if (String(c.transaction_type).toUpperCase() === 'OUTFLOW') totalKasPusatAktif -= amt;
       }
     });
 
@@ -144,9 +145,6 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, cashf
     return { sisaKewajibanPayrollBulanIni, totalKasPusatAktif, statusFinansial, warnaBadge, pesanRekomendasi };
   }, [masterEmployeeDataGlobal, ringkasanFinansialSDM.gajiGlobalSeluruhPerusahaan, cashflowTransactions]);
 
-  // ========================================================
-  // FIX DEFINITION POINT: MENYUNTIKKAN KEMBALI VARIABEL YANG HILANG
-  // ========================================================
   const selectedEmpKasbon = useMemo(() => {
     if (!formPayroll.employeeId) return 0;
     return masterEmployeeDataGlobal[formPayroll.employeeId]?.sisaHutang || 0;
@@ -247,7 +245,7 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, cashf
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
       
-      {/* BOARDS METRICS */}
+      {/* 📊 BOARDS METRICS */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white p-5 rounded-2xl border shadow-sm border-l-4 border-l-orange-500">
           <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Kasbon Aktif Wilayah ({activeProcessingBranch})</div>
