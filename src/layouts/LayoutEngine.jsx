@@ -163,7 +163,7 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
             </div>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 bg-slate-50/50 relative">
+        <main className="flex-1 bg-white/40 backdrop-blur-md overflow-y-auto">
            <div className="relative z-10 max-w-7xl mx-auto">{children}</div>
         </main>
       </div>
