@@ -2,7 +2,6 @@ import React, { useState, useMemo } from 'react';
 import { Users, Landmark, Banknote, UserPlus, Layers, TrendingDown, ShieldAlert, Trash2, Edit2, Check, X, Phone, Image } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 
-// FIX CRITICAL: Mengubah prop parameter dari cashflow_transactions menjadi cashflowTransactions sesuai core state App.jsx
 export default function TabKaryawan({ karyawan, expenses, master_branches, cashflowTransactions, sendToSheet, showToast, user }) {
   const todayStr = getTodayStr();
   const currentBranch = user?.branch_id || 'PUSAT';
@@ -119,7 +118,7 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, cashf
     return { kasbonCabangIni, gajiCabangIniBulanIni, kasbonGlobalSeluruhPerusahaan, gajiGlobalSeluruhPerusahaan };
   }, [masterEmployeeDataGlobal, expenses, activeProcessingBranch, todayStr]);
 
-  // FIX CRITICAL: Membaca memori data cashflowTransactions (tanpa underscore) dengan aman agar tidak memicu error blank putih
+  // Membaca memori data cashflowTransactions dengan aman
   const analisisKecukupanGajiPusat = useMemo(() => {
     const totalKebutuhanKotorNasional = Object.values(masterEmployeeDataGlobal)
       .filter(e => e.status === 'AKTIF').reduce((sum, emp) => sum + emp.baseSalary, 0);
@@ -144,6 +143,14 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, cashf
 
     return { sisaKewajibanPayrollBulanIni, totalKasPusatAktif, statusFinansial, warnaBadge, pesanRekomendasi };
   }, [masterEmployeeDataGlobal, ringkasanFinansialSDM.gajiGlobalSeluruhPerusahaan, cashflowTransactions]);
+
+  // ========================================================
+  // FIX DEFINITION POINT: MENYUNTIKKAN KEMBALI VARIABEL YANG HILANG
+  // ========================================================
+  const selectedEmpKasbon = useMemo(() => {
+    if (!formPayroll.employeeId) return 0;
+    return masterEmployeeDataGlobal[formPayroll.employeeId]?.sisaHutang || 0;
+  }, [formPayroll.employeeId, masterEmployeeDataGlobal]);
 
   // ENGINE PENGECEKAN BATAS LIMIT KASBON (MAKSIMAL SENILAI GAJI POKOK)
   const selectedEmpObject = formKasbon.employeeId ? masterEmployeeDataGlobal[formKasbon.employeeId] : null;
@@ -186,7 +193,7 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, cashf
     const gapok = Number(formPayroll.baseSalary || 0);
     const tunjangan = Number(formPayroll.allowance || 0);
     const potLain = Number(formPayroll.otherDeduction || 0);
-    const potKasbon = Math.min(emp.sisaHutang, gapok + tunjangan);
+    const potKasbon = Math.min(selectedEmpKasbon, gapok + tunjangan);
     const netto = (gapok + tunjangan) - (potKasbon + potLain);
 
     const expenseId = generateId('PRL', formPayroll.date);
@@ -240,7 +247,7 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, cashf
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
       
-      {/* 📊 BOARDS METRICS */}
+      {/* BOARDS METRICS */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white p-5 rounded-2xl border shadow-sm border-l-4 border-l-orange-500">
           <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Kasbon Aktif Wilayah ({activeProcessingBranch})</div>
@@ -256,7 +263,7 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, cashf
         </div>
       </div>
 
-      {/* 🚨 AI SUFFICIENCY RADAR WIDGET */}
+      {/* AI SUFFICIENCY RADAR WIDGET */}
       {isHQ && (
         <div className="p-4 rounded-2xl border border-blue-200 bg-blue-50/40 flex items-center justify-between text-xs font-bold text-blue-800">
           <div>💡 <strong>Radar Gaji Nasional:</strong> {analisisKecukupanGajiPusat.pesanRekomendasi}</div>
@@ -323,7 +330,7 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, cashf
               </div>
               <div className="bg-slate-950 p-4 rounded-xl text-center text-emerald-400 font-black">
                 <div className="text-[8px] text-slate-400">NETTO CAIR DIBAYARKAN</div>
-                <div className="text-xl mt-1">{"Rp. " + Number(hitungNettoCair.netto).toLocaleString('id-ID')}</div>
+                <div className="text-xl mt-1">{"Rp. " + Number((Number(formPayroll.baseSalary) + Number(formPayroll.allowance)) - (Math.min(selectedEmpKasbon, Number(formPayroll.baseSalary) + Number(formPayroll.allowance)) + Number(formPayroll.otherDeduction))).toLocaleString('id-ID')}</div>
               </div>
               <button type="submit" className="w-full bg-red-600 text-white text-xs font-black py-3 rounded-xl uppercase tracking-wider">Record & Potong Kas Besar</button>
             </form>
