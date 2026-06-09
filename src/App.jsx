@@ -300,22 +300,7 @@ export default function App() {
     );
   }
 
-  // =====================================
-  // UI 2: RENDER APLIKASI (DYNAMIC LAYOUT ENGINE)
-  // =====================================
-  return (
-    <>
-      <LayoutEngine 
-        user={user} 
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
-        handleLogout={handleLogout}
-        masterCapabilities={dbData.master_branch_capabilities}
-      >
-        {renderContent()}
-      </LayoutEngine>
-
-      // =====================================
+// =====================================
   // UI 2: RENDER APLIKASI (DYNAMIC LAYOUT ENGINE)
   // =====================================
   return (
@@ -341,10 +326,6 @@ export default function App() {
       <PrintDotMatrix printData={printData} onClose={() => setPrintData(null)} />
       
       {/* ... (kode dialog delete & loading biarkan sama) ... */}
-      
-      {/* Komponen Floating */}
-      <ToastNotification toast={toast} onClose={() => setToast(null)} />
-      <PrintDotMatrix printData={printData} onClose={() => setPrintData(null)} />
       
       {/* Dialog Konfirmasi Hapus Data (Void) */}
       {confirmDialog && (
