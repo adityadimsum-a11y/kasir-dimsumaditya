@@ -3,29 +3,34 @@ import { createRoot } from 'react-dom/client';
 
 const rp = (angka) => "Rp. " + Number(angka || 0).toLocaleString('id-ID');
 
-// Komponen Template Cetak Nota Dot Matrix (Epson LX 310)
+// ========================================================
+// 🖨️ 1. TEMPLATE CETAK DOT MATRIX (EPSON LX 310)
+// ========================================================
 const DotMatrixInvoice = ({ data }) => {
   return (
     <div className="print-dot-matrix">
-      {/* HEADER DENGAN JUDUL DINAMIS YANG LEBIH MEWAH */}
+      
+      {/* 1. HEADER & JUDUL FORMAL */}
       <div style={{ textAlign: 'center', borderBottom: '2px dashed black', paddingBottom: '8px', marginBottom: '10px' }}>
-        <h2 style={{ margin: 0, fontSize: '18pt', fontWeight: '900', letterSpacing: '1px' }}>DIMSUM ADITYA</h2>
-        <div style={{ fontSize: '12pt', fontWeight: 'bold' }}>TERMINAL {data.branch_name || 'PUSAT'}</div>
-        <div style={{ fontSize: '14pt', fontWeight: 'bold', marginTop: '5px', textDecoration: 'underline' }}>{data.title || 'NOTA TRANSAKSI'}</div>
+        <h2 style={{ margin: 0, fontSize: '18pt', fontWeight: '900', letterSpacing: '1px' }}>{data.company_name || 'DIMSUM ADITYA'}</h2>
+        <div style={{ fontSize: '12pt', fontWeight: 'bold' }}>CABANG OPERASIONAL {data.branch_name || 'PUSAT'}</div>
+        <div style={{ fontSize: '14pt', fontWeight: 'bold', marginTop: '5px', textDecoration: 'underline' }}>{data.title || 'BUKTI TRANSAKSI'}</div>
       </div>
       
-      <table style={{ width: '100%', marginBottom: '10px', fontSize: '13pt', fontWeight: 'bold' }}>
+      {/* 2. IDENTITAS & PERIODE */}
+      <table style={{ width: '100%', marginBottom: '10px', fontSize: '12pt', fontWeight: 'bold' }}>
         <tbody>
-          <tr><td width="55%">NO. TRX : {data.id || '-'}</td><td width="45%">TGL   : {data.date || '-'}</td></tr>
-          <tr><td>KLIEN   : {data.customer_name || 'UMUM'}</td><td>KASIR : {data.admin_name || 'ADMIN'}</td></tr>
+          <tr><td width="55%">NO. TRX : {data.id || '-'}</td><td width="45%">PERIODE : {data.periode || '-'}</td></tr>
+          <tr><td>NAMA    : {data.customer_name || 'UMUM'}</td><td>TGL TRX : {data.date || '-'}</td></tr>
+          <tr><td>POSISI  : {data.position || 'STAF'}</td><td>KASIR   : {data.admin_name || 'ADMIN'}</td></tr>
         </tbody>
       </table>
 
-      {/* RINCIAN BARANG / PEMBAYARAN */}
+      {/* 3. RINCIAN GAJI / TRANSAKSI */}
       <div style={{ borderTop: '2px dashed black', borderBottom: '2px dashed black', padding: '5px 0', marginBottom: '8px', fontWeight: 'bold' }}>
         <div style={{ display: 'flex' }}>
-          <div style={{ width: '50%' }}>KETERANGAN</div>
-          <div style={{ width: '15%', textAlign: 'center' }}>QTY</div>
+          <div style={{ width: '55%' }}>KETERANGAN</div>
+          <div style={{ width: '10%', textAlign: 'center' }}>QTY</div>
           <div style={{ width: '35%', textAlign: 'right' }}>SUBTOTAL</div>
         </div>
       </div>
@@ -33,14 +38,14 @@ const DotMatrixInvoice = ({ data }) => {
       <div style={{ minHeight: '60px' }}>
         {data.items && data.items.length > 0 ? data.items.map((item, idx) => (
           <div key={idx} style={{ display: 'flex', marginBottom: '5px' }}>
-            <div style={{ width: '50%' }}>{item.name}</div>
-            <div style={{ width: '15%', textAlign: 'center' }}>{item.qty}</div>
+            <div style={{ width: '55%' }}>{item.name}</div>
+            <div style={{ width: '10%', textAlign: 'center' }}>{item.qty}</div>
             <div style={{ width: '35%', textAlign: 'right' }}>{rp(item.subtotal)}</div>
           </div>
         )) : (
            <div style={{ display: 'flex', marginBottom: '5px' }}>
-             <div style={{ width: '50%' }}>{data.description || 'TRANSAKSI'}</div>
-             <div style={{ width: '15%', textAlign: 'center' }}>{data.qty || 1}</div>
+             <div style={{ width: '55%' }}>{data.description || 'TRANSAKSI'}</div>
+             <div style={{ width: '10%', textAlign: 'center' }}>{data.qty || 1}</div>
              <div style={{ width: '35%', textAlign: 'right' }}>{rp(data.amount || data.total)}</div>
            </div>
         )}
@@ -48,50 +53,68 @@ const DotMatrixInvoice = ({ data }) => {
 
       <div style={{ borderTop: '2px dashed black', paddingTop: '5px', paddingBottom: '10px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '14pt' }}>
-          <span>TOTAL NETTO CAIR :</span><span>{rp(data.total || data.amount)}</span>
+          <span>TOTAL DITERIMA (NETTO) :</span><span>{rp(data.total || data.amount)}</span>
         </div>
         <div style={{ textAlign: 'right', fontSize: '11pt', marginTop: '2px' }}>
-          Metode: {data.paymentMethod || 'CASH'}
+          Metode Cair: {data.paymentMethod || 'CASH'}
         </div>
       </div>
 
-      {/* TRACK RECORD HISTORI (DP & HUTANG PIUTANG) - SUPER DETAIL */}
+      {/* 4. TRACK RECORD HISTORI KASBON & KREDIT (BIAR KARYAWAN GAK BISA NGELES!) */}
       {data.history && (
         <div style={{ border: '2px dashed black', padding: '8px', margin: '15px 0', backgroundColor: '#f9f9f9' }}>
-          <div style={{ textAlign: 'center', fontWeight: 'bold', marginBottom: '8px', textDecoration: 'underline' }}>BUKU MUTASI HISTORI</div>
+          <div style={{ textAlign: 'center', fontWeight: 'bold', marginBottom: '8px', textDecoration: 'underline' }}>BUKU MUTASI PINJAMAN / KREDIT</div>
+          
+          {/* Loop Histori Transaksi Kasbon Sebelumnya */}
+          {data.history.kasbonList && data.history.kasbonList.length > 0 && (
+            <div style={{ marginBottom: '8px', fontSize: '11pt' }}>
+              <div style={{ borderBottom: '1px solid black', marginBottom: '4px', fontWeight: 'bold' }}>Rincian Nota Berjalan:</div>
+              {data.history.kasbonList.map((k, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
+                  <div style={{ width: '70%' }}>- {k.date} ({k.id})<br/><span style={{ fontSize: '9pt', color: '#555' }}>  Ket: {k.note}</span></div>
+                  <div style={{ width: '30%', textAlign: 'right' }}>{rp(k.amount)}</div>
+                </div>
+              ))}
+            </div>
+          )}
+          
+          <div style={{ borderTop: '1px dashed black', margin: '5px 0' }}></div>
           
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-            <span>{data.history.labelLama || 'Hutang/Piutang Awal'}:</span>
+            <span>{data.history.labelLama || 'Akumulasi Hutang Awal'}:</span>
             <span>{rp(data.history.nominalLama)}</span>
           </div>
           
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-            <span>{data.history.labelAksi || 'Aksi Transaksi Ini'}:</span>
-            <span>{rp(data.history.nominalAksi)}</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', color: 'red' }}>
+            <span>{data.history.labelAksi || 'Dipotong Cicilan Bulan Ini'}:</span>
+            <span>-{rp(data.history.nominalAksi)}</span>
           </div>
           
-          <div style={{ borderTop: '1px solid black', margin: '5px 0' }}></div>
+          <div style={{ borderTop: '2px solid black', margin: '5px 0' }}></div>
           
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
-            <span>{data.history.labelBaru || 'Sisa Hutang/Piutang Akhir'}:</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '900', fontSize: '13pt' }}>
+            <span>{data.history.labelBaru || 'SISA KREDIT / HUTANG'}:</span>
             <span>{rp(data.history.nominalBaru)}</span>
           </div>
         </div>
       )}
 
-      {/* TANDA TANGAN */}
+      {/* 5. TANDA TANGAN */}
       <table style={{ width: '100%', marginTop: '25px', textAlign: 'center' }}>
         <tbody>
-          <tr><td width="50%">PENERIMA,</td><td width="50%">HORMAT KAMI,</td></tr>
+          <tr><td width="50%">PENERIMA / KARYAWAN,</td><td width="50%">HORMAT KAMI,</td></tr>
           <tr><td height="60"></td><td></td></tr>
-          <tr><td style={{ textDecoration: 'underline' }}>{data.customer_name || '................'}</td><td style={{ textDecoration: 'underline' }}>{data.admin_name || 'ADMIN'}</td></tr>
+          <tr><td style={{ textDecoration: 'underline', fontWeight: 'bold' }}>{data.customer_name || '................'}</td><td style={{ textDecoration: 'underline' }}>{data.admin_name || 'ADMIN'}</td></tr>
         </tbody>
       </table>
-      <div style={{ textAlign: 'center', marginTop: '15px', fontSize: '11pt', fontStyle: 'italic' }}>-- Terima kasih atas kepercayaannya --</div>
+      <div style={{ textAlign: 'center', marginTop: '15px', fontSize: '11pt', fontStyle: 'italic' }}>-- Dokumen ini sah dicetak oleh Sistem ERP Dimsum Aditya --</div>
     </div>
   );
 };
 
+// ========================================================
+// 🖨️ 2. TEMPLATE CETAK REKAP A4 (MANAJERIAL)
+// ========================================================
 const A4RecapReport = ({ data }) => {
   return (
     <div className="print-a4-recap">
