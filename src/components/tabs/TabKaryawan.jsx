@@ -163,9 +163,9 @@ export default function TabKaryawan({
 
       {/* 🚀 NAVIGASI SUB TABS */}
       <div className="flex flex-wrap gap-2 border-b pb-4">
-        {isHQ && <button onClick={() => setActiveSubTab('payroll')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase ${activeSubTab === 'payroll' ? 'bg-emerald-600 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>Gaji & Payroll</button>}
-        <button onClick={() => setActiveSubTab('lembur')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase ${activeSubTab === 'lembur' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>Lembur & Bonus</button>
-        <button onClick={() => setActiveSubTab('kasbon')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase ${activeSubTab === 'kasbon' ? 'bg-orange-600 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>Kasbon & Kredit</button>
+        {isHQ && <button onClick={() => setActiveSubTab('payroll')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase ${activeSubTab === 'payroll' ? 'bg-emerald-600 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>{"Gaji & Payroll"}</button>}
+        <button onClick={() => setActiveSubTab('lembur')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase ${activeSubTab === 'lembur' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>{"Lembur & Bonus"}</button>
+        <button onClick={() => setActiveSubTab('kasbon')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase ${activeSubTab === 'kasbon' ? 'bg-orange-600 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>{"Kasbon & Kredit"}</button>
         <button onClick={() => setActiveSubTab('master')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase ${activeSubTab === 'master' ? 'bg-slate-800 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>Master SDM</button>
       </div>
 
@@ -179,7 +179,7 @@ export default function TabKaryawan({
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[9999] flex justify-center items-start pt-12 md:pt-16 p-4 overflow-y-auto animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl shadow-2xl border max-w-5xl w-full overflow-hidden flex flex-col mb-10">
             <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2"><Users size={18} className="text-amber-400"/><h3 className="font-black text-sm uppercase tracking-wider">Arsip Profil & Rekam Jejak Karyawan</h3></div>
+              <div className="flex items-center gap-2"><Users size={18} className="text-amber-400"/><h3 className="font-black text-sm uppercase tracking-wider">Arsip Profil &amp; Rekam Jejak Karyawan</h3></div>
               <button type="button" onClick={() => setSelectedEmployeeDetails(null)} className="p-1 rounded-lg bg-slate-800 text-slate-400 hover:text-white transition"><X size={20}/></button>
             </div>
             
@@ -213,7 +213,7 @@ export default function TabKaryawan({
                 {/* KOLOM KANAN: TRACK RECORD */}
                 <div className="md:col-span-2 space-y-6">
                   <div className="bg-slate-50 border rounded-2xl p-5">
-                    <h4 className="text-xs font-black uppercase text-slate-800 border-b pb-2 mb-4 flex items-center gap-2"><ShoppingCart size={14} className="text-blue-600"/> Buku Mutasi Kredit Barang</h4>
+                    <h4 className="text-xs font-black uppercase text-slate-800 border-b pb-2 mb-4 flex items-center gap-2"><ShoppingCart size={14} className="text-blue-600"/> {"Buku Mutasi Kredit Barang"}</h4>
                     {selectedEmployeeDetails.history_kredit.length > 0 ? (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {selectedEmployeeDetails.history_kredit.map((kr, i) => (
@@ -240,7 +240,7 @@ export default function TabKaryawan({
                           </div>
                         ))}
                       </div>
-                    ) : (<div className="text-center py-6 text-xs font-bold text-slate-400 italic">Belum ada riwayat kredit barang / cicilan.</div>)}
+                    ) : (<div className="text-center py-6 text-xs font-bold text-slate-400 italic">{"Riwayat Kredit Barang / Cicilan."}</div>)}
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -488,7 +488,7 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
 }
 
 // =========================================================================
-// 📇 SUB-COMPONENT 2: LEMBUR & BONUS HARIAN
+// 📇 SUB-COMPONENT 2: LEMBUR & BONUS HARIAN (DENGAN RECONSTRUCT JABARAN BARIS)
 // =========================================================================
 function LemburModule({ employees, expenses, globalCompiled, activeBranch, todayStr, sendToSheet, onViewDetails, user, setOptimisticDeletedIds, isHQ, showToast, optimisticDeletedIds, totalPorsiHariIni }) {
   const [form, setForm] = useState({ date: todayStr, picId: '', participants: [], isLembur: false, isBonus: false, isJamuan: false });
@@ -605,36 +605,70 @@ function LemburModule({ employees, expenses, globalCompiled, activeBranch, today
             <label className="flex justify-between items-center bg-white p-3 border rounded-xl shadow-sm cursor-pointer hover:bg-slate-50">
               <div className="flex items-center gap-3">
                 <input type="checkbox" checked={form.isJamuan} onChange={e=>setForm({...form, isJamuan: e.target.checked})} className="w-4 h-4 accent-orange-500"/>
-                <div><div className="text-[11px] font-black text-slate-800 uppercase flex items-center gap-1"><Coffee size={12} className="text-orange-600"/> Dana Jamuan Tim Lapangan</div><div className="text-[9px] font-bold text-slate-500">Pengeluaran kas global (bukan perorangan)</div></div>
+                <div><div className="text-[11px] font-black text-orange-600 uppercase flex items-center gap-1"><Coffee size={12} className="text-orange-600"/> Dana Jamuan Tim Lapangan</div><div className="text-[9px] font-bold text-slate-500">Pengeluaran kas global (bukan perorangan)</div></div>
               </div>
               <div className="font-black text-orange-600 text-sm">Rp 100.000</div>
             </label>
           </div>
 
-          <button type="submit" disabled={!form.picId} className="w-full bg-blue-600 text-white font-black py-3.5 rounded-xl text-xs uppercase disabled:opacity-40 shadow-lg hover:bg-blue-700 transition mt-4">Cetak Bukti & Cairkan Kas</button>
+          <button type="submit" disabled={!form.picId} className="w-full bg-blue-600 text-white font-black py-3.5 rounded-xl text-xs uppercase disabled:opacity-40 shadow-lg hover:bg-blue-700 transition mt-4">Cetak Bukti &amp; Cairkan Kas</button>
         </form>
       </div>
 
       <div className="lg:col-span-2 bg-white rounded-2xl border flex flex-col overflow-hidden shadow-sm">
-        <div className="p-4 bg-slate-50 border-b font-bold text-xs uppercase text-slate-700">Arsip Pencairan Lembur & Bonus Harian</div>
+        <div className="p-4 bg-slate-50 border-b font-bold text-xs uppercase text-slate-700">Arsip Pencairan Lembur &amp; Bonus Harian</div>
         <table className="w-full text-sm text-left">
-          <thead className="bg-slate-50 text-[10px] uppercase text-slate-400 border-b"><tr><th>Tgl & ID</th><th>Penerima Dana (PIC)</th><th>Komponen Diklaim</th><th className="text-right">Total Cair</th><th className="text-center">Aksi</th></tr></thead>
+          <thead className="bg-slate-50 text-[10px] uppercase text-slate-400 border-b"><tr><th>Tgl &amp; ID</th><th>Penerima Dana (PIC)</th><th>Komponen Diklaim</th><th className="text-right">Total Cair</th><th className="text-center">Aksi</th></tr></thead>
           <tbody className="divide-y divide-slate-100 text-xs font-bold">
             {historyLembur.map(log => {
               const emp = globalCompiled[log.employee_id];
               return (
                 <tr key={log.id} className="hover:bg-slate-50/50 transition">
                   <td className="px-4 py-3"><div>{formatDate(log.date)}</div><div className="text-[9px] font-mono text-slate-400 mt-0.5">{log.id}</div></td>
-                  <td className="px-4 py-3"><div className="uppercase text-blue-800 font-black">{emp?.name || 'TIM OPERASIONAL'}</div><div className="text-[9px] text-slate-400">CAB: {emp?.branch_id || activeBranch}</div></td>
+                  <td onClick={() => emp && onViewDetails(emp)} className="px-4 py-3 cursor-pointer group">
+                    <div className="uppercase text-blue-800 font-black group-hover:text-blue-600 transition-colors flex items-center gap-1">{emp?.name || 'TIM OPERASIONAL'} <Eye size={10} className="text-slate-400"/></div>
+                    <div className="text-[9px] text-slate-400">CAB: {emp?.branch_id || activeBranch}</div>
+                  </td>
                   <td className="px-4 py-3 text-[10px] text-slate-600 leading-relaxed uppercase">{log.description}</td>
                   <td className="px-4 py-3 text-right text-emerald-600 font-black">{formatRupiah(log.amount)}</td>
                   <td className="px-4 py-3 text-center">
                     <div className="flex items-center justify-center gap-1.5">
-                      <button type="button" onClick={() => triggerPrint('NOTA_DOTMATRIX', {
-                        title: 'BUKTI PENCAIRAN LEMBUR & BONUS', id: log.id, date: formatDate(log.date), periode: formatDate(log.date).substring(3),
-                        branch_name: emp?.branch_id || activeBranch, admin_name: user?.name || 'ADMIN', customer_name: emp?.name || 'P. JAWAB TIM', position: emp?.position || 'STAF',
-                        items: [{ name: `Pencairan Tunai: ${log.description}`, qty: 1, subtotal: log.amount }], amount: log.amount, paymentMethod: 'POTONG KAS LACI TUNAI'
-                      })} className="p-1.5 text-white bg-slate-800 hover:bg-slate-900 shadow rounded-lg" title="Cetak Nota"><Printer size={12}/></button>
+                      <button type="button" onClick={() => {
+                        // 🚀 SAKTI ENGINE: Membedah deskripsi flat menjadi array baris demi baris ke bawah
+                        const reconstructedItems = [];
+                        const desc = log.description || '';
+                        let names = [];
+                        if (desc.includes('Peserta:')) {
+                          const parts = desc.split('Peserta:');
+                          if (parts[1]) { names = parts[1].split(',').map(n => n.trim()).filter(Boolean); }
+                        }
+                        
+                        if (desc.includes('Lbr') && names.length > 0) {
+                          names.forEach(name => {
+                            reconstructedItems.push({ name: `UANG LEMBUR JAM 17:00 KARYAWAN: ${name}`, qty: 1, subtotal: 30000 });
+                          });
+                        }
+                        if (desc.includes('Bns') && names.length > 0) {
+                          names.forEach(name => {
+                            reconstructedItems.push({ name: `BONUS PRODUKSI >2500 KARYAWAN: ${name}`, qty: 1, subtotal: 20000 });
+                          });
+                        }
+                        if (desc.includes('Jamuan')) {
+                          reconstructedItems.push({ name: 'DANA JAMUAN TIM LAPANGAN (GLOBAL)', qty: 1, subtotal: 100000 });
+                        }
+
+                        // Jaga-jaga jika parsing kosong, fallback ke baris deskripsi default
+                        if (reconstructedItems.length === 0) {
+                          reconstructedItems.push({ name: log.description, qty: 1, subtotal: log.amount });
+                        }
+
+                        triggerPrint('NOTA_DOTMATRIX', {
+                          title: 'BUKTI PENCAIRAN LEMBUR & BONUS', id: log.id, date: formatDate(log.date), periode: formatDate(log.date).substring(3),
+                          branch_name: emp?.branch_id || activeBranch, admin_name: user?.name || 'ADMIN', customer_name: emp?.name || 'P. JAWAB TIM', position: emp?.position || 'STAF',
+                          items: reconstructedItems, 
+                          amount: log.amount, paymentMethod: 'POTONG KAS LACI TUNAI'
+                        });
+                      }} className="p-1.5 text-white bg-slate-800 hover:bg-slate-900 shadow rounded-lg" title="Cetak Nota"><Printer size={12}/></button>
                       
                       {isHQ && (<button type="button" onClick={() => handleDelete(log.id)} className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg" title="Void Data"><Trash2 size={12}/></button>)}
                     </div>
@@ -650,7 +684,7 @@ function LemburModule({ employees, expenses, globalCompiled, activeBranch, today
 }
 
 // =========================================================================
-// 📇 SUB-COMPONENT 3: KREDIT BARANG & KASBON
+// 📇 SUB-COMPONENT 3: KREDIT BARANG & KASBON (TIDAK BERUBAH)
 // =========================================================================
 function KasbonModule({ employees, expenses, globalCompiled, activeBranch, todayStr, sendToSheet, onViewDetails, user, setOptimisticDeletedIds, isHQ, showToast, optimisticDeletedIds }) {
   const [activeTabKasbon, setActiveTabKasbon] = useState('KREDIT'); 
@@ -709,9 +743,9 @@ function KasbonModule({ employees, expenses, globalCompiled, activeBranch, today
       </div>
 
       <div className="lg:col-span-2 bg-white rounded-2xl border flex flex-col overflow-hidden shadow-sm">
-        <div className="p-4 bg-slate-50 border-b font-bold text-xs uppercase text-slate-700">Daftar Buku Hutang & Kredit Berjalan ({activeBranch === 'SEMUA_CABANG' ? 'NASIONAL' : activeBranch})</div>
+        <div className="p-4 bg-slate-50 border-b font-bold text-xs uppercase text-slate-700">Daftar Buku Hutang &amp; Kredit Berjalan ({activeBranch === 'SEMUA_CABANG' ? 'NASIONAL' : activeBranch})</div>
         <table className="w-full text-sm text-left">
-          <thead className="bg-slate-50 text-[10px] uppercase text-slate-400 border-b"><tr><th>Tgl & ID</th><th>Karyawan</th><th>Tipe / Keterangan</th><th className="text-right">Nominal Awal</th><th className="text-center">Aksi</th></tr></thead>
+          <thead className="bg-slate-50 text-[10px] uppercase text-slate-400 border-b"><tr><th>Tgl &amp; ID</th><th>Karyawan</th><th>Tipe / Keterangan</th><th className="text-right">Nominal Awal</th><th className="text-center">Aksi</th></tr></thead>
           <tbody className="divide-y divide-slate-100 text-xs font-bold">
             {historyKasbonLog.map(log => {
               const emp = globalCompiled[log.employee_id]; const isKredit = log.category === 'KREDIT_BARANG';
@@ -743,7 +777,7 @@ function KasbonModule({ employees, expenses, globalCompiled, activeBranch, today
 }
 
 // =========================================================================
-// 📇 SUB-COMPONENT 4: MASTER DATA SDM
+// 📇 SUB-COMPONENT 4: MASTER DATA SDM (TIDAK BERUBAH)
 // =========================================================================
 function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch, isHQ, sendToSheet, showToast, onViewDetails, setOptimisticDeletedIds }) {
   const [form, setForm] = useState({ id: '', name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT', phone: '', address: '', photo_url: '', ktp_url: '' });
@@ -797,7 +831,7 @@ function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch,
       <div className="lg:col-span-2 bg-white rounded-2xl border overflow-hidden shadow-sm">
         <div className="p-4 bg-slate-50 border-b font-bold text-xs uppercase text-slate-700">Database Staf Wilayah penempatan {activeBranch === 'SEMUA_CABANG' ? 'NASIONAL' : activeBranch}</div>
         <table className="w-full text-sm text-left">
-          <thead className="bg-slate-50 text-[10px] uppercase text-slate-400 border-b"><tr><th>Profil (Klik untuk Lihat KTP)</th><th>Jabatan & Gaji</th><th className="text-center">Status</th><th className="text-center">Aksi</th></tr></thead>
+          <thead className="bg-slate-50 text-[10px] uppercase text-slate-400 border-b"><tr><th>Profil (Klik untuk Lihat KTP)</th><th>Jabatan &amp; Gaji</th><th className="text-center">Status</th><th className="text-center">Aksi</th></tr></thead>
           <tbody className="divide-y divide-slate-100 text-xs font-bold">
             {employees.map(k => (
               <tr key={k.id} className="hover:bg-slate-50/50 transition">
