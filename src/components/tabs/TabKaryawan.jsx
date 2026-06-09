@@ -1,22 +1,17 @@
 import React, { useState, useMemo } from 'react';
-import { Users, FileText, CheckCircle, Banknote, Landmark, UserPlus, Layers } from 'lucide-react';
-import { formatRp, getTodayStr, generateId, formatDate } from '../../utils/helpers';
+import { Users, FileText, CheckCircle, Banknote, Landmark, UserPlus, Layers, TrendingDown, ShieldAlert } from 'lucide-react';
+import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 
 export default function TabKaryawan({ karyawan, expenses, master_branches, sendToSheet, showToast, user }) {
   const todayStr = getTodayStr();
   const currentBranch = user?.branch_id || 'PUSAT';
   const isHQ = user?.branch_type === 'HQ_FACTORY' || currentBranch === 'PUSAT';
 
-  // Navigasi sub-tab dalam payroll
   const [activeSubTab, setActiveSubTab] = useState(isHQ ? 'payroll' : 'kasbon');
-  
-  // State filter cabang aktif (Default melihat PUSAT)
   const [selectedBranchFilter, setSelectedBranchFilter] = useState('PUSAT');
-
-  // Menentukan wilayah data yang sedang dibongkar
   const activeProcessingBranch = isHQ ? selectedBranchFilter : currentBranch;
 
-  // State Form dengan Live Masking Rupiah
+  // State Form Input
   const [formKasbon, setFormKasbon] = useState({ date: todayStr, employeeId: '', amount: '', notes: '' });
   const [formMaster, setFormMaster] = useState({ name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT' });
   const [formPayroll, setFormPayroll] = useState({ 
@@ -28,48 +23,44 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
     paymentMethod: 'CASH' 
   });
 
-  // UPGRADE REQ 2: MAP DYNAMIC BRANCH NAME (Mengubah OUTLET_1 menjadi Produksi Pemalang secara otomatis dari DB)
+  // Helper fungsi format rupiah lokal khusus internal tab
+  const formatRupiahLokal = (angka) => {
+    return "Rp. " + Number(angka || 0).toLocaleString('id-ID');
+  };
+
+  // 1. MAP DYNAMIC BRANCH NAME
   const petaNamaCabang = useMemo(() => {
     const mapping = { PUSAT: '🍊 TANGERANG PUSAT' };
     (master_branches || []).forEach(b => {
       if (!b.isDeleted && b.branch_id) {
-        // Simpan id sebagai KEY besar, dan nama asli dari excel sebagai VALUE
         mapping[String(b.branch_id).trim().toUpperCase()] = `🏪 ${String(b.branch_name).toUpperCase()}`;
       }
     });
     return mapping;
   }, [master_branches]);
 
-  // Generate daftar key cabang untuk tombol-tombol di atas layar
   const daftarCabangId = useMemo(() => {
     return Object.keys(petaNamaCabang);
   }, [petaNamaCabang]);
 
-  // ENGINE FILTER DATA KARYAWAN & LOG PINJAMAN PER CABANG (ANTI-CAMPUR + DEFENSIVE TRIM)
-  const employeeData = useMemo(() => {
+  // 2. ENGINE EVALUASI HUTANG & KASBON KARYAWAN (GLOBAL DAN REGIONAL)
+  const masterEmployeeDataGlobal = useMemo(() => {
       const balances = {};
-      const targetBId = String(activeProcessingBranch || '').trim().toUpperCase();
       
-      // Saring staf dengan Trim Engine kencang untuk menghindari bug spasi hantu di Excel
       (karyawan || []).forEach(k => {
-          if (k.isDeleted || !k.branch_id) return;
-          const stafBId = String(k.branch_id).trim().toUpperCase();
-          
-          if (stafBId === targetBId) {
-              balances[k.id] = { 
-                id: k.id, 
-                name: k.name || 'TANPA NAMA', 
-                position: k.position || 'STAF', 
-                baseSalary: Number(k.baseSalary || 0),
-                branch_id: k.branch_id, 
-                totalKasbon: 0, 
-                totalDibayar: 0, 
-                sisaHutang: 0 
-              };
-          }
+          if (k.isDeleted) return;
+          balances[k.id] = { 
+            id: k.id, 
+            name: k.name || 'TANPA NAMA', 
+            position: k.position || 'STAF', 
+            baseSalary: Number(k.baseSalary || 0),
+            branch_id: String(k.branch_id).trim().toUpperCase(), 
+            totalKasbon: 0, 
+            totalDibayar: 0, 
+            sisaHutang: 0 
+          };
       });
 
-      // Tarik pengeluaran kasbon & payroll yang selaras
       (expenses || []).forEach(e => {
           if (e.isDeleted || !e.employee_id || !balances[e.employee_id]) return;
           if (e.category === 'KASBON') {
@@ -85,11 +76,55 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
       });
 
       return balances;
-  }, [karyawan, expenses, activeProcessingBranch]);
+  }, [karyawan, expenses]);
 
-  const activeEmployees = Object.values(employeeData);
+  // Saring karyawan khusus untuk cabang yang sedang dipilih saat ini
+  const activeEmployees = useMemo(() => {
+    const targetBId = String(activeProcessingBranch || '').trim().toUpperCase();
+    return Object.values(masterEmployeeDataGlobal).filter(k => k.branch_id === targetBId);
+  }, [masterEmployeeDataGlobal, activeProcessingBranch]);
 
-  // LOG HISTORI PENGGAJIAN BULANAN PADA CABANG TERPILIH
+  // 3. ENGINE TOTALIZER INSIGHT (REQ POINT 1: TOTALAN PER CABANG + GLOBAL COMBON)
+  const ringkasanFinansialSDM = useMemo(() => {
+    let kasbonCabangIni = 0;
+    let gajiCabangIniBulanIni = 0;
+    let kasbonGlobalSeluruhPerusahaan = 0;
+    let gajiGlobalSeluruhPerusahaan = 0;
+
+    const targetBId = String(activeProcessingBranch || '').trim().toUpperCase();
+    const curMonth = todayStr.substring(0, 7);
+
+    // Hitung sisa kasbon
+    Object.values(masterEmployeeDataGlobal).forEach(emp => {
+      kasbonGlobalSeluruhPerusahaan += emp.sisaHutang;
+      if (emp.branch_id === targetBId) {
+        kasbonCabangIni += emp.sisaHutang;
+      }
+    });
+
+    // Hitung realisasi pengeluaran gaji dari tabel pengeluaran (expenses)
+    (expenses || []).forEach(e => {
+      if (e.isDeleted) return;
+      const bId = String(e.branch_id || '').trim().toUpperCase();
+      
+      if (e.category === 'PAYROLL' && e.date.startsWith(curMonth)) {
+        const totalNettoDiberikan = Number(e.amount || 0);
+        gajiGlobalSeluruhPerusahaan += totalNettoDiberikan;
+        if (bId === targetBId) {
+          gajiCabangIniBulanIni += totalNettoDiberikan;
+        }
+      }
+    });
+
+    return {
+      kasbonCabangIni,
+      gajiCabangIniBulanIni,
+      kasbonGlobalSeluruhPerusahaan,
+      gajiGlobalSeluruhPerusahaan
+    };
+  }, [masterEmployeeDataGlobal, expenses, activeProcessingBranch, todayStr]);
+
+  // LOG HISTORI PENGGAJIAN BULANAN
   const payrollHistory = useMemo(() => {
     const targetBId = String(activeProcessingBranch || '').trim().toUpperCase();
     return (expenses || [])
@@ -98,7 +133,7 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
   }, [expenses, activeProcessingBranch]);
 
   const handlePayrollEmployeeChange = (empId) => {
-    const emp = employeeData[empId];
+    const emp = masterEmployeeDataGlobal[empId];
     if (emp) {
       setFormPayroll(prev => ({ ...prev, employeeId: empId, baseSalary: String(emp.baseSalary || 0) }));
     } else {
@@ -106,7 +141,7 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
     }
   };
 
-  const selectedEmpKasbon = formPayroll.employeeId ? (employeeData[formPayroll.employeeId]?.sisaHutang || 0) : 0;
+  const selectedEmpKasbon = formPayroll.employeeId ? (masterEmployeeDataGlobal[formPayroll.employeeId]?.sisaHutang || 0) : 0;
   
   const hitungNettoCair = useMemo(() => {
     const gapok = Number(formPayroll.baseSalary || 0);
@@ -119,13 +154,19 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
     return { potKasbon, netto };
   }, [formPayroll.baseSalary, formPayroll.allowance, formPayroll.otherDeduction, selectedEmpKasbon]);
 
+  // ========================================================
+  // PROCESS SUBMIT GAJI DENGAN SMART TREASURY DEDUCTION (SINKRONISASI KAS TANGERANG)
+  // ========================================================
   const handleSimpanPayroll = async (e) => {
     e.preventDefault();
     if (!formPayroll.employeeId) { showToast('Pilih karyawan terlebih dahulu!', 'error'); return; }
     
-    const emp = employeeData[formPayroll.employeeId];
-    const payload = {
-      id: generateId('PRL', formPayroll.date),
+    const emp = masterEmployeeDataGlobal[formPayroll.employeeId];
+    const expenseId = generateId('PRL', formPayroll.date);
+
+    // 1. Payload Utama pencatatan biaya operasional cabang
+    const payloadExpense = {
+      id: expenseId,
       date: formPayroll.date,
       branch_id: activeProcessingBranch,
       category: 'PAYROLL',
@@ -136,36 +177,75 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
       other_deduction: Number(formPayroll.otherDeduction),
       amount: hitungNettoCair.netto,
       payment_method: formPayroll.paymentMethod,
-      description: `Gaji [${activeProcessingBranch}] - ${emp.name} (${emp.position}). Bersih: ${formatRp(hitungNettoCair.netto)}`
+      description: `Gaji Bulanan [${activeProcessingBranch}] - ${emp.name} (${emp.position}).`
     };
 
-    const success = await sendToSheet('insert', payload, 'expenses');
-    if (success) {
+    const successExpense = await sendToSheet('insert', payloadExpense, 'expenses');
+    
+    if (successExpense) {
+      // REQ POINT 2: SINKRONISASI OTOMATIS DENGAN KAS UTAMA TANGERANG
+      // Jika dibayar pakai TF, kas yang terpotong secara dinamis adalah Kas Besar Tangerang (HQ_FACTORY)
+      const dynamicCashflowBranch = formPayroll.paymentMethod === 'TF' ? 'HQ_FACTORY' : activeProcessingBranch;
+      const descCashflow = formPayroll.paymentMethod === 'TF' 
+        ? `[PAYROLL CENTRAL] Pemotongan Penjualan Bersih Tangerang untuk Gaji Staf Cabang ${activeProcessingBranch} atas nama ${emp.name}`
+        : `[PAYROLL LOKAL] Pemotongan Kas Laci Tunai Cabang ${activeProcessingBranch} untuk Gaji Staf ${emp.name}`;
+
+      const payloadCashflow = {
+        id: 'CFO-' + new Date().getTime(),
+        date: formPayroll.date,
+        branch_id: dynamicCashflowBranch, // Smart Routing Kas
+        transaction_type: 'OUTFLOW',
+        category: 'OPERATIONAL_EXPENSE',
+        amount: hitungNettoCair.netto,
+        payment_method: formPayroll.paymentMethod,
+        reference_id: expenseId,
+        description: descCashflow
+      };
+
+      await sendToSheet('insert', payloadCashflow, 'cashflow_transactions');
+
       setFormPayroll({ date: todayStr, employeeId: '', baseSalary: '0', allowance: '0', otherDeduction: '0', paymentMethod: 'CASH' });
-      if (showToast) showToast('Payroll berhasil diproses & tercatat!', 'success');
+      if (showToast) showToast(`Payroll ${emp.name} Berhasil Disinkronkan dengan Kas Tangerang!`, 'success');
     }
   };
 
   const handleSimpanKasbon = async (e) => {
       e.preventDefault();
       if (!formKasbon.employeeId) { showToast('Pilih nama karyawan!', 'error'); return; }
-      const targetEmp = employeeData[formKasbon.employeeId];
+      if (Number(formKasbon.amount) <= 0) { showToast('Nominal kasbon tidak valid!', 'error'); return; }
+      
+      const targetEmp = masterEmployeeDataGlobal[formKasbon.employeeId];
+      const expenseId = generateId('KSB', formKasbon.date);
 
-      const payload = {
-          id: generateId('KSB', formKasbon.date), 
+      const payloadExpense = {
+          id: expenseId, 
           date: formKasbon.date, 
           branch_id: activeProcessingBranch, 
           employee_id: formKasbon.employeeId, 
           category: 'KASBON', 
           amount: Number(formKasbon.amount), 
-          description: `Kasbon Tunai [${activeProcessingBranch}] - Staf: ${targetEmp.name}. Ket: ${formKasbon.notes}`, 
+          description: `Kasbon Tunai Cabang [${activeProcessingBranch}] - Staf: ${targetEmp.name}.`, 
           payment_method: 'CASH'
       };
 
-      const success = await sendToSheet('insert', payload, 'expenses');
-      if(success) {
+      const successExpense = await sendToSheet('insert', payloadExpense, 'expenses');
+      if(successExpense) {
+          // Kasbon memotong laci kas cabang lokal
+          const payloadCashflow = {
+            id: 'CFO-' + new Date().getTime(),
+            date: formKasbon.date,
+            branch_id: activeProcessingBranch,
+            transaction_type: 'OUTFLOW',
+            category: 'KARYAWAN_KASBON',
+            amount: Number(formKasbon.amount),
+            payment_method: 'CASH',
+            reference_id: expenseId,
+            description: `[KASBON] Pengambilan kas laci oleh staf ${targetEmp.name} di Node ${activeProcessingBranch}`
+          };
+          await sendToSheet('insert', payloadCashflow, 'cashflow_transactions');
+
           setFormKasbon({ date: todayStr, employeeId: '', amount: '', notes: '' });
-          if(showToast) showToast('Kasbon berhasil dicatat!', 'success');
+          if(showToast) showToast('Buku kasbon berhasil di-update!', 'success');
       }
   };
 
@@ -186,14 +266,42 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
       const success = await sendToSheet('insert', payload, 'karyawan');
       if(success) {
         setFormMaster({ name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT' });
-        if(showToast) showToast('Staf baru berhasil didaftarkan!', 'success');
+        if(showToast) showToast('Karyawan sukses didaftarkan!', 'success');
       }
   };
 
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
       
-      {/* UPGRADE TOMBOL FILTER: SEKARANG OTOMATIS MEMBACA NAMA ASLI DARI EXCEL */}
+      {/* 📊 BARU: DASHBOARD SUMMARY METRICS BAR (REQ POINT 1: TOTALAN TOTAL RUPIAH) */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-white p-5 rounded-2xl border shadow-sm border-l-4 border-l-orange-500">
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Kasbon Wilayah ({activeProcessingBranch})</div>
+          <div className="text-xl font-black text-orange-600 mt-1">{formatRupiahLokal(ringkasanFinansialSDM.kasbonCabangIni)}</div>
+          <div className="text-[9px] text-slate-400 font-bold mt-1 uppercase">Sisa saldo piutang staf cabang</div>
+        </div>
+        <div className="bg-white p-5 rounded-2xl border shadow-sm border-l-4 border-l-red-500">
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Beban Gaji ({activeProcessingBranch}) Bulan Ini</div>
+          <div className="text-xl font-black text-red-600 mt-1">{formatRupiahLokal(ringkasanFinansialSDM.gajiCabangIniBulanIni)}</div>
+          <div className="text-[9px] text-slate-400 font-bold mt-1 uppercase">Realisasi netto cair terdistribusi</div>
+        </div>
+        <div className="bg-slate-900 p-5 rounded-2xl shadow-md border border-slate-800 md:col-span-2 grid grid-cols-2 gap-2 relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-2 opacity-5"><TrendingDown size={80} className="text-white"/></div>
+          <div>
+            <div className="text-[9px] font-black text-red-400 uppercase tracking-widest">Grand Total Gaji Global</div>
+            <div className="text-base font-black text-white mt-0.5">{formatRupiahLokal(ringkasanFinansialSDM.gajiGlobalSeluruhPerusahaan)}</div>
+          </div>
+          <div>
+            <div className="text-[9px] font-black text-orange-400 uppercase tracking-widest">Grand Total Kasbon Company</div>
+            <div className="text-base font-black text-white mt-0.5">{formatRupiahLokal(ringkasanFinansialSDM.kasbonGlobalSeluruhPerusahaan)}</div>
+          </div>
+          <div className="col-span-2 border-t border-slate-800 pt-1.5 text-[8px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
+            <ShieldAlert size={10} className="text-yellow-400"/> Konsolidasi Keuangan Direktur Utama Tangerang Pusat
+          </div>
+        </div>
+      </div>
+
+      {/* FILTER BUTTON PER-WILAYAH CABANG */}
       {isHQ && (
         <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 flex flex-col md:flex-row items-center justify-between shadow-lg">
           <div className="flex items-center gap-2 mb-3 md:mb-0">
@@ -251,7 +359,7 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
                   <label className="text-[10px] font-bold text-slate-600 uppercase">Gaji Pokok</label>
                   <input 
                     type="text" required
-                    value={"Rp. " + Number(formPayroll.baseSalary || 0).toLocaleString('id-ID')}
+                    value={formatRupiahLokal(formPayroll.baseSalary)}
                     onChange={(e) => setFormPayroll({ ...formPayroll, baseSalary: e.target.value.replace(/\D/g, '') })}
                     className="w-full p-2.5 bg-slate-50 border rounded-xl font-black text-sm"
                   />
@@ -260,7 +368,7 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
                   <label className="text-[10px] font-bold text-emerald-600 uppercase">Tunjangan/Lembur</label>
                   <input 
                     type="text" required
-                    value={"Rp. " + Number(formPayroll.allowance || 0).toLocaleString('id-ID')}
+                    value={formatRupiahLokal(formPayroll.allowance)}
                     onChange={(e) => setFormPayroll({ ...formPayroll, allowance: e.target.value.replace(/\D/g, '') })}
                     className="w-full p-2.5 bg-white border border-emerald-200 text-emerald-900 rounded-xl font-black text-sm outline-none"
                   />
@@ -269,34 +377,34 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
 
               <div className="bg-orange-50 border border-orange-200 p-3 rounded-xl">
                 <div className="text-[10px] font-bold text-orange-700 uppercase">Sistem Potong Kasbon Otomatis</div>
-                <div className="text-sm font-black text-orange-900 mt-1">{"Rp. " + Number(hitungNettoCair.potKasbon).toLocaleString('id-ID')}</div>
-                <p className="text-[8px] text-orange-600 font-bold uppercase mt-0.5">*Sisa Hutang Karyawan: {formatRp(selectedEmpKasbon)}</p>
+                <div className="text-sm font-black text-orange-900 mt-1">{formatRupiahLokal(hitungNettoCair.potKasbon)}</div>
+                <p className="text-[8px] text-orange-600 font-bold uppercase mt-0.5">*Sisa Hutang Karyawan: {formatRupiahLokal(selectedEmpKasbon)}</p>
               </div>
 
               <div>
                 <label className="text-[10px] font-bold text-rose-600 uppercase">Potongan Lain (Absen/Alfa)</label>
                 <input 
                   type="text" required
-                  value={"Rp. " + Number(formPayroll.otherDeduction || 0).toLocaleString('id-ID')}
+                  value={formatRupiahLokal(formPayroll.otherDeduction)}
                   onChange={(e) => setFormPayroll({ ...formPayroll, otherDeduction: e.target.value.replace(/\D/g, '') })}
                   className="w-full p-2.5 bg-white border border-rose-200 text-rose-900 rounded-xl font-black text-sm outline-none"
                 />
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-slate-600 uppercase">Metode Pembayaran</label>
-                <select value={formPayroll.paymentMethod} onChange={e=>setFormPayroll({...formPayroll, paymentMethod: e.target.value})} className="w-full p-2.5 bg-white border rounded-xl font-black text-xs outline-none">
-                  <option value="CASH">CASH (Brankas/Laci Tunai)</option>
-                  <option value="TF">TF (Rekening Pusat Mandiri/BCA)</option>
+                <label className="text-[10px] font-bold text-red-600 uppercase flex items-center gap-1">🏦 Sumber Dana Potong Kas Bersih</label>
+                <select value={formPayroll.paymentMethod} onChange={e=>setFormPayroll({...formPayroll, paymentMethod: e.target.value})} className="w-full p-2.5 bg-red-50 border border-red-200 text-red-900 font-black text-xs outline-none rounded-xl">
+                  <option value="TF">TF (POTONG LIQUID KAS TANGERANG PUSAT)</option>
+                  <option value="CASH">CASH (Potong Kas Laci Cabang Lokal)</option>
                 </select>
               </div>
 
               <div className="bg-slate-900 p-4 rounded-xl text-center text-white">
                 <div className="text-[9px] font-black uppercase text-emerald-400 tracking-wider">NETTO CAIR DIBAYARKAN</div>
-                <div className="text-2xl font-black text-emerald-400 mt-1">{"Rp. " + Number(hitungNettoCair.netto).toLocaleString('id-ID')}</div>
+                <div className="text-2xl font-black text-emerald-400 mt-1">{formatRupiahLokal(hitungNettoCair.netto)}</div>
               </div>
 
-              <button type="submit" className="w-full bg-red-600 hover:bg-red-700 text-white font-black py-3 rounded-xl uppercase text-xs tracking-wider transition-all shadow-md">Record & Transfer Gaji</button>
+              <button type="submit" className="w-full bg-red-600 hover:bg-red-700 text-white font-black py-3 rounded-xl uppercase text-xs tracking-wider transition-all shadow-md">Record & Potong Kas Besar</button>
             </form>
           </div>
 
@@ -324,10 +432,10 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
                       return (
                         <tr key={p.id} className="hover:bg-slate-50">
                           <td className="px-4 py-3 text-slate-500">{formatDate(p.date)}</td>
-                          <td className="px-4 py-3 uppercase text-slate-800">{empName} <div className="text-[8px] text-slate-400 font-mono">{p.payment_method}</div></td>
-                          <td className="px-4 py-3 text-right text-slate-600">{"Rp. " + Number((p.base_salary || 0) + (p.allowance || 0)).toLocaleString('id-ID')}</td>
-                          <td className="px-4 py-3 text-right text-orange-600 bg-orange-50/20">{"Rp. " + Number(p.kasbon_deduction || 0).toLocaleString('id-ID')}</td>
-                          <td className="px-4 py-3 text-right text-emerald-600 bg-emerald-50/10">{"Rp. " + Number(p.amount || 0).toLocaleString('id-ID')}</td>
+                          <td className="px-4 py-3 uppercase text-slate-800">{empName} <div className="text-[8px] text-slate-400 font-mono">{p.payment_method === 'TF' ? 'Pusat Bank' : 'Laci Tunai'}</div></td>
+                          <td className="px-4 py-3 text-right text-slate-600">{formatRupiahLokal((p.base_salary || 0) + (p.allowance || 0))}</td>
+                          <td className="px-4 py-3 text-right text-orange-600 bg-orange-50/20">{formatRupiahLokal(p.kasbon_deduction)}</td>
+                          <td className="px-4 py-3 text-right text-emerald-600 bg-emerald-50/10">{formatRupiahLokal(p.amount)}</td>
                         </tr>
                       )
                     })
@@ -363,7 +471,7 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
                         <label className="text-[10px] font-bold text-orange-600 uppercase">Nominal Uang Kasbon</label>
                         <input 
                             type="text" required 
-                            value={"Rp. " + Number(formKasbon.amount || 0).toLocaleString('id-ID')} 
+                            value={formatRupiahLokal(formKasbon.amount)} 
                             onChange={(e) => setFormKasbon({ ...formKasbon, amount: e.target.value.replace(/\D/g, '') })}
                             className="w-full p-2.5 bg-orange-50 border border-orange-200 text-orange-900 rounded-xl font-black text-sm" 
                         />
@@ -389,8 +497,8 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
                               <tr key={k.id} className="hover:bg-slate-50">
                                   <td className="px-4 py-3 font-black text-slate-800 uppercase">{k.name} <div className="text-[8px] font-mono text-slate-400">{k.id}</div></td>
                                   <td className="px-4 py-3 uppercase text-slate-500">{k.position}</td>
-                                  <td className="px-4 py-3 text-right font-medium text-slate-600">{"Rp. " + Number(k.totalKasbon || 0).toLocaleString('id-ID')}</td>
-                                  <td className="px-4 py-3 text-right font-black text-orange-600 bg-orange-50/50">{"Rp. " + Number(k.sisaHutang || 0).toLocaleString('id-ID')}</td>
+                                  <td className="px-4 py-3 text-right font-medium text-slate-600">{formatRupiahLokal(k.totalKasbon)}</td>
+                                  <td className="px-4 py-3 text-right font-black text-orange-600 bg-orange-50/50">{formatRupiahLokal(k.sisaHutang)}</td>
                               </tr>
                           ))}
                       </tbody>
@@ -418,7 +526,7 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
                         <label className="text-[10px] font-bold text-slate-600 uppercase">Gaji Pokok Standar</label>
                         <input 
                           type="text" required 
-                          value={"Rp. " + Number(formMaster.baseSalary || 0).toLocaleString('id-ID')} 
+                          value={formatRupiahLokal(formMaster.baseSalary)} 
                           onChange={(e) => setFormMaster({ ...formMaster, baseSalary: e.target.value.replace(/\D/g, '') })}
                           className="w-full p-2.5 bg-white border rounded-xl font-black text-sm" 
                         />
@@ -439,7 +547,7 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
                               <tr key={k.id} className="hover:bg-slate-50">
                                   <td className="px-4 py-3 font-black text-slate-800 uppercase">{k.name} <div className="font-mono text-[9px] font-bold text-slate-400">{k.id}</div></td>
                                   <td className="px-4 py-3"><span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[9px] font-bold uppercase">{k.position}</span></td>
-                                  <td className="px-4 py-3 text-right text-slate-600">{"Rp. " + Number(k.baseSalary || 0).toLocaleString('id-ID')}</td>
+                                  <td className="px-4 py-3 text-right text-slate-600">{formatRupiahLokal(k.baseSalary)}</td>
                                   <td className="px-4 py-3 font-black text-indigo-600 uppercase">{k.branch_id}</td>
                               </tr>
                             ))
