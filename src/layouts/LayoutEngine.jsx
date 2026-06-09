@@ -66,7 +66,7 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
             groupName: "System Configuration", 
             items: [{ id: 'master_data', label: 'Master Data & Rules', icon: Database }] 
         });
-    }
+  }
 
     return groups;
   }, [nodeCapability]);
@@ -86,16 +86,15 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 lg:hidden" onClick={() => setIsMobileMenuOpen(false)} />
       )}
 
-      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-slate-900 text-slate-300 transition-transform duration-300 ease-in-out flex flex-col ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 lg:static lg:flex-shrink-0 shadow-2xl`}>
-        
-        <div className="h-20 flex items-center px-6 border-b border-slate-800 bg-slate-950/50 justify-between">
+      {/* SIDEBAR MIDNIGHT SOLID */}
+      <aside 
+        className="fixed inset-y-0 left-0 z-50 w-72 text-slate-300 transition-transform duration-300 ease-in-out flex flex-col lg:translate-x-0 lg:static lg:flex-shrink-0 shadow-2xl"
+        style={{ backgroundColor: '#090d16', borderRight: '1px solid #1e293b' }}
+      >
+        <div className="h-20 flex items-center px-6 justify-between" style={{ backgroundColor: '#05070a', borderBottom: '1px solid #1e293b' }}>
           <div className="flex items-center gap-3">
             <div className="bg-white p-1.5 rounded-xl shadow-[0_0_10px_rgba(255,255,255,0.1)] flex items-center justify-center shrink-0">
-              <img 
-                src="https://dimsumaditya.id/wp-content/uploads/2026/06/Dimsum-Aditya-New-Logo-scaled.webp" 
-                alt="Logo Dimsum Aditya" 
-                className="h-10 w-10 object-contain hover:scale-105 transition-transform cursor-pointer"
-              />
+              <img src="https://dimsumaditya.id/wp-content/uploads/2026/06/Dimsum-Aditya-New-Logo-scaled.webp" alt="Logo Dimsum Aditya" className="h-10 w-10 object-contain hover:scale-105 transition-transform cursor-pointer" />
             </div>
             <div>
               <h1 className="font-black text-white text-base tracking-wider uppercase leading-none">{themeConfig.title}</h1>
@@ -114,7 +113,12 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
                   const Icon = item.icon;
                   const isActive = activeTab === item.id;
                   return (
-                    <button key={item.id} onClick={() => { setActiveTab(item.id); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${isActive ? `${themeConfig.bg} text-white shadow-md` : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}>
+                    <button 
+                      key={item.id} 
+                      onClick={() => { setActiveTab(item.id); setIsMobileMenuOpen(false); }} 
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${isActive ? `${themeConfig.bg} text-white shadow-md` : 'text-slate-400 hover:text-white'}`}
+                      style={!isActive ? { backgroundColor: 'transparent' } : {}}
+                    >
                       <Icon size={18} className={isActive ? 'text-white' : 'text-slate-500'} />
                       {item.label}
                     </button>
@@ -125,9 +129,9 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
           ))}
         </nav>
 
-        <div className="p-4 border-t border-slate-800 bg-slate-900/50">
-          <div className="flex items-center gap-3 px-3 py-2 mb-3 bg-slate-800/50 rounded-xl border border-slate-700/50">
-            <div className={`w-8 h-8 rounded-full ${themeConfig.bg} flex items-center justify-center font-black text-white text-xs uppercase border border-slate-600 transition-colors`}>
+        <div className="p-4 bg-slate-950" style={{ backgroundColor: '#05070a', borderTop: '1px solid #1e293b' }}>
+          <div className="flex items-center gap-3 px-3 py-2 mb-3 rounded-xl border border-slate-800" style={{ backgroundColor: '#090d16' }}>
+            <div className={`w-8 h-8 rounded-full ${themeConfig.bg} flex items-center justify-center font-black text-white text-xs uppercase border border-slate-700 transition-colors`}>
               {(user?.name || user?.username || 'U').charAt(0)}
             </div>
             <div className="flex-1 overflow-hidden">
@@ -141,8 +145,11 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
         </div>
       </aside>
 
-      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
-        <header className="h-20 bg-white/60 backdrop-blur-lg border-b border-slate-200/50 flex items-center justify-between px-6 shrink-0 z-30 shadow-sm">
+      {/* RIGHT CONTAINER */}
+      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden relative">
+        <div className="absolute inset-0 bg-white/50 backdrop-blur-xl z-0 pointer-events-none"></div>
+
+        <header className="h-20 border-b border-slate-200/50 flex items-center justify-between px-6 shrink-0 relative z-20 shadow-sm bg-white/70 backdrop-blur-md">
           <div className="flex items-center gap-4">
             <button onClick={() => setIsMobileMenuOpen(true)} className="lg:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-lg"><Menu size={24} /></button>
             <div>
@@ -153,15 +160,15 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-white/80 border border-slate-200 rounded-full shadow-sm">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-full shadow-sm">
               <div className={`w-2 h-2 rounded-full ${themeConfig.bg} animate-pulse`}></div>
-              <span className={`text-[10px] font-black ${themeConfig.text} uppercase tracking-widest`}>Online &amp; Tersinkronisasi</span>
+              <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Online &amp; Tersinkronisasi</span>
             </div>
           </div>
         </header>
         
-        <main className="flex-1 bg-white/30 backdrop-blur-md overflow-y-auto p-4 md:p-6">
-           <div className="relative z-10 max-w-7xl mx-auto">{children}</div>
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 relative z-10 custom-scrollbar">
+           <div className="max-w-7xl mx-auto">{children}</div>
         </main>
       </div>
     </div>
