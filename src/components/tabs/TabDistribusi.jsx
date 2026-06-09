@@ -1,100 +1,185 @@
-import React, { useState, useMemo } from 'react';
-import { Send, Package, Truck, Clock, MapPin, Printer } from 'lucide-react';
-import { generateId, getTodayStr, formatDate } from '../../utils/helpers';
+import React, { useState } from 'react';
+import { Truck, Send, Package, MapPin, CheckCircle, Clock, ShieldCheck } from 'lucide-react';
+import { getTodayStr, generateId } from '../../utils/helpers';
 
-export default function TabDistribusi({ distributionOrders, stockMovements, masterBranches, sendToSheet, setPrintData }) {
+export default function TabDistribusi({ master_branches, distribution_orders, sendToSheet, user, showToast }) {
   const todayStr = getTodayStr();
-  const [form, setForm] = useState({ date: todayStr, to_branch: '', qty: '' });
+  const currentBranch = user?.branch_id || 'UNKNOWN';
+  const isHQ = user?.branch_type === 'HQ_FACTORY';
 
-  const PCS_PER_MIKA = 50;
-  const PCS_PER_PORSI = 4;
+  const [form, setForm] = useState({ date: todayStr, to_branch: '', item_name: 'DIMSUM', qty: '', driver: '' });
 
-  const stockRealtime = useMemo(() => {
-      let frozenStock = 0;
-      (stockMovements || []).forEach(m => {
-          const qty = Number(m.qty) || 0;
-          if (m.item_name === 'DIMSUM' || m.item_name === 'DIMSUM FROZEN') {
-              if (m.to_location === 'FREEZER_PUSAT') frozenStock += qty;
-              if (m.from_location === 'FREEZER_PUSAT') frozenStock -= qty;
-          }
-      });
-      return frozenStock;
-  }, [stockMovements]);
+  // Filter DO: Pusat melihat semua, Cabang hanya melihat yang dikirim ke mereka
+  const visibleDO = (distribution_orders || [])
+    .filter(doItem => !doItem.isDeleted)
+    .filter(doItem => isHQ ? true : String(doItem.to_branch).toUpperCase() === currentBranch.toUpperCase())
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
 
-  const handleSubmit = (e) => {
+  // Fungsi PUSAT: Kirim Barang
+  const handleSendDO = async (e) => {
     e.preventDefault();
-    if (Number(form.qty) > stockRealtime) {
-        alert(`⛔ PENGIRIMAN DITOLAK!\n\nStok Freezer Pusat tidak mencukupi.\nAnda mencoba mengirim ${Number(form.qty).toLocaleString('id-ID')} Pcs, sementara stok hanya tersisa ${stockRealtime.toLocaleString('id-ID')} Pcs.`);
-        return;
-    }
-    const doId = generateId('DO', form.date);
-    const payloadDO = { id: doId, date: form.date, from_branch: 'PUSAT', to_branch: form.to_branch, item_name: 'DIMSUM FROZEN', qty: Number(form.qty), status: 'DIKIRIM', branch_id: 'PUSAT' };
-    const payloadMovement = { id: 'MOV-RES-' + doId, date: form.date, item_name: 'DIMSUM', from_location: 'FREEZER_PUSAT', to_location: 'RESERVED_DELIVERY', qty: Number(form.qty), unit: 'PCS', movement_type: 'RESERVATION', branch_id: 'PUSAT', reference_id: doId };
+    if (!form.to_branch) { showToast('Pilih cabang tujuan!', 'error'); return; }
+    
+    if (!window.confirm(`Kirim ${form.qty} Pcs ${form.item_name} ke ${form.to_branch}?\nStok Pusat akan otomatis dipotong.`)) return;
 
-    sendToSheet('insert', payloadDO, 'distribution_orders');
-    sendToSheet('insert', payloadMovement, 'stock_movements');
-    setForm({ ...form, to_branch: '', qty: '' });
+    const payload = {
+      do_id: generateId('DO', form.date),
+      date: form.date,
+      to_branch: form.to_branch,
+      item_name: form.item_name,
+      qty: Number(form.qty),
+      driver: form.driver || 'Kurir Internal'
+    };
+
+    const ok = await sendToSheet('event_create_do', payload, 'auto');
+    if (ok) {
+      showToast('Surat Jalan sukses! Barang dalam perjalanan.', 'success');
+      setForm({ ...form, to_branch: '', qty: '', driver: '' });
+      window.location.reload();
+    }
   };
 
-  const activeBranches = (masterBranches || []).filter(b => b.branch_id !== 'PUSAT');
-  const listDO = (distributionOrders || []).sort((a,b) => new Date(b.date) - new Date(a.date));
+  // Fungsi CABANG: Terima Barang
+  const handleReceiveDO = async (doItem) => {
+    if (!window.confirm(`Konfirmasi Terima Barang\n\nApakah fisik ${doItem.qty} Pcs ${doItem.item_name} sudah Anda terima dengan baik?`)) return;
+
+    const payload = {
+      do_id: doItem.id,
+      item_name: doItem.item_name,
+      qty: doItem.qty,
+      receiver_name: user?.name || 'Staff Cabang'
+    };
+
+    const ok = await sendToSheet('event_receive_do', payload, 'auto');
+    if (ok) {
+      showToast('Barang diterima! Stok cabang otomatis bertambah.', 'success');
+      window.location.reload();
+    }
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
-      <div className="bg-blue-900 rounded-2xl p-6 relative overflow-hidden shadow-lg border border-blue-800">
-          <div className="absolute top-0 right-0 p-4 opacity-10"><Package size={80} className="text-white"/></div>
-          <h3 className="text-xs font-bold text-blue-300 uppercase tracking-widest mb-1">STOK FREEZER PUSAT (SIAP KIRIM)</h3>
-          <div className="text-4xl font-black text-white">{stockRealtime.toLocaleString('id-ID')} <span className="text-sm text-cyan-300">PCS</span></div>
-          <div className="mt-4 pt-4 border-t border-blue-800/50 flex gap-6">
-              <div><div className="text-[10px] text-blue-400 uppercase font-bold">Total Pack ({PCS_PER_MIKA} Pcs)</div><div className="font-bold text-emerald-300">{(stockRealtime / PCS_PER_MIKA).toLocaleString('id-ID')} Mika</div></div>
-              <div><div className="text-[10px] text-blue-400 uppercase font-bold">Total Porsi ({PCS_PER_PORSI} Pcs)</div><div className="font-bold text-blue-200">{(stockRealtime / PCS_PER_PORSI).toLocaleString('id-ID')} Porsi</div></div>
-          </div>
+      
+      {/* HEADER */}
+      <div className="bg-slate-900 rounded-3xl p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-4 shadow-xl border border-slate-800 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="relative z-10 text-center md:text-left">
+          <h2 className="text-xl md:text-2xl font-black text-white uppercase flex items-center justify-center md:justify-start gap-3">
+            <Truck className="text-indigo-400" /> Distribusi Global (Surat Jalan)
+          </h2>
+          <p className="text-xs font-bold text-slate-400 mt-2 uppercase tracking-widest">
+            {isHQ ? 'Pusat Kendali Pengiriman Logistik' : `Penerimaan Logistik - Node: ${currentBranch}`}
+          </p>
+        </div>
       </div>
 
-      <div className="bg-white rounded-2xl border shadow-sm p-6">
-          <div className="flex items-center gap-3 mb-6 border-b pb-4"><div className="bg-blue-100 text-blue-600 p-2 rounded-lg"><Send size={20}/></div><div><h3 className="font-black text-slate-800 text-lg uppercase tracking-wide">Delivery Order (Manual)</h3><p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Barang akan masuk status perjalanan & stok di-reserve</p></div></div>
-          <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-600 uppercase">Tgl Pengiriman</label><input type="date" required value={form.date} onChange={e=>setForm({...form, date: e.target.value})} className="w-full p-3 bg-slate-50 border rounded-xl font-bold text-sm" /></div>
-                  <div className="space-y-1.5"><label className="text-[10px] font-bold text-slate-600 uppercase">Cabang Tujuan</label>
-                      <select required value={form.to_branch} onChange={e=>setForm({...form, to_branch: e.target.value})} className="w-full p-3 bg-slate-50 border rounded-xl font-bold text-sm text-slate-700">
-                          <option value="">-- Pilih Cabang --</option>
-                          {activeBranches.map(b => <option key={b.branch_id} value={b.branch_id}>{b.branch_name} ({b.branch_type})</option>)}
-                      </select>
-                  </div>
-                  <div className="space-y-1.5"><label className="text-[10px] font-bold text-blue-600 uppercase">Jumlah Kirim (Pcs)</label><div className="relative"><input type="number" required placeholder="0" value={form.qty} onChange={e=>setForm({...form, qty: e.target.value})} className="w-full p-3 bg-blue-50 border border-blue-200 rounded-xl font-black text-blue-700" /><span className="absolute right-4 top-3.5 text-xs font-bold text-blue-400">Pcs</span></div></div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* PANEL KIRI: FORM PENGIRIMAN (HANYA MUNCUL DI PUSAT) */}
+        <div className="lg:col-span-1">
+          {isHQ ? (
+            <div className="bg-white rounded-3xl border border-indigo-200 shadow-sm overflow-hidden">
+              <div className="bg-indigo-50 p-4 border-b border-indigo-100 flex items-center gap-2">
+                <Send size={16} className="text-indigo-600"/>
+                <h3 className="font-black text-indigo-900 text-xs uppercase tracking-widest">Buat Surat Jalan Baru</h3>
               </div>
-              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl shadow-md transition flex items-center justify-center gap-2"><Package size={18}/> Submit DO ke Tim Ekspedisi</button>
-          </form>
-      </div>
+              <form onSubmit={handleSendDO} className="p-6 space-y-4">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Cabang Tujuan</label>
+                  <select required value={form.to_branch} onChange={e=>setForm({...form, to_branch: e.target.value})} className="w-full p-3 bg-slate-50 border rounded-xl text-sm font-bold mt-1 outline-none">
+                    <option value="">-- Pilih Cabang --</option>
+                    {(master_branches || []).filter(b => b.branch_type !== 'HQ_FACTORY').map(b => (
+                      <option key={b.branch_id} value={b.branch_id}>{b.branch_name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Barang Dikirim</label>
+                  <select value={form.item_name} onChange={e=>setForm({...form, item_name: e.target.value})} className="w-full p-3 bg-slate-50 border rounded-xl text-sm font-bold mt-1 outline-none">
+                    <option value="DIMSUM">DIMSUM FROZEN (Pcs)</option>
+                    <option value="AYAM">DAGING AYAM (Kg)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Jumlah (Kuantitas)</label>
+                  <input type="number" required min="1" value={form.qty} onChange={e=>setForm({...form, qty: e.target.value})} className="w-full p-3 border rounded-xl font-black text-slate-800 mt-1 outline-none" placeholder="Cth: 1000" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Nama Kurir / Supir</label>
+                  <input type="text" value={form.driver} onChange={e=>setForm({...form, driver: e.target.value})} className="w-full p-3 border rounded-xl text-sm font-bold mt-1 outline-none" placeholder="Cth: Pak Budi" />
+                </div>
+                <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-3.5 rounded-xl uppercase tracking-wider text-xs flex justify-center items-center gap-2 mt-2 shadow-lg transition">
+                  <Truck size={16}/> Kirim Barang Sekarang
+                </button>
+              </form>
+            </div>
+          ) : (
+            <div className="bg-slate-50 rounded-3xl border border-slate-200 p-8 text-center flex flex-col items-center justify-center h-full min-h-[300px]">
+              <ShieldCheck size={48} className="text-slate-300 mb-4" />
+              <h3 className="font-black text-slate-700 text-sm uppercase tracking-widest mb-2">Akses Terbatas</h3>
+              <p className="text-xs font-bold text-slate-500">Hanya Pusat yang dapat membuat Surat Jalan pengiriman. Tugas cabang adalah menerima kedatangan fisik barang.</p>
+            </div>
+          )}
+        </div>
 
-      <div className="bg-white rounded-2xl border shadow-sm overflow-hidden mt-6">
-          <div className="p-4 border-b bg-slate-50 flex items-center gap-3"><Clock size={18} className="text-slate-600"/><h4 className="font-bold text-slate-800 tracking-wide uppercase text-sm">Distribution Lifecycle Tracker</h4></div>
-          <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                  <thead className="bg-white border-b text-[10px] text-slate-500 uppercase">
-                      <tr><th className="px-4 py-3">ID DO & Tgl</th><th className="px-4 py-3">Tujuan</th><th className="px-4 py-3 text-center">Qty (Pcs)</th><th className="px-4 py-3 text-center">Lifecycle Status</th><th className="px-4 py-3 text-right">Aksi Gudang</th></tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                      {listDO.map(d => {
-                          const isSent = d.status === 'DIKIRIM';
-                          return (
-                          <tr key={d.id} className="hover:bg-slate-50 transition">
-                              <td className="px-4 py-3"><div className="font-mono text-[10px] font-bold text-slate-700">{d.id}</div><div className="text-[10px] text-slate-500">{formatDate(d.date)}</div></td>
-                              <td className="px-4 py-3 font-black text-slate-800 text-xs flex items-center gap-2"><MapPin size={12} className="text-slate-400"/> CABANG {d.to_branch}</td>
-                              <td className="px-4 py-3 text-center font-black text-blue-600">{Number(d.qty).toLocaleString('id-ID')}</td>
-                              <td className="px-4 py-3 text-center">
-                                  {isSent ? <span className="bg-orange-100 text-orange-700 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase flex items-center justify-center gap-1 w-max mx-auto"><Truck size={12}/> DI PERJALANAN</span>
-                                          : <span className="bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase w-max mx-auto inline-block">RECEIVED (DITERIMA)</span>}
-                              </td>
-                              <td className="px-4 py-3 text-right">
-                                  <button onClick={() => setPrintData({ type: 'DO', data: d })} className="bg-slate-100 hover:bg-slate-200 text-slate-600 p-2 rounded-lg transition" title="Print Surat Jalan"><Printer size={16}/></button>
-                              </td>
-                          </tr>
-                      )})}
-                  </tbody>
-              </table>
+        {/* PANEL KANAN: LIST SURAT JALAN */}
+        <div className="lg:col-span-2">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full">
+             <div className="p-5 border-b bg-slate-50 flex items-center justify-between">
+                <h4 className="font-black text-slate-800 tracking-widest uppercase text-xs flex items-center gap-2"><MapPin size={16} className="text-blue-600"/> Tracking Logistik Inter-Node</h4>
+             </div>
+             <div className="overflow-x-auto flex-1 p-2">
+                <table className="w-full text-sm text-left">
+                   <thead className="text-[10px] text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                      <tr>
+                        <th className="px-6 py-4">Tgl & DO ID</th>
+                        <th className="px-6 py-4">Tujuan</th>
+                        <th className="px-6 py-4 text-center">Isi Muatan</th>
+                        <th className="px-6 py-4 text-center">Status</th>
+                        <th className="px-6 py-4 text-center">Aksi Cabang</th>
+                      </tr>
+                   </thead>
+                   <tbody className="divide-y divide-slate-100 text-xs font-bold">
+                      {visibleDO.length === 0 ? (
+                          <tr><td colSpan="5" className="text-center py-12 text-slate-400"><Package size={32} className="mx-auto mb-2 opacity-20"/>Belum ada aktivitas distribusi terdeteksi.</td></tr>
+                      ) : (
+                          visibleDO.map(doItem => (
+                             <tr key={doItem.id} className="hover:bg-slate-50 transition">
+                                <td className="px-6 py-4">
+                                  <div className="text-slate-800">{doItem.date}</div>
+                                  <div className="text-[9px] text-slate-400 font-mono mt-0.5">{doItem.id}</div>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <div className="font-black uppercase text-indigo-700">{doItem.to_branch}</div>
+                                  <div className="text-[9px] text-slate-400 mt-0.5 uppercase tracking-wider">Oleh: {doItem.driver}</div>
+                                </td>
+                                <td className="px-6 py-4 text-center">
+                                  <div className="font-black text-slate-800">{doItem.qty} <span className="text-[9px] text-slate-500">{doItem.item_name === 'AYAM' ? 'KG' : 'PCS'}</span></div>
+                                  <div className="text-[9px] font-bold text-slate-500 mt-0.5">{doItem.item_name}</div>
+                                </td>
+                                <td className="px-6 py-4 text-center">
+                                  {doItem.status === 'DELIVERING' ? (
+                                      <span className="flex items-center justify-center gap-1 text-orange-600 text-[9px] uppercase tracking-wider bg-orange-50 px-2 py-1 rounded-lg w-max mx-auto border border-orange-200"><Clock size={12} /> Di Jalan</span>
+                                  ) : (
+                                      <span className="flex items-center justify-center gap-1 text-emerald-600 text-[9px] uppercase tracking-wider bg-emerald-50 px-2 py-1 rounded-lg w-max mx-auto border border-emerald-200"><CheckCircle size={12} /> Diterima</span>
+                                  )}
+                                </td>
+                                <td className="px-6 py-4 text-center">
+                                  {doItem.status === 'DELIVERING' && !isHQ ? (
+                                      <button onClick={() => handleReceiveDO(doItem)} className="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider shadow-sm transition">Terima Fisik</button>
+                                  ) : (
+                                      <span className="text-[10px] text-slate-300 font-bold uppercase tracking-wider">{doItem.status === 'RECEIVED' ? 'Selesai' : '-'}</span>
+                                  )}
+                                </td>
+                             </tr>
+                          ))
+                      )}
+                   </tbody>
+                </table>
+             </div>
           </div>
+        </div>
+
       </div>
     </div>
   );
