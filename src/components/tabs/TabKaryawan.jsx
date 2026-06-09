@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Users, Landmark, Banknote, Layers, TrendingDown, ShieldAlert, Trash2, Edit2, Check, X, Phone, Image, Eye, MapPin, Undo, Link, Printer, CalendarDays, History, ShoppingCart, CheckCircle2, Calculator, Clock, Coffee, Target, Flame, Trophy, UsersRound } from 'lucide-react';
+import { Users, Landmark, Banknote, Layers, TrendingDown, ShieldAlert, Trash2, Edit2, Check, X, Phone, Image, Eye, MapPin, Undo, Link, Printer, CalendarDays, History, ShoppingCart, CheckCircle2, Calculator, Clock, Coffee, Target, Flame, Trophy } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
 
@@ -573,7 +573,7 @@ function LemburModule({ employees, expenses, globalCompiled, activeBranch, today
           </div>
 
           <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-            <label className="text-[10px] font-black text-slate-700 uppercase mb-2 flex items-center gap-1"><UsersRound size={12}/> 2. Daftar Peserta Lembur/Bonus ({qtyPeserta} Orang)</label>
+            <label className="text-[10px] font-black text-slate-700 uppercase mb-2 flex items-center gap-1"><Users size={12}/> 2. Daftar Peserta Lembur/Bonus ({qtyPeserta} Orang)</label>
             <div className="flex flex-wrap gap-2 mt-2">
               {employees.map(emp => (
                 <label key={emp.id} className={`flex items-center gap-1.5 px-3 py-1.5 border rounded-lg text-[10px] font-black uppercase cursor-pointer transition-all ${form.participants.includes(emp.id) ? 'bg-blue-100 border-blue-400 text-blue-800 shadow-sm' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-100'}`}>
@@ -650,7 +650,7 @@ function LemburModule({ employees, expenses, globalCompiled, activeBranch, today
 }
 
 // =========================================================================
-// 📇 SUB-COMPONENT 3: KREDIT BARANG & KASBON (DENGAN EDIT / DELETE)
+// 📇 SUB-COMPONENT 3: KREDIT BARANG & KASBON
 // =========================================================================
 function KasbonModule({ employees, expenses, globalCompiled, activeBranch, todayStr, sendToSheet, onViewDetails, user, setOptimisticDeletedIds, isHQ, showToast, optimisticDeletedIds }) {
   const [activeTabKasbon, setActiveTabKasbon] = useState('KREDIT'); 
