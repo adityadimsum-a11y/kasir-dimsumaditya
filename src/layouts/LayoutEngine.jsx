@@ -81,19 +81,16 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
   }, [user?.branch_type]);
 
   return (
-    <div className="min-h-screen bg-slate-50 flex overflow-hidden font-sans">
+    /* Perhatikan: min-h-screen dan bg transparan ditambahkan di sini */
+    <div className="min-h-screen bg-transparent flex overflow-hidden font-sans">
       {isMobileMenuOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 lg:hidden" onClick={() => setIsMobileMenuOpen(false)} />
       )}
 
       <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-slate-900 text-slate-300 transition-transform duration-300 ease-in-out flex flex-col ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 lg:static lg:flex-shrink-0 shadow-2xl`}>
         
-        {/* ======================================================== */}
-        {/* HEADER SIDEBAR DIPERBAIKI: LOGO + BACKGROUND PUTIH ELEGAN  */}
-        {/* ======================================================== */}
         <div className="h-20 flex items-center px-6 border-b border-slate-800 bg-slate-950/50 justify-between">
           <div className="flex items-center gap-3">
-            {/* Bantalan putih agar logo terlihat kontras */}
             <div className="bg-white p-1.5 rounded-xl shadow-[0_0_10px_rgba(255,255,255,0.1)] flex items-center justify-center shrink-0">
               <img 
                 src="https://dimsumaditya.id/wp-content/uploads/2026/06/Dimsum-Aditya-New-Logo-scaled.webp" 
@@ -146,7 +143,8 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
-        <header className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0 z-30 shadow-sm">
+        {/* Header diubah menjadi transparan/glassmorphism agar menyatu */}
+        <header className="h-20 bg-white/60 backdrop-blur-lg border-b border-slate-200/50 flex items-center justify-between px-6 shrink-0 z-30 shadow-sm">
           <div className="flex items-center gap-4">
             <button onClick={() => setIsMobileMenuOpen(true)} className="lg:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-lg"><Menu size={24} /></button>
             <div>
@@ -157,13 +155,15 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full shadow-sm">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-white/80 border border-slate-200 rounded-full shadow-sm">
               <div className={`w-2 h-2 rounded-full ${themeConfig.bg} animate-pulse`}></div>
               <span className={`text-[10px] font-black ${themeConfig.text} uppercase tracking-widest`}>Online & Tersinkronisasi</span>
             </div>
           </div>
         </header>
-        <main className="flex-1 bg-white/40 backdrop-blur-md overflow-y-auto">
+        
+        {/* Main Content Area tembus pandang dengan efek blur */}
+        <main className="flex-1 bg-white/30 backdrop-blur-md overflow-y-auto p-4 md:p-6">
            <div className="relative z-10 max-w-7xl mx-auto">{children}</div>
         </main>
       </div>
