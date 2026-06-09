@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Factory, Package, Activity, Scale, AlertTriangle, Printer, Edit2, Trash2, CalendarDays, Undo, PlusSquare, TrendingDown } from 'lucide-react';
+import { Factory, Package, Activity, Layers, AlertTriangle, Printer, Edit2, Trash2, CalendarDays, Undo, Plus, ArrowDown } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
 
@@ -147,7 +147,7 @@ export default function TabStok({
           <div className="text-2xl font-black text-emerald-600 mt-1 relative z-10">{formatNumber(metrikRadar.adukanHariIni)} <span className="text-xs">BATCH</span></div>
         </div>
         <div className="bg-white p-5 rounded-2xl border shadow-sm border-l-4 border-l-blue-500 relative overflow-hidden">
-          <Scale className="absolute -right-4 -bottom-4 text-blue-50 opacity-50" size={100} />
+          <Layers className="absolute -right-4 -bottom-4 text-blue-50 opacity-50" size={100} />
           <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest relative z-10">Ayam Terpakai Hari Ini</div>
           <div className="text-2xl font-black text-blue-600 mt-1 relative z-10">{formatNumber(metrikRadar.ayamKgHariIni)} <span className="text-xs">KG</span></div>
         </div>
@@ -195,7 +195,7 @@ export default function TabStok({
 
             <div className="p-4 bg-emerald-50/50 border border-emerald-200 rounded-2xl">
               <label className="text-xs font-black text-emerald-800 uppercase flex items-center justify-between mb-2">
-                <div className="flex items-center gap-1.5"><PlusSquare size={14}/> Total Adukan Selesai</div>
+                <div className="flex items-center gap-1.5"><Plus size={14}/> Total Adukan Selesai</div>
                 <div className="text-[10px] bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded-lg shadow-sm">BATCH</div>
               </label>
               <input type="number" min="1" step="0.5" required value={form.adukan} onChange={e=>setForm({...form, adukan: e.target.value})} className="w-full p-3 border-2 border-emerald-300 bg-white rounded-xl font-black text-2xl text-center text-emerald-700 outline-none focus:border-emerald-500 focus:shadow-[0_0_15px_rgba(16,185,129,0.2)] transition-all" />
@@ -203,7 +203,7 @@ export default function TabStok({
               <div className="mt-4 pt-3 border-t border-emerald-200/60 grid grid-cols-2 gap-x-2 gap-y-3">
                 <div>
                   <div className="text-[9px] font-black uppercase text-emerald-600/70 tracking-widest">Potong Stok Ayam</div>
-                  <div className="text-sm font-black text-rose-600 flex items-center gap-1 mt-0.5"><TrendingDown size={12}/> -{formatNumber(kalkulasiOtomatis.ayamKg)} Kg</div>
+                  <div className="text-sm font-black text-rose-600 flex items-center gap-1 mt-0.5"><ArrowDown size={12}/> -{formatNumber(kalkulasiOtomatis.ayamKg)} Kg</div>
                   <div className="text-[9px] font-bold text-slate-500 mt-0.5">({formatNumber(kalkulasiOtomatis.ayamKantong)} Kantong)</div>
                 </div>
                 <div>
@@ -255,7 +255,7 @@ export default function TabStok({
                         <div className="inline-flex items-center justify-center bg-emerald-100 text-emerald-800 px-3 py-1 rounded-lg text-sm font-black border border-emerald-200 shadow-sm">{log.total_adukan}</div>
                       </td>
                       <td className="px-4 py-3 text-right bg-rose-50/30 whitespace-nowrap">
-                        <div className="text-rose-600 font-black flex items-center justify-end gap-1"><TrendingDown size={10}/> -{formatNumber(log.total_ayam_kg)} Kg</div>
+                        <div className="text-rose-600 font-black flex items-center justify-end gap-1"><ArrowDown size={10}/> -{formatNumber(log.total_ayam_kg)} Kg</div>
                         <div className="text-[9px] text-slate-500 font-bold mt-0.5">({formatNumber(Number(log.total_ayam_kg || 0)/10)} Ktg)</div>
                       </td>
                       <td className="px-4 py-3 text-right bg-blue-50/30 whitespace-nowrap">
