@@ -21,25 +21,24 @@ export default function TabStok({
   sendToSheet, showToast, user 
 }) {
   const todayStr = getTodayStr();
-  const currentBranch = user?.branch_id || 'PUSAT';
-  const isHQ = user?.branch_type === 'HQ_FACTORY' || currentBranch === 'PUSAT';
+  const currentBranch = user?.branch_id || 'TANGERANG_PUSAT';
+  const isHQ = user?.branch_type === 'HQ_FACTORY' || user?.branch_id === 'PUSAT' || currentBranch === 'TANGERANG_PUSAT';
   
   const [activeBranchFilter, setActiveBranchFilter] = useState(isHQ ? 'SEMUA_CABANG' : currentBranch);
   const [optimisticDeletedIds, setOptimisticDeletedIds] = useState(new Set());
   const [isEditing, setIsEditing] = useState(false);
 
   const [form, setForm] = useState({
-    id: '', date: todayStr, branchId: 'TANGERANG_PUSAT', picId: '', adukan: '1', notes: ''
+    id: '', date: todayStr, picId: '', adukan: '1', notes: ''
   });
 
   const realProductionBatches = production_batches || productionBatches || [];
   const realMasterBranches = master_branches || masterBranches || [];
   
-  // FITUR AUTO-INJECT PUSAT (Kebal Google Sheet)
   const daftarCabangId = useMemo(() => {
     const list = realMasterBranches.filter(b => b && !b.isDeleted && b.branch_id).map(b => b.branch_id);
     if (!list.includes('TANGERANG_PUSAT')) {
-      list.unshift('TANGERANG_PUSAT');
+      list.push('TANGERANG_PUSAT');
     }
     return list;
   }, [realMasterBranches]);
@@ -99,9 +98,15 @@ export default function TabStok({
 
     const batchId = isEditing ? form.id : generateId('PRD', form.date);
     const payload = {
-      id: batchId, date: form.date, branch_id: form.branchId, pic_id: form.picId,
-      total_adukan: Number(form.adukan), total_ayam_kg: kalkulasiOtomatis.ayamKg,
-      total_yield_pcs: kalkulasiOtomatis.hasilPcs, hpp_estimate: kalkulasiOtomatis.hppTotal, notes: form.notes.toUpperCase()
+      id: batchId, 
+      date: form.date, 
+      branch_id: currentBranch, // Otomatis mengunci ke ID Cabang user login
+      pic_id: form.picId,
+      total_adukan: Number(form.adukan), 
+      total_ayam_kg: kalkulasiOtomatis.ayamKg,
+      total_yield_pcs: kalkulasiOtomatis.hasilPcs, 
+      hpp_estimate: kalkulasiOtomatis.hppTotal, 
+      notes: form.notes.toUpperCase()
     };
 
     let success = false;
@@ -110,14 +115,14 @@ export default function TabStok({
 
     if (success) {
       if (showToast) showToast(isEditing ? 'Data produksi diupdate!' : 'Produksi berhasil dicatat!', 'success');
-      setForm({ id: '', date: todayStr, branchId: 'TANGERANG_PUSAT', picId: '', adukan: '1', notes: '' });
+      setForm({ id: '', date: todayStr, picId: '', adukan: '1', notes: '' });
       setIsEditing(false);
     }
   };
 
   const handleEdit = (log) => {
     setForm({
-      id: log.id, date: log.date.split('T')[0], branchId: log.branch_id || 'TANGERANG_PUSAT',
+      id: log.id, date: log.date.split('T')[0],
       picId: log.pic_id || '', adukan: String(log.total_adukan || 0), notes: log.notes || ''
     });
     setIsEditing(true);
@@ -125,8 +130,12 @@ export default function TabStok({
   };
 
   const handleDelete = async (id) => {
-    if(window.confirm("AWAS! Membatalkan data produksi ini akan merusak laporan stok gudang. Yakin ingin menghapus?")) {
-      setOptimisticDeletedIds(prev => new Set(prev).add(id));
+    if(window.confirm("AWAS! Menghapus data ini akan merusak laporan stok gudang. Yakin ingin menghapus?")) {
+      setOptimisticDeletedIds(prev => {
+        const n = new Set(prev);
+        n.add(id);
+        return n;
+      });
       const success = await sendToSheet('delete', { id }, 'production_batches');
       if(success) { if(showToast) showToast('Data produksi divoid.', 'success'); } 
       else { setOptimisticDeletedIds(prev => { const n = new Set(prev); n.delete(id); return n; }); }
@@ -134,7 +143,7 @@ export default function TabStok({
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in pb-10">
+    <div className="space-y-6 pb-10">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white p-5 rounded-2xl border shadow-sm border-l-4 border-l-emerald-500 relative overflow-hidden">
           <Activity className="absolute -right-4 -bottom-4 text-emerald-50 opacity-50" size={100} />
@@ -167,16 +176,12 @@ export default function TabStok({
                 <Factory size={16} className={isEditing ? "text-amber-600" : "text-emerald-600"}/> 
                 {isEditing ? 'Revisi Laporan Produksi' : 'Laporan Produksi Baru'}
               </h3>
-              {isEditing && <button type="button" onClick={() => { setIsEditing(false); setForm({ id: '', date: todayStr, branchId: 'TANGERANG_PUSAT', picId: '', adukan: '1', notes: '' }); }} className="text-[10px] border px-2 py-0.5 rounded font-black uppercase text-slate-500 bg-white shadow-sm flex items-center gap-1"><Undo size={10}/> Batal</button>}
+              {isEditing && <button type="button" onClick={() => { setIsEditing(false); setForm({ id: '', date: todayStr, picId: '', adukan: '1', notes: '' }); }} className="text-[10px] border px-2 py-0.5 rounded font-black uppercase text-slate-500 bg-white shadow-sm flex items-center gap-1"><Undo size={10}/> Batal</button>}
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Tanggal Produksi</label><input type="date" required value={form.date} onChange={e=>setForm({...form, date: e.target.value})} className="w-full p-2.5 mt-1 border rounded-xl text-xs font-bold outline-none bg-slate-50" /></div>
-              {isHQ && (
-                <div><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Lokasi Pabrik</label><select disabled={isEditing} value={form.branchId} onChange={e=>setForm({...form, branchId: e.target.value})} className="w-full p-2.5 mt-1 border rounded-xl text-xs font-black uppercase outline-none bg-slate-50 cursor-pointer">
-                  {daftarCabangId.map(b => <option key={b} value={b}>{b}</option>)}
-                </select></div>
-              )}
+            <div>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Tanggal Produksi</label>
+              <input type="date" required value={form.date} onChange={e=>setForm({...form, date: e.target.value})} className="w-full p-2.5 mt-1 border rounded-xl text-xs font-bold outline-none bg-slate-50" />
             </div>
 
             <div>
@@ -203,7 +208,7 @@ export default function TabStok({
                 <div>
                   <div className="text-[9px] font-black uppercase text-emerald-600/70 tracking-widest">Tambah Stok Frozen</div>
                   <div className="text-sm font-black text-blue-600 flex items-center gap-1 mt-0.5"><Package size={12}/> +{formatNumber(kalkulasiOtomatis.hasilPcs)} Pcs</div>
-                  <div className="text-[9px] font-bold text-slate-500 mt-0.5">({formatNumber(kalkulasiOtomatis.hasilMika)} Mika / {formatNumber(kalkulasiOtomatis.hasilPorsi)} Porsi)</div>
+                  <div className="text-[9px] font-bold text-slate-500 mt-0.5">({formatNumber(kalkulasiOtomatis.hasilMika)} Mika / {formatNumber(kalkulasiOtematis.hasilPorsi)} Porsi)</div>
                 </div>
                 <div className="col-span-2 bg-white/60 p-2 rounded-lg border border-emerald-100 mt-1">
                   <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-600"><span>Estimasi HPP Ayam:</span><span className="text-orange-600">{formatRupiah(kalkulasiOtomatis.hppTotal)}</span></div>
