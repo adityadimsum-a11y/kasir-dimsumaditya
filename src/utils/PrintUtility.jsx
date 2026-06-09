@@ -3,21 +3,15 @@ import { createRoot } from 'react-dom/client';
 
 const rp = (angka) => "Rp. " + Number(angka || 0).toLocaleString('id-ID');
 
-// ========================================================
-// 🖨️ 1. TEMPLATE CETAK DOT MATRIX (EPSON LX 310)
-// ========================================================
 const DotMatrixInvoice = ({ data }) => {
   return (
     <div className="print-dot-matrix">
-      
-      {/* 1. HEADER & JUDUL FORMAL */}
       <div style={{ textAlign: 'center', borderBottom: '2px dashed black', paddingBottom: '8px', marginBottom: '10px' }}>
         <h2 style={{ margin: 0, fontSize: '18pt', fontWeight: '900', letterSpacing: '1px' }}>{data.company_name || 'DIMSUM ADITYA'}</h2>
         <div style={{ fontSize: '12pt', fontWeight: 'bold' }}>CABANG OPERASIONAL {data.branch_name || 'PUSAT'}</div>
         <div style={{ fontSize: '14pt', fontWeight: 'bold', marginTop: '5px', textDecoration: 'underline' }}>{data.title || 'BUKTI TRANSAKSI'}</div>
       </div>
       
-      {/* 2. IDENTITAS & PERIODE */}
       <table style={{ width: '100%', marginBottom: '10px', fontSize: '12pt', fontWeight: 'bold' }}>
         <tbody>
           <tr><td width="55%">NO. TRX : {data.id || '-'}</td><td width="45%">PERIODE : {data.periode || '-'}</td></tr>
@@ -26,7 +20,6 @@ const DotMatrixInvoice = ({ data }) => {
         </tbody>
       </table>
 
-      {/* 3. RINCIAN GAJI / TRANSAKSI */}
       <div style={{ borderTop: '2px dashed black', borderBottom: '2px dashed black', padding: '5px 0', marginBottom: '8px', fontWeight: 'bold' }}>
         <div style={{ display: 'flex' }}>
           <div style={{ width: '55%' }}>KETERANGAN</div>
@@ -60,46 +53,46 @@ const DotMatrixInvoice = ({ data }) => {
         </div>
       </div>
 
-      {/* 4. TRACK RECORD HISTORI KASBON & KREDIT (BIAR KARYAWAN GAK BISA NGELES!) */}
       {data.history && (
         <div style={{ border: '2px dashed black', padding: '8px', margin: '15px 0', backgroundColor: '#f9f9f9' }}>
-          <div style={{ textAlign: 'center', fontWeight: 'bold', marginBottom: '8px', textDecoration: 'underline' }}>BUKU MUTASI PINJAMAN / KREDIT</div>
+          <div style={{ textAlign: 'center', fontWeight: 'bold', marginBottom: '8px', textDecoration: 'underline' }}>BUKU MUTASI PINJAMAN / KREDIT BARANG</div>
           
-          {/* Loop Histori Transaksi Kasbon Sebelumnya */}
           {data.history.kasbonList && data.history.kasbonList.length > 0 && (
             <div style={{ marginBottom: '8px', fontSize: '11pt' }}>
-              <div style={{ borderBottom: '1px solid black', marginBottom: '4px', fontWeight: 'bold' }}>Rincian Nota Berjalan:</div>
-              {data.history.kasbonList.map((k, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-                  <div style={{ width: '70%' }}>- {k.date} ({k.id})<br/><span style={{ fontSize: '9pt', color: '#555' }}>  Ket: {k.note}</span></div>
-                  <div style={{ width: '30%', textAlign: 'right' }}>{rp(k.amount)}</div>
-                </div>
-              ))}
+              <div style={{ borderBottom: '1px solid black', marginBottom: '4px', fontWeight: 'bold' }}>Rincian Nota Berjalan & Cicilan:</div>
+              {data.history.kasbonList.map((k, i) => {
+                const isKredit = k.category === 'KREDIT_BARANG';
+                const cicilanInfo = isKredit ? `[Cicilan ke-${k.cicilanKe || 0} dari ${k.tenor || 0}]` : '[Kasbon Tunai]';
+                return (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                    <div style={{ width: '70%' }}>
+                      <span style={{ fontWeight: 'bold' }}>- Tgl: {k.date} (ID: {k.id})</span><br/>
+                      <span style={{ fontSize: '10pt' }}>  Ket: {k.description || k.note} {cicilanInfo}</span><br/>
+                      <span style={{ fontSize: '10pt', fontStyle: 'italic' }}>  (Total Harga: {rp(k.amount)} | Sisa Bayar: {rp(k.sisa)})</span>
+                    </div>
+                    <div style={{ width: '30%', textAlign: 'right', fontWeight: 'bold' }}>
+                      <span style={{ fontSize: '9pt', color: '#555' }}>Status: {k.status}</span>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           )}
           
           <div style={{ borderTop: '1px dashed black', margin: '5px 0' }}></div>
-          
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-            <span>{data.history.labelLama || 'Akumulasi Hutang Awal'}:</span>
-            <span>{rp(data.history.nominalLama)}</span>
+            <span>{data.history.labelLama || 'Akumulasi Hutang Awal'}:</span><span>{rp(data.history.nominalLama)}</span>
           </div>
-          
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', color: 'red' }}>
-            <span>{data.history.labelAksi || 'Dipotong Cicilan Bulan Ini'}:</span>
-            <span>-{rp(data.history.nominalAksi)}</span>
+            <span>{data.history.labelAksi || 'Dipotong Cicilan Bulan Ini'}:</span><span>-{rp(data.history.nominalAksi)}</span>
           </div>
-          
           <div style={{ borderTop: '2px solid black', margin: '5px 0' }}></div>
-          
           <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '900', fontSize: '13pt' }}>
-            <span>{data.history.labelBaru || 'SISA KREDIT / HUTANG'}:</span>
-            <span>{rp(data.history.nominalBaru)}</span>
+            <span>{data.history.labelBaru || 'SISA KREDIT / HUTANG'}:</span><span>{rp(data.history.nominalBaru)}</span>
           </div>
         </div>
       )}
 
-      {/* 5. TANDA TANGAN */}
       <table style={{ width: '100%', marginTop: '25px', textAlign: 'center' }}>
         <tbody>
           <tr><td width="50%">PENERIMA / KARYAWAN,</td><td width="50%">HORMAT KAMI,</td></tr>
@@ -112,9 +105,6 @@ const DotMatrixInvoice = ({ data }) => {
   );
 };
 
-// ========================================================
-// 🖨️ 2. TEMPLATE CETAK REKAP A4 (MANAJERIAL)
-// ========================================================
 const A4RecapReport = ({ data }) => {
   return (
     <div className="print-a4-recap">
