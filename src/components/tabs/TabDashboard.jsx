@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
-import { LayoutDashboard, TrendingUp, AlertTriangle, Package, Activity, Wallet, ShoppingCart, Beef, AlertCircle, HandCoins } from 'lucide-react';
-import { formatRp, getTodayStr, formatDate } from '../../utils/helpers';
+import { LayoutDashboard, TrendingUp, AlertTriangle, Package, Activity, Wallet, ShoppingCart, Box, AlertCircle, Coins } from 'lucide-react';
+import { formatRp, getTodayStr } from '../../utils/helpers';
 
 export default function TabDashboard({ orders, productionBatches, inventory_cost_layers, supplier_ledger, cashflow_transactions }) {
   const todayStr = getTodayStr();
@@ -14,7 +14,6 @@ export default function TabDashboard({ orders, productionBatches, inventory_cost
     let produksiHariIniPcs = 0;
     let totalStokDimsum = 0;
 
-    // 1. Hitung Revenue & Sales Hari Ini (Global)
     (orders || []).forEach(o => {
       if (o.isDeleted || String(o.isDeleted).toUpperCase() === 'TRUE') return;
       
@@ -25,13 +24,11 @@ export default function TabDashboard({ orders, productionBatches, inventory_cost
         pcsTerjualHariIni += Number(o.qty || 0);
       }
 
-      // Hitung Total Piutang Mengambang (Belum Lunas)
       if (o.paymentMethod === 'PIUTANG' || o.paymentMethod === 'MARKETPLACE_AR') {
         totalPiutang += netTotal;
       }
     });
 
-    // Kurangi Piutang jika ada pembayaran (Kolekting) di Cashflow
     (cashflow_transactions || []).forEach(tx => {
       if (tx.isDeleted || String(tx.isDeleted).toUpperCase() === 'TRUE') return;
       if (tx.category === 'AR_COLLECTION' || tx.category === 'PELUNASAN_PIUTANG') {
@@ -39,14 +36,12 @@ export default function TabDashboard({ orders, productionBatches, inventory_cost
       }
     });
 
-    // 2. Hitung Hutang Supplier
     (supplier_ledger || []).forEach(l => {
       if (l.isDeleted || String(l.isDeleted).toUpperCase() === 'TRUE') return;
       if (l.transaction_type === 'PURCHASE') hutangSupplier += Number(l.amount || 0);
       if (l.transaction_type === 'PAYMENT') hutangSupplier -= Number(l.amount || 0);
     });
 
-    // 3. Hitung Produksi Hari Ini
     (productionBatches || []).forEach(b => {
       if (b.isDeleted || String(b.isDeleted).toUpperCase() === 'TRUE') return;
       if (b.date === todayStr) {
@@ -54,7 +49,6 @@ export default function TabDashboard({ orders, productionBatches, inventory_cost
       }
     });
 
-    // 4. Hitung Sisa Stok Global (Ayam & Dimsum)
     (inventory_cost_layers || []).forEach(l => {
       if (l.isDeleted || String(l.isDeleted).toUpperCase() === 'TRUE' || l.status !== 'ACTIVE') return;
       
@@ -65,7 +59,6 @@ export default function TabDashboard({ orders, productionBatches, inventory_cost
       }
     });
 
-    // RUMUS KONVERSI GLOBAL
     const stokDimsumMika = Math.floor(totalStokDimsum / 50);
     const stokDimsumPorsi = Math.floor(totalStokDimsum / 4);
 
@@ -85,7 +78,7 @@ export default function TabDashboard({ orders, productionBatches, inventory_cost
         </div>
         <div>
           <h2 className="text-2xl font-black text-slate-800 uppercase tracking-wide">HQ DASHBOARD</h2>
-          <p className="text-xs font-bold text-slate-500 mt-1">Sistem Komando Pusat — <span className="text-blue-600">{formatDate(todayStr)}</span></p>
+          <p className="text-xs font-bold text-slate-500 mt-1">Sistem Komando Pusat — <span className="text-blue-600">{todayStr}</span></p>
         </div>
       </div>
 
@@ -101,24 +94,21 @@ export default function TabDashboard({ orders, productionBatches, inventory_cost
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full md:flex-1">
-            {/* Piutang Box */}
             <div className={`p-4 rounded-xl border flex items-center justify-between ${metrics.totalPiutang > 0 ? 'bg-amber-500/10 border-amber-500/30' : 'bg-slate-800 border-slate-700'}`}>
               <div>
-                <div className="text-[9px] font-black text-amber-400 uppercase tracking-widest mb-1 flex items-center gap-1"><HandCoins size={12}/> Piutang (Tagih)</div>
+                <div className="text-[9px] font-black text-amber-400 uppercase tracking-widest mb-1 flex items-center gap-1"><Coins size={12}/> Piutang (Tagih)</div>
                 <div className={`text-xl font-black ${metrics.totalPiutang > 0 ? 'text-amber-400' : 'text-slate-500'}`}>{formatRp(metrics.totalPiutang)}</div>
               </div>
             </div>
-            {/* Hutang Box */}
             <div className={`p-4 rounded-xl border flex items-center justify-between ${metrics.hutangSupplier > 0 ? 'bg-rose-500/10 border-rose-500/30' : 'bg-slate-800 border-slate-700'}`}>
               <div>
                 <div className="text-[9px] font-black text-rose-400 uppercase tracking-widest mb-1 flex items-center gap-1"><AlertTriangle size={12}/> Hutang Supplier (Bayar)</div>
                 <div className={`text-xl font-black ${metrics.hutangSupplier > 0 ? 'text-rose-400' : 'text-slate-500'}`}>{formatRp(metrics.hutangSupplier)}</div>
               </div>
             </div>
-            {/* Ayam Box */}
             <div className={`p-4 rounded-xl border flex items-center justify-between ${metrics.stokAyamKg < 30 ? 'bg-rose-500/10 border-rose-500/30 animate-pulse' : 'bg-emerald-500/10 border-emerald-500/30'}`}>
               <div>
-                <div className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1 flex items-center gap-1"><Beef size={12}/> Stok Inti: Daging Ayam</div>
+                <div className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1 flex items-center gap-1"><Box size={12}/> Stok Inti: Daging Ayam</div>
                 <div className={`text-xl font-black ${metrics.stokAyamKg < 30 ? 'text-rose-400' : 'text-emerald-400'}`}>{metrics.stokAyamKg} <span className="text-xs font-bold opacity-70">KG</span></div>
               </div>
             </div>
@@ -162,7 +152,7 @@ export default function TabDashboard({ orders, productionBatches, inventory_cost
               </div>
 
               <div className="bg-slate-800/50 p-6 rounded-2xl border border-slate-700">
-                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Stok Dimsum Tersedia (Global)</div>
+                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Stok Dimsum (Global)</div>
                 <div className="text-4xl font-black text-white my-2">{metrics.totalStokDimsum.toLocaleString('id-ID')} <span className="text-sm text-slate-500">Pcs</span></div>
                 
                 <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-slate-700">
