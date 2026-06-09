@@ -2,17 +2,18 @@ import React, { useState, useMemo } from 'react';
 import { Users, Landmark, Banknote, UserPlus, Layers, TrendingDown, ShieldAlert, Trash2, Edit2, Check, X, Phone, Image } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 
-export default function TabKaryawan({ karyawan, expenses, master_branches, sendToSheet, showToast, user }) {
+// FIX CRITICAL: Mengubah prop parameter dari cashflow_transactions menjadi cashflowTransactions sesuai core state App.jsx
+export default function TabKaryawan({ karyawan, expenses, master_branches, cashflowTransactions, sendToSheet, showToast, user }) {
   const todayStr = getTodayStr();
   const currentBranch = user?.branch_id || 'PUSAT';
   const isHQ = user?.branch_type === 'HQ_FACTORY' || currentBranch === 'PUSAT';
 
-  // State Manajemen Navigasi
+  // State Manajemen Navigasi Sub-Tab
   const [activeSubTab, setActiveSubTab] = useState(isHQ ? 'payroll' : 'kasbon');
   const [selectedBranchFilter, setSelectedBranchFilter] = useState('PUSAT');
   const activeProcessingBranch = isHQ ? selectedBranchFilter : currentBranch;
 
-  // State Form Entry
+  // State Form Entry Identitas & Kasbon
   const [formKasbon, setFormKasbon] = useState({ date: todayStr, employeeId: '', amount: '', notes: '' });
   const [formMaster, setFormMaster] = useState({ name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT', phone: '', photo_url: '' });
   const [formPayroll, setFormPayroll] = useState({ 
@@ -27,7 +28,7 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
     return "Rp. " + Number(angka || 0).toLocaleString('id-ID');
   };
 
-  // 1. PETAMAP NAMA CABANG DARI SPREADSHEET
+  // 1. PETAMAP NAMA CABANG DARI DB
   const petaNamaCabang = useMemo(() => {
     const mapping = { PUSAT: '🍊 TANGERANG PUSAT' };
     (master_branches || []).forEach(b => {
@@ -76,13 +77,13 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
       return balances;
   }, [karyawan, expenses]);
 
-  // Filter karyawan berdasarkan cabang aktif
+  // Filter karyawan berdasarkan cabang yang sedang aktif dipilih
   const activeEmployees = useMemo(() => {
     const targetBId = String(activeProcessingBranch || '').trim().toUpperCase();
     return Object.values(masterEmployeeDataGlobal).filter(k => k.branch_id === targetBId);
   }, [masterEmployeeDataGlobal, activeProcessingBranch]);
 
-  // POINT 1 & 2: JOURNAL LOG DETAIL KASBON PER TRANSAKSI BESERTA TANGGALNYA
+  // JURNAL TRANSAKSI KASBON LENGKAP DENGAN ID DAN TANGGAL NOTA
   const kasbonTransactionsLogs = useMemo(() => {
     const targetBId = String(activeProcessingBranch || '').trim().toUpperCase();
     return (expenses || [])
@@ -94,7 +95,7 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
       .sort((a, b) => new Date(b.date) - new Date(a.date));
   }, [expenses, activeProcessingBranch, masterEmployeeDataGlobal]);
 
-  // 3. ENGINE RADAR KEUANGAN & TOTALIZER
+  // 3. ENGINE RADAR FINANCIAL TOTALIZER
   const ringkasanFinansialSDM = useMemo(() => {
     let kasbonCabangIni = 0; let gajiCabangIniBulanIni = 0;
     let kasbonGlobalSeluruhPerusahaan = 0; let gajiGlobalSeluruhPerusahaan = 0;
@@ -118,15 +119,14 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
     return { kasbonCabangIni, gajiCabangIniBulanIni, kasbonGlobalSeluruhPerusahaan, gajiGlobalSeluruhPerusahaan };
   }, [masterEmployeeDataGlobal, expenses, activeProcessingBranch, todayStr]);
 
-  // SMART PAYROLL RUNWAY ENGINE
+  // FIX CRITICAL: Membaca memori data cashflowTransactions (tanpa underscore) dengan aman agar tidak memicu error blank putih
   const analisisKecukupanGajiPusat = useMemo(() => {
     const totalKebutuhanKotorNasional = Object.values(masterEmployeeDataGlobal)
       .filter(e => e.status === 'AKTIF').reduce((sum, emp) => sum + emp.baseSalary, 0);
     const sisaKewajibanPayrollBulanIni = Math.max(0, totalKebutuhanKotorNasional - ringkasanFinansialSDM.gajiGlobalSeluruhPerusahaan);
     
     let totalKasPusatAktif = 0;
-    // ... logic kasflow ...
-    (cashflow_transactions || []).forEach(c => {
+    (cashflowTransactions || []).forEach(c => {
       if (c.isDeleted) return;
       if (['HQ_FACTORY', 'PUSAT'].includes(String(c.branch_id).toUpperCase())) {
         if (String(c.transaction_type).toUpperCase() === 'INFLOW') totalKasPusatAktif += Number(c.amount || 0);
@@ -135,17 +135,17 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
     });
 
     let statusFinansial = 'AMAN'; let warnaBadge = 'bg-emerald-500 text-white';
-    let pesanRekomendasi = '🔥 AMAN! Saldo kas liquid pusat siap meng-cover sisa gaji seluruh cabang nasional.';
+    let pesanRekomendasi = '🔥 AMAN, REK! Saldo kas liquid pusat sangat mencukupi untuk meng-cover sisa kewajiban gaji seluruh cabang nasional.';
 
     if (sisaKewajibanPayrollBulanIni > totalKasPusatAktif) {
       statusFinansial = 'BAHAYA / KRITIS'; warnaBadge = 'bg-rose-600 text-white animate-pulse';
-      pesanRekomendasi = '🚨 KAS TIDAK CUKUP! Segera tarik setoran omzet resto/outlet untuk mengamankan runway payroll.';
+      pesanRekomendasi = '🚨 KAS TIDAK CUKUP! Segera tarik setoran omzet dari Pemalang & Cibinong untuk mengamankan runway payroll.';
     }
 
     return { sisaKewajibanPayrollBulanIni, totalKasPusatAktif, statusFinansial, warnaBadge, pesanRekomendasi };
-  }, [masterEmployeeDataGlobal, ringkasanFinansialSDM.gajiGlobalSeluruhPerusahaan]);
+  }, [masterEmployeeDataGlobal, ringkasanFinansialSDM.gajiGlobalSeluruhPerusahaan, cashflowTransactions]);
 
-  // POINT 3: CHECK LIMIT GUARDRAIL KASBON (PINJAMAN TIDAK BOLEH MELEBIHI GAJI)
+  // ENGINE PENGECEKAN BATAS LIMIT KASBON (MAKSIMAL SENILAI GAJI POKOK)
   const selectedEmpObject = formKasbon.employeeId ? masterEmployeeDataGlobal[formKasbon.employeeId] : null;
   const isKasbonOverlimit = useMemo(() => {
     if (!selectedEmpObject) return false;
@@ -153,7 +153,7 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
     return (currentRequest + selectedEmpObject.sisaHutang) > selectedEmpObject.baseSalary;
   }, [formKasbon.amount, selectedEmpObject]);
 
-  // ACTIONS SUBMIT LOGIC
+  // CORE ACTIONS LOGIC SYSTEM
   const startInlineEdit = (emp) => {
     setEditingEmployeeId(emp.id);
     setEditForm({ position: emp.position, baseSalary: String(emp.baseSalary), status: emp.status });
@@ -168,7 +168,7 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
     }, 'karyawan');
     if(success) {
       setEditingEmployeeId(null);
-      if(showToast) showToast('Data karyawan berhasil di-update!', 'success');
+      if(showToast) showToast('Data karyawan sukses di-update!', 'success');
     }
   };
 
@@ -200,7 +200,7 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
       await sendToSheet('insert', {
         id: 'CFO-' + new Date().getTime(), date: formPayroll.date, branch_id: formPayroll.paymentMethod === 'TF' ? 'HQ_FACTORY' : activeProcessingBranch,
         transaction_type: 'OUTFLOW', category: 'OPERATIONAL_EXPENSE', amount: netto, payment_method: formPayroll.paymentMethod, reference_id: expenseId,
-        description: `Payroll Jurnal - Cabang: ${activeProcessingBranch}, Nama: ${emp.name}`
+        description: `Payroll Jurnal — Cabang: ${activeProcessingBranch}, Nama: ${emp.name}`
       }, 'cashflow_transactions');
       setFormPayroll({ date: todayStr, employeeId: '', baseSalary: '0', allowance: '0', otherDeduction: '0', paymentMethod: 'CASH' });
     }
@@ -213,7 +213,7 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
 
       const success = await sendToSheet('insert', {
           id: expenseId, date: formKasbon.date, branch_id: activeProcessingBranch, employee_id: formKasbon.employeeId, 
-          category: 'KASBON', amount: Number(formKasbon.amount), description: `Kasbon Nota ID Baru - Ket: ${formKasbon.notes}`, payment_method: 'CASH'
+          category: 'KASBON', amount: Number(formKasbon.amount), description: `Kasbon Nota ID Baru — Ket: ${formKasbon.notes}`, payment_method: 'CASH'
       }, 'expenses');
 
       if(success) {
@@ -240,7 +240,7 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
       
-      {/* 📊 METRICS HEADBOARD */}
+      {/* 📊 BOARDS METRICS */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white p-5 rounded-2xl border shadow-sm border-l-4 border-l-orange-500">
           <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Kasbon Aktif Wilayah ({activeProcessingBranch})</div>
@@ -256,7 +256,7 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
         </div>
       </div>
 
-      {/* 🚨 AI GUARDRAIL DASHBOARD */}
+      {/* 🚨 AI SUFFICIENCY RADAR WIDGET */}
       {isHQ && (
         <div className="p-4 rounded-2xl border border-blue-200 bg-blue-50/40 flex items-center justify-between text-xs font-bold text-blue-800">
           <div>💡 <strong>Radar Gaji Nasional:</strong> {analisisKecukupanGajiPusat.pesanRekomendasi}</div>
@@ -264,9 +264,9 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
         </div>
       )}
 
-      {/* BRANCH SELECTOR */}
+      {/* REGIONAL BRANCH SWITCHER */}
       {isHQ && (
-        <div className="bg-slate-900 p-4 rounded-2xl flex flex-wrap gap-2 items-center justify-between">
+        <div className="bg-slate-900 p-4 rounded-2xl flex flex-wrap gap-2 items-center justify-between shadow-md">
           <div className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Divisi Cabang Keuangan Staf:</div>
           <div className="flex flex-wrap gap-2">
             {daftarCabangId.map(brId => (
@@ -276,7 +276,7 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
         </div>
       )}
 
-      {/* SUB TAB MENU */}
+      {/* TAB SUB-NAV BAR */}
       <div className="flex gap-2 border-b pb-4">
         {isHQ && <button onClick={() => setActiveSubTab('payroll')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase ${activeSubTab === 'payroll' ? 'bg-red-600 text-white shadow-md' : 'bg-white text-slate-500'}`}>Gaji & Payroll</button>}
         <button onClick={() => setActiveSubTab('kasbon')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase ${activeSubTab === 'kasbon' ? 'bg-orange-600 text-white shadow-md' : 'bg-white text-slate-500'}`}>Kasbon Karyawan</button>
@@ -369,7 +369,6 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
               <div>
                 <label className="text-[10px] font-bold text-slate-500 uppercase">Nominal Pinjaman</label>
                 <input type="text" required value={formatRupiahLokal(formKasbon.amount)} onChange={e=>setFormKasbon({...formKasbon, amount: e.target.value.replace(/\D/g, '')})} className="w-full p-2.5 bg-orange-50 border border-orange-200 text-orange-900 rounded-xl font-black text-sm" />
-                {/* POINT 3: WARNING BADGE OVERLIMIT KASBON */}
                 {isKasbonOverlimit && (
                   <div className="mt-1.5 p-2 bg-red-600 text-white rounded-lg font-black text-[9px] uppercase animate-pulse">🚨 Overlimit! Total pinjaman melebihi gaji pokok bulanan karyawan!</div>
                 )}
@@ -382,7 +381,6 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
             </form>
           </div>
 
-          {/* POINT 1 & 2: LOG HISTORY KASBON DETAILED DENGAN ID BARU & TANGGAL */}
           <div className="lg:col-span-2 bg-white rounded-2xl border flex flex-col overflow-hidden">
             <div className="p-4 bg-slate-50 border-b font-bold text-xs uppercase text-slate-700">Buku Jurnal Kasbon Riil per Nota (Filter: {activeProcessingBranch})</div>
             <div className="overflow-y-auto max-h-[450px]">
@@ -408,7 +406,7 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
         </div>
       )}
 
-      {/* SUB-TAB MASTER DATA SDM WILAYAH */}
+      {/* SUB-TAB MASTER DATA SDM */}
       {activeSubTab === 'master' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="bg-white p-6 rounded-2xl border border-t-4 border-t-slate-800 h-max">
@@ -427,7 +425,6 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
                 <input type="text" required value={formMaster.name} onChange={e=>setFormMaster({...formMaster, name: e.target.value})} className="w-full p-2 border rounded-lg text-sm uppercase" />
               </div>
               
-              {/* POINT 5: INPUT IDENTITAS TAMBAHAN (NOMOR HP & LINK FOTO) */}
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><Phone size={10}/> No. Whatsapp</label>
@@ -440,7 +437,7 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase">Gaji Pokok Bulanan (Master Data)</label>
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Gaji Pokok Bulanan (Master)</label>
                 <input type="text" required value={formatRupiahLokal(formMaster.baseSalary)} onChange={e=>setFormMaster({...formMaster, baseSalary: e.target.value.replace(/\D/g, '')})} className="w-full p-2 border rounded-lg font-bold text-sm" />
               </div>
               <div>
@@ -457,7 +454,6 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
             </form>
           </div>
 
-          {/* TABLE DATABASE DENGAN UPGRADE EDIT JABATAN, GAJI, STATUS, DAN TOMBOL PECAT */}
           <div className="lg:col-span-2 bg-white rounded-2xl border overflow-hidden">
             <div className="p-4 bg-slate-50 border-b font-bold text-xs uppercase text-slate-700">Database Staf Wilayah penempatan {activeProcessingBranch}</div>
             <div className="overflow-x-auto">
@@ -471,7 +467,6 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
                     return (
                       <tr key={k.id} className="hover:bg-slate-50 transition">
                         
-                        {/* COMLUMN FOTO & NAMA */}
                         <td className="px-4 py-3 flex items-center gap-3">
                           <img src={k.photo_url} alt="Karyawan" className="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0" onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
                           <div>
@@ -480,10 +475,8 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
                           </div>
                         </td>
 
-                        {/* COLUMN WHATSAPP */}
                         <td className="px-4 py-3 text-slate-600 font-mono">{k.phone}</td>
 
-                        {/* COLUMN JABATAN & GAJI (BISA EDIT INLINE) */}
                         <td className="px-4 py-3">
                           {isInlineEditing ? (
                             <div className="space-y-1">
@@ -500,7 +493,6 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
                           )}
                         </td>
 
-                        {/* COLUMN STATUS AKTIF/NON-AKTIF (BISA EDIT) */}
                         <td className="px-4 py-3 text-center">
                           {isInlineEditing ? (
                             <select value={editForm.status} onChange={e=>setEditForm({...editForm, status: e.target.value})} className="p-1 border text-[10px] rounded font-black">
@@ -512,18 +504,17 @@ export default function TabKaryawan({ karyawan, expenses, master_branches, sendT
                           )}
                         </td>
 
-                        {/* BUTTON ACTIONS MANAGEMENT */}
                         <td className="px-4 py-3 text-center">
                           <div className="flex items-center justify-center gap-1.5">
                             {isInlineEditing ? (
                               <>
-                                <button type="button" onClick={() => handleSaveInlineEdit(k.id)} className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700" title="Simpan Perubahan"><Check size={14}/></button>
+                                <button type="button" onClick={() => handleSaveInlineEdit(k.id)} className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700" title="Simpan"><Check size={14}/></button>
                                 <button type="button" onClick={() => setEditingEmployeeId(null)} className="p-1.5 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200" title="Batal"><X size={14}/></button>
                               </>
                             ) : (
                               <>
-                                <button type="button" onClick={() => startInlineEdit(k)} className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100" title="Edit Gaji & Jabatan"><Edit2 size={13}/></button>
-                                <button type="button" onClick={() => handlePecatKaryawan(k.id)} className="p-1.5 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100" title="Pecat / Hapus Karyawan"><Trash2 size={13}/></button>
+                                <button type="button" onClick={() => startInlineEdit(k)} className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100" title="Edit"><Edit2 size={13}/></button>
+                                <button type="button" onClick={() => handlePecatKaryawan(k.id)} className="p-1.5 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100" title="Hapus"><Trash2 size={13}/></button>
                               </>
                             )}
                           </div>
