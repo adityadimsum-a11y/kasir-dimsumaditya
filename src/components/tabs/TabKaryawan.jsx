@@ -2,7 +2,6 @@ import React, { useState, useMemo } from 'react';
 import { Users, Landmark, Banknote, UserPlus, Layers, TrendingDown, ShieldAlert, Trash2, Edit2, Check, X, Phone, Image, Eye, MapPin, Undo } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 
-// Helper Format Rupiah Lokal agar seragam
 const formatRupiah = (angka) => "Rp. " + Number(angka || 0).toLocaleString('id-ID');
 
 export default function TabKaryawan({ 
@@ -12,7 +11,6 @@ export default function TabKaryawan({
   const currentBranch = user?.branch_id || 'PUSAT';
   const isHQ = user?.branch_type === 'HQ_FACTORY' || currentBranch === 'PUSAT';
 
-  // State Navigasi Sub-Tab
   const [activeSubTab, setActiveSubTab] = useState(isHQ ? 'payroll' : 'kasbon');
   const [selectedBranchFilter, setSelectedBranchFilter] = useState('PUSAT');
   const activeProcessingBranch = isHQ ? selectedBranchFilter : currentBranch;
@@ -23,7 +21,6 @@ export default function TabKaryawan({
   const realMasterBranches = master_branches || masterBranches || [];
   const realCashflowTransactions = cashflow_transactions || cashflowTransactions || [];
 
-  // 1. PETAMAP NAMA CABANG DARI DB
   const petaNamaCabang = useMemo(() => {
     const mapping = { PUSAT: '🍊 TANGERANG PUSAT' };
     (realMasterBranches || []).forEach(b => {
@@ -36,7 +33,6 @@ export default function TabKaryawan({
 
   const daftarCabangId = useMemo(() => Object.keys(petaNamaCabang), [petaNamaCabang]);
 
-  // 2. ENGINE MASTER KARYAWAN & COMPILER KASBON (DENGAN SINKRONISASI FITUR POSITIONING)
   const globalEmployeeCompiled = useMemo(() => {
     const dataStaf = {};
     (karyawan || []).forEach(k => {
@@ -47,7 +43,6 @@ export default function TabKaryawan({
         phone: k.phone || '-',
         address: k.address || 'ALAMAT BELUM DIISI',
         photo_url: k.photo_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-        photo_position: k.photo_position || '50% 50%', // Koordinat simpan posisi wajah
         ktp_url: k.ktp_url || '',
         totalKasbon: 0, totalDibayar: 0, sisaHutang: 0
       };
@@ -68,7 +63,6 @@ export default function TabKaryawan({
     return Object.values(globalEmployeeCompiled).filter(k => k.branch_id === targetBId);
   }, [globalEmployeeCompiled, activeProcessingBranch]);
 
-  // 3. ENGINE RADAR FINANCIAL METRICS
   const metrikSDM = useMemo(() => {
     let kasbonCabang = 0; let gajiCabangBulanIni = 0; let kasbonGlobal = 0; let gajiGlobal = 0;
     const targetBId = String(activeProcessingBranch || 'PUSAT').trim().toUpperCase();
@@ -169,7 +163,7 @@ export default function TabKaryawan({
         <MasterSDMModule employees={employeesDiCabangAktif} branchListId={daftarCabangId} branchMapName={petaNamaCabang} activeBranch={activeProcessingBranch} isHQ={isHQ} sendToSheet={sendToSheet} showToast={showToast} onViewDetails={setSelectedEmployeeDetails} />
       )}
 
-      {/* POP-UP MODAL SLIDE VIEW ATAS (DENGAN REVISI PORTRAIT FULL VIEW) */}
+      {/* POP-UP MODAL PROFIL FULL VIEW */}
       {selectedEmployeeDetails && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[9999] flex justify-center items-start pt-12 md:pt-20 p-4 overflow-y-auto animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl shadow-2xl border max-w-2xl w-full overflow-hidden max-h-[85vh] flex flex-col mb-10">
@@ -179,7 +173,6 @@ export default function TabKaryawan({
             </div>
             <div className="p-6 overflow-y-auto space-y-6 flex-1">
               <div className="flex flex-col sm:flex-row gap-6 items-center sm:items-start border-b pb-5">
-                {/* 🔥 SULTAN VIEW: Di bagian detail popup, kita matikan krop bulatnya agar foto full aslinya kelihatan seutuhnya */}
                 <div className="w-40 h-52 rounded-2xl overflow-hidden border shadow-inner shrink-0 bg-slate-50 flex items-center justify-center">
                   <img src={selectedEmployeeDetails.photo_url} alt="Profil Asli Full" className="w-full h-full object-contain" onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
                 </div>
@@ -253,7 +246,6 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
           <button type="submit" className="w-full bg-red-600 text-white text-xs font-black py-3 rounded-xl uppercase tracking-wider">Record & Potong Gaji</button>
         </form>
       </div>
-      
       <div className="lg:col-span-2 bg-white rounded-2xl border overflow-hidden flex flex-col">
         <div className="p-4 bg-slate-50 border-b font-bold text-xs uppercase text-slate-700">Histori Gaji Jurnal Wilayah {activeBranch}</div>
         <table className="w-full text-sm text-left">
@@ -264,9 +256,8 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
               return (
                 <tr key={p.id} className="hover:bg-slate-50/50 transition">
                   <td className="px-4 py-3 text-slate-500">{formatDate(p.date)}</td>
-                  {/* 📸 SMART BULATAN ENGINE: Tetap bulat rapi menggunakan koordinat simpanan excel */}
                   <td onClick={() => emp && onViewDetails(emp)} className="px-4 py-3 flex items-center gap-2.5 cursor-pointer group">
-                    <img src={emp?.photo_url} alt="Profile" className="w-7 h-7 rounded-full object-cover border" style={{ objectPosition: emp?.photo_position || '50% 50%' }} onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
+                    <img src={emp?.photo_url} alt="Profile" className="w-7 h-7 rounded-full object-cover border" onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
                     <span className="uppercase group-hover:text-blue-600 transition-colors">{emp?.name || 'STAF'}</span>
                   </td>
                   <td className="px-4 py-3 text-right">{formatRupiah((p.base_salary||0)+(p.allowance||0))}</td>
@@ -305,7 +296,7 @@ function KasbonModule({ employees, expenses, globalCompiled, activeBranch, today
           <div>
             <select required value={form.employeeId} onChange={e=>setForm({...form, employeeId: e.target.value})} className="w-full p-2.5 border rounded-xl font-black text-sm uppercase outline-none"><option value="">-- Pilih Karyawan --</option>{employees.map(k => <option key={k.id} value={k.id}>{k.name} ({k.position})</option>)}</select>
           </div>
-          <div><input type="text" required value={formatRupiah(form.amount)} onChange={e=>setForm({...form, amount: e.target.value.replace(/\D/g, '')})} className="w-full p-2.5 bg-orange-50 border border-orange-200 text-orange-900 rounded-xl font-black text-sm" />{isOverlimit && <div className="mt-1.5 p-2 bg-red-600 text-white rounded-lg font-black text-[9px] uppercase">🚨 Overlimit! Pinjaman melebihi sisa gaji pokok!</div>}</div>
+          <div><input type="text" required value={formatRupiah(form.amount)} onChange={e=>setForm({...form, amount: e.target.value.replace(/\D/g, '')})} className="w-full p-2.5 bg-orange-50 border border-orange-200 text-orange-900 rounded-xl font-black text-sm" />{isOverlimit && <div className="mt-1.5 p-2 bg-red-600 text-white rounded-lg font-black text-[9px] uppercase">🚨 Overlimit! Total pinjaman melebihi sisa gaji pokok!</div>}</div>
           <div><input type="text" value={form.notes} onChange={e=>setForm({...form, notes: e.target.value})} className="w-full p-2.5 border rounded-xl text-xs" placeholder="Keperluan" /></div>
           <button type="submit" disabled={isOverlimit || !form.employeeId} className="w-full bg-orange-600 text-white font-black py-3 rounded-xl text-xs uppercase disabled:opacity-40">Simpan Jurnal Kasbon</button>
         </form>
@@ -321,7 +312,7 @@ function KasbonModule({ employees, expenses, globalCompiled, activeBranch, today
                 <tr key={log.id} className="hover:bg-slate-50/50 transition">
                   <td className="px-4 py-3"><div>{formatDate(log.date)}</div><div className="text-[9px] font-mono text-slate-400 font-bold mt-0.5">{log.id}</div></td>
                   <td onClick={() => emp && onViewDetails(emp)} className="px-4 py-3 flex items-center gap-2.5 cursor-pointer group">
-                    <img src={emp?.photo_url} alt="Profile" className="w-7 h-7 rounded-full object-cover border" style={{ objectPosition: emp?.photo_position || '50% 50%' }} onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
+                    <img src={emp?.photo_url} alt="Profile" className="w-7 h-7 rounded-full object-cover border" onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
                     <span className="uppercase group-hover:text-blue-600 transition-colors">{emp?.name || 'STAF'}</span>
                   </td>
                   <td className="px-4 py-3 text-slate-500 font-normal">{log.description}</td>
@@ -337,17 +328,13 @@ function KasbonModule({ employees, expenses, globalCompiled, activeBranch, today
 }
 
 // =========================================================================
-// 📇 SUB-COMPONENT 3: MASTER DATA SDM (WITH LIVE FACE POSITION SLIDER SLIDER)
+// 📇 SUB-COMPONENT 3: MASTER DATA SDM (REVISI ULTRA RINGAN & ANTI-TOLAK SERVER)
 // =========================================================================
 function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch, isHQ, sendToSheet, showToast, onViewDetails }) {
   const [form, setForm] = useState({ id: '', name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT', phone: '', address: '', photo_base64: '', ktp_base64: '' });
   const [isEditingMode, setIsEditingMode] = useState(false);
 
-  // 🎛️ STATE MANAJEMEN BARU: Penampung live geser koordinat wajah (X dan Y axis %)
-  const [faceX, setFaceX] = useState(50);
-  const [faceY, setFaceY] = useState(50);
-
-  // Engine kompresor gambar pintar (Skala proporsional utuh, file ciut ~30KB)
+  // 🔥 CORE ENGINE: AUTO COMPRESSOR ULTRA-POWERFUL (Paksa Gambar Mengecil Menjadi 30KB - 80KB)
   const prosesDanKompresGambarSultan = (file, keyName) => {
     if(!file) return;
     const reader = new FileReader();
@@ -357,19 +344,24 @@ function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch,
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         
-        const maxDim = 800; 
-        let width = img.width; let height = img.height;
-        if (width > height) { if (width > maxDim) { height *= maxDim / width; width = maxDim; } } 
-        else { if (height > maxDim) { width *= maxDim / height; height = maxDim; } }
+        // Batasi ukuran dimensi foto maksimal 600px saja agar file sangat ringan!
+        const maxDimension = 600; 
+        let width = img.width;
+        let height = img.height;
         
-        canvas.width = width; canvas.height = height;
+        if (width > height) {
+          if (width > maxDimension) { height *= maxDimension / width; width = maxDimension; }
+        } else {
+          if (height > maxDimension) { width *= maxDimension / height; height = maxDimension; }
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
         ctx.drawImage(img, 0, 0, width, height);
         
-        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+        // Ekspor paksa sebagai JPEG Kualitas Sedang (0.5) agar kompresi maksimal dan anti-ditolak Google!
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.5);
         setForm(prev => ({ ...prev, [keyName]: compressedBase64 }));
-
-        // Reset slider ke posisi tengah setiap ada upload file baru
-        if(keyName === 'photo_base64') { setFaceX(50); setFaceY(50); }
       };
       img.src = event.target.result;
     };
@@ -377,19 +369,7 @@ function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch,
   };
 
   const handleTriggerEditPencil = (k) => {
-    // Bedah string persentase database (misal "45% 20%") menjadi angka slider
-    let posX = 50; let posY = 50;
-    if (k.photo_position) {
-      const parts = k.photo_position.split(' ');
-      if (parts.length === 2) {
-        posX = parseInt(parts[0]) || 50;
-        posY = parseInt(parts[1]) || 50;
-      }
-    }
-
-    setForm({ id: k.id, name: k.name, position: k.position, baseSalary: String(k.baseSalary || 0), targetBranch: k.branch_id, phone: k.phone === '-' ? '' : k.phone, address: k.address === 'ALAMAT BELUM DIISI' ? '' : k.address, photo_base64: k.photo_url.startsWith('data:') ? k.photo_url : '', ktp_base64: '' });
-    setFaceX(posX);
-    setFaceY(posY);
+    setForm({ id: k.id, name: k.name, position: k.position, baseSalary: String(k.baseSalary || 0), targetBranch: k.branch_id, phone: k.phone === '-' ? '' : k.phone, address: k.address === 'ALAMAT BELUM DIISI' ? '' : k.address, photo_base64: '', ktp_base64: '' });
     setIsEditingMode(true);
     if (showToast) showToast(`Data ${k.name} siap dilengkapi di form kiri!`, 'success');
   };
@@ -399,27 +379,20 @@ function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch,
       <div className={`p-6 rounded-2xl border border-t-4 transition-colors duration-300 h-max ${isEditingMode ? 'bg-amber-50/50 border-t-amber-500 border-amber-200' : 'bg-white border-t-slate-800'}`}>
         <form onSubmit={async (e) => {
           e.preventDefault(); if (!form.name) return; const penempatan = isHQ ? form.targetBranch : activeBranch;
+          const payload = { name: form.name.toUpperCase(), position: form.position, baseSalary: Number(form.baseSalary || 0), branch_id: penempatan, status: 'AKTIF', phone: form.phone || '-', address: form.address || 'ALAMAT BELUM DIISI' };
           
-          // Satukan koordinat slider menjadi string baku CSS (Contoh: "52% 35%")
-          const gabunganKoordinatWajah = `${faceX}% ${faceY}%`;
-
-          const payload = { 
-            name: form.name.toUpperCase(), position: form.position, baseSalary: Number(form.baseSalary || 0), branch_id: penempatan, status: 'AKTIF', phone: form.phone || '-', address: form.address || 'ALAMAT BELUM DIISI',
-            photo_position: gabunganKoordinatWajah // Disimpan aman ke Google Sheets!
-          };
-
           if (form.photo_base64) payload.photo_base64 = form.photo_base64;
           if (form.ktp_base64) payload.ktp_base64 = form.ktp_base64;
           
           let success = false;
           if (isEditingMode && form.id) { payload.id = form.id; success = await sendToSheet('update', payload, 'karyawan'); } 
           else { payload.id = generateId('EMP', new Date()); success = await sendToSheet('insert', payload, 'karyawan'); }
-          if (success) { setForm({ id: '', name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT', phone: '', address: '', photo_base64: '', ktp_base64: '' }); setIsEditingMode(false); setFaceX(50); setFaceY(50); }
+          if (success) { setForm({ id: '', name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT', phone: '', address: '', photo_base64: '', ktp_base64: '' }); setIsEditingMode(false); }
         }} className="space-y-3">
           <div className="flex items-center justify-between border-b pb-2">
             <h3 className="font-black text-sm uppercase text-slate-800">{isEditingMode ? `🔄 Update Staf: ${form.name}` : 'Registrasi Identitas Staf'}</h3>
             {isEditingMode && (
-              <button type="button" onClick={() => { setIsEditingMode(false); setForm({ id: '', name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT', phone: '', address: '', photo_base64: '', ktp_base64: '' }); setFaceX(50); setFaceY(50); }} className="text-[10px] font-black uppercase text-slate-500 border px-2 py-0.5 rounded flex items-center gap-1 bg-white"><Undo size={10}/> Batal</button>
+              <button type="button" onClick={() => { setIsEditingMode(false); setForm({ id: '', name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT', phone: '', address: '', photo_base64: '', ktp_base64: '' }); }} className="text-[10px] font-black uppercase text-slate-500 border px-2 py-0.5 rounded flex items-center gap-1 bg-white"><Undo size={10}/> Batal</button>
             )}
           </div>
           {isHQ && (
@@ -428,44 +401,31 @@ function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch,
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">Nama Lengkap</label><input type="text" required readOnly={isEditingMode} value={form.name} onChange={e=>setForm({...form, name: e.target.value})} className={`w-full p-2 border rounded-lg text-sm uppercase outline-none ${isEditingMode ? 'bg-slate-100 font-black text-slate-500 cursor-not-allowed' : ''}`} /></div>
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">No. WhatsApp</label><input type="text" required placeholder="Contoh: 081234567" value={form.phone} onChange={e=>setForm({...form, phone: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold" /></div>
           
-          {/* INPUT PAS FOTO DENGAN EMULASI FITUR SLIDER MANUAL CROPPING BY CSS */}
+          {/* INPUT PAS FOTO ULTRA RINGAN TANPA LIVE SLIDER */}
           <div>
             <label className="text-[10px] font-black text-slate-500 uppercase block mb-1">Upload Pas Foto Profil Baru</label>
             <input type="file" accept="image/*" onChange={e => prosesDanKompresGambarSultan(e.target.files[0], 'photo_base64')} className="w-full text-xs font-bold text-slate-500 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-black file:bg-slate-900 file:text-white cursor-pointer" />
-            
-            {/* 🛠️ BARU: PANEL SMART FACE ALIGNMENT SLIDERS */}
-            {(form.photo_base64 || (isEditingMode && form.id)) && (
-              <div className="mt-3 p-3 bg-slate-900 rounded-xl space-y-3 border shadow-md text-white">
-                <div className="flex items-center justify-between text-[9px] font-black text-amber-400 uppercase tracking-wider">
-                  <span>🎛️ Live Manual Face Adjuster Panel</span>
-                  <span>({faceX}% , {faceY}%)</span>
-                </div>
-                
-                {/* Live Circle Preview Ter-SINKRONISASI SLIDER */}
-                <div className="flex justify-center py-1">
-                  <div className="w-20 h-20 rounded-full border-2 border-amber-400 overflow-hidden bg-slate-800">
-                    <img src={form.photo_base64 || employees.find(x=>x.id===form.id)?.photo_url} alt="Live Align" className="w-full h-full object-cover transition-none" style={{ objectPosition: `${faceX}% ${faceY}%` }} />
-                  </div>
-                </div>
-
-                {/* Slider Tuas 1: Geser Vertikal Y (Paling penting buat foto portrait) */}
-                <div className="space-y-1">
-                  <div className="flex justify-between text-[8px] font-bold text-slate-400 uppercase"><span>↕️ Geser Atas / Bawah</span></div>
-                  <input type="range" min="0" max="100" value={faceY} onChange={e => setFaceY(Number(e.target.value))} className="w-full accent-amber-400 bg-slate-800 cursor-pointer h-1 rounded" />
-                </div>
-
-                {/* Slider Tuas 2: Geser Horisontal X */}
-                <div className="space-y-1">
-                  <div className="flex justify-between text-[8px] font-bold text-slate-400 uppercase"><span>↔️ Geser Kiri / Kanan</span></div>
-                  <input type="range" min="0" max="100" value={faceX} onChange={e => setFaceX(Number(e.target.value))} className="w-full accent-amber-400 bg-slate-800 cursor-pointer h-1 rounded" />
-                </div>
+            {form.photo_base64 && (
+              <div className="mt-2 flex items-center gap-2 bg-emerald-50 border border-emerald-200 p-2 rounded-xl">
+                <img src={form.photo_base64} alt="Preview Mini" className="w-10 h-10 rounded-full object-cover border" />
+                <span className="text-[9px] font-black text-emerald-700 uppercase">✨ Foto Siap! Ukuran File Sudah Dikompres Otomatis</span>
               </div>
             )}
           </div>
 
-          <div><label className="text-[10px] font-black text-orange-600 uppercase block mb-1">Upload Foto KTP</label><input type="file" accept="image/*" onChange={e => prosesDanKompresGambarSultan(e.target.files[0], 'ktp_base64')} className="w-full text-xs font-bold text-slate-500 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-orange-600 file:text-white" /></div>
+          {/* INPUT FILE FOTO KTP COMPRESSED */}
+          <div>
+            <label className="text-[10px] font-black text-orange-600 uppercase block mb-1">Upload Berkas Foto KTP</label>
+            <input type="file" accept="image/*" onChange={e => prosesDanKompresGambarSultan(e.target.files[0], 'ktp_base64')} className="w-full text-xs font-bold text-slate-500 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-orange-600 file:text-white cursor-pointer" />
+            {form.ktp_base64 && (
+              <div className="mt-2 bg-orange-50 border border-orange-200 p-2 rounded-xl text-center">
+                <span className="text-[9px] font-black text-orange-700 uppercase">✅ Berkas KTP Berhasil Di-Kompres</span>
+              </div>
+            )}
+          </div>
+
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">Gaji Pokok</label><input type="text" required value={formatRupiah(form.baseSalary)} onChange={e=>setForm({...form, baseSalary: e.target.value.replace(/\D/g, '')})} className="w-full p-2 border rounded-lg font-bold text-sm" /></div>
-          <div><label className="text-[10px] font-bold text-slate-500 uppercase">Alamat Rumah KTP</label><textarea required rows="2" value={form.address} onChange={e=>setForm({...form, address: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold uppercase none outline-none" placeholder="Isi nama jalan..."></textarea></div>
+          <div><label className="text-[10px] font-bold text-slate-500 uppercase">Alamat Rumah KTP</label><textarea required rows="2" value={form.address} onChange={e=>setForm({...form, address: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold uppercase outline-none" placeholder="Isi nama jalan..."></textarea></div>
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">Posisi Kerja</label><select value={form.position} onChange={e=>setForm({...form, position: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold uppercase"><option value="KASIR">KASIR / RESTO FRONT</option><option value="DAPUR_RESTO">COOK / DAPUR RESTO</option><option value="WAITRESS">PRAMUSAJI / WAITRESS</option><option value="PRODUKSI_PABREK">STAFF PRODUKSI ADUKAN</option><option value="DRIVER">DRIVING LOGISTIK</option></select></div>
           <button type="submit" className={`w-full text-white font-black py-3 rounded-xl text-xs uppercase shadow transition-all ${isEditingMode ? 'bg-amber-500 hover:bg-amber-600' : 'bg-slate-800 hover:bg-slate-900'}`}>{isEditingMode ? '💾 Terapkan & Timpa Data' : 'Simpan Data Staf'}</button>
         </form>
@@ -479,8 +439,7 @@ function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch,
             {employees.map(k => (
               <tr key={k.id} className="hover:bg-slate-50/50 transition">
                 <td onClick={() => onViewDetails(k)} className="px-4 py-3 flex items-center gap-3 cursor-pointer group">
-                  {/* 📸 INTEGRASI UNIVERSAL: Database gambar mematuhi koordinat simpanan slider */}
-                  <img src={k.photo_url} alt="Ava" className="w-10 h-10 rounded-full object-cover border shrink-0 group-hover:scale-110 transition-transform" style={{ objectPosition: k.photo_position || '50% 50%' }} onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
+                  <img src={k.photo_url} alt="Ava" className="w-10 h-10 rounded-full object-cover border shrink-0 group-hover:scale-110 transition-transform" onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
                   <div>
                     <div className="font-black text-slate-800 uppercase group-hover:text-blue-600 transition-colors flex items-center gap-1">{k.name} <Eye size={12} className="text-slate-400 inline"/></div>
                     <div className="text-[9px] font-mono text-slate-400">WA: {k.phone}</div>
