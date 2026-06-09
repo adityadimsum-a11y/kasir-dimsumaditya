@@ -248,8 +248,8 @@ export default function App() {
     }
   };
 
-  // =====================================
-  // UI 1: GERBANG LOGIN (UPDATED)
+// =====================================
+  // UI 1: GERBANG LOGIN (UPDATED WITH FOOTER)
   // =====================================
   if (!user) {
     return (
@@ -260,25 +260,17 @@ export default function App() {
         <div className="absolute top-[20%] right-[-10%] w-[25rem] md:w-[35rem] h-[25rem] md:h-[35rem] bg-orange-400 rounded-full mix-blend-multiply filter blur-[100px] opacity-40 animate-pulse" style={{ animationDelay: '2s' }}></div>
         <div className="absolute bottom-[-20%] left-[20%] w-[35rem] md:w-[45rem] h-[35rem] md:h-[45rem] bg-yellow-400 rounded-full mix-blend-multiply filter blur-[100px] opacity-30 animate-pulse" style={{ animationDelay: '4s' }}></div>
 
-        <div className="bg-white/90 backdrop-blur-xl p-8 rounded-3xl shadow-2xl max-w-sm w-full relative z-10 border border-white/50">
+        <div className="bg-white/90 backdrop-blur-xl p-8 rounded-3xl shadow-2xl max-w-sm w-full relative z-10 border border-white/50 mb-10">
           
-          <div className="text-center mb-8">
+          <div className="text-center mb-6">
             {/* LOGO BARU */}
-            <div className="flex justify-center mb-4">
+            <div className="flex justify-center">
               <img 
                 src="https://dimsumaditya.id/wp-content/uploads/2026/06/Dimsum-Aditya-New-Logo-scaled.webp" 
                 alt="Logo Dimsum Aditya" 
-                className="h-24 w-auto object-contain drop-shadow-sm hover:scale-105 transition-transform duration-300"
+                className="h-28 w-auto object-contain drop-shadow-sm hover:scale-105 transition-transform duration-300"
               />
             </div>
-            
-            {/* ANCHOR LINK & TAGLINE */}
-            <a href="https://dimsumaditya.id/" target="_blank" rel="noopener noreferrer" className="text-2xl font-black text-slate-800 uppercase tracking-wide hover:text-red-600 transition-colors block">
-              Dimsum Aditya
-            </a>
-            <p className="text-[10px] font-bold text-red-500 uppercase tracking-widest mt-1">
-              Supplier Dimsum Ayam Tangerang.
-            </p>
           </div>
 
           {loginError && (
@@ -301,6 +293,17 @@ export default function App() {
             </button>
           </form>
         </div>
+
+        {/* FOOTER ANCHOR TEXT */}
+        <div className="absolute bottom-6 w-full text-center z-10 flex flex-col items-center justify-center">
+            <a href="https://dimsumaditya.id/" target="_blank" rel="noopener noreferrer" className="text-sm font-black text-slate-700 hover:text-red-600 uppercase tracking-widest transition-colors block">
+              Dimsum Aditya
+            </a>
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
+              Supplier Dimsum Ayam Tangerang.
+            </p>
+        </div>
+
       </div>
     );
   }
