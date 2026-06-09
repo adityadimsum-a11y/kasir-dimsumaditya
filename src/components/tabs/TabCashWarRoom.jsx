@@ -26,13 +26,12 @@ export default function TabCashWarRoom({
   sendToSheet, showToast, user 
 }) {
   const todayStr = getTodayStr();
-  const currentBranch = user?.branch_id || 'PUSAT';
-  const isHQ = user?.branch_type === 'HQ_FACTORY' || currentBranch === 'PUSAT';
+  const isHQ = user?.branch_type === 'HQ_FACTORY' || user?.branch_id === 'PUSAT' || !user?.branch_id;
 
   const realCashflow = cashflow_transactions || cashflowTransactions || [];
   const realMasterBranches = master_branches || masterBranches || [];
 
-  const [activeBranchFilter, setActiveBranchFilter] = useState(isHQ ? 'SEMUA_CABANG' : currentBranch);
+  const [activeBranchFilter, setActiveBranchFilter] = useState(isHQ ? 'SEMUA_CABANG' : (user?.branch_id || 'TANGERANG_PUSAT'));
   const [optimisticDeletedIds, setOptimisticDeletedIds] = useState(new Set());
   const [isEditing, setIsEditing] = useState(false);
 
@@ -116,15 +115,26 @@ export default function TabCashWarRoom({
 
   const handleDelete = async (id) => {
     if(window.confirm("AWAS! Menghapus data ini akan merubah Total Saldo. Yakin ingin membatalkan?")) {
-      setOptimisticDeletedIds(prev => new Set(prev).add(id));
+      setOptimisticDeletedIds(prev => {
+        const nextSet = new Set(prev);
+        nextSet.add(id);
+        return nextSet;
+      });
       const success = await sendToSheet('delete', { id }, 'cashflow_transactions');
-      if(success) { if(showToast) showToast('Transaksi Kas divoid.', 'success'); } 
-      else { setOptimisticDeletedIds(prev => { const n = new Set(prev); n.delete(id); return n; }); }
+      if(success) { 
+        if(showToast) showToast('Transaksi Kas divoid.', 'success'); 
+      } else { 
+        setOptimisticDeletedIds(prev => { 
+          const n = new Set(prev); 
+          n.delete(id); 
+          return n; 
+        }); 
+      }
     }
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in pb-10">
+    <div className="space-y-6 pb-10">
       
       {/* RADAR KEUANGAN & SALDO */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -198,7 +208,7 @@ export default function TabCashWarRoom({
           </form>
         </div>
         
-        {/* 📚 TABEL ARSIP BUKU KAS (CONSOLIDATION) */}
+        {/* Buku Arus Kas Tabel */}
         <div className="lg:col-span-2 bg-white rounded-2xl border flex flex-col overflow-hidden shadow-sm">
           <div className="p-4 bg-slate-50 border-b flex items-center justify-between">
             <h4 className="font-black text-xs uppercase text-slate-700 tracking-widest flex items-center gap-2">Buku Jurnal Arus Kas</h4>
