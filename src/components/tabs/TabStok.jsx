@@ -6,9 +6,6 @@ import { triggerPrint } from '../../utils/PrintUtility';
 const formatRupiah = (angka) => "Rp. " + Number(angka || 0).toLocaleString('id-ID');
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
-// =========================================================================
-// 🧠 OTAK SISTEM: MASTER KONVERSI BOM (BILL OF MATERIALS) DIMSUM ADITYA
-// =========================================================================
 const BOM = {
   KG_AYAM_PER_ADUKAN: 30,
   KANTONG_AYAM_PER_ADUKAN: 3,
@@ -32,14 +29,19 @@ export default function TabStok({
   const [isEditing, setIsEditing] = useState(false);
 
   const [form, setForm] = useState({
-    id: '', date: todayStr, branchId: currentBranch, picId: '', adukan: '1', notes: ''
+    id: '', date: todayStr, branchId: 'TANGERANG_PUSAT', picId: '', adukan: '1', notes: ''
   });
 
   const realProductionBatches = production_batches || productionBatches || [];
   const realMasterBranches = master_branches || masterBranches || [];
   
+  // FITUR AUTO-INJECT PUSAT (Kebal Google Sheet)
   const daftarCabangId = useMemo(() => {
-    return realMasterBranches.filter(b => b && !b.isDeleted && b.branch_id).map(b => b.branch_id);
+    const list = realMasterBranches.filter(b => b && !b.isDeleted && b.branch_id).map(b => b.branch_id);
+    if (!list.includes('TANGERANG_PUSAT')) {
+      list.unshift('TANGERANG_PUSAT');
+    }
+    return list;
   }, [realMasterBranches]);
 
   const activeEmployees = useMemo(() => {
@@ -97,15 +99,9 @@ export default function TabStok({
 
     const batchId = isEditing ? form.id : generateId('PRD', form.date);
     const payload = {
-      id: batchId,
-      date: form.date,
-      branch_id: form.branchId,
-      pic_id: form.picId,
-      total_adukan: Number(form.adukan),
-      total_ayam_kg: kalkulasiOtomatis.ayamKg,
-      total_yield_pcs: kalkulasiOtomatis.hasilPcs,
-      hpp_estimate: kalkulasiOtomatis.hppTotal,
-      notes: form.notes.toUpperCase()
+      id: batchId, date: form.date, branch_id: form.branchId, pic_id: form.picId,
+      total_adukan: Number(form.adukan), total_ayam_kg: kalkulasiOtomatis.ayamKg,
+      total_yield_pcs: kalkulasiOtomatis.hasilPcs, hpp_estimate: kalkulasiOtomatis.hppTotal, notes: form.notes.toUpperCase()
     };
 
     let success = false;
@@ -114,14 +110,14 @@ export default function TabStok({
 
     if (success) {
       if (showToast) showToast(isEditing ? 'Data produksi diupdate!' : 'Produksi berhasil dicatat!', 'success');
-      setForm({ id: '', date: todayStr, branchId: currentBranch, picId: '', adukan: '1', notes: '' });
+      setForm({ id: '', date: todayStr, branchId: 'TANGERANG_PUSAT', picId: '', adukan: '1', notes: '' });
       setIsEditing(false);
     }
   };
 
   const handleEdit = (log) => {
     setForm({
-      id: log.id, date: log.date.split('T')[0], branchId: log.branch_id || currentBranch,
+      id: log.id, date: log.date.split('T')[0], branchId: log.branch_id || 'TANGERANG_PUSAT',
       picId: log.pic_id || '', adukan: String(log.total_adukan || 0), notes: log.notes || ''
     });
     setIsEditing(true);
@@ -129,7 +125,7 @@ export default function TabStok({
   };
 
   const handleDelete = async (id) => {
-    if(window.confirm("AWAS! Membatalkan (Void) data produksi ini akan merusak laporan stok gudang. Yakin ingin menghapus?")) {
+    if(window.confirm("AWAS! Membatalkan data produksi ini akan merusak laporan stok gudang. Yakin ingin menghapus?")) {
       setOptimisticDeletedIds(prev => new Set(prev).add(id));
       const success = await sendToSheet('delete', { id }, 'production_batches');
       if(success) { if(showToast) showToast('Data produksi divoid.', 'success'); } 
@@ -139,7 +135,6 @@ export default function TabStok({
 
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
-      
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white p-5 rounded-2xl border shadow-sm border-l-4 border-l-emerald-500 relative overflow-hidden">
           <Activity className="absolute -right-4 -bottom-4 text-emerald-50 opacity-50" size={100} />
@@ -165,7 +160,6 @@ export default function TabStok({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
         <div className={`p-6 rounded-2xl border border-t-4 transition-all h-max shadow-sm ${isEditing ? 'bg-amber-50/50 border-t-amber-500 border-amber-200' : 'bg-white border-t-emerald-600'}`}>
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
@@ -173,13 +167,13 @@ export default function TabStok({
                 <Factory size={16} className={isEditing ? "text-amber-600" : "text-emerald-600"}/> 
                 {isEditing ? 'Revisi Laporan Produksi' : 'Laporan Produksi Baru'}
               </h3>
-              {isEditing && <button type="button" onClick={() => { setIsEditing(false); setForm({ id: '', date: todayStr, branchId: currentBranch, picId: '', adukan: '1', notes: '' }); }} className="text-[10px] border px-2 py-0.5 rounded font-black uppercase text-slate-500 bg-white shadow-sm flex items-center gap-1"><Undo size={10}/> Batal</button>}
+              {isEditing && <button type="button" onClick={() => { setIsEditing(false); setForm({ id: '', date: todayStr, branchId: 'TANGERANG_PUSAT', picId: '', adukan: '1', notes: '' }); }} className="text-[10px] border px-2 py-0.5 rounded font-black uppercase text-slate-500 bg-white shadow-sm flex items-center gap-1"><Undo size={10}/> Batal</button>}
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Tanggal Produksi</label><input type="date" required value={form.date} onChange={e=>setForm({...form, date: e.target.value})} className="w-full p-2.5 mt-1 border rounded-xl text-xs font-bold outline-none bg-slate-50 focus:bg-white focus:border-emerald-400 transition-colors" /></div>
+              <div><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Tanggal Produksi</label><input type="date" required value={form.date} onChange={e=>setForm({...form, date: e.target.value})} className="w-full p-2.5 mt-1 border rounded-xl text-xs font-bold outline-none bg-slate-50" /></div>
               {isHQ && (
-                <div><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Lokasi Pabrik</label><select disabled={isEditing} value={form.branchId} onChange={e=>setForm({...form, branchId: e.target.value})} className="w-full p-2.5 mt-1 border rounded-xl text-xs font-black uppercase outline-none bg-slate-50 focus:bg-white focus:border-emerald-400 transition-colors cursor-pointer">
+                <div><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Lokasi Pabrik</label><select disabled={isEditing} value={form.branchId} onChange={e=>setForm({...form, branchId: e.target.value})} className="w-full p-2.5 mt-1 border rounded-xl text-xs font-black uppercase outline-none bg-slate-50 cursor-pointer">
                   {daftarCabangId.map(b => <option key={b} value={b}>{b}</option>)}
                 </select></div>
               )}
@@ -187,7 +181,7 @@ export default function TabStok({
 
             <div>
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Kepala Produksi (PIC)</label>
-              <select required value={form.picId} onChange={e=>setForm({...form, picId: e.target.value})} className="w-full p-3 mt-1 border border-slate-300 rounded-xl font-black text-sm uppercase outline-none bg-white shadow-sm focus:border-emerald-500 transition-colors cursor-pointer">
+              <select required value={form.picId} onChange={e=>setForm({...form, picId: e.target.value})} className="w-full p-3 mt-1 border border-slate-300 rounded-xl font-black text-sm uppercase outline-none bg-white cursor-pointer">
                 <option value="">-- Pilih PIC Bertugas --</option>
                 {activeEmployees.map(k => <option key={k.id} value={k.id}>{k.name} ({k.position})</option>)}
               </select>
@@ -196,9 +190,9 @@ export default function TabStok({
             <div className="p-4 bg-emerald-50/50 border border-emerald-200 rounded-2xl">
               <label className="text-xs font-black text-emerald-800 uppercase flex items-center justify-between mb-2">
                 <div className="flex items-center gap-1.5"><Plus size={14}/> Total Adukan Selesai</div>
-                <div className="text-[10px] bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded-lg shadow-sm">BATCH</div>
+                <div className="text-[10px] bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded-lg">BATCH</div>
               </label>
-              <input type="number" min="1" step="0.5" required value={form.adukan} onChange={e=>setForm({...form, adukan: e.target.value})} className="w-full p-3 border-2 border-emerald-300 bg-white rounded-xl font-black text-2xl text-center text-emerald-700 outline-none focus:border-emerald-500 focus:shadow-[0_0_15px_rgba(16,185,129,0.2)] transition-all" />
+              <input type="number" min="1" step="0.5" required value={form.adukan} onChange={e=>setForm({...form, adukan: e.target.value})} className="w-full p-3 border-2 border-emerald-300 bg-white rounded-xl font-black text-2xl text-center text-emerald-700 outline-none" />
               
               <div className="mt-4 pt-3 border-t border-emerald-200/60 grid grid-cols-2 gap-x-2 gap-y-3">
                 <div>
@@ -217,9 +211,9 @@ export default function TabStok({
               </div>
             </div>
 
-            <div><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Keterangan / Shift (Opsional)</label><input type="text" value={form.notes} onChange={e=>setForm({...form, notes: e.target.value})} placeholder="Shift Siang / Cuaca Aman..." className="w-full p-2.5 mt-1 border rounded-xl text-xs uppercase outline-none bg-slate-50 focus:bg-white focus:border-emerald-400 transition-colors" /></div>
+            <div><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Keterangan / Shift (Opsional)</label><input type="text" value={form.notes} onChange={e=>setForm({...form, notes: e.target.value})} placeholder="Shift Siang..." className="w-full p-2.5 mt-1 border rounded-xl text-xs uppercase outline-none bg-slate-50" /></div>
             
-            <button type="submit" className={`w-full text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest shadow-lg transition-all ${isEditing ? 'bg-amber-500 hover:bg-amber-600 hover:shadow-amber-500/30' : 'bg-emerald-600 hover:bg-emerald-700 hover:shadow-emerald-600/30'}`}>{isEditing ? '💾 Update Laporan Yield' : 'Simpan & Kunci Stok Produksi'}</button>
+            <button type="submit" className={`w-full text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest shadow-lg transition-all ${isEditing ? 'bg-amber-500 hover:bg-amber-600' : 'bg-emerald-600 hover:bg-emerald-700'}`}>{isEditing ? '💾 Update Laporan Yield' : 'Simpan & Kunci Stok Produksi'}</button>
           </form>
         </div>
         
@@ -256,11 +250,9 @@ export default function TabStok({
                       </td>
                       <td className="px-4 py-3 text-right bg-rose-50/30 whitespace-nowrap">
                         <div className="text-rose-600 font-black flex items-center justify-end gap-1"><ArrowDown size={10}/> -{formatNumber(log.total_ayam_kg)} Kg</div>
-                        <div className="text-[9px] text-slate-500 font-bold mt-0.5">({formatNumber(Number(log.total_ayam_kg || 0)/10)} Ktg)</div>
                       </td>
                       <td className="px-4 py-3 text-right bg-blue-50/30 whitespace-nowrap">
                         <div className="text-blue-600 font-black flex items-center justify-end gap-1"><Package size={10}/> +{formatNumber(log.total_yield_pcs)} Pcs</div>
-                        <div className="text-[9px] text-slate-500 font-bold mt-0.5">({formatNumber(Number(log.total_yield_pcs || 0)/50)} Mika)</div>
                       </td>
                       <td className="px-4 py-3 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1.5">
@@ -269,17 +261,16 @@ export default function TabStok({
                               title: 'BUKTI YIELD PRODUKSI PABRIK', id: log.id, date: formatDate(log.date), periode: '-',
                               branch_name: log.branch_id, admin_name: user?.name || 'SISTEM', customer_name: emp?.name || 'TIM PRODUKSI', position: 'HEAD BATCH',
                               items: [
-                                { name: `Pemotongan Stok Bahan Baku Ayam (${formatNumber(Number(log.total_ayam_kg)/10)} Kantong)`, qty: 1, subtotal: log.total_ayam_kg, suffix: ' Kg' },
-                                { name: `Penambahan Stok Dimsum Frozen (${formatNumber(Number(log.total_yield_pcs)/50)} Mika)`, qty: 1, subtotal: log.total_yield_pcs, suffix: ' Pcs' }
+                                { name: `Pemotongan Stok Bahan Baku Ayam`, qty: 1, subtotal: log.total_ayam_kg, suffix: ' Kg' },
+                                { name: `Penambahan Stok Dimsum Frozen`, qty: 1, subtotal: log.total_yield_pcs, suffix: ' Pcs' }
                               ],
                               amount: log.hpp_estimate, paymentMethod: 'TERCAPAI', footerCustom: `TOTAL ADUKAN BATCH: ${log.total_adukan} ADUKAN`
                             });
-                          }} className="p-1.5 text-white bg-slate-800 hover:bg-slate-900 shadow rounded-lg transition-transform hover:scale-105" title="Cetak Surat Jalan Produksi"><Printer size={12}/></button>
-                          
+                          }} className="p-1.5 text-white bg-slate-800 hover:bg-slate-900 shadow rounded-lg" title="Cetak Surat Jalan"><Printer size={12}/></button>
                           {isHQ && (
                             <>
-                              <button type="button" onClick={() => handleEdit(log)} className="p-1.5 bg-amber-50 text-amber-600 hover:bg-amber-100 rounded-lg transition-transform hover:scale-105" title="Revisi Laporan"><Edit2 size={12}/></button>
-                              <button type="button" onClick={() => handleDelete(log.id)} className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg transition-transform hover:scale-105" title="Void Laporan (Batalkan)"><Trash2 size={12}/></button>
+                              <button type="button" onClick={() => handleEdit(log)} className="p-1.5 bg-amber-50 text-amber-600 hover:bg-amber-100 rounded-lg"><Edit2 size={12}/></button>
+                              <button type="button" onClick={() => handleDelete(log.id)} className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg"><Trash2 size={12}/></button>
                             </>
                           )}
                         </div>
@@ -287,14 +278,10 @@ export default function TabStok({
                     </tr>
                   );
                 })}
-                {historyProduksi.length === 0 && (
-                  <tr><td colSpan="6" className="px-4 py-12 text-center text-slate-400 font-black uppercase tracking-widest bg-slate-50/50"><AlertTriangle size={24} className="mx-auto mb-2 opacity-50"/>Belum Ada Laporan Produksi Terarsip</td></tr>
-                )}
               </tbody>
             </table>
           </div>
         </div>
-
       </div>
     </div>
   );
