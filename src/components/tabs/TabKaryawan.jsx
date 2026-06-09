@@ -1,11 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { Users, Landmark, Banknote, UserPlus, Layers, TrendingDown, ShieldAlert, Trash2, Edit2, Check, X, Phone, Image, Eye, MapPin, Undo, Link, Printer } from 'lucide-react';
+import { Users, Landmark, Banknote, UserPlus, Layers, TrendingDown, ShieldAlert, Trash2, Edit2, Check, X, Phone, Image, Eye, MapPin, Undo, Link, Printer, CalendarDays, History } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
 
 const formatRupiah = (angka) => "Rp. " + Number(angka || 0).toLocaleString('id-ID');
 
-// 🔥 BYPASS GOOGLE DRIVE 2024: Menggunakan Thumbnail Endpoint agar tidak diblokir Cookies!
 const parseDriveLink = (url) => {
   if (!url) return '';
   if (url.includes('drive.google.com/file/d/')) {
@@ -59,17 +58,29 @@ export default function TabKaryawan({
         ktp_url: parseDriveLink(k.ktp_url) || '',
         raw_photo_link: k.photo_url || '',
         raw_ktp_link: k.ktp_url || '',
-        totalKasbon: 0, totalDibayar: 0, sisaHutang: 0
+        totalKasbon: 0, totalDibayar: 0, sisaHutang: 0,
+        kasbon_list: [], payroll_list: [] // 🔥 REKAM JEJAK HISTORI
       };
     });
 
     (expenses || []).forEach(e => {
       if (!e || e.isDeleted || !e.employee_id || !dataStaf[e.employee_id]) return;
-      if (e.category === 'KASBON') dataStaf[e.employee_id].totalKasbon += Number(e.amount || 0);
-      if (e.category === 'PAYROLL') dataStaf[e.employee_id].totalDibayar += Number(e.kasbon_deduction || 0);
+      if (e.category === 'KASBON') {
+        dataStaf[e.employee_id].totalKasbon += Number(e.amount || 0);
+        dataStaf[e.employee_id].kasbon_list.push(e); // Simpan riwayat
+      }
+      if (e.category === 'PAYROLL') {
+        dataStaf[e.employee_id].totalDibayar += Number(e.kasbon_deduction || 0);
+        dataStaf[e.employee_id].payroll_list.push(e); // Simpan riwayat
+      }
     });
 
-    Object.values(dataStaf).forEach(b => { b.sisaHutang = Math.max(0, b.totalKasbon - b.totalDibayar); });
+    // Urutkan histori agar yang terbaru di atas
+    Object.values(dataStaf).forEach(b => { 
+      b.sisaHutang = Math.max(0, b.totalKasbon - b.totalDibayar); 
+      b.kasbon_list.sort((x, y) => new Date(y.date) - new Date(x.date));
+      b.payroll_list.sort((x, y) => new Date(y.date) - new Date(x.date));
+    });
     return dataStaf;
   }, [karyawan, expenses]);
 
@@ -127,11 +138,11 @@ export default function TabKaryawan({
       {/* BOARDS METRICS */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white p-5 rounded-2xl border shadow-sm border-l-4 border-l-orange-500">
-          <div className="text-[10px] font-black text-slate-400 uppercase">Kasbon Aktif Wilayah ({activeProcessingBranch})</div>
+          <div className="text-[10px] font-black text-slate-400 uppercase">Kasbon & Kredit Wilayah</div>
           <div className="text-xl font-black text-orange-600 mt-1">{formatRupiah(metrikSDM.kasbonCabang)}</div>
         </div>
         <div className="bg-white p-5 rounded-2xl border shadow-sm border-l-4 border-l-red-500">
-          <div className="text-[10px] font-black text-slate-400 uppercase">Gaji Terbayar ({activeProcessingBranch}) Bulan Ini</div>
+          <div className="text-[10px] font-black text-slate-400 uppercase">Gaji Terbayar ({activeProcessingBranch})</div>
           <div className="text-xl font-black text-red-600 mt-1">{formatRupiah(metrikSDM.gajiCabangBulanIni)}</div>
         </div>
         <div className="bg-slate-900 p-5 rounded-2xl shadow-md border border-slate-800 md:col-span-2 grid grid-cols-2 gap-2 text-white">
@@ -140,15 +151,6 @@ export default function TabKaryawan({
         </div>
       </div>
 
-      {/* FINANCIAL RADAR */}
-      {isHQ && (
-        <div className="p-4 rounded-2xl border border-blue-200 bg-blue-50/40 flex items-center justify-between text-xs font-bold text-blue-800">
-          <div>💡 <strong>Radar Gaji Nasional:</strong> {kecukupanDanaPusat.rekomendasi}</div>
-          <span className={`px-3 py-1 rounded-full uppercase font-black text-[9px] ${kecukupanDanaPusat.warnaBadge}`}>Sisa Wajib Gaji: {formatRupiah(kecukupanDanaPusat.sisaWajibBayarBulanIni)}</span>
-        </div>
-      )}
-
-      {/* PIL SWITCHER CABANG */}
       {isHQ && (
         <div className="bg-slate-900 p-4 rounded-2xl flex flex-col md:flex-row items-center justify-between shadow-lg gap-4">
           <div className="flex items-center gap-2 mb-1 md:mb-0"><Layers size={16} className="text-red-400" /><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Pilih Cabang untuk Keuangan Staf:</span></div>
@@ -163,7 +165,7 @@ export default function TabKaryawan({
       {/* SUB NAV TABS */}
       <div className="flex gap-2 border-b pb-4">
         {isHQ && <button onClick={() => setActiveSubTab('payroll')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase ${activeSubTab === 'payroll' ? 'bg-red-600 text-white shadow-md' : 'bg-white text-slate-500'}`}>Gaji & Payroll</button>}
-        <button onClick={() => setActiveSubTab('kasbon')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase ${activeSubTab === 'kasbon' ? 'bg-orange-600 text-white shadow-md' : 'bg-white text-slate-500'}`}>Kasbon Karyawan</button>
+        <button onClick={() => setActiveSubTab('kasbon')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase ${activeSubTab === 'kasbon' ? 'bg-orange-600 text-white shadow-md' : 'bg-white text-slate-500'}`}>Kasbon & Kredit</button>
         <button onClick={() => setActiveSubTab('master')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase ${activeSubTab === 'master' ? 'bg-slate-800 text-white shadow-md' : 'bg-white text-slate-500'}`}>Master SDM Wilayah</button>
       </div>
 
@@ -178,48 +180,100 @@ export default function TabKaryawan({
         <MasterSDMModule employees={employeesDiCabangAktif} branchListId={daftarCabangId} branchMapName={petaNamaCabang} activeBranch={activeProcessingBranch} isHQ={isHQ} sendToSheet={sendToSheet} showToast={showToast} onViewDetails={setSelectedEmployeeDetails} setOptimisticDeletedIds={setOptimisticDeletedIds} />
       )}
 
-      {/* POP-UP MODAL PROFIL FULL VIEW */}
+      {/* 📜 POP-UP MODAL PROFIL & TRACK RECORD HISTORI (SULTAN VIEW) */}
       {selectedEmployeeDetails && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[9999] flex justify-center items-start pt-12 md:pt-20 p-4 overflow-y-auto animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl shadow-2xl border max-w-2xl w-full overflow-hidden max-h-[85vh] flex flex-col mb-10">
+          <div className="bg-white rounded-3xl shadow-2xl border max-w-4xl w-full overflow-hidden flex flex-col mb-10">
             <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2"><Users size={18} className="text-amber-400"/><h3 className="font-black text-sm uppercase tracking-wider">Berkas Profil & Dokumen KTP Staf</h3></div>
+              <div className="flex items-center gap-2"><Users size={18} className="text-amber-400"/><h3 className="font-black text-sm uppercase tracking-wider">Berkas Profil & Rekam Jejak Operasional</h3></div>
               <button type="button" onClick={() => setSelectedEmployeeDetails(null)} className="p-1 rounded-lg bg-slate-800 text-slate-400 hover:text-white transition"><X size={20}/></button>
             </div>
-            <div className="p-6 overflow-y-auto space-y-6 flex-1">
-              <div className="flex flex-col sm:flex-row gap-6 items-center sm:items-start border-b pb-5">
-                <div className="w-40 h-52 rounded-2xl overflow-hidden border shadow-inner shrink-0 bg-slate-50 flex items-center justify-center">
-                  <img src={selectedEmployeeDetails.photo_url} alt="Profil Asli Full" className="w-full h-full object-contain" onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
-                </div>
-                <div className="space-y-2 flex-1 text-center sm:text-left">
-                  <h2 className="text-2xl font-black text-slate-900 uppercase tracking-wide">{selectedEmployeeDetails.name}</h2>
-                  <div className="flex flex-wrap justify-center sm:justify-start gap-2">
-                    <span className="px-2.5 py-0.5 rounded-md bg-slate-900 text-white text-[10px] font-black uppercase">{selectedEmployeeDetails.position}</span>
-                    <span className="px-2.5 py-0.5 rounded-md bg-indigo-100 text-indigo-800 text-[10px] font-black uppercase">NODE {selectedEmployeeDetails.branch_id}</span>
+            
+            <div className="p-6 overflow-y-auto max-h-[75vh]">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                
+                {/* KOLOM KIRI: DATA PROFIL */}
+                <div className="space-y-6">
+                  <div className="w-full aspect-[3/4] rounded-2xl overflow-hidden border shadow-inner bg-slate-50 flex items-center justify-center">
+                    <img src={selectedEmployeeDetails.photo_url} alt="Profil Asli Full" className="w-full h-full object-contain" onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
                   </div>
-                  <div className="pt-2 text-xs font-bold text-slate-600 space-y-1.5">
-                    <div className="flex items-center justify-center sm:justify-start gap-2"><Phone size={14} className="text-slate-400 font-mono"/> {selectedEmployeeDetails.phone}</div>
-                    <div className="flex items-center justify-center sm:justify-start gap-2"><Landmark size={14} className="text-slate-400"/> Gaji Standar: <span className="text-slate-900 font-black">{formatRupiah(selectedEmployeeDetails.baseSalary)}</span></div>
-                    <div className="flex items-center justify-center sm:justify-start gap-2 text-orange-600"><Banknote size={14}/> Sisa Hutang Kasbon: <span className="font-black">{formatRupiah(selectedEmployeeDetails.sisaHutang)}</span></div>
+                  <div>
+                    <h2 className="text-xl font-black text-slate-900 uppercase tracking-wide mb-2">{selectedEmployeeDetails.name}</h2>
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      <span className="px-2.5 py-0.5 rounded-md bg-slate-900 text-white text-[10px] font-black uppercase">{selectedEmployeeDetails.position}</span>
+                      <span className="px-2.5 py-0.5 rounded-md bg-indigo-100 text-indigo-800 text-[10px] font-black uppercase">NODE {selectedEmployeeDetails.branch_id}</span>
+                    </div>
+                    <div className="text-xs font-bold text-slate-600 space-y-2">
+                      <div className="flex items-center gap-2"><Phone size={14} className="text-slate-400 font-mono"/> {selectedEmployeeDetails.phone}</div>
+                      <div className="flex items-center gap-2"><Landmark size={14} className="text-slate-400"/> Gaji Standar: <span className="text-slate-900 font-black">{formatRupiah(selectedEmployeeDetails.baseSalary)}</span></div>
+                      <div className="flex items-center gap-2 text-orange-600"><Banknote size={14}/> Hutang / Kredit: <span className="font-black">{formatRupiah(selectedEmployeeDetails.sisaHutang)}</span></div>
+                    </div>
                   </div>
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <div className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1"><MapPin size={12}/> Alamat Rumah Tinggal</div>
-                <p className="bg-slate-50 border p-3.5 rounded-xl text-xs font-bold text-slate-700 leading-relaxed uppercase">{selectedEmployeeDetails.address}</p>
-              </div>
-              <div className="space-y-2">
-                <div className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1"><Image size={12}/> Arsip Foto Kartu Tanda Penduduk (KTP) Diperbesar</div>
-                <div className="w-full bg-slate-100 border rounded-2xl overflow-hidden shadow-inner flex items-center justify-center min-h-[220px]">
-                  {selectedEmployeeDetails.ktp_url ? (
-                    <img src={selectedEmployeeDetails.ktp_url} alt="KTP Gede" className="w-full h-auto max-h-[350px] object-contain" />
-                  ) : (
-                    <div className="text-center p-8 text-slate-400 text-xs font-bold space-y-1"><div>📁 Berkas KTP Belum Diunggah</div><div className="text-[10px] text-slate-400 font-normal">Silakan isi link Google Drive KTP di menu Master SDM.</div></div>
+                  <div className="space-y-1.5">
+                    <div className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1"><MapPin size={12}/> Alamat Rumah</div>
+                    <p className="bg-slate-50 border p-3 rounded-xl text-xs font-bold text-slate-700 leading-relaxed uppercase">{selectedEmployeeDetails.address}</p>
+                  </div>
+                  {selectedEmployeeDetails.ktp_url && (
+                    <div className="space-y-1.5">
+                      <div className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1"><Image size={12}/> Berkas KTP</div>
+                      <div className="w-full bg-slate-100 border rounded-xl overflow-hidden shadow-inner flex items-center justify-center h-32 cursor-pointer hover:opacity-80 transition" onClick={() => window.open(selectedEmployeeDetails.ktp_url, '_blank')}>
+                        <img src={selectedEmployeeDetails.ktp_url} alt="KTP" className="w-full h-full object-cover" />
+                      </div>
+                    </div>
                   )}
                 </div>
+
+                {/* KOLOM KANAN: TRACK RECORD PERIODE (HISTORI) */}
+                <div className="md:col-span-2 space-y-6">
+                  {/* TABEL HISTORI PENGGAJIAN */}
+                  <div className="bg-slate-50 border rounded-2xl p-5">
+                    <h4 className="text-xs font-black uppercase text-slate-800 border-b pb-2 mb-3 flex items-center gap-2"><CalendarDays size={14} className="text-emerald-600"/> Riwayat Penggajian (Track Record)</h4>
+                    {selectedEmployeeDetails.payroll_list.length > 0 ? (
+                      <div className="space-y-3">
+                        {selectedEmployeeDetails.payroll_list.map((pr, i) => {
+                          const isDescriptionHasPeriod = pr.description && pr.description.includes('Periode:');
+                          const extractedPeriod = isDescriptionHasPeriod ? pr.description.split('Periode:')[1].trim() : formatDate(pr.date);
+                          return (
+                            <div key={i} className="flex flex-col sm:flex-row justify-between bg-white border p-3 rounded-xl gap-2 sm:gap-0">
+                              <div>
+                                <div className="text-xs font-black text-slate-800 uppercase">Gaji Periode {extractedPeriod}</div>
+                                <div className="text-[9px] font-mono text-slate-400 mt-0.5">{formatDate(pr.date)} | ID: {pr.id}</div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-sm font-black text-emerald-600">{formatRupiah(pr.amount)}</div>
+                                <div className="text-[9px] font-bold text-orange-600 uppercase mt-0.5">Potong Cicilan: {formatRupiah(pr.kasbon_deduction)}</div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    ) : (<div className="text-center py-6 text-xs font-bold text-slate-400 italic">Belum ada riwayat penggajian tercatat.</div>)}
+                  </div>
+
+                  {/* TABEL HISTORI KASBON / KREDIT */}
+                  <div className="bg-slate-50 border rounded-2xl p-5">
+                    <h4 className="text-xs font-black uppercase text-slate-800 border-b pb-2 mb-3 flex items-center gap-2"><History size={14} className="text-orange-600"/> Riwayat Kasbon & Kredit Barang</h4>
+                    {selectedEmployeeDetails.kasbon_list.length > 0 ? (
+                      <div className="space-y-3">
+                        {selectedEmployeeDetails.kasbon_list.map((ks, i) => (
+                          <div key={i} className="flex flex-col sm:flex-row justify-between bg-white border p-3 rounded-xl gap-2 sm:gap-0 border-l-4 border-l-orange-500">
+                            <div>
+                              <div className="text-xs font-black text-slate-800 uppercase">{ks.description}</div>
+                              <div className="text-[9px] font-mono text-slate-400 mt-0.5">{formatDate(ks.date)} | ID: {ks.id}</div>
+                            </div>
+                            <div className="text-right flex items-center justify-end">
+                              <div className="text-sm font-black text-orange-600">{formatRupiah(ks.amount)}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (<div className="text-center py-6 text-xs font-bold text-slate-400 italic">Tidak ada catatan hutang/kasbon.</div>)}
+                  </div>
+                </div>
+
               </div>
             </div>
-            <div className="bg-slate-50 px-6 py-3 border-t text-right shrink-0"><button type="button" onClick={() => setSelectedEmployeeDetails(null)} className="px-5 py-2 bg-slate-900 text-white font-black text-xs uppercase rounded-xl hover:bg-slate-800 transition">Tutup Berkas</button></div>
+            <div className="bg-slate-50 px-6 py-4 border-t text-right shrink-0"><button type="button" onClick={() => setSelectedEmployeeDetails(null)} className="px-6 py-2.5 bg-slate-900 text-white font-black text-xs uppercase rounded-xl hover:bg-slate-800 transition shadow-md">Tutup Berkas Profil</button></div>
           </div>
         </div>
       )}
@@ -228,11 +282,48 @@ export default function TabKaryawan({
   );
 }
 
-// SUB-COMPONENT 1: MODUL GAJI & PAYROLL
+// =========================================================================
+// 📇 SUB-COMPONENT 1: MODUL GAJI & PAYROLL (DENGAN PERIODE & SMART INSTALLMENT)
+// =========================================================================
 function PayrollModule({ employees, expenses, globalCompiled, activeBranch, todayStr, sendToSheet, onViewDetails, user }) {
-  const [form, setForm] = useState({ date: todayStr, employeeId: '', baseSalary: '0', allowance: '0', otherDeduction: '0', paymentMethod: 'CASH' });
-  const selectedStafKasbon = useMemo(() => { if (!form.employeeId || !globalCompiled[form.employeeId]) return 0; return globalCompiled[form.employeeId].sisaHutang || 0; }, [form.employeeId, globalCompiled]);
-  const hitungNetto = useMemo(() => { const gapok = Number(form.baseSalary || 0); const tunj = Number(form.allowance || 0); const potLain = Number(form.otherDeduction || 0); const potKasbon = Math.min(selectedStafKasbon, gapok + tunj); return { potKasbon, totalCair: (gapok + tunj) - (potKasbon + potLain) }; }, [form.baseSalary, form.allowance, form.otherDeduction, selectedStafKasbon]);
+  // Ditambahkan state periode_bulan (YYYY-MM)
+  const currentMonthValue = todayStr.substring(0, 7);
+  const [form, setForm] = useState({ date: todayStr, periode_bulan: currentMonthValue, employeeId: '', baseSalary: '0', allowance: '0', potKasbonInput: '', otherDeduction: '0', paymentMethod: 'CASH' });
+  
+  const selectedStafData = form.employeeId ? globalCompiled[form.employeeId] : null;
+  const sisaHutangReal = selectedStafData ? selectedStafData.sisaHutang : 0;
+  const batasAmanKredit = selectedStafData ? (selectedStafData.baseSalary * 0.3) : 0; // 30% dari Gaji Pokok
+
+  // Handle Perubahan Karyawan untuk Auto-Saran Cicilan
+  const handlePilihKaryawan = (e) => {
+    const empId = e.target.value;
+    const emp = globalCompiled[empId];
+    if (emp) {
+      const gapok = Number(emp.baseSalary || 0);
+      const hutang = emp.sisaHutang || 0;
+      // Rekomendasi potong: Ambil yang terkecil antara (Hutang Keseluruhan) atau (30% Gaji Pokok)
+      const rekomendasiPotong = Math.min(hutang, (gapok * 0.3));
+      
+      setForm(p => ({
+        ...p,
+        employeeId: empId,
+        baseSalary: String(gapok),
+        potKasbonInput: String(rekomendasiPotong)
+      }));
+    } else {
+      setForm(p => ({ ...p, employeeId: '', baseSalary: '0', potKasbonInput: '' }));
+    }
+  };
+
+  const hitungNetto = useMemo(() => { 
+    const gapok = Number(form.baseSalary || 0); 
+    const tunj = Number(form.allowance || 0); 
+    const potLain = Number(form.otherDeduction || 0); 
+    // Mencegah potong kasbon melebihi total gaji+tunjangan ATAU melebihi sisa hutang asli
+    const potKasbonFinal = Math.min(Number(form.potKasbonInput || 0), sisaHutangReal, gapok + tunj); 
+    return { potKasbonFinal, totalCair: (gapok + tunj) - (potKasbonFinal + potLain) }; 
+  }, [form.baseSalary, form.allowance, form.otherDeduction, form.potKasbonInput, sisaHutangReal]);
+
   const historyGaji = useMemo(() => { const targetBId = String(activeBranch || '').trim().toUpperCase(); return (expenses || []).filter(e => e && !e.isDeleted && e.category === 'PAYROLL' && String(e.branch_id || '').trim().toUpperCase() === targetBId).sort((a, b) => new Date(b.date) - new Date(a.date)); }, [expenses, activeBranch]);
 
   return (
@@ -240,40 +331,66 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
       <div className="bg-white rounded-2xl border p-6 border-t-4 border-t-red-600 h-max">
         <form onSubmit={async (e) => {
           e.preventDefault(); if (!form.employeeId) return; const expenseId = generateId('PRL', form.date);
-          const success = await sendToSheet('insert', { id: expenseId, date: form.date, branch_id: activeBranch, category: 'PAYROLL', employee_id: form.employeeId, base_salary: Number(form.baseSalary), allowance: Number(form.allowance), kasbon_deduction: hitungNetto.potKasbon, other_deduction: Number(form.otherDeduction), amount: hitungNetto.totalCair, payment_method: form.paymentMethod, description: `Gaji Bulanan [${activeBranch}]` }, 'expenses');
+          // Label deskripsi memuat periode agar rapi di database
+          const deskripsiFinal = `Gaji Bulanan [${activeBranch}] | Periode: ${form.periode_bulan}`;
+
+          const success = await sendToSheet('insert', { id: expenseId, date: form.date, branch_id: activeBranch, category: 'PAYROLL', employee_id: form.employeeId, base_salary: Number(form.baseSalary), allowance: Number(form.allowance), kasbon_deduction: hitungNetto.potKasbonFinal, other_deduction: Number(form.otherDeduction), amount: hitungNetto.totalCair, payment_method: form.paymentMethod, description: deskripsiFinal }, 'expenses');
           if (success) {
-            await sendToSheet('insert', { id: 'CFO-' + new Date().getTime(), date: form.date, branch_id: form.paymentMethod === 'TF' ? 'HQ_FACTORY' : activeBranch, transaction_type: 'OUTFLOW', category: 'OPERATIONAL_EXPENSE', amount: hitungNetto.totalCair, payment_method: form.paymentMethod, reference_id: expenseId, description: `Gaji Jurnal — Cabang: ${activeBranch}` }, 'cashflow_transactions');
-            setForm({ date: todayStr, employeeId: '', baseSalary: '0', allowance: '0', otherDeduction: '0', paymentMethod: 'CASH' });
+            await sendToSheet('insert', { id: 'CFO-' + new Date().getTime(), date: form.date, branch_id: form.paymentMethod === 'TF' ? 'HQ_FACTORY' : activeBranch, transaction_type: 'OUTFLOW', category: 'OPERATIONAL_EXPENSE', amount: hitungNetto.totalCair, payment_method: form.paymentMethod, reference_id: expenseId, description: `Jurnal Payroll: ${selectedStafData?.name} (${form.periode_bulan})` }, 'cashflow_transactions');
+            setForm({ date: todayStr, periode_bulan: currentMonthValue, employeeId: '', baseSalary: '0', allowance: '0', potKasbonInput: '', otherDeduction: '0', paymentMethod: 'CASH' });
           }
         }} className="space-y-4">
-          <h3 className="font-black text-sm uppercase text-slate-800">Kalkulator Potong Gaji</h3>
-          <div>
-            <select required value={form.employeeId} onChange={e => setForm(p => ({ ...p, employeeId: e.target.value, baseSalary: globalCompiled[e.target.value] ? String(globalCompiled[e.target.value].baseSalary || 0) : '0' }))} className="w-full p-2.5 border rounded-xl font-black text-sm uppercase outline-none"><option value="">-- Pilih Karyawan --</option>{employees.map(k => <option key={k.id} value={k.id}>{k.name} ({k.position})</option>)}</select>
+          <h3 className="font-black text-sm uppercase text-slate-800">Sistem Penggajian & Potong Kredit</h3>
+          
+          <div className="grid grid-cols-2 gap-2">
+            <div><label className="text-[10px] font-bold text-slate-500 uppercase">Tgl Eksekusi</label><input type="date" required value={form.date} onChange={e=>setForm({...form, date: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold outline-none" /></div>
+            <div><label className="text-[10px] font-bold text-slate-500 uppercase">Periode Gaji Bulan</label><input type="month" required value={form.periode_bulan} onChange={e=>setForm({...form, periode_bulan: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold text-blue-700 bg-blue-50 outline-none" /></div>
           </div>
+
+          <div>
+            <select required value={form.employeeId} onChange={handlePilihKaryawan} className="w-full p-2.5 border border-slate-300 shadow-sm rounded-xl font-black text-sm uppercase outline-none bg-slate-50 focus:bg-white"><option value="">-- Pilih Staf Penerima Gaji --</option>{employees.map(k => <option key={k.id} value={k.id}>{k.name} ({k.position})</option>)}</select>
+          </div>
+          
           <div className="grid grid-cols-2 gap-2">
             <div><label className="text-[10px] font-bold text-slate-500 uppercase">Gaji Pokok</label><input type="text" required value={formatRupiah(form.baseSalary)} onChange={e=>setForm({...form, baseSalary: e.target.value.replace(/\D/g, '')})} className="w-full p-2 bg-slate-50 border rounded-lg font-bold text-sm" /></div>
-            <div><label className="text-[10px] font-bold text-emerald-600 uppercase">Tunjangan</label><input type="text" required value={formatRupiah(form.allowance)} onChange={e=>setForm({...form, allowance: e.target.value.replace(/\D/g, '')})} className="w-full p-2 border rounded-lg font-bold text-sm" /></div>
+            <div><label className="text-[10px] font-bold text-emerald-600 uppercase">Bonus/Tunjangan</label><input type="text" required value={formatRupiah(form.allowance)} onChange={e=>setForm({...form, allowance: e.target.value.replace(/\D/g, '')})} className="w-full p-2 border rounded-lg font-bold text-sm" /></div>
           </div>
-          <div className="bg-orange-50 p-3 rounded-xl border border-orange-200 text-xs font-bold text-orange-800"><div>Auto Potong Kasbon: {formatRupiah(hitungNetto.potKasbon)}</div><div className="text-[10px] text-orange-600 mt-1">Sisa Hutang: {formatRupiah(selectedStafKasbon)}</div></div>
-          <div><label className="text-[10px] font-bold text-rose-600 uppercase">Potongan Lain</label><input type="text" required value={formatRupiah(form.otherDeduction)} onChange={e=>setForm({...form, otherDeduction: e.target.value.replace(/\D/g, '')})} className="w-full p-2 border rounded-lg font-bold text-sm" /></div>
-          <div><select value={form.paymentMethod} onChange={e=>setForm({...form, paymentMethod: e.target.value})} className="w-full p-2 border rounded-lg font-bold text-xs"><option value="CASH">CASH (POTONG KAS LACI CABANG LOKAL)</option><option value="TF">TF (POTONG CASH UTAMA TANGERANG PUSAT)</option></select></div>
-          <div className="bg-slate-950 p-4 rounded-xl text-center text-emerald-400 font-black"><div className="text-[8px] text-slate-400">NETTO CAIR DIBAYARKAN</div><div className="text-xl mt-1">{formatRupiah(hitungNetto.totalCair)}</div></div>
-          <button type="submit" className="w-full bg-red-600 text-white text-xs font-black py-3 rounded-xl uppercase tracking-wider">Record & Potong Gaji</button>
+          
+          {/* 🔥 FITUR SMART INSTALLMENT / POTONGAN KASBON BISA DIEDIT MANUAL */}
+          <div className="bg-orange-50 p-3 rounded-xl border border-orange-200">
+            <div className="flex justify-between items-end mb-1">
+              <label className="text-[10px] font-black text-orange-800 uppercase">Potong Cicilan Kasbon/Kredit</label>
+              <span className="text-[9px] font-bold text-orange-600">Hutang Tersisa: {formatRupiah(sisaHutangReal)}</span>
+            </div>
+            <input type="text" value={formatRupiah(form.potKasbonInput)} onChange={e=>setForm({...form, potKasbonInput: e.target.value.replace(/\D/g, '')})} className="w-full p-2 border border-orange-300 bg-white rounded-lg font-black text-sm text-orange-700" placeholder="Rp 0" />
+            <div className="text-[8px] font-bold text-orange-500 mt-1 uppercase">💡 Limit Angsuran Aman (30% Gaji): {formatRupiah(batasAmanKredit)}</div>
+          </div>
+
+          <div><label className="text-[10px] font-bold text-rose-600 uppercase">Potongan Lain (Lain-Lain)</label><input type="text" required value={formatRupiah(form.otherDeduction)} onChange={e=>setForm({...form, otherDeduction: e.target.value.replace(/\D/g, '')})} className="w-full p-2 border rounded-lg font-bold text-sm" /></div>
+          <div><label className="text-[10px] font-bold text-slate-500 uppercase">Sumber Kas Pembayaran</label><select value={form.paymentMethod} onChange={e=>setForm({...form, paymentMethod: e.target.value})} className="w-full p-2 border rounded-lg font-bold text-xs bg-slate-50"><option value="CASH">CASH TUNAI (POTONG KAS LACI CABANG)</option><option value="TF">TRANSFER BANK (POTONG REKENING PUSAT)</option></select></div>
+          <div className="bg-slate-950 p-4 rounded-xl text-center text-emerald-400 font-black"><div className="text-[8px] text-slate-400 uppercase tracking-widest">Total Netto Gaji Diterima Karyawan</div><div className="text-2xl mt-1">{formatRupiah(hitungNetto.totalCair)}</div></div>
+          <button type="submit" className="w-full bg-red-600 hover:bg-red-700 transition text-white font-black py-3.5 rounded-xl text-xs uppercase tracking-wider shadow-lg">Cetak & Potong Gaji</button>
         </form>
       </div>
       
-      <div className="lg:col-span-2 bg-white rounded-2xl border overflow-hidden flex flex-col">
+      <div className="lg:col-span-2 bg-white rounded-2xl border overflow-hidden flex flex-col shadow-sm">
         <div className="p-4 bg-slate-50 border-b font-bold text-xs uppercase text-slate-700">Histori Gaji Jurnal Wilayah {activeBranch}</div>
         <table className="w-full text-sm text-left">
-          <thead className="bg-slate-50 text-[10px] uppercase text-slate-400 border-b"><tr><th>Tanggal</th><th>Karyawan</th><th className="text-right">Gaji+Tunj</th><th className="text-right text-orange-600">Pot. Kasbon</th><th className="text-right text-emerald-600">Netto Cair</th><th className="text-center">Aksi</th></tr></thead>
+          <thead className="bg-slate-50 text-[10px] uppercase text-slate-400 border-b"><tr><th>Periode / ID</th><th>Karyawan</th><th className="text-right">Gaji+Tunj</th><th className="text-right text-orange-600">Cicilan Kredit</th><th className="text-right text-emerald-600">Netto Cair</th><th className="text-center">Aksi</th></tr></thead>
           <tbody className="divide-y divide-slate-100 text-xs font-bold">
             {historyGaji.map(p => {
               const emp = globalCompiled[p.employee_id];
+              const isDescPeriod = p.description && p.description.includes('Periode:');
+              const extractedPeriod = isDescPeriod ? p.description.split('Periode:')[1].trim() : formatDate(p.date);
+
               return (
                 <tr key={p.id} className="hover:bg-slate-50/50 transition">
-                  <td className="px-4 py-3 text-slate-500">{formatDate(p.date)}</td>
+                  <td className="px-4 py-3">
+                    <div className="text-slate-800">{extractedPeriod}</div>
+                    <div className="text-[9px] font-mono text-slate-400 mt-0.5">{p.id}</div>
+                  </td>
                   <td onClick={() => emp && onViewDetails(emp)} className="px-4 py-3 flex items-center gap-2.5 cursor-pointer group">
-                    <img src={emp?.photo_url} alt="Profile" className="w-7 h-7 rounded-full object-cover border group-hover:scale-110 transition-transform" onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
+                    <img src={emp?.photo_url} alt="Profile" className="w-7 h-7 rounded-full object-cover border" onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
                     <span className="uppercase group-hover:text-blue-600 transition-colors">{emp?.name || 'STAF'}</span>
                   </td>
                   <td className="px-4 py-3 text-right">{formatRupiah((p.base_salary||0)+(p.allowance||0))}</td>
@@ -281,34 +398,38 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
                   <td className="px-4 py-3 text-right text-emerald-600">{formatRupiah(p.amount)}</td>
                   <td className="px-4 py-3 text-center">
                     <div className="flex items-center justify-center gap-1.5">
-                      <button type="button" onClick={() => emp && onViewDetails(emp)} className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg"><Eye size={12}/></button>
+                      <button type="button" onClick={() => emp && onViewDetails(emp)} className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg" title="Lihat Rekam Jejak"><Eye size={12}/></button>
                       
-                      {/* 🔥 TOMBOL CETAK SLIP GAJI DENGAN RINCIAN HISTORI */}
+                      {/* 🔥 TOMBOL CETAK SLIP GAJI */}
                       <button type="button" onClick={() => triggerPrint('NOTA_DOTMATRIX', {
-                        title: 'SLIP GAJI & PAYROLL',
+                        title: 'BUKTI PENGGAJIAN / SLIP GAJI',
                         id: p.id,
                         date: formatDate(p.date),
+                        periode: extractedPeriod,
                         branch_name: activeBranch,
                         admin_name: user?.name || 'ADMIN',
                         customer_name: emp?.name || 'STAF',
+                        position: emp?.position || 'STAF',
                         
                         items: [
-                          { name: 'Gaji Pokok & Tunjangan', qty: 1, subtotal: (p.base_salary || 0) + (p.allowance || 0) },
-                          { name: 'Potongan Pelunasan Kasbon', qty: 1, subtotal: -(p.kasbon_deduction || 0) },
+                          { name: 'Gaji Pokok & Bonus Tunjangan', qty: 1, subtotal: (p.base_salary || 0) + (p.allowance || 0) },
+                          { name: 'Potongan Cicilan Kasbon/Kredit', qty: 1, subtotal: -(p.kasbon_deduction || 0) },
                           { name: 'Potongan Lain-Lain', qty: 1, subtotal: -(p.other_deduction || 0) }
                         ],
                         amount: p.amount,
                         paymentMethod: p.payment_method || 'CASH',
                         
+                        // Buku Mutasi
                         history: {
-                          labelLama: 'Total Hutang Kasbon Awal',
+                          kasbonList: emp?.kasbon_list?.slice(0, 3) || [], // Tampilkan max 3 kasbon terbaru
+                          labelLama: 'Akumulasi Hutang Kasbon/Kredit Awal',
                           nominalLama: (emp?.sisaHutang || 0) + (p.kasbon_deduction || 0),
-                          labelAksi: 'Dipotong Pada Slip Gaji Ini',
+                          labelAksi: 'Dipotong Untuk Angsuran Bulan Ini',
                           nominalAksi: p.kasbon_deduction || 0,
-                          labelBaru: 'SISA HUTANG KASBON SEKARANG',
+                          labelBaru: 'SISA HUTANG / KREDIT SEKARANG',
                           nominalBaru: emp?.sisaHutang || 0
                         }
-                      })} className="p-1.5 text-white bg-slate-800 hover:bg-slate-900 shadow rounded-lg" title="Cetak Slip Gaji">
+                      })} className="p-1.5 text-white bg-slate-800 hover:bg-slate-900 shadow rounded-lg" title="Cetak Slip Gaji Dot Matrix">
                         <Printer size={12}/>
                       </button>
                     </div>
@@ -323,37 +444,44 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
   );
 }
 
-// SUB-COMPONENT 2: MODUL KASBON
+// =========================================================================
+// 📇 SUB-COMPONENT 2: MODUL KASBON & KREDIT BARANG
+// =========================================================================
 function KasbonModule({ employees, expenses, globalCompiled, activeBranch, todayStr, sendToSheet, onViewDetails, user }) {
   const [form, setForm] = useState({ date: todayStr, employeeId: '', amount: '', notes: '' });
   const selectedStaf = form.employeeId ? globalCompiled[form.employeeId] : null;
-  const isOverlimit = useMemo(() => { if (!selectedStaf) return false; return (Number(form.amount || 0) + selectedStaf.sisaHutang) > selectedStaf.baseSalary; }, [form.amount, selectedStaf]);
+  // Hilangkan validasi overlimit untuk mendukung Kredit Barang Besar. (Asalkan di-Approve Kepala)
+  // const isOverlimit = useMemo(() => { if (!selectedStaf) return false; return (Number(form.amount || 0) + selectedStaf.sisaHutang) > selectedStaf.baseSalary; }, [form.amount, selectedStaf]);
+  
   const historyKasbonLog = useMemo(() => { const targetBId = String(activeBranch || '').trim().toUpperCase(); return (expenses || []).filter(e => e && !e.isDeleted && e.category === 'KASBON' && String(e.branch_id || '').trim().toUpperCase() === targetBId).sort((a, b) => new Date(b.date) - new Date(a.date)); }, [expenses, activeBranch]);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <div className="bg-white p-6 rounded-2xl border border-t-4 border-t-orange-500 h-max">
+      <div className="bg-white p-6 rounded-2xl border border-t-4 border-t-orange-500 h-max shadow-sm">
         <form onSubmit={async (e) => {
-          e.preventDefault(); if (!form.employeeId || isOverlimit) return; const expenseId = generateId('KSB', form.date);
-          const success = await sendToSheet('insert', { id: expenseId, date: form.date, branch_id: activeBranch, employee_id: form.employeeId, category: 'KASBON', amount: Number(form.amount), description: `Kasbon Nota Baru — Ket: ${form.notes}` }, 'expenses');
+          e.preventDefault(); if (!form.employeeId) return; const expenseId = generateId('KSB', form.date);
+          const success = await sendToSheet('insert', { id: expenseId, date: form.date, branch_id: activeBranch, employee_id: form.employeeId, category: 'KASBON', amount: Number(form.amount), description: form.notes.toUpperCase() }, 'expenses');
           if (success) {
-            await sendToSheet('insert', { id: 'CFO-' + new Date().getTime(), date: form.date, branch_id: activeBranch, transaction_type: 'OUTFLOW', category: 'KARYAWAN_KASBON', amount: Number(form.amount), payment_method: 'CASH', reference_id: expenseId, description: `Pencairan kasbon laci toko` }, 'cashflow_transactions');
+            await sendToSheet('insert', { id: 'CFO-' + new Date().getTime(), date: form.date, branch_id: activeBranch, transaction_type: 'OUTFLOW', category: 'KARYAWAN_KASBON', amount: Number(form.amount), payment_method: 'CASH', reference_id: expenseId, description: `Pencairan Dana Kasbon / Kredit` }, 'cashflow_transactions');
             setForm({ date: todayStr, employeeId: '', amount: '', notes: '' });
           }
         }} className="space-y-4">
-          <h3 className="font-black text-sm uppercase text-slate-800">Pencairan Kasbon</h3>
           <div>
-            <select required value={form.employeeId} onChange={e=>setForm({...form, employeeId: e.target.value})} className="w-full p-2.5 border rounded-xl font-black text-sm uppercase outline-none"><option value="">-- Pilih Karyawan --</option>{employees.map(k => <option key={k.id} value={k.id}>{k.name} ({k.position})</option>)}</select>
+            <h3 className="font-black text-sm uppercase text-slate-800">Pengajuan Kasbon & Kredit</h3>
+            <p className="text-[9px] font-bold text-slate-400 mt-1">Untuk kredit barang, masukkan total harga (Misal: 2 Juta). Pembayaran akan dicicil otomatis saat penggajian bulanan.</p>
           </div>
-          <div><input type="text" required value={formatRupiah(form.amount)} onChange={e=>setForm({...form, amount: e.target.value.replace(/\D/g, '')})} className="w-full p-2.5 bg-orange-50 border border-orange-200 text-orange-900 rounded-xl font-black text-sm" />{isOverlimit && <div className="mt-1.5 p-2 bg-red-600 text-white rounded-lg font-black text-[9px] uppercase">🚨 Overlimit! Total pinjaman melebihi sisa gaji pokok!</div>}</div>
-          <div><input type="text" value={form.notes} onChange={e=>setForm({...form, notes: e.target.value})} className="w-full p-2.5 border rounded-xl text-xs" placeholder="Keperluan" /></div>
-          <button type="submit" disabled={isOverlimit || !form.employeeId} className="w-full bg-orange-600 text-white font-black py-3 rounded-xl text-xs uppercase disabled:opacity-40">Simpan Jurnal Kasbon</button>
+          <div>
+            <select required value={form.employeeId} onChange={e=>setForm({...form, employeeId: e.target.value})} className="w-full p-2.5 border rounded-xl font-black text-sm uppercase outline-none"><option value="">-- Pilih Staf Peminjam --</option>{employees.map(k => <option key={k.id} value={k.id}>{k.name} ({k.position})</option>)}</select>
+          </div>
+          <div><input type="text" required value={formatRupiah(form.amount)} onChange={e=>setForm({...form, amount: e.target.value.replace(/\D/g, '')})} className="w-full p-2.5 bg-orange-50 border border-orange-200 text-orange-900 rounded-xl font-black text-sm" placeholder="Nominal Rp" /></div>
+          <div><input type="text" required value={form.notes} onChange={e=>setForm({...form, notes: e.target.value})} className="w-full p-2.5 border rounded-xl text-xs uppercase" placeholder="Keterangan (Misal: KREDIT HP BARU)" /></div>
+          <button type="submit" disabled={!form.employeeId} className="w-full bg-orange-600 text-white font-black py-3 rounded-xl text-xs uppercase disabled:opacity-40 shadow-lg">Cetak & Simpan Pinjaman</button>
         </form>
       </div>
-      <div className="lg:col-span-2 bg-white rounded-2xl border flex flex-col overflow-hidden">
-        <div className="p-4 bg-slate-50 border-b font-bold text-xs uppercase text-slate-700">Buku Jurnal Kasbon Riil per Nota (Filter: {activeBranch})</div>
+      <div className="lg:col-span-2 bg-white rounded-2xl border flex flex-col overflow-hidden shadow-sm">
+        <div className="p-4 bg-slate-50 border-b font-bold text-xs uppercase text-slate-700">Daftar Jurnal Kasbon & Kredit Berjalan</div>
         <table className="w-full text-sm text-left">
-          <thead className="bg-slate-50 text-[10px] uppercase text-slate-400 border-b"><tr><th>Tanggal & ID</th><th>Karyawan</th><th>Keterangan</th><th className="text-right">Nominal Pinjam</th><th className="text-center">Aksi</th></tr></thead>
+          <thead className="bg-slate-50 text-[10px] uppercase text-slate-400 border-b"><tr><th>Tanggal & ID</th><th>Karyawan</th><th>Keterangan Aksi</th><th className="text-right">Nominal Pengajuan</th><th className="text-center">Aksi</th></tr></thead>
           <tbody className="divide-y divide-slate-100 text-xs font-bold">
             {historyKasbonLog.map(log => {
               const emp = globalCompiled[log.employee_id];
@@ -370,27 +498,30 @@ function KasbonModule({ employees, expenses, globalCompiled, activeBranch, today
                     <div className="flex items-center justify-center gap-1.5">
                       <button type="button" onClick={() => emp && onViewDetails(emp)} className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg"><Eye size={12}/></button>
                       
-                      {/* 🔥 TOMBOL CETAK BUKTI KASBON DENGAN RINCIAN HISTORI */}
+                      {/* 🔥 TOMBOL CETAK BUKTI KASBON/KREDIT */}
                       <button type="button" onClick={() => triggerPrint('NOTA_DOTMATRIX', {
-                        title: 'BUKTI PENCAIRAN KASBON',
+                        title: 'BUKTI PENCAIRAN KASBON / KREDIT',
                         id: log.id,
                         date: formatDate(log.date),
+                        periode: formatDate(log.date).substring(3),
                         branch_name: activeBranch,
                         admin_name: user?.name || 'ADMIN',
                         customer_name: emp?.name || 'STAF',
+                        position: emp?.position || 'STAF',
                         
                         items: [
-                          { name: `Pencairan Kasbon: ${log.description}`, qty: 1, subtotal: log.amount }
+                          { name: `${log.description}`, qty: 1, subtotal: log.amount }
                         ],
                         amount: log.amount,
                         paymentMethod: 'CASH',
                         
                         history: {
-                          labelLama: 'Sisa Hutang Kasbon Lama',
+                          kasbonList: emp?.kasbon_list?.slice(0, 3) || [], 
+                          labelLama: 'Sisa Hutang / Kredit Sebelumnya',
                           nominalLama: Math.max(0, (emp?.sisaHutang || 0) - log.amount),
-                          labelAksi: 'Penambahan Kasbon Baru',
+                          labelAksi: 'Penambahan Kasbon / Kredit Baru',
                           nominalAksi: log.amount,
-                          labelBaru: 'TOTAL HUTANG KASBON SAAT INI',
+                          labelBaru: 'TOTAL HUTANG / KREDIT SAAT INI',
                           nominalBaru: emp?.sisaHutang || 0
                         }
                       })} className="p-1.5 text-white bg-slate-800 hover:bg-slate-900 shadow rounded-lg" title="Cetak Bukti Kasbon">
@@ -409,7 +540,7 @@ function KasbonModule({ employees, expenses, globalCompiled, activeBranch, today
 }
 
 // =========================================================================
-// 📇 SUB-COMPONENT 3: MASTER DATA SDM (MODE KLASIK LINK DENGAN AUTO-PARSER)
+// 📇 SUB-COMPONENT 3: MASTER DATA SDM
 // =========================================================================
 function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch, isHQ, sendToSheet, showToast, onViewDetails, setOptimisticDeletedIds }) {
   const [form, setForm] = useState({ id: '', name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT', phone: '', address: '', photo_url: '', ktp_url: '' });
@@ -454,7 +585,6 @@ function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch,
             phone: form.phone || '-', address: form.address || 'ALAMAT BELUM DIISI',
             photo_url: form.photo_url || '', ktp_url: form.ktp_url || ''
           };
-          
           let success = false;
           if (isEditingMode && form.id) { payload.id = form.id; success = await sendToSheet('update', payload, 'karyawan'); } 
           else { payload.id = generateId('EMP', new Date()); success = await sendToSheet('insert', payload, 'karyawan'); }
@@ -475,9 +605,7 @@ function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch,
           <div>
             <label className="text-[10px] font-black text-slate-500 uppercase flex items-center gap-1 mb-1"><Link size={10}/> Link Pas Foto Profil Baru</label>
             <input type="text" placeholder="Paste link foto dari Google Drive..." value={form.photo_url} onChange={e => setForm({...form, photo_url: e.target.value})} className="w-full p-2 border rounded-lg text-xs" />
-            <p className="text-[8px] text-slate-400 mt-1 font-bold">Pastikan akses link G-Drive adalah "Anyone with the link"</p>
           </div>
-
           <div>
             <label className="text-[10px] font-black text-orange-600 uppercase flex items-center gap-1 mb-1"><Link size={10}/> Link Berkas Foto KTP</label>
             <input type="text" placeholder="Paste link KTP dari Google Drive..." value={form.ktp_url} onChange={e => setForm({...form, ktp_url: e.target.value})} className="w-full p-2 border border-orange-200 bg-orange-50 rounded-lg text-xs" />
