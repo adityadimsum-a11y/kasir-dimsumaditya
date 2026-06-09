@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { ShoppingCart, CheckCircle, Printer, Receipt, Users, AlertTriangle } from 'lucide-react';
-import { formatRp, getTodayStr, generateId, formatDate } from '../../utils/helpers';
+import { formatRp, getTodayStr, generateId } from '../../utils/helpers';
 import PaginationController from '../ui/PaginationController';
 
 export default function TabOrders({ orders, master_customers, sendToSheet, setPrintData, requestDelete, showToast, user }) {
@@ -14,7 +14,7 @@ export default function TabOrders({ orders, master_customers, sendToSheet, setPr
       customer_name: '', 
       invoice_no: '',
       qty: 50, 
-      price: '3000', // Default fallback, idealnya ditarik dari master_price_tiers
+      price: '3000', 
       gross_sales: '', 
       marketplace_admin_fee: '', 
       marketplace_promo: '', 
@@ -60,7 +60,6 @@ export default function TabOrders({ orders, master_customers, sendToSheet, setPr
       const upperCustomerName = form.customer_name.toUpperCase();
       let customerId = '';
 
-      // 1. NORMALISASI CUSTOMER MASTER (AUTO-SAVE)
       const existingCustomer = (master_customers || []).find(c => String(c.customer_name).toUpperCase() === upperCustomerName);
       
       if (existingCustomer) {
@@ -76,13 +75,12 @@ export default function TabOrders({ orders, master_customers, sendToSheet, setPr
           }, 'master_customers');
       }
 
-      // 2. PEMBENTUKAN PAYLOAD TRANSAKSI
       const payload = {
           id: generateId('INV', form.date), 
           date: form.date, 
           branch_id: currentBranch,
-          customer_id: customerId, // Wajib dikirim untuk lolos Backend
-          customer_name: upperCustomerName, // Cache display
+          customer_id: customerId, 
+          customer_name: upperCustomerName, 
           sales_category: form.sales_category, 
           source: form.source, 
           invoice_no: form.invoice_no, 
@@ -232,7 +230,7 @@ export default function TabOrders({ orders, master_customers, sendToSheet, setPr
                   ) : (
                       currentData.map(o => (
                          <tr key={o.id} className="hover:bg-slate-50 transition">
-                            <td className="px-4 py-3"><div>{formatDate(o.date)}</div><div className="text-[10px] text-slate-400 font-mono">{o.invoice_no || o.id}</div></td>
+                            <td className="px-4 py-3"><div>{o.date}</div><div className="text-[10px] text-slate-400 font-mono">{o.invoice_no || o.id}</div></td>
                             <td className="px-4 py-3"><div className="font-black uppercase text-slate-800">{o.customer_name}</div><div className="text-[9px] font-bold text-blue-600 bg-blue-50 w-max px-1.5 rounded">{o.source}</div></td>
                             <td className="px-4 py-3 text-center"><span className="px-2 py-0.5 rounded bg-slate-100 text-[9px] font-black uppercase text-slate-600">{o.sales_category}</span></td>
                             <td className="px-4 py-3 text-center text-slate-700 font-black">{o.qty} Pcs</td>
