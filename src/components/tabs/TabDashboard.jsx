@@ -1,209 +1,172 @@
 import React, { useMemo } from 'react';
-import { 
-  Activity, Wallet, AlertCircle, TrendingUp, ShieldAlert, 
-  ShoppingCart, Factory, Package, ArrowRight, CheckCircle, 
-  Clock, AlertTriangle, Coins, Store, Smartphone
-} from 'lucide-react';
-import { formatRp, getTodayStr, getLocalYMD } from '../../utils/helpers';
+import { LayoutDashboard, TrendingUp, AlertTriangle, Package, Activity, Wallet, ShoppingCart } from 'lucide-react';
+import { formatRp, getTodayStr, formatDate } from '../../utils/helpers';
 
-export default function TabDashboard({ 
-  orders, purchases, stockMovements, inventoryCostLayers, supplierLedger, 
-  cashflowTransactions, distributionOrders, financialClosings, user, handleTabChange 
-}) {
+export default function TabDashboard({ orders, productionBatches, inventory_cost_layers, supplier_ledger }) {
   const todayStr = getTodayStr();
 
-  // ==============================================================
-  // EAGLE EYE OPERATION CENTER ENGINE (PHASE 12.5)
-  // ==============================================================
-  const operationCenter = useMemo(() => {
-    const today = new Date(todayStr);
-    const last30DaysDate = new Date(today); last30DaysDate.setDate(today.getDate() - 30);
-    const str30Days = last30DaysDate.toISOString().split('T')[0];
+  const metrics = useMemo(() => {
+    let netRevenueHariIni = 0;
+    let pcsTerjualHariIni = 0;
+    let hutangSupplier = 0;
+    let stokAyamKg = 0;
+    let produksiHariIniPcs = 0;
+    let totalStokDimsum = 0;
 
-    // 1. REVENUE & PROFIT HARI INI
-    let revToday = 0, profitToday = 0, rev30D = 0;
-    let pcsSoldToday = 0;
-    let offlineRev = 0, marketplaceRev = 0;
-
+    // 1. Hitung Revenue & Sales Hari Ini (Global)
     (orders || []).forEach(o => {
-      if (o.isDeleted) return;
-      const date = getLocalYMD(o.date);
-      const isMarketplace = o.sales_category === 'MERCHANT' || o.sales_category === 'TOKO_ONLINE';
-      const netAmount = Number(o.total) - (Number(o.fee_amount)||0) - (Number(o.marketplace_promo)||0);
-
-      if (date === todayStr) { 
-          revToday += netAmount; 
-          profitToday += Number(o.net_profit) || 0; 
-          pcsSoldToday += Number(o.qty) || 0;
-
-          if(isMarketplace) marketplaceRev += netAmount;
-          else offlineRev += netAmount;
+      if (o.isDeleted || String(o.isDeleted).toUpperCase() === 'TRUE') return;
+      if (o.date === todayStr) {
+        netRevenueHariIni += (Number(o.total || 0) - Number(o.fee_amount || 0) - Number(o.marketplace_promo || 0));
+        pcsTerjualHariIni += Number(o.qty || 0);
       }
-      if (date >= str30Days) { rev30D += netAmount; }
     });
 
-    // 2. STATUS HUTANG & DAYA BELI
-    let hutangAyamAktif = 0;
-    (supplierLedger || []).forEach(l => {
-        if(l.isDeleted) return;
-        const amt = Number(l.amount) || 0;
-        if (l.transaction_type === 'PURCHASE') hutangAyamAktif += amt;
-        if (l.transaction_type === 'PAYMENT') hutangAyamAktif -= amt;
+    // 2. Hitung Hutang Supplier
+    (supplier_ledger || []).forEach(l => {
+      if (l.isDeleted || String(l.isDeleted).toUpperCase() === 'TRUE') return;
+      if (l.transaction_type === 'PURCHASE') hutangSupplier += Number(l.amount || 0);
+      if (l.transaction_type === 'PAYMENT') hutangSupplier -= Number(l.amount || 0);
     });
 
-    // 3. INVENTORY FISIK (AYAM & DIMSUM FROZEN)
-    let ayamGudangKg = 0;
-    let frozenReadyPcs = 0;
-    (inventoryCostLayers || []).forEach(l => {
-        if(l.isDeleted || l.status !== 'ACTIVE') return;
-        if(String(l.item_name).toUpperCase() === 'AYAM') ayamGudangKg += Number(l.qty_remaining) || 0;
-        if(String(l.item_name).toUpperCase().includes('DIMSUM')) frozenReadyPcs += Number(l.qty_remaining) || 0;
+    // 3. Hitung Produksi Hari Ini
+    (productionBatches || []).forEach(b => {
+      if (b.isDeleted || String(b.isDeleted).toUpperCase() === 'TRUE') return;
+      if (b.date === todayStr) {
+        produksiHariIniPcs += Number(b.result_pcs || 0);
+      }
     });
 
-    // 4. PRODUKSI HARI INI (Dari Stock Movements)
-    let pcsProducedToday = 0;
-    (stockMovements || []).forEach(m => {
-        if(!m.isDeleted && getLocalYMD(m.date) === todayStr && m.movement_type === 'PRODUCTION_RESULT') {
-            pcsProducedToday += Number(m.qty) || 0;
-        }
+    // 4. Hitung Sisa Stok Global (Ayam & Dimsum)
+    (inventory_cost_layers || []).forEach(l => {
+      if (l.isDeleted || String(l.isDeleted).toUpperCase() === 'TRUE' || l.status !== 'ACTIVE') return;
+      
+      if (String(l.item_name).toUpperCase() === 'AYAM') {
+        stokAyamKg += Number(l.qty_remaining || 0);
+      } else if (String(l.item_name).toUpperCase() === 'DIMSUM') {
+        totalStokDimsum += Number(l.qty_remaining || 0);
+      }
     });
+
+    // RUMUS KONVERSI GLOBAL
+    const stokDimsumMika = Math.floor(totalStokDimsum / 50);
+    const stokDimsumPorsi = Math.floor(totalStokDimsum / 4);
 
     return { 
-        revToday, profitToday, rev30D, pcsSoldToday, offlineRev, marketplaceRev,
-        hutangAyamAktif, ayamGudangKg, frozenReadyPcs, pcsProducedToday
+      netRevenueHariIni, 
+      pcsTerjualHariIni, 
+      hutangSupplier, 
+      stokAyamKg, 
+      produksiHariIniPcs, 
+      totalStokDimsum,
+      stokDimsumMika,
+      stokDimsumPorsi
     };
-  }, [orders, supplierLedger, inventoryCostLayers, stockMovements, todayStr]);
+  }, [orders, productionBatches, inventory_cost_layers, supplier_ledger, todayStr]);
 
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
       
-      {/* 1. HEADER & GREETING */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl border shadow-sm border-l-4 border-l-blue-600">
+      {/* HEADER */}
+      <div className="bg-white rounded-3xl p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm border border-slate-200">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center">
+            <LayoutDashboard size={28} />
+          </div>
           <div>
-              <h1 className="text-2xl font-black text-slate-800 uppercase tracking-wide">HQ Dashboard</h1>
-              <p className="text-xs font-bold text-slate-500 mt-1">Sistem Komando Utama Dimsum Aditya — <span className="text-blue-600">{todayStr}</span></p>
+            <h2 className="text-2xl font-black text-slate-800 uppercase tracking-wide">HQ DASHBOARD</h2>
+            <p className="text-xs font-bold text-slate-500 mt-1 flex items-center gap-2">Sistem Komando Utama Dimsum Aditya — <span className="text-blue-600">{formatDate(todayStr)}</span></p>
           </div>
-          <div className="flex gap-3">
-              <button onClick={() => handleTabChange('orders')} className="bg-blue-50 text-blue-700 hover:bg-blue-100 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wide transition flex items-center gap-2"><ShoppingCart size={16}/> Kasir Pusat</button>
-              <button onClick={() => handleTabChange('cash_war_room')} className="bg-slate-900 text-white hover:bg-slate-800 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wide transition flex items-center gap-2"><Activity size={16}/> War Room</button>
-          </div>
+        </div>
       </div>
 
-      {/* 2. REAL-TIME FISIK & REVENUE SNAPSHOT */}
+      {/* TOP CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        
-        {/* CARD 1: OMZET HARI INI */}
-        <div className="bg-white rounded-2xl border shadow-sm p-5 relative overflow-hidden">
-            <div className="absolute right-0 top-0 w-16 h-16 bg-emerald-50 rounded-bl-3xl flex items-center justify-center"><Wallet className="text-emerald-500" size={24}/></div>
-            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Net Revenue Hari Ini</div>
-            <div className="text-2xl font-black text-slate-800">{formatRp(operationCenter.revToday)}</div>
-            <div className="mt-3 flex items-center gap-2 text-[10px] font-bold">
-                <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded">Profit: {formatRp(operationCenter.profitToday)}</span>
-            </div>
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Net Revenue Hari Ini</div>
+          <div className="text-2xl font-black text-slate-800 mb-2">{formatRp(metrics.netRevenueHariIni)}</div>
+          <div className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded w-max">Profit & Cash In</div>
+          <Wallet className="absolute right-4 top-4 text-emerald-50 opacity-50" size={60} />
         </div>
 
-        {/* CARD 2: PENJUALAN OFFLINE VS MARKETPLACE */}
-        <div className="bg-white rounded-2xl border shadow-sm p-5 relative overflow-hidden">
-            <div className="absolute right-0 top-0 w-16 h-16 bg-blue-50 rounded-bl-3xl flex items-center justify-center"><TrendingUp className="text-blue-500" size={24}/></div>
-            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Kinerja Saluran Sales</div>
-            <div className="text-2xl font-black text-slate-800">{operationCenter.pcsSoldToday.toLocaleString('id-ID')} <span className="text-sm">Pcs Terjual</span></div>
-            <div className="mt-3 flex items-center gap-2 text-[9px] font-black uppercase">
-                <span className="flex items-center gap-1 text-slate-600"><Store size={10}/> {formatRp(operationCenter.offlineRev)}</span>
-                <span className="text-slate-300">|</span>
-                <span className="flex items-center gap-1 text-orange-600"><Smartphone size={10}/> {formatRp(operationCenter.marketplaceRev)}</span>
-            </div>
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Kinerja Saluran Sales</div>
+          <div className="text-2xl font-black text-slate-800 mb-2">{metrics.pcsTerjualHariIni.toLocaleString('id-ID')} <span className="text-sm font-bold text-slate-500">Pcs Terjual</span></div>
+          <div className="text-[9px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded w-max">Global All Node</div>
+          <ShoppingCart className="absolute right-4 top-4 text-blue-50 opacity-50" size={60} />
         </div>
 
-        {/* CARD 3: BEBAN HUTANG AKTIF */}
-        <div className="bg-white rounded-2xl border shadow-sm p-5 relative overflow-hidden border-b-4 border-b-rose-500">
-            <div className="absolute right-0 top-0 w-16 h-16 bg-rose-50 rounded-bl-3xl flex items-center justify-center"><ShieldAlert className="text-rose-500" size={24}/></div>
-            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Hutang Supplier (Ayam)</div>
-            <div className="text-2xl font-black text-rose-600">{formatRp(operationCenter.hutangAyamAktif)}</div>
-            <div className="mt-3 text-[10px] font-bold text-slate-500">
-                ⚠️ Menunggu pelunasan dari Kas.
-            </div>
+        <div className="bg-white p-5 rounded-2xl border border-rose-200 shadow-sm relative overflow-hidden">
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Hutang Supplier (Ayam)</div>
+          <div className="text-2xl font-black text-rose-600 mb-2">{formatRp(metrics.hutangSupplier)}</div>
+          <div className="text-[9px] font-bold text-rose-600 flex items-center gap-1"><AlertTriangle size={10}/> Menunggu pelunasan kas</div>
         </div>
 
-        {/* CARD 4: STOK AYAM GUDANG */}
-        <div className="bg-white rounded-2xl border shadow-sm p-5 relative overflow-hidden">
-            <div className="absolute right-0 top-0 w-16 h-16 bg-amber-50 rounded-bl-3xl flex items-center justify-center"><Package className="text-amber-500" size={24}/></div>
-            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Ayam Mentah (Gudang)</div>
-            <div className={`text-2xl font-black ${operationCenter.ayamGudangKg < 30 ? 'text-rose-600' : 'text-slate-800'}`}>
-                {operationCenter.ayamGudangKg.toLocaleString('id-ID')} <span className="text-sm">KG</span>
-            </div>
-            <div className="mt-3 text-[10px] font-bold text-slate-500">
-                {operationCenter.ayamGudangKg < 30 ? <span className="text-rose-600 font-black flex items-center gap-1"><AlertTriangle size={12}/> Kurang dari 1 Adukan!</span> : <span>Stok aman untuk produksi.</span>}
-            </div>
+        <div className="bg-white p-5 rounded-2xl border border-amber-200 shadow-sm relative overflow-hidden">
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Ayam Mentah (Gudang)</div>
+          <div className="text-2xl font-black text-amber-600 mb-2">{metrics.stokAyamKg} <span className="text-sm font-bold text-amber-600/60">KG</span></div>
+          {metrics.stokAyamKg < 30 ? (
+            <div className="text-[9px] font-bold text-rose-600 flex items-center gap-1"><AlertTriangle size={10}/> Kurang dari 1 Adukan!</div>
+          ) : (
+            <div className="text-[9px] font-bold text-amber-600 flex items-center gap-1">Stok aman untuk produksi</div>
+          )}
         </div>
-
       </div>
 
-      {/* 3. MIDDLE SECTION: LIVE OPERATION BOARD */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          
-          {/* PANEL KIRI: PRODUKSI & INVENTORY (2 Kolom) */}
-          <div className="lg:col-span-2 bg-slate-900 rounded-2xl border border-slate-800 shadow-xl overflow-hidden p-6 relative">
-              <div className="absolute right-0 bottom-0 opacity-10"><Factory size={200} className="text-white"/></div>
-              <div className="relative z-10">
-                  <h3 className="font-black text-white text-lg tracking-wide flex items-center gap-2 mb-6"><Activity className="text-emerald-400"/> Live Production & Inventory</h3>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                      <div className="bg-slate-800/80 p-5 rounded-xl border border-slate-700">
-                          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Dimsum Selesai Diproduksi Hari Ini</div>
-                          <div className="text-3xl font-black text-emerald-400">{operationCenter.pcsProducedToday.toLocaleString('id-ID')} <span className="text-sm text-slate-300">Pcs</span></div>
-                          <div className="text-xs font-bold text-slate-500 mt-2">Masuk ke Freezer Pusat</div>
-                      </div>
-                      
-                      <div className="bg-slate-800/80 p-5 rounded-xl border border-slate-700">
-                          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Stok Dimsum (Ready Jual)</div>
-                          <div className="text-3xl font-black text-white">{operationCenter.frozenReadyPcs.toLocaleString('id-ID')} <span className="text-sm text-slate-300">Pcs</span></div>
-                          <div className="text-xs font-bold text-slate-500 mt-2">Valuasi aktif di Freezer</div>
-                      </div>
-                  </div>
-
-                  <div className="mt-6 flex gap-4">
-                      <button onClick={() => handleTabChange('stok')} className="bg-white/10 hover:bg-white/20 text-white px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-wider transition">Input Batch Produksi</button>
-                      <button onClick={() => handleTabChange('master_data')} className="bg-transparent border border-slate-600 hover:bg-slate-800 text-slate-300 px-5 py-2.5 rounded-lg text-xs font-black uppercase tracking-wider transition">Cek Master Packaging</button>
-                  </div>
-              </div>
-          </div>
-
-          {/* PANEL KANAN: QUICK ALERTS & TASKS (1 Kolom) */}
-          <div className="lg:col-span-1 bg-white rounded-2xl border shadow-sm p-6 flex flex-col">
-              <h3 className="font-black text-slate-800 text-sm tracking-wide flex items-center gap-2 mb-4 uppercase"><AlertCircle className="text-amber-500"/> System Alerts</h3>
+        
+        {/* LIVE PRODUCTION & INVENTORY (DENGAN KONVERSI) */}
+        <div className="lg:col-span-2 bg-slate-900 rounded-3xl p-6 md:p-8 shadow-xl border border-slate-800 relative overflow-hidden flex flex-col justify-between">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none"></div>
+          <div>
+            <h3 className="text-white font-black uppercase flex items-center gap-2 mb-6 relative z-10"><Activity className="text-emerald-400"/> Live Production & Inventory</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
               
-              <div className="flex-1 space-y-3">
-                  {operationCenter.hutangAyamAktif > 0 && (
-                      <div className="p-3 bg-rose-50 border border-rose-100 rounded-xl flex items-start gap-3">
-                          <ShieldAlert size={18} className="text-rose-600 shrink-0 mt-0.5"/>
-                          <div>
-                              <div className="text-xs font-black text-rose-800 uppercase">Hutang Supplier Aktif</div>
-                              <div className="text-[10px] text-rose-600 font-bold mt-1">Anda memiliki beban hutang {formatRp(operationCenter.hutangAyamAktif)}. Cek kas sebelum belanja ayam lagi.</div>
-                          </div>
-                      </div>
-                  )}
-
-                  {operationCenter.ayamGudangKg < 60 && (
-                      <div className="p-3 bg-amber-50 border border-amber-100 rounded-xl flex items-start gap-3">
-                          <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5"/>
-                          <div>
-                              <div className="text-xs font-black text-amber-800 uppercase">Stok Ayam Menipis</div>
-                              <div className="text-[10px] text-amber-700 font-bold mt-1">Sisa di gudang: {operationCenter.ayamGudangKg} KG. Segera order ke supplier untuk produksi besok.</div>
-                          </div>
-                      </div>
-                  )}
-
-                  {(operationCenter.hutangAyamAktif === 0 && operationCenter.ayamGudangKg >= 60) && (
-                      <div className="flex flex-col items-center justify-center text-center py-8 opacity-60">
-                          <CheckCircle size={32} className="text-emerald-500 mb-2"/>
-                          <div className="text-xs font-black text-emerald-700 uppercase">Semua Sistem Normal</div>
-                          <div className="text-[10px] font-bold text-slate-500 mt-1">Tidak ada peringatan mendesak.</div>
-                      </div>
-                  )}
+              <div className="bg-slate-800/50 p-5 rounded-2xl border border-slate-700">
+                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Dimsum Selesai Diproduksi Hari Ini</div>
+                <div className="text-3xl font-black text-emerald-400 my-2">{metrics.produksiHariIniPcs.toLocaleString('id-ID')} <span className="text-sm text-slate-500">Pcs</span></div>
+                <div className="text-[10px] font-bold text-slate-500 mt-3 pt-3 border-t border-slate-700">Masuk ke Freezer Pusat</div>
               </div>
-              
-              <button onClick={() => handleTabChange('purchases')} className="w-full mt-4 bg-slate-100 hover:bg-slate-200 text-slate-700 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition flex items-center justify-center gap-2">Buka Modul Belanja <ArrowRight size={14}/></button>
+
+              {/* KARTU STOK GLOBAL DENGAN KONVERSI OTOMATIS */}
+              <div className="bg-slate-800/50 p-5 rounded-2xl border border-slate-700">
+                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Stok Dimsum (Global)</div>
+                <div className="text-3xl font-black text-white my-2">{metrics.totalStokDimsum.toLocaleString('id-ID')} <span className="text-sm text-slate-500">Pcs</span></div>
+                
+                {/* TAMPILAN KONVERSI DI DASHBOARD HQ */}
+                <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-slate-700">
+                   <span className="bg-blue-500/20 text-blue-300 text-[10px] font-black px-2 py-1 rounded uppercase border border-blue-500/30">Setara {metrics.stokDimsumMika.toLocaleString('id-ID')} Mika</span>
+                   <span className="bg-purple-500/20 text-purple-300 text-[10px] font-black px-2 py-1 rounded uppercase border border-purple-500/30">Setara {metrics.stokDimsumPorsi.toLocaleString('id-ID')} Porsi</span>
+                </div>
+              </div>
+
+            </div>
           </div>
+        </div>
+
+        {/* SYSTEM ALERTS */}
+        <div className="lg:col-span-1 bg-white rounded-3xl p-6 border border-slate-200 shadow-sm flex flex-col">
+          <h3 className="font-black text-slate-800 text-sm uppercase flex items-center gap-2 mb-6"><AlertTriangle className="text-orange-500" size={18}/> System Alerts</h3>
+          <div className="flex-1 space-y-4">
+            {metrics.stokAyamKg < 30 ? (
+               <div className="bg-orange-50 border border-orange-200 p-4 rounded-xl">
+                 <h4 className="font-black text-orange-800 text-xs uppercase flex items-center gap-2 mb-1"><AlertTriangle size={14}/> Stok Ayam Menipis</h4>
+                 <p className="text-[10px] font-bold text-orange-600">Sisa di gudang: {metrics.stokAyamKg} KG. Segera order ke supplier untuk produksi besok.</p>
+               </div>
+            ) : (
+               <div className="text-center py-8 text-xs font-bold text-slate-400 border-2 border-dashed border-slate-100 rounded-xl">
+                 Semua sistem berjalan normal. Tidak ada peringatan.
+               </div>
+            )}
+            
+            {metrics.hutangSupplier > 0 && (
+               <div className="bg-rose-50 border border-rose-200 p-4 rounded-xl">
+                 <h4 className="font-black text-rose-800 text-xs uppercase flex items-center gap-2 mb-1"><AlertTriangle size={14}/> Tagihan Supplier Aktif</h4>
+                 <p className="text-[10px] font-bold text-rose-600">Terdapat AP sebesar {formatRp(metrics.hutangSupplier)} yang belum dilunasi.</p>
+               </div>
+            )}
+          </div>
+        </div>
 
       </div>
     </div>
