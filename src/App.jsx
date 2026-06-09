@@ -50,6 +50,18 @@ const ToastNotification = ({ toast, onClose }) => {
   );
 };
 
+// =====================================
+// GLOBAL INFO BANNER (RUMUS KONVERSI)
+// =====================================
+const GlobalConversionBanner = () => (
+  <div className="bg-slate-900 border-b border-slate-800 text-slate-300 text-[10px] md:text-xs font-bold py-2.5 px-4 flex flex-wrap justify-center gap-4 md:gap-8 shadow-inner relative z-50">
+    <span className="flex items-center gap-1.5 tracking-widest uppercase"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_#10b981]"></span> 1 Kantong = 10 KG</span>
+    <span className="flex items-center gap-1.5 tracking-widest uppercase"><span className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_5px_#3b82f6]"></span> 1 Adukan = 30 KG / 1.000 Pcs</span>
+    <span className="flex items-center gap-1.5 tracking-widest uppercase"><span className="w-1.5 h-1.5 rounded-full bg-orange-500 shadow-[0_0_5px_#f97316]"></span> 1 Mika = 50 Pcs</span>
+    <span className="flex items-center gap-1.5 tracking-widest uppercase"><span className="w-1.5 h-1.5 rounded-full bg-purple-500 shadow-[0_0_5px_#a855f7]"></span> 1 Porsi = 4 Pcs</span>
+  </div>
+);
+
 export default function App() {
   // =====================================
   // CORE APP STATES (PERSISTENT SESSION)
