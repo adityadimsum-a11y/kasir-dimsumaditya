@@ -50,18 +50,6 @@ const ToastNotification = ({ toast, onClose }) => {
   );
 };
 
-// =====================================
-// GLOBAL INFO BANNER (RUMUS KONVERSI)
-// =====================================
-const GlobalConversionBanner = () => (
-  <div className="bg-slate-900 border-b border-slate-800 text-slate-300 text-[10px] md:text-xs font-bold py-2.5 px-4 flex flex-wrap justify-center gap-4 md:gap-8 shadow-inner relative z-50">
-    <span className="flex items-center gap-1.5 tracking-widest uppercase"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_#10b981]"></span> 1 Kantong = 10 KG</span>
-    <span className="flex items-center gap-1.5 tracking-widest uppercase"><span className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_5px_#3b82f6]"></span> 1 Adukan = 30 KG / 1.000 Pcs</span>
-    <span className="flex items-center gap-1.5 tracking-widest uppercase"><span className="w-1.5 h-1.5 rounded-full bg-orange-500 shadow-[0_0_5px_#f97316]"></span> 1 Mika = 50 Pcs</span>
-    <span className="flex items-center gap-1.5 tracking-widest uppercase"><span className="w-1.5 h-1.5 rounded-full bg-purple-500 shadow-[0_0_5px_#a855f7]"></span> 1 Porsi = 4 Pcs</span>
-  </div>
-);
-
 export default function App() {
   // =====================================
   // CORE APP STATES (PERSISTENT SESSION)
@@ -225,20 +213,21 @@ export default function App() {
     if (isSuccess) setConfirmDialog(null);
   };
 
- // =====================================
+  // =====================================
   // GATEKEEPER ROUTING (TAB RENDER)
   // =====================================
   const renderContent = () => {
     // 🛡️ KUNCI PENGAMAN OTOMATIS: 
+    // Jika cabang klik menu "Dashboard", belokkan paksa ke Dashboard Cabang yang Asli
     let safeTab = activeTab;
     if (activeTab === 'dashboard' && user?.branch_type !== 'HQ_FACTORY') {
-      safeTab = 'dashboard_branch'; // KEMBALIKAN KE DASHBOARD CABANG YANG ASLI
+      safeTab = 'dashboard_branch';
     }
 
     switch (safeTab) {
       case 'dashboard': return <TabDashboard user={user} handleTabChange={setActiveTab} {...dbData} />;
-      case 'dashboard_branch': return <TabDashboardBranch user={user} setPrintData={setPrintData} {...dbData} />; // INI JALUR ASLINYA
-      case 'pemalang': return <TabPemalang user={user} sendToSheet={sendToSheet} {...dbData} />; // INI TAB CLOSING
+      case 'dashboard_branch': return <TabDashboardBranch user={user} setPrintData={setPrintData} {...dbData} />;
+      case 'pemalang': return <TabPemalang user={user} sendToSheet={sendToSheet} {...dbData} />;
       
       case 'cash_war_room': return <TabCashWarRoom user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
       case 'scm_war_room': return <TabSCMWarRoom user={user} {...dbData} />;
@@ -300,7 +289,7 @@ export default function App() {
     );
   }
 
-// =====================================
+  // =====================================
   // UI 2: RENDER APLIKASI (DYNAMIC LAYOUT ENGINE)
   // =====================================
   return (
@@ -312,10 +301,6 @@ export default function App() {
         handleLogout={handleLogout}
         masterCapabilities={dbData.master_branch_capabilities}
       >
-        {/* PASANG SPANDUK KONVERSI DI SINI AGAR MUNCUL DI ATAS SEMUA TAB */}
-        <GlobalConversionBanner />
-        
-        {/* RENDER ISI TAB */}
         <div className="p-4 md:p-6">
            {renderContent()}
         </div>
@@ -324,8 +309,6 @@ export default function App() {
       {/* Komponen Floating */}
       <ToastNotification toast={toast} onClose={() => setToast(null)} />
       <PrintDotMatrix printData={printData} onClose={() => setPrintData(null)} />
-      
-      {/* ... (kode dialog delete & loading biarkan sama) ... */}
       
       {/* Dialog Konfirmasi Hapus Data (Void) */}
       {confirmDialog && (
