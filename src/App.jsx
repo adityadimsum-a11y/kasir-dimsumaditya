@@ -315,6 +315,33 @@ export default function App() {
         {renderContent()}
       </LayoutEngine>
 
+      // =====================================
+  // UI 2: RENDER APLIKASI (DYNAMIC LAYOUT ENGINE)
+  // =====================================
+  return (
+    <>
+      <LayoutEngine 
+        user={user} 
+        activeTab={activeTab} 
+        setActiveTab={setActiveTab} 
+        handleLogout={handleLogout}
+        masterCapabilities={dbData.master_branch_capabilities}
+      >
+        {/* PASANG SPANDUK KONVERSI DI SINI AGAR MUNCUL DI ATAS SEMUA TAB */}
+        <GlobalConversionBanner />
+        
+        {/* RENDER ISI TAB */}
+        <div className="p-4 md:p-6">
+           {renderContent()}
+        </div>
+      </LayoutEngine>
+
+      {/* Komponen Floating */}
+      <ToastNotification toast={toast} onClose={() => setToast(null)} />
+      <PrintDotMatrix printData={printData} onClose={() => setPrintData(null)} />
+      
+      {/* ... (kode dialog delete & loading biarkan sama) ... */}
+      
       {/* Komponen Floating */}
       <ToastNotification toast={toast} onClose={() => setToast(null)} />
       <PrintDotMatrix printData={printData} onClose={() => setPrintData(null)} />
