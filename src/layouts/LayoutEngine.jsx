@@ -86,16 +86,12 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 lg:hidden" onClick={() => setIsMobileMenuOpen(false)} />
       )}
 
-      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-slate-900 text-slate-300 transition-transform duration-300 ease-in-out flex flex-col ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 lg:static lg:flex-shrink-0 shadow-2xl`}>
-        
-        <div className="h-20 flex items-center px-6 border-b border-slate-800 bg-slate-950/50 justify-between">
+      {/* SIDEBAR */}
+      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-slate-950/60 backdrop-blur-2xl border-r border-white/10 text-slate-300 transition-transform duration-300 ease-in-out flex flex-col ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 lg:static lg:flex-shrink-0 shadow-2xl`}>
+        <div className="h-20 flex items-center px-6 border-b border-white/10 bg-transparent justify-between">
           <div className="flex items-center gap-3">
-            <div className="bg-white p-1.5 rounded-xl shadow-[0_0_10px_rgba(255,255,255,0.1)] flex items-center justify-center shrink-0">
-              <img 
-                src="https://dimsumaditya.id/wp-content/uploads/2026/06/Dimsum-Aditya-New-Logo-scaled.webp" 
-                alt="Logo Dimsum Aditya" 
-                className="h-10 w-10 object-contain hover:scale-105 transition-transform cursor-pointer"
-              />
+            <div className="bg-white p-1.5 rounded-xl shadow-[0_0_15px_rgba(255,255,255,0.2)] flex items-center justify-center shrink-0">
+              <img src="https://dimsumaditya.id/wp-content/uploads/2026/06/Dimsum-Aditya-New-Logo-scaled.webp" alt="Logo Dimsum Aditya" className="h-10 w-10 object-contain hover:scale-105 transition-transform cursor-pointer" />
             </div>
             <div>
               <h1 className="font-black text-white text-base tracking-wider uppercase leading-none">{themeConfig.title}</h1>
@@ -108,14 +104,14 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
         <nav className="flex-1 overflow-y-auto p-4 space-y-6 mt-2 custom-scrollbar">
           {menuGroups.map((group, idx) => (
             <div key={idx}>
-              <h2 className="px-3 text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{group.groupName}</h2>
+              <h2 className="px-3 text-[10px] font-black text-slate-400/80 uppercase tracking-widest mb-2">{group.groupName}</h2>
               <div className="space-y-1">
                 {group.items.map(item => {
                   const Icon = item.icon;
                   const isActive = activeTab === item.id;
                   return (
-                    <button key={item.id} onClick={() => { setActiveTab(item.id); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${isActive ? `${themeConfig.bg} text-white shadow-md` : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}>
-                      <Icon size={18} className={isActive ? 'text-white' : 'text-slate-500'} />
+                    <button key={item.id} onClick={() => { setActiveTab(item.id); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${isActive ? `${themeConfig.bg} text-white shadow-md` : 'text-slate-400 hover:bg-white/10 hover:text-slate-100'}`}>
+                      <Icon size={18} className={isActive ? 'text-white' : 'text-slate-400'} />
                       {item.label}
                     </button>
                   );
@@ -125,8 +121,8 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
           ))}
         </nav>
 
-        <div className="p-4 border-t border-slate-800 bg-slate-900/50">
-          <div className="flex items-center gap-3 px-3 py-2 mb-3 bg-slate-800/50 rounded-xl border border-slate-700/50">
+        <div className="p-4 border-t border-white/10 bg-transparent">
+          <div className="flex items-center gap-3 px-3 py-2 mb-3 bg-black/20 rounded-xl border border-white/5 backdrop-blur-sm">
             <div className={`w-8 h-8 rounded-full ${themeConfig.bg} flex items-center justify-center font-black text-white text-xs uppercase border border-slate-600 transition-colors`}>
               {(user?.name || user?.username || 'U').charAt(0)}
             </div>
@@ -135,14 +131,19 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
               <div className="text-[10px] font-bold text-slate-400 uppercase truncate">{user?.branch_id || 'NODE'}</div>
             </div>
           </div>
-          <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-black text-slate-400 hover:text-white hover:bg-red-600 transition-colors uppercase tracking-wide">
+          <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-black text-slate-400 hover:text-white hover:bg-red-500/80 transition-colors uppercase tracking-wide">
             <LogOut size={16} /> Logout Sistem
           </button>
         </div>
       </aside>
 
-      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
-        <header className="h-20 bg-white/60 backdrop-blur-lg border-b border-slate-200/50 flex items-center justify-between px-6 shrink-0 z-30 shadow-sm">
+      {/* KONTEN UTAMA (KANAN) */}
+      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden relative">
+        
+        {/* 🔥 SOLUSI BUG: Kaca dipisahkan jadi layer absolute di belakang agar Pop-up tidak terjebak! */}
+        <div className="absolute inset-0 bg-white/40 backdrop-blur-md z-0 pointer-events-none"></div>
+
+        <header className="h-20 border-b border-slate-200/50 flex items-center justify-between px-6 shrink-0 relative z-20 shadow-sm bg-white/60">
           <div className="flex items-center gap-4">
             <button onClick={() => setIsMobileMenuOpen(true)} className="lg:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-lg"><Menu size={24} /></button>
             <div>
@@ -160,9 +161,11 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
           </div>
         </header>
         
-        <main className="flex-1 bg-white/30 backdrop-blur-md overflow-y-auto p-4 md:p-6">
-           <div className="relative z-10 max-w-7xl mx-auto">{children}</div>
+        {/* AREA SCROLL DIJADIKAN TRANSPARAN 100% KARENA KACA SUDAH ADA DI BELAKANGNYA */}
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 relative z-10 custom-scrollbar">
+           <div className="max-w-7xl mx-auto">{children}</div>
         </main>
+
       </div>
     </div>
   );
