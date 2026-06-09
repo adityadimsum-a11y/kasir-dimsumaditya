@@ -13,7 +13,6 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
   // 1. EXTRAK KAPABILITAS (DNA) CABANG SAAT INI DARI DATABASE
   const nodeCapability = useMemo(() => {
     if (!masterCapabilities || masterCapabilities.length === 0) {
-      // Fallback sementara saat data masih loading dari server
       return { branch_type: user?.branch_type || 'UNKNOWN' };
     }
     return masterCapabilities.find(c => c.branch_type === user?.branch_type) || {};
@@ -89,8 +88,6 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
       return { bg: 'bg-slate-800', text: 'text-slate-800', ring: 'ring-slate-700', icon: LayoutDashboard, title: 'SYSTEM NODE' };
   }, [user?.branch_type]);
 
-  const ThemeIcon = themeConfig.icon;
-
   return (
     <div className="min-h-screen bg-slate-50 flex overflow-hidden font-sans">
       {isMobileMenuOpen && (
@@ -98,16 +95,14 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
       )}
 
       <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-slate-900 text-slate-300 transition-transform duration-300 ease-in-out flex flex-col ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 lg:static lg:flex-shrink-0 shadow-2xl`}>
-        <div className="h-20 flex items-center px-6 border-b border-slate-800 bg-slate-950/50">
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 ${themeConfig.bg} rounded-xl flex items-center justify-center shadow-lg transition-colors`}>
-              <ThemeIcon size={22} className="text-white"/>
-            </div>
-            <div>
-              <h1 className="font-black text-white text-lg tracking-wider uppercase leading-none">{themeConfig.title}</h1>
-              <span className={`text-[9px] font-bold ${themeConfig.text} brightness-150 uppercase tracking-widest block mt-1 transition-colors`}>Dimsum Aditya ERP</span>
-            </div>
-          </div>
+        
+        {/* BAGIAN POJOK KIRI ATAS: LOGO DIMSUM ADITYA */}
+        <div className="h-20 flex items-center justify-between px-6 border-b border-slate-800 bg-slate-950/50">
+          <img 
+            src="https://dimsumaditya.id/wp-content/uploads/2026/06/Dimsum-Aditya-New-Logo-scaled.webp" 
+            alt="Logo Dimsum Aditya" 
+            className="h-14 w-auto object-contain drop-shadow-md hover:scale-105 transition-transform cursor-pointer"
+          />
           <button onClick={() => setIsMobileMenuOpen(false)} className="ml-auto lg:hidden text-slate-400 hover:text-white"><X size={24} /></button>
         </div>
 
