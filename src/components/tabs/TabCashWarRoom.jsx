@@ -29,7 +29,6 @@ export default function TabCashWarRoom({
       const bId = String(tx.branch_id).toUpperCase();
       if (!branchCashMap[bId]) branchCashMap[bId] = 0;
       branchCashMap[bId] += netAmt;
-      // Memastikan perhitungan HQ_FACTORY masuk ke Kas Pusat
       if (bId === 'PUSAT' || bId === 'HQ_FACTORY') cashHq += netAmt;
     });
 
@@ -72,10 +71,14 @@ export default function TabCashWarRoom({
     if (!window.confirm(`Konfirmasi Uang Masuk\n\nApakah setoran ${formatRp(settlement.amount_transferred)} dari ${settlement.branch_id} sudah diterima?`)) return;
 
     try {
-      // 1. Payload untuk Update Status
-      const updatedSettlement = { ...settlement, transfer_status: 'SETTLED', transfer_date: getTodayStr() };
+      // PERBAIKAN: Hanya kirim data yang butuh diupdate agar Server tidak Error
+      const updatedSettlement = { 
+        id: settlement.settlement_id, // Identitas baris
+        settlement_id: settlement.settlement_id, 
+        transfer_status: 'SETTLED', 
+        transfer_date: getTodayStr() 
+      };
       
-      // 2. Payload untuk Cashflow Transaction (PENTING: Gunakan HQ_FACTORY)
       const cfiPayload = {
         id: generateId('CFI', new Date()), 
         date: getTodayStr(), 
@@ -88,7 +91,7 @@ export default function TabCashWarRoom({
         description: `Penerimaan setoran dari cabang ${settlement.branch_id}`
       };
 
-      // Proses ke Backend
+      // Tembak dua aksi ke backend
       await sendToSheet('update', updatedSettlement, 'branch_settlements');
       await sendToSheet('insert', cfiPayload, 'cashflow_transactions');
       
@@ -96,7 +99,7 @@ export default function TabCashWarRoom({
       window.location.reload(); 
     } catch (error) {
       console.error("Gagal Approve:", error);
-      alert("Error: Gagal tersambung ke server. Coba Refresh.");
+      alert("Sistem gagal terkoneksi. Silakan cek konsol.");
     }
   };
 
