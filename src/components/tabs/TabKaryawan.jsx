@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Users, FileText, CheckCircle, Banknote, ShieldCheck } from 'lucide-react';
+import { Users, FileText, CheckCircle, Banknote } from 'lucide-react';
 import { formatRp, getTodayStr, generateId, formatDate } from '../../utils/helpers';
 
 export default function TabKaryawan({ karyawan, expenses, sendToSheet, showToast, user }) {
@@ -7,17 +7,13 @@ export default function TabKaryawan({ karyawan, expenses, sendToSheet, showToast
   const currentBranch = user?.branch_id || 'CIBINONG';
   const isHQ = user?.branch_type === 'HQ_FACTORY' || currentBranch === 'PUSAT';
 
-  // FIX POINT 3: Jika Cabang Resto, Kunci Sub-Tab mutlak di 'kasbon' (Sembunyikan sistem Gaji)
   const [activeSubTab, setActiveSubTab] = useState(isHQ ? 'payroll' : 'kasbon');
   const [formKasbon, setFormKasbon] = useState({ date: todayStr, employeeId: '', amount: '', notes: '' });
   const [formMaster, setFormMaster] = useState({ name: '', position: 'KASIR', baseSalary: '0' });
-  const [formPayroll, setFormPayroll] = useState({ date: todayStr, employeeId: '', baseSalary: '', allowance: '', kasbonDeduction: '', otherDeduction: '', paymentMethod: 'CASH' });
 
-  // SMART COMPILING: Filter Karyawan & Kasbon Kepatuhan Cabang ("Jangan Nyampur")
   const employeeData = useMemo(() => {
       const balances = {};
       
-      // Filter Karyawan: Pusat melihat semua, Cabang hanya melihat staf miliknya sendiri
       (karyawan || []).forEach(k => {
           if (k.isDeleted) return;
           const matchBranch = isHQ ? true : String(k.branch_id).toUpperCase() === currentBranch.toUpperCase();
@@ -26,7 +22,6 @@ export default function TabKaryawan({ karyawan, expenses, sendToSheet, showToast
           }
       });
 
-      // Kalkulasi Arus Kasbon Terikat Kode Cabang masing-masing
       (expenses || []).forEach(e => {
           if (e.isDeleted || !e.employee_id || !balances[e.employee_id]) return;
           if (e.category === 'KASBON') {
@@ -49,14 +44,14 @@ export default function TabKaryawan({ karyawan, expenses, sendToSheet, showToast
   const handleSimpanKasbon = async (e) => {
       e.preventDefault();
       if (!formKasbon.employeeId) { showToast('Pilih nama karyawan!', 'error'); return; }
+      if (!formKasbon.amount || Number(formKasbon.amount) <= 0) { showToast('Nominal tidak boleh kosong!', 'error'); return; }
       
       const targetEmp = employeeData[formKasbon.employeeId];
 
-      // FIX POINT 3: Menyuntikkan branch_id agar nancap aman di Google Sheets Pusat (Tangerang)
       const payload = {
           id: generateId('KSB', formKasbon.date), 
           date: formKasbon.date, 
-          branch_id: currentBranch, // Kunci utama pemisah cabang di database Tangerang
+          branch_id: currentBranch, 
           employee_id: formKasbon.employeeId, 
           category: 'KASBON', 
           amount: Number(formKasbon.amount), 
@@ -73,7 +68,8 @@ export default function TabKaryawan({ karyawan, expenses, sendToSheet, showToast
 
   const handleSimpanMaster = async (e) => {
       e.preventDefault();
-      const payload = { id: generateId('EMP', new Date()), name: formMaster.name.toUpperCase(), position: formMaster.position, baseSalary: Number(formMaster.baseSalary), branch_id: currentBranch, status: 'AKTIF' };
+      if (!formMaster.name) return;
+      const payload = { id: generateId('EMP', new Date()), name: formMaster.name.toUpperCase(), position: formMaster.position, baseSalary: Number(formMaster.baseSalary || 0), branch_id: currentBranch, status: 'AKTIF' };
       const success = await sendToSheet('insert', payload, 'karyawan');
       if(success) setFormMaster({ name: '', position: 'KASIR', baseSalary: '0' });
   };
@@ -81,7 +77,6 @@ export default function TabKaryawan({ karyawan, expenses, sendToSheet, showToast
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
       
-      {/* NAVIGASI SUB-TAB: OTOMATIS DISESUAIKAN BERDASARKAN CABANG */}
       <div className="flex flex-wrap gap-2 mb-6 border-b pb-4">
         {isHQ && (
           <button onClick={() => setActiveSubTab('payroll')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase transition-all ${activeSubTab === 'payroll' ? 'bg-red-600 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-100'}`}>Gaji & Payroll</button>
@@ -90,7 +85,6 @@ export default function TabKaryawan({ karyawan, expenses, sendToSheet, showToast
         <button onClick={() => setActiveSubTab('master')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase transition-all ${activeSubTab === 'master' ? 'bg-slate-800 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-100'}`}><Users size={16} className="inline mr-2"/> {isHQ ? 'Master SDM Global' : 'Registrasi Staf Lokal'}</button>
       </div>
 
-      {/* TAB KASBON KARYAWAN (CONNECTED TO TANGERANG) */}
       {activeSubTab === 'kasbon' && (
          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-1 bg-white rounded-2xl border shadow-sm p-6 border-t-4 border-t-orange-500 h-max">
@@ -110,10 +104,24 @@ export default function TabKaryawan({ karyawan, expenses, sendToSheet, showToast
                             {activeEmployees.map(k => <option key={k.id} value={k.id}>{k.name} ({k.position})</option>)}
                         </select>
                     </div>
+                    
+                    {/* ======================================================== */}
+                    {/* INPUT KASBON DI-UPGRADE DENGAN LIVE RUPIAH MASKING ENGINE */}
+                    {/* ======================================================== */}
                     <div>
                         <label className="text-[10px] font-bold text-orange-600 uppercase">Nominal Uang Dipinjam</label>
-                        <input type="number" required value={formKasbon.amount} onChange={e=>setFormKasbon({...formKasbon, amount: e.target.value})} className="w-full p-2.5 bg-orange-50 border border-orange-200 text-orange-900 rounded-xl font-black text-sm" placeholder="Rp" />
+                        <input 
+                            type="text" 
+                            required 
+                            value={"Rp. " + Number(formKasbon.amount || 0).toLocaleString('id-ID')} 
+                            onChange={(e) => {
+                                const rawValue = e.target.value.replace(/\D/g, '');
+                                setFormKasbon(prev => ({ ...prev, amount: rawValue }));
+                            }}
+                            className="w-full p-2.5 bg-orange-50 border border-orange-200 text-orange-900 rounded-xl font-black text-sm" 
+                        />
                     </div>
+
                     <div>
                         <label className="text-[10px] font-bold text-slate-600 uppercase">Alasan Keperluan Pinjaman</label>
                         <input type="text" value={formKasbon.notes} onChange={e=>setFormKasbon({...formKasbon, notes: e.target.value})} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold text-xs" placeholder="Cth: Pinjaman berobat keluarga" />
@@ -135,8 +143,8 @@ export default function TabKaryawan({ karyawan, expenses, sendToSheet, showToast
                               <tr key={k.id} className="hover:bg-slate-50">
                                   <td className="px-4 py-3 font-black text-slate-800 uppercase">{k.name} <div className="text-[8px] font-mono text-slate-400">{k.id}</div></td>
                                   <td className="px-4 py-3 uppercase text-slate-500">{k.position}</td>
-                                  <td className="px-4 py-3 text-right font-medium text-slate-600">{formatRp(k.totalKasbon)}</td>
-                                  <td className="px-4 py-3 text-right font-black text-orange-600 bg-orange-50/50">{formatRp(k.sisaHutang)}</td>
+                                  <td className="px-4 py-3 text-right font-medium text-slate-600">{"Rp. " + Number(k.totalKasbon || 0).toLocaleString('id-ID')}</td>
+                                  <td className="px-4 py-3 text-right font-black text-orange-600 bg-orange-50/50">{"Rp. " + Number(k.sisaHutang || 0).toLocaleString('id-ID')}</td>
                               </tr>
                           ))}
                       </tbody>
@@ -145,14 +153,13 @@ export default function TabKaryawan({ karyawan, expenses, sendToSheet, showToast
          </div>
       )}
 
-      {/* REGISTRASI STAF LOKAL */}
       {activeSubTab === 'master' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-1 bg-white rounded-2xl border shadow-sm p-6 border-t-4 border-t-slate-800 h-max">
                   <div className="flex items-center gap-3 mb-6 border-b pb-4"><div className="bg-slate-100 text-slate-700 p-2 rounded-lg"><Users size={20}/></div><div><h3 className="font-black text-slate-800 text-sm uppercase">Registrasi Staf</h3></div></div>
                   <form onSubmit={handleSimpanMaster} className="space-y-4">
                       <div><label className="text-[10px] font-bold text-slate-600 uppercase">Nama Lengkap Karyawan</label><input type="text" required value={formMaster.name} onChange={e=>setFormMaster({...formMaster, name: e.target.value})} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold text-sm uppercase" /></div>
-                      <div><label className="text-[10px] font-bold text-slate-600 uppercase">Posisi Kerja</label><select required value={formMaster.position} onChange={e=>setFormMaster({...formMaster, position: e.target.value})} className="w-full p-2.5 bg-white border rounded-xl font-black text-sm uppercase"><option value="KASIR">KASIR / RESTO FRONT</option><option value="DAPUR_RESTO">COOK / dAPUR RESTO</option><option value="WAITRESS">PRAMUSAJI / WAITRESS</option></select></div>
+                      <div><label className="text-[10px] font-bold text-slate-600 uppercase">Posisi Kerja</label><select required value={formMaster.position} onChange={e=>setFormMaster({...formMaster, position: e.target.value})} className="w-full p-2.5 bg-white border rounded-xl font-black text-sm uppercase"><option value="KASIR">KASIR / RESTO FRONT</option><option value="DAPUR_RESTO">COOK / DAPUR RESTO</option><option value="WAITRESS">PRAMUSAJI / WAITRESS</option></select></div>
                       <button type="submit" className="w-full bg-slate-800 hover:bg-slate-900 text-white font-black py-3.5 rounded-xl uppercase text-xs mt-4">Simpan Data Staf</button>
                   </form>
               </div>
