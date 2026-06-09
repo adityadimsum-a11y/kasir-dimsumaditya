@@ -1,5 +1,4 @@
 import React, { useState, useMemo } from 'react';
-import { CalendarDays, Printer, Edit2, Trash2 } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
 
@@ -205,7 +204,7 @@ export default function TabCashWarRoom({
         {/* 📚 TABEL ARSIP BUKU KAS (CONSOLIDATION) */}
         <div className="lg:col-span-2 bg-white rounded-2xl border flex flex-col overflow-hidden shadow-sm">
           <div className="p-4 bg-slate-50 border-b flex items-center justify-between">
-            <h4 className="font-black text-xs uppercase text-slate-700 tracking-widest flex items-center gap-2"><CalendarDays size={14} className="text-blue-600"/> Buku Jurnal Arus Kas</h4>
+            <h4 className="font-black text-xs uppercase text-slate-700 tracking-widest flex items-center gap-2">📅 Buku Jurnal Arus Kas</h4>
             {isHQ && (
               <select value={activeBranchFilter} onChange={e => setActiveBranchFilter(e.target.value)} className="text-[10px] font-black uppercase bg-white border rounded-lg px-2 py-1 outline-none text-slate-600 cursor-pointer shadow-sm">
                 <option value="SEMUA_CABANG">🌍 KONSOLIDASI NASIONAL</option>
@@ -235,12 +234,12 @@ export default function TabCashWarRoom({
                                 title: 'VOUCHER PENGELUARAN KAS', id: log.id, date: formatDate(log.date), periode: '-', branch_name: log.branch_id, admin_name: user?.name || 'KASIR', customer_name: 'DANA OPERASIONAL', position: '-',
                                 items: [{ name: log.description || log.category, qty: 1, subtotal: log.amount }], amount: log.amount, paymentMethod: `POTONG ${log.payment_method === 'CASH' ? 'LACI TUNAI' : 'SALDO BANK'}`
                               });
-                            }} className="p-1.5 text-white bg-slate-800 hover:bg-slate-900 shadow rounded-lg"><Printer size={12}/></button>
+                            }} className="p-1.5 text-white bg-slate-800 hover:bg-slate-900 shadow rounded-lg text-[10px] font-black uppercase">🖨️ Cetak</button>
                           )}
                           {isHQ && (
                             <>
-                              {!log.reference_id || log.reference_id === '-' ? <button type="button" onClick={() => handleEdit(log)} className="p-1.5 bg-amber-50 text-amber-600 hover:bg-amber-100 rounded-lg"><Edit2 size={12}/></button> : null}
-                              <button type="button" onClick={() => handleDelete(log.id)} className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg"><Trash2 size={12}/></button>
+                              {!log.reference_id || log.reference_id === '-' ? <button type="button" onClick={() => handleEdit(log)} className="p-1.5 bg-amber-50 text-amber-600 hover:bg-amber-100 rounded-lg text-[10px] font-black uppercase">✏️ Edit</button> : null}
+                              <button type="button" onClick={() => handleDelete(log.id)} className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg text-[10px] font-black uppercase">🗑️ Void</button>
                             </>
                           )}
                         </div>
@@ -249,7 +248,7 @@ export default function TabCashWarRoom({
                   );
                 })}
                 {filteredLog.length === 0 && (
-                  <tr><td colSpan="5" className="px-4 py-12 text-center text-slate-400 font-black uppercase tracking-widest bg-slate-50/50">⚠️ Buku Kas Kosong</td></tr>
+                  <tr><td colSpan="5" className="px-4 py-12 text-center text-slate-400 font-black uppercase tracking-widest bg-slate-50/50">⚠️ Laporan Kas Masih Kosong</td></tr>
                 )}
               </tbody>
             </table>
