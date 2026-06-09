@@ -163,7 +163,7 @@ export default function TabStok({
           </div>
           <div className="relative z-10">
             <div className="text-[9px] font-black text-orange-400 uppercase tracking-widest">Akumulasi HPP (Modal Ayam)</div>
-            <div className="text-xl font-black mt-1">{formatRupiah(metrikRadar.hppBulanIni)}</div>
+            <div className="text-xl font-black mt-1">{formatRupiah(metrikKas.inBulanIni > 0 ? metrikRadar.hppBulanIni : metrikRadar.hppBulanIni)}</div>
           </div>
         </div>
       </div>
@@ -218,7 +218,7 @@ export default function TabStok({
 
             <div><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Keterangan / Shift (Opsional)</label><input type="text" value={form.notes} onChange={e=>setForm({...form, notes: e.target.value})} placeholder="Shift Siang..." className="w-full p-2.5 mt-1 border rounded-xl text-xs uppercase outline-none bg-slate-50" /></div>
             
-            <button type="submit" className={`w-full text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest shadow-lg transition-all ${isEditing ? 'bg-amber-500 hover:bg-amber-600' : 'bg-emerald-600 hover:bg-emerald-700'}`}>{isEditing ? '💾 Update Laporan Yield' : 'Simpan & Kunci Stok Produksi'}</button>
+            <button type="submit" className="w-full text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest shadow-lg transition-all bg-emerald-600 hover:bg-emerald-700">Simpan &amp; Kunci Stok Produksi</button>
           </form>
         </div>
         
