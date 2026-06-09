@@ -8,9 +8,11 @@
     <!-- Tailwind CSS Engine -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- ENTERPRISE DESIGN SYSTEM & PERFORMANCE PROTECTION -->
+    <!-- ENTERPRISE DESIGN SYSTEM, PRINT ENGINE & FLUID BACKGROUND -->
     <style>
-      /* 1. GLOBAL UI & ENTERPRISE SCROLLBAR */
+      /* ========================================================
+         1. GLOBAL UI & ENTERPRISE SCROLLBAR
+         ======================================================== */
       ::-webkit-scrollbar { width: 6px; height: 6px; }
       ::-webkit-scrollbar-track { background: transparent; }
       ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
@@ -22,7 +24,9 @@
         will-change: transform; 
       }
 
-      /* 2. SHIMMER / SKELETON LOADING UI (PHASE 11) */
+      /* ========================================================
+         2. SHIMMER / SKELETON LOADING UI (PHASE 11)
+         ======================================================== */
       @keyframes shimmer {
         0% { background-position: -1000px 0; }
         100% { background-position: 1000px 0; }
@@ -36,7 +40,9 @@
         border-radius: 12px;
       }
 
-      /* 3. SMART TABLE OPTIMIZATION */
+      /* ========================================================
+         3. SMART TABLE OPTIMIZATION
+         ======================================================== */
       .table-compact th, .table-compact td { 
         padding: 8px 12px !important; 
         font-size: 0.75rem !important; 
@@ -48,7 +54,9 @@
         z-index: 10; 
       }
 
-      /* 4. PRINT STABILITY ENGINE (A4 & THERMAL POS 58mm/80mm) */
+      /* ========================================================
+         4. PRINT STABILITY ENGINE (A4, THERMAL 58mm, DOT MATRIX)
+         ======================================================== */
       @media print {
         body { 
           -webkit-print-color-adjust: exact !important; 
@@ -58,9 +66,10 @@
         }
         
         /* Sembunyikan Navigasi, Header, dan Elemen no-print */
-        aside, header, .no-print, button { 
-          display: none !important; 
-        }
+        body > #root { display: none !important; }
+        #print-root { display: block !important; }
+        aside, header, .no-print, button { display: none !important; }
+        a[href]:after { content: none !important; }
         
         /* Maksimalkan Viewport Cetak */
         main { 
@@ -77,6 +86,18 @@
           margin: 10mm; 
         }
 
+        /* REKAP A4 */
+        .print-a4-recap {
+          font-family: Arial, sans-serif !important;
+          font-size: 11pt !important;
+          color: black !important;
+          background: white !important;
+          width: 210mm;
+          min-height: 297mm;
+          padding: 15mm;
+          margin: 0 auto;
+        }
+
         /* OVERRIDE FOR THERMAL 58mm POS RECEIPT (KASIR OUTLET) */
         .thermal-58 @page { 
           size: 58mm auto; 
@@ -91,24 +112,10 @@
           page-break-after: auto;
           overflow: hidden;
         }
-        .thermal-58 th, .thermal-58 td { 
-          padding: 3px 0 !important; 
-        }
-        .thermal-58 .dashed-line { 
-          border-top: 1px dashed black !important; 
-          margin: 6px 0 !important; 
-        }
-      }
-    </style>
-<style>
-      /* ========================================================
-         🔥 DIMSUM ADITYA - UNIVERSAL PRINT ENGINE STYLES
-         ======================================================== */
-      @media print {
-        body > #root { display: none !important; }
-        #print-root { display: block !important; }
+        .thermal-58 th, .thermal-58 td { padding: 3px 0 !important; }
+        .thermal-58 .dashed-line { border-top: 1px dashed black !important; margin: 6px 0 !important; }
 
-        /* UPGRADE: KERTAS DOT MATRIX LX-310 (LEBIH BESAR & RENGGANG) */
+        /* DOT MATRIX LX-310 (LEBIH BESAR & RENGGANG) */
         .print-dot-matrix {
           font-family: 'Courier New', Courier, monospace !important;
           font-size: 13pt !important; 
@@ -118,32 +125,44 @@
           width: 100%;
           margin: 0;
           padding: 15px;
+          box-sizing: border-box;
+          overflow: hidden;
         }
-        
-        @page { margin: 0; }
-
-        .print-a4-recap {
-          font-family: Arial, sans-serif !important;
-          font-size: 11pt !important;
-          color: black !important;
-          background: white !important;
-          width: 210mm;
-          min-height: 297mm;
-          padding: 15mm;
-          margin: 0 auto;
-        }
-
-        a[href]:after { content: none !important; }
-        .no-print { display: none !important; }
       }
 
+      /* Sembunyikan div print saat di layar normal */
       @media screen {
         #print-root { display: none !important; }
       }
+
+      /* ========================================================
+         5. FLUID MESH GRADIENT BACKGROUND
+         ======================================================== */
+      body {
+        /* Warna dasar putih tulang */
+        background-color: #fafafa;
+        
+        /* Sihir Fluid Gradient murni tanpa file gambar */
+        background-image: 
+          radial-gradient(circle at 10% 25%, rgba(255, 166, 178, 0.35) 0%, transparent 45%),
+          radial-gradient(circle at 90% 50%, rgba(255, 206, 153, 0.35) 0%, transparent 50%),
+          radial-gradient(circle at 30% 90%, rgba(255, 240, 168, 0.35) 0%, transparent 45%);
+          
+        background-attachment: fixed;
+        background-repeat: no-repeat;
+        background-size: cover;
+        min-height: 100vh;
+      }
+
+      /* Pastikan elemen di atasnya tetap mulus & tembus pandang */
+      #root, .app-container {
+        background: transparent !important;
+      }
     </style>
   </head>
-  <body class="bg-slate-50 antialiased text-slate-800 selection:bg-red-500 selection:text-white">
+  <body class="antialiased text-slate-800 selection:bg-red-500 selection:text-white">
     <div id="root"></div>
+    <!-- Mesin React -->
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
