@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Factory, Package, Activity, Layers, AlertTriangle, Printer, Edit2, Trash2, CalendarDays, Undo, Plus, ArrowDown } from 'lucide-react';
+import { Factory, Package, Activity, Layers, Printer, Edit2, Trash2, CalendarDays, Undo, Plus, ArrowDown } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
 
