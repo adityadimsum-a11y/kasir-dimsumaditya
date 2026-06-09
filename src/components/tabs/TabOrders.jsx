@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { ShoppingCart, CheckCircle, Printer, Receipt, Users, AlertTriangle } from 'lucide-react';
-import { formatRp, getTodayStr, generateId } from '../../utils/helpers';
+import { ShoppingCart, CheckCircle, Printer, Users, AlertTriangle, Lock } from 'lucide-react';
+// IMPORT KATEGORI_HARGA
+import { formatRp, getTodayStr, generateId, KATEGORI_HARGA } from '../../utils/helpers';
 import PaginationController from '../ui/PaginationController';
 
 export default function TabOrders({ orders, master_customers, sendToSheet, setPrintData, requestDelete, showToast, user }) {
@@ -14,7 +15,7 @@ export default function TabOrders({ orders, master_customers, sendToSheet, setPr
       customer_name: '', 
       invoice_no: '',
       qty: 50, 
-      price: '3000', 
+      price: KATEGORI_HARGA['Eceran'], // Auto-set harga awal
       gross_sales: '', 
       marketplace_admin_fee: '', 
       marketplace_promo: '', 
@@ -35,15 +36,22 @@ export default function TabOrders({ orders, master_customers, sendToSheet, setPr
       return totalGross - Number(form.marketplace_admin_fee || 0) - Number(form.marketplace_promo || 0);
   }, [totalGross, form.marketplace_admin_fee, form.marketplace_promo]);
 
+  // FIX POINT 3: Kunci Harga Otomatis Berdasarkan Tier
   const handleCategoryChange = (e) => {
       const cat = e.target.value;
       let newSource = 'OFFLINE'; let newPayMethod = 'CASH';
+      let mappedPriceKey = 'Eceran';
 
-      if (cat === 'MERCHANT') { newSource = 'SHOPEEFOOD'; newPayMethod = 'MARKETPLACE_AR'; }
-      else if (cat === 'TOKO_ONLINE') { newSource = 'TOKOPEDIA'; newPayMethod = 'MARKETPLACE_AR'; }
+      if (cat === 'MERCHANT') { newSource = 'SHOPEEFOOD'; newPayMethod = 'MARKETPLACE_AR'; mappedPriceKey = 'ShopeeFood'; }
+      else if (cat === 'TOKO_ONLINE') { newSource = 'TOKOPEDIA'; newPayMethod = 'MARKETPLACE_AR'; mappedPriceKey = 'Tokopedia'; }
+      else if (cat === 'RESELLER') { mappedPriceKey = 'Reseller'; }
+      else if (cat === 'MITRA') { mappedPriceKey = 'Mitra'; }
+
+      const autoPrice = KATEGORI_HARGA[mappedPriceKey] || 0;
 
       setForm(prev => ({
           ...prev, sales_category: cat, source: newSource, paymentMethod: newPayMethod,
+          price: autoPrice, // MENGUNCI HARGA
           gross_sales: '', marketplace_admin_fee: '', marketplace_promo: ''
       }));
   };
@@ -150,12 +158,13 @@ export default function TabOrders({ orders, master_customers, sendToSheet, setPr
                             <label className="text-[10px] font-bold text-slate-500 uppercase">Kuantitas (Pcs)</label>
                             <input type="number" required min="1" value={form.qty} onChange={e=>setForm({...form, qty: e.target.value})} className="w-full p-2.5 border rounded-xl font-black text-slate-800 mt-1" />
                         </div>
-                        <div className="md:col-span-2">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase">Harga Satuan Input Manual (Transisi)</label>
+                        <div className="md:col-span-2 relative group">
+                            <label className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><Lock size={12} className="text-emerald-500"/> Harga Satuan Terkunci</label>
                             <div className="relative mt-1">
                                 <span className="absolute left-4 top-2.5 font-black text-slate-400">Rp</span>
-                                <input type="number" required value={form.price} onChange={e=>setForm({...form, price: e.target.value})} className="w-full pl-10 p-2.5 bg-white border rounded-xl font-black text-slate-800" />
+                                <input type="number" readOnly value={form.price} className="w-full pl-10 p-2.5 bg-slate-200/60 border border-slate-200 rounded-xl font-black text-slate-600 cursor-not-allowed outline-none" />
                             </div>
+                            <div className="absolute -top-6 left-0 bg-slate-800 text-white text-[9px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition pointer-events-none">Harga otomatis sesuai Tier</div>
                         </div>
                         <div>
                             <label className="text-[10px] font-bold text-slate-500 uppercase">Status Uang Masuk</label>
