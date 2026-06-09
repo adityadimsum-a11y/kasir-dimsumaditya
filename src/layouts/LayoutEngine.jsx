@@ -23,7 +23,7 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
   const menuGroups = useMemo(() => {
     const groups = [];
 
-    // GROUP A: EXECUTIVE & DASHBOARD (Terpusat vs Cabang)
+    // GROUP A: COMMAND CENTER (Terpusat vs Cabang)
     const dashboardItems = [];
     if (nodeCapability.can_global_dashboard === true || nodeCapability.can_global_dashboard === 'true') {
         dashboardItems.push({ id: 'dashboard', label: 'Global HQ Radar', icon: Globe });
@@ -79,14 +79,14 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
     return groups;
   }, [nodeCapability]);
 
-  // 3. DYNAMIC THEME COLOR GENERATOR
+  // 3. DYNAMIC THEME COLOR GENERATOR (SESUAI IDENTITAS LOGO BARU DIMSUM ADITYA)
   const themeConfig = useMemo(() => {
       const type = user?.branch_type;
-      if (type === 'HQ_FACTORY') return { bg: 'bg-blue-600', text: 'text-blue-600', ring: 'ring-blue-500', icon: ShieldCheck, title: 'HQ FACTORY' };
-      if (type === 'PRODUCTION_BRANCH') return { bg: 'bg-indigo-600', text: 'text-indigo-600', ring: 'ring-indigo-500', icon: Factory, title: 'PRODUCTION NODE' };
-      if (type === 'OUTLET_RESTO') return { bg: 'bg-orange-600', text: 'text-orange-600', ring: 'ring-orange-500', icon: Store, title: 'OUTLET RESTO' };
-      if (type === 'FRANCHISE') return { bg: 'bg-emerald-600', text: 'text-emerald-600', ring: 'ring-emerald-500', icon: Package, title: 'FRANCHISE NODE' };
-      return { bg: 'bg-slate-600', text: 'text-slate-600', ring: 'ring-slate-500', icon: LayoutDashboard, title: 'SYSTEM NODE' };
+      if (type === 'HQ_FACTORY') return { bg: 'bg-red-600', text: 'text-red-600', ring: 'ring-red-500', icon: ShieldCheck, title: 'HQ FACTORY' };
+      if (type === 'PRODUCTION_BRANCH') return { bg: 'bg-orange-600', text: 'text-orange-600', ring: 'ring-orange-500', icon: Factory, title: 'PRODUCTION NODE' };
+      if (type === 'OUTLET_RESTO') return { bg: 'bg-amber-500', text: 'text-amber-500', ring: 'ring-amber-400', icon: Store, title: 'OUTLET RESTO' };
+      if (type === 'FRANCHISE') return { bg: 'bg-rose-600', text: 'text-rose-600', ring: 'ring-rose-500', icon: Package, title: 'FRANCHISE NODE' };
+      return { bg: 'bg-slate-800', text: 'text-slate-800', ring: 'ring-slate-700', icon: LayoutDashboard, title: 'SYSTEM NODE' };
   }, [user?.branch_type]);
 
   const ThemeIcon = themeConfig.icon;
@@ -100,12 +100,12 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
       <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-slate-900 text-slate-300 transition-transform duration-300 ease-in-out flex flex-col ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 lg:static lg:flex-shrink-0 shadow-2xl`}>
         <div className="h-20 flex items-center px-6 border-b border-slate-800 bg-slate-950/50">
           <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 ${themeConfig.bg} rounded-xl flex items-center justify-center shadow-lg`}>
+            <div className={`w-10 h-10 ${themeConfig.bg} rounded-xl flex items-center justify-center shadow-lg transition-colors`}>
               <ThemeIcon size={22} className="text-white"/>
             </div>
             <div>
               <h1 className="font-black text-white text-lg tracking-wider uppercase leading-none">{themeConfig.title}</h1>
-              <span className={`text-[9px] font-bold ${themeConfig.text} brightness-150 uppercase tracking-widest block mt-1`}>Dimsum Aditya ERP</span>
+              <span className={`text-[9px] font-bold ${themeConfig.text} brightness-150 uppercase tracking-widest block mt-1 transition-colors`}>Dimsum Aditya ERP</span>
             </div>
           </div>
           <button onClick={() => setIsMobileMenuOpen(false)} className="ml-auto lg:hidden text-slate-400 hover:text-white"><X size={24} /></button>
@@ -133,7 +133,7 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
 
         <div className="p-4 border-t border-slate-800 bg-slate-900/50">
           <div className="flex items-center gap-3 px-3 py-2 mb-3 bg-slate-800/50 rounded-xl border border-slate-700/50">
-            <div className={`w-8 h-8 rounded-full ${themeConfig.bg} flex items-center justify-center font-black text-white text-xs uppercase border border-slate-600`}>
+            <div className={`w-8 h-8 rounded-full ${themeConfig.bg} flex items-center justify-center font-black text-white text-xs uppercase border border-slate-600 transition-colors`}>
               {(user?.name || user?.username || 'U').charAt(0)}
             </div>
             <div className="flex-1 overflow-hidden">
@@ -141,7 +141,7 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
               <div className="text-[10px] font-bold text-slate-400 uppercase truncate">{user?.branch_id || 'NODE'}</div>
             </div>
           </div>
-          <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-black text-rose-500 hover:bg-rose-500/10 transition-colors uppercase tracking-wide">
+          <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-black text-slate-400 hover:text-white hover:bg-red-600 transition-colors uppercase tracking-wide">
             <LogOut size={16} /> Logout Sistem
           </button>
         </div>
@@ -159,7 +159,7 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-full">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full shadow-sm">
               <div className={`w-2 h-2 rounded-full ${themeConfig.bg} animate-pulse`}></div>
               <span className={`text-[10px] font-black ${themeConfig.text} uppercase tracking-widest`}>Online & Tersinkronisasi</span>
             </div>
