@@ -1,273 +1,204 @@
-import React, { useState, useMemo } from 'react';
-import { Calendar, Printer, Wallet, Coins, CreditCard, ArrowRightLeft, Users, ShoppingCart, AlertCircle, Clock, Factory, Store } from 'lucide-react';
-import { getTodayStr, getLocalYMD, formatRp, formatDate } from '../../utils/helpers';
+import React, { useMemo } from 'react';
+import { Store, TrendingUp, Users, ShoppingBag, Clock, Receipt, Activity, CreditCard } from 'lucide-react';
+import { formatRp, getTodayStr, formatDate } from '../../utils/helpers';
 
-const StatCard = ({ title, amount, icon, color }) => (
-  <div className={`p-5 rounded-xl border flex flex-col justify-between ${color}`}>
-    <div className="flex justify-between items-start mb-4"><h3 className="font-medium text-sm opacity-90">{title}</h3><div className="p-2 bg-white/60 rounded-lg shadow-sm">{icon}</div></div>
-    <div className="text-2xl font-bold tracking-tight">{amount}</div>
-  </div>
-);
-
-export default function TabDashboardBranch({ orders, pemalangReports, piutangPayments, setPrintData, stokData }) {
+export default function TabDashboardBranch({ orders, master_customers, inventory_cost_layers, user }) {
   const todayStr = getTodayStr();
-  const [dateFrom, setDateFrom] = useState(todayStr);
-  const [dateTo, setDateTo] = useState(todayStr);
+  const currentBranch = user?.branch_id || 'UNKNOWN_BRANCH';
+  const branchName = user?.branch_name || currentBranch;
 
-  const MASTER_AYAM_KG = 30; 
-  const MASTER_PCS = 1000; 
-  const KG_PER_KANTONG = 10;
-  const PCS_PER_MIKA = 50;
+  // 1. ENGINE KALKULASI METRIK HARI INI KHUSUS CABANG INI
+  const metrics = useMemo(() => {
+    let todayOmset = 0;
+    let todayTrxCount = 0;
+    let todayCash = 0;
+    let todayAR = 0;
+    const recentOrders = [];
+    const customerStats = {};
 
-  // KALKULASI DATA CABANG PEMALANG (MIRRORING LOGIC PUSAT)
-  const rekap = useMemo(() => {
-    const isPeriod = (d) => getLocalYMD(d) >= dateFrom && getLocalYMD(d) <= dateTo;
-    
-    // --- 1. DATA KEUANGAN & TRANSAKSI ---
-    const branchOrdersAll = (orders || []).filter(o => o?.category === 'Pemalang');
-    const branchOrdersPeriod = branchOrdersAll.filter(o => isPeriod(o?.date));
-    const branchReportsPeriod = (pemalangReports || []).filter(r => isPeriod(r?.date));
-    
-    const totalPenjualanKotor = branchOrdersPeriod.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
-    const totalPcs = branchOrdersPeriod.reduce((sum, o) => sum + (Number(o.qty) || 0), 0);
-    const setoranKePusat = branchReportsPeriod.reduce((sum, r) => sum + (Number(r.nominal) || 0), 0);
-    
-    // Breakdown Piutang All Time
-    const piutangBerjalan = branchOrdersAll.map(o => {
-        const cicilan = (piutangPayments || []).filter(p => p.orderId === o.id).reduce((s, p) => s + (Number(p.amount) || 0), 0);
-        return { ...o, sisaTagihan: (Number(o.total) || 0) - (Number(o.paidAmount) || 0) - cicilan };
-    }).filter(o => o.sisaTagihan > 0);
-    const totalPiutangBaru = piutangBerjalan.reduce((sum, o) => sum + o.sisaTagihan, 0);
+    (orders || []).forEach(o => {
+      // Filter hanya data cabang ini dan tidak dihapus
+      if (o.isDeleted || String(o.isDeleted).toUpperCase() === 'TRUE') return;
+      if (String(o.branch_id).toUpperCase() !== currentBranch.toUpperCase()) return;
 
-    // Leaderboard Pelanggan Teratas (Style Pusat)
-    const customerMap = {};
-    let totalTerbayarPeriode = 0;
-    
-    const listOrders = branchOrdersPeriod.map(o => {
-        const cicilan = (piutangPayments || []).filter(p => p.orderId === o.id).reduce((s, p) => s + (Number(p.amount) || 0), 0);
-        const terbayar = (Number(o.paidAmount) || 0) + cicilan;
-        const sisa = (Number(o.total) || 0) - terbayar;
-        
-        totalTerbayarPeriode += terbayar;
+      // Ambil transaksi hari ini
+      if (o.date === todayStr) {
+        const netTotal = Number(o.total || 0) - Number(o.fee_amount || 0) - Number(o.marketplace_promo || 0);
+        todayOmset += netTotal;
+        todayTrxCount += 1;
 
-        // Populate Top Customers
-        const cName = String(o.customer || '').toUpperCase();
-        if(!customerMap[cName]) customerMap[cName] = { name: cName, qty: 0, porsi: 0, total: 0, frequency: 0 };
-        customerMap[cName].qty += Number(o.qty);
-        customerMap[cName].porsi += (Number(o.qty) / 4);
-        customerMap[cName].total += Number(o.total);
-        customerMap[cName].frequency += 1;
+        if (o.paymentMethod === 'MARKETPLACE_AR') {
+          todayAR += netTotal;
+        } else {
+          todayCash += netTotal;
+        }
 
-        return { ...o, items: [`${o.qty} Pcs`], totalTagihan: o.total, totalTerbayar: terbayar, sisaTagihan: sisa, status: sisa <= 0 ? 'LUNAS' : 'BELUM LUNAS' };
+        // Hitung Pelanggan Teratas
+        const cName = o.customer_name || 'Pelanggan Anonim';
+        if (!customerStats[cName]) customerStats[cName] = 0;
+        customerStats[cName] += netTotal;
+      }
+
+      // Kumpulkan untuk list transaksi terbaru (maksimal 10)
+      recentOrders.push(o);
     });
 
-    const topCustomersList = Object.values(customerMap).sort((a,b) => b.total - a.total);
+    // Urutkan transaksi dari yang terbaru
+    recentOrders.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-    // --- 2. DATA OPERASIONAL ---
-    const mutasiAyamAll = (stokData || []).filter(s => s.type === 'MUTASI_AYAM_PEMALANG').reduce((sum, s) => sum + Number(s.qty), 0);
-    const prodPemalangAll = (stokData || []).filter(s => s.type === 'PRODUKSI_PEMALANG').reduce((sum, s) => sum + Number(s.qty), 0);
-    const sisaAyam = mutasiAyamAll - (prodPemalangAll * MASTER_AYAM_KG);
-    
-    const terjualPcsAll = branchOrdersAll.reduce((sum, o) => sum + Number(o.qty), 0);
-    const sisaFreezer = (prodPemalangAll * MASTER_PCS) - terjualPcsAll;
+    // Urutkan pelanggan top
+    const topCustomers = Object.entries(customerStats)
+      .map(([name, total]) => ({ name, total }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5);
 
-    const adukanHariIni = (stokData || []).filter(s => s.type === 'PRODUKSI_PEMALANG' && isPeriod(s.date)).reduce((sum, s) => sum + Number(s.qty), 0);
-    
-    const ops = {
-        sisaAyam, sisaAyamKtg: sisaAyam / KG_PER_KANTONG,
-        sisaFreezer,
-        adukanHariIni, 
-        ayamTerpakaiHariIni: adukanHariIni * MASTER_AYAM_KG, 
-        dimsumMasukHariIni: adukanHariIni * MASTER_PCS
-    };
+    // Hitung sisa stok cabang ini (Dimsum saja sebagai patokan utama)
+    let stockDimsum = 0;
+    (inventory_cost_layers || []).forEach(l => {
+      if (l.isDeleted || String(l.isDeleted).toUpperCase() === 'TRUE') return;
+      if (String(l.branch_id).toUpperCase() === currentBranch.toUpperCase() && l.status === 'ACTIVE' && l.item_name === 'DIMSUM') {
+        stockDimsum += Number(l.qty_remaining || 0);
+      }
+    });
 
-    return {
-        totalPenjualanKotor, totalPcs, setoranKePusat, totalPiutangBaru, totalTerbayarPeriode,
-        listOrders,
-        listPiutangBerjalan: piutangBerjalan,
-        listReports: branchReportsPeriod,
-        topCustomersList,
-        listStokPusat: (stokData || []).filter(s => s.type === 'PRODUKSI_PEMALANG' && isPeriod(s.date)), 
-        ops
-    };
-  }, [orders, pemalangReports, piutangPayments, stokData, dateFrom, dateTo]);
-
-  const ops = rekap.ops;
+    return { todayOmset, todayTrxCount, todayCash, todayAR, recentOrders: recentOrders.slice(0, 8), topCustomers, stockDimsum };
+  }, [orders, currentBranch, todayStr, inventory_cost_layers]);
 
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
-      {/* FILTER & CETAK */}
-      <div className="bg-white p-4 rounded-xl border shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div><h3 className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2"><Calendar size={16}/> Filter Laporan & Cetak</h3><div className="flex gap-2"><input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="p-2 text-sm border rounded-lg" /><span className="text-slate-400 self-center">s/d</span><input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="p-2 text-sm border rounded-lg" /></div></div>
-          <button onClick={() => setPrintData({ type: 'reportBranch', data: { rekap, dateFrom, dateTo } })} className="bg-slate-800 hover:bg-slate-900 text-white px-5 py-2.5 rounded-lg flex gap-2 text-sm font-medium"><Printer size={16} /> Cetak Rekap Cabang</button>
-      </div>
-
-      {/* DASHBOARD OPERASIONAL (GAYA PUSAT) */}
-      <div className="bg-slate-900 rounded-2xl shadow-2xl overflow-hidden border border-slate-800 relative">
-          <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-500 via-emerald-400 to-amber-500"></div>
-          <div className="p-5 border-b border-slate-800/60 flex justify-between items-center bg-slate-900/50">
-              <div>
-                  <h2 className="text-lg font-black text-white flex items-center gap-2 tracking-wide"><Factory className="text-blue-400"/> KONTROL OPERASIONAL & PRODUKSI CABANG</h2>
-                  <p className="text-[11px] text-slate-400 mt-1">Monitoring real-time aktivitas dapur dan kapasitas gudang cabang.</p>
-              </div>
-              <div className="text-right hidden sm:block">
-                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Status Data</div>
-                  <div className="text-xs font-bold text-emerald-400 flex items-center justify-end gap-1.5 mt-0.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span> LIVE REALTIME</div>
-              </div>
+      
+      {/* HEADER HERO SECTION */}
+      <div className="bg-slate-900 rounded-3xl p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl border border-slate-800 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="relative z-10 flex items-center gap-4 w-full">
+          <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/30 shrink-0">
+            <Store size={32} className="text-white" />
           </div>
-          
-          <div className="grid grid-cols-2 md:grid-cols-5 divide-y md:divide-y-0 md:divide-x divide-slate-800/60 bg-slate-800/30">
-              <div className="p-6 flex flex-col justify-center items-center text-center hover:bg-slate-800/50 transition">
-                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Adukan Hari Ini</div>
-                  <div className="text-3xl font-black text-white drop-shadow-md">{ops.adukanHariIni || 0} <span className="text-xs text-blue-400">Adk</span></div>
-              </div>
-              <div className="p-6 flex flex-col justify-center items-center text-center hover:bg-slate-800/50 transition">
-                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Ayam Terpakai</div>
-                  <div className="text-3xl font-black text-white drop-shadow-md">-{ops.ayamTerpakaiHariIni || 0} <span className="text-xs text-orange-400">Kg</span></div>
-              </div>
-              <div className="p-6 flex flex-col justify-center items-center text-center hover:bg-slate-800/50 transition relative overflow-hidden bg-slate-800/20">
-                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Sisa Ayam (Live)</div>
-                  <div className="text-3xl font-black text-white drop-shadow-md">{ops.sisaAyam || 0} <span className="text-xs text-emerald-400">Kg</span></div>
-                  <div className="text-[10px] font-bold text-emerald-400 mt-2 px-3 py-1 bg-emerald-950/80 rounded-full border border-emerald-800/50">{(ops.sisaAyamKtg || 0).toFixed(1).replace('.0','')} Kantong</div>
-              </div>
-              <div className="p-6 flex flex-col justify-center items-center text-center hover:bg-slate-800/50 transition">
-                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Masuk Freezer</div>
-                  <div className="text-3xl font-black text-white drop-shadow-md">+{ops.dimsumMasukHariIni || 0} <span className="text-xs text-blue-400">Pcs</span></div>
-                  <div className="text-[10px] font-bold text-blue-400 mt-2 px-3 py-1 bg-blue-950/80 rounded-full border border-blue-800/50">{((ops.dimsumMasukHariIni || 0) / PCS_PER_MIKA).toFixed(1).replace('.0','')} Mika</div>
-              </div>
-              <div className="p-6 flex flex-col justify-center items-center text-center hover:bg-slate-800/50 transition relative overflow-hidden bg-slate-800/20">
-                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Sisa Freezer (Live)</div>
-                  <div className="text-3xl font-black text-white drop-shadow-md">{ops.sisaFreezer || 0} <span className="text-xs text-emerald-400">Pcs</span></div>
-                  <div className="text-[10px] font-bold text-emerald-400 mt-2 px-3 py-1 bg-emerald-950/80 rounded-full border border-emerald-800/50">{((ops.sisaFreezer || 0) / PCS_PER_MIKA).toFixed(1).replace('.0','')} Mika</div>
-              </div>
+          <div>
+            <h2 className="text-2xl md:text-3xl font-black text-white uppercase tracking-wide">
+              {branchName}
+            </h2>
+            <p className="text-xs font-bold text-blue-400 mt-1 uppercase tracking-widest flex items-center gap-2">
+              <Activity size={14} /> Node Operasional Aktif
+            </p>
           </div>
-      </div>
-
-      {/* DASHBOARD KEUANGAN KAS (GAYA PUSAT) */}
-      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
-          <div className="flex justify-between items-start mb-4">
-              <div>
-                  <h2 className="text-lg font-bold text-slate-800 mb-1 flex items-center gap-2"><Wallet size={20}/> Status Finansial & Target Cabang</h2>
-                  <p className="text-xs text-slate-500">*Dihitung untuk periode {formatDate(dateFrom)} s/d {formatDate(dateTo)}.</p>
-              </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <StatCard title="Total Omset Penjualan" amount={formatRp(rekap.totalPenjualanKotor)} icon={<Wallet />} color="bg-blue-50 text-blue-700 border-blue-200" />
-              <StatCard title="Total Disetor (EOD)" amount={formatRp(rekap.setoranKePusat)} icon={<Coins />} color="bg-emerald-50 text-emerald-700 border-emerald-200" />
-              <StatCard title="Total Piutang Gantung" amount={formatRp(rekap.totalPiutangBaru)} icon={<CreditCard />} color="bg-orange-50 text-orange-700 border-orange-200" />
-          </div>
-      </div>
-
-      {/* TABEL 1: LAPORAN HARIAN (EOD) - MENGGANTIKAN POSISI PENGELUARAN PUSAT */}
-      <div className="bg-white p-6 rounded-xl border border-indigo-200 shadow-sm flex flex-col mt-6">
-          <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-indigo-700"><Store size={20}/> Rekap Laporan Harian (End of Day)</h3>
-          <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                  <thead className="bg-indigo-50 border-b border-indigo-100">
-                      <tr><th className="px-3 py-2 text-indigo-800">Tanggal Lapor</th><th className="px-3 py-2 text-center text-indigo-800">Klaim Produksi / Order</th><th className="px-3 py-2 text-indigo-800">Sisa Fisik Freezer</th><th className="px-3 py-2 text-indigo-800">Sisa Fisik Ayam</th><th className="px-3 py-2 text-right text-indigo-800">Disetor (Rp)</th></tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                      {(!rekap.listReports || rekap.listReports.length === 0) ? (
-                          <tr><td colSpan="5" className="text-center py-6 text-slate-400">Tidak ada laporan EOD di periode ini.</td></tr>
-                      ) : (
-                          rekap.listReports.map((r, i) => (
-                              <tr key={i} className="hover:bg-slate-50">
-                                  <td className="px-3 py-2"><div className="font-bold text-slate-700">{formatDate(r.date)}</div></td>
-                                  <td className="px-3 py-2 text-center font-bold text-slate-600">{r.produksiMika} M / {r.pesananMika} M</td>
-                                  <td className="px-3 py-2 font-bold uppercase text-indigo-700">{r.stokFreezer}</td>
-                                  <td className="px-3 py-2 font-bold uppercase text-orange-700">{r.stokAyam || '-'}</td>
-                                  <td className="px-3 py-2 text-right font-black text-emerald-600">{formatRp(r.nominal)}</td>
-                              </tr>
-                          ))
-                      )}
-                  </tbody>
-              </table>
-          </div>
-      </div>
-
-      {/* TABEL 2: TRANSAKSI PENJUALAN - MENGGANTIKAN POSISI ORDER PUSAT */}
-      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col mt-6">
-          <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-slate-800"><ShoppingCart size={20}/> Transaksi Penjualan / Invoice Cabang</h3>
-          <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                  <thead className="bg-slate-50 border-b border-slate-100">
-                      <tr><th className="px-3 py-2 text-slate-800">Tgl & Ref</th><th className="px-3 py-2 text-slate-800">Pelanggan</th><th className="px-3 py-2 text-center text-slate-800">Qty</th><th className="px-3 py-2 text-center text-slate-800">Via</th><th className="px-3 py-2 text-right text-slate-800">Tagihan</th><th className="px-3 py-2 text-right text-slate-800">Sisa</th><th className="px-3 py-2 text-center text-slate-800">Status</th></tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                      {(!rekap.listOrders || rekap.listOrders.length === 0) ? (
-                          <tr><td colSpan="7" className="text-center py-6 text-slate-400">Tidak ada data penjualan cabang di periode ini.</td></tr>
-                      ) : (
-                          rekap.listOrders.map((o, i) => (
-                              <tr key={i} className="hover:bg-slate-50">
-                                  <td className="px-3 py-2"><div className="font-bold text-slate-700">{formatDate(o?.date)}</div><div className="text-[10px] text-slate-400 font-mono">{o?.id || '-'}</div></td>
-                                  <td className="px-3 py-2 font-bold uppercase text-xs">{o?.customer || '-'}</td>
-                                  <td className="px-3 py-2 text-center text-xs font-bold text-slate-600">{o?.qty} Pcs</td>
-                                  <td className="px-3 py-2 text-center text-[10px] font-medium text-slate-600">{o?.paymentMethod || '-'}</td>
-                                  <td className="px-3 py-2 text-right font-bold text-slate-700">{formatRp(o?.totalTagihan)}</td>
-                                  <td className="px-3 py-2 text-right font-black text-red-600">{formatRp(o?.sisaTagihan)}</td>
-                                  <td className="px-3 py-2 text-center"><span className={`px-2 py-1 rounded text-[10px] font-bold ${o?.status === 'LUNAS' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>{o?.status}</span></td>
-                              </tr>
-                          ))
-                      )}
-                  </tbody>
-              </table>
-          </div>
-      </div>
-
-      {/* TABEL 3: PIUTANG BERJALAN */}
-      {rekap.listPiutangBerjalan.length > 0 && (
-          <div className="bg-white p-6 rounded-xl border border-orange-200 shadow-sm flex flex-col mt-6">
-              <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-orange-700"><AlertCircle size={20}/> Daftar Piutang Berjalan (Cabang)</h3>
-              <div className="overflow-x-auto">
-                  <table className="w-full text-sm text-left">
-                      <thead className="bg-orange-50 border-b border-orange-100">
-                          <tr><th className="px-3 py-2 text-orange-800">Tgl & Inv</th><th className="px-3 py-2 text-orange-800">Pelanggan</th><th className="px-3 py-2 text-right text-orange-800">Sisa Tagihan</th></tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                          {rekap.listPiutangBerjalan.map((p, i) => (
-                              <tr key={i} className="hover:bg-slate-50">
-                                  <td className="px-3 py-2"><div className="font-bold text-slate-700">{formatDate(p.date)}</div><div className="text-[10px] text-slate-400 font-mono">{p.id}</div></td>
-                                  <td className="px-3 py-2 font-bold uppercase text-xs">{p.customer}</td>
-                                  <td className="px-3 py-2 text-right font-black text-red-600">{formatRp(p.sisaHutang)}</td>
-                              </tr>
-                          ))}
-                      </tbody>
-                  </table>
-              </div>
-          </div>
-      )}
-
-      {/* GRID BAWAH: ARUS TRANSAKSI & PELANGGAN TERATAS (GAYA PUSAT) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-        <div className="bg-white p-6 rounded-xl border border-blue-200 shadow-sm flex flex-col relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
-            <h3 className="font-bold text-lg mb-1 flex items-center gap-2 text-blue-800"><ArrowRightLeft size={20}/> Arus Transaksi Cabang</h3>
-            <p className="text-xs text-slate-500 mb-4 border-b pb-2">Khusus periode {formatDate(dateFrom)} - {formatDate(dateTo)}</p>
-            <div className="grid grid-cols-2 gap-4 mt-2">
-                <div className="bg-emerald-50 p-3 rounded border border-emerald-100"><div className="text-[10px] font-bold text-emerald-700 uppercase mb-1">Total Omset Cabang</div><div className="text-lg font-black text-emerald-600">+{formatRp(rekap.totalPenjualanKotor)}</div></div>
-                <div className="bg-blue-50 p-3 rounded border border-blue-100"><div className="text-[10px] font-bold text-blue-700 uppercase mb-1">Total Terbayar (Cash/TF)</div><div className="text-lg font-black text-blue-600">+{formatRp(rekap.totalTerbayarPeriode)}</div></div>
-                <div className="bg-orange-50 p-3 rounded border border-orange-100"><div className="text-[10px] font-bold text-orange-700 uppercase mb-1">Piutang Gantung / DP</div><div className="text-lg font-black text-orange-600">{formatRp((rekap.totalPenjualanKotor) - (rekap.totalTerbayarPeriode))}</div></div>
-                <div className="bg-indigo-50 p-3 rounded border border-indigo-100"><div className="text-[10px] font-bold text-indigo-700 uppercase mb-1">Setoran EOD (Ke Pusat)</div><div className="text-lg font-black text-indigo-600">{formatRp(rekap.setoranKePusat)}</div></div>
-            </div>
         </div>
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col max-h-[340px]">
-            <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Users size={20} className="text-slate-500"/> Pelanggan Teratas Cabang (Periode Ini)</h3>
-            <div className="overflow-y-auto pr-2 flex-1 space-y-3">
-               {(!rekap.topCustomersList || rekap.topCustomersList.length === 0) ? (
-                   <div className="text-center text-slate-400 text-sm mt-8">Tidak ada data penjualan cabang.</div>
-               ) : (
-                   rekap.topCustomersList.map((cust, i) => (
-                       <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100 hover:border-blue-200 transition">
-                           <div className="flex items-center gap-3">
-                               <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shadow-sm ${i === 0 ? 'bg-amber-400 text-white' : i === 1 ? 'bg-slate-300 text-slate-700' : i === 2 ? 'bg-orange-300 text-white' : 'bg-white text-slate-400'}`}>#{i+1}</div>
-                               <div><div className="font-bold text-slate-800">{cust.name}</div><div className="text-xs text-slate-500">{cust.frequency}x Order • {cust.qty} Pcs ({cust.porsi} Prs)</div></div>
-                           </div>
-                           <div className="font-bold text-emerald-600">{formatRp(cust.total)}</div>
-                       </div>
-                   ))
-               )}
-            </div>
+        <div className="relative z-10 bg-slate-800/80 border border-slate-700 px-6 py-3 rounded-2xl shrink-0 w-full md:w-auto text-center md:text-right backdrop-blur-sm">
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tanggal Operasional</div>
+          <div className="text-sm font-bold text-white uppercase">{formatDate(todayStr)}</div>
         </div>
+      </div>
+
+      {/* METRIK KARTU UTAMA */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden">
+          <div className="absolute -right-4 -top-4 text-emerald-50 opacity-50"><TrendingUp size={100}/></div>
+          <div className="relative z-10">
+            <h4 className="font-black text-slate-800 text-xs uppercase tracking-widest mb-2 flex items-center gap-2"><TrendingUp size={16} className="text-emerald-500" /> Omset Hari Ini</h4>
+            <div className="text-3xl md:text-4xl font-black text-slate-900 my-2">{formatRp(metrics.todayOmset)}</div>
+            <div className="flex gap-4 mt-4 pt-4 border-t border-slate-100">
+              <div>
+                <div className="text-[9px] font-bold text-slate-400 uppercase">Tunai / QRIS</div>
+                <div className="text-sm font-black text-emerald-600">{formatRp(metrics.todayCash)}</div>
+              </div>
+              <div>
+                <div className="text-[9px] font-bold text-slate-400 uppercase">Piutang Apps</div>
+                <div className="text-sm font-black text-orange-500">{formatRp(metrics.todayAR)}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+          <h4 className="font-black text-slate-800 text-xs uppercase tracking-widest mb-2 flex items-center gap-2"><ShoppingBag size={16} className="text-blue-500" /> Total Transaksi</h4>
+          <div className="text-3xl md:text-4xl font-black text-slate-900 my-2">{metrics.todayTrxCount} <span className="text-sm text-slate-400 font-bold">Nota</span></div>
+          <div className="text-[10px] font-bold text-slate-500 mt-4 pt-4 border-t border-slate-100 flex items-center gap-1">
+            <Clock size={12}/> Update realtime dari mesin kasir
+          </div>
+        </div>
+
+        <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-xl">
+          <h4 className="font-black text-white text-xs uppercase tracking-widest mb-2 flex items-center gap-2"><Store size={16} className="text-indigo-400" /> Sisa Stok Dimsum</h4>
+          <div className="text-3xl md:text-4xl font-black text-indigo-400 my-2">{metrics.stockDimsum.toLocaleString('id-ID')} <span className="text-sm text-slate-400 font-bold">Pcs</span></div>
+          <div className="text-[10px] font-bold text-slate-400 mt-4 pt-4 border-t border-slate-800 flex items-center gap-1">
+            Sisa fisik tercatat di Freezer Cabang
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* PANEL KIRI: TRANSAKSI TERBARU */}
+        <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+          <div className="p-6 border-b bg-slate-50 flex items-center justify-between">
+            <h4 className="font-black text-slate-800 tracking-widest uppercase text-xs flex items-center gap-2"><Receipt size={16} className="text-blue-600"/> Histori Transaksi Terbaru</h4>
+          </div>
+          <div className="overflow-x-auto flex-1 p-2">
+            <table className="w-full text-sm text-left">
+              <thead className="text-[10px] text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                <tr>
+                  <th className="px-6 py-4">Waktu & Ref</th>
+                  <th className="px-6 py-4">Pelanggan</th>
+                  <th className="px-6 py-4 text-center">Volume</th>
+                  <th className="px-6 py-4 text-right">Net Revenue</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-xs font-bold">
+                {metrics.recentOrders.length === 0 ? (
+                  <tr><td colSpan="4" className="text-center py-10 text-slate-400">Belum ada transaksi tercatat.</td></tr>
+                ) : (
+                  metrics.recentOrders.map(tx => (
+                    <tr key={tx.id} className="hover:bg-slate-50 transition">
+                      <td className="px-6 py-4">
+                        <div className="text-slate-800">{formatDate(tx.date)}</div>
+                        <div className="text-[9px] text-slate-400 font-mono mt-0.5">{tx.invoice_no || tx.id}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-slate-800 uppercase font-black">{tx.customer_name}</div>
+                        <div className="text-[9px] text-blue-600 bg-blue-50 w-max px-1.5 py-0.5 rounded mt-1 uppercase tracking-wider">{tx.source}</div>
+                      </td>
+                      <td className="px-6 py-4 text-center text-slate-700">
+                        {tx.qty} Pcs
+                      </td>
+                      <td className="px-6 py-4 text-right text-emerald-600 font-black text-sm">
+                        {formatRp(Number(tx.total) - Number(tx.fee_amount || 0) - Number(tx.marketplace_promo || 0))}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* PANEL KANAN: PELANGGAN TOP & SHORTCUT */}
+        <div className="lg:col-span-1 space-y-6">
+          {/* Top Customers Card */}
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
+            <h4 className="font-black text-slate-800 text-xs uppercase tracking-widest mb-4 flex items-center gap-2"><Users size={16} className="text-orange-500" /> Top Pelanggan Hari Ini</h4>
+            {metrics.topCustomers.length === 0 ? (
+               <div className="text-center py-6 text-xs text-slate-400 font-bold border-2 border-dashed border-slate-100 rounded-xl">Belum ada data pelanggan hari ini.</div>
+            ) : (
+              <div className="space-y-4">
+                {metrics.topCustomers.map((cust, idx) => (
+                  <div key={idx} className="flex items-center justify-between border-b border-slate-50 pb-3 last:border-0 last:pb-0">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-orange-100 text-orange-600 font-black flex items-center justify-center text-xs">{idx + 1}</div>
+                      <div className="text-xs font-black text-slate-700 uppercase">{cust.name}</div>
+                    </div>
+                    <div className="text-xs font-bold text-emerald-600">{formatRp(cust.total)}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Quick Info Card */}
+          <div className="bg-blue-50 rounded-3xl border border-blue-100 p-6">
+            <h4 className="font-black text-blue-900 text-xs uppercase tracking-widest mb-2 flex items-center gap-2"><CreditCard size={16} /> Informasi Kasir</h4>
+            <p className="text-xs text-blue-700 font-medium mb-4">Pastikan Anda selalu melakukan <b>Closing & Settlement</b> di penghujung hari operasional untuk menyetorkan kas ke Pusat.</p>
+          </div>
+        </div>
+
       </div>
     </div>
   );
