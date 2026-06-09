@@ -7,7 +7,6 @@ export default function TabOrders({ orders, stockMovements, master_customers, se
   const todayStr = getTodayStr();
   const currentBranch = user?.branch_id || 'CIBINONG';
 
-  // 1. DYNAMIC BUKU MENU ENGINE DARI MEMORI LOKAL STOK
   const bukuMenuLokal = useMemo(() => {
     const menuMap = {};
     (stockMovements || []).forEach(m => {
@@ -30,14 +29,13 @@ export default function TabOrders({ orders, stockMovements, master_customers, se
       invoice_no: '',
       selected_item: 'DIMSUM',
       qty: 1, 
-      price: 15000, 
+      price: '15000', // simpan sebagai string murni untuk mempermudah masking
       paymentMethod: 'CASH'
   });
 
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(25);
 
-  // FIX POINT 2: Deteksi pemisahan merchant ojek online individual
   const isOnlineMerchant = ['GOFOOD', 'SHOPEEFOOD', 'GRABFOOD'].includes(form.sales_category);
   const isManualPrice = isOnlineMerchant || form.sales_category === 'LAINNYA';
 
@@ -48,13 +46,12 @@ export default function TabOrders({ orders, stockMovements, master_customers, se
   const handleMenuChange = (itemName) => {
     const found = bukuMenuLokal.find(m => m.item_name === itemName);
     if (found && !isManualPrice) {
-      setForm(prev => ({ ...prev, selected_item: itemName, price: found.price }));
+      setForm(prev => ({ ...prev, selected_item: itemName, price: String(found.price) }));
     } else {
       setForm(prev => ({ ...prev, selected_item: itemName }));
     }
   };
 
-  // FIX POINT 2: Alokasi otomatis platform & source saat kategori dipisahkan
   const handleCategoryChange = (e) => {
       const cat = e.target.value;
       let newSource = 'OFFLINE'; 
@@ -63,13 +60,13 @@ export default function TabOrders({ orders, stockMovements, master_customers, se
 
       if (['GOFOOD', 'SHOPEEFOOD', 'GRABFOOD'].includes(cat)) {
           newSource = cat;
-          newPayMethod = 'PIUTANG'; // Mengambang di dompet digital aplikasi
+          newPayMethod = 'PIUTANG'; 
       } else if (cat === 'LAINNYA') {
           newSource = 'LAINNYA';
           newPayMethod = 'TF';
       } else {
           const found = bukuMenuLokal.find(m => m.item_name === form.selected_item);
-          currentItemPrice = found ? found.price : 15000;
+          currentItemPrice = found ? String(found.price) : '15000';
       }
 
       setForm(prev => ({
@@ -170,18 +167,27 @@ export default function TabOrders({ orders, stockMovements, master_customers, se
                         <input type="number" required min="1" value={form.qty} onChange={e=>setForm({...form, qty: e.target.value})} className="w-full p-3 border rounded-xl font-black text-slate-800 mt-1 outline-none" />
                     </div>
 
+                    {/* ======================================================== */}
+                    {/* INPUT HARGA DI-UPGRADE DENGAN LIVE RUPIAH MASKING ENGINE */}
+                    {/* ======================================================== */}
                     <div className="md:col-span-2 relative group">
                         <label className={`text-[10px] font-bold uppercase flex items-center gap-1 ${isManualPrice ? 'text-orange-600' : 'text-slate-500'}`}>
                             {isManualPrice ? <Edit3 size={12}/> : <Lock size={12} className="text-emerald-500"/>} 
                             {isManualPrice ? 'Harga Aktual Aplikasi (Bebas Input)' : 'Harga Buku Menu Terkunci'}
                         </label>
                         <div className="relative mt-1">
-                          <span className="absolute left-4 top-3.5 font-black text-slate-400">Rp</span>
                           <input 
-                              type="text" required readOnly={!isManualPrice} 
-                              value={form.price ? Number(form.price).toLocaleString('id-ID') : ''} 
-                              onChange={(e) => isManualPrice && setForm({...form, price: e.target.value.replace(/\D/g, '')})}
-                              className={`w-full pl-10 p-3 border rounded-xl font-black outline-none transition-colors ${!isManualPrice ? 'bg-slate-200/60 border-slate-200 text-slate-600 cursor-not-allowed' : 'bg-white border-orange-200 text-slate-900 focus:ring-2 focus:ring-orange-500'}`} 
+                              type="text" 
+                              required 
+                              readOnly={!isManualPrice} 
+                              value={"Rp. " + Number(form.price || 0).toLocaleString('id-ID')} 
+                              onChange={(e) => {
+                                  if (!isManualPrice) return;
+                                  // Hanya ambil digit angka saja, bersihkan Rp dan titik
+                                  const rawValue = e.target.value.replace(/\D/g, '');
+                                  setForm(prev => ({ ...prev, price: rawValue }));
+                              }}
+                              className={`w-full p-3 border rounded-xl font-black outline-none transition-colors ${!isManualPrice ? 'bg-slate-200/60 border-slate-200 text-slate-600 cursor-not-allowed' : 'bg-white border-orange-200 text-slate-900 focus:ring-2 focus:ring-orange-500'}`} 
                           />
                         </div>
                     </div>
@@ -204,7 +210,7 @@ export default function TabOrders({ orders, stockMovements, master_customers, se
                 <div className="flex flex-col md:flex-row justify-between items-center bg-slate-900 rounded-2xl p-5 mt-6 shadow-xl">
                     <div>
                         <div className="text-[10px] font-black uppercase text-emerald-400">Total Tagihan Nota</div>
-                        <div className="text-3xl font-black text-emerald-400">{formatRp(totalGross)}</div>
+                        <div className="text-3xl font-black text-emerald-400">{"Rp. " + Number(totalGross).toLocaleString('id-ID')}</div>
                     </div>
                     <button type="submit" className="w-full md:w-auto bg-amber-500 hover:bg-amber-600 text-slate-950 font-black px-8 py-4 rounded-xl uppercase tracking-wide text-xs flex items-center justify-center gap-2 transition">
                         <CheckCircle size={18}/> Rekam Nota & Potong Freezer
@@ -238,7 +244,7 @@ export default function TabOrders({ orders, stockMovements, master_customers, se
                                 <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase bg-slate-100 text-slate-700">{o.paymentMethod}</span>
                             </td>
                             <td className="px-4 py-3 text-center text-slate-700 font-black">{o.qty} Pcs</td>
-                            <td className="px-4 py-3 text-right text-emerald-600 font-black">{formatRp(o.total)}</td>
+                            <td className="px-4 py-3 text-right text-emerald-600 font-black">{"Rp. " + Number(o.total || 0).toLocaleString('id-ID')}</td>
                             <td className="px-4 py-3 flex items-center justify-center gap-2">
                                 <button type="button" onClick={() => setPrintData({ type: 'INVOICE', data: o })} className="p-1.5 bg-blue-50 text-blue-600 rounded hover:bg-blue-100"><Printer size={14}/></button>
                                 <button type="button" onClick={() => requestDelete(o.id)} className="p-1.5 bg-rose-50 text-rose-600 rounded hover:bg-rose-100"><AlertTriangle size={14}/></button>
