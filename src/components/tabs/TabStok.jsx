@@ -163,7 +163,7 @@ export default function TabStok({
           </div>
           <div className="relative z-10">
             <div className="text-[9px] font-black text-orange-400 uppercase tracking-widest">Akumulasi HPP (Modal Ayam)</div>
-            <div className="text-xl font-black mt-1">{formatRupiah(metrikKas.inBulanIni > 0 ? metrikRadar.hppBulanIni : metrikRadar.hppBulanIni)}</div>
+            <div className="text-xl font-black mt-1">{formatRupiah(metrikRadar.hppBulanIni)}</div>
           </div>
         </div>
       </div>
@@ -279,15 +279,15 @@ export default function TabStok({
                             </>
                           )}
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
   );
 }
