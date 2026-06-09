@@ -2,10 +2,20 @@ import React, { useState, useMemo } from 'react';
 import { Users, Landmark, Banknote, UserPlus, Layers, TrendingDown, ShieldAlert, Trash2, Edit2, Check, X, Phone, Image } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 
-// Helper Format Rupiah Lokal agar seragam dan aman dari error data non-angka
+// Helper Format Rupiah Lokal agar seragam dan aman
 const formatRupiah = (angka) => "Rp. " + Number(angka || 0).toLocaleString('id-ID');
 
-export default function TabKaryawan({ karyawan = [], expenses = [], masterBranches = [], cashflowTransactions = [], sendToSheet, showToast, user }) {
+export default function TabKaryawan({ 
+  karyawan = [], 
+  expenses = [], 
+  masterBranches, 
+  master_branches, 
+  cashflowTransactions, 
+  cashflow_transactions, 
+  sendToSheet, 
+  showToast, 
+  user 
+}) {
   const todayStr = getTodayStr();
   const currentBranch = user?.branch_id || 'PUSAT';
   const isHQ = user?.branch_type === 'HQ_FACTORY' || currentBranch === 'PUSAT';
@@ -15,18 +25,29 @@ export default function TabKaryawan({ karyawan = [], expenses = [], masterBranch
   const [selectedBranchFilter, setSelectedBranchFilter] = useState('PUSAT');
   const activeProcessingBranch = isHQ ? selectedBranchFilter : currentBranch;
 
+  // FIX DOUBLE-BRIDGE: Menghubungkan camelCase dan snake_case dari App.jsx agar anti-meleset
+  const realMasterBranches = master_branches || masterBranches || [];
+  const realCashflowTransactions = cashflow_transactions || cashflowTransactions || [];
+
+  // State Form Entry Identitas & Kasbon
+  const [formKasbon, setFormKasbon] = useState({ date: todayStr, employeeId: '', amount: '', notes: '' });
+  const [formMaster, setFormMaster] = useState({ name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT', phone: '', photo_url: '' });
+  const [formPayroll, setFormPayroll] = useState({ 
+    date: todayStr, employeeId: '', baseSalary: '0', allowance: '0', otherDeduction: '0', paymentMethod: 'CASH' 
+  });
+
   // ========================================================
   // 1. DATABASE COMPILER ENGINE (PENGOLAH DATA UTAMA)
   // ========================================================
   const petaNamaCabang = useMemo(() => {
     const mapping = { PUSAT: '🍊 TANGERANG PUSAT' };
-    (masterBranches || []).forEach(b => {
+    (realMasterBranches || []).forEach(b => {
       if (b && !b.isDeleted && b.branch_id) {
         mapping[String(b.branch_id).trim().toUpperCase()] = `🏪 ${String(b.branch_name || b.branch_id).toUpperCase()}`;
       }
     });
     return mapping;
-  }, [masterBranches]);
+  }, [realMasterBranches]);
 
   const daftarCabangId = useMemo(() => Object.keys(petaNamaCabang), [petaNamaCabang]);
 
@@ -64,7 +85,6 @@ export default function TabKaryawan({ karyawan = [], expenses = [], masterBranch
     return dataStaf;
   }, [karyawan, expenses]);
 
-  // Saring staf yang aktif sesuai tombol wilayah cabang yang sedang diklik
   const employeesDiCabangAktif = useMemo(() => {
     const targetBId = String(activeProcessingBranch || 'PUSAT').trim().toUpperCase();
     return Object.values(globalEmployeeCompiled).filter(k => k.branch_id === targetBId);
@@ -105,7 +125,7 @@ export default function TabKaryawan({ karyawan = [], expenses = [], masterBranch
     const sisaWajibBayarBulanIni = Math.max(0, totalWajibGajiNasional - metrikSDM.gajiGlobal);
     
     let totalKasCairPusat = 0;
-    (cashflowTransactions || []).forEach(c => {
+    (realCashflowTransactions || []).forEach(c => {
       if (!c || c.isDeleted) return;
       if (['HQ_FACTORY', 'PUSAT'].includes(String(c.branch_id).toUpperCase())) {
         if (String(c.transaction_type).toUpperCase() === 'INFLOW') totalKasCairPusat += Number(c.amount || 0);
@@ -122,7 +142,7 @@ export default function TabKaryawan({ karyawan = [], expenses = [], masterBranch
     }
 
     return { sisaWajibBayarBulanIni, totalKasCairPusat, status, warnaBadge, rekomendasi };
-  }, [globalEmployeeCompiled, metrikSDM.gajiGlobal, cashflowTransactions]);
+  }, [globalEmployeeCompiled, metrikSDM.gajiGlobal, realCashflowTransactions]);
 
   return (
     <div className="space-y-6 animate-in fade-in pb-10">
@@ -153,8 +173,11 @@ export default function TabKaryawan({ karyawan = [], expenses = [], masterBranch
 
       {/* SECTION C: PIL SWITCHER CABANG (KHUSUS PUSAT) */}
       {isHQ && (
-        <div className="bg-slate-900 p-4 rounded-2xl flex flex-wrap gap-2 items-center justify-between shadow-md">
-          <div className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Divisi Cabang Keuangan Staf:</div>
+        <div className="bg-slate-900 p-4 rounded-2xl flex flex-col md:flex-row items-center justify-between shadow-lg gap-4">
+          <div className="flex items-center gap-2 mb-1 md:mb-0">
+            <Layers size={16} className="text-red-400" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Pilih Cabang untuk Manajemen Keuangan Staf:</span>
+          </div>
           <div className="flex flex-wrap gap-2">
             {daftarCabangId.map(brId => (
               <button key={brId} type="button" onClick={() => setSelectedBranchFilter(brId)} className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-all ${activeProcessingBranch.toUpperCase() === brId.toUpperCase() ? 'bg-red-600 text-white shadow-md scale-105' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>{petaNamaCabang[brId]}</button>
@@ -170,19 +193,17 @@ export default function TabKaryawan({ karyawan = [], expenses = [], masterBranch
         <button onClick={() => setActiveSubTab('master')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase ${activeSubTab === 'master' ? 'bg-slate-800 text-white shadow-md' : 'bg-white text-slate-500'}`}>Master SDM Wilayah</button>
       </div>
 
-      {/* ======================================================== */}
-      {/* MODULE DIVISION SPLIT (KONTEN SUB-TAB MASING-MASING) */}
-      {/* ======================================================== */}
+      {/* MODULE DIVISION SPLIT */}
       {activeSubTab === 'payroll' && isHQ && (
-        <PayrollModule employees={employeesDiCabangAktif} expenses={expenses} globalCompiled={globalEmployeeCompiled} activeBranch={activeProcessingBranch} todayStr={todayStr} sendToSheet={sendToSheet} showToast={showToast} formatRupiah={formatRupiah} />
+        <PayrollModule employees={employeesDiCabangAktif} expenses={expenses} globalCompiled={globalEmployeeCompiled} activeBranch={activeProcessingBranch} todayStr={todayStr} sendToSheet={sendToSheet} showToast={showToast} />
       )}
 
       {activeSubTab === 'kasbon' && (
-        <KasbonModule employees={employeesDiCabangAktif} expenses={expenses} globalCompiled={globalEmployeeCompiled} activeBranch={activeProcessingBranch} todayStr={todayStr} sendToSheet={sendToSheet} showToast={showToast} formatRupiah={formatRupiah} />
+        <KasbonModule employees={employeesDiCabangAktif} expenses={expenses} globalCompiled={globalEmployeeCompiled} activeBranch={activeProcessingBranch} todayStr={todayStr} sendToSheet={sendToSheet} showToast={showToast} />
       )}
 
       {activeSubTab === 'master' && (
-        <MasterSDMModule employees={employeesDiCabangAktif} branchListId={daftarCabangId} branchMapName={petaNamaCabang} activeBranch={activeProcessingBranch} isHQ={isHQ} sendToSheet={sendToSheet} showToast={showToast} formatRupiah={formatRupiah} />
+        <MasterSDMModule employees={employeesDiCabangAktif} branchListId={daftarCabangId} branchMapName={petaNamaCabang} activeBranch={activeProcessingBranch} isHQ={isHQ} sendToSheet={sendToSheet} showToast={showToast} />
       )}
 
     </div>
@@ -190,9 +211,9 @@ export default function TabKaryawan({ karyawan = [], expenses = [], masterBranch
 }
 
 // =========================================================================
-// 🍱 SUB-COMPONENT 1: MODUL GAJI & PAYROLL (TERISOLASI)
+// SUB-COMPONENT 1: MODUL GAJI & PAYROLL
 // =========================================================================
-function PayrollModule({ employees, expenses, globalCompiled, activeBranch, todayStr, sendToSheet, showToast, formatRupiah }) {
+function PayrollModule({ employees, expenses, globalCompiled, activeBranch, todayStr, sendToSheet, showToast }) {
   const [form, setForm] = useState({ date: todayStr, employeeId: '', baseSalary: '0', allowance: '0', otherDeduction: '0', paymentMethod: 'CASH' });
 
   const selectedStafKasbon = useMemo(() => {
@@ -226,14 +247,14 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
     const success = await sendToSheet('insert', {
       id: expenseId, date: form.date, branch_id: activeBranch, category: 'PAYROLL', employee_id: form.employeeId,
       base_salary: Number(form.baseSalary), allowance: Number(form.allowance), kasbon_deduction: hitungNetto.potKasbon, other_deduction: Number(form.otherDeduction), amount: hitungNetto.totalCair, payment_method: form.paymentMethod,
-      description: `Gaji Bulanan [${activeBranch}] — Staf ID: ${form.employeeId}`
+      description: `Gaji Bulanan [${activeBranch}]`
     }, 'expenses');
 
     if (success) {
       await sendToSheet('insert', {
         id: 'CFO-' + new Date().getTime(), date: form.date, branch_id: form.paymentMethod === 'TF' ? 'HQ_FACTORY' : activeBranch,
         transaction_type: 'OUTFLOW', category: 'OPERATIONAL_EXPENSE', amount: hitungNetto.totalCair, payment_method: form.paymentMethod, reference_id: expenseId,
-        description: `Payroll Jurnal — Cabang: ${activeBranch}, Staf ID: ${form.employeeId}`
+        description: `Payroll Jurnal — Cabang: ${activeBranch}`
       }, 'cashflow_transactions');
       setForm({ date: todayStr, employeeId: '', baseSalary: '0', allowance: '0', otherDeduction: '0', paymentMethod: 'CASH' });
     }
@@ -257,7 +278,7 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
           </div>
           <div className="bg-orange-50 p-3 rounded-xl border border-orange-200 text-xs font-bold text-orange-800">
             <div>Auto Potong Kasbon: {formatRupiah(hitungNetto.potKasbon)}</div>
-            <div className="text-[10px] text-orange-600 mt-1">Sisa Hutang Riil: {formatRupiah(selectedStafKasbon)}</div>
+            <div className="text-[10px] text-orange-600 mt-1">Sisa Hutang: {formatRupiah(selectedStafKasbon)}</div>
           </div>
           <div><label className="text-[10px] font-bold text-rose-600 uppercase">Potongan Lain</label><input type="text" required value={formatRupiah(form.otherDeduction)} onChange={e=>setForm({...form, otherDeduction: e.target.value.replace(/\D/g, '')})} className="w-full p-2 border rounded-lg font-bold text-sm" /></div>
           <div>
@@ -300,9 +321,9 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
 }
 
 // =========================================================================
-// 💰 SUB-COMPONENT 2: MODUL KASBON KARYAWAN (TERISOLASI)
+// SUB-COMPONENT 2: MODUL KASBON KARYAWAN
 // =========================================================================
-function KasbonModule({ employees, expenses, globalCompiled, activeBranch, todayStr, sendToSheet, showToast, formatRupiah }) {
+function KasbonModule({ employees, expenses, globalCompiled, activeBranch, todayStr, sendToSheet, showToast }) {
   const [form, setForm] = useState({ date: todayStr, employeeId: '', amount: '', notes: '' });
 
   const selectedStaf = form.employeeId ? globalCompiled[form.employeeId] : null;
@@ -379,9 +400,9 @@ function KasbonModule({ employees, expenses, globalCompiled, activeBranch, today
 }
 
 // =========================================================================
-// 📇 SUB-COMPONENT 3: MASTER DATA REKREASI SDM WILAYAH (TERISOLASI)
+// 📇 SUB-COMPONENT 3: MASTER DATA REKREASI SDM WILAYAH
 // =========================================================================
-function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch, isHQ, sendToSheet, showToast, formatRupiah }) {
+function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch, isHQ, sendToSheet, showToast }) {
   const [form, setForm] = useState({ name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT', phone: '', photo_url: '' });
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({ position: '', baseSalary: '0', status: 'AKTIF' });
