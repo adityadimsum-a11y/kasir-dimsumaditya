@@ -4,6 +4,18 @@ import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 
 const formatRupiah = (angka) => "Rp. " + Number(angka || 0).toLocaleString('id-ID');
 
+// 🔥 AUTO-CONVERTER GOOGLE DRIVE LINK: Mengubah link sharing biasa jadi link gambar langsung!
+const parseDriveLink = (url) => {
+  if (!url) return '';
+  if (url.includes('drive.google.com/file/d/')) {
+    const match = url.match(/\/d\/(.*?)\//);
+    if (match && match[1]) {
+      return `https://drive.google.com/uc?export=view&id=${match[1]}`;
+    }
+  }
+  return url;
+};
+
 export default function TabKaryawan({ 
   karyawan = [], expenses = [], masterBranches = [], master_branches, cashflowTransactions = [], cashflow_transactions, sendToSheet, showToast, user 
 }) {
@@ -42,8 +54,11 @@ export default function TabKaryawan({
         id: k.id, name: k.name || 'TANPA NAMA', position: k.position || 'STAF', baseSalary: Number(k.baseSalary || 0), branch_id: bId, status: k.status || 'AKTIF',
         phone: k.phone || '-',
         address: k.address || 'ALAMAT BELUM DIISI',
-        photo_url: k.photo_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-        ktp_url: k.ktp_url || '',
+        // Terapkan penerjemah Google Drive di sini
+        photo_url: parseDriveLink(k.photo_url) || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+        ktp_url: parseDriveLink(k.ktp_url) || '',
+        raw_photo_link: k.photo_url || '',
+        raw_ktp_link: k.ktp_url || '',
         totalKasbon: 0, totalDibayar: 0, sisaHutang: 0
       };
     });
@@ -199,7 +214,7 @@ export default function TabKaryawan({
                   {selectedEmployeeDetails.ktp_url ? (
                     <img src={selectedEmployeeDetails.ktp_url} alt="KTP Gede" className="w-full h-auto max-h-[350px] object-contain" />
                   ) : (
-                    <div className="text-center p-8 text-slate-400 text-xs font-bold space-y-1"><div>📁 Berkas KTP Belum Diunggah</div><div className="text-[10px] text-slate-400 font-normal">Silakan isi link gambar KTP di menu Master SDM.</div></div>
+                    <div className="text-center p-8 text-slate-400 text-xs font-bold space-y-1"><div>📁 Berkas KTP Belum Diunggah</div><div className="text-[10px] text-slate-400 font-normal">Silakan isi link Google Drive KTP di menu Master SDM.</div></div>
                   )}
                 </div>
               </div>
@@ -258,7 +273,7 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
                 <tr key={p.id} className="hover:bg-slate-50/50 transition">
                   <td className="px-4 py-3 text-slate-500">{formatDate(p.date)}</td>
                   <td onClick={() => emp && onViewDetails(emp)} className="px-4 py-3 flex items-center gap-2.5 cursor-pointer group">
-                    <img src={emp?.photo_url} alt="Profile" className="w-7 h-7 rounded-full object-cover border group-hover:scale-110 transition-transform" onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
+                    <img src={emp?.photo_url} alt="Profile" className="w-7 h-7 rounded-full object-cover border" onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
                     <span className="uppercase group-hover:text-blue-600 transition-colors">{emp?.name || 'STAF'}</span>
                   </td>
                   <td className="px-4 py-3 text-right">{formatRupiah((p.base_salary||0)+(p.allowance||0))}</td>
@@ -329,7 +344,7 @@ function KasbonModule({ employees, expenses, globalCompiled, activeBranch, today
 }
 
 // =========================================================================
-// 📇 SUB-COMPONENT 3: MASTER DATA SDM (MODE KLASIK - COPY PASTE URL)
+// 📇 SUB-COMPONENT 3: MASTER DATA SDM (MODE KLASIK LINK DENGAN AUTO-PARSER)
 // =========================================================================
 function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch, isHQ, sendToSheet, showToast, onViewDetails, setOptimisticDeletedIds }) {
   const [form, setForm] = useState({ id: '', name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'PUSAT', phone: '', address: '', photo_url: '', ktp_url: '' });
@@ -344,8 +359,9 @@ function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch,
       targetBranch: k.branch_id, 
       phone: k.phone === '-' ? '' : k.phone, 
       address: k.address === 'ALAMAT BELUM DIISI' ? '' : k.address, 
-      photo_url: k.photo_url || '', 
-      ktp_url: k.ktp_url || '' 
+      // Ambil kembali link asli mentahnya agar tidak bingung kalau mau diedit lagi
+      photo_url: k.raw_photo_link || '', 
+      ktp_url: k.raw_ktp_link || '' 
     });
     setIsEditingMode(true);
     if (showToast) showToast(`Data ${k.name} siap diedit di form kiri!`, 'success');
@@ -392,16 +408,16 @@ function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch,
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">Nama Lengkap</label><input type="text" required readOnly={isEditingMode} value={form.name} onChange={e=>setForm({...form, name: e.target.value})} className={`w-full p-2 border rounded-lg text-sm uppercase outline-none ${isEditingMode ? 'bg-slate-100 font-black text-slate-500 cursor-not-allowed' : ''}`} /></div>
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">No. WhatsApp</label><input type="text" required placeholder="Contoh: 081234567" value={form.phone} onChange={e=>setForm({...form, phone: e.target.value})} className="w-full p-2 border rounded-lg text-xs font-bold" /></div>
           
-          {/* INPUT LINK MANUAL ANTI GAGAL */}
+          {/* KOLOM LINK FOTO DENGAN PANDUAN GOOGLE DRIVE */}
           <div>
             <label className="text-[10px] font-black text-slate-500 uppercase flex items-center gap-1 mb-1"><Link size={10}/> Link Pas Foto Profil Baru</label>
-            <input type="text" placeholder="Paste link foto dari postimages.org..." value={form.photo_url} onChange={e => setForm({...form, photo_url: e.target.value})} className="w-full p-2 border rounded-lg text-xs" />
-            <p className="text-[8px] text-slate-400 mt-1 font-bold">Gunakan situs seperti postimages.org atau imgbb.com</p>
+            <input type="text" placeholder="Paste link foto dari Google Drive..." value={form.photo_url} onChange={e => setForm({...form, photo_url: e.target.value})} className="w-full p-2 border rounded-lg text-xs" />
+            <p className="text-[8px] text-slate-400 mt-1 font-bold">Pastikan akses link G-Drive adalah "Anyone with the link"</p>
           </div>
 
           <div>
             <label className="text-[10px] font-black text-orange-600 uppercase flex items-center gap-1 mb-1"><Link size={10}/> Link Berkas Foto KTP</label>
-            <input type="text" placeholder="Paste link KTP dari postimages.org..." value={form.ktp_url} onChange={e => setForm({...form, ktp_url: e.target.value})} className="w-full p-2 border border-orange-200 bg-orange-50 rounded-lg text-xs" />
+            <input type="text" placeholder="Paste link KTP dari Google Drive..." value={form.ktp_url} onChange={e => setForm({...form, ktp_url: e.target.value})} className="w-full p-2 border border-orange-200 bg-orange-50 rounded-lg text-xs" />
           </div>
 
           <div><label className="text-[10px] font-bold text-slate-500 uppercase">Gaji Pokok</label><input type="text" required value={formatRupiah(form.baseSalary)} onChange={e=>setForm({...form, baseSalary: e.target.value.replace(/\D/g, '')})} className="w-full p-2 border rounded-lg font-bold text-sm" /></div>
