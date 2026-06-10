@@ -313,16 +313,14 @@ export default function App() {
   // =====================================
   return (
     <>
-      <LayoutEngine 
+<LayoutEngine 
         user={user} 
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
         handleLogout={handleLogout}
         masterCapabilities={dbData.master_branch_capabilities}
       >
-        <div className="p-4 md:p-6">
-           {renderContent()}
-        </div>
+        {renderContent()}
       </LayoutEngine>
 
       {/* Komponen Floating */}
