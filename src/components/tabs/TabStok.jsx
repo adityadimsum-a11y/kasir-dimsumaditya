@@ -22,11 +22,9 @@ export default function TabStok({
 }) {
   const todayStr = getTodayStr();
   
-  // Normalisasi Nama Cabang agar tidak nyasar ke PUSAT yang kosong
   const currentBranch = (user?.branch_id === 'PUSAT' || !user?.branch_id) ? 'TANGERANG_PUSAT' : user?.branch_id;
   const isHQ = user?.branch_type === 'HQ_FACTORY' || user?.branch_id === 'PUSAT' || currentBranch === 'TANGERANG_PUSAT';
   
-  // Default filter sekarang langsung fokus ke cabang aktif Bos
   const [activeBranchFilter, setActiveBranchFilter] = useState(currentBranch);
   const [optimisticDeletedIds, setOptimisticDeletedIds] = useState(new Set());
   const [isEditing, setIsEditing] = useState(false);
@@ -68,15 +66,20 @@ export default function TabStok({
     }).sort((a, b) => new Date(b.date) - new Date(a.date));
   }, [realProductionBatches, activeBranchFilter, optimisticDeletedIds]);
 
+  // ALGORITMA METRIK RADAR DIPERBAIKI (ANTI-TIMEZONE BUG)
   const metrikRadar = useMemo(() => {
     let adukanHariIni = 0; let pcsHariIni = 0; let ayamKgHariIni = 0;
     let adukanBulanIni = 0; let pcsBulanIni = 0; let hppBulanIni = 0;
-    const curMonth = todayStr.substring(0, 7);
+    
+    const today = new Date();
 
     historyProduksi.forEach(p => {
       const qtyAdukan = Number(p.total_adukan || 0);
-      const isToday = p.date && p.date.startsWith(todayStr);
-      const isThisMonth = p.date && p.date.startsWith(curMonth);
+      const pDate = p.date ? new Date(p.date) : new Date();
+      
+      // Sinkronisasi hari lokal (WIB) tanpa terganggu UTC Google Sheets
+      const isToday = pDate.getDate() === today.getDate() && pDate.getMonth() === today.getMonth() && pDate.getFullYear() === today.getFullYear();
+      const isThisMonth = pDate.getMonth() === today.getMonth() && pDate.getFullYear() === today.getFullYear();
 
       if (isToday) {
         adukanHariIni += qtyAdukan;
@@ -90,7 +93,7 @@ export default function TabStok({
       }
     });
     return { adukanHariIni, pcsHariIni, ayamKgHariIni, adukanBulanIni, pcsBulanIni, hppBulanIni };
-  }, [historyProduksi, todayStr]);
+  }, [historyProduksi]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -258,17 +261,25 @@ export default function TabStok({
                       </td>
                       <td className="px-4 py-3 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1.5">
+                          {/* TOMBOL CETAK DENGAN KODE RAHASIA TIKET PABRIK */}
                           <button type="button" onClick={() => {
                             triggerPrint('NOTA_DOTMATRIX', {
-                              title: 'BUKTI YIELD PRODUKSI PABRIK', id: log.id, date: formatDate(log.date), periode: '-',
-                              branch_name: log.branch_id, admin_name: user?.name || 'SISTEM', customer_name: emp?.name || 'TIM PRODUKSI', position: 'HEAD BATCH',
-                              items: [
-                                { name: `Pemotongan Stok Bahan Baku Ayam`, qty: 1, subtotal: log.total_ayam_kg, suffix: ' Kg' },
-                                { name: `Penambahan Stok Dimsum Frozen`, qty: 1, subtotal: log.total_yield_pcs, suffix: ' Pcs' }
-                              ],
-                              amount: log.hpp_estimate, paymentMethod: 'TERCAPAI', footerCustom: `TOTAL ADUKAN BATCH: ${log.total_adukan} ADUKAN`
+                              isProduction: true, // ⚠️ MENGAKTIFKAN MODE DESAIN RAKSASA PABRIK
+                              title: 'LAPORAN HASIL PRODUKSI PABRIK',
+                              id: log.id,
+                              date: formatDate(log.date),
+                              branch_name: log.branch_id || currentBranch,
+                              admin_name: user?.name || 'SISTEM',
+                              customer_name: emp?.name || log.pic_id || 'TIM PRODUKSI',
+                              totalAdukan: log.total_adukan,
+                              ayamKg: log.total_ayam_kg,
+                              yieldPcs: log.total_yield_pcs,
+                              notes: log.notes || '-',
+                              paymentMethod: 'DATA INTERNAL PABRIK',
+                              footerCustom: `ESTIMASI HPP (MODAL AYAM): ${formatRupiah(log.hpp_estimate)}\n\nPLY 1: ARSIP KEPALA PRODUKSI\nPLY 2: KONTROL AUDIT PUSAT`
                             });
-                          }} className="p-1.5 text-white bg-slate-800 hover:bg-slate-900 shadow rounded-lg" title="Cetak Surat Jalan"><Printer size={12}/></button>
+                          }} className="p-1.5 text-white bg-slate-800 hover:bg-slate-900 shadow rounded-lg" title="Cetak Surat Produksi Pabrik"><Printer size={12}/></button>
+                          
                           {isHQ && (
                             <>
                               <button type="button" onClick={() => handleEdit(log)} className="p-1.5 bg-amber-50 text-amber-600 hover:bg-amber-100 rounded-lg"><Edit2 size={12}/></button>
