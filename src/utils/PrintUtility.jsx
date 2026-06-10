@@ -2,118 +2,202 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 
 const rp = (angka) => "Rp. " + Number(angka || 0).toLocaleString('id-ID');
+const formatNum = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
 // ========================================================
 // 🖨️ 1. TEMPLATE CETAK DOT MATRIX (EPSON LX 310)
 // ========================================================
 const DotMatrixInvoice = ({ data }) => {
+  // 1. IDENTIFIKASI MODE CETAK
+  const isWO = data.title && (data.title.includes('WORK ORDER') || data.title.includes('MANIFEST'));
+  const isProd = data.title && data.title.includes('HASIL PRODUKSI');
+  const isInvoice = !isWO && !isProd;
+
+  // 2. EKSTRAK DATA RAHASIA (BYPASS ANTI-GAGAL)
+  let trueId = data.id || '-';
+  let woChannel = '-', woRequest = 'STANDAR MIX', woNotes = '-', woQty = data.qty || 1;
+  let pAdukan = 0, pAyam = 0, pYield = 0, pNotes = '-';
+
+  // Deteksi jika ID menggunakan pemisah "::" (Versi Lama)
+  if (typeof trueId === 'string' && trueId.includes('::')) {
+    const parts = trueId.split('::');
+    trueId = parts[0];
+    if (isWO) { woQty = parts[1]; woChannel = parts[2]; woRequest = parts[3]; woNotes = parts[4]; }
+    if (isProd) { pAdukan = parts[1]; pAyam = parts[2]; pYield = parts[3]; pNotes = parts[4]; }
+  }
+
+  // Deteksi jika Item menggunakan pemisah "@@" (Versi Baru)
+  if (data.items && data.items.length > 0 && typeof data.items[0].name === 'string') {
+    const firstItem = data.items[0].name;
+    if (firstItem.startsWith('@@WORK_ORDER@@')) {
+        const parts = firstItem.split('||');
+        woChannel = parts[1]; woRequest = parts[2]; woNotes = parts[3]; woQty = data.items[0].qty;
+    } else if (firstItem.startsWith('@@PRODUCTION@@')) {
+        const parts = firstItem.split('||');
+        pAdukan = parts[1]; pAyam = parts[2]; pYield = parts[3]; pNotes = parts[4];
+    }
+  }
+
   return (
-    // Tambahan box-sizing agar padding tidak menambah ukuran halaman
-    <div className="print-dot-matrix" style={{ boxSizing: 'border-box', overflow: 'hidden' }}>
-      
-      {/* 1. HEADER (Margin dipadatkan) */}
-      <div style={{ textAlign: 'center', borderBottom: '2px dashed black', paddingBottom: '4px', marginBottom: '6px' }}>
-        <h2 style={{ margin: 0, fontSize: '18pt', fontWeight: '900', letterSpacing: '1px' }}>{data.company_name || 'DIMSUM ADITYA'}</h2>
-        <div style={{ fontSize: '12pt', fontWeight: 'bold' }}>CABANG OPERASIONAL {data.branch_name || 'PUSAT'}</div>
-        <div style={{ fontSize: '14pt', fontWeight: 'bold', marginTop: '2px', textDecoration: 'underline' }}>{data.title || 'BUKTI TRANSAKSI'}</div>
-      </div>
-      
-      {/* 2. IDENTITAS */}
-      <table style={{ width: '100%', marginBottom: '6px', fontSize: '12pt', fontWeight: 'bold' }}>
-        <tbody>
-          <tr><td width="55%">NO. TRX : {data.id || '-'}</td><td width="45%">PERIODE : {data.periode || '-'}</td></tr>
-          <tr><td>NAMA    : {data.customer_name || 'UMUM'}</td><td>TGL TRX : {data.date || '-'}</td></tr>
-          <tr><td>POSISI  : {data.position || 'STAF'}</td><td>KASIR   : {data.admin_name || 'ADMIN'}</td></tr>
-        </tbody>
-      </table>
+    <div className="print-dot-matrix" style={{ boxSizing: 'border-box', overflow: 'hidden', color: '#000', fontFamily: 'monospace', padding: '10px' }}>
 
-      {/* 3. RINCIAN BARANG */}
-      <div style={{ borderTop: '2px dashed black', borderBottom: '2px dashed black', padding: '3px 0', marginBottom: '6px', fontWeight: 'bold' }}>
-        <div style={{ display: 'flex' }}>
-          <div style={{ width: '55%' }}>KETERANGAN</div>
-          <div style={{ width: '10%', textAlign: 'center' }}>QTY</div>
-          <div style={{ width: '35%', textAlign: 'right' }}>SUBTOTAL</div>
-        </div>
-      </div>
-
-      {/* Dulu ada minHeight: 60px, sekarang dilepas biar irit tempat */}
-      <div style={{ marginBottom: '6px' }}>
-        {data.items && data.items.length > 0 ? data.items.map((item, idx) => (
-          <div key={idx} style={{ display: 'flex', marginBottom: '3px' }}>
-            <div style={{ width: '55%' }}>{item.name}</div>
-            <div style={{ width: '10%', textAlign: 'center' }}>{item.qty}</div>
-            <div style={{ width: '35%', textAlign: 'right' }}>{rp(item.subtotal)}</div>
+      {/* ========================================= */}
+      {/* HEADER INVOICE CUSTOMER (SUPER BESAR) */}
+      {/* ========================================= */}
+      {isInvoice && (
+        <div style={{ textAlign: 'center', borderBottom: '3px solid black', paddingBottom: '10px', marginBottom: '15px' }}>
+          <h1 style={{ margin: '0 0 5px 0', fontSize: '28pt', fontWeight: '900', letterSpacing: '2px' }}>DIMSUM ADITYA</h1>
+          <div style={{ fontSize: '13pt', fontWeight: 'bold', lineHeight: '1.4' }}>
+            Alamat : Jl. Thamrin Ketapang, Cipondoh, Kota Tangerang 15147<br/>
+            No Tlp : 0878 0902 0931
           </div>
-        )) : (
-           <div style={{ display: 'flex', marginBottom: '3px' }}>
-             <div style={{ width: '55%' }}>{data.description || 'TRANSAKSI'}</div>
-             <div style={{ width: '10%', textAlign: 'center' }}>{data.qty || 1}</div>
-             <div style={{ width: '35%', textAlign: 'right' }}>{rp(data.amount || data.total)}</div>
-           </div>
-        )}
-      </div>
-
-      <div style={{ borderTop: '2px dashed black', paddingTop: '4px', paddingBottom: '4px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '14pt' }}>
-          <span>TOTAL DITERIMA (NETTO) :</span><span>{rp(data.total || data.amount)}</span>
-        </div>
-        <div style={{ textAlign: 'right', fontSize: '11pt', marginTop: '1px' }}>
-          Metode Cair: {data.paymentMethod || 'CASH'}
-        </div>
-      </div>
-
-      {/* 4. TRACK RECORD HISTORI (Margin dan padding disunat) */}
-      {data.history && (
-        <div style={{ border: '2px dashed black', padding: '5px', margin: '8px 0', backgroundColor: '#f9f9f9' }}>
-          <div style={{ textAlign: 'center', fontWeight: 'bold', marginBottom: '4px', textDecoration: 'underline' }}>BUKU MUTASI PINJAMAN / KREDIT BARANG</div>
-          
-          {data.history.kasbonList && data.history.kasbonList.length > 0 && (
-            <div style={{ marginBottom: '6px', fontSize: '11pt' }}>
-              <div style={{ borderBottom: '1px solid black', marginBottom: '2px', fontWeight: 'bold' }}>Rincian Nota Berjalan & Cicilan:</div>
-              {data.history.kasbonList.map((k, i) => {
-                const isKredit = k.category === 'KREDIT_BARANG';
-                const cicilanInfo = isKredit ? `[Cicilan ke-${k.cicilanKe || 0}/${k.tenor || 0}]` : '[Tunai]';
-                return (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-                    <div style={{ width: '70%', lineHeight: '1.1' }}>
-                      <span style={{ fontWeight: 'bold' }}>- {k.date} ({k.id})</span><br/>
-                      <span style={{ fontSize: '10pt' }}>  Ket: {k.description || k.note} {cicilanInfo}</span>
-                    </div>
-                    <div style={{ width: '30%', textAlign: 'right', fontWeight: 'bold' }}>
-                      <span style={{ fontSize: '9pt', color: '#555' }}>Sts: {k.status}</span>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-          
-          <div style={{ borderTop: '1px dashed black', margin: '3px 0' }}></div>
-          
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-            <span>{data.history.labelLama || 'Akumulasi Hutang Awal'}:</span><span>{rp(data.history.nominalLama)}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-            <span>{data.history.labelAksi || 'Dipotong Cicilan Bulan Ini'}:</span><span>-{rp(data.history.nominalAksi)}</span>
-          </div>
-          
-          <div style={{ borderTop: '2px solid black', margin: '3px 0' }}></div>
-          
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '900', fontSize: '13pt' }}>
-            <span>{data.history.labelBaru || 'SISA KREDIT / HUTANG'}:</span><span>{rp(data.history.nominalBaru)}</span>
+          <div style={{ display: 'inline-block', border: '3px solid black', padding: '8px 15px', marginTop: '8px', fontSize: '13pt', fontWeight: '900', textAlign: 'left', backgroundColor: '#f9f9f9' }}>
+            No. Rek : 1320552261 (BCA) - WASTAM<br/>
+            No. Rek : 775301006132536 (BRI) - WASTAM
           </div>
         </div>
       )}
 
-      {/* 5. TANDA TANGAN (Tinggi dikurangi drastis dari 60px jadi 35px) */}
-      <table style={{ width: '100%', marginTop: '12px', textAlign: 'center' }}>
+      {/* HEADER INTERNAL (UNTUK TIKET PABRIK & PRODUKSI) */}
+      {!isInvoice && (
+        <div style={{ textAlign: 'center', borderBottom: '2px dashed black', paddingBottom: '5px', marginBottom: '10px' }}>
+          <h1 style={{ margin: 0, fontSize: '24pt', fontWeight: '900' }}>DIMSUM ADITYA</h1>
+          <div style={{ fontSize: '12pt', fontWeight: 'bold' }}>CABANG OPERASIONAL {data.branch_name || 'PUSAT'}</div>
+        </div>
+      )}
+
+      {/* JUDUL DOKUMEN */}
+      <div style={{ textAlign: 'center', fontSize: '18pt', fontWeight: '900', textDecoration: 'underline', marginBottom: '15px', textTransform: 'uppercase' }}>
+        {data.title || 'INVOICE PENJUALAN'}
+      </div>
+
+      {/* IDENTITAS TRANSAKSI */}
+      <table style={{ width: '100%', marginBottom: '15px', fontSize: '12pt', fontWeight: 'bold' }}>
         <tbody>
-          <tr><td width="50%">PENERIMA / KARYAWAN,</td><td width="50%">HORMAT KAMI,</td></tr>
-          <tr><td height="35"></td><td></td></tr>
-          <tr><td style={{ textDecoration: 'underline', fontWeight: 'bold' }}>{data.customer_name || '................'}</td><td style={{ textDecoration: 'underline' }}>{data.admin_name || 'ADMIN'}</td></tr>
+          <tr><td width="55%">NO. TRX : {trueId}</td><td width="45%">TANGGAL : {data.date || '-'}</td></tr>
+          <tr>
+            <td style={{ fontSize: isWO ? '16pt' : '12pt', fontWeight: '900' }}>NAMA/PIC : {data.customer_name || 'UMUM'}</td>
+            <td>KASIR : {data.admin_name || 'ADMIN'}</td>
+          </tr>
         </tbody>
       </table>
-      <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '10pt', fontStyle: 'italic' }}>-- Dokumen sah Sistem ERP Dimsum Aditya --</div>
+
+      {/* ========================================= */}
+      {/* MODE 1: INVOICE CUSTOMER */}
+      {/* ========================================= */}
+      {isInvoice && (
+        <>
+          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '15px', fontSize: '14pt', fontWeight: 'bold' }}>
+            <thead>
+              <tr style={{ borderTop: '3px dashed black', borderBottom: '3px dashed black' }}>
+                <th style={{ padding: '8px 0', textAlign: 'left', width: '60%' }}>KETERANGAN</th>
+                <th style={{ padding: '8px 0', textAlign: 'center', width: '10%' }}>QTY</th>
+                <th style={{ padding: '8px 0', textAlign: 'right', width: '30%' }}>SUBTOTAL</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.items && data.items.map((item, idx) => {
+                 // Membersihkan nama barang dari kode rahasia jika nyangkut
+                 let cleanName = item.name;
+                 if(cleanName.includes('@@')) cleanName = cleanName.split('\n')[0];
+                 if(cleanName.includes('::')) cleanName = cleanName.split('::')[0];
+
+                 return (
+                  <tr key={idx}>
+                    <td style={{ padding: '10px 0', whiteSpace: 'pre-wrap', textTransform: 'uppercase' }}>{cleanName}</td>
+                    <td style={{ padding: '10px 0', textAlign: 'center', fontSize: '18pt', fontWeight: '900' }}>{item.qty}</td>
+                    <td style={{ padding: '10px 0', textAlign: 'right', fontSize: '16pt' }}>{rp(item.subtotal)}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+
+          <div style={{ borderTop: '4px solid black', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', fontWeight: '900', fontSize: '20pt' }}>
+            <span>TOTAL TAGIHAN :</span><span>{rp(data.amount || data.total)}</span>
+          </div>
+          
+          <div style={{ textAlign: 'right', marginTop: '15px' }}>
+            <span style={{ fontSize: '18pt', fontWeight: '900', padding: '8px 15px', border: '3px solid black', display: 'inline-block', backgroundColor: data.paymentMethod?.includes('BELUM') ? '#e5e5e5' : 'transparent' }}>
+              STATUS: {data.paymentMethod || 'CASH'}
+            </span>
+          </div>
+        </>
+      )}
+
+      {/* ========================================= */}
+      {/* MODE 2: WORK ORDER (TIKET DAPUR KARANTINA) */}
+      {/* ========================================= */}
+      {isWO && (
+        <div style={{ marginBottom: '20px' }}>
+          <div style={{ border: '5px solid black', padding: '20px', textAlign: 'center', marginBottom: '15px', backgroundColor: '#f9f9f9' }}>
+            <div style={{ fontSize: '18pt', fontWeight: '900', marginBottom: '5px' }}>JUMLAH WAJIB MASAK (QTY)</div>
+            <div style={{ fontSize: '60pt', fontWeight: '900', margin: '10px 0' }}>{formatNum(woQty)} <span style={{ fontSize: '20pt' }}>PCS</span></div>
+          </div>
+          
+          <div style={{ fontSize: '16pt', fontWeight: 'bold', marginBottom: '15px' }}>
+            CHANNEL/AGEN: <span style={{ border: '2px solid black', padding: '4px 10px', fontWeight: '900' }}>{woChannel}</span>
+          </div>
+
+          <div style={{ border: '5px dashed black', padding: '20px', marginBottom: '15px' }}>
+            <div style={{ fontSize: '18pt', fontWeight: '900', marginBottom: '10px' }}>⚠️ SPESIFIKASI REQUEST VARIETAS:</div>
+            <div style={{ fontSize: '30pt', fontWeight: '900', textTransform: 'uppercase' }}>{woRequest}</div>
+          </div>
+
+          <div style={{ fontSize: '16pt', fontWeight: 'bold', borderLeft: '6px solid black', paddingLeft: '15px', paddingBottom: '10px' }}>
+            CATATAN POS: {woNotes}
+          </div>
+        </div>
+      )}
+
+      {/* ========================================= */}
+      {/* MODE 3: LAPORAN HASIL PRODUKSI (YIELD) */}
+      {/* ========================================= */}
+      {isProd && (
+         <div style={{ marginBottom: '20px' }}>
+            <div style={{ display: 'flex', gap: '15px', marginBottom: '15px' }}>
+               <div style={{ flex: 1, border: '4px solid black', padding: '15px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '14pt', fontWeight: '900', marginBottom: '5px' }}>TOTAL ADUKAN</div>
+                  <div style={{ fontSize: '40pt', fontWeight: '900' }}>{pAdukan}</div>
+               </div>
+               <div style={{ flex: 1, border: '4px solid black', padding: '15px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '14pt', fontWeight: '900', marginBottom: '5px' }}>AYAM TERPAKAI</div>
+                  <div style={{ fontSize: '40pt', fontWeight: '900' }}>{pAyam} KG</div>
+               </div>
+            </div>
+            <div style={{ border: '5px solid black', padding: '20px', textAlign: 'center', marginBottom: '15px', backgroundColor: '#f9f9f9' }}>
+               <div style={{ fontSize: '18pt', fontWeight: '900', marginBottom: '5px' }}>YIELD (MASUK FREEZER)</div>
+               <div style={{ fontSize: '50pt', fontWeight: '900', margin: '10px 0' }}>{formatNum(pYield)} PCS</div>
+            </div>
+            <div style={{ fontSize: '16pt', fontWeight: 'bold', borderLeft: '6px solid black', paddingLeft: '15px' }}>
+              KETERANGAN SHIFT: {pNotes}
+            </div>
+         </div>
+      )}
+
+      {/* ========================================= */}
+      {/* TANDA TANGAN GLOBAL */}
+      {/* ========================================= */}
+      <div style={{ borderTop: '3px dashed black', marginTop: '30px', paddingTop: '20px' }}>
+        <table style={{ width: '100%', textAlign: 'center', fontSize: '14pt', fontWeight: 'bold' }}>
+          <tbody>
+            <tr>
+              <td width="50%">{isWO ? 'TIM DAPUR PABRIK,' : isProd ? 'KEPALA PRODUKSI,' : 'PENERIMA / KLIEN,'}</td>
+              <td width="50%">HORMAT KAMI,</td>
+            </tr>
+            <tr><td height="80"></td><td></td></tr>
+            <tr>
+              <td style={{ textDecoration: 'underline', fontWeight: '900', fontSize: '16pt' }}>
+                {isWO || isProd ? '_________________________' : (data.customer_name || '.......................')}
+              </td>
+              <td style={{ textDecoration: 'underline', fontSize: '16pt', fontWeight: '900' }}>{data.admin_name || 'ADMIN'}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '11pt', fontStyle: 'italic', fontWeight: 'bold', color: '#555' }}>
+        -- Dokumen Otomatis Sistem ERP Dimsum Aditya --
+      </div>
     </div>
   );
 };
