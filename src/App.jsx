@@ -248,7 +248,7 @@ export default function App() {
     }
   };
 
-// =====================================
+  // =====================================
   // UI 1: GERBANG LOGIN (UPDATED WITH FOOTER)
   // =====================================
   if (!user) {
@@ -308,12 +308,12 @@ export default function App() {
     );
   }
 
-// =====================================
+  // =====================================
   // UI 2: RENDER APLIKASI (DYNAMIC LAYOUT ENGINE)
   // =====================================
   return (
     <div className="fixed inset-0 w-full h-screen overflow-hidden bg-slate-50">
-      <LayoutEngine
+      <LayoutEngine 
         user={user} 
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
@@ -353,6 +353,6 @@ export default function App() {
           <div className="font-black text-slate-800 tracking-widest uppercase text-sm animate-pulse">Menyinkronkan Server...</div>
         </div>
       )}
-    </>
+    </div>
   );
 }
