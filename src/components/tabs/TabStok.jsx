@@ -112,16 +112,14 @@ export default function TabStok({ productionBatches = [], production_batches, ka
                       <td className="px-4 py-3 text-right text-rose-600">-{formatNumber(log.total_ayam_kg)} Kg</td>
                       <td className="px-4 py-3 text-right text-blue-600">+{formatNumber(log.total_yield_pcs)} Pcs</td>
                       <td className="px-4 py-3 text-center">
-                        {/* TOMBOL PRINT DENGAN DATA BYPASS SUNDUL :: */}
+                        {/* CETAK LAPORAN PRODUKSI BYPASS JSON */}
                         <button type="button" onClick={() => {
+                          const rahasiaJson = JSON.stringify({ type: 'PRODUCTION', adukan: log.total_adukan, ayam: log.total_ayam_kg, yield: log.total_yield_pcs, notes: log.notes || '-' });
                           triggerPrint('NOTA_DOTMATRIX', {
                             title: 'LAPORAN HASIL PRODUKSI PABRIK',
-                            id: `${log.id}::${log.total_adukan}::${log.total_ayam_kg}::${log.total_yield_pcs}::${log.notes || '-'}`,
-                            date: formatDate(log.date),
-                            branch_name: log.branch_id || currentBranch,
-                            admin_name: user?.name || 'SISTEM',
-                            customer_name: emp?.name || 'TIM PRODUKSI',
-                            paymentMethod: 'DATA INTERNAL PABRIK'
+                            id: log.id, date: formatDate(log.date), branch_name: log.branch_id || currentBranch,
+                            admin_name: user?.name || 'SISTEM', customer_name: emp?.name || 'TIM PRODUKSI',
+                            items: [{ name: rahasiaJson, qty: 1, subtotal: 0 }]
                           });
                         }} className="p-1.5 text-white bg-slate-800 hover:bg-slate-900 shadow rounded-lg"><Printer size={12}/></button>
                       </td>
