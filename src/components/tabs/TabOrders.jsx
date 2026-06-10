@@ -57,16 +57,12 @@ export default function TabOrders({ orders = [], orders_data, productionBatches 
     return { hargaSatuan, subtotal: qty * hargaSatuan, totalTagihan, dibayar: form.paymentMethod === 'DP' ? Number(form.amountPaid || 0) : totalTagihan };
   }, [form, selectedChannelInfo]);
 
-  // KODE BYPASS ANTI-GAGAL UNTUK TIKET PABRIK
   const handlePrintTiketProduksi = (log) => {
     const rahasiaData = `@@WORK_ORDER@@||${log.sales_channel}||${log.custom_request || 'STANDAR MIX'}||${log.notes || '-'}`;
     triggerPrint('NOTA_DOTMATRIX', {
       title: 'WORK ORDER & MANIFEST PABRIK',
-      id: log.id,
-      date: formatDate(log.date),
-      branch_name: log.branch_id || currentBranch,
-      admin_name: user?.name || 'KASIR',
-      customer_name: log.customer_name?.toUpperCase(),
+      id: log.id, date: formatDate(log.date), branch_name: log.branch_id || currentBranch,
+      admin_name: user?.name || 'KASIR', customer_name: log.customer_name?.toUpperCase(),
       items: [{ name: rahasiaData, qty: log.qty, subtotal: 0 }],
       paymentMethod: log.delivery_method === 'PRE_ORDER' ? 'ANTREAN PRE-ORDER' : 'PENGAMBILAN LANGSUNG'
     });
@@ -76,16 +72,36 @@ export default function TabOrders({ orders = [], orders_data, productionBatches 
     const sisaUtang = Number(log.total_amount) - Number(log.amount_paid);
     const textPembayaran = sisaUtang > 0 ? `BELUM LUNAS (SISA: ${formatRupiah(sisaUtang)})` : `LUNAS (${log.payment_method})`;
     triggerPrint('NOTA_DOTMATRIX', {
-      title: 'INVOICE PENJUALAN KLIEN',
-      id: log.id,
-      date: formatDate(log.date),
-      branch_name: log.branch_id || currentBranch,
-      admin_name: user?.name || 'KASIR',
-      customer_name: log.customer_name?.toUpperCase(),
+      title: 'INVOICE PENJUALAN',
+      id: log.id, date: formatDate(log.date), branch_name: log.branch_id || currentBranch,
+      admin_name: user?.name || 'KASIR', customer_name: log.customer_name?.toUpperCase(),
       items: [{ name: `DIMSUM FROZEN (${log.sales_channel})\nREQ: ${log.custom_request || 'STANDAR MIX'}`, qty: log.qty, subtotal: log.subtotal, suffix: ' Pcs' }],
-      amount: log.total_amount,
-      paymentMethod: textPembayaran
+      amount: log.total_amount, paymentMethod: textPembayaran
     });
+  };
+
+  // LOGIKA EDIT ANTI-CRASH
+  const handleEditSafe = (log) => {
+    try {
+      setForm({
+        id: log.id || '', 
+        date: log.date ? String(log.date).substring(0, 10) : todayStr, 
+        customerName: log.customer_name || '', 
+        channel: log.sales_channel || 'ECERAN', 
+        customPrice: log.unit_price || 0, 
+        qty: log.qty || '', 
+        deliveryMethod: log.delivery_method || 'DIRECT', 
+        shippingFee: log.shipping_fee || 0, 
+        paymentMethod: log.payment_method || 'CASH', 
+        amountPaid: log.amount_paid !== undefined ? log.amount_paid : (log.total_amount || 0), 
+        notes: log.notes || '', 
+        customRequest: log.custom_request || 'STANDAR MIX (SIOMAY, HAKAU, DLL)'
+      });
+      setIsEditing(true);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (e) {
+      alert('Gagal memuat data edit. Pastikan format transaksi valid.');
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -224,11 +240,13 @@ export default function TabOrders({ orders = [], orders_data, productionBatches 
                       </td>
                       <td className="px-4 py-3 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1.5">
-                          <button type="button" onClick={() => handlePrintTiketProduksi(log)} className="p-1 px-1.5 bg-rose-600 text-white rounded text-[10px] font-black uppercase flex items-center gap-1"><FileText size={10}/> Tiket Pabrik</button>
-                          <button type="button" onClick={() => handlePrintInvoiceKlien(log)} className="p-1 px-1.5 bg-blue-600 text-white rounded text-[10px] font-black uppercase flex items-center gap-1"><Printer size={10}/> Nota Cust</button>
+                          {/* TOMBOL CETAK */}
+                          <button type="button" onClick={() => handlePrintTiketProduksi(log)} className="p-1.5 px-2 bg-rose-600 text-white rounded font-black uppercase flex items-center gap-1 text-[10px]"><FileText size={10}/> Tiket</button>
+                          <button type="button" onClick={() => handlePrintInvoiceKlien(log)} className="p-1.5 px-2 bg-blue-600 text-white rounded font-black uppercase flex items-center gap-1 text-[10px]"><Printer size={10}/> Nota</button>
                           
-                          <button type="button" onClick={() => handleEdit(log)} className="p-1 bg-amber-50 border text-amber-600 rounded"><Edit2 size={10}/></button>
-                          <button type="button" onClick={() => { if(window.confirm("Void?")) requestDelete(log.id); }} className="p-1 bg-rose-50 border text-rose-600 rounded"><Trash2 size={10}/></button>
+                          {/* TOMBOL EDIT & HAPUS DIPERBESAR */}
+                          <button type="button" onClick={() => handleEditSafe(log)} className="p-1.5 px-2 bg-amber-50 border border-amber-200 text-amber-600 rounded flex items-center gap-1 font-black text-[10px] uppercase"><Edit2 size={12}/> Edit</button>
+                          <button type="button" onClick={() => { if(window.confirm("Void?")) requestDelete(log.id); }} className="p-1.5 px-2 bg-rose-50 border border-rose-200 text-rose-600 rounded flex items-center gap-1 font-black text-[10px] uppercase"><Trash2 size={12}/> Void</button>
                         </div>
                       </td>
                     </tr>
