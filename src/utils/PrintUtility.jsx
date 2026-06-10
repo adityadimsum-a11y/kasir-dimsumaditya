@@ -36,7 +36,7 @@ const DotMatrixInvoice = ({ data }) => {
 
   return (
     // 💡 DI SINI TEMPAT EDIT LEBAR KERTAS (Ubah '19cm' sesuai selera Bos)
-    <div className="print-dot-matrix" style={{ width: '20cm', maxHeight: '13.5cm', boxSizing: 'border-box', color: '#000', fontFamily: 'monospace', margin: '0', overflow: 'hidden' }}>
+    <div className="print-dot-matrix" style={{ width: '19cm', maxHeight: '13.5cm', boxSizing: 'border-box', color: '#000', fontFamily: '"Courier New", Consolas, monospace', margin: '0', overflow: 'hidden' }}>
       
       {/* 💡 DI SINI TEMPAT EDIT MARGIN BROWSER (Ubah padding: Atas Kanan Bawah Kiri) */}
       <style>{`
