@@ -21,10 +21,13 @@ export default function TabStok({
   sendToSheet, showToast, user 
 }) {
   const todayStr = getTodayStr();
-  const currentBranch = user?.branch_id || 'TANGERANG_PUSAT';
+  
+  // Normalisasi Nama Cabang agar tidak nyasar ke PUSAT yang kosong
+  const currentBranch = (user?.branch_id === 'PUSAT' || !user?.branch_id) ? 'TANGERANG_PUSAT' : user?.branch_id;
   const isHQ = user?.branch_type === 'HQ_FACTORY' || user?.branch_id === 'PUSAT' || currentBranch === 'TANGERANG_PUSAT';
   
-  const [activeBranchFilter, setActiveBranchFilter] = useState(isHQ ? 'SEMUA_CABANG' : currentBranch);
+  // Default filter sekarang langsung fokus ke cabang aktif Bos
+  const [activeBranchFilter, setActiveBranchFilter] = useState(currentBranch);
   const [optimisticDeletedIds, setOptimisticDeletedIds] = useState(new Set());
   const [isEditing, setIsEditing] = useState(false);
 
@@ -37,9 +40,7 @@ export default function TabStok({
   
   const daftarCabangId = useMemo(() => {
     const list = realMasterBranches.filter(b => b && !b.isDeleted && b.branch_id).map(b => b.branch_id);
-    if (!list.includes('TANGERANG_PUSAT')) {
-      list.push('TANGERANG_PUSAT');
-    }
+    if (!list.includes('TANGERANG_PUSAT')) list.push('TANGERANG_PUSAT');
     return list;
   }, [realMasterBranches]);
 
@@ -62,7 +63,7 @@ export default function TabStok({
   const historyProduksi = useMemo(() => {
     return realProductionBatches.filter(p => {
       if (!p || p.isDeleted || optimisticDeletedIds.has(p.id)) return false;
-      if (activeBranchFilter !== 'SEMUA_CABANG' && p.branch_id !== activeBranchFilter) return false;
+      if (activeBranchFilter !== 'SEMUA_CABANG' && p.branch_id !== activeBranchFilter && p.branch_id !== 'PUSAT') return false;
       return true;
     }).sort((a, b) => new Date(b.date) - new Date(a.date));
   }, [realProductionBatches, activeBranchFilter, optimisticDeletedIds]);
@@ -131,11 +132,7 @@ export default function TabStok({
 
   const handleDelete = async (id) => {
     if(window.confirm("AWAS! Menghapus data ini akan merusak laporan stok gudang. Yakin ingin menghapus?")) {
-      setOptimisticDeletedIds(prev => {
-        const n = new Set(prev);
-        n.add(id);
-        return n;
-      });
+      setOptimisticDeletedIds(prev => { const n = new Set(prev); n.add(id); return n; });
       const success = await sendToSheet('delete', { id }, 'production_batches');
       if(success) { if(showToast) showToast('Data produksi divoid.', 'success'); } 
       else { setOptimisticDeletedIds(prev => { const n = new Set(prev); n.delete(id); return n; }); }
@@ -291,4 +288,3 @@ export default function TabStok({
     </div>
   );
 }
-    
