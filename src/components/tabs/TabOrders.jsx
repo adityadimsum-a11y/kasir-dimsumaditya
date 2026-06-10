@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ShoppingCart, Package, Truck, AlertCircle, Edit2, Printer, Trash2, CalendarDays, Lock, Eye, CheckCircle2, X, FileText } from 'lucide-react';
+import { ShoppingCart, Package, Truck, AlertCircle, Edit2, Printer, Trash2, CalendarDays, Lock, Eye, CheckCircle2, X, FileText, Undo } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
 
@@ -61,8 +61,11 @@ export default function TabOrders({ orders = [], orders_data, productionBatches 
     const rahasiaData = `@@WORK_ORDER@@||${log.sales_channel}||${log.custom_request || 'STANDAR MIX'}||${log.notes || '-'}`;
     triggerPrint('NOTA_DOTMATRIX', {
       title: 'WORK ORDER & MANIFEST PABRIK',
-      id: log.id, date: formatDate(log.date), branch_name: log.branch_id || currentBranch,
-      admin_name: user?.name || 'KASIR', customer_name: log.customer_name?.toUpperCase(),
+      id: log.id,
+      date: formatDate(log.date),
+      branch_name: log.branch_id || currentBranch,
+      admin_name: user?.name || 'KASIR',
+      customer_name: log.customer_name?.toUpperCase(),
       items: [{ name: rahasiaData, qty: log.qty, subtotal: 0 }],
       paymentMethod: log.delivery_method === 'PRE_ORDER' ? 'ANTREAN PRE-ORDER' : 'PENGAMBILAN LANGSUNG'
     });
@@ -72,15 +75,18 @@ export default function TabOrders({ orders = [], orders_data, productionBatches 
     const sisaUtang = Number(log.total_amount) - Number(log.amount_paid);
     const textPembayaran = sisaUtang > 0 ? `BELUM LUNAS (SISA: ${formatRupiah(sisaUtang)})` : `LUNAS (${log.payment_method})`;
     triggerPrint('NOTA_DOTMATRIX', {
-      title: 'INVOICE PENJUALAN',
-      id: log.id, date: formatDate(log.date), branch_name: log.branch_id || currentBranch,
-      admin_name: user?.name || 'KASIR', customer_name: log.customer_name?.toUpperCase(),
+      title: 'INVOICE PENJUALAN KLIEN',
+      id: log.id,
+      date: formatDate(log.date),
+      branch_name: log.branch_id || currentBranch,
+      admin_name: user?.name || 'KASIR',
+      customer_name: log.customer_name?.toUpperCase(),
       items: [{ name: `DIMSUM FROZEN (${log.sales_channel})\nREQ: ${log.custom_request || 'STANDAR MIX'}`, qty: log.qty, subtotal: log.subtotal, suffix: ' Pcs' }],
-      amount: log.total_amount, paymentMethod: textPembayaran
+      amount: log.total_amount,
+      paymentMethod: textPembayaran
     });
   };
 
-  // LOGIKA EDIT ANTI-CRASH
   const handleEditSafe = (log) => {
     try {
       setForm({
@@ -104,6 +110,16 @@ export default function TabOrders({ orders = [], orders_data, productionBatches 
     }
   };
 
+  // FUNGSI BATAL EDIT BARU
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setForm({
+      id: '', date: todayStr, customerName: '', channel: 'ECERAN', customPrice: 3000, qty: '',
+      deliveryMethod: 'DIRECT', shippingFee: 0, paymentMethod: 'CASH', amountPaid: '', notes: '',
+      customRequest: 'STANDAR MIX (SIOMAY, HAKAU, DLL)'
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (Number(form.qty) <= 0) return alert("Jumlah beli harus lebih dari 0!");
@@ -117,8 +133,7 @@ export default function TabOrders({ orders = [], orders_data, productionBatches 
     if (await sendToSheet(isEditing ? 'update' : 'insert', payload, 'orders')) {
       showToast('Data penjualan disimpan!', 'success');
       if (form.deliveryMethod === 'PRE_ORDER') handlePrintTiketProduksi(payload);
-      setForm({ id: '', date: todayStr, customerName: '', channel: 'ECERAN', customPrice: 3000, qty: '', deliveryMethod: 'DIRECT', shippingFee: 0, paymentMethod: 'CASH', amountPaid: '', notes: '', customRequest: 'STANDAR MIX (SIOMAY, HAKAU, DLL)' });
-      setIsEditing(false);
+      handleCancelEdit(); // Reset form & mode edit setelah berhasil
     }
   };
 
@@ -151,9 +166,22 @@ export default function TabOrders({ orders = [], orders_data, productionBatches 
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="p-6 rounded-2xl border bg-white border-t-emerald-600 shadow-sm">
+        <div className={`p-6 rounded-2xl border shadow-sm transition-all ${isEditing ? 'bg-amber-50/50 border-t-4 border-t-amber-500 border-amber-200' : 'bg-white border-t-4 border-t-emerald-600'}`}>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <h3 className="font-black text-sm uppercase text-slate-800">Order Management &amp; Billing</h3>
+            
+            {/* HEADER FORM DENGAN TOMBOL BATAL EDIT */}
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3 mb-2">
+              <h3 className={`font-black text-sm uppercase flex items-center gap-2 ${isEditing ? 'text-amber-700' : 'text-slate-800'}`}>
+                {isEditing ? <Edit2 size={16}/> : <ShoppingCart size={16} className="text-emerald-600"/>} 
+                {isEditing ? 'Revisi Invoice' : 'Order Management & Billing'}
+              </h3>
+              {isEditing && (
+                <button type="button" onClick={handleCancelEdit} className="text-[10px] border border-amber-200 px-2.5 py-1 rounded-lg font-black uppercase text-amber-700 bg-white shadow-sm flex items-center gap-1 hover:bg-amber-100 transition-colors">
+                  <Undo size={12}/> Batal Edit
+                </button>
+              )}
+            </div>
+
             <div>
               <label className="text-[10px] font-black text-slate-500 uppercase block mb-1">Nama Pelanggan</label>
               <input type="text" required value={form.customerName} onChange={e=>setForm({...form, customerName: e.target.value})} className="w-full p-2.5 border rounded-xl text-xs font-bold uppercase" />
@@ -215,7 +243,9 @@ export default function TabOrders({ orders = [], orders_data, productionBatches 
                 </div>
               )}
             </div>
-            <button type="submit" className="w-full text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest bg-emerald-600">Simpan &amp; Cetak Tiket</button>
+            <button type="submit" className={`w-full text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest shadow-lg ${isEditing ? 'bg-amber-500 hover:bg-amber-600' : 'bg-emerald-600 hover:bg-emerald-700'}`}>
+              {isEditing ? 'Simpan Revisi' : 'Simpan & Cetak Tiket'}
+            </button>
           </form>
         </div>
         
@@ -240,13 +270,11 @@ export default function TabOrders({ orders = [], orders_data, productionBatches 
                       </td>
                       <td className="px-4 py-3 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1.5">
-                          {/* TOMBOL CETAK */}
-                          <button type="button" onClick={() => handlePrintTiketProduksi(log)} className="p-1.5 px-2 bg-rose-600 text-white rounded font-black uppercase flex items-center gap-1 text-[10px]"><FileText size={10}/> Tiket</button>
-                          <button type="button" onClick={() => handlePrintInvoiceKlien(log)} className="p-1.5 px-2 bg-blue-600 text-white rounded font-black uppercase flex items-center gap-1 text-[10px]"><Printer size={10}/> Nota</button>
+                          <button type="button" onClick={() => handlePrintTiketProduksi(log)} className="p-1 px-1.5 bg-rose-600 text-white rounded text-[10px] font-black uppercase flex items-center gap-1"><FileText size={10}/> Tiket Pabrik</button>
+                          <button type="button" onClick={() => handlePrintInvoiceKlien(log)} className="p-1 px-1.5 bg-blue-600 text-white rounded text-[10px] font-black uppercase flex items-center gap-1"><Printer size={10}/> Nota Cust</button>
                           
-                          {/* TOMBOL EDIT & HAPUS DIPERBESAR */}
-                          <button type="button" onClick={() => handleEditSafe(log)} className="p-1.5 px-2 bg-amber-50 border border-amber-200 text-amber-600 rounded flex items-center gap-1 font-black text-[10px] uppercase"><Edit2 size={12}/> Edit</button>
-                          <button type="button" onClick={() => { if(window.confirm("Void?")) requestDelete(log.id); }} className="p-1.5 px-2 bg-rose-50 border border-rose-200 text-rose-600 rounded flex items-center gap-1 font-black text-[10px] uppercase"><Trash2 size={12}/> Void</button>
+                          <button type="button" onClick={() => handleEditSafe(log)} className="p-1 px-1.5 bg-amber-50 border border-amber-200 text-amber-600 rounded flex items-center gap-1 font-black text-[10px] uppercase"><Edit2 size={12}/> Edit</button>
+                          <button type="button" onClick={() => { if(window.confirm("Void?")) requestDelete(log.id); }} className="p-1 px-1.5 bg-rose-50 border border-rose-200 text-rose-600 rounded flex items-center gap-1 font-black text-[10px] uppercase"><Trash2 size={12}/> Void</button>
                         </div>
                       </td>
                     </tr>
