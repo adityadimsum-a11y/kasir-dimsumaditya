@@ -1,213 +1,186 @@
 import React, { useMemo } from 'react';
-import { Radar, AlertTriangle, TrendingUp, TrendingDown, DollarSign, Package, Activity, AlertCircle, ShieldCheck } from 'lucide-react';
-import { formatRp, getTodayStr, getLocalYMD } from '../../utils/helpers';
+import { Target, Activity, Zap, Package, Wallet, TrendingUp, AlertTriangle, CalendarClock } from 'lucide-react';
+import { getTodayStr } from '../../utils/helpers';
 
-const THRESHOLDS = {
-  MIN_CASH_DAYS: 7,
-  MIN_AYAM_DAYS: 3,
-  MIN_FROZEN_DAYS: 4,
-  MAX_FROZEN_DAYS: 21,
-  WASTE_WARNING_PERCENT: 2 // 2% dari Omzet
-};
+const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
+const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
-export default function TabBusinessRadar({ 
-  orders, stockMovements, expenses, supplierLedger, 
-  cashflowTransactions, inventoryCostLayers, marketplaceSettlement, masterBranches, discrepancyLogs 
-}) {
-  const todayStr = getTodayStr();
+export default function TabBusinessRadar({ orders = [], orders_data, purchases = [], purchases_data, productionBatches = [], production_batches }) {
+  
+  // 1. TARIK SEMUA DATA DARI DATABASE PABRIK
+  const realOrders = useMemo(() => orders_data || orders || [], [orders, orders_data]);
+  const realPurchases = useMemo(() => purchases_data || purchases || [], [purchases, purchases_data]);
+  const realProd = useMemo(() => production_batches || productionBatches || [], [productionBatches, production_batches]);
 
-  const forecast = useMemo(() => {
-    const today = new Date();
-    const last30DaysDate = new Date(today); last30DaysDate.setDate(today.getDate() - 30);
-    const str30Days = last30DaysDate.toISOString().split('T')[0];
+  // 2. MESIN PERAMAL (AI PREDICTION ENGINE)
+  const radarData = useMemo(() => {
+    let ayamGudang = 0;
+    let frozenGudang = 0;
+    let totalTerjual7Hari = 0;
+    let totalUang7Hari = 0;
 
-    // ==========================================
-    // 1. DATA GATHERING (LAST 30 DAYS VELOCITY)
-    // ==========================================
-    let netSales30D = 0, opex30D = 0, wasteLoss30D = 0;
-    let ayamUsed30D = 0, frozenSold30D = 0;
+    const hariIni = new Date();
+    const tujuhHariLalu = new Date();
+    tujuhHariLalu.setDate(hariIni.getDate() - 7);
+
+    // Hitung Sisa Ayam
+    realPurchases.filter(p => !p.isDeleted && p.category === 'BAHAN_BAKU').forEach(p => ayamGudang += Number(p.qty_kg || 0));
+    realProd.filter(p => !p.isDeleted).forEach(p => ayamGudang -= Number(p.total_ayam_kg || 0));
+
+    // Hitung Sisa Frozen & Jualan 7 Hari Terakhir
+    realProd.filter(p => !p.isDeleted).forEach(p => frozenGudang += Number(p.total_yield_pcs || 0));
     
-    (orders || []).forEach(o => { if (!o.isDeleted && getLocalYMD(o.date) >= str30Days) netSales30D += (Number(o.net_profit) || 0); });
-    (expenses || []).forEach(e => { if (!e.isDeleted && getLocalYMD(e.date) >= str30Days) opex30D += (Number(e.amount) || 0); });
-    (discrepancyLogs || []).forEach(d => { if (!d.isDeleted && getLocalYMD(d.date) >= str30Days) wasteLoss30D += (Number(d.financial_loss) || 0); });
-    
-    (stockMovements || []).forEach(m => {
-      if (m.isDeleted || getLocalYMD(m.date) < str30Days) return;
-      if (m.item_name === 'AYAM' && m.movement_type === 'PRODUCTION_USAGE') ayamUsed30D += Number(m.qty);
-      if (String(m.item_name).includes('DIMSUM') && m.movement_type === 'SALE') frozenSold30D += Number(m.qty);
+    realOrders.filter(o => !o.isDeleted).forEach(o => {
+      const qty = Number(o.qty || 0);
+      if (o.delivery_method !== 'PRE_ORDER' || o.status === 'SELESAI') {
+        frozenGudang -= qty;
+      }
+      // Rekap 7 Hari untuk bahan prediksi
+      if (new Date(o.date) >= tujuhHariLalu) {
+        totalTerjual7Hari += qty;
+        totalUang7Hari += Number(o.total_amount || 0);
+      }
     });
 
-    const avgNetSalesDay = netSales30D / 30;
-    const avgOpexDay = opex30D / 30;
-    const avgAyamDay = ayamUsed30D / 30;
-    const avgFrozenDay = frozenSold30D / 30;
+    ayamGudang = Math.max(0, ayamGudang);
+    frozenGudang = Math.max(0, frozenGudang);
 
-    // ==========================================
-    // 2. CURRENT SNAPSHOT
-    // ==========================================
-    let currentCash = 0, pendingAR = 0, supplierAP = 0;
-    let currentAyamKg = 0, currentFrozenPcs = 0;
+    // --- RUMUS PREDIKSI MASA DEPAN ---
+    // Rata-rata sehari laku berapa Pcs dan dapat uang berapa?
+    const rataRataPcsSehari = totalTerjual7Hari / 7;
+    const rataRataUangSehari = totalUang7Hari / 7;
 
-    (cashflowTransactions || []).forEach(c => {
-      if (c.isDeleted) return;
-      currentCash += (Number(c.amount_in || (c.type === 'CASH_IN' ? c.amount : 0)) - Number(c.amount_out || (c.type === 'CASH_OUT' ? c.amount : 0)));
-    });
-    (marketplaceSettlement || []).forEach(m => { if (!m.isDeleted && m.status === 'PENDING') pendingAR += Number(m.net); });
-    (supplierLedger || []).forEach(l => {
-      if (l.isDeleted) return;
-      if (l.transaction_type === 'PURCHASE') supplierAP += Number(l.amount);
-      if (l.transaction_type === 'PAYMENT') supplierAP -= Number(l.amount);
-    });
+    // Prediksi Uang Masuk
+    const tebakan7Hari = rataRataUangSehari * 7;
+    const tebakan14Hari = rataRataUangSehari * 14;
+    const tebakan30Hari = rataRataUangSehari * 30;
 
-    (inventoryCostLayers || []).forEach(l => {
-      if (l.isDeleted || l.status !== 'ACTIVE') return;
-      if (l.item_name === 'AYAM') currentAyamKg += Number(l.qty_remaining);
-      if (String(l.item_name).includes('DIMSUM')) currentFrozenPcs += Number(l.qty_remaining);
-    });
+    // Prediksi Sisa Waktu Stok Habis (Runway)
+    // Ayam: 30kg ayam = 1000 pcs frozen. Jadi 1kg ayam = 33.3 pcs frozen
+    const ayamJadiFrozenPcs = ayamGudang * 33.33; 
+    let umurAyamHari = rataRataPcsSehari > 0 ? ayamJadiFrozenPcs / rataRataPcsSehari : 999;
+    let umurFrozenHari = rataRataPcsSehari > 0 ? frozenGudang / rataRataPcsSehari : 999;
 
-    // Ayam Price Estimator
-    const activeAyamLayers = (inventoryCostLayers || []).filter(l => l.item_name === 'AYAM' && l.status === 'ACTIVE');
-    const avgAyamPrice = activeAyamLayers.length > 0 ? Number(activeAyamLayers[0].unit_cost) : 38000;
-
-    // ==========================================
-    // 3. CASHFLOW FORECAST ENGINE (7, 14, 30 Days)
-    // ==========================================
-    const generateForecast = (days) => {
-      const projectedSales = avgNetSalesDay * days;
-      const projectedOpex = avgOpexDay * days;
-      const projectedAyamCost = (avgAyamDay * days) * avgAyamPrice;
-      // Asumsi AP dibayar lunas dalam 7 hari, AR cair dalam 3 hari
-      const apDeduction = days >= 7 ? supplierAP : (supplierAP / 7) * days;
-      const arAddition = days >= 3 ? pendingAR : (pendingAR / 3) * days;
-      
-      const projectedCash = currentCash + arAddition + projectedSales - apDeduction - projectedOpex - projectedAyamCost;
-      return projectedCash;
+    return {
+      tebakan7Hari, tebakan14Hari, tebakan30Hari,
+      umurAyamHari: Math.round(umurAyamHari),
+      umurFrozenHari: Math.round(umurFrozenHari),
+      rataRataPcsSehari: Math.round(rataRataPcsSehari)
     };
 
-    const cashForecast = { d7: generateForecast(7), d14: generateForecast(14), d30: generateForecast(30) };
-
-    // ==========================================
-    // 4. RUNWAY & EARLY WARNING ENGINE
-    // ==========================================
-    const ayamRunwayDays = avgAyamDay > 0 ? currentAyamKg / avgAyamDay : 999;
-    const frozenRunwayDays = avgFrozenDay > 0 ? currentFrozenPcs / avgFrozenDay : 999;
-    const netCashBurnRate = (avgOpexDay + (avgAyamDay * avgAyamPrice)) - avgNetSalesDay; // Jika positif, artinya bakar duit
-    const cashRunwayDays = netCashBurnRate > 0 ? currentCash / netCashBurnRate : 999;
-
-    const alerts = [];
-    
-    // CASH ALERTS
-    if (cashForecast.d7 < 0) alerts.push({ type: 'CRITICAL', title: 'POTENSI GAGAL BAYAR 7 HARI', desc: `Kas diprediksi minus ${formatRp(Math.abs(cashForecast.d7))} dalam seminggu ke depan. Tunda pembayaran supplier atau genjot sales.` });
-    else if (currentCash < supplierAP) alerts.push({ type: 'WARNING', title: 'DEFISIT KAS VS HUTANG', desc: `Kas likuid tidak cukup untuk menutup hutang ayam aktif.` });
-
-    // STOCK ALERTS
-    if (ayamRunwayDays < THRESHOLDS.MIN_AYAM_DAYS) alerts.push({ type: 'CRITICAL', title: 'KRISIS RAW MATERIAL', desc: `Ayam mentah sisa ${Math.floor(ayamRunwayDays)} hari. Proses pengadaan sekarang!` });
-    if (frozenRunwayDays < THRESHOLDS.MIN_FROZEN_DAYS) alerts.push({ type: 'WARNING', title: 'FROZEN STOCK MENIPIS', desc: `Stok gudang beku habis dalam ${Math.floor(frozenRunwayDays)} hari dengan velocity saat ini.` });
-    if (frozenRunwayDays > THRESHOLDS.MAX_FROZEN_DAYS) alerts.push({ type: 'INFO', title: 'INDIKASI OVERSTOCK FROZEN', desc: `Stok beku menumpuk untuk ${Math.floor(frozenRunwayDays)} hari. Hati-hati risiko expiry.` });
-
-    // BRANCH HEALTH & MARKETPLACE ALERTS
-    if (pendingAR > currentCash) alerts.push({ type: 'WARNING', title: 'LIKUIDITAS TERTAHAN MARKETPLACE', desc: `Dana tertahan di aplikasi online melebihi kas di tangan. Cek status settlement!` });
-    const wastePercent = netSales30D > 0 ? (wasteLoss30D / netSales30D) * 100 : 0;
-    if (wastePercent > THRESHOLDS.WASTE_WARNING_PERCENT) alerts.push({ type: 'CRITICAL', title: 'WASTE LOSS ABNORMAL', desc: `Rasio barang rusak/hilang mencapai ${wastePercent.toFixed(1)}% dari omzet. Segera lakukan Stock Opname!` });
-
-    // Sort alerts: CRITICAL -> WARNING -> INFO
-    alerts.sort((a, b) => {
-      const weight = { CRITICAL: 3, WARNING: 2, INFO: 1 };
-      return weight[b.type] - weight[a.type];
-    });
-
-    return { cashForecast, ayamRunwayDays, frozenRunwayDays, alerts, avgAyamDay, currentAyamKg, currentCash, supplierAP, pendingAR };
-  }, [orders, stockMovements, expenses, supplierLedger, cashflowTransactions, inventoryCostLayers, marketplaceSettlement, discrepancyLogs]);
+  }, [realOrders, realPurchases, realProd]);
 
   return (
-    <div className="space-y-6 animate-in fade-in pb-10">
+    <div className="space-y-6 pb-10 animate-in fade-in duration-500">
       
-      {/* HEADER RADAR */}
-      <div className="bg-slate-900 rounded-2xl p-6 border shadow-xl flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-black text-white tracking-wide flex items-center gap-2"><Radar className="text-cyan-400 animate-pulse"/> Business Radar & Prediction Engine</h2>
-          <p className="text-xs text-slate-400 mt-1">Sistem menganalisis pergerakan data 30 hari terakhir untuk memprediksi masa depan.</p>
+      {/* KEPALA RADAR */}
+      <div className="bg-slate-900 rounded-2xl border border-slate-800 shadow-xl p-6 text-white flex flex-col md:flex-row justify-between items-center relative overflow-hidden">
+        <div className="flex items-center gap-4 relative z-10">
+          <div className="bg-cyan-500/20 p-4 rounded-full border border-cyan-500/30">
+            <Target size={28} className="text-cyan-400" />
+          </div>
+          <div>
+            <h2 className="text-xl font-black text-white tracking-widest uppercase">Radar Bisnis & Mesin Peramal</h2>
+            <p className="text-xs text-slate-400 font-bold mt-1">Sistem membaca data jualan minggu lalu untuk menebak nasib pabrik ke depan.</p>
+          </div>
         </div>
-        <div className="text-xs font-bold text-slate-900 bg-cyan-400 px-4 py-2 rounded-lg shadow-[0_0_15px_rgba(34,211,238,0.4)]">
-          AI FORECAST ACTIVE
+        <div className="mt-4 md:mt-0 bg-cyan-500/10 border border-cyan-500/30 px-4 py-2 rounded-full text-[10px] font-black text-cyan-400 tracking-widest uppercase flex items-center gap-2 relative z-10">
+          <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span> Radar Aktif
         </div>
       </div>
 
-      {/* SMART ALERT CENTER */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="p-4 border-b bg-slate-50 flex items-center gap-2">
-          <AlertTriangle size={18} className="text-slate-600"/>
-          <h3 className="font-bold text-slate-800 text-sm tracking-wide uppercase">Early Warning System</h3>
-        </div>
-        <div className="p-4 space-y-3">
-          {forecast.alerts.length === 0 ? (
-             <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-xl flex items-center gap-3">
-               <ShieldCheck size={24} className="text-emerald-600"/>
-               <div>
-                 <div className="font-bold text-sm">Bisnis Terpantau Sangat Sehat</div>
-                 <div className="text-xs font-medium mt-0.5">Tidak ada anomali atau risiko kritikal dalam 7 hari ke depan.</div>
-               </div>
-             </div>
-          ) : (
-            forecast.alerts.map((alert, idx) => (
-              <div key={idx} className={`p-4 rounded-xl border flex gap-4 items-start shadow-sm transition-all hover:scale-[1.01] ${
-                alert.type === 'CRITICAL' ? 'bg-red-50 border-red-200 text-red-800' : 
-                alert.type === 'WARNING' ? 'bg-amber-50 border-amber-200 text-amber-800' : 
-                'bg-blue-50 border-blue-200 text-blue-800'
-              }`}>
-                {alert.type === 'CRITICAL' ? <AlertTriangle size={24} className="text-red-600 shrink-0"/> : 
-                 alert.type === 'WARNING' ? <AlertCircle size={24} className="text-amber-500 shrink-0"/> : 
-                 <Activity size={24} className="text-blue-500 shrink-0"/>}
-                <div>
-                  <h4 className="font-black text-sm uppercase tracking-wide">{alert.title}</h4>
-                  <p className="text-xs mt-1 font-medium">{alert.desc}</p>
-                </div>
+      {/* ALARM PENGINGAT OTOMATIS */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2 mb-4 border-b border-slate-100 pb-3">
+          <AlertTriangle size={16} className="text-amber-500"/> Alarm Pengingat Otomatis
+        </h3>
+        
+        <div className="space-y-3">
+          {radarData.umurAyamHari <= 3 ? (
+            <div className="flex items-start gap-4 p-4 rounded-xl bg-rose-50 border border-rose-200">
+              <div className="p-2 bg-rose-100 rounded-lg text-rose-600"><AlertTriangle size={20}/></div>
+              <div>
+                <h4 className="font-black text-sm text-rose-700 uppercase">AWAS! Ayam Segera Habis</h4>
+                <p className="text-xs text-rose-600/80 font-bold mt-1">Sisa ayam di gudang diprediksi ludes dalam {radarData.umurAyamHari} hari lagi. Segera telepon supplier!</p>
               </div>
-            ))
+            </div>
+          ) : (
+            <div className="flex items-start gap-4 p-4 rounded-xl bg-slate-50 border border-slate-200">
+              <div className="p-2 bg-slate-200 rounded-lg text-slate-500"><CheckCircle2 size={20}/></div>
+              <div>
+                <h4 className="font-black text-sm text-slate-600 uppercase">Stok Ayam Terkendali</h4>
+                <p className="text-xs text-slate-500 font-bold mt-1">Nafas stok ayam masih panjang ({radarData.umurAyamHari} hari). Pabrik aman beroperasi.</p>
+              </div>
+            </div>
           )}
+
+          {radarData.umurFrozenHari > 14 ? (
+            <div className="flex items-start gap-4 p-4 rounded-xl bg-amber-50 border border-amber-200">
+              <div className="p-2 bg-amber-100 rounded-lg text-amber-600"><Package size={20}/></div>
+              <div>
+                <h4 className="font-black text-sm text-amber-700 uppercase">Indikasi Frozen Menumpuk</h4>
+                <p className="text-xs text-amber-600/80 font-bold mt-1">Jualan lagi lambat. Stok beku di freezer butuh waktu {radarData.umurFrozenHari} hari buat habis. Genjot tim sales!</p>
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
 
-      {/* FORECAST DASHBOARD (CASH & STOCK) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         
-        {/* CASHFLOW PREDICTION */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col">
-          <div className="p-4 border-b bg-slate-50">
-            <h3 className="font-bold text-slate-800 text-sm tracking-wide uppercase flex items-center gap-2"><DollarSign size={18} className="text-emerald-600"/> Cashflow Forecast Model</h3>
-          </div>
-          <div className="p-6 flex-1 flex flex-col justify-center space-y-4">
-            <div className="flex justify-between items-center border-b pb-3">
-              <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">Prediksi 7 Hari Depan</div>
-              <div className={`text-lg font-black ${forecast.cashForecast.d7 >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{formatRp(forecast.cashForecast.d7)}</div>
+        {/* PREDIKSI UANG MASUK */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <h3 className="text-xs font-black text-emerald-600 uppercase tracking-widest flex items-center gap-2 mb-6 border-b border-slate-100 pb-3">
+            <Wallet size={16}/> Prediksi Uang Masuk (Omzet)
+          </h3>
+          <div className="space-y-5">
+            <div className="flex justify-between items-end border-b border-dashed border-slate-200 pb-3">
+              <div>
+                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tebakan 7 Hari Ke Depan</div>
+                <div className="text-xl font-black text-slate-800">{formatRupiah(radarData.tebakan7Hari)}</div>
+              </div>
             </div>
-            <div className="flex justify-between items-center border-b pb-3">
-              <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">Prediksi 14 Hari Depan</div>
-              <div className={`text-lg font-black ${forecast.cashForecast.d14 >= 0 ? 'text-blue-600' : 'text-red-600'}`}>{formatRp(forecast.cashForecast.d14)}</div>
+            <div className="flex justify-between items-end border-b border-dashed border-slate-200 pb-3">
+              <div>
+                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tebakan 14 Hari Ke Depan</div>
+                <div className="text-xl font-black text-slate-800">{formatRupiah(radarData.tebakan14Hari)}</div>
+              </div>
             </div>
-            <div className="flex justify-between items-center">
-              <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">Prediksi 30 Hari Depan</div>
-              <div className={`text-xl font-black ${forecast.cashForecast.d30 >= 0 ? 'text-purple-600' : 'text-red-600'}`}>{formatRp(forecast.cashForecast.d30)}</div>
+            <div className="flex justify-between items-end bg-emerald-50 p-4 rounded-xl border border-emerald-100">
+              <div>
+                <div className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">Tebakan 1 Bulan Penuh</div>
+                <div className="text-2xl font-black text-emerald-700">{formatRupiah(radarData.tebakan30Hari)}</div>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* INVENTORY RUNWAY */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col">
-          <div className="p-4 border-b bg-slate-50">
-            <h3 className="font-bold text-slate-800 text-sm tracking-wide uppercase flex items-center gap-2"><Package size={18} className="text-orange-600"/> Inventory Runway (Stock Life)</h3>
+        {/* SISA UMUR STOK GUDANG */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          <h3 className="text-xs font-black text-orange-500 uppercase tracking-widest flex items-center gap-2 mb-6 border-b border-slate-100 pb-3">
+            <CalendarClock size={16}/> Sisa Waktu Stok Habis
+          </h3>
+          
+          <div className="grid grid-cols-2 gap-4 h-[calc(100%-3rem)]">
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 flex flex-col justify-center items-center text-center hover:border-orange-300 transition-colors">
+              <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Ayam Mentah Ludes Dalam</div>
+              <div className="text-4xl font-black text-slate-800">
+                {radarData.umurAyamHari === 999 ? '∞' : radarData.umurAyamHari}
+              </div>
+              <div className="text-xs font-bold text-slate-400 mt-1">Hari Lagi</div>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 flex flex-col justify-center items-center text-center hover:border-blue-300 transition-colors">
+              <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Dimsum Frozen Ludes Dalam</div>
+              <div className="text-4xl font-black text-blue-600">
+                {radarData.umurFrozenHari === 999 ? '∞' : radarData.umurFrozenHari}
+              </div>
+              <div className="text-xs font-bold text-slate-400 mt-1">Hari Lagi</div>
+            </div>
           </div>
-          <div className="p-6 flex-1 grid grid-cols-2 gap-4">
-             <div className={`p-4 rounded-xl border flex flex-col items-center justify-center text-center ${forecast.ayamRunwayDays < 3 ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-200'}`}>
-                <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Sisa Ayam Gudang</div>
-                <div className={`text-4xl font-black ${forecast.ayamRunwayDays < 3 ? 'text-red-600' : 'text-slate-800'}`}>{forecast.ayamRunwayDays > 900 ? '∞' : Math.floor(forecast.ayamRunwayDays)}</div>
-                <div className="text-xs font-bold text-slate-400 mt-1">Hari Tersisa</div>
-             </div>
-             <div className={`p-4 rounded-xl border flex flex-col items-center justify-center text-center ${forecast.frozenRunwayDays < 4 ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-200'}`}>
-                <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Sisa Dimsum Frozen</div>
-                <div className={`text-4xl font-black ${forecast.frozenRunwayDays < 4 ? 'text-red-600' : 'text-slate-800'}`}>{forecast.frozenRunwayDays > 900 ? '∞' : Math.floor(forecast.frozenRunwayDays)}</div>
-                <div className="text-xs font-bold text-slate-400 mt-1">Hari Tersisa</div>
-             </div>
+          
+          <div className="mt-4 text-center text-[10px] font-bold text-slate-400">
+            *Dihitung berdasarkan rata-rata jualan Bro seminggu terakhir ({formatNumber(radarData.rataRataPcsSehari)} Pcs/hari).
           </div>
         </div>
 
