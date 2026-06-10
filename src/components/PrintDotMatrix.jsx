@@ -21,11 +21,13 @@ export default function PrintDotMatrix({ printData, onClose }) {
 
   if (!printData) return null;
 
-  // Tarik data dengan dukungan parameter khusus Work Order
+  // Mendukung 3 mode: INVOICE(Jual/Beli), WORK_ORDER(Karantina), PRODUCTION(Pabrik)
   const { 
     title = 'INVOICE', id = '-', date = '-', branch_name = '-', admin_name = '-', 
     customer_name = '-', items = [], amount = 0, paymentMethod = '-', footerCustom = '',
-    isWorkOrder = false, qty = 0, channel = '', customRequest = '', notes = ''
+    isWorkOrder = false, isProduction = false, 
+    qty = 0, channel = '', customRequest = '', notes = '',
+    totalAdukan = 0, ayamKg = 0, yieldPcs = 0
   } = printData;
 
   const formatRupiah = (angka) => "Rp. " + Number(angka || 0).toLocaleString('id-ID');
@@ -48,7 +50,7 @@ export default function PrintDotMatrix({ printData, onClose }) {
         <div className="text-center font-black uppercase mb-1 text-base md:text-xl tracking-widest">DIMSUM ADITYA</div>
         <div className="text-center font-bold uppercase mb-4 text-[10px] md:text-xs">CABANG OPERASIONAL {branch_name}</div>
         
-        <div className={`text-center font-black uppercase underline tracking-wider mb-4 ${isWorkOrder ? 'text-lg md:text-2xl' : 'md:text-lg'}`}>
+        <div className={`text-center font-black uppercase underline tracking-wider mb-4 ${isWorkOrder || isProduction ? 'text-lg md:text-2xl' : 'md:text-lg'}`}>
           {title}
         </div>
         
@@ -57,7 +59,7 @@ export default function PrintDotMatrix({ printData, onClose }) {
         <div className="grid grid-cols-2 gap-2 mb-2 font-bold text-[10px] md:text-xs uppercase">
           <div>
             <div>NO. TRX : {id}</div>
-            <div className={isWorkOrder ? "text-lg md:text-3xl font-black mt-2" : "mt-1"}>NAMA : {customer_name}</div>
+            <div className={isWorkOrder ? "text-lg md:text-3xl font-black mt-2" : "mt-1"}>PIC/NAMA : {customer_name}</div>
           </div>
           <div className="text-right">
             <div>TGL TRX : {date}</div>
@@ -68,40 +70,61 @@ export default function PrintDotMatrix({ printData, onClose }) {
         <div className="border-t-2 border-dashed border-black mb-4"></div>
 
         {/* =========================================
-            CABANG LOGIKA: JIKA TIKET PABRIK
+            CABANG LOGIKA 1: JIKA TIKET HASIL PRODUKSI
         ========================================= */}
-        {isWorkOrder ? (
-          <div className="space-y-6 my-6">
-            
-            <div className="text-center border-4 border-black p-4">
-              <div className="text-sm md:text-lg font-black uppercase mb-1 tracking-widest">JUMLAH PRODUKSI (QTY)</div>
-              <div className="text-5xl md:text-7xl font-black">{formatNumber(qty)} <span className="text-2xl">PCS</span></div>
+        {isProduction ? (
+          <div className="space-y-4 my-6">
+            <div className="grid grid-cols-2 gap-4">
+               <div className="border-4 border-black p-4 text-center">
+                 <div className="text-xs md:text-sm font-black uppercase mb-1">TOTAL ADUKAN</div>
+                 <div className="text-3xl md:text-5xl font-black">{formatNumber(totalAdukan)} <span className="text-lg md:text-xl">BATCH</span></div>
+               </div>
+               <div className="border-4 border-black p-4 text-center">
+                 <div className="text-xs md:text-sm font-black uppercase mb-1">AYAM TERPAKAI</div>
+                 <div className="text-3xl md:text-5xl font-black">{formatNumber(ayamKg)} <span className="text-lg md:text-xl">KG</span></div>
+               </div>
             </div>
 
-            <div className="space-y-2">
-              <div className="font-black uppercase text-xs md:text-sm">CHANNEL PENJUALAN / KATEGORI:</div>
-              <div className="text-lg md:text-2xl font-black uppercase bg-gray-100 p-2 inline-block border border-black">{channel}</div>
+            <div className="border-4 border-black p-4 text-center bg-gray-100 mt-4">
+               <div className="text-sm md:text-lg font-black uppercase mb-1">YIELD DIMSUM (MASUK FREEZER)</div>
+               <div className="text-5xl md:text-7xl font-black">{formatNumber(yieldPcs)} <span className="text-2xl md:text-3xl">PCS</span></div>
             </div>
 
-            <div className="space-y-2">
-              <div className="font-black uppercase text-xs md:text-sm">⚠️ SPESIFIKASI REQUEST:</div>
-              <div className="text-2xl md:text-4xl font-black uppercase border-4 border-black p-4">
-                {customRequest}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <div className="font-black uppercase text-xs md:text-sm">CATATAN TAMBAHAN (NOTES):</div>
+            <div className="space-y-2 mt-4">
+              <div className="font-black uppercase text-xs md:text-sm">CATATAN SHIFT / KETERANGAN:</div>
               <div className="text-lg md:text-2xl font-bold uppercase border-l-4 border-black pl-3 py-2">
                 {notes || "TIDAK ADA CATATAN TAMBAHAN"}
               </div>
             </div>
-
           </div>
-        ) : (
-          /* =========================================
-             CABANG LOGIKA: JIKA NOTA KASIR/INVOICE
-          ========================================= */
+        ) 
+        /* =========================================
+            CABANG LOGIKA 2: JIKA TIKET WORK ORDER PO
+        ========================================= */
+        : isWorkOrder ? (
+          <div className="space-y-6 my-6">
+            <div className="text-center border-4 border-black p-4">
+              <div className="text-sm md:text-lg font-black uppercase mb-1 tracking-widest">JUMLAH PRODUKSI (QTY)</div>
+              <div className="text-5xl md:text-7xl font-black">{formatNumber(qty)} <span className="text-2xl">PCS</span></div>
+            </div>
+            <div className="space-y-2">
+              <div className="font-black uppercase text-xs md:text-sm">CHANNEL / KATEGORI:</div>
+              <div className="text-lg md:text-2xl font-black uppercase bg-gray-100 p-2 inline-block border border-black">{channel}</div>
+            </div>
+            <div className="space-y-2">
+              <div className="font-black uppercase text-xs md:text-sm">⚠️ SPESIFIKASI REQUEST:</div>
+              <div className="text-2xl md:text-4xl font-black uppercase border-4 border-black p-4">{customRequest}</div>
+            </div>
+            <div className="space-y-2">
+              <div className="font-black uppercase text-xs md:text-sm">CATATAN (NOTES):</div>
+              <div className="text-lg md:text-2xl font-bold uppercase border-l-4 border-black pl-3 py-2">{notes || "TIDAK ADA CATATAN"}</div>
+            </div>
+          </div>
+        ) 
+        /* =========================================
+            CABANG LOGIKA 3: JIKA NOTA KASIR / INVOICE
+        ========================================= */
+        : (
           <>
             <table className="w-full mb-2 text-[10px] md:text-xs">
               <thead className="border-b-2 border-dashed border-black">
@@ -122,7 +145,7 @@ export default function PrintDotMatrix({ printData, onClose }) {
               </tbody>
             </table>
             <div className="flex justify-between font-black mt-4 text-sm md:text-base">
-              <span>TOTAL TAGIHAN :</span>
+              <span>TOTAL DITERIMA :</span>
               <span>{formatRupiah(amount)}</span>
             </div>
           </>
@@ -131,13 +154,13 @@ export default function PrintDotMatrix({ printData, onClose }) {
         <div className="border-t-2 border-dashed border-black my-4"></div>
 
         <div className="text-right font-bold text-[10px] md:text-xs uppercase mb-8">
-          <div>STATUS/TIPE : {paymentMethod}</div>
+          <div>STATUS DOKUMEN : {paymentMethod}</div>
         </div>
 
         {/* TANDA TANGAN */}
         <div className="grid grid-cols-2 text-center font-bold text-[10px] md:text-xs uppercase">
           <div>
-            <div className="mb-12">{isWorkOrder ? "KEPALA PRODUKSI," : "PENERIMA / KLIEN,"}</div>
+            <div className="mb-12">{isWorkOrder ? "KEPALA DAPUR," : isProduction ? "KEPALA PRODUKSI," : "PENERIMA / KLIEN,"}</div>
             <div className="underline">_________________</div>
           </div>
           <div>
