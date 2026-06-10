@@ -97,18 +97,22 @@ export default function TabOrders({
     return { hargaSatuan, subtotal, ongkir, totalTagihan, dibayar, sisaPiutang };
   }, [form, selectedChannelInfo]);
 
+// --- HANDLER CETAK TIKET PRODUKSI 3-PLY (ARSIPIASI & VALIDASI) ---
   const handlePrintTiketProduksi = (log) => {
     triggerPrint('NOTA_DOTMATRIX', {
-      title: 'TIKET KERJA PRODUKSI PABRIK (3-PLY)',
-      id: 'TCK-' + log.id.substring(4),
+      isWorkOrder: true, // ⚠️ INI KODE RAHASIA UNTUK MEMANGGIL TEMPLATE RAKSASA
+      title: 'WORK ORDER & MANIFEST PABRIK', // Judul baru yang lebih profesional
+      id: 'WO-' + log.id.substring(4),
       date: formatDate(log.date),
       branch_name: log.branch_id || currentBranch,
       admin_name: user?.name || 'ADMIN POS',
       customer_name: log.customer_name?.toUpperCase(),
-      items: [{ name: `PESANAN: ${log.sales_channel}\n[REQUEST]: ${log.custom_request || 'STANDAR MIX'}`, qty: log.qty, subtotal: log.qty }],
-      amount: log.qty,
-      paymentMethod: log.delivery_method === 'PRE_ORDER' ? 'PRE-ORDER (KARANTINA)' : 'AMBIL LANGSUNG',
-      footerCustom: `KETERANGAN POS: ${log.notes || '-'}\n----------------------------------------\nPLY 1: TIM DAPUR PABRIK (ARSIP WORK ORDER)\nPLY 2: VALIDASI BOS ADITYA (JIKA SELESAI)\nPLY 3: ADMIN BUKU KASIR POS (KONTROL ADD-ON)`
+      qty: log.qty, // Dikirim terpisah untuk dicetak raksasa
+      channel: log.sales_channel,
+      customRequest: log.custom_request || 'STANDAR MIX', // Dicetak tebal
+      notes: log.notes || 'TIDAK ADA CATATAN',
+      paymentMethod: log.delivery_method === 'PRE_ORDER' ? 'PRE-ORDER (KARANTINA)' : 'AMBIL LANGSUNG (DIRECT)',
+      footerCustom: `PLY 1: TIM DAPUR PABRIK (ARSIP WORK ORDER)\nPLY 2: VALIDASI BOS ADITYA (JIKA SELESAI)\nPLY 3: ADMIN BUKU KASIR POS (KONTROL ADD-ON)`
     });
   };
 
