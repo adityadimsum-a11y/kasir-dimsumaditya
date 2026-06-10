@@ -1,101 +1,159 @@
 import React, { useEffect } from 'react';
-import { formatDate, formatRp } from '../utils/helpers';
 
 export default function PrintDotMatrix({ printData, onClose }) {
   useEffect(() => {
-    if (printData) { setTimeout(() => { window.print(); }, 500); }
-  }, [printData]);
+    if (printData) {
+      const timer = setTimeout(() => {
+        window.print();
+      }, 300);
+      
+      const handleAfterPrint = () => {
+        if (onClose) onClose();
+      };
+      
+      window.addEventListener('afterprint', handleAfterPrint);
+      return () => {
+        clearTimeout(timer);
+        window.removeEventListener('afterprint', handleAfterPrint);
+      };
+    }
+  }, [printData, onClose]);
 
   if (!printData) return null;
-  const { type, data } = printData;
 
-  // 1. THERMAL 58mm RECEIPT (KASIR OUTLET)
-  if (type === 'receipt' || type === 'INVOICE') {
-    const isReceipt = type === 'receipt';
-    const orderData = isReceipt ? data.order : data;
-    const paymentData = isReceipt ? data.payment : null;
+  // Tarik data dengan dukungan parameter khusus Work Order
+  const { 
+    title = 'INVOICE', id = '-', date = '-', branch_name = '-', admin_name = '-', 
+    customer_name = '-', items = [], amount = 0, paymentMethod = '-', footerCustom = '',
+    isWorkOrder = false, qty = 0, channel = '', customRequest = '', notes = ''
+  } = printData;
 
-    return (
-      <div className="fixed inset-0 z-[9999] bg-white text-black flex justify-center items-start pt-4 print:pt-0 thermal-58">
-        <div className="w-[54mm] pb-10">
-          <div className="text-center mb-2">
-            <h1 className="font-bold text-sm uppercase">DIMSUM ADITYA</h1>
-            <div className="text-[10px]">{orderData.branch_id === 'PUSAT' ? 'HQ FACTORY' : `NODE: ${orderData.branch_id}`}</div>
-            <div className="text-[10px]">Tgl: {formatDate(orderData.date)}</div>
-          </div>
-          <div className="dashed-line"></div>
-          <div className="text-[10px] mb-1">Inv: {orderData.id}</div>
-          <div className="text-[10px] mb-2 uppercase">Plg: {orderData.customer_name || orderData.customer}</div>
-          <div className="dashed-line"></div>
-          
-          <table className="w-full text-[10px] text-left mb-2">
-            <tbody>
-              <tr>
-                <td colSpan="3" className="uppercase pb-1">{orderData.itemName || 'DIMSUM'}</td>
-              </tr>
-              <tr>
-                <td>{orderData.qty}x</td>
-                <td>{formatRp(orderData.price || (orderData.totalTagihan/orderData.qty)).replace('Rp','')}</td>
-                <td className="text-right font-bold">{formatRp(orderData.total || orderData.totalTagihan).replace('Rp','')}</td>
-              </tr>
-            </tbody>
-          </table>
-          <div className="dashed-line"></div>
-          
-          <div className="flex justify-between text-[11px] font-bold mt-1">
-            <span>TOTAL:</span>
-            <span>{formatRp(orderData.total || orderData.totalTagihan)}</span>
-          </div>
+  const formatRupiah = (angka) => "Rp. " + Number(angka || 0).toLocaleString('id-ID');
+  const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
-          {isReceipt && (
-            <>
-              <div className="flex justify-between text-[10px] mt-1">
-                <span>DIBAYAR ({paymentData.paymentMethod}):</span>
-                <span>{formatRp(paymentData.amount)}</span>
-              </div>
-              <div className="dashed-line mt-2"></div>
-              <div className="flex justify-between text-[10px] font-bold">
-                <span>SISA TAGIHAN:</span>
-                <span>{formatRp(paymentData.sisaAtThisPoint)}</span>
-              </div>
-            </>
-          )}
-
-          <div className="text-center text-[9px] mt-4 pt-2 border-t border-black">
-            <div>Terima Kasih!</div>
-            <div>Powered by DimsumAditya ERP</div>
-          </div>
-        </div>
-        <button onClick={onClose} className="fixed top-4 right-4 bg-red-600 text-white font-bold px-4 py-2 rounded-lg no-print">Tutup (X)</button>
-      </div>
-    );
-  }
-
-  // 2. A4 / SETENGAH SURAT (DO, SLIP GAJI, LAPORAN)
   return (
-    <div className="fixed inset-0 z-[9999] bg-white text-black print-only-wrapper p-8">
-      {type === 'DO' && (
-        <div className="w-full max-w-4xl mx-auto font-mono text-sm">
-          <div className="flex justify-between items-start border-b-2 border-black pb-4 mb-6">
-            <div><h1 className="text-2xl font-black uppercase tracking-widest">DIMSUM ADITYA</h1><p className="font-bold">Surat Jalan Logistik / Delivery Order</p></div>
-            <div className="text-right"><h2 className="text-xl font-black uppercase">NO: {data.id}</h2><div className="font-bold mt-1">TGL: {formatDate(data.date)}</div></div>
+    <div className="fixed inset-0 bg-white z-[99999] print-container text-black font-mono overflow-y-auto">
+      <style>{`
+        @media print {
+          body * { visibility: hidden; }
+          .print-container, .print-container * { visibility: visible; }
+          .print-container { position: absolute; left: 0; top: 0; width: 100%; padding: 0; margin: 0; }
+          @page { size: auto; margin: 5mm; }
+        }
+      `}</style>
+      
+      <div className="max-w-[80mm] md:max-w-3xl mx-auto p-4 md:p-8 text-xs md:text-sm print:max-w-full print:p-2 bg-white">
+        
+        {/* HEADER PERUSAHAAN */}
+        <div className="text-center font-black uppercase mb-1 text-base md:text-xl tracking-widest">DIMSUM ADITYA</div>
+        <div className="text-center font-bold uppercase mb-4 text-[10px] md:text-xs">CABANG OPERASIONAL {branch_name}</div>
+        
+        <div className={`text-center font-black uppercase underline tracking-wider mb-4 ${isWorkOrder ? 'text-lg md:text-2xl' : 'md:text-lg'}`}>
+          {title}
+        </div>
+        
+        <div className="border-t-2 border-dashed border-black mb-2"></div>
+        
+        <div className="grid grid-cols-2 gap-2 mb-2 font-bold text-[10px] md:text-xs uppercase">
+          <div>
+            <div>NO. TRX : {id}</div>
+            <div className={isWorkOrder ? "text-lg md:text-3xl font-black mt-2" : "mt-1"}>NAMA : {customer_name}</div>
           </div>
-          <div className="flex justify-between mb-8 font-bold text-base p-4 bg-gray-100 border border-black">
-            <div><span className="inline-block w-32">DARI NODE:</span> {data.source_branch}</div>
-            <div><span className="inline-block w-32">TUJUAN NODE:</span> {data.destination_branch}</div>
-          </div>
-          <table className="w-full border-collapse border border-black mb-8">
-            <thead><tr className="bg-gray-200"><th className="border border-black p-3 text-left">Deskripsi Barang</th><th className="border border-black p-3 text-center">Qty (Pcs)</th></tr></thead>
-            <tbody><tr><td className="border border-black p-3 font-bold uppercase">{data.item_name}</td><td className="border border-black p-3 text-center font-black text-xl">{Number(data.qty).toLocaleString('id-ID')}</td></tr></tbody>
-          </table>
-          <div className="grid grid-cols-3 gap-8 text-center mt-16 font-bold">
-            <div><p className="mb-20">Pengirim ({data.source_branch})</p><p className="border-t border-black pt-2">( .................... )</p></div>
-            <div><p className="mb-20">Driver / Ekspedisi</p><p className="border-t border-black pt-2">( .................... )</p></div>
-            <div><p className="mb-20">Penerima ({data.destination_branch})</p><p className="border-t border-black pt-2">( .................... )</p></div>
+          <div className="text-right">
+            <div>TGL TRX : {date}</div>
+            <div className="mt-1">ADMIN : {admin_name}</div>
           </div>
         </div>
-      )}
-      <button onClick={onClose} className="fixed top-4 right-4 bg-red-600 text-white font-bold px-6 py-2 rounded-lg shadow-lg no-print">Tutup Layar Cetak (X)</button>
+
+        <div className="border-t-2 border-dashed border-black mb-4"></div>
+
+        {/* =========================================
+            CABANG LOGIKA: JIKA TIKET PABRIK
+        ========================================= */}
+        {isWorkOrder ? (
+          <div className="space-y-6 my-6">
+            
+            <div className="text-center border-4 border-black p-4">
+              <div className="text-sm md:text-lg font-black uppercase mb-1 tracking-widest">JUMLAH PRODUKSI (QTY)</div>
+              <div className="text-5xl md:text-7xl font-black">{formatNumber(qty)} <span className="text-2xl">PCS</span></div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="font-black uppercase text-xs md:text-sm">CHANNEL PENJUALAN / KATEGORI:</div>
+              <div className="text-lg md:text-2xl font-black uppercase bg-gray-100 p-2 inline-block border border-black">{channel}</div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="font-black uppercase text-xs md:text-sm">⚠️ SPESIFIKASI REQUEST:</div>
+              <div className="text-2xl md:text-4xl font-black uppercase border-4 border-black p-4">
+                {customRequest}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="font-black uppercase text-xs md:text-sm">CATATAN TAMBAHAN (NOTES):</div>
+              <div className="text-lg md:text-2xl font-bold uppercase border-l-4 border-black pl-3 py-2">
+                {notes || "TIDAK ADA CATATAN TAMBAHAN"}
+              </div>
+            </div>
+
+          </div>
+        ) : (
+          /* =========================================
+             CABANG LOGIKA: JIKA NOTA KASIR/INVOICE
+          ========================================= */
+          <>
+            <table className="w-full mb-2 text-[10px] md:text-xs">
+              <thead className="border-b-2 border-dashed border-black">
+                <tr className="text-left font-black">
+                  <th className="py-2">KETERANGAN</th>
+                  <th className="py-2 text-center">QTY</th>
+                  <th className="py-2 text-right">SUBTOTAL</th>
+                </tr>
+              </thead>
+              <tbody className="font-bold">
+                {items.map((item, idx) => (
+                  <tr key={idx} className="border-b border-dashed border-gray-400">
+                    <td className="py-2 whitespace-pre-wrap">{item.name}</td>
+                    <td className="py-2 text-center">{formatNumber(item.qty)}{item.suffix || ''}</td>
+                    <td className="py-2 text-right">{formatRupiah(item.subtotal)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="flex justify-between font-black mt-4 text-sm md:text-base">
+              <span>TOTAL TAGIHAN :</span>
+              <span>{formatRupiah(amount)}</span>
+            </div>
+          </>
+        )}
+
+        <div className="border-t-2 border-dashed border-black my-4"></div>
+
+        <div className="text-right font-bold text-[10px] md:text-xs uppercase mb-8">
+          <div>STATUS/TIPE : {paymentMethod}</div>
+        </div>
+
+        {/* TANDA TANGAN */}
+        <div className="grid grid-cols-2 text-center font-bold text-[10px] md:text-xs uppercase">
+          <div>
+            <div className="mb-12">{isWorkOrder ? "KEPALA PRODUKSI," : "PENERIMA / KLIEN,"}</div>
+            <div className="underline">_________________</div>
+          </div>
+          <div>
+            <div className="mb-12">HORMAT KAMI,</div>
+            <div className="underline">{admin_name}</div>
+          </div>
+        </div>
+
+        {footerCustom && (
+          <div className="mt-8 text-center text-[10px] md:text-xs font-bold uppercase whitespace-pre-wrap border-t border-black pt-4">
+            {footerCustom}
+          </div>
+        )}
+        
+        <div className="mt-4 text-center text-[9px] text-gray-500 italic">-- Dokumen sah Sistem ERP Dimsum Aditya --</div>
+      </div>
     </div>
   );
 }
