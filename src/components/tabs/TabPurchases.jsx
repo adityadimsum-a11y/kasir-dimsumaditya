@@ -1,312 +1,235 @@
 import React, { useState, useMemo } from 'react';
-import { 
-  Truck, Package, Wallet, CalendarDays, Edit2, Trash2, 
-  Printer, ArrowDownRight, AlertCircle, CheckCircle2 
-} from 'lucide-react';
+import { ShoppingBag, Truck, Edit2, Trash2, CalendarDays, Plus, Wallet, FileText, CheckCircle2, ArrowUpRight, ArrowDownToLine, X, Printer } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
 
-const formatRupiah = (angka) => "Rp. " + Number(angka || 0).toLocaleString('id-ID');
+const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
 export default function TabPurchases({ 
-  purchases = [], purchases_data, masterBranches = [],
-  sendToSheet, showToast, user, requestDelete 
+  purchases = [], purchases_data, cashflow_transactions = [], cashflow_transactions_data,
+  masterSuppliers = [], master_suppliers, sendToSheet, showToast, user, requestDelete 
 }) {
   const todayStr = getTodayStr();
   const currentBranch = (user?.branch_id === 'PUSAT' || !user?.branch_id) ? 'TANGERANG_PUSAT' : user?.branch_id;
-  const isHQ = user?.branch_type === 'HQ_FACTORY' || user?.branch_id === 'PUSAT' || currentBranch === 'TANGERANG_PUSAT';
-
-  const [activeBranchFilter, setActiveBranchFilter] = useState(isHQ ? 'SEMUA_CABANG' : currentBranch);
+  
   const [isEditing, setIsEditing] = useState(false);
+  const [showManualModal, setShowManualModal] = useState(false);
 
-  // --- STATE FORM ---
+  // Form untuk Belanja Supplier Utama (Ayam, Tepung, dll)
   const [form, setForm] = useState({
-    id: '', date: todayStr, supplierName: '', 
-    category: 'BAHAN_BAKU', itemName: '', 
-    qty: '', unit: 'KG', unitPrice: '',
-    paymentMethod: 'CASH', amountPaid: '', notes: ''
+    id: '', date: todayStr, supplierName: '', category: 'BAHAN_BAKU', itemName: '', 
+    qty: '', qtyKg: '', unitPrice: '', paymentMethod: 'CASH', amountPaid: '', notes: ''
   });
 
-  const realPurchases = purchases_data || purchases || [];
+  // Form untuk Kas Manual (Operasional Lain/Suntikan Dana)
+  const [manualForm, setManualForm] = useState({
+    date: todayStr, type: 'OUT', category: 'BIAYA OPERASIONAL', description: '', amount: '', method: 'CASH'
+  });
 
-  // --- ALGORITMA KALKULASI DINAMIS ---
-  const kalkulasi = useMemo(() => {
-    const total = Number(form.qty || 0) * Number(form.unitPrice || 0);
-    let dibayar = form.paymentMethod === 'DP' ? Number(form.amountPaid || 0) : total;
-    if (dibayar > total) dibayar = total; // Mencegah bayar lebih dari tagihan
-    const sisa = total - dibayar;
-    const isLunas = sisa <= 0;
+  const realPurchases = useMemo(() => purchases_data || purchases || [], [purchases, purchases_data]);
+  const realCashflow = useMemo(() => cashflow_transactions_data || cashflow_transactions || [], [cashflow_transactions, cashflow_transactions_data]);
+  const suppliers = useMemo(() => master_suppliers || masterSuppliers || [], [master_suppliers, masterSuppliers]);
 
-    return { total, dibayar, sisa, isLunas };
+  // Gabungkan semua pengeluaran/pemasukan di tab ini
+  const combinedHistory = useMemo(() => {
+    let history = [];
+    realPurchases.filter(p => !p.isDeleted && (p.branch_id === currentBranch || p.branch_id === 'PUSAT')).forEach(p => {
+      history.push({ ...p, isManual: false, displayDate: new Date(p.date) });
+    });
+    realCashflow.filter(c => !c.isDeleted && (c.branch_id === currentBranch || c.branch_id === 'PUSAT')).forEach(c => {
+      history.push({ ...c, isManual: true, displayDate: new Date(c.date) });
+    });
+    return history.sort((a, b) => b.displayDate - a.displayDate);
+  }, [realPurchases, realCashflow, currentBranch]);
+
+  const perhitungan = useMemo(() => {
+    const qty = Number(form.qty || 0);
+    const price = Number(form.unitPrice || 0);
+    const total = qty * price;
+    return { totalTagihan: total, dibayar: form.paymentMethod === 'HUTANG' ? Number(form.amountPaid || 0) : total };
   }, [form]);
 
-  // --- ALGORITMA METRIK DASHBOARD ---
-  const metrik = useMemo(() => {
-    let totalBelanjaBulanIni = 0;
-    let totalHutangAktif = 0;
-    let ayamMasukKg = 0;
-    const curMonth = todayStr.substring(0, 7);
-
-    realPurchases.filter(p => !p.isDeleted && (activeBranchFilter === 'SEMUA_CABANG' || p.branch_id === activeBranchFilter)).forEach(p => {
-      const isThisMonth = p.date && p.date.startsWith(curMonth);
-      const hutang = Number(p.total_price) - Number(p.amount_paid);
-      
-      if (isThisMonth) {
-        totalBelanjaBulanIni += Number(p.total_price);
-        if (p.category === 'BAHAN_BAKU') ayamMasukKg += Number(p.qty_kg || 0);
-      }
-      if (hutang > 0) totalHutangAktif += hutang;
-    });
-
-    return { totalBelanjaBulanIni, totalHutangAktif, ayamMasukKg };
-  }, [realPurchases, todayStr, activeBranchFilter]);
-
-  // --- HANDLE PRINT (FIXED BLANK BUG) ---
-  const handlePrint = (log) => {
-    triggerPrint('NOTA_DOTMATRIX', {
-      title: 'BUKTI PENERIMAAN GUDANG (INBOUND)',
-      id: 'RCV-' + log.id.substring(4),
-      date: formatDate(log.date),
-      branch_name: log.branch_id || currentBranch,
-      admin_name: user?.name || 'ADMIN LOGISTIK',
-      customer_name: log.supplier_name?.toUpperCase(),
-      position: 'SUPPLIER',
-      items: [
-        { 
-          name: `[${log.category}] ${log.item_name}`, 
-          qty: log.qty, 
-          subtotal: log.total_price, 
-          suffix: ` ${log.unit}` 
-        }
-      ],
-      amount: log.total_price,
-      paymentMethod: log.status === 'LUNAS' ? `LUNAS (${log.payment_method})` : 'HUTANG / DP',
-      footerCustom: `TOTAL TAGIHAN: ${formatRupiah(log.total_price)}\nTELAH DIBAYAR: ${formatRupiah(log.amount_paid)}\nSISA HUTANG: ${formatRupiah(Number(log.total_price) - Number(log.amount_paid))}\n\n*Dicetak sebagai bukti sah penerimaan barang gudang.`
-    });
-  };
-
-  // --- HANDLE SUBMIT ---
+  // --- SUBMIT BELANJA SUPPLIER ---
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (Number(form.qty) <= 0 || Number(form.unitPrice) <= 0) return alert("Kuantitas dan Harga Satuan harus lebih dari 0!");
-    if (form.paymentMethod === 'DP' && Number(form.amountPaid) <= 0) return alert("Masukkan nominal DP yang dibayarkan!");
-
-    const trxId = isEditing ? form.id : generateId('PRC', form.date);
-    
-    // ALGORITMA SYNC STOK AYAM: Jika BAHAN_BAKU dan KG, simpan sebagai qty_kg agar dibaca TabStok
-    const qtyKgSync = (form.category === 'BAHAN_BAKU' && form.unit === 'KG') ? Number(form.qty) : 0;
-
+    if (Number(form.qty) <= 0) return alert("Qty harus lebih dari 0!");
+    const trxId = isEditing ? form.id : generateId('PO', form.date);
     const payload = {
-      id: trxId, date: form.date, branch_id: currentBranch,
-      supplier_name: form.supplierName.toUpperCase(),
-      category: form.category, item_name: form.itemName.toUpperCase(),
-      qty: Number(form.qty), unit: form.unit, qty_kg: qtyKgSync,
-      unit_price: Number(form.unitPrice), total_price: kalkulasi.total,
-      payment_method: form.paymentMethod, amount_paid: kalkulasi.dibayar,
-      status: kalkulasi.isLunas ? 'LUNAS' : 'HUTANG',
-      notes: form.notes.toUpperCase()
+      id: trxId, date: form.date, branch_id: currentBranch, supplier_name: form.supplierName.toUpperCase(), 
+      category: form.category, item_name: form.itemName.toUpperCase(), qty: Number(form.qty), qty_kg: Number(form.qtyKg || 0),
+      unit_price: Number(form.unitPrice), total_amount: perhitungan.totalTagihan, payment_method: form.paymentMethod, 
+      amount_paid: perhitungan.dibayar, status: form.paymentMethod === 'HUTANG' ? 'BELUM_LUNAS' : 'LUNAS', notes: form.notes.toUpperCase()
     };
-
-    const action = isEditing ? 'update' : 'insert';
-    const success = await sendToSheet(action, payload, 'purchases');
-
-    if (success) {
-      showToast(isEditing ? 'Data belanja diupdate!' : 'Penerimaan barang berhasil dicatat!', 'success');
-      setForm({
-        id: '', date: todayStr, supplierName: '', category: 'BAHAN_BAKU', itemName: '', 
-        qty: '', unit: 'KG', unitPrice: '', paymentMethod: 'CASH', amountPaid: '', notes: ''
-      });
-      setIsEditing(false);
+    if (await sendToSheet(isEditing ? 'update' : 'insert', payload, 'purchases')) {
+      showToast('Data belanja logistik disimpan!', 'success');
+      setIsEditing(false); setForm({ id: '', date: todayStr, supplierName: '', category: 'BAHAN_BAKU', itemName: '', qty: '', qtyKg: '', unitPrice: '', paymentMethod: 'CASH', amountPaid: '', notes: '' });
     }
   };
 
-  const handleEdit = (log) => {
-    setForm({
-      id: log.id, date: log.date.split('T')[0], supplierName: log.supplier_name,
-      category: log.category || 'BAHAN_BAKU', itemName: log.item_name,
-      qty: log.qty, unit: log.unit || 'KG', unitPrice: log.unit_price,
-      paymentMethod: log.payment_method || 'CASH', amountPaid: log.amount_paid,
-      notes: log.notes || ''
-    });
-    setIsEditing(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  // --- SUBMIT KAS MANUAL ---
+  const handleSaveManual = async (e) => {
+    e.preventDefault();
+    if(Number(manualForm.amount) <= 0) return alert("Nominal harus lebih dari 0!");
+    const trxId = generateId('CSH', manualForm.date);
+    const payload = { ...manualForm, id: trxId, branch_id: currentBranch, amount: Number(manualForm.amount) };
+    if (await sendToSheet('insert', payload, 'cashflow_transactions')) {
+      showToast('Mutasi kas berhasil dicatat!', 'success');
+      setShowManualModal(false);
+      setManualForm({ date: todayStr, type: 'OUT', category: 'BIAYA OPERASIONAL', description: '', amount: '', method: 'CASH' });
+      if(window.confirm("Cetak Bukti Kas ini?")) handlePrintKas(payload);
+    }
   };
 
-  const historyBelanja = realPurchases.filter(p => {
-    if (p.isDeleted) return false;
-    if (activeBranchFilter !== 'SEMUA_CABANG' && p.branch_id !== activeBranchFilter) return false;
-    return true;
-  }).sort((a, b) => new Date(b.date) - new Date(a.date));
+  const handlePrintKas = (trx) => {
+    triggerPrint('NOTA_DOTMATRIX', {
+      title: trx.type === 'IN' ? 'BUKTI KAS MASUK' : 'BUKTI KAS KELUAR', id: trx.id, date: formatDate(trx.date), 
+      branch_name: trx.branch_id || currentBranch, admin_name: user?.name || 'ADMIN', customer_name: 'INTERNAL KAS',
+      items: [{ name: `${trx.category}\n${trx.description}`, qty: 1, subtotal: trx.amount }], amount: trx.amount, paymentMethod: trx.method || 'CASH'
+    });
+  };
 
   return (
     <div className="space-y-6 pb-10">
       
-      {/* 📊 TOP METRICS CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800 shadow-xl relative overflow-hidden text-white">
-          <Truck className="absolute -right-4 -bottom-4 text-emerald-500 opacity-20" size={100} />
-          <div className="relative z-10">
-            <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Total Belanja (Bulan Ini)</div>
-            <div className="text-3xl font-black mt-1">{formatRupiah(metrik.totalBelanjaBulanIni)}</div>
-            <div className="text-[9px] text-slate-400 mt-2 font-bold uppercase tracking-widest">Ayam Masuk: {formatNumber(metrik.ayamMasukKg)} KG</div>
-          </div>
+      {/* HEADER PAGE */}
+      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h2 className="text-xl font-black text-slate-800 uppercase tracking-widest flex items-center gap-2"><ShoppingBag className="text-emerald-500"/> Belanja & Operasional</h2>
+          <p className="text-xs font-bold text-slate-500 mt-1">Pusat pencatatan belanja supplier dan kas keluar/masuk pabrik.</p>
         </div>
-
-        <div className="bg-rose-50 p-5 rounded-2xl border border-rose-200 shadow-sm relative overflow-hidden">
-          <AlertCircle className="absolute -right-4 -bottom-4 text-rose-500 opacity-10" size={100} />
-          <div className="relative z-10">
-            <div className="text-[10px] font-black text-rose-600 uppercase tracking-widest">Hutang Supplier (Aktif)</div>
-            <div className="text-3xl font-black text-rose-700 mt-1">{formatRupiah(metrik.totalHutangAktif)}</div>
-            <div className="text-[9px] text-rose-600/80 mt-2 font-bold uppercase tracking-widest">Segera lunasi sebelum jatuh tempo</div>
-          </div>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl border shadow-sm border-l-4 border-l-blue-500">
-          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Monitor Logistik</div>
-          <div className="text-2xl font-black text-blue-600 mt-1">{formatNumber(historyBelanja.length)} <span className="text-xs text-slate-500">Transaksi</span></div>
-          <div className="text-[9px] font-bold text-slate-500 mt-2 pt-2 border-t border-slate-100">Riwayat penerimaan barang masuk.</div>
-        </div>
+        <button onClick={() => setShowManualModal(true)} className="bg-slate-900 text-white font-black text-xs uppercase tracking-widest px-5 py-3.5 rounded-2xl shadow-md hover:bg-slate-800 transition-colors flex items-center gap-2">
+          <Wallet size={16} className="text-blue-400"/> + Catat Kas Manual Lainnya
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        {/* KIRI: FORM INPUT BELANJA */}
-        <div className={`p-6 rounded-2xl border border-t-4 transition-all h-max shadow-sm ${isEditing ? 'bg-amber-50/50 border-t-amber-500 border-amber-200' : 'bg-white border-t-blue-600'}`}>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <h3 className="font-black text-sm uppercase text-slate-800 flex items-center gap-2"><ArrowDownRight size={16} className="text-blue-600"/> {isEditing ? 'Revisi Logistik' : 'Input Penerimaan Barang'}</h3>
+        {/* KIRI: FORM BELANJA SUPPLIER */}
+        <div className={`p-6 rounded-3xl border shadow-sm transition-colors ${isEditing ? 'bg-amber-50/50 border-amber-300' : 'bg-white border-slate-200'}`}>
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div className="flex justify-between items-center pb-4 mb-2 border-b border-slate-100">
+              <h3 className={`font-black text-sm uppercase flex items-center gap-2 ${isEditing ? 'text-amber-700' : 'text-slate-800'}`}>
+                {isEditing ? <Edit2 size={18}/> : <Truck size={18} className="text-blue-500"/>} 
+                {isEditing ? 'Revisi Belanja' : 'Input Belanja Supplier'}
+              </h3>
+              {isEditing && (
+                <button type="button" onClick={() => setIsEditing(false)} className="text-[10px] border border-amber-200 px-3 py-1.5 rounded-lg font-black uppercase text-amber-700 bg-white shadow-sm flex items-center gap-1 hover:bg-amber-50">Batalkan</button>
+              )}
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Tanggal</label>
-                <input type="date" required value={form.date} onChange={e=>setForm({...form, date: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs font-bold outline-none bg-slate-50" />
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Nama Supplier</label>
+                <input type="text" required list="supplier-list" value={form.supplierName} onChange={e=>setForm({...form, supplierName: e.target.value})} className="w-full p-3 border border-slate-200 rounded-xl text-xs font-bold uppercase bg-slate-50 outline-none focus:border-blue-400" placeholder="Cth: NANA AYAM" />
+                <datalist id="supplier-list">{suppliers.map(s => <option key={s.id} value={s.supplier_name}/>)}</datalist>
               </div>
               <div>
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Kategori Barang</label>
-                <select value={form.category} onChange={e=>setForm({...form, category: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-[11px] font-black outline-none bg-white uppercase cursor-pointer">
-                  <option value="BAHAN_BAKU">Ayam / Bahan Baku</option>
-                  <option value="PACKAGING">Packaging (Mika/Plastik)</option>
-                  <option value="OPERASIONAL">Operasional Pabrik</option>
-                  <option value="LAINNYA">Lain-lain</option>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Kategori</label>
+                <select value={form.category} onChange={e=>setForm({...form, category: e.target.value})} className="w-full p-3 border border-slate-200 rounded-xl text-xs font-black bg-slate-50 outline-none cursor-pointer">
+                  <option value="BAHAN_BAKU">Bahan Baku (Ayam)</option>
+                  <option value="PACKAGING">Packaging (Mika)</option>
+                  <option value="BUMBU">Bumbu Dapur</option>
+                  <option value="ASET">Aset Mesin/Alat</option>
                 </select>
               </div>
             </div>
 
             <div>
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Nama Supplier / Toko</label>
-              <input type="text" required value={form.supplierName} onChange={e=>setForm({...form, supplierName: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs font-bold outline-none uppercase bg-white" placeholder="CONTOH: NANA AYAM / TOKO PLASTIK JAYA" />
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Nama Barang / Deskripsi</label>
+              <input type="text" required value={form.itemName} onChange={e=>setForm({...form, itemName: e.target.value})} className="w-full p-3 border border-slate-200 rounded-xl text-sm font-bold uppercase bg-slate-50 outline-none focus:border-blue-400" placeholder="Ayam Giling Kualitas A" />
             </div>
 
-            <div>
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Nama Spesifik Barang</label>
-              <input type="text" required value={form.itemName} onChange={e=>setForm({...form, itemName: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs font-bold outline-none uppercase bg-white" placeholder="CONTOH: AYAM GILING / MIKA DIMSUM BESAR" />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Volume Beli</label>
-                <input type="number" min="0.1" step="0.1" required value={form.qty} onChange={e=>setForm({...form, qty: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm font-black text-blue-700 outline-none bg-white text-center" placeholder="0" />
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Kuantitas Pembelian</label>
+                <input type="number" required value={form.qty} onChange={e=>setForm({...form, qty: e.target.value})} className="w-full p-3 border border-slate-200 rounded-xl text-base font-black text-center bg-slate-50 outline-none focus:border-blue-400" placeholder="0" />
               </div>
-              <div>
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Satuan</label>
-                <select value={form.unit} onChange={e=>setForm({...form, unit: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs font-black outline-none bg-white uppercase cursor-pointer">
-                  <option value="KG">Kilogram (KG)</option>
-                  <option value="PCS">Pcs</option>
-                  <option value="BAL">Bal / Dus</option>
-                  <option value="LITER">Liter</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Harga Satuan (Modal)</label>
-              <input type="number" required value={form.unitPrice} onChange={e=>setForm({...form, unitPrice: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm font-black outline-none" placeholder="Rp 0" />
-            </div>
-
-            <div className="bg-slate-900 text-white p-4 rounded-xl shadow-inner mt-4">
-              <div className="flex justify-between items-end">
-                <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">Total Tagihan Supplier</span>
-                <span className="text-2xl font-black">{formatRupiah(kalkulasi.total)}</span>
-              </div>
-            </div>
-
-            <div className={`p-4 rounded-xl border-2 ${form.paymentMethod === 'DP' ? 'bg-amber-50 border-amber-200' : 'bg-white border-slate-200'}`}>
-              <div className="flex justify-between items-center mb-3">
-                <label className="text-[10px] font-black text-slate-700 uppercase tracking-widest flex items-center gap-1.5">💳 Kas Keluar</label>
-                <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
-                  {['CASH', 'TF', 'DP'].map(m => (
-                    <button key={m} type="button" onClick={() => setForm({...form, paymentMethod: m})} className={`px-2.5 py-1 rounded text-[10px] font-black transition-all ${form.paymentMethod === m ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500 hover:bg-slate-200'}`}>{m}</button>
-                  ))}
-                </div>
-              </div>
-              
-              {form.paymentMethod === 'DP' && (
-                <div className="mt-3 pt-3 border-t border-amber-200/50">
-                  <label className="text-[10px] font-black text-amber-700 uppercase tracking-widest block mb-1">Kas Dibayar Hari Ini (DP)</label>
-                  <input type="number" required min="0" value={form.amountPaid} onChange={e=>setForm({...form, amountPaid: e.target.value})} className="w-full p-2.5 border-2 border-amber-300 bg-white rounded-xl text-lg font-black text-amber-700 outline-none text-right" placeholder="Rp 0" />
-                  <div className="text-right text-[10px] font-black text-rose-500 mt-1 uppercase tracking-widest">Sisa Hutang: {formatRupiah(kalkulasi.sisa)}</div>
+              {form.category === 'BAHAN_BAKU' && (
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Konversi (KG)</label>
+                  <input type="number" value={form.qtyKg} onChange={e=>setForm({...form, qtyKg: e.target.value})} className="w-full p-3 border border-blue-200 rounded-xl text-base font-black text-center text-blue-700 bg-blue-50 outline-none" placeholder="0 KG" />
                 </div>
               )}
             </div>
-            
-            <button type="submit" className={`w-full text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 transition-transform hover:scale-[1.02] ${isEditing ? 'bg-amber-500 hover:bg-amber-600' : 'bg-blue-600 hover:bg-blue-700'}`}>
-              <Package size={16}/> {isEditing ? 'Simpan Revisi' : 'Masukkan ke Gudang'}
+
+            <div>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Harga Satuan</label>
+              <input type="number" required value={form.unitPrice} onChange={e=>setForm({...form, unitPrice: e.target.value})} className="w-full p-3 border border-slate-200 rounded-xl text-sm font-black bg-slate-50 outline-none focus:border-blue-400" placeholder="Rp 0" />
+            </div>
+
+            <div className="bg-slate-900 text-white p-5 rounded-2xl shadow-md border border-slate-800">
+              <div className="flex justify-between items-end">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Tagihan Supplier</span>
+                <span className="text-3xl font-black text-white">{formatRupiah(perhitungan.totalTagihan)}</span>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50">
+              <div className="flex justify-between items-center mb-2">
+                <label className="text-[10px] font-black text-slate-500 tracking-widest uppercase">Status Bayar</label>
+                <div className="flex gap-1 bg-slate-200/70 p-1 rounded-lg">
+                  {['CASH', 'TF', 'HUTANG'].map(m => <button key={m} type="button" onClick={() => setForm({...form, paymentMethod: m})} className={`px-3 py-1.5 rounded-md text-[10px] font-black transition-colors ${form.paymentMethod === m ? 'bg-white shadow-sm text-blue-700' : 'text-slate-500 hover:bg-slate-300/50'}`}>{m === 'HUTANG' ? 'TEMPO' : m}</button>)}
+                </div>
+              </div>
+              {form.paymentMethod === 'HUTANG' && (
+                <div className="mt-4 pt-4 border-t border-slate-200">
+                  <label className="text-[10px] font-black text-rose-500 uppercase tracking-widest block mb-1.5">Uang Muka (Bila Ada)</label>
+                  <input type="number" value={form.amountPaid} onChange={e=>setForm({...form, amountPaid: e.target.value})} className="w-full p-3 border border-rose-200 rounded-xl text-base font-black text-rose-700 bg-white outline-none" placeholder="0" />
+                </div>
+              )}
+            </div>
+
+            <button type="submit" className={`w-full text-white font-black py-4 rounded-xl text-sm uppercase tracking-widest shadow-lg transition-transform hover:scale-[1.02] active:scale-95 ${isEditing ? 'bg-amber-500' : 'bg-blue-600'}`}>
+              {isEditing ? 'Simpan Revisi' : 'Simpan Transaksi'}
             </button>
           </form>
         </div>
-        
-        {/* KANAN: ARSIP BELANJA */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border flex flex-col overflow-hidden shadow-sm">
-          <div className="p-4 bg-slate-50 border-b flex items-center justify-between">
-            <h4 className="font-black text-xs uppercase text-slate-700 tracking-widest flex items-center gap-2"><CalendarDays size={14} className="text-blue-600"/> Riwayat Belanja Logistik</h4>
-            {isHQ && (
-              <select value={activeBranchFilter} onChange={e => setActiveBranchFilter(e.target.value)} className="text-[10px] font-black uppercase bg-white border rounded-lg px-2 py-1 outline-none text-slate-600 cursor-pointer shadow-sm">
-                <option value="SEMUA_CABANG">🌍 NASIONAL</option>
-                {masterBranches.filter(b=>!b.isDeleted).map(b => <option key={b.branch_id} value={b.branch_id}>{b.branch_id}</option>)}
-              </select>
-            )}
+
+        {/* KANAN: TABEL RIWAYAT SEMUA OPERASIONAL */}
+        <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+          <div className="p-5 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+            <h4 className="font-black text-xs uppercase text-slate-700 tracking-widest">Riwayat Belanja & Operasional</h4>
           </div>
-          <div className="overflow-x-auto flex-1 custom-scrollbar">
+          <div className="overflow-x-auto flex-1 p-2 custom-scrollbar">
             <table className="w-full text-sm text-left">
-              <thead className="bg-slate-50 text-[10px] uppercase text-slate-400 border-b border-slate-200">
-                <tr><th className="px-4 py-3">ID &amp; Tanggal</th><th className="px-4 py-3">Supplier &amp; Item</th><th className="px-4 py-3 text-center">Volume</th><th className="px-4 py-3">Tagihan &amp; Status</th><th className="px-4 py-3 text-center">Aksi</th></tr>
+              <thead className="text-[10px] uppercase text-slate-400 bg-white">
+                <tr><th className="px-4 py-3 font-black">Tanggal & ID</th><th className="px-4 py-3 font-black">Deskripsi Mutasi</th><th className="px-4 py-3 font-black text-right">Nominal</th><th className="px-4 py-3 font-black text-center">Status/Metode</th><th className="px-4 py-3 font-black text-center">Aksi</th></tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-xs font-bold">
-                {historyBelanja.length === 0 && (<tr><td colSpan="5" className="px-4 py-12 text-center text-slate-400 font-black uppercase tracking-widest bg-slate-50/50">Belum Ada Riwayat Belanja</td></tr>)}
-                {historyBelanja.slice(0, 50).map(log => {
-                  const sisaHutang = Number(log.total_price) - Number(log.amount_paid);
+              <tbody className="text-xs font-bold divide-y divide-slate-50">
+                {combinedHistory.slice(0, 50).map(log => {
                   return (
-                    <tr key={log.id} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="text-slate-800">{formatDate(log.date)}</div>
+                    <tr key={log.id} className="hover:bg-slate-50/80 transition-colors group">
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <div className="text-slate-800 font-bold">{formatDate(log.date)}</div>
                         <div className="text-[9px] font-mono text-slate-400 mt-0.5">{log.id}</div>
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="uppercase text-slate-700 font-black line-clamp-1">{log.supplier_name}</div>
-                        <div className="text-[9px] font-black text-blue-500 mt-0.5 uppercase flex items-center gap-1">
-                          <Package size={10}/> {log.item_name}
+                      <td className="px-4 py-4">
+                        <div className="font-black text-slate-800 uppercase text-xs mb-1">
+                          {log.isManual ? log.description : `${log.item_name} (${log.qty})`}
                         </div>
+                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md ${log.isManual ? (log.type === 'IN' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600') : 'bg-blue-50 text-blue-600'}`}>
+                          {log.isManual ? log.category : `SUPPLIER: ${log.supplier_name}`}
+                        </span>
                       </td>
-                      <td className="px-4 py-3 text-center whitespace-nowrap">
-                        <span className="bg-slate-100 text-slate-700 border border-slate-200 px-2 py-1 rounded text-[10px] font-black uppercase">{formatNumber(log.qty)} {log.unit}</span>
+                      <td className="px-4 py-4 text-right whitespace-nowrap">
+                        {log.isManual && log.type === 'IN' ? (
+                          <div className="text-emerald-600 font-black flex items-center justify-end gap-1"><ArrowDownToLine size={12}/> {formatRupiah(log.amount)}</div>
+                        ) : (
+                          <div className="text-rose-600 font-black flex items-center justify-end gap-1"><ArrowUpRight size={12}/> {formatRupiah(log.total_amount || log.amount)}</div>
+                        )}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="font-black text-slate-700">{formatRupiah(log.total_price)}</div>
-                        <div className={`text-[9px] font-black mt-0.5 uppercase tracking-widest px-1.5 py-0.5 rounded inline-block ${sisaHutang > 0 ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                          {sisaHutang > 0 ? `HUTANG (Sisa: ${formatRupiah(sisaHutang)})` : <span className="flex items-center gap-1"><CheckCircle2 size={10}/> LUNAS</span>}
-                        </div>
+                      <td className="px-4 py-4 text-center whitespace-nowrap">
+                         {!log.isManual && log.status === 'BELUM_LUNAS' ? 
+                          <span className="text-[9px] font-black uppercase text-rose-600 bg-rose-50 px-2 py-1 rounded-md">HUTANG TEMPO</span> : 
+                          <span className="text-[9px] font-black uppercase text-slate-500 bg-slate-100 px-2 py-1 rounded-md">{log.payment_method || log.method}</span>
+                        }
                       </td>
-                      <td className="px-4 py-3 text-center whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <button type="button" onClick={() => handlePrint(log)} className="p-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg" title="Cetak Penerimaan Gudang"><Printer size={12}/></button>
-                          {isHQ && (
-                            <>
-                              <button type="button" onClick={() => handleEdit(log)} className="p-1.5 bg-amber-50 text-amber-600 hover:bg-amber-100 rounded-lg"><Edit2 size={12}/></button>
-                              <button type="button" onClick={() => { if(window.confirm("Void penerimaan barang ini?")) requestDelete(log.id); }} className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg"><Trash2 size={12}/></button>
-                            </>
-                          )}
+                      <td className="px-4 py-4 text-center whitespace-nowrap opacity-50 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center justify-center gap-2">
+                          {log.isManual && <button type="button" onClick={() => handlePrintKas(log)} className="p-1.5 text-slate-500 hover:text-blue-600 rounded-lg"><Printer size={16}/></button>}
+                          {!log.isManual && <button type="button" onClick={() => { setForm({id: log.id, date: log.date.split('T')[0], supplierName: log.supplier_name||'', category: log.category||'BAHAN_BAKU', itemName: log.item_name||'', qty: log.qty||'', qtyKg: log.qty_kg||'', unitPrice: log.unit_price||'', paymentMethod: log.payment_method||'CASH', amountPaid: log.amount_paid||'', notes: log.notes||''}); setIsEditing(true); }} className="p-1.5 text-slate-400 hover:text-amber-500 rounded-lg"><Edit2 size={14}/></button>}
+                          <button type="button" onClick={() => { if(window.confirm("Hapus data ini?")) requestDelete(log.id); }} className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg"><Trash2 size={14}/></button>
                         </div>
                       </td>
                     </tr>
@@ -316,8 +239,56 @@ export default function TabPurchases({
             </table>
           </div>
         </div>
-
       </div>
+
+      {/* MODAL KAS MANUAL (Desain Baru) */}
+      {showManualModal && (
+        <div className="fixed inset-0 bg-slate-900/60 z-[9999] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden">
+            <div className="p-5 bg-slate-900 text-white flex justify-between items-center">
+              <h3 className="font-black flex items-center gap-2 uppercase tracking-widest text-xs"><FileText size={16} className="text-blue-400"/> Form Catat Kas Manual</h3>
+              <button onClick={() => setShowManualModal(false)} className="hover:bg-slate-800 p-1.5 rounded-lg"><X size={20}/></button>
+            </div>
+            <form onSubmit={handleSaveManual} className="p-6 space-y-5">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Jenis Mutasi</label>
+                  <select value={manualForm.type} onChange={e => setManualForm({...manualForm, type: e.target.value})} className={`w-full p-3 rounded-xl text-xs font-black outline-none border transition-colors cursor-pointer ${manualForm.type === 'IN' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'}`}>
+                    <option value="IN">Uang Masuk (IN)</option>
+                    <option value="OUT">Uang Keluar (OUT)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Tanggal</label>
+                  <input type="date" required value={manualForm.date} onChange={e => setManualForm({...manualForm, date: e.target.value})} className="w-full p-3 border border-slate-200 rounded-xl text-xs font-black outline-none focus:border-blue-400" />
+                </div>
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Kategori / Referensi</label>
+                <input type="text" required placeholder="Contoh: SUNTIKAN MODAL / UANG BENSIN" value={manualForm.category} onChange={e => setManualForm({...manualForm, category: e.target.value.toUpperCase()})} className="w-full p-3 border border-slate-200 rounded-xl text-xs font-bold uppercase outline-none focus:border-blue-400" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Keterangan Detail</label>
+                <input type="text" required placeholder="Jelaskan rincian keperluannya..." value={manualForm.description} onChange={e => setManualForm({...manualForm, description: e.target.value})} className="w-full p-3 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-blue-400" />
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="col-span-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Nominal Uang</label>
+                  <input type="number" required placeholder="0" value={manualForm.amount} onChange={e => setManualForm({...manualForm, amount: e.target.value})} className="w-full p-3 border border-slate-200 rounded-xl text-lg font-black text-slate-800 outline-none focus:border-blue-400" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Jalur</label>
+                  <select value={manualForm.method} onChange={e => setManualForm({...manualForm, method: e.target.value})} className="w-full p-3 border border-slate-200 rounded-xl text-xs font-black outline-none cursor-pointer">
+                    <option value="CASH">Tunai (Cash)</option>
+                    <option value="TF">Transfer Bank</option>
+                  </select>
+                </div>
+              </div>
+              <button type="submit" className="w-full text-white font-black py-4 rounded-xl text-sm uppercase tracking-widest shadow-lg bg-blue-600 hover:bg-blue-700 transition-colors mt-2">Simpan Mutasi Manual</button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
