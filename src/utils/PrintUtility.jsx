@@ -48,14 +48,18 @@ const DotMatrixInvoice = ({ data }) => {
 
       {/* HEADER (Polos tanpa border bawah biar ngebut) */}
       {isInvoice ? (
-        <div style={{ textAlign: 'center', marginBottom: '8px' }}>
-          <h1 style={{ margin: '0 0 2px 0', fontSize: '20pt', fontWeight: '900', letterSpacing: '1px' }}>DIMSUM ADITYA</h1>
-          <div style={{ fontSize: '9pt', fontWeight: 'bold', lineHeight: '1.2' }}>
-            Jl. Thamrin Ketapang, Cipondoh, Tangerang 15147 | Telp: 0878 0902 0931
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', borderBottom: '1px dashed black', paddingBottom: '4px' }}>
+          <div style={{ textAlign: 'left' }}>
+            <h1 style={{ margin: '0 0 2px 0', fontSize: '20pt', fontWeight: '900', letterSpacing: '1px' }}>DIMSUM ADITYA</h1>
+            <div style={{ fontSize: '10pt', fontWeight: 'bold' }}>Distributor Dimsum Ayam Tangerang</div>
+          </div>
+          <div style={{ textAlign: 'right', fontSize: '9pt', fontWeight: 'bold', lineHeight: '1.2', paddingTop: '4px' }}>
+            <div>Jl. Thamrin Ketapang, Cipondoh, Tangerang 15147</div>
+            <div>Telp: 0878 0902 0931</div>
           </div>
         </div>
       ) : (
-        <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '8px', borderBottom: '1px dashed black', paddingBottom: '4px' }}>
           <h1 style={{ margin: 0, fontSize: '18pt', fontWeight: '900' }}>DIMSUM ADITYA</h1>
           <div style={{ fontSize: '9pt', fontWeight: 'bold' }}>CABANG OPERASIONAL {data.branch_name || 'PUSAT'}</div>
         </div>
@@ -114,10 +118,6 @@ const DotMatrixInvoice = ({ data }) => {
           <div style={{ textAlign: 'right', marginTop: '6px', fontSize: '12pt', fontWeight: '900' }}>
             STATUS: {data.paymentMethod || 'CASH'}
           </div>
-
-          <div style={{ marginTop: '12px', fontSize: '9pt', fontWeight: '900', textAlign: 'center', lineHeight: '1.2' }}>
-            <div>INFO TRANSFER: BCA 1320552261 (WASTAM) | BRI 775301006132536 (WASTAM)</div>
-          </div>
         </>
       )}
 
@@ -169,6 +169,16 @@ const DotMatrixInvoice = ({ data }) => {
               KETERANGAN: {pNotes}
             </div>
          </div>
+      )}
+
+      {/* ============================== */}
+      {/* INFO TRANSFER (HANYA INVOICE)  */}
+      {/* ============================== */}
+      {isInvoice && (
+        <div style={{ marginTop: '12px', paddingTop: '8px', borderTop: '1px dashed black', fontSize: '9pt', fontWeight: '900', textAlign: 'left', lineHeight: '1.4' }}>
+          <div><u>INFO TRANSFER (WASTAM):</u></div>
+          <div>BCA: 1320552261  |  BRI: 775301006132536</div>
+        </div>
       )}
 
       {/* ============================== */}
