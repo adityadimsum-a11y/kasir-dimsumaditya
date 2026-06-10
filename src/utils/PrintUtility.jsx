@@ -35,10 +35,10 @@ const DotMatrixInvoice = ({ data }) => {
   }
 
   return (
-    // MASTER CONTAINER: Lebar disunat jadi 19cm agar margin kanan tidak terpotong lubang kertas
+    // 💡 DI SINI TEMPAT EDIT LEBAR KERTAS (Ubah '19cm' sesuai selera Bos)
     <div className="print-dot-matrix" style={{ width: '19cm', maxHeight: '13.5cm', boxSizing: 'border-box', color: '#000', fontFamily: 'monospace', margin: '0', overflow: 'hidden' }}>
       
-      {/* CSS KHUSUS MEMAKSA DRIVER EPSON & BROWSER NURUT */}
+      {/* 💡 DI SINI TEMPAT EDIT MARGIN BROWSER (Ubah padding: Atas Kanan Bawah Kiri) */}
       <style>{`
         @media print {
           @page { size: 22.5cm 13.9cm; margin: 0; }
@@ -114,14 +114,14 @@ const DotMatrixInvoice = ({ data }) => {
             <span>TOTAL TAGIHAN :</span><span>{rp(data.amount || data.total)}</span>
           </div>
           
-          {/* KOTAK STATUS DIPERBAIKI (Padding Diperbesar) */}
+          {/* KOTAK STATUS DIPERBAIKI (Garis Putus-Putus Tipis) */}
           <div style={{ textAlign: 'right', marginTop: '8px', marginBottom: '4px' }}>
-            <span style={{ fontSize: '12pt', fontWeight: '900', padding: '6px 12px', border: '2px solid black', display: 'inline-block', lineHeight: '1.2' }}>
+            <span style={{ fontSize: '12pt', fontWeight: '900', padding: '6px 12px', border: '1px dashed black', display: 'inline-block', lineHeight: '1.2' }}>
               STATUS: {data.paymentMethod || 'CASH'}
             </span>
           </div>
 
-          {/* REKENING DI FOOTER TANPA BLOK WARNA */}
+          {/* REKENING DI FOOTER */}
           <div style={{ marginTop: '6px', borderTop: '2px dashed black', paddingTop: '6px', fontSize: '9pt', fontWeight: '900', textAlign: 'center', lineHeight: '1.2' }}>
             <div>INFO PEMBAYARAN TRANSFER :</div>
             <div>BCA: 1320552261 (WASTAM) | BRI: 775301006132536 (WASTAM)</div>
@@ -134,17 +134,17 @@ const DotMatrixInvoice = ({ data }) => {
       {/* ============================== */}
       {isWO && (
         <div style={{ marginBottom: '6px' }}>
-          <div style={{ border: '2px solid black', padding: '8px', textAlign: 'center', marginBottom: '6px' }}>
+          <div style={{ border: '2px solid black', padding: '4px', textAlign: 'center', marginBottom: '6px' }}>
             <div style={{ fontSize: '11pt', fontWeight: '900' }}>JUMLAH WAJIB MASAK (QTY)</div>
             <div style={{ fontSize: '36pt', fontWeight: '900', margin: '0', lineHeight: '1' }}>{formatNum(woQty)} <span style={{ fontSize: '12pt' }}>PCS</span></div>
           </div>
           
           <div style={{ fontSize: '10pt', fontWeight: 'bold', marginBottom: '6px' }}>
-            CHANNEL/AGEN: <span style={{ border: '2px solid black', padding: '3px 8px', fontWeight: '900' }}>{woChannel}</span>
+            CHANNEL/AGEN: <span style={{ border: '2px solid black', padding: '1px 6px', fontWeight: '900' }}>{woChannel}</span>
           </div>
 
-          <div style={{ border: '2px dashed black', padding: '8px', marginBottom: '6px' }}>
-            <div style={{ fontSize: '11pt', fontWeight: '900', marginBottom: '4px' }}>SPESIFIKASI REQUEST VARIETAS:</div>
+          <div style={{ border: '2px dashed black', padding: '6px', marginBottom: '6px' }}>
+            <div style={{ fontSize: '11pt', fontWeight: '900', marginBottom: '2px' }}>SPESIFIKASI REQUEST VARIETAS:</div>
             <div style={{ fontSize: '20pt', fontWeight: '900', textTransform: 'uppercase', lineHeight: '1.1' }}>{woRequest}</div>
           </div>
 
@@ -160,16 +160,16 @@ const DotMatrixInvoice = ({ data }) => {
       {isProd && (
          <div style={{ marginBottom: '6px' }}>
             <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-               <div style={{ flex: 1, border: '2px solid black', padding: '8px', textAlign: 'center' }}>
+               <div style={{ flex: 1, border: '2px solid black', padding: '6px', textAlign: 'center' }}>
                   <div style={{ fontSize: '10pt', fontWeight: '900' }}>TOTAL ADUKAN</div>
                   <div style={{ fontSize: '28pt', fontWeight: '900', lineHeight: '1' }}>{pAdukan}</div>
                </div>
-               <div style={{ flex: 1, border: '2px solid black', padding: '8px', textAlign: 'center' }}>
+               <div style={{ flex: 1, border: '2px solid black', padding: '6px', textAlign: 'center' }}>
                   <div style={{ fontSize: '10pt', fontWeight: '900' }}>AYAM TERPAKAI</div>
                   <div style={{ fontSize: '28pt', fontWeight: '900', lineHeight: '1' }}>{pAyam} KG</div>
                </div>
             </div>
-            <div style={{ border: '2px solid black', padding: '8px', textAlign: 'center', marginBottom: '8px' }}>
+            <div style={{ border: '2px solid black', padding: '6px', textAlign: 'center', marginBottom: '8px' }}>
                <div style={{ fontSize: '12pt', fontWeight: '900' }}>YIELD (MASUK FREEZER)</div>
                <div style={{ fontSize: '36pt', fontWeight: '900', margin: '0', lineHeight: '1' }}>{formatNum(pYield)} PCS</div>
             </div>
