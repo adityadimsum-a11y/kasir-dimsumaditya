@@ -6,17 +6,18 @@ import { triggerPrint } from '../../utils/PrintUtility';
 const formatRupiah = (angka) => "Rp. " + Number(angka || 0).toLocaleString('id-ID');
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
+// HARGA SUDAH DISINKRONISASI DENGAN SKEMA BISNIS DIMSUM ADITYA
 const SALES_CHANNELS = [
-  { id: 'ECERAN', label: 'Eceran Standard', group: 'OFFLINE', price: 3000, isManual: false },
-  { id: 'MITRA', label: 'Mitra Agen', group: 'OFFLINE', price: 2500, isManual: false },
-  { id: 'RESELLER', label: 'Reseller', group: 'OFFLINE', price: 2700, isManual: false },
+  { id: 'ECERAN', label: 'Eceran / Porsian', group: 'OFFLINE', price: 2000, isManual: false },
+  { id: 'MITRA', label: 'Mitra Agen', group: 'OFFLINE', price: 2000, isManual: false },
+  { id: 'RESELLER', label: 'Reseller', group: 'OFFLINE', price: 2125, isManual: false },
   { id: 'PAKETAN_ACARA', label: 'Paketan Acara (Manual)', group: 'OFFLINE', price: 0, isManual: true },
-  { id: 'SHOPEE', label: 'Toko Shopee', group: 'MARKETPLACE', price: 3000, isManual: false },
-  { id: 'TOKOPEDIA', label: 'Tokopedia', group: 'MARKETPLACE', price: 3000, isManual: false },
-  { id: 'TIKTOK', label: 'TikTok Shop', group: 'MARKETPLACE', price: 3000, isManual: false },
-  { id: 'SHOPEEFOOD', label: 'ShopeeFood', group: 'MERCHANT', price: 3500, isManual: false },
-  { id: 'GOFOOD', label: 'GoFood', group: 'MERCHANT', price: 3500, isManual: false },
-  { id: 'GRABFOOD', label: 'GrabFood', group: 'MERCHANT', price: 3500, isManual: false },
+  { id: 'SHOPEE', label: 'Toko Shopee', group: 'MARKETPLACE', price: 2500, isManual: false },
+  { id: 'TOKOPEDIA', label: 'Tokopedia', group: 'MARKETPLACE', price: 2500, isManual: false },
+  { id: 'TIKTOK', label: 'TikTok Shop', group: 'MARKETPLACE', price: 2500, isManual: false },
+  { id: 'SHOPEEFOOD', label: 'ShopeeFood', group: 'MERCHANT', price: 2500, isManual: false },
+  { id: 'GOFOOD', label: 'GoFood', group: 'MERCHANT', price: 2500, isManual: false },
+  { id: 'GRABFOOD', label: 'GrabFood', group: 'MERCHANT', price: 2500, isManual: false },
 ];
 
 export default function TabOrders({ orders = [], orders_data, productionBatches = [], production_batches, purchases = [], purchases_data, sendToSheet, showToast, user, requestDelete }) {
@@ -27,7 +28,7 @@ export default function TabOrders({ orders = [], orders_data, productionBatches 
   const [showKarantinaModal, setShowKarantinaModal] = useState(false);
   
   const [form, setForm] = useState({
-    id: '', date: todayStr, customerName: '', channel: 'ECERAN', customPrice: 3000, qty: '',
+    id: '', date: todayStr, customerName: '', channel: 'ECERAN', customPrice: 2000, qty: '',
     deliveryMethod: 'DIRECT', shippingFee: 0, paymentMethod: 'CASH', amountPaid: '', notes: '',
     customRequest: 'STANDAR MIX (SIOMAY, HAKAU, DLL)' 
   });
@@ -50,22 +51,26 @@ export default function TabOrders({ orders = [], orders_data, productionBatches 
     return { saldoFisikFreezer, karantinaPcs, sisaAvailable: saldoFisikFreezer - karantinaPcs, saldoAyamKg: Math.max(0, totalAyamMasukKg - totalAyamKeluarKg), listKarantina: listKarantina.sort((a,b) => new Date(a.date) - new Date(b.date)) };
   }, [orders, orders_data, productionBatches, production_batches, purchases, purchases_data, currentBranch]);
 
+  // ALGORITMA ESTIMASI HPP & LABA KOTOR
   const perhitungan = useMemo(() => {
     const qty = Number(form.qty || 0);
     const hargaSatuan = selectedChannelInfo.isManual ? Number(form.customPrice || 0) : selectedChannelInfo.price;
     const totalTagihan = (qty * hargaSatuan) + Number(form.shippingFee || 0);
-    return { hargaSatuan, subtotal: qty * hargaSatuan, totalTagihan, dibayar: form.paymentMethod === 'DP' ? Number(form.amountPaid || 0) : totalTagihan };
+    
+    // HPP Pokok = Rp 1.125 / Pcs
+    const hppPokok = qty * 1125; 
+    // Profit = Total Belanja Murni (tanpa ongkir) - Modal HPP
+    const profitKotor = (qty * hargaSatuan) - hppPokok;
+
+    return { hargaSatuan, subtotal: qty * hargaSatuan, totalTagihan, hppPokok, profitKotor, dibayar: form.paymentMethod === 'DP' ? Number(form.amountPaid || 0) : totalTagihan };
   }, [form, selectedChannelInfo]);
 
   const handlePrintTiketProduksi = (log) => {
     const rahasiaData = `@@WORK_ORDER@@||${log.sales_channel}||${log.custom_request || 'STANDAR MIX'}||${log.notes || '-'}`;
     triggerPrint('NOTA_DOTMATRIX', {
       title: 'WORK ORDER & MANIFEST PABRIK',
-      id: log.id,
-      date: formatDate(log.date),
-      branch_name: log.branch_id || currentBranch,
-      admin_name: user?.name || 'KASIR',
-      customer_name: log.customer_name?.toUpperCase(),
+      id: log.id, date: formatDate(log.date), branch_name: log.branch_id || currentBranch,
+      admin_name: user?.name || 'KASIR', customer_name: log.customer_name?.toUpperCase(),
       items: [{ name: rahasiaData, qty: log.qty, subtotal: 0 }],
       paymentMethod: log.delivery_method === 'PRE_ORDER' ? 'ANTREAN PRE-ORDER' : 'PENGAMBILAN LANGSUNG'
     });
@@ -76,48 +81,30 @@ export default function TabOrders({ orders = [], orders_data, productionBatches 
     const textPembayaran = sisaUtang > 0 ? `BELUM LUNAS (SISA: ${formatRupiah(sisaUtang)})` : `LUNAS (${log.payment_method})`;
     triggerPrint('NOTA_DOTMATRIX', {
       title: 'INVOICE PENJUALAN KLIEN',
-      id: log.id,
-      date: formatDate(log.date),
-      branch_name: log.branch_id || currentBranch,
-      admin_name: user?.name || 'KASIR',
-      customer_name: log.customer_name?.toUpperCase(),
+      id: log.id, date: formatDate(log.date), branch_name: log.branch_id || currentBranch,
+      admin_name: user?.name || 'KASIR', customer_name: log.customer_name?.toUpperCase(),
       items: [{ name: `DIMSUM FROZEN (${log.sales_channel})\nREQ: ${log.custom_request || 'STANDAR MIX'}`, qty: log.qty, subtotal: log.subtotal, suffix: ' Pcs' }],
-      amount: log.total_amount,
-      paymentMethod: textPembayaran
+      amount: log.total_amount, paymentMethod: textPembayaran
     });
   };
 
   const handleEditSafe = (log) => {
     try {
       setForm({
-        id: log.id || '', 
-        date: log.date ? String(log.date).substring(0, 10) : todayStr, 
-        customerName: log.customer_name || '', 
-        channel: log.sales_channel || 'ECERAN', 
-        customPrice: log.unit_price || 0, 
-        qty: log.qty || '', 
-        deliveryMethod: log.delivery_method || 'DIRECT', 
-        shippingFee: log.shipping_fee || 0, 
-        paymentMethod: log.payment_method || 'CASH', 
+        id: log.id || '', date: log.date ? String(log.date).substring(0, 10) : todayStr, 
+        customerName: log.customer_name || '', channel: log.sales_channel || 'ECERAN', 
+        customPrice: log.unit_price || 0, qty: log.qty || '', deliveryMethod: log.delivery_method || 'DIRECT', 
+        shippingFee: log.shipping_fee || 0, paymentMethod: log.payment_method || 'CASH', 
         amountPaid: log.amount_paid !== undefined ? log.amount_paid : (log.total_amount || 0), 
-        notes: log.notes || '', 
-        customRequest: log.custom_request || 'STANDAR MIX (SIOMAY, HAKAU, DLL)'
+        notes: log.notes || '', customRequest: log.custom_request || 'STANDAR MIX (SIOMAY, HAKAU, DLL)'
       });
-      setIsEditing(true);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } catch (e) {
-      alert('Gagal memuat data edit. Pastikan format transaksi valid.');
-    }
+      setIsEditing(true); window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (e) { alert('Gagal memuat data edit. Pastikan format transaksi valid.'); }
   };
 
-  // FUNGSI BATAL EDIT BARU
   const handleCancelEdit = () => {
     setIsEditing(false);
-    setForm({
-      id: '', date: todayStr, customerName: '', channel: 'ECERAN', customPrice: 3000, qty: '',
-      deliveryMethod: 'DIRECT', shippingFee: 0, paymentMethod: 'CASH', amountPaid: '', notes: '',
-      customRequest: 'STANDAR MIX (SIOMAY, HAKAU, DLL)'
-    });
+    setForm({ id: '', date: todayStr, customerName: '', channel: 'ECERAN', customPrice: 2000, qty: '', deliveryMethod: 'DIRECT', shippingFee: 0, paymentMethod: 'CASH', amountPaid: '', notes: '', customRequest: 'STANDAR MIX (SIOMAY, HAKAU, DLL)' });
   };
 
   const handleSubmit = async (e) => {
@@ -133,7 +120,7 @@ export default function TabOrders({ orders = [], orders_data, productionBatches 
     if (await sendToSheet(isEditing ? 'update' : 'insert', payload, 'orders')) {
       showToast('Data penjualan disimpan!', 'success');
       if (form.deliveryMethod === 'PRE_ORDER') handlePrintTiketProduksi(payload);
-      handleCancelEdit(); // Reset form & mode edit setelah berhasil
+      handleCancelEdit();
     }
   };
 
@@ -168,8 +155,6 @@ export default function TabOrders({ orders = [], orders_data, productionBatches 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className={`p-6 rounded-2xl border shadow-sm transition-all ${isEditing ? 'bg-amber-50/50 border-t-4 border-t-amber-500 border-amber-200' : 'bg-white border-t-4 border-t-emerald-600'}`}>
           <form onSubmit={handleSubmit} className="space-y-4">
-            
-            {/* HEADER FORM DENGAN TOMBOL BATAL EDIT */}
             <div className="flex justify-between items-center border-b border-slate-100 pb-3 mb-2">
               <h3 className={`font-black text-sm uppercase flex items-center gap-2 ${isEditing ? 'text-amber-700' : 'text-slate-800'}`}>
                 {isEditing ? <Edit2 size={16}/> : <ShoppingCart size={16} className="text-emerald-600"/>} 
@@ -223,12 +208,27 @@ export default function TabOrders({ orders = [], orders_data, productionBatches 
                 <button type="button" onClick={() => setForm({...form, deliveryMethod: 'PRE_ORDER', paymentMethod: 'DP', amountPaid: ''})} className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase ${form.deliveryMethod === 'PRE_ORDER' ? 'bg-amber-100 text-amber-700 border border-amber-300' : 'bg-white border'}`}>Pre-Order (PO)</button>
               </div>
             </div>
-            <div className="bg-slate-900 text-white p-4 rounded-xl">
-              <div className="flex justify-between items-end">
+            
+            {/* BOX TAGIHAN DENGAN RADAR LABA KOTOR */}
+            <div className="bg-slate-900 text-white p-4 rounded-xl shadow-inner relative overflow-hidden">
+              <div className="flex justify-between items-end relative z-10">
                 <span className="text-[10px] font-black uppercase text-emerald-400">Total Tagihan Bill</span>
                 <span className="text-2xl font-black">{formatRupiah(perhitungan.totalTagihan)}</span>
               </div>
+              {form.qty > 0 && (
+                <div className="mt-3 pt-3 border-t border-slate-700 space-y-1 relative z-10">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[9px] font-black uppercase text-slate-400">Estimasi Modal (HPP):</span>
+                    <span className="text-xs font-black text-orange-400">{formatRupiah(perhitungan.hppPokok)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[9px] font-black uppercase text-slate-400">Estimasi Laba Kotor:</span>
+                    <span className="text-xs font-black text-emerald-400">+{formatRupiah(perhitungan.profitKotor)}</span>
+                  </div>
+                </div>
+              )}
             </div>
+
             <div className="p-4 rounded-xl border bg-white">
               <div className="flex justify-between items-center mb-2">
                 <label className="text-[10px] font-black text-slate-700">Metode Pembayaran</label>
@@ -270,11 +270,11 @@ export default function TabOrders({ orders = [], orders_data, productionBatches 
                       </td>
                       <td className="px-4 py-3 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1.5">
-                          <button type="button" onClick={() => handlePrintTiketProduksi(log)} className="p-1 px-1.5 bg-rose-600 text-white rounded text-[10px] font-black uppercase flex items-center gap-1"><FileText size={10}/> Tiket Pabrik</button>
-                          <button type="button" onClick={() => handlePrintInvoiceKlien(log)} className="p-1 px-1.5 bg-blue-600 text-white rounded text-[10px] font-black uppercase flex items-center gap-1"><Printer size={10}/> Nota Cust</button>
+                          <button type="button" onClick={() => handlePrintTiketProduksi(log)} className="p-1.5 px-2 bg-rose-600 text-white rounded font-black uppercase flex items-center gap-1 text-[10px]"><FileText size={10}/> Tiket</button>
+                          <button type="button" onClick={() => handlePrintInvoiceKlien(log)} className="p-1.5 px-2 bg-blue-600 text-white rounded font-black uppercase flex items-center gap-1 text-[10px]"><Printer size={10}/> Nota</button>
                           
-                          <button type="button" onClick={() => handleEditSafe(log)} className="p-1 px-1.5 bg-amber-50 border border-amber-200 text-amber-600 rounded flex items-center gap-1 font-black text-[10px] uppercase"><Edit2 size={12}/> Edit</button>
-                          <button type="button" onClick={() => { if(window.confirm("Void?")) requestDelete(log.id); }} className="p-1 px-1.5 bg-rose-50 border border-rose-200 text-rose-600 rounded flex items-center gap-1 font-black text-[10px] uppercase"><Trash2 size={12}/> Void</button>
+                          <button type="button" onClick={() => handleEditSafe(log)} className="p-1.5 px-2 bg-amber-50 border border-amber-200 text-amber-600 rounded flex items-center gap-1 font-black text-[10px] uppercase"><Edit2 size={12}/> Edit</button>
+                          <button type="button" onClick={() => { if(window.confirm("Void?")) requestDelete(log.id); }} className="p-1.5 px-2 bg-rose-50 border border-rose-200 text-rose-600 rounded flex items-center gap-1 font-black text-[10px] uppercase"><Trash2 size={12}/> Void</button>
                         </div>
                       </td>
                     </tr>
