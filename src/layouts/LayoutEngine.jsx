@@ -80,8 +80,8 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
       return { bg: 'bg-slate-800', text: 'text-slate-800', ring: 'ring-slate-700', icon: LayoutDashboard, title: 'SYSTEM NODE' };
   }, [user?.branch_type]);
 
-  return (
-    <div className="min-h-screen bg-transparent flex overflow-hidden font-sans">
+return (
+    <div className="h-full w-full bg-transparent flex overflow-hidden font-sans">
       {isMobileMenuOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 lg:hidden" onClick={() => setIsMobileMenuOpen(false)} />
       )}
