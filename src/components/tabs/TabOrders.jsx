@@ -57,9 +57,9 @@ export default function TabOrders({ orders = [], orders_data, productionBatches 
     return { hargaSatuan, subtotal: qty * hargaSatuan, totalTagihan, dibayar: form.paymentMethod === 'DP' ? Number(form.amountPaid || 0) : totalTagihan };
   }, [form, selectedChannelInfo]);
 
-  // 1. CETAK TIKET DAPUR PABRIK (BYPASS JSON)
+  // KODE BYPASS ANTI-GAGAL UNTUK TIKET PABRIK
   const handlePrintTiketProduksi = (log) => {
-    const rahasiaJson = JSON.stringify({ type: 'WORK_ORDER', channel: log.sales_channel, request: log.custom_request || 'STANDAR MIX', notes: log.notes || '-' });
+    const rahasiaData = `@@WORK_ORDER@@||${log.sales_channel}||${log.custom_request || 'STANDAR MIX'}||${log.notes || '-'}`;
     triggerPrint('NOTA_DOTMATRIX', {
       title: 'WORK ORDER & MANIFEST PABRIK',
       id: log.id,
@@ -67,18 +67,16 @@ export default function TabOrders({ orders = [], orders_data, productionBatches 
       branch_name: log.branch_id || currentBranch,
       admin_name: user?.name || 'KASIR',
       customer_name: log.customer_name?.toUpperCase(),
-      items: [{ name: rahasiaJson, qty: log.qty, subtotal: 0 }],
+      items: [{ name: rahasiaData, qty: log.qty, subtotal: 0 }],
       paymentMethod: log.delivery_method === 'PRE_ORDER' ? 'ANTREAN PRE-ORDER' : 'PENGAMBILAN LANGSUNG'
     });
   };
 
-  // 2. CETAK INVOICE KLIEN (DESAIN BARU)
   const handlePrintInvoiceKlien = (log) => {
     const sisaUtang = Number(log.total_amount) - Number(log.amount_paid);
-    const textPembayaran = sisaUtang > 0 ? `BELUM LUNAS (SISA TAGIHAN: ${formatRupiah(sisaUtang)})` : `LUNAS (${log.payment_method})`;
-    
+    const textPembayaran = sisaUtang > 0 ? `BELUM LUNAS (SISA: ${formatRupiah(sisaUtang)})` : `LUNAS (${log.payment_method})`;
     triggerPrint('NOTA_DOTMATRIX', {
-      title: 'INVOICE PENJUALAN RESMI',
+      title: 'INVOICE PENJUALAN KLIEN',
       id: log.id,
       date: formatDate(log.date),
       branch_name: log.branch_id || currentBranch,
@@ -226,9 +224,7 @@ export default function TabOrders({ orders = [], orders_data, productionBatches 
                       </td>
                       <td className="px-4 py-3 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1.5">
-                          {/* TOMBOL CETAK WORK ORDER */}
                           <button type="button" onClick={() => handlePrintTiketProduksi(log)} className="p-1 px-1.5 bg-rose-600 text-white rounded text-[10px] font-black uppercase flex items-center gap-1"><FileText size={10}/> Tiket Pabrik</button>
-                          {/* TOMBOL CETAK INVOICE CUSTOMER */}
                           <button type="button" onClick={() => handlePrintInvoiceKlien(log)} className="p-1 px-1.5 bg-blue-600 text-white rounded text-[10px] font-black uppercase flex items-center gap-1"><Printer size={10}/> Nota Cust</button>
                           
                           <button type="button" onClick={() => handleEdit(log)} className="p-1 bg-amber-50 border text-amber-600 rounded"><Edit2 size={10}/></button>
