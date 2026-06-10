@@ -143,9 +143,15 @@ export default function TabOrders({ orders = [], orders_data, productionBatches 
               <div>
                 <label className="text-[10px] font-black text-slate-500 uppercase block mb-1">Channel</label>
                 <select value={form.channel} onChange={e=>setForm({...form, channel: e.target.value})} className="w-full p-2.5 border rounded-xl text-xs font-black bg-white uppercase">
-                  <optgroup label="Offline"><{SALES_CHANNELS.filter(c => c.group === 'OFFLINE').map(c => <option key={c.id} value={c.id}>{c.label}</option>)}></optgroup>
-                  <optgroup label="Marketplace">{SALES_CHANNELS.filter(c => c.group === 'MARKETPLACE').map(c => <option key={c.id} value={c.id}>{c.label}</option>)}</optgroup>
-                  <optgroup label="Merchant">{SALES_CHANNELS.filter(c => c.group === 'MERCHANT').map(c => <option key={c.id} value={c.id}>{c.label}</option>)}</optgroup>
+                  <optgroup label="Offline">
+                    {SALES_CHANNELS.filter(c => c.group === 'OFFLINE').map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                  </optgroup>
+                  <optgroup label="Marketplace">
+                    {SALES_CHANNELS.filter(c => c.group === 'MARKETPLACE').map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                  </optgroup>
+                  <optgroup label="Merchant">
+                    {SALES_CHANNELS.filter(c => c.group === 'MERCHANT').map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                  </optgroup>
                 </select>
               </div>
               <div>
