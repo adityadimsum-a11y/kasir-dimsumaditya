@@ -308,12 +308,12 @@ export default function App() {
     );
   }
 
-  // =====================================
+// =====================================
   // UI 2: RENDER APLIKASI (DYNAMIC LAYOUT ENGINE)
   // =====================================
   return (
-    <>
-<LayoutEngine 
+    <div className="fixed inset-0 w-full h-screen overflow-hidden bg-slate-50">
+      <LayoutEngine
         user={user} 
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
