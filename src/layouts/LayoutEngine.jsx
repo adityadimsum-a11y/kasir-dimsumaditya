@@ -49,10 +49,10 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
 
     const financeItems = [];
     if (nodeCapability.can_treasury === true || nodeCapability.can_treasury === 'true') {
-        financeItems.push({ id: 'cash_war_room', label: 'Treasury Consolidation', icon: Wallet });
+        financeItems.push({ id: 'cash_war_room', label: 'Dompet Perusahaan', icon: Wallet });
     }
     if (nodeCapability.can_accounting === true || nodeCapability.can_accounting === 'true') {
-        financeItems.push({ id: 'accounting', label: 'General Ledger', icon: Database });
+        financeItems.push({ id: 'accounting', label: 'Laba Rugi & Aset', icon: Database });
     }
     if (nodeCapability.can_payroll === true || nodeCapability.can_payroll === 'true') {
         financeItems.push({ id: 'karyawan', label: 'Smart Payroll', icon: Users });
