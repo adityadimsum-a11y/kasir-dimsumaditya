@@ -35,14 +35,14 @@ const DotMatrixInvoice = ({ data }) => {
   }
 
   return (
-    // MASTER CONTAINER: Dikunci persis 20.5cm (lebar aman) dan 13.5cm (tinggi aman kertas setengah)
-    <div className="print-dot-matrix" style={{ width: '20.5cm', maxHeight: '13.5cm', boxSizing: 'border-box', color: '#000', fontFamily: 'monospace', margin: '0 auto', overflow: 'hidden' }}>
+    // MASTER CONTAINER: Lebar disunat jadi 19cm agar margin kanan tidak terpotong lubang kertas
+    <div className="print-dot-matrix" style={{ width: '19cm', maxHeight: '13.5cm', boxSizing: 'border-box', color: '#000', fontFamily: 'monospace', margin: '0', overflow: 'hidden' }}>
       
       {/* CSS KHUSUS MEMAKSA DRIVER EPSON & BROWSER NURUT */}
       <style>{`
         @media print {
           @page { size: 22.5cm 13.9cm; margin: 0; }
-          body { margin: 0; padding: 2mm 0 0 0; background: white; -webkit-print-color-adjust: exact; }
+          body { margin: 0; padding: 2mm 0 0 2mm; background: white; -webkit-print-color-adjust: exact; }
           .print-dot-matrix { page-break-after: avoid; page-break-inside: avoid; }
         }
       `}</style>
@@ -76,7 +76,7 @@ const DotMatrixInvoice = ({ data }) => {
           <tr><td width="55%">NO. TRX : {trueId}</td><td width="45%">TANGGAL : {data.date || '-'}</td></tr>
           <tr>
             <td style={{ fontSize: isWO ? '11pt' : '9pt', fontWeight: '900' }}>NAMA/PIC : {data.customer_name || 'UMUM'}</td>
-            <td>KASIR : {data.admin_name || 'ADMIN'}</td>
+            <td>KASIR : ADMIN</td>
           </tr>
         </tbody>
       </table>
@@ -114,8 +114,9 @@ const DotMatrixInvoice = ({ data }) => {
             <span>TOTAL TAGIHAN :</span><span>{rp(data.amount || data.total)}</span>
           </div>
           
-          <div style={{ textAlign: 'right', marginTop: '4px' }}>
-            <span style={{ fontSize: '12pt', fontWeight: '900', padding: '2px 8px', border: '2px solid black', display: 'inline-block' }}>
+          {/* KOTAK STATUS DIPERBAIKI (Padding Diperbesar) */}
+          <div style={{ textAlign: 'right', marginTop: '8px', marginBottom: '4px' }}>
+            <span style={{ fontSize: '12pt', fontWeight: '900', padding: '6px 12px', border: '2px solid black', display: 'inline-block', lineHeight: '1.2' }}>
               STATUS: {data.paymentMethod || 'CASH'}
             </span>
           </div>
@@ -133,17 +134,17 @@ const DotMatrixInvoice = ({ data }) => {
       {/* ============================== */}
       {isWO && (
         <div style={{ marginBottom: '6px' }}>
-          <div style={{ border: '2px solid black', padding: '4px', textAlign: 'center', marginBottom: '6px' }}>
+          <div style={{ border: '2px solid black', padding: '8px', textAlign: 'center', marginBottom: '6px' }}>
             <div style={{ fontSize: '11pt', fontWeight: '900' }}>JUMLAH WAJIB MASAK (QTY)</div>
             <div style={{ fontSize: '36pt', fontWeight: '900', margin: '0', lineHeight: '1' }}>{formatNum(woQty)} <span style={{ fontSize: '12pt' }}>PCS</span></div>
           </div>
           
           <div style={{ fontSize: '10pt', fontWeight: 'bold', marginBottom: '6px' }}>
-            CHANNEL/AGEN: <span style={{ border: '2px solid black', padding: '1px 6px', fontWeight: '900' }}>{woChannel}</span>
+            CHANNEL/AGEN: <span style={{ border: '2px solid black', padding: '3px 8px', fontWeight: '900' }}>{woChannel}</span>
           </div>
 
-          <div style={{ border: '2px dashed black', padding: '6px', marginBottom: '6px' }}>
-            <div style={{ fontSize: '11pt', fontWeight: '900', marginBottom: '2px' }}>SPESIFIKASI REQUEST VARIETAS:</div>
+          <div style={{ border: '2px dashed black', padding: '8px', marginBottom: '6px' }}>
+            <div style={{ fontSize: '11pt', fontWeight: '900', marginBottom: '4px' }}>SPESIFIKASI REQUEST VARIETAS:</div>
             <div style={{ fontSize: '20pt', fontWeight: '900', textTransform: 'uppercase', lineHeight: '1.1' }}>{woRequest}</div>
           </div>
 
@@ -159,16 +160,16 @@ const DotMatrixInvoice = ({ data }) => {
       {isProd && (
          <div style={{ marginBottom: '6px' }}>
             <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-               <div style={{ flex: 1, border: '2px solid black', padding: '6px', textAlign: 'center' }}>
+               <div style={{ flex: 1, border: '2px solid black', padding: '8px', textAlign: 'center' }}>
                   <div style={{ fontSize: '10pt', fontWeight: '900' }}>TOTAL ADUKAN</div>
                   <div style={{ fontSize: '28pt', fontWeight: '900', lineHeight: '1' }}>{pAdukan}</div>
                </div>
-               <div style={{ flex: 1, border: '2px solid black', padding: '6px', textAlign: 'center' }}>
+               <div style={{ flex: 1, border: '2px solid black', padding: '8px', textAlign: 'center' }}>
                   <div style={{ fontSize: '10pt', fontWeight: '900' }}>AYAM TERPAKAI</div>
                   <div style={{ fontSize: '28pt', fontWeight: '900', lineHeight: '1' }}>{pAyam} KG</div>
                </div>
             </div>
-            <div style={{ border: '2px solid black', padding: '6px', textAlign: 'center', marginBottom: '8px' }}>
+            <div style={{ border: '2px solid black', padding: '8px', textAlign: 'center', marginBottom: '8px' }}>
                <div style={{ fontSize: '12pt', fontWeight: '900' }}>YIELD (MASUK FREEZER)</div>
                <div style={{ fontSize: '36pt', fontWeight: '900', margin: '0', lineHeight: '1' }}>{formatNum(pYield)} PCS</div>
             </div>
@@ -179,7 +180,7 @@ const DotMatrixInvoice = ({ data }) => {
       )}
 
       {/* ============================== */}
-      {/* TANDA TANGAN (Kecil agar muat 1 lembar) */}
+      {/* TANDA TANGAN */}
       {/* ============================== */}
       <div style={{ borderTop: '2px dashed black', marginTop: '8px', paddingTop: '6px' }}>
         <table style={{ width: '100%', textAlign: 'center', fontSize: '9pt', fontWeight: 'bold' }}>
@@ -188,19 +189,15 @@ const DotMatrixInvoice = ({ data }) => {
               <td width="50%">{isWO ? 'TIM DAPUR PABRIK,' : isProd ? 'KEPALA PRODUKSI,' : 'PENERIMA / KLIEN,'}</td>
               <td width="50%">HORMAT KAMI,</td>
             </tr>
-            {/* Jarak tanda tangan dipres dari 40 jadi 25 agar tidak tumpah ke lembar 2 */}
             <tr><td height="25"></td><td></td></tr>
             <tr>
               <td style={{ textDecoration: 'underline', fontWeight: '900' }}>
                 {isWO || isProd ? '_______________________' : (data.customer_name || '.......................')}
               </td>
-              <td style={{ textDecoration: 'underline', fontWeight: '900' }}>{data.admin_name || 'ADMIN'}</td>
+              <td style={{ textDecoration: 'underline', fontWeight: '900' }}>ADMIN</td>
             </tr>
           </tbody>
         </table>
-      </div>
-      <div style={{ textAlign: 'center', marginTop: '4px', fontSize: '8pt', fontStyle: 'italic', fontWeight: 'bold' }}>
-        -- Dokumen Otomatis Sistem ERP Dimsum Aditya --
       </div>
     </div>
   );
