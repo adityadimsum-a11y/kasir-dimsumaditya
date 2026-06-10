@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ShoppingCart, Package, AlertCircle, Edit2, Printer, Trash2, CalendarDays, Lock, FileText, Undo, Wallet, BarChart3, CheckCircle2 } from 'lucide-react';
+import { ShoppingCart, Package, AlertCircle, Edit2, Printer, Trash2, CalendarDays, Lock, FileText, Undo, Wallet, BarChart3, CheckCircle2, X } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
 
@@ -27,7 +27,6 @@ export default function TabOrders({ orders = [], orders_data, productionBatches 
   const [showKarantinaModal, setShowKarantinaModal] = useState(false);
   const [showClosingModal, setShowClosingModal] = useState(false);
   
-  // DEFAULT TULISAN SUDAH DIGANTI JADI "Dimsum Mix"
   const [form, setForm] = useState({
     id: '', date: todayStr, customerName: '', channel: 'ECERAN', customPrice: 2000, qty: '',
     deliveryMethod: 'DIRECT', shippingFee: 0, paymentMethod: 'CASH', amountPaid: '', notes: '',
@@ -122,7 +121,7 @@ export default function TabOrders({ orders = [], orders_data, productionBatches 
               <div className="text-[10px] font-black text-amber-600 uppercase tracking-widest">PO Karantina</div>
               <div className="text-3xl font-black text-amber-700 mt-1">{formatNumber(stockMetrics.karantinaPcs)} <span className="text-sm">PCS</span></div>
             </div>
-            <span className="bg-amber-200 text-amber-800 text-[9px] px-2 py-1 rounded-md font-black uppercase">Detail</span>
+            <span className="bg-amber-200 text-amber-800 text-[9px] px-2 py-1 rounded-md font-black uppercase shadow-sm">Detail</span>
           </div>
         </div>
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
@@ -145,7 +144,7 @@ export default function TabOrders({ orders = [], orders_data, productionBatches 
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* KIRI: KASIR ENTRY (DESAIN KELAS ATAS) */}
+        {/* KIRI: KASIR ENTRY */}
         <div className={`p-6 rounded-3xl border shadow-sm transition-all h-max ${isEditing ? 'bg-amber-50/30 border-amber-300' : 'bg-white border-slate-200'}`}>
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="flex justify-between items-center pb-4 mb-2 border-b border-slate-100">
@@ -286,10 +285,40 @@ export default function TabOrders({ orders = [], orders_data, productionBatches 
         </div>
       </div>
 
-      {/* MODAL CLOSING TETAP SAMA SEPERTI SEBELUMNYA */}
+      {/* 🔥 MODAL DETAILED LIST ANTREAN KARANTINA PO (YANG TADI HILANG) */}
+      {showKarantinaModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+            <div className="p-5 bg-amber-500 text-white flex justify-between items-center shrink-0">
+              <h3 className="font-black flex items-center gap-2 uppercase tracking-widest text-xs"><Lock size={16}/> Manifest Antrean PO Karantina</h3>
+              <button onClick={() => setShowKarantinaModal(false)} className="hover:bg-amber-600 p-1.5 rounded-lg transition-colors"><X size={20}/></button>
+            </div>
+            <div className="overflow-y-auto flex-1 p-2 custom-scrollbar">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-white text-[10px] uppercase text-slate-500 border-b sticky top-0 shadow-sm z-10">
+                  <tr><th className="px-4 py-3 font-black">Tanggal & INV</th><th className="px-4 py-3 font-black">Nama Pembeli</th><th className="px-4 py-3 font-black">Request</th><th className="px-4 py-3 font-black text-center">Volume Booking</th><th className="px-4 py-3 font-black text-center">Aksi</th></tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50 text-xs font-bold">
+                  {stockMetrics.listKarantina.length === 0 && (<tr><td colSpan="5" className="text-center py-10 text-slate-400 font-bold">Antrean bersih. Tidak ada defisit booking.</td></tr>)}
+                  {stockMetrics.listKarantina.map(k => (
+                    <tr key={k.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-4 py-4"><div className="text-slate-800">{formatDate(k.date)}</div><div className="text-[9px] font-mono text-slate-400 mt-0.5">{k.id}</div></td>
+                      <td className="px-4 py-4 uppercase text-slate-800">{k.customer_name}</td>
+                      <td className="px-4 py-4 text-rose-600 font-black uppercase text-[10px]">{k.custom_request || 'Dimsum Mix'}</td>
+                      <td className="px-4 py-4 text-center"><span className="bg-amber-100 text-amber-800 px-3 py-1.5 rounded-lg font-black">{formatNumber(k.qty)} PCS</span></td>
+                      <td className="px-4 py-4 text-center"><button type="button" onClick={() => handlePrintTiketProduksi(k)} className="p-2 bg-slate-800 text-white rounded-lg text-[10px] uppercase font-black hover:bg-slate-900 inline-flex items-center gap-1.5 transition-colors shadow-sm"><Printer size={12}/> Re-Cetak Tiket</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 4 AMPLOP VIRTUAL CLOSING (2 MINGGUAN) */}
       {showClosingModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
-          {/* ... Isi modal closing ... */}
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-150">
              <div className="p-5 bg-slate-900 text-white flex justify-between items-center">
               <h3 className="font-black flex items-center gap-2 uppercase tracking-widest text-xs"><Wallet size={16} className="text-blue-400"/> Buku Anggaran 4 Amplop Virtual</h3>
