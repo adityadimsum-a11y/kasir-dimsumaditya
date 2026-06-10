@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { 
   ShoppingCart, Package, Truck, AlertCircle, Edit2, 
-  Printer, Trash2, CalendarDays, Lock, Eye, CheckCircle2, ChevronDown, X 
+  Printer, Trash2, CalendarDays, Lock, Eye, CheckCircle2, X, FileText 
 } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
@@ -9,7 +9,6 @@ import { triggerPrint } from '../../utils/PrintUtility';
 const formatRupiah = (angka) => "Rp. " + Number(angka || 0).toLocaleString('id-ID');
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
-// --- DATABASE KATEGORI & HARGA ---
 const SALES_CHANNELS = [
   { id: 'ECERAN', label: 'Eceran Standard', group: 'OFFLINE', price: 3000, isManual: false },
   { id: 'MITRA', label: 'Mitra Agen', group: 'OFFLINE', price: 2500, isManual: false },
@@ -25,12 +24,11 @@ const SALES_CHANNELS = [
 
 export default function TabOrders({ 
   orders = [], productionBatches = [], purchases = [], masterBranches = [],
-  sendToSheet, showToast, user 
+  sendToSheet, showToast, user, requestDelete 
 }) {
   const todayStr = getTodayStr();
   const currentBranch = user?.branch_id || 'TANGERANG_PUSAT';
 
-  // --- STATE MANAJEMEN ---
   const [isEditing, setIsEditing] = useState(false);
   const [showKarantinaModal, setShowKarantinaModal] = useState(false);
   
@@ -38,12 +36,13 @@ export default function TabOrders({
     id: '', date: todayStr, customerName: '', 
     channel: 'ECERAN', customPrice: 3000, qty: '',
     deliveryMethod: 'DIRECT', shippingFee: 0,
-    paymentMethod: 'CASH', amountPaid: '', notes: ''
+    paymentMethod: 'CASH', amountPaid: '', notes: '',
+    customRequest: 'STANDAR MIX (SIOMAY, HAKAU, DLL)' // State request kustom produksi
   });
 
   const selectedChannelInfo = useMemo(() => SALES_CHANNELS.find(c => c.id === form.channel) || SALES_CHANNELS[0], [form.channel]);
 
-  // --- ALGORITMA KALKULASI STOK & KARANTINA ---
+  // --- ALGORITMA MONITORING STOK SILANG ---
   const stockMetrics = useMemo(() => {
     let totalMasukFreezer = 0;
     let totalKeluarFreezer = 0;
@@ -52,19 +51,15 @@ export default function TabOrders({
     let karantinaPcs = 0;
     let listKarantina = [];
 
-    // 1. Hitung Ayam Masuk (Dari Tab Logistik/Pembelian)
     (purchases || []).filter(p => !p.isDeleted && p.category === 'BAHAN_BAKU').forEach(p => {
-       // Asumsi ada logic konversi, kita dummy akumulasi nominal jika qty kg tidak ada
        totalAyamMasukKg += Number(p.qty_kg || 0); 
     });
 
-    // 2. Hitung Hasil Produksi & Ayam Keluar
     (productionBatches || []).filter(p => !p.isDeleted).forEach(p => {
       totalMasukFreezer += Number(p.total_yield_pcs || 0);
       totalAyamKeluarKg += Number(p.total_ayam_kg || 0);
     });
 
-    // 3. Hitung Penjualan & PO Karantina
     (orders || []).filter(o => !o.isDeleted).forEach(o => {
       const qty = Number(o.qty || 0);
       if (o.delivery_method === 'PRE_ORDER' && o.status !== 'SELESAI') {
@@ -76,19 +71,15 @@ export default function TabOrders({
     });
 
     const saldoFisikFreezer = totalMasukFreezer - totalKeluarFreezer;
-    const saldoAyamKg = Math.max(0, totalAyamMasukKg - totalAyamKeluarKg); // Mencegah minus jika data purchase belum lengkap
+    const saldoAyamKg = Math.max(0, totalAyamMasukKg - totalAyamKeluarKg);
     const sisaAvailable = saldoFisikFreezer - karantinaPcs;
 
     return { 
-      saldoFisikFreezer, 
-      karantinaPcs, 
-      sisaAvailable, 
-      saldoAyamKg,
+      saldoFisikFreezer, karantinaPcs, sisaAvailable, saldoAyamKg,
       listKarantina: listKarantina.sort((a,b) => new Date(a.date) - new Date(b.date))
     };
   }, [orders, productionBatches, purchases]);
 
-  // --- ALGORITMA HARGA & TAGIHAN ---
   const perhitungan = useMemo(() => {
     const qty = Number(form.qty || 0);
     const hargaSatuan = selectedChannelInfo.isManual ? Number(form.customPrice || 0) : selectedChannelInfo.price;
@@ -101,25 +92,44 @@ export default function TabOrders({
     return { hargaSatuan, subtotal, ongkir, totalTagihan, dibayar, sisaPiutang };
   }, [form, selectedChannelInfo]);
 
-  // --- HANDLE SUBMIT & SMART WARNING GUARDRAILS ---
+  // --- HANDLER CETAK TIKET PRODUKSI 3-PLY (ARSIPIASI & VALIDASI) ---
+  const handlePrintTiketProduksi = (log) => {
+    triggerPrint('NOTA_DOTMATRIX', {
+      title: 'TIKET KERJA PRODUKSI PABRIK (3-PLY)',
+      id: 'TCK-' + log.id.substring(4),
+      date: formatDate(log.date),
+      branch_name: log.branch_id || currentBranch,
+      admin_name: user?.name || 'ADMIN POS',
+      customer_name: log.customer_name?.toUpperCase(),
+      items: [
+        { 
+          name: `PESANAN: ${log.sales_channel}\n[REQUEST KHUSUS]: ${log.custom_request || 'STANDAR MIX'}`, 
+          qty: log.qty, 
+          subtotal: log.qty 
+        }
+      ],
+      amount: log.qty,
+      paymentMethod: log.delivery_method === 'PRE_ORDER' ? 'PRE-ORDER (KARANTINA)' : 'AMBIL LANGSUNG',
+      footerCustom: `KETERANGAN POS: ${log.notes || '-'}\n----------------------------------------\nPLY 1: TIM DAPUR PABRIK (ARSIP WORK ORDER)\nPLY 2: VALIDASI BOS ADITYA (JIKA SELESAI)\nPLY 3: ADMIN BUKU KASIR POS (KONTROL ADD-ON)`
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (Number(form.qty) <= 0) return alert("Jumlah beli harus lebih dari 0!");
-    if (form.paymentMethod === 'DP' && Number(form.amountPaid) <= 0) return alert("Masukkan nominal DP yang dibayarkan!");
+    if (form.paymentMethod === 'DP' && Number(form.amountPaid) <= 0) return alert("Masukkan nominal DP!");
 
-    // ALGORITMA GUARDRAIL KARANTINA (Req 7)
     if (form.deliveryMethod === 'DIRECT') {
       if (Number(form.qty) > stockMetrics.saldoFisikFreezer) {
-        return alert(`❌ GAGAL! Stok fisik di freezer tidak cukup! (Sisa: ${stockMetrics.saldoFisikFreezer} Pcs)`);
+        return alert(`❌ GAGAL! Stok fisik freezer tidak cukup! (Sisa: ${stockMetrics.saldoFisikFreezer} Pcs)`);
       }
-      
       if (Number(form.qty) > stockMetrics.sisaAvailable) {
         const pinjam = Number(form.qty) - stockMetrics.sisaAvailable;
         const confirmPinjam = window.confirm(
-          `⚠️ PERINGATAN STOK KARANTINA!\n\nStok Bebas hanya sisa ${stockMetrics.sisaAvailable} Pcs.\nTransaksi ini akan MEMINJAM ${pinjam} Pcs dari stok milik Karantina PO orang lain!\n\nLanjutkan & catat sebagai "Pinjam Karantina"?`
+          `⚠️ WARNING MEMINJAM STOK KARANTINA!\n\nStok Bebas hanya sisa ${stockMetrics.sisaAvailable} Pcs.\nOrder ini akan meminjam jatah ${pinjam} Pcs milik PO antrean orang lain!\n\nTetap eksekusi & catat log peminjaman?`
         );
         if (!confirmPinjam) return;
-        form.notes = `[PINJAM KARANTINA ${pinjam} PCS] ` + form.notes;
+        form.notes = `[PINJAM STOK KARANTINA ${pinjam} PCS] ` + form.notes;
       }
     }
 
@@ -132,6 +142,7 @@ export default function TabOrders({
       subtotal: perhitungan.subtotal, total_amount: perhitungan.totalTagihan,
       payment_method: form.paymentMethod, amount_paid: perhitungan.dibayar,
       status: form.deliveryMethod === 'PRE_ORDER' ? 'BELUM_DIKIRIM' : 'SELESAI',
+      custom_request: form.customRequest.toUpperCase(), // Menyimpan request kustom ke database cloud
       notes: form.notes.toUpperCase()
     };
 
@@ -140,9 +151,16 @@ export default function TabOrders({
 
     if (success) {
       showToast(isEditing ? 'Invoice berhasil direvisi!' : 'Invoice Penjualan Berhasil Dibuat!', 'success');
+      
+      // Auto-Trigger cetak tiket kerja produksi jika tipenya Pre-Order/Booking
+      if (form.deliveryMethod === 'PRE_ORDER') {
+         handlePrintTiketProduksi(payload);
+      }
+
       setForm({
         id: '', date: todayStr, customerName: '', channel: 'ECERAN', customPrice: 3000, qty: '',
-        deliveryMethod: 'DIRECT', shippingFee: 0, paymentMethod: 'CASH', amountPaid: '', notes: ''
+        deliveryMethod: 'DIRECT', shippingFee: 0, paymentMethod: 'CASH', amountPaid: '', notes: '',
+        customRequest: 'STANDAR MIX (SIOMAY, HAKAU, CELL, DLL)'
       });
       setIsEditing(false);
     }
@@ -154,6 +172,7 @@ export default function TabOrders({
       channel: log.sales_channel || 'ECERAN', customPrice: log.unit_price, qty: log.qty,
       deliveryMethod: log.delivery_method || 'DIRECT', shippingFee: log.shipping_fee || 0,
       paymentMethod: log.payment_method || 'CASH', amountPaid: log.amount_paid || log.total_amount, 
+      customRequest: log.custom_request || 'STANDAR MIX (SIOMAY, HAKAU, DLL)',
       notes: log.notes || ''
     });
     setIsEditing(true);
@@ -165,75 +184,61 @@ export default function TabOrders({
       
       {/* 📊 TOP METRICS CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        
-        {/* 1. STOK BEBAS */}
-        <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800 shadow-xl relative overflow-hidden text-white">
-          <Package className="absolute -right-4 -bottom-4 text-emerald-500 opacity-20" size={100} />
-          <div className="relative z-10">
-            <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest flex items-center gap-1.5"><CheckCircle2 size={12}/> Stok Bebas (Available)</div>
-            <div className={`text-3xl font-black mt-1 ${stockMetrics.sisaAvailable < 0 ? 'text-rose-500' : 'text-white'}`}>
-              {formatNumber(stockMetrics.sisaAvailable)} <span className="text-xs text-slate-400 font-bold">PCS</span>
-            </div>
-            <div className="text-[9px] text-slate-500 mt-2 font-bold">Aman dijual langsung ke Walk-In Customer</div>
-          </div>
+        <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800 shadow-xl text-white">
+          <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Stok Bebas (Available)</div>
+          <div className={`text-3xl font-black mt-1 ${stockMetrics.sisaAvailable < 0 ? 'text-rose-500' : 'text-white'}`}>{formatNumber(stockMetrics.sisaAvailable)} <span className="text-xs text-slate-400">PCS</span></div>
+          <div className="text-[9px] text-slate-500 mt-2 font-bold">Bisa dijual langsung tanpa nabrak jatah PO</div>
         </div>
 
-        {/* 2. KARANTINA (PO) */}
-        <div className="bg-amber-50 p-5 rounded-2xl border border-amber-200 shadow-sm relative overflow-hidden cursor-pointer hover:bg-amber-100 transition-colors" onClick={() => setShowKarantinaModal(true)}>
-          <Lock className="absolute -right-4 -bottom-4 text-amber-500 opacity-10" size={100} />
-          <div className="relative z-10 flex justify-between items-start">
+        <div className="bg-amber-50 p-5 rounded-2xl border border-amber-200 shadow-sm cursor-pointer hover:bg-amber-100 transition-colors" onClick={() => setShowKarantinaModal(true)}>
+          <div className="flex justify-between items-start">
             <div>
-              <div className="text-[10px] font-black text-amber-600 uppercase tracking-widest flex items-center gap-1.5"><Lock size={12}/> Di-Booking (Karantina)</div>
-              <div className="text-3xl font-black text-amber-700 mt-1">{formatNumber(stockMetrics.karantinaPcs)} <span className="text-xs opacity-70">PCS</span></div>
+              <div className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Di-Booking (Karantina)</div>
+              <div className="text-3xl font-black text-amber-700 mt-1">{formatNumber(stockMetrics.karantinaPcs)} <span className="text-xs">PCS</span></div>
             </div>
-            <button className="bg-amber-200 text-amber-800 text-[9px] px-2 py-1 rounded font-black uppercase flex items-center gap-1"><Eye size={10}/> Detail</button>
+            <span className="bg-amber-200 text-amber-800 text-[9px] px-2 py-0.5 rounded font-black uppercase flex items-center gap-1"><Eye size={10}/> Detail PO</span>
           </div>
-          <div className="text-[9px] text-amber-600/80 mt-2 font-bold relative z-10">Stok milik PO & Agen. Jangan diotak-atik!</div>
+          <div className="text-[9px] text-amber-600/80 mt-2 font-bold">Klik untuk lihat list tiket antrean antaran produksi</div>
         </div>
 
-        {/* 3. TOTAL FISIK FREEZER (KONVERSI) */}
-        <div className="bg-white p-5 rounded-2xl border shadow-sm border-l-4 border-l-blue-500 relative overflow-hidden">
+        <div className="bg-white p-5 rounded-2xl border shadow-sm border-l-4 border-l-blue-500">
           <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Fisik Freezer</div>
           <div className="text-2xl font-black text-blue-600 mt-1">{formatNumber(stockMetrics.saldoFisikFreezer)} <span className="text-xs">PCS</span></div>
-          <div className="flex gap-3 mt-2 pt-2 border-t border-slate-100">
-            <div className="text-[10px] font-bold text-slate-500"><span className="text-slate-800 font-black">{formatNumber(stockMetrics.saldoFisikFreezer / 50)}</span> Mika</div>
-            <div className="text-[10px] font-bold text-slate-500"><span className="text-slate-800 font-black">{formatNumber(stockMetrics.saldoFisikFreezer / 4)}</span> Porsi</div>
+          <div className="flex gap-3 mt-2 pt-2 border-t border-slate-100 text-[10px] font-bold text-slate-500">
+            <div><span className="text-slate-800 font-black">{formatNumber(stockMetrics.saldoFisikFreezer / 50)}</span> Mika</div>
+            <div><span className="text-slate-800 font-black">{formatNumber(stockMetrics.saldoFisikFreezer / 4)}</span> Porsi</div>
           </div>
         </div>
 
-        {/* 4. BAHAN BAKU AYAM (GUDANG) */}
-        <div className="bg-rose-50 p-5 rounded-2xl border shadow-sm border-l-4 border-l-rose-500 relative overflow-hidden">
-          <div className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Stok Ayam Mentah</div>
+        <div className="bg-rose-50 p-5 rounded-2xl border shadow-sm border-l-4 border-l-rose-500">
+          <div className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Stok Ayam Mentah Gudang</div>
           <div className="text-2xl font-black text-rose-700 mt-1">{formatNumber(stockMetrics.saldoAyamKg)} <span className="text-xs">KG</span></div>
-          <div className="flex justify-between items-end mt-2 pt-2 border-t border-rose-100">
-            <div className="text-[10px] font-bold text-rose-600/80">Estimasi Yield: <span className="font-black text-rose-700">~{formatNumber(stockMetrics.saldoAyamKg * 33.3)} Pcs</span></div>
-          </div>
+          <div className="text-[9px] font-bold text-rose-600 mt-2 pt-2 border-t border-rose-100">Batas Maks Produksi: <span className="font-black">~{formatNumber(stockMetrics.saldoAyamKg * 33.3)} Pcs</span></div>
         </div>
       </div>
 
-      {/* 📝 FORM POS & ARSIP */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* KIRI: FORM INPUT */}
+        {/* FORM OPERASIONAL POS */}
         <div className={`p-6 rounded-2xl border border-t-4 transition-all h-max shadow-sm ${isEditing ? 'bg-amber-50/50 border-t-amber-500 border-amber-200' : 'bg-white border-t-emerald-600'}`}>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <h3 className="font-black text-sm uppercase text-slate-800 flex items-center gap-2"><ShoppingCart size={16} className={isEditing ? 'text-amber-600' : 'text-emerald-600'}/> {isEditing ? 'Revisi Invoice' : 'POS & Order Management'}</h3>
+              <h3 className="font-black text-sm uppercase text-slate-800 flex items-center gap-2"><ShoppingCart size={16} className="text-emerald-600"/> Order Management &amp; Billing</h3>
             </div>
 
             <div>
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Nama Pelanggan / ID Cust</label>
-              <input type="text" required value={form.customerName} onChange={e=>setForm({...form, customerName: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs font-bold outline-none bg-white uppercase" placeholder="Contoh: DEDE / ORDER-001" />
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Nama Pelanggan / Agen</label>
+              <input type="text" required value={form.customerName} onChange={e=>setForm({...form, customerName: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs font-bold outline-none uppercase bg-white" placeholder="Contoh: AGEN DEDE TANGERANG" />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Kategori / Channel</label>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Channel Distribusi</label>
                 <select value={form.channel} onChange={e=>setForm({...form, channel: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs font-black outline-none bg-white uppercase cursor-pointer">
-                  <optgroup label="Offline & Reseller">
+                  <optgroup label="Offline Node">
                     {SALES_CHANNELS.filter(c => c.group === 'OFFLINE').map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
                   </optgroup>
-                  <optgroup label="Marketplace">
+                  <optgroup label="Marketplace Engine">
                     {SALES_CHANNELS.filter(c => c.group === 'MARKETPLACE').map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
                   </optgroup>
                   <optgroup label="Merchant Delivery">
@@ -242,82 +247,87 @@ export default function TabOrders({
                 </select>
               </div>
               <div>
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Jumlah Beli (Pcs)</label>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Volume Beli (Pcs)</label>
                 <input type="number" min="1" required value={form.qty} onChange={e=>setForm({...form, qty: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm font-black text-emerald-700 outline-none bg-white text-center" placeholder="1000" />
-                {form.qty > 0 && <div className="text-[9px] text-right font-bold text-slate-400 mt-1">Setara: {formatNumber(form.qty / 50)} Mika</div>}
               </div>
+            </div>
+
+            {/* FIELD UTAMA REQUEST KHUSUS PRODUKSI (Req Varian) */}
+            <div>
+              <label className="text-[10px] font-black text-rose-600 uppercase tracking-widest block mb-1">⚠️ Request Khusus Produksi (Dicetak di Tiket 3-Ply)</label>
+              <input type="text" required value={form.customRequest} onChange={e=>setForm({...form, customRequest: e.target.value})} className="w-full p-2.5 border-2 border-rose-200 focus:border-rose-400 rounded-xl text-xs font-black uppercase outline-none bg-rose-50/30 text-rose-800" placeholder="CONTOH: HANYA SIOMAY / TANPA UDANG / ISIAN JANGAN DI-MIX" />
             </div>
 
             {selectedChannelInfo.isManual && (
               <div className="bg-amber-50 p-3 rounded-xl border border-amber-200">
-                <label className="text-[10px] font-black text-amber-700 uppercase tracking-widest block mb-1">Harga Satuan Manual (Rp)</label>
-                <input type="number" required value={form.customPrice} onChange={e=>setForm({...form, customPrice: e.target.value})} className="w-full p-2 border-2 border-amber-300 rounded-lg text-sm font-black outline-none" />
+                <label className="text-[10px] font-black text-amber-700 uppercase tracking-widest block mb-1">Input Harga Manual (Rp/Pcs)</label>
+                <input type="number" required value={form.customPrice} onChange={e=>setForm({...form, customPrice: e.target.value})} className="w-full p-2 border border-amber-300 rounded-lg text-sm font-black outline-none" />
               </div>
             )}
 
-            <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Metode Serah Terima Barang</label>
+            <div className="bg-slate-50 p-3 rounded-xl border">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Metode Serah Terima</label>
               <div className="flex gap-2">
                 <button type="button" onClick={() => setForm({...form, deliveryMethod: 'DIRECT'})} className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${form.deliveryMethod === 'DIRECT' ? 'bg-emerald-100 text-emerald-700 border border-emerald-300 shadow-sm' : 'bg-white border text-slate-400'}`}>Direct (Ambil Fisik)</button>
-                <button type="button" onClick={() => setForm({...form, deliveryMethod: 'PRE_ORDER'})} className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${form.deliveryMethod === 'PRE_ORDER' ? 'bg-amber-100 text-amber-700 border border-amber-300 shadow-sm' : 'bg-white border text-slate-400'}`}>Pre-Order / Kirim Nanti</button>
+                <button type="button" onClick={() => setForm({...form, deliveryMethod: 'PRE_ORDER'})} className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${form.deliveryMethod === 'PRE_ORDER' ? 'bg-amber-100 text-amber-700 border border-amber-300 shadow-sm' : 'bg-white border text-slate-400'}`}>Pre-Order (Booking Karantina)</button>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3 items-end">
               <div>
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Biaya Ongkir (Rp)</label>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Ongkos Kirim (Rp)</label>
                 <input type="number" min="0" value={form.shippingFee} onChange={e=>setForm({...form, shippingFee: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-sm font-black outline-none text-right" />
               </div>
-              <div className="pb-1">
-                {form.qty >= 1000 && <div className="text-[9px] font-black text-emerald-600 bg-emerald-100 px-2 py-1 rounded text-center">🎟️ Memenuhi Syarat Gratis Ongkir</div>}
+              <div className="pb-1.5 text-center">
+                {form.qty >= 1000 && <span className="text-[9px] font-black text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-1 rounded block">Bebas Ongkir Terbuka</span>}
               </div>
             </div>
 
-            <div className="bg-slate-900 text-white p-4 rounded-xl shadow-inner mt-4">
+            <div className="bg-slate-900 text-white p-4 rounded-xl">
               <div className="flex justify-between items-center mb-1 text-slate-400 text-xs font-bold"><span>Subtotal Barang:</span><span>{formatRupiah(perhitungan.subtotal)}</span></div>
-              <div className="flex justify-between items-center mb-3 text-slate-400 text-xs font-bold border-b border-slate-700 pb-3"><span>Biaya Ongkir:</span><span>{formatRupiah(perhitungan.ongkir)}</span></div>
+              <div className="flex justify-between items-center mb-2 text-slate-400 text-xs font-bold border-b border-slate-700 pb-2"><span>Ongkos Logistik:</span><span>{formatRupiah(perhitungan.ongkir)}</span></div>
               <div className="flex justify-between items-end">
-                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Total Tagihan</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Total Tagihan Bill</span>
                 <span className="text-2xl font-black">{formatRupiah(perhitungan.totalTagihan)}</span>
               </div>
             </div>
 
-            <div className={`p-4 rounded-xl border-2 ${form.paymentMethod === 'DP' ? 'bg-amber-50 border-amber-200' : 'bg-white border-slate-200'}`}>
-              <div className="flex justify-between items-center mb-3">
-                <label className="text-[10px] font-black text-slate-700 uppercase tracking-widest flex items-center gap-1.5">💳 Pembayaran</label>
+            <div className="p-4 rounded-xl border bg-white border-slate-200">
+              <div className="flex justify-between items-center mb-2">
+                <label className="text-[10px] font-black text-slate-700 uppercase tracking-widest">Metode Pembayaran</label>
                 <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
                   {['CASH', 'TF', 'DP'].map(m => (
-                    <button key={m} type="button" onClick={() => setForm({...form, paymentMethod: m})} className={`px-3 py-1 rounded text-[10px] font-black transition-all ${form.paymentMethod === m ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500 hover:bg-slate-200'}`}>{m}</button>
+                    <button key={m} type="button" onClick={() => setForm({...form, paymentMethod: m})} className={`px-2.5 py-1 rounded text-[10px] font-black transition-all ${form.paymentMethod === m ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}>{m}</button>
                   ))}
                 </div>
               </div>
               
               {form.paymentMethod === 'DP' && (
-                <div className="mt-3 pt-3 border-t border-amber-200/50">
-                  <label className="text-[10px] font-black text-amber-700 uppercase tracking-widest block mb-1">Nominal DP Dibayar (Rp)</label>
-                  <input type="number" required min="1" value={form.amountPaid} onChange={e=>setForm({...form, amountPaid: e.target.value})} className="w-full p-2.5 border-2 border-amber-300 bg-white rounded-xl text-lg font-black text-amber-700 outline-none text-right" placeholder="Rp 0" />
-                  <div className="text-right text-[10px] font-black text-rose-500 mt-1 uppercase tracking-widest">Sisa Piutang: {formatRupiah(perhitungan.totalTagihan - Number(form.amountPaid))}</div>
+                <div className="mt-3 pt-3 border-t border-dashed">
+                  <label className="text-[10px] font-black text-amber-700 uppercase tracking-widest block mb-1">Nominal Setoran DP (Rp)</label>
+                  <input type="number" required min="1" value={form.amountPaid} onChange={e=>setForm({...form, amountPaid: e.target.value})} className="w-full p-2 border border-amber-300 rounded-lg text-right font-black text-amber-700 bg-amber-50/50" />
+                  <div className="text-right text-[9px] font-black text-rose-500 mt-1 uppercase tracking-widest">Sisa Piutang: {formatRupiah(perhitungan.totalTagihan - Number(form.amountPaid))}</div>
                 </div>
               )}
             </div>
 
-            <div><input type="text" value={form.notes} onChange={e=>setForm({...form, notes: e.target.value})} placeholder="Catatan Tambahan (Opsional)..." className="w-full p-2.5 border rounded-xl text-xs outline-none bg-slate-50" /></div>
+            <div><input type="text" value={form.notes} onChange={e=>setForm({...form, notes: e.target.value})} placeholder="Catatan Ekspedisi (Opsional)..." className="w-full p-2.5 border rounded-xl text-xs outline-none bg-slate-50 uppercase" /></div>
             
-            <button type="submit" className={`w-full text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest shadow-lg transition-transform hover:scale-[1.02] flex items-center justify-center gap-2 ${isEditing ? 'bg-amber-500 shadow-amber-500/30' : 'bg-emerald-600 shadow-emerald-600/30'}`}>
-              <Printer size={16}/> {isEditing ? 'Simpan Revisi' : 'Simpan & Cetak Invoice'}
+            <button type="submit" className="w-full text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest shadow-lg bg-emerald-600 hover:bg-emerald-700 flex items-center justify-center gap-2">
+              <Printer size={16}/> Simpan &amp; Rilis Nota Kasir
             </button>
           </form>
         </div>
         
-        {/* KANAN: ARSIP PENJUALAN */}
+        {/* ARSIP TRANSAKSI */}
         <div className="lg:col-span-2 bg-white rounded-2xl border flex flex-col overflow-hidden shadow-sm">
           <div className="p-4 bg-slate-50 border-b flex items-center justify-between">
-            <h4 className="font-black text-xs uppercase text-slate-700 tracking-widest flex items-center gap-2"><CalendarDays size={14} className="text-blue-600"/> Arsip Invoice & Fulfillment</h4>
+            <h4 className="font-black text-xs uppercase text-slate-700 tracking-widest flex items-center gap-2"><ShoppingCart size={14} className="text-blue-600"/> Log Jurnal Penjualan</h4>
           </div>
           <div className="overflow-x-auto flex-1 custom-scrollbar">
             <table className="w-full text-sm text-left">
               <thead className="bg-slate-50 text-[10px] uppercase text-slate-400 border-b border-slate-200">
-                <tr><th className="px-4 py-3 whitespace-nowrap">ID Invoice</th><th className="px-4 py-3 whitespace-nowrap">Pelanggan & Channel</th><th className="px-4 py-3 whitespace-nowrap">Status Pembayaran</th><th className="px-4 py-3 whitespace-nowrap">Status Pengiriman</th><th className="px-4 py-3 whitespace-nowrap text-center">Aksi</th></tr>
+                <tr><th className="px-4 py-3">Invoice &amp; Tanggal</th><th className="px-4 py-3">Klien &amp; Volume</th><th className="px-4 py-3">Spesifikasi Request</th><th className="px-4 py-3">Fulfillment</th><th className="px-4 py-3 text-center">Aksi / Dokumen Kerja</th></tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs font-bold">
                 {orders.filter(o => !o.isDeleted).sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 50).map(log => {
@@ -330,23 +340,27 @@ export default function TabOrders({
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <div className="uppercase text-slate-700 font-black">{log.customer_name}</div>
-                        <div className="text-[9px] font-black text-blue-500 mt-0.5 tracking-wider uppercase">{log.sales_channel} • {formatNumber(log.qty)} PCS</div>
+                        <div className="text-[9px] font-black text-indigo-500 mt-0.5 uppercase">{log.sales_channel} • {formatNumber(log.qty)} PCS</div>
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="font-black text-slate-700">{formatRupiah(log.total_amount)}</div>
-                        <div className={`text-[9px] font-black mt-0.5 uppercase tracking-widest px-1.5 py-0.5 rounded inline-block ${sisaUtang > 0 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                          {sisaUtang > 0 ? `DP (${formatRupiah(log.amount_paid)})` : log.payment_method}
+                      <td className="px-4 py-3">
+                        <div className="text-slate-700 uppercase font-black tracking-tight line-clamp-2 max-w-[180px] bg-slate-100 px-2 py-1 rounded text-[10px] text-rose-700 border border-slate-200">
+                          {log.custom_request || 'STANDAR MIX'}
                         </div>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <div className={`text-[9px] font-black uppercase tracking-widest flex items-center gap-1 ${log.delivery_method === 'PRE_ORDER' ? 'text-amber-600' : 'text-emerald-600'}`}>
-                          {log.delivery_method === 'PRE_ORDER' ? <><Lock size={10}/> PO KARANTINA</> : <><CheckCircle2 size={10}/> DIAMBIL LANGSUNG</>}
+                        <div className={`text-[9px] font-black uppercase tracking-widest ${log.delivery_method === 'PRE_ORDER' ? 'text-amber-600' : 'text-emerald-600'}`}>
+                          {log.delivery_method === 'PRE_ORDER' ? '🔒 PO KARANTINA' : '✅ DIRECT OUT'}
                         </div>
+                        <div className="text-[9px] text-slate-400 mt-0.5">{sisaUtang > 0 ? 'STATUS: BILL DP' : 'STATUS: LUNAS'}</div>
                       </td>
                       <td className="px-4 py-3 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1.5">
-                          <button type="button" onClick={() => handleEdit(log)} className="p-1.5 bg-amber-50 text-amber-600 hover:bg-amber-100 rounded-lg"><Edit2 size={12}/></button>
-                          <button type="button" className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg"><Trash2 size={12}/></button>
+                          {/* TOMBOL PENDUKUNG KHUSUS CETAK TIKET 3-PLY UNTUK PRODUKSI */}
+                          <button type="button" onClick={() => handlePrintTiketProduksi(log)} className="p-1.5 bg-rose-600 text-white hover:bg-rose-700 rounded-lg shadow-sm flex items-center gap-1 text-[10px] font-black uppercase" title="Cetak Kertas Kerja Dapur (3-Ply)">
+                            <FileText size={12}/> Tiket Pabrik
+                          </button>
+                          <button type="button" onClick={() => handleEdit(log)} className="p-1.5 bg-amber-50 text-amber-600 hover:bg-amber-100 rounded-lg border border-amber-200" title="Edit Transaksi"><Edit2 size={12}/></button>
+                          <button type="button" onClick={() => { if(window.confirm("Void invoice ini?")) requestDelete(log.id); }} className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg border border-rose-200" title="Void Invoice"><Trash2 size={12}/></button>
                         </div>
                       </td>
                     </tr>
@@ -359,34 +373,31 @@ export default function TabOrders({
 
       </div>
 
-      {/* 🔴 MODAL DETAIL KARANTINA (Req 5) */}
+      {/* MODAL DETAILED LIST ANTREAN KARANTINA PO */}
       {showKarantinaModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
             <div className="p-4 bg-amber-500 text-white flex justify-between items-center shrink-0">
-              <h3 className="font-black flex items-center gap-2 uppercase tracking-widest"><Lock size={18}/> Detail Buku Karantina (Pre-Order Aktif)</h3>
+              <h3 className="font-black flex items-center gap-2 uppercase tracking-widest text-xs"><Lock size={14}/> Manifest Antrean PO Karantina (Belum Terkirim)</h3>
               <button onClick={() => setShowKarantinaModal(false)} className="hover:bg-amber-600 p-1 rounded-lg transition-colors"><X size={20}/></button>
             </div>
-            <div className="p-4 bg-amber-50 border-b border-amber-200 flex items-center gap-4 shrink-0">
-              <div className="text-4xl font-black text-amber-700">{formatNumber(stockMetrics.karantinaPcs)} <span className="text-sm">PCS</span></div>
-              <div className="text-xs font-bold text-amber-800 uppercase leading-relaxed">Total Dimsum Frozen yang sedang di-booking dan menunggu diambil/dikirim.<br/>Harus dipenuhi sebelum membuat order baru!</div>
-            </div>
-            <div className="overflow-y-auto flex-1 custom-scrollbar p-0">
+            <div className="overflow-y-auto flex-1 custom-scrollbar">
               <table className="w-full text-sm text-left">
                 <thead className="bg-slate-50 text-[10px] uppercase text-slate-500 border-b sticky top-0 shadow-sm z-10">
-                  <tr><th className="px-4 py-3">Tgl PO & ID</th><th className="px-4 py-3">Nama Klien</th><th className="px-4 py-3 text-center">Jumlah Booking</th><th className="px-4 py-3">Status Utang</th></tr>
+                  <tr><th className="px-4 py-3">Tanggal &amp; ID INV</th><th className="px-4 py-3">Nama Pembeli</th><th className="px-4 py-3">Spesifikasi Request Adonan</th><th className="px-4 py-3 text-center">Volume Booking</th><th className="px-4 py-3 text-center">Dokumen</th></tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs font-bold">
-                  {stockMetrics.listKarantina.length === 0 && (<tr><td colSpan="4" className="text-center py-10 text-slate-400 font-bold">Belum ada antrean karantina aktif.</td></tr>)}
+                  {stockMetrics.listKarantina.length === 0 && (<tr><td colSpan="5" className="text-center py-10 text-slate-400 font-bold">Antrean bersih. Tidak ada defisit booking.</td></tr>)}
                   {stockMetrics.listKarantina.map(k => {
-                    const sisa = Number(k.total_amount) - Number(k.amount_paid);
                     return (
                       <tr key={k.id} className="hover:bg-slate-50">
                         <td className="px-4 py-3"><div className="text-slate-800">{formatDate(k.date)}</div><div className="text-[9px] font-mono text-slate-400">{k.id}</div></td>
                         <td className="px-4 py-3 uppercase text-slate-700">{k.customer_name}</td>
-                        <td className="px-4 py-3 text-center"><span className="bg-amber-100 text-amber-800 px-3 py-1 rounded-lg font-black shadow-sm">{formatNumber(k.qty)} PCS</span></td>
-                        <td className="px-4 py-3">
-                          {sisa > 0 ? <span className="text-rose-600">Sisa Bill: {formatRupiah(sisa)}</span> : <span className="text-emerald-600 flex items-center gap-1"><CheckCircle2 size={12}/> LUNAS</span>}
+                        <td className="px-4 py-3 text-rose-700 font-black uppercase text-[10px]">{k.custom_request || 'STANDAR MIX'}</td>
+                        <td className="px-4 py-3 text-center"><span className="bg-amber-100 text-amber-800 px-3 py-1 rounded-lg font-black">{formatNumber(k.qty)} PCS</span></td>
+                        <td className="px-4 py-3 text-center">
+                          {/* RE-PRINT TIKET PRODUKSI LANGSUNG DARI MANIFEST WINDOW */}
+                          <button type="button" onClick={() => handlePrintTiketProduksi(k)} className="p-1 px-2 bg-slate-800 text-white rounded text-[9px] uppercase font-black tracking-wider hover:bg-slate-900 inline-flex items-center gap-1"><Printer size={10}/> Re-Cetak Tiket</button>
                         </td>
                       </tr>
                     );
