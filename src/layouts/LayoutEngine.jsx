@@ -63,10 +63,13 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
     
     if (financeItems.length > 0) groups.push({ groupName: "Finance & Settlement", items: financeItems });
 
-    if (nodeCapability.can_global_dashboard === true || nodeCapability.can_global_dashboard === 'true') {
+if (nodeCapability.can_global_dashboard === true || nodeCapability.can_global_dashboard === 'true') {
         groups.push({ 
             groupName: "System Configuration", 
-            items: [{ id: 'master_data', label: 'Master Data & Rules', icon: Database }] 
+            items: [
+              { id: 'master_data', label: 'Master Data & Rules', icon: Database },
+              { id: 'accounting_audit', label: 'Log Sampah (Audit)', icon: ShieldAlert } // 🔥 INI MENU BARUNYA BOS
+            ] 
         });
     }
 
