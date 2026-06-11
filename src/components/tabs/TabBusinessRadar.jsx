@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Activity, TrendingUp, ArrowDownToLine, ArrowUpRight, Award, ShoppingBag, BarChart3, PieChart, Users, Crown, Medal, CalendarClock, Package, Percent, ShieldAlert, Store } from 'lucide-react';
+import { Activity, TrendingUp, ArrowDownToLine, ArrowUpRight, Award, ShoppingBag, BarChart3, PieChart, Users, Crown, Medal, CalendarClock, Package, Percent, ShieldAlert } from 'lucide-react';
 import { getTodayStr, formatDate } from '../../utils/helpers';
 
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
@@ -22,13 +22,6 @@ export default function TabBusinessRadar({
   const realPurchases = useMemo(() => purchases_data || purchases || [], [purchases, purchases_data]);
   const realExpenses = useMemo(() => expenses_data || expenses || [], [expenses, expenses_data]);
   const realCashflow = useMemo(() => cashflow_transactions_data || cashflow_transactions || [], [cashflow_transactions, cashflow_transactions_data]);
-  const rawBranches = useMemo(() => master_branches || masterBranches || [], [master_branches, masterBranches]);
-
-  const branchMap = useMemo(() => {
-    const mapping = { TANGERANG_PUSAT: 'Tangerang Pusat', PUSAT: 'Tangerang Pusat' };
-    rawBranches.forEach(b => { if (b.branch_id) mapping[b.branch_id] = b.branch_name; });
-    return mapping;
-  }, [rawBranches]);
 
   const radarMetrics = useMemo(() => {
     const limitDate = new Date();
@@ -157,9 +150,8 @@ export default function TabBusinessRadar({
 
     const sortedClients = Object.entries(clientStats).sort((a,b) => b[1].profit - a[1].profit).slice(0, 10);
     const sortedChannels = Object.entries(channelStats).sort((a,b) => b[1].profit - a[1].profit).slice(0, 10);
-    const totalGlobalProfit = sortedChannels.reduce((sum, item) => sum + item[1].profit, 0);
+    const totalGlobalProfit = sortedChannels.reduce((sum, item) => sum + (item[1]?.profit || 0), 0);
 
-    // 🔥 FORMULASI ARRAY TREN YANG SUDAH DISINKRONKAN AGAR BEBAS DARI REFERENCE ERROR
     const finalTrendArray = Object.values(trendMap);
     const maxOmzetValue = Math.max(...finalTrendArray.map(t => Math.max(t.omzet, t.beban)), 100000);
 
@@ -271,7 +263,7 @@ export default function TabBusinessRadar({
         
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {radarMetrics.watchList.length === 0 ? (
-            <div className="col-span-full py-6 text-center text-xs font-bold text-slate-400 bg-slate-50 border border-dashed rounded-2xl uppercase tracking-widest">Besih Total! Tidak ada tagihan gantung yang menunggak.</div>
+            <div className="col-span-full py-6 text-center text-xs font-bold text-slate-400 bg-slate-50 border border-dashed rounded-2xl uppercase tracking-widest">Bersih Total! Tidak ada tagihan gantung yang menunggak.</div>
           ) : (
             radarMetrics.watchList.map((bill, index) => (
               <div key={index} className="p-3.5 bg-white border border-slate-200 rounded-2xl shadow-sm flex items-center justify-between group hover:border-slate-400 transition-colors">
@@ -330,6 +322,7 @@ export default function TabBusinessRadar({
               <div className="text-center py-10 text-xs font-bold text-slate-400 uppercase">Tidak ada jualan terdeteksi.</div>
             ) : (
               radarMetrics.topChannels.map(([name, stats], idx) => {
+                // 🔥 PROTEKSI ANTI-BLANK JIKA DATA LABA GLOBAL MASIH NOL / KOSONG
                 const ratio = radarMetrics.totalGlobalProfit > 0 ? (stats.profit / radarMetrics.totalGlobalProfit) * 100 : 0;
                 return (
                   <div key={idx} className="flex items-center gap-3 p-3.5 border border-slate-100 rounded-2xl hover:bg-orange-50/20 transition-all hover:border-orange-200 group">
@@ -382,7 +375,7 @@ export default function TabBusinessRadar({
                     </div>
                   </div>
                   <div className="text-right bg-slate-50 p-2 rounded-xl border border-slate-100 shrink-0">
-                    <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Bagian Laba</div>
+                    <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Kontribusi Laba</div>
                     <div className="font-black text-xs text-emerald-600">+{formatRupiah(stats.profit)}</div>
                   </div>
                 </div>
