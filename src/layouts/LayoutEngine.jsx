@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { 
   LayoutDashboard, ShoppingCart, Activity, Factory, Truck, 
   Wallet, Users, Database, LogOut, Menu, X, ShieldCheck, 
-  Send, Store, Package, Lock, Globe 
+  Send, Store, Package, Lock, Globe, Landmark
 } from 'lucide-react';
 import { getTodayStr, formatDate } from '../utils/helpers';
 
@@ -50,6 +50,7 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
     const financeItems = [];
     if (nodeCapability.can_treasury === true || nodeCapability.can_treasury === 'true') {
         financeItems.push({ id: 'cash_war_room', label: 'Dompet Perusahaan', icon: Wallet });
+        financeItems.push({ id: 'setoran_cabang', label: 'Setoran Cabang', icon: Landmark }); // 🔥 MENU BARUNYA MUNCUL DI SINI!
     }
     if (nodeCapability.can_accounting === true || nodeCapability.can_accounting === 'true') {
         financeItems.push({ id: 'accounting', label: 'Laba Rugi & Aset', icon: Database });
