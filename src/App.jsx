@@ -28,7 +28,8 @@ import TabAccounting from './components/tabs/TabAccounting';
 import TabAccountingAudit from './components/tabs/TabAccountingAudit';
 import TabMasterData from './components/tabs/TabMasterData';
 import TabStokOutlet from './components/tabs/TabStokOutlet';
-import TabSetoranCabang from './components/tabs/TabSetoranCabang'; // 🔥 INI FILE BARUNYA BOS!
+import TabSetoranCabang from './components/tabs/TabSetoranCabang';
+import TabDiscrepancy from './components/tabs/TabDiscrepancy';
 
 // =====================================
 // IMPOR KOMPONEN CETAK
@@ -239,6 +240,7 @@ export default function App() {
       case 'expenses': return <TabExpenses user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
       case 'stok': return <TabStok user={user} role={user?.role} sendToSheet={sendToSheet} requestDelete={requestDelete} showToast={showToast} {...dbData} />;
       case 'stok_outlet': return <TabStokOutlet user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
+      case 'discrepancy': return <TabDiscrepancy user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
       case 'distribusi': return <TabDistribusi user={user} sendToSheet={sendToSheet} setPrintData={setPrintData} showToast={showToast} {...dbData} />;
       case 'accounting': return <TabAccounting user={user} {...dbData} />;
       case 'accounting_audit': return <TabAccountingAudit user={user} {...dbData} />;
