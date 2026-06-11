@@ -1,15 +1,16 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { ShoppingCart, User, Trash2, Printer, Search, Banknote, Smartphone, MapPin, Tag, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
+import { ShoppingCart, User, Trash2, Printer, Search, Banknote, Tag, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
 
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 
-// 🔥 JALUR SAKTI VERCEL: Aturan harga mati multi-channel ditaruh di luar komponen agar bebas error dependency
+// 🔥 FIX KUNCI: Patokan Harga Otomatis Sesuai Aturan Utama Pabrik Dimsum Aditya
 const getProductPriceByChannel = (prod, channel) => {
   if (channel === 'MITRA_DISTRIBUTOR') return 2000;
   if (channel === 'RESELLER_AGEN') return 2125;
   if (channel === 'ECERAN_WALKIN') return 3000;
+  // Untuk Paketan Acara, Merchant Online, & Toko Online otomatis open custom (ambil base price awal)
   return Number(prod.price || 3000); 
 };
 
@@ -34,10 +35,8 @@ export default function TabOrders({
   const [customerSearch, setCustomerSearch] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null); 
-  const [isNewCustomer, setIsNewCustomer] = useState(false); 
 
   const [form, setForm] = useState({
-    phone: '', address: '',
     salesChannel: 'ECERAN_WALKIN',
     paymentMethod: 'CASH',
     amountPaid: '',
@@ -48,7 +47,6 @@ export default function TabOrders({
 
   const wrapperRef = useRef(null);
 
-  // Auto-Close Suggestion kalau klik di luar area
   useEffect(() => {
     function handleClickOutside(event) {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
@@ -59,7 +57,7 @@ export default function TabOrders({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // 🔥 UPDATE HARGA SINKRON REAL-TIME
+  // 🔥 SINKRONISASI HARGA OTOMATIS SAAT JALUR MERCHANT DIKLIK
   useEffect(() => {
     setCart(prevCart => {
       if (prevCart.length === 0) return prevCart;
@@ -73,7 +71,7 @@ export default function TabOrders({
     });
   }, [form.salesChannel, realProducts]);
 
-  // --- ENGINE SAKTI: LIVE ESTIMASI KONVERSI PACK MIKA ---
+  // --- ENGINE SAKTI: LIVE ESTIMASI KONVERSI PACK MIKA (Isi 50 Pcs) ---
   const calculateConversion = (itemName, qtyPcs) => {
     const qty = Number(qtyPcs || 0);
     if (qty <= 0) return '';
@@ -102,8 +100,6 @@ export default function TabOrders({
   const handleSelectCustomer = (cust) => {
     setCustomerSearch(cust.name);
     setSelectedCustomer(cust);
-    setIsNewCustomer(false);
-    setForm(prev => ({ ...prev, phone: cust.phone || '', address: cust.address || '' }));
     setShowSuggestions(false);
   };
 
@@ -111,7 +107,6 @@ export default function TabOrders({
     const val = e.target.value.toUpperCase();
     setCustomerSearch(val);
     setSelectedCustomer(null); 
-    setIsNewCustomer(true); 
     setShowSuggestions(true);
   };
 
@@ -170,12 +165,12 @@ export default function TabOrders({
     const successOrder = await sendToSheet('insert', payloadOrder, 'orders');
 
     if (successOrder) {
-      if (isNewCustomer || form.isUpdateMasterPrice) {
+      if (form.isUpdateMasterPrice) {
         const custId = selectedCustomer ? selectedCustomer.id : generateId('CUST', todayStr);
         const payloadCustomer = {
-          id: custId, name: customerSearch, phone: form.phone || '-', address: form.address || '-',
+          id: custId, name: customerSearch, phone: selectedCustomer?.phone || '-', address: selectedCustomer?.address || '-',
           branch_id: currentBranch, join_date: todayStr,
-          custom_price: form.isUpdateMasterPrice ? Number(form.newMasterPrice || 0) : (selectedCustomer ? selectedCustomer.custom_price : 0)
+          custom_price: Number(form.newMasterPrice || 0)
         };
         await sendToSheet(selectedCustomer ? 'update' : 'insert', payloadCustomer, 'master_customers');
       }
@@ -200,8 +195,8 @@ export default function TabOrders({
         history: form.paymentMethod === 'TEMPO' || form.paymentMethod === 'DP' ? { labelAksi: 'NOMINAL DP/BAYAR', nominalAksi: form.paymentMethod === 'TEMPO' ? 0 : Number(form.amountPaid||0), labelBaru: 'SISA PIUTANG BON', nominalBaru: sisaTagihan } : null
       });
 
-      setCart([]); setCustomerSearch(''); setSelectedCustomer(null); setIsNewCustomer(false);
-      setForm({ phone: '', address: '', salesChannel: 'ECERAN_WALKIN', paymentMethod: 'CASH', amountPaid: '', notes: '', isUpdateMasterPrice: false, newMasterPrice: '' });
+      setCart([]); setCustomerSearch(''); setSelectedCustomer(null);
+      setForm({ salesChannel: 'ECERAN_WALKIN', paymentMethod: 'CASH', amountPaid: '', notes: '', isUpdateMasterPrice: false, newMasterPrice: '' });
     }
   };
 
@@ -251,18 +246,18 @@ export default function TabOrders({
                     <div className="flex-1">
                       <div className="font-black text-slate-800 uppercase text-xs mb-1.5">{item.name}</div>
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold text-slate-400">Harga (Rp):</span>
-                        <input type="number" value={item.currentPrice} onChange={(e) => handleUpdateCartPrice(item.id, e.target.value)} className="w-24 p-1 border rounded bg-white text-xs font-black text-emerald-600 outline-none" />
+                        <span className="text-[10px] font-bold text-slate-400">Harga Kontrak (Rp):</span>
+                        {/* INPUT BOX UNTUK NGE-TWEAK HARGA JIKA ADA KENAIKAN KONTRAK */}
+                        <input type="number" value={item.currentPrice} onChange={(e) => handleUpdateCartPrice(item.id, e.target.value)} className="w-24 p-1 border rounded bg-white text-xs font-black text-emerald-600 outline-none focus:border-blue-400" />
                       </div>
                     </div>
 
-                    {/* AREA INPUT QTY & RADAR LIVE REFRESHCW (TERPAKE DENGAN BENAR) */}
                     <div className="flex items-center justify-between sm:justify-end gap-4">
+                      {/* INPUT QTY PCS UTAMA UNTUK DIKALIKAN HARGA */}
                       <div className="flex flex-col items-center">
                         <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">Input Qty (PCS)</label>
                         <div className="flex items-center bg-white border rounded-xl overflow-hidden shadow-sm focus-within:border-blue-400">
                           <button type="button" onClick={() => handleUpdateCartQty(item.id, item.qty - 1)} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 font-black text-slate-600 transition-colors">-</button>
-                          {/* STOK QTY SEKARANG BISA DIKETIK MANUAL */}
                           <input type="number" value={item.qty} onChange={(e) => handleUpdateCartQty(item.id, e.target.value)} className="w-16 text-center text-xs font-black outline-none bg-white p-1" placeholder="0" />
                           <button type="button" onClick={() => handleUpdateCartQty(item.id, item.qty + 1)} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 font-black text-slate-600 transition-colors">+</button>
                         </div>
@@ -293,7 +288,7 @@ export default function TabOrders({
         </div>
       </div>
 
-      {/* 💼 KOLOM KANAN: CRM DAN FORM PEMBAYARAN */}
+      {/* 💼 KOLOM KANAN: DATA KLIEN & PEMBAYARAN */}
       <div className="lg:col-span-5 flex flex-col gap-6">
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xl flex-1 flex flex-col relative overflow-hidden">
           <form onSubmit={handleCheckout} className="space-y-5 flex-1 overflow-y-auto pr-2 custom-scrollbar">
@@ -307,7 +302,7 @@ export default function TabOrders({
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Nama Pelanggan / Agen</label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                <input type="text" required placeholder="Ketik nama pelanggan..." value={customerSearch} onChange={handleCustomerSearchChange} onFocus={() => customerSearch && setShowSuggestions(true)} className={`w-full pl-9 pr-3 py-3 border rounded-xl text-sm uppercase font-black outline-none transition-colors ${isNewCustomer && customerSearch ? 'bg-amber-50 border-amber-300 focus:border-amber-500 text-amber-900' : 'bg-slate-50 border-slate-200 focus:border-blue-400 focus:bg-white text-slate-800'}`} />
+                <input type="text" required placeholder="Ketik nama pelanggan..." value={customerSearch} onChange={handleCustomerSearchChange} onFocus={() => customerSearch && setShowSuggestions(true)} className="w-full pl-9 pr-3 py-3 border rounded-xl text-sm uppercase font-black outline-none bg-slate-50 border-slate-200 focus:border-blue-400 focus:bg-white text-slate-800" />
               </div>
               
               {showSuggestions && filteredCustomers.length > 0 && (
@@ -317,10 +312,6 @@ export default function TabOrders({
                       <div className="font-black text-xs text-slate-800 uppercase flex items-center gap-2">
                         {cust.name} {cust.custom_price > 0 && <span className="text-[8px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">HARGA MASTER: {formatRupiah(cust.custom_price)}</span>}
                       </div>
-                      <div className="text-[9px] font-bold text-slate-400 mt-1 flex items-center gap-3">
-                        <span className="flex items-center gap-1"><Smartphone size={10}/> {cust.phone}</span>
-                        <span className="flex items-center gap-1"><MapPin size={10}/> {cust.branch_id}</span>
-                      </div>
                     </div>
                   ))}
                 </div>
@@ -328,56 +319,50 @@ export default function TabOrders({
 
               {customerSearch && (
                 <div className="mt-2 flex items-center gap-1.5">
-                  {isNewCustomer ? (
-                    <span className="text-[9px] font-black uppercase text-amber-600 bg-amber-100 px-2 py-0.5 rounded flex items-center gap-1 animate-pulse"><AlertCircle size={10}/> Agen Baru (Akan didaftarkan ke Master)</span>
-                  ) : (
+                  {selectedCustomer ? (
                     <span className="text-[9px] font-black uppercase text-blue-600 bg-blue-100 px-2 py-0.5 rounded flex items-center gap-1"><CheckCircle2 size={10}/> Database Terdaftar</span>
+                  ) : (
+                    <span className="text-[9px] font-black uppercase text-amber-600 bg-amber-100 px-2 py-0.5 rounded flex items-center gap-1 animate-pulse"><AlertCircle size={10}/> Pembeli Umum (Tidak Terikat Master Klien)</span>
                   )}
                 </div>
               )}
             </div>
 
-            {isNewCustomer && customerSearch && (
-              <div className="grid grid-cols-2 gap-3 p-3 bg-amber-50/50 border border-amber-100 rounded-2xl animate-in slide-in-from-top-2">
-                <div><label className="text-[9px] font-black text-amber-700 uppercase tracking-widest block mb-1"><Smartphone size={10} className="inline mr-1"/> No. WhatsApp</label><input type="text" placeholder="0812..." value={form.phone} onChange={e=>setForm({...form, phone: e.target.value})} className="w-full p-2 border border-amber-200 rounded-lg text-xs font-bold bg-white outline-none focus:border-amber-400" /></div>
-                <div><label className="text-[9px] font-black text-amber-700 uppercase tracking-widest block mb-1"><MapPin size={10} className="inline mr-1"/> Alamat Wilayah</label><input type="text" placeholder="Kota/Jalan..." value={form.address} onChange={e=>setForm({...form, address: e.target.value})} className="w-full p-2 border border-amber-200 rounded-lg text-xs font-bold uppercase bg-white outline-none focus:border-amber-400" /></div>
-              </div>
-            )}
-
-            {/* JALUR PLATFORM MERCHANT */}
+            {/* 🔥 REVISI BERSIH LENGKAP: DROPDOWN PLATFORM BERSIH TANPA TEKS HARGA DI DALAM KURUNG + ADA PAKETAN ACARA */}
             <div>
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Platform / Jalur Merchant</label>
               <select value={form.salesChannel} onChange={e=>setForm({...form, salesChannel: e.target.value})} className="w-full p-3 border border-slate-200 rounded-xl text-xs font-black uppercase outline-none bg-slate-50 cursor-pointer focus:border-blue-400 focus:bg-white">
-                <option value="ECERAN_WALKIN">🛒 ECERAN / WALK-IN (Rp 3.000)</option>
-                <option value="RESELLER_AGEN">💼 RESELLER / AGEN LANGSUNG (Rp 2.125)</option>
-                <option value="MITRA_DISTRIBUTOR">🏢 MITRA / DISTRIBUTOR (Rp 2.000)</option>
+                <option value="ECERAN_WALKIN">🛒 ECERAN / WALK-IN</option>
+                <option value="RESELLER_AGEN">💼 RESELLER / AGEN LANGSUNG</option>
+                <option value="MITRA_DISTRIBUTOR">🏢 MITRA / DISTRIBUTOR</option>
+                <option value="PAKETAN_ACARA">🎁 PAKETAN ACARA</option>
                 <option disabled>───────────────</option>
-                <option value="GOFOOD">🛵 GOFOOD (CUSTOM)</option>
-                <option value="GRABFOOD">🛵 GRABFOOD (CUSTOM)</option>
-                <option value="SHOPEEFOOD">🛵 SHOPEEFOOD (CUSTOM)</option>
+                <option value="GOFOOD">🛵 GOFOOD</option>
+                <option value="GRABFOOD">🛵 GRABFOOD</option>
+                <option value="SHOPEEFOOD">🛵 SHOPEEFOOD</option>
                 <option disabled>───────────────</option>
-                <option value="SHOPEE">📦 SHOPEE E-COMMERCE (CUSTOM)</option>
-                <option value="TOKOPEDIA">📦 TOKOPEDIA (CUSTOM)</option>
-                <option value="TIKTOK_SHOP">📦 TIKTOK SHOP (CUSTOM)</option>
+                <option value="SHOPEE">📦 SHOPEE E-COMMERCE</option>
+                <option value="TOKOPEDIA">📦 TOKOPEDIA</option>
+                <option value="TIKTOK_SHOP">📦 TIKTOK SHOP</option>
               </select>
             </div>
 
-            {/* PASIF CHECKLIST */}
+            {/* CHECKLIST UPDATE HARGA MASTER MASA DEPAN */}
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl shadow-inner">
               <label className="flex items-start gap-2.5 cursor-pointer">
                 <input type="checkbox" checked={form.isUpdateMasterPrice} onChange={e=>setForm({...form, isUpdateMasterPrice: e.target.checked})} className="w-4 h-4 mt-0.5 accent-blue-600" />
                 <div>
                   <span className="text-[10px] font-black uppercase text-slate-700 tracking-widest block">Simpan Sebagai Perubahan Harga Master Klien</span>
-                  <span className="text-[9px] font-bold text-slate-400">Centang hanya jika ada negosiasi kontrak harga baru di masa mendatang.</span>
+                  <span className="text-[9px] font-bold text-slate-400">Centang ini jika harga di atas sengaja Bos ubah karena ada penyesuaian kontrak baru.</span>
                 </div>
               </label>
               
               {form.isUpdateMasterPrice && (
                 <div className="mt-3 pt-3 border-t border-slate-200 animate-in slide-in-from-top-1">
-                  <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest block mb-1">Ketik Harga Master Kontrak Baru (Rp)</label>
+                  <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest block mb-1">Ketik Ulang Harga Kontrak Baru yang Disepakati (Rp)</label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">Rp</span>
-                    <input type="number" required placeholder="Contoh: 1850" value={form.newMasterPrice} onChange={e=>setForm({...form, newMasterPrice: e.target.value})} className="w-full pl-9 pr-3 py-2.5 border border-blue-300 rounded-xl text-sm font-black text-blue-900 bg-white outline-none" />
+                    <input type="number" required placeholder="Contoh: 2200" value={form.newMasterPrice} onChange={e=>setForm({...form, newMasterPrice: e.target.value})} className="w-full pl-9 pr-3 py-2.5 border border-blue-300 rounded-xl text-sm font-black text-blue-900 bg-white outline-none" />
                   </div>
                 </div>
               )}
