@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { ShoppingCart, User, Trash2, Printer, Search, Banknote, Tag, CheckCircle2, AlertCircle, RefreshCw, PlusCircle } from 'lucide-react';
+import { ShoppingCart, User, Trash2, Printer, Search, Banknote, Tag, CheckCircle2, AlertCircle, RefreshCw, PlusCircle, Smartphone, MapPin } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
 
@@ -264,7 +264,7 @@ export default function TabOrders({
         {/* KERANJANG PESANAN */}
         <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm flex-1 flex flex-col">
           <h3 className="text-xs font-black uppercase text-slate-700 tracking-widest flex items-center gap-2 mb-4 border-b pb-3">
-            <Tag size={16} className="text-orange-500"/> Keranjang Pesanan (Input QTY & Harga)
+            <Tag size={16} className="text-orange-500"/> Keranjang Pesanan (Input QTY &amp; Harga)
           </h3>
           
           <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
@@ -297,7 +297,6 @@ export default function TabOrders({
                     </div>
 
                     <div className="flex flex-wrap items-center justify-between sm:justify-end gap-4 w-full sm:w-auto">
-                      {/* INPUT QTY PENJUALAN UTAMA */}
                       <div className="flex flex-col items-start sm:items-center">
                         <label className="text-[10px] font-black text-blue-600 uppercase tracking-wider mb-1">QTY (PCS)</label>
                         <div className="flex items-center bg-white border border-blue-200 rounded-xl overflow-hidden shadow-sm focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-200 transition-all">
@@ -355,6 +354,10 @@ export default function TabOrders({
                       <div className="font-black text-xs text-slate-800 uppercase flex items-center gap-2">
                         {cust.name} {cust.custom_price > 0 && <span className="text-[8px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">HARGA MASTER: {formatRupiah(cust.custom_price)}</span>}
                       </div>
+                      <div className="text-[9px] font-bold text-slate-400 mt-1 flex items-center gap-3">
+                        <span className="flex items-center gap-1"><Smartphone size={10}/> {cust.phone || '-'}</span>
+                        <span className="flex items-center gap-1"><MapPin size={10}/> {cust.branch_id || '-'}</span>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -365,7 +368,7 @@ export default function TabOrders({
                   {selectedCustomer ? (
                     <span className="text-[9px] font-black uppercase text-blue-600 bg-blue-100 px-2 py-0.5 rounded flex items-center gap-1"><CheckCircle2 size={10}/> Database Terdaftar</span>
                   ) : (
-                    <span className="text-[9px] font-black uppercase text-amber-600 bg-amber-100 px-2 py-0.5 rounded flex items-center gap-1 animate-pulse"><AlertCircle size={10}/> Pembeli Umum (Tidak Terikat Master Klien)</span>
+                    <span className="text-[9px] font-black uppercase text-amber-600 bg-amber-100 px-2 py-0.5 rounded flex items-center gap-1"><AlertCircle size={10}/> Pembeli Umum (Tidak Terikat Master Klien)</span>
                   )}
                 </div>
               )}
