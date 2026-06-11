@@ -4,10 +4,9 @@ import { formatDate } from '../../utils/helpers';
 
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
-export default function TabKartuStok({ 
-  masterProducts = [], masterRawMaterials = [], 
-  orders = [], purchases = [], productionBatches = [],
-  user 
+export default function TabKartuStok({
+  masterProducts = [], masterRawMaterials = [],
+  orders = [], purchases = [], productionBatches = []
 }) {
   // --- STATE NAVIGASI & FILTER ---
   const [activeTab, setActiveTab] = useState('FREEZER'); // 'FREEZER', 'BAHAN_BAKU', 'MUTASI'
