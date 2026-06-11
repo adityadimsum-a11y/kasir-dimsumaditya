@@ -38,18 +38,18 @@ import TabKartuStok from './components/tabs/TabKartuStok';
 import PrintDotMatrix from './components/PrintDotMatrix';
 
 // =====================================
-// CORE BUSINESS ENGINE 55 / 20 / 10 / 15
+// CORE BUSINESS ENGINE
 // =====================================
 import { calculateCoreBusiness } from './utils/CoreBusinessEngine';
 
-// ⚠️ WAJIB GANTI DENGAN URL WEB APP GOOGLE APPS SCRIPT ANDA ⚠️
-const API_URL_GAS = 'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqSM572mbUIGozcghhh8LHNMNw2e83O7Wkyu-SkjdVTO3zpTb64PA/exec';
+// ⚠️ URL WEB APP GOOGLE APPS SCRIPT
+const API_URL_GAS =
+  'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqSM572mbUIGozcghhh8LHNMNw2e83O7Wkyu-SkjdVTO3zpTb64PA/exec';
 
 // =====================================
 // DATABASE DEFAULT STATE
 // =====================================
 const EMPTY_DB_DATA = {
-  // tabel utama
   orders: [],
   purchases: [],
   expenses: [],
@@ -57,7 +57,6 @@ const EMPTY_DB_DATA = {
   pemalang: [],
   karyawan: [],
 
-  // snake_case resmi dari Apps Script / Google Sheets
   stock_movements: [],
   production_batches: [],
   supplier_ledger: [],
@@ -88,7 +87,6 @@ const EMPTY_DB_DATA = {
   master_customers: [],
   master_locations: [],
 
-  // camelCase fallback agar modul lama tidak putus
   stockMovements: [],
   productionBatches: [],
   supplierLedger: [],
@@ -119,10 +117,18 @@ const EMPTY_DB_DATA = {
   masterLocations: [],
 };
 
-const safeArray = (value) => (Array.isArray(value) ? value : []);
+const safeArray = (value) => {
+  return Array.isArray(value) ? value : [];
+};
+
+const pickArray = (primary, fallback) => {
+  const first = safeArray(primary);
+  const second = safeArray(fallback);
+  return first.length > 0 ? first : second;
+};
 
 // =====================================
-// FLOATING NOTIFICATION SYSTEM (TOAST)
+// FLOATING NOTIFICATION SYSTEM
 // =====================================
 const ToastNotification = ({ toast, onClose }) => {
   if (!toast) return null;
@@ -149,7 +155,7 @@ const ToastNotification = ({ toast, onClose }) => {
 
 export default function App() {
   // =====================================
-  // CORE APP STATES (PERSISTENT SESSION)
+  // CORE APP STATES
   // =====================================
   const [user, setUser] = useState(() => {
     try {
@@ -169,9 +175,6 @@ export default function App() {
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [loginError, setLoginError] = useState('');
 
-  // =====================================
-  // DATA MASTER & TRANSAKSI STATE
-  // =====================================
   const [dbData, setDbData] = useState(EMPTY_DB_DATA);
 
   const showToast = useCallback((message, type = 'success') => {
@@ -180,91 +183,121 @@ export default function App() {
   }, []);
 
   // =====================================
-  // ADAPTER DATA GLOBAL
+  // DATA ADAPTER: SNAKE_CASE + CAMELCASE
   // =====================================
   const adaptedData = useMemo(() => {
-    const merged = {
+    const stockMovements = pickArray(dbData.stock_movements, dbData.stockMovements);
+    const productionBatches = pickArray(dbData.production_batches, dbData.productionBatches);
+    const supplierLedger = pickArray(dbData.supplier_ledger, dbData.supplierLedger);
+    const cashflowTransactions = pickArray(dbData.cashflow_transactions, dbData.cashflowTransactions);
+    const marketplaceSettlement = pickArray(dbData.marketplace_settlement, dbData.marketplaceSettlement);
+    const attendanceLogs = pickArray(dbData.attendance_logs, dbData.attendanceLogs);
+    const masterBranches = pickArray(dbData.master_branches, dbData.masterBranches);
+    const distributionOrders = pickArray(dbData.distribution_orders, dbData.distributionOrders);
+    const inventoryCostLayers = pickArray(dbData.inventory_cost_layers, dbData.inventoryCostLayers);
+    const marketplaceFeeRules = pickArray(dbData.marketplace_fee_rules, dbData.marketplaceFeeRules);
+    const auditLogs = pickArray(dbData.audit_logs, dbData.auditLogs);
+    const discrepancyLogs = pickArray(dbData.discrepancy_logs, dbData.discrepancyLogs);
+    const chartOfAccounts = pickArray(dbData.chart_of_accounts, dbData.chartOfAccounts);
+    const generalLedger = pickArray(dbData.general_ledger, dbData.generalLedger);
+    const financialClosings = pickArray(dbData.financial_closings, dbData.financialClosings);
+    const systemTasks = pickArray(dbData.system_tasks, dbData.systemTasks);
+    const masterProducts = pickArray(dbData.master_products, dbData.masterProducts);
+    const masterRawMaterials = pickArray(dbData.master_raw_materials, dbData.masterRawMaterials);
+    const masterRecipeBom = pickArray(dbData.master_recipe_bom, dbData.masterRecipeBom);
+    const masterSuppliers = pickArray(dbData.master_suppliers, dbData.masterSuppliers);
+    const masterConversionRules = pickArray(dbData.master_conversion_rules, dbData.masterConversionRules);
+    const marketplaceInvoices = pickArray(dbData.marketplace_invoices, dbData.marketplaceInvoices);
+    const masterBranchTypes = pickArray(dbData.master_branch_types, dbData.masterBranchTypes);
+    const masterBranchCapabilities = pickArray(
+      dbData.master_branch_capabilities,
+      dbData.masterBranchCapabilities
+    );
+    const interbranchTreasury = pickArray(dbData.interbranch_treasury, dbData.interbranchTreasury);
+    const branchSettlements = pickArray(dbData.branch_settlements, dbData.branchSettlements);
+    const masterCustomers = pickArray(dbData.master_customers, dbData.masterCustomers);
+    const masterLocations = pickArray(dbData.master_locations, dbData.masterLocations);
+
+    return {
       ...EMPTY_DB_DATA,
       ...dbData,
 
-      // transaksi dasar
       orders: safeArray(dbData.orders),
       purchases: safeArray(dbData.purchases),
       expenses: safeArray(dbData.expenses),
       payments: safeArray(dbData.payments),
+      pemalang: safeArray(dbData.pemalang),
       karyawan: safeArray(dbData.karyawan),
 
-      // alias modul lama / modul baru
+      // alias khusus modul lama
       piutangPayments: safeArray(dbData.payments),
-      pemalangReports: safeArray(dbData.branch_settlements),
-      stokData: safeArray(dbData.stock_movements),
+      pemalangReports: branchSettlements,
+      stokData: stockMovements,
 
-      // master dan operasional dalam camelCase
-      stockMovements: safeArray(dbData.stock_movements || dbData.stockMovements),
-      productionBatches: safeArray(dbData.production_batches || dbData.productionBatches),
-      supplierLedger: safeArray(dbData.supplier_ledger || dbData.supplierLedger),
-      cashflowTransactions: safeArray(dbData.cashflow_transactions || dbData.cashflowTransactions),
-      marketplaceSettlement: safeArray(dbData.marketplace_settlement || dbData.marketplaceSettlement),
-      attendanceLogs: safeArray(dbData.attendance_logs || dbData.attendanceLogs),
-      masterBranches: safeArray(dbData.master_branches || dbData.masterBranches),
-      distributionOrders: safeArray(dbData.distribution_orders || dbData.distributionOrders),
-      inventoryCostLayers: safeArray(dbData.inventory_cost_layers || dbData.inventoryCostLayers),
-      marketplaceFeeRules: safeArray(dbData.marketplace_fee_rules || dbData.marketplaceFeeRules),
-      auditLogs: safeArray(dbData.audit_logs || dbData.auditLogs),
-      discrepancyLogs: safeArray(dbData.discrepancy_logs || dbData.discrepancyLogs),
-      chartOfAccounts: safeArray(dbData.chart_of_accounts || dbData.chartOfAccounts),
-      generalLedger: safeArray(dbData.general_ledger || dbData.generalLedger),
-      financialClosings: safeArray(dbData.financial_closings || dbData.financialClosings),
-      systemTasks: safeArray(dbData.system_tasks || dbData.systemTasks),
-      masterProducts: safeArray(dbData.master_products || dbData.masterProducts),
-      masterRawMaterials: safeArray(dbData.master_raw_materials || dbData.masterRawMaterials),
-      masterRecipeBom: safeArray(dbData.master_recipe_bom || dbData.masterRecipeBom),
-      masterSuppliers: safeArray(dbData.master_suppliers || dbData.masterSuppliers),
-      masterConversionRules: safeArray(dbData.master_conversion_rules || dbData.masterConversionRules),
-      marketplaceInvoices: safeArray(dbData.marketplace_invoices || dbData.marketplaceInvoices),
-      masterBranchTypes: safeArray(dbData.master_branch_types || dbData.masterBranchTypes),
-      masterBranchCapabilities: safeArray(dbData.master_branch_capabilities || dbData.masterBranchCapabilities),
-      interbranchTreasury: safeArray(dbData.interbranch_treasury || dbData.interbranchTreasury),
-      branchSettlements: safeArray(dbData.branch_settlements || dbData.branchSettlements),
-      masterCustomers: safeArray(dbData.master_customers || dbData.masterCustomers),
-      masterLocations: safeArray(dbData.master_locations || dbData.masterLocations),
+      // camelCase
+      stockMovements,
+      productionBatches,
+      supplierLedger,
+      cashflowTransactions,
+      marketplaceSettlement,
+      attendanceLogs,
+      masterBranches,
+      distributionOrders,
+      inventoryCostLayers,
+      marketplaceFeeRules,
+      auditLogs,
+      discrepancyLogs,
+      chartOfAccounts,
+      generalLedger,
+      financialClosings,
+      systemTasks,
+      masterProducts,
+      masterRawMaterials,
+      masterRecipeBom,
+      masterSuppliers,
+      masterConversionRules,
+      marketplaceInvoices,
+      masterBranchTypes,
+      masterBranchCapabilities,
+      interbranchTreasury,
+      branchSettlements,
+      masterCustomers,
+      masterLocations,
 
-      // snake_case tetap dikirim supaya tab yang pakai snake_case tidak mati
-      stock_movements: safeArray(dbData.stock_movements || dbData.stockMovements),
-      production_batches: safeArray(dbData.production_batches || dbData.productionBatches),
-      supplier_ledger: safeArray(dbData.supplier_ledger || dbData.supplierLedger),
-      cashflow_transactions: safeArray(dbData.cashflow_transactions || dbData.cashflowTransactions),
-      marketplace_settlement: safeArray(dbData.marketplace_settlement || dbData.marketplaceSettlement),
-      attendance_logs: safeArray(dbData.attendance_logs || dbData.attendanceLogs),
-      master_branches: safeArray(dbData.master_branches || dbData.masterBranches),
-      distribution_orders: safeArray(dbData.distribution_orders || dbData.distributionOrders),
-      inventory_cost_layers: safeArray(dbData.inventory_cost_layers || dbData.inventoryCostLayers),
-      marketplace_fee_rules: safeArray(dbData.marketplace_fee_rules || dbData.marketplaceFeeRules),
-      audit_logs: safeArray(dbData.audit_logs || dbData.auditLogs),
-      discrepancy_logs: safeArray(dbData.discrepancy_logs || dbData.discrepancyLogs),
-      chart_of_accounts: safeArray(dbData.chart_of_accounts || dbData.chartOfAccounts),
-      general_ledger: safeArray(dbData.general_ledger || dbData.generalLedger),
-      financial_closings: safeArray(dbData.financial_closings || dbData.financialClosings),
-      system_tasks: safeArray(dbData.system_tasks || dbData.systemTasks),
-      master_products: safeArray(dbData.master_products || dbData.masterProducts),
-      master_raw_materials: safeArray(dbData.master_raw_materials || dbData.masterRawMaterials),
-      master_recipe_bom: safeArray(dbData.master_recipe_bom || dbData.masterRecipeBom),
-      master_suppliers: safeArray(dbData.master_suppliers || dbData.masterSuppliers),
-      master_conversion_rules: safeArray(dbData.master_conversion_rules || dbData.masterConversionRules),
-      marketplace_invoices: safeArray(dbData.marketplace_invoices || dbData.marketplaceInvoices),
-      master_branch_types: safeArray(dbData.master_branch_types || dbData.masterBranchTypes),
-      master_branch_capabilities: safeArray(dbData.master_branch_capabilities || dbData.masterBranchCapabilities),
-      interbranch_treasury: safeArray(dbData.interbranch_treasury || dbData.interbranchTreasury),
-      branch_settlements: safeArray(dbData.branch_settlements || dbData.branchSettlements),
-      master_customers: safeArray(dbData.master_customers || dbData.masterCustomers),
-      master_locations: safeArray(dbData.master_locations || dbData.masterLocations),
+      // snake_case
+      stock_movements: stockMovements,
+      production_batches: productionBatches,
+      supplier_ledger: supplierLedger,
+      cashflow_transactions: cashflowTransactions,
+      marketplace_settlement: marketplaceSettlement,
+      attendance_logs: attendanceLogs,
+      master_branches: masterBranches,
+      distribution_orders: distributionOrders,
+      inventory_cost_layers: inventoryCostLayers,
+      marketplace_fee_rules: marketplaceFeeRules,
+      audit_logs: auditLogs,
+      discrepancy_logs: discrepancyLogs,
+      chart_of_accounts: chartOfAccounts,
+      general_ledger: generalLedger,
+      financial_closings: financialClosings,
+      system_tasks: systemTasks,
+      master_products: masterProducts,
+      master_raw_materials: masterRawMaterials,
+      master_recipe_bom: masterRecipeBom,
+      master_suppliers: masterSuppliers,
+      master_conversion_rules: masterConversionRules,
+      marketplace_invoices: marketplaceInvoices,
+      master_branch_types: masterBranchTypes,
+      master_branch_capabilities: masterBranchCapabilities,
+      interbranch_treasury: interbranchTreasury,
+      branch_settlements: branchSettlements,
+      master_customers: masterCustomers,
+      master_locations: masterLocations,
     };
-
-    return merged;
   }, [dbData]);
 
   // =====================================
-  // CORE BUSINESS 55/20/10/15
+  // CORE BUSINESS ENGINE 55 / 20 / 10 / 15
   // =====================================
   const coreBusiness = useMemo(() => {
     return calculateCoreBusiness({
@@ -282,11 +315,11 @@ export default function App() {
     adaptedData.stockMovements,
   ]);
 
-  const coreAllocation = coreBusiness.allocation;
-  const coreStatus = coreBusiness.status;
+  const coreAllocation = coreBusiness?.allocation || null;
+  const coreStatus = coreBusiness?.status || null;
 
   // =====================================
-  // ENGINE 1: PENARIKAN DATA (READ)
+  // ENGINE 1: READ DATABASE
   // =====================================
   const fetchAllDatabase = useCallback(
     async (currentBranchId, isBackground = false) => {
@@ -295,7 +328,10 @@ export default function App() {
       if (!isBackground) setIsLoading(true);
 
       try {
-        const response = await fetch(`${API_URL_GAS}?action=read_all&branch_id=${currentBranchId || 'ALL'}`);
+        const response = await fetch(
+          `${API_URL_GAS}?action=read_all&branch_id=${currentBranchId || 'ALL'}`
+        );
+
         const resJson = await response.json();
 
         if (resJson.status === 'success' && resJson.data) {
@@ -305,7 +341,9 @@ export default function App() {
           }));
         }
       } catch {
-        if (!isBackground) showToast('Gagal menyinkronkan data dengan server.', 'error');
+        if (!isBackground) {
+          showToast('Gagal menyinkronkan data dengan server.', 'error');
+        }
       } finally {
         if (!isBackground) setIsLoading(false);
       }
@@ -313,23 +351,20 @@ export default function App() {
     [showToast]
   );
 
-  // Sinkronisasi diam-diam (Background Sync) berjalan otomatis setiap 1 Menit
   useEffect(() => {
-    if (user) {
-      fetchAllDatabase(user.branch_id, false);
+    if (!user) return undefined;
 
-      const syncInterval = setInterval(() => {
-        fetchAllDatabase(user.branch_id, true);
-      }, 60000);
+    fetchAllDatabase(user.branch_id, false);
 
-      return () => clearInterval(syncInterval);
-    }
+    const syncInterval = setInterval(() => {
+      fetchAllDatabase(user.branch_id, true);
+    }, 60000);
 
-    return undefined;
+    return () => clearInterval(syncInterval);
   }, [user, fetchAllDatabase]);
 
   // =====================================
-  // ENGINE 2: PENGIRIMAN DATA (WRITE)
+  // ENGINE 2: WRITE DATABASE
   // =====================================
   const sendToSheet = async (action, payload, tableName) => {
     if (!API_URL_GAS || API_URL_GAS.includes('URL_WEBAPP_')) {
@@ -350,7 +385,7 @@ export default function App() {
             name: user?.name || 'SYSTEM',
             branch_id: user?.branch_id || 'PUSAT',
           },
-          request_id: `REQ-${new Date().getTime()}${Math.floor(Math.random() * 1000)}`,
+          request_id: `REQ-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         }),
       });
 
@@ -373,7 +408,7 @@ export default function App() {
   };
 
   // =====================================
-  // ENGINE 3: AUTENTIKASI (LOGIN & LOGOUT)
+  // ENGINE 3: LOGIN & LOGOUT
   // =====================================
   const handleLoginSubmit = async (e) => {
     e.preventDefault();
@@ -431,7 +466,7 @@ export default function App() {
   };
 
   // =====================================
-  // ENGINE 4: GLOBAL DELETE (VOID TRANSAKSI)
+  // ENGINE 4: GLOBAL DELETE
   // =====================================
   const requestDelete = (id) => setConfirmDialog({ id });
 
@@ -444,7 +479,7 @@ export default function App() {
   };
 
   // =====================================
-  // GATEKEEPER ROUTING (TAB RENDER) WITH DATA ADAPTER
+  // ROUTING TAB CONTENT
   // =====================================
   const renderContent = () => {
     let safeTab = activeTab;
@@ -539,12 +574,11 @@ export default function App() {
   };
 
   // =====================================
-  // UI 1: GERBANG LOGIN
+  // UI 1: LOGIN SCREEN
   // =====================================
   if (!user) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 relative overflow-hidden">
-        {/* ANIMATED FLUID GRADIENT BLOBS (Dimsum Aditya Palette) */}
         <div className="absolute top-[-10%] left-[-10%] w-[30rem] md:w-[40rem] h-[30rem] md:h-[40rem] bg-red-500 rounded-full mix-blend-multiply filter blur-[100px] opacity-40 animate-pulse" />
         <div
           className="absolute top-[20%] right-[-10%] w-[25rem] md:w-[35rem] h-[25rem] md:h-[35rem] bg-orange-400 rounded-full mix-blend-multiply filter blur-[100px] opacity-40 animate-pulse"
@@ -637,7 +671,7 @@ export default function App() {
   }
 
   // =====================================
-  // UI 2: RENDER APLIKASI (DYNAMIC LAYOUT ENGINE)
+  // UI 2: MAIN APP
   // =====================================
   return (
     <div className="fixed inset-0 w-full h-screen overflow-hidden bg-slate-50">
@@ -652,6 +686,7 @@ export default function App() {
       </LayoutEngine>
 
       <ToastNotification toast={toast} onClose={() => setToast(null)} />
+
       <PrintDotMatrix printData={printData} onClose={() => setPrintData(null)} />
 
       {confirmDialog && (
@@ -662,6 +697,7 @@ export default function App() {
             </div>
 
             <h3 className="text-base font-black text-slate-800 mb-1">Batalkan Transaksi?</h3>
+
             <p className="text-xs text-slate-500 mb-5 font-bold">
               Data akan di-void dari sistem. Aksi ini akan terekam dalam audit trail.
             </p>
