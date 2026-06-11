@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { ShoppingCart, User, Trash2, Printer, Search, Banknote, Smartphone, MapPin, Tag, CheckCircle2, AlertCircle } from 'lucide-react';
+import { ShoppingCart, User, Trash2, Printer, Search, Banknote, Smartphone, MapPin, Tag, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
 
@@ -8,6 +8,7 @@ const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID
 export default function TabOrders({ 
   masterProducts = [], master_products,
   masterCustomers = [], master_customers,
+  masterConversionRules = [], master_conversion_rules, // 🔥 DATA ATURAN KONVERSI MASUK
   user, sendToSheet, showToast 
 }) {
   const todayStr = getTodayStr();
@@ -16,6 +17,7 @@ export default function TabOrders({
   // --- SINKRONISASI DATABASE ---
   const realProducts = useMemo(() => master_products || masterProducts || [], [master_products, masterProducts]);
   const realCustomers = useMemo(() => master_customers || masterCustomers || [], [master_customers, masterCustomers]);
+  const realConversions = useMemo(() => master_conversion_rules || masterConversionRules || [], [master_conversion_rules, masterConversionRules]);
 
   // --- STATE KERANJANG BELANJA ---
   const [cart, setCart] = useState([]);
@@ -49,17 +51,16 @@ export default function TabOrders({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // --- 🌟 MATRIX RADAR HARGA OTOMATIS BERDASARKAN JALUR MERCHANT 🌟 ---
+  // --- MATRIX RADAR HARGA OTOMATIS BERDASARKAN JALUR MERCHANT ---
   const getProductPriceByChannel = (prod, channel) => {
     const basePrice = Number(prod.price || 0);
-    // Deteksi jika di master data ada field tier khusus, jika tidak ada lakukan auto-kalkulasi persen
     if (channel === 'RESELLER_AGEN') return prod.price_reseller || prod.price_agen || Math.round(basePrice * 0.9);
     if (channel === 'MITRA_DISTRIBUTOR') return prod.price_distributor || prod.price_mitra || Math.round(basePrice * 0.85);
     if (['GOFOOD', 'GRABFOOD', 'SHOPEEFOOD'].includes(channel)) return prod.price_online || Math.round(basePrice * 1.2);
-    return basePrice; // Default Eceran Walk-In
+    return basePrice; 
   };
 
-  // 🔥 EFEK SAKTI: Jika Jalur Merchant diubah, HARGA DI KERANJANG IKUT BERUBAH OTOMATIS!
+  // Efek Otomatis Update Harga jika Jalur Merchant Berubah
   useEffect(() => {
     if (cart.length > 0) {
       setCart(prevCart => 
@@ -73,6 +74,32 @@ export default function TabOrders({
       );
     }
   }, [form.salesChannel, realProducts]);
+
+  // --- ENGINE SAKTI: LIVE ESTIMASI KONVERSI (PCS -> BONG/BOX/PACK) ---
+  const calculateConversion = (itemName, qtyPcs) => {
+    const qty = Number(qtyPcs || 0);
+    if (qty <= 0) return '';
+
+    // Cari paksa di master data konversi rules
+    const rule = realConversions.find(c => 
+      (c.product_name && c.product_name.toUpperCase() === itemName.toUpperCase()) ||
+      (c.item_name && c.item_name.toUpperCase() === itemName.toUpperCase())
+    );
+
+    if (rule) {
+      const nilai = Number(rule.nilai_konversi || rule.qty_konversi || 500); // fallback 1 bong = 500 pcs
+      const namaUnit = rule.nama_konversi || rule.unit_konversi || 'BONG';
+      const hasilKonversi = (qty / nilai).toFixed(1);
+      return `${hasilKonversi} ${namaUnit}`;
+    }
+
+    // Fallback standard pabrik dimsum Aditya jika master rules masih kosong:
+    // 1 Bong Core = 500 Pcs, 1 Pack mika = 50 Pcs
+    if (qty >= 500) {
+      return `${(qty / 500).toFixed(1)} BONG`;
+    }
+    return `${(qty / 50).toFixed(1)} PACK`;
+  };
 
   // --- ENGINE AUTO-SUGGESTION CUSTOMER ---
   const filteredCustomers = useMemo(() => {
@@ -108,8 +135,9 @@ export default function TabOrders({
   };
 
   const handleUpdateCartQty = (id, newQty) => {
-    if (newQty < 1) return setCart(prev => prev.filter(item => item.id !== id));
-    setCart(prev => prev.map(item => item.id === id ? { ...item, qty: newQty } : item));
+    const cleanQty = Math.max(0, Number(newQty || 0));
+    if (cleanQty === 0) return setCart(prev => prev.filter(item => item.id !== id));
+    setCart(prev => prev.map(item => item.id === id ? { ...item, qty: cleanQty } : item));
   };
 
   const handleUpdateCartPrice = (id, newPrice) => {
@@ -129,7 +157,6 @@ export default function TabOrders({
     if (cart.length === 0) return alert("Keranjang kosong!");
     if (!customerSearch) return alert("Nama Pelanggan/Agen wajib diisi!");
     
-    // Proteksi Pembayaran
     if (form.paymentMethod !== 'TEMPO' && Number(form.amountPaid || 0) < totalTagihan && form.paymentMethod !== 'DP') {
       return alert("Uang bayar kurang dari total tagihan!");
     }
@@ -138,7 +165,6 @@ export default function TabOrders({
     let sisaTagihan = totalTagihan - Number(form.amountPaid || 0);
     if (sisaTagihan < 0 || form.paymentMethod === 'CASH' || form.paymentMethod === 'TF') sisaTagihan = 0;
 
-    // Jika pilih TEMPO atau DP, maka status transaksi otomatis digantung menjadi 'PIUTANG'
     const orderStatus = form.paymentMethod === 'TEMPO' || form.paymentMethod === 'DP' ? 'PIUTANG' : 'SELESAI';
 
     const payloadOrder = {
@@ -153,7 +179,6 @@ export default function TabOrders({
     const successOrder = await sendToSheet('insert', payloadOrder, 'orders');
 
     if (successOrder) {
-      // 2. SIMPAN PELANGGAN BARU / UPDATE HARGA MASTER KLIEN (Jika ada perubahan mendatang)
       if (isNewCustomer || form.isUpdateMasterPrice) {
         const custId = selectedCustomer ? selectedCustomer.id : generateId('CUST', todayStr);
         const payloadCustomer = {
@@ -164,7 +189,6 @@ export default function TabOrders({
         await sendToSheet(selectedCustomer ? 'update' : 'insert', payloadCustomer, 'master_customers');
       }
 
-      // 3. AMANKAN DOMPET PERUSAHAAN (Hanya rekam kas masuk jika bayar tunai/TF/DP)
       const nominalKasMasuk = form.paymentMethod === 'TEMPO' ? 0 : Number(form.amountPaid || 0);
       if (nominalKasMasuk > 0) {
         const dppMasuk = Math.min(nominalKasMasuk, totalTagihan); 
@@ -175,9 +199,8 @@ export default function TabOrders({
         }, 'cashflow_transactions');
       }
 
-      showToast('Transaksi Sukses! Nota gantung/lunas berhasil direkam.', 'success');
+      showToast('Transaksi Sukses! Nota lunas/gantung berhasil direkam.', 'success');
       
-      // TRIGGER CETAK NOTA SAKTI
       triggerPrint('NOTA_DOTMATRIX', {
         title: 'NOTA PENJUALAN DIMSUM', id: orderId, date: formatDate(todayStr),
         branch_name: currentBranch, admin_name: user?.name || 'KASIR',
@@ -186,7 +209,6 @@ export default function TabOrders({
         history: form.paymentMethod === 'TEMPO' || form.paymentMethod === 'DP' ? { labelAksi: 'NOMINAL DP/BAYAR', nominalAksi: form.paymentMethod === 'TEMPO' ? 0 : Number(form.amountPaid||0), labelBaru: 'SISA PIUTANG GANTUNG', nominalBaru: sisaTagihan } : null
       });
 
-      // RESET FORM KASIR KE NORMAL
       setCart([]); setCustomerSearch(''); setSelectedCustomer(null); setIsNewCustomer(false);
       setForm({ phone: '', address: '', salesChannel: 'ECERAN_WALKIN', paymentMethod: 'CASH', amountPaid: '', notes: '', isUpdateMasterPrice: false, newMasterPrice: '' });
     }
@@ -211,7 +233,7 @@ export default function TabOrders({
                 const dynamicPrice = getProductPriceByChannel(prod, form.salesChannel);
                 return (
                   <div key={prod.id} onClick={() => handleAddToCart(prod)} className="border border-slate-200 rounded-2xl p-3 cursor-pointer hover:border-blue-500 hover:bg-blue-600/5 transition-all active:scale-95 group flex flex-col justify-between h-full relative overflow-hidden">
-                    <div className="absolute top-0 right-0 bg-blue-100 text-blue-700 text-[8px] font-black px-2 py-0.5 rounded-bl-lg">🛒 AMBIL</div>
+                    <div className="absolute top-0 right-0 bg-blue-100 text-blue-700 text-[8px] font-black px-2 py-0.5 rounded-bl-lg">➕ AMBIL</div>
                     <div className="font-black text-slate-800 text-xs uppercase leading-tight mb-2 group-hover:text-blue-700">{prod.name}</div>
                     <div className="text-sm font-black text-emerald-600">{formatRupiah(dynamicPrice)}<span className="text-[9px] text-slate-400 ml-1">/ {prod.unit || 'Pcs'}</span></div>
                   </div>
@@ -227,30 +249,55 @@ export default function TabOrders({
             <Tag size={16} className="text-orange-500"/> Keranjang Pesanan
           </h3>
           
-          <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
             {cart.length === 0 ? (
               <div className="h-40 flex items-center justify-center text-xs font-bold text-slate-400 uppercase tracking-widest">Keranjang masih kosong</div>
             ) : (
-              cart.map((item, index) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-2xl animate-in fade-in">
-                  <div className="flex-1 pr-4">
-                    <div className="font-black text-slate-800 uppercase text-xs mb-1">{item.name}</div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold text-slate-400">Harga Terhitung:</span>
-                      <input type="number" value={item.currentPrice} onChange={(e) => handleUpdateCartPrice(item.id, e.target.value)} className="w-24 p-1 border rounded bg-white text-xs font-black text-emerald-600 outline-none" />
+              cart.map((item, index) => {
+                const conversionText = calculateConversion(item.name, item.qty);
+                return (
+                  <div key={index} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl animate-in fade-in flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex-1">
+                      <div className="font-black text-slate-800 uppercase text-xs mb-1.5">{item.name}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-slate-400">Harga (Rp):</span>
+                        <input type="number" value={item.currentPrice} onChange={(e) => handleUpdateCartPrice(item.id, e.target.value)} className="w-24 p-1 border rounded bg-white text-xs font-black text-emerald-600 outline-none" />
+                      </div>
+                    </div>
+
+                    {/* 🔥 AREA INPUT QTY & RADAR LIVE KONVERSI */}
+                    <div className="flex items-center justify-between sm:justify-end gap-4">
+                      <div className="flex flex-col items-center">
+                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">Input Qty (PCS)</label>
+                        <div className="flex items-center bg-white border rounded-xl overflow-hidden shadow-sm focus-within:border-blue-400">
+                          <button type="button" onClick={() => handleUpdateCartQty(item.id, item.qty - 1)} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 font-black text-slate-600 transition-colors">-</button>
+                          {/* 🔥 SEKARANG FULLY EDITABLE INPUT ANGKANYA! */}
+                          <input type="number" value={item.qty} onChange={(e) => handleUpdateCartQty(item.id, e.target.value)} className="w-16 text-center text-xs font-black outline-none bg-white p-1" placeholder="0" />
+                          <button type="button" onClick={() => handleUpdateCartQty(item.id, item.qty + 1)} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 font-black text-slate-600 transition-colors">+</button>
+                        </div>
+                      </div>
+
+                      {/* 🔥 BADGE INDIKATOR KONVERSI OTOMATIS */}
+                      {conversionText && (
+                        <div className="bg-blue-50 border border-blue-100 px-3 py-2 rounded-xl flex items-center gap-1.5 min-w-[90px] justify-center">
+                          <RefreshCw size={12} className="text-blue-500 animate-spin" style={{ animationDuration: '4s' }} />
+                          <div className="text-center">
+                            <div className="text-[8px] font-black text-blue-400 uppercase tracking-widest">Estimasi</div>
+                            <div className="text-[10px] font-black text-blue-700 tracking-wide">{conversionText}</div>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="text-right min-w-[100px]">
+                        <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Subtotal</div>
+                        <div className="font-black text-slate-800 text-sm">{formatRupiah(item.qty * item.currentPrice)}</div>
+                      </div>
+
+                      <button type="button" onClick={() => handleRemoveFromCart(item.id)} className="p-2 text-slate-300 hover:text-rose-600 transition-colors"><Trash2 size={14}/></button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center bg-white border rounded-xl overflow-hidden shadow-sm">
-                      <button type="button" onClick={() => handleUpdateCartQty(item.id, item.qty - 1)} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 font-black text-slate-600">-</button>
-                      <input type="number" value={item.qty} readOnly className="w-10 text-center text-xs font-black outline-none" />
-                      <button type="button" onClick={() => handleUpdateCartQty(item.id, item.qty + 1)} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 font-black text-slate-600">+</button>
-                    </div>
-                    <div className="font-black text-slate-800 text-sm w-24 text-right">{formatRupiah(item.qty * item.currentPrice)}</div>
-                    <button type="button" onClick={() => handleRemoveFromCart(item.id)} className="p-2 text-slate-300 hover:text-rose-600 transition-colors"><Trash2 size={14}/></button>
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
@@ -326,7 +373,7 @@ export default function TabOrders({
               </select>
             </div>
 
-            {/* PASIF CHECKLIST: HANYA DIAKTIFKAN UNTUK PERUBAHAN HARGA MASA DEPAN */}
+            {/* PASIF CHECKLIST */}
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl shadow-inner">
               <label className="flex items-start gap-2.5 cursor-pointer">
                 <input type="checkbox" checked={form.isUpdateMasterPrice} onChange={e=>setForm({...form, isUpdateMasterPrice: e.target.checked})} className="w-4 h-4 mt-0.5 accent-blue-600" />
@@ -347,7 +394,7 @@ export default function TabOrders({
               )}
             </div>
 
-            {/* METODE PEMBAYARAN: REVISI TOTAL (HUTANG -> TEMPO GANTUNG BONG) */}
+            {/* METODE PEMBAYARAN */}
             <div className="border-t border-slate-100 pt-4 mt-2">
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Metode Pembayaran</label>
               <div className="grid grid-cols-4 gap-2 mb-3">
@@ -389,7 +436,7 @@ export default function TabOrders({
             <div><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Catatan Pesanan / Keterangan Gantung</label><input type="text" value={form.notes} onChange={e=>setForm({...form, notes: e.target.value})} className="w-full p-2.5 border border-slate-200 bg-slate-50 rounded-xl text-xs font-bold uppercase outline-none focus:bg-white" placeholder="Contoh: Nota gantung diambil senin..." /></div>
           </div>
 
-          <button type="submit" disabled={cart.length === 0} className="w-full bg-emerald-600 text-white font-black py-4 rounded-xl text-xs uppercase disabled:opacity-40 shadow-xl shadow-emerald-600/30 hover:bg-emerald-700 transition-transform active:scale-95 mt-4 tracking-widest flex items-center justify-center gap-2 shrink-0">
+          <button type="submit" disabled={cart.length === 0} className="w-full bg-emerald-600 text-white font-black py-4 rounded-xl text-xs uppercase disabled:opacity-40 shadow-xl shadow-emerald-600/30 hover:bg-emerald-700 transition-all active:scale-95 mt-4 tracking-widest flex items-center justify-center gap-2 shrink-0">
             <Printer size={16}/> SIMPAN &amp; CETAK NOTA KASIR
           </button>
         </form>
