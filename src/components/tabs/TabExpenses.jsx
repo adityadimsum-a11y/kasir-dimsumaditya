@@ -14,14 +14,41 @@ export default function TabExpenses({ expenses, sendToSheet }) {
       setForm(prev => ({ ...prev, [field]: rawValue }));
   };
 
-  const handleSubmit = (e) => {
+const handleSubmit = async (e) => {
       e.preventDefault();
-      const payload = {
-          id: generateId('EXP', form.date), date: form.date, category: form.category,
-          description: form.description, amount: Number(form.amount), payment_method: form.paymentMethod
+      
+      // 1. Siapkan data untuk tabel Pengeluaran (Expenses)
+      const expenseId = generateId('EXP', form.date);
+      const payloadExpense = {
+          id: expenseId, 
+          date: form.date, 
+          category: form.category,
+          description: form.description, 
+          amount: Number(form.amount), 
+          payment_method: form.paymentMethod,
+          branch_id: user?.branch_id || 'TANGERANG_PUSAT' // Catat siapa yang keluarin uang
       };
-      sendToSheet('insert', payload, 'expenses');
-      setForm({...form, description: '', amount: ''});
+
+      // 2. Siapkan data tembusan untuk Buku Besar (Cashflow Transactions)
+      const payloadCashflow = {
+          id: generateId('CASH', form.date),
+          date: form.date,
+          branch_id: user?.branch_id || 'TANGERANG_PUSAT',
+          type: 'OUT', // Arus Kas Keluar
+          method: form.paymentMethod,
+          amount: Number(form.amount),
+          description: `EXPENSE: ${form.category} - ${form.description}`,
+          reference_id: expenseId // Hubungkan dengan ID Pengeluaran
+      };
+
+      // 3. Tembak kedua data ke database secara berurutan
+      const successExpense = await sendToSheet('insert', payloadExpense, 'expenses');
+      
+      if (successExpense) {
+          // Jika sukses simpan pengeluaran, langsung potong saldo dompet
+          await sendToSheet('insert', payloadCashflow, 'cashflow_transactions');
+          setForm({...form, description: '', amount: ''});
+      }
   };
 
   const listExpenses = (expenses || []).sort((a,b) => new Date(b.date) - new Date(a.date));
