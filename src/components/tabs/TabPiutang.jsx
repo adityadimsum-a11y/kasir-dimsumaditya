@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Landmark, Search, Trash2, Printer, CheckCircle2, Lock, Banknote, Calendar, ArrowUpRight, ArrowDownToLine, History, FileText, Filter } from 'lucide-react';
+import { Landmark, Search, Trash2, Printer, CheckCircle2, Lock, Banknote, ArrowUpRight, ArrowDownToLine, FileText, Filter } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
 
@@ -15,16 +15,14 @@ export default function TabPiutang({
   const currentBranch = (user?.branch_id === 'PUSAT' || !user?.branch_id) ? 'TANGERANG_PUSAT' : user?.branch_id;
   const isHQ = user?.branch_type === 'HQ_FACTORY' || user?.branch_id === 'PUSAT' || currentBranch === 'TANGERANG_PUSAT';
 
-  // --- STATE CORE UTK FILTER & SUB-TABS ---
-  const [subTab, setSubTab] = useState('OUTSTANDING'); // OUTSTANDING atau HISTORY_LUNAS
+  const [subTab, setSubTab] = useState('OUTSTANDING'); 
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState('SEMUA'); // SEMUA, PIUTANG_AGEN, HUTANG_BON
+  const [filterType, setFilterType] = useState('SEMUA'); 
 
   const realOrders = useMemo(() => orders_data || orders || [], [orders, orders_data]);
   const realPurchases = useMemo(() => purchases_data || purchases || [], [purchases, purchases_data]);
   const realCashflow = useMemo(() => cashflow_transactions_data || cashflow_transactions || [], [cashflow_transactions, cashflow_transactions_data]);
 
-  // --- ENGINE KOMPILASI BUKU BESAR UTANG & PIUTANG ---
   const ledgerData = useMemo(() => {
     let activeRecords = [];
     let archivedRecords = [];
@@ -32,7 +30,6 @@ export default function TabPiutang({
     let totalPiutangMacet = 0;
     let totalHutangGantung = 0;
 
-    // 1. PROSES PIUTANG AGEN (DARI ORDERS YANG BELUM SELESAI / DP / HUTANG)
     realOrders.filter(o => !o.isDeleted).forEach(o => {
       if (!isHQ && o.branch_id !== currentBranch) return;
       if (!['DP', 'HUTANG', 'PIUTANG'].includes(o.payment_method) && o.status !== 'PIUTANG') return;
@@ -40,7 +37,6 @@ export default function TabPiutang({
       const totalTagihan = Number(o.total_amount || 0);
       let totalTerbayar = Number(o.amount_paid || 0);
 
-      // Hitung cicilan dari cashflow
       realCashflow.filter(c => !c.isDeleted && c.type === 'IN' && c.reference_id === o.id).forEach(c => {
         totalTerbayar += Number(c.amount || 0);
       });
@@ -64,7 +60,6 @@ export default function TabPiutang({
       }
     });
 
-    // 2. PROSES HUTANG DAGANG PABREK (DARI PURCHASES BON GANTUNG / HUTANG SUPPLIER)
     realPurchases.filter(p => !p.isDeleted).forEach(p => {
       if (!isHQ && p.branch_id !== currentBranch) return;
       if (!['BON_GANTUNG', 'HUTANG'].includes(p.payment_method) && p.status !== 'HUTANG') return;
@@ -72,7 +67,6 @@ export default function TabPiutang({
       const totalTagihan = Number(p.total_amount || p.amount || 0);
       let totalTerbayar = Number(p.amount_paid || 0);
 
-      // Hitung pembayaran cicilan keluar dari cashflow
       realCashflow.filter(c => !c.isDeleted && c.type === 'OUT' && c.reference_id === p.id).forEach(c => {
         totalTerbayar += Number(c.amount || 0);
       });
@@ -96,7 +90,6 @@ export default function TabPiutang({
       }
     });
 
-    // FILTER SEARCH & KATEGORI
     const filterFn = (list) => list.filter(r => {
       if (filterType !== 'SEMUA' && r.kategori !== filterType) return false;
       if (searchTerm) {
@@ -116,7 +109,6 @@ export default function TabPiutang({
 
   const displayedList = subTab === 'OUTSTANDING' ? ledgerData.outstanding : ledgerData.historyLunas;
 
-  // --- ACTIONS: PROSES METODE CICILAN EMAS ---
   const handleEksekusiCicilan = async (record) => {
     const isPiutang = record.kategori === 'PIUTANG_AGEN';
     
@@ -135,7 +127,6 @@ export default function TabPiutang({
     const trxId = generateId(isPiutang ? 'BYR' : 'PAY', todayStr);
     const isLunasFinal = nominal === record.sisa;
 
-    // 1. SUNTIK JURNAL TRANSAKSI MASUK/KELUAR KE DOMPET PERUSAHAAN (KAS/BANK)
     const cashflowPayload = {
       id: trxId, date: todayStr, branch_id: record.branch_id,
       type: isPiutang ? 'IN' : 'OUT',
@@ -145,8 +136,6 @@ export default function TabPiutang({
     };
 
     if (await sendToSheet('insert', cashflowPayload, 'cashflow_transactions')) {
-      
-      // 2. UPDATE NOTA INDUK AGAR BERUBAH STATUS JIKA SUDAH LUNAS TOTAL
       if (isLunasFinal) {
         if (isPiutang) {
           await sendToSheet('update', { ...record.rawOrder, status: 'SELESAI' }, 'orders');
@@ -157,7 +146,6 @@ export default function TabPiutang({
 
       showToast(`Transaksi sebesar ${formatRupiah(nominal)} sukses dicatat & Kas Dompet ter-update!`, 'success');
       
-      // CETAK NOTA KWITANSI PELUNASAN RESMI
       if (window.confirm("Cetak Kwitansi Pelunasan Buku Besar?")) {
         triggerPrint('NOTA_DOTMATRIX', {
           title: isPiutang ? 'KWITANSI PENERIMAAN PIUTANG' : 'BUKTI BAYAR HUTANG DAGANG', id: trxId, date: formatDate(todayStr),
@@ -171,8 +159,6 @@ export default function TabPiutang({
 
   return (
     <div className="space-y-6 pb-10 text-slate-800">
-      
-      {/* METRIK REKAP KARTU ATAS */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center justify-between border-l-4 border-l-orange-500">
           <div>
@@ -191,10 +177,7 @@ export default function TabPiutang({
         </div>
       </div>
 
-      {/* FILTER CONTROL BAR & SUB-TABS PINTU GANDA */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-        
-        {/* BARIS ATAS: SWITCH PINTU GANDA */}
         <div className="p-4 bg-slate-50 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div className="flex bg-slate-200 p-1 rounded-2xl border shadow-inner w-full sm:w-auto">
             <button type="button" onClick={() => setSubTab('OUTSTANDING')} className={`flex-1 sm:flex-none px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${subTab === 'OUTSTANDING' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:text-slate-800'}`}>⚠️ Tagihan Aktif ({displayedList.length})</button>
@@ -218,7 +201,6 @@ export default function TabPiutang({
           </div>
         </div>
 
-        {/* AREA TABEL UTAMA BUKU BESAR */}
         <div className="overflow-x-auto p-2 custom-scrollbar min-h-[45vh]">
           <table className="w-full text-sm text-left">
             <thead className="bg-white text-[10px] uppercase text-slate-400 border-b border-slate-100">
@@ -252,7 +234,7 @@ export default function TabPiutang({
                           {record.labelKategori}
                         </span>
                       </td>
-                      <td className="px-4 py-4"><div className="font-black text-slate-800 text-sm uppercase line-clamp-1">{record.clientName}</div>{activeBranch === 'SEMUA_CABANG' && <div className="text-[8px] text-slate-400 font-black tracking-wider uppercase mt-0.5">CAB: {record.branch_id}</div>}</td>
+                      <td className="px-4 py-4"><div className="font-black text-slate-800 text-sm uppercase line-clamp-1">{record.clientName}</div>{isHQ && <div className="text-[8px] text-slate-400 font-black tracking-wider uppercase mt-0.5">CAB: {record.branch_id}</div>}</td>
                       <td className="px-4 py-4 text-right whitespace-nowrap text-slate-500 font-bold">{formatRupiah(record.total)}</td>
                       <td className="px-4 py-4 text-right whitespace-nowrap text-emerald-600">{formatRupiah(record.terbayar)}</td>
                       <td className="px-4 py-4 text-right whitespace-nowrap">
@@ -264,14 +246,12 @@ export default function TabPiutang({
                       </td>
                       <td className="px-4 py-4 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1.5">
-                          {/* JIKA BELUM LUNAS: MUNCULKAN TOMBOL SAKTI CICILAN */}
                           {!record.isLunas && (
                             <button type="button" onClick={() => handleEksekusiCicilan(record)} className={`px-3 py-1.5 text-white rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm flex items-center gap-1 transition-transform active:scale-95 ${isPiutang ? 'bg-orange-600 hover:bg-orange-700' : 'bg-rose-600 hover:bg-rose-700'}`}>
                               <Banknote size={12}/> {isPiutang ? 'Tarik Bon' : 'Bayar Bon'}
                             </button>
                           )}
 
-                          {/* TOMBOL CETAK REKAPAN NOTA INDUK */}
                           <button type="button" onClick={() => triggerPrint('NOTA_DOTMATRIX', {
                             title: isPiutang ? 'BUKTI NOTA PIUTANG AGEN' : 'BUKTI NOTA HUTANG SUPPLIER', id: record.id, date: formatDate(record.date),
                             branch_name: record.branch_id, admin_name: user?.name || 'FINANCE', customer_name: record.clientName,
@@ -279,13 +259,12 @@ export default function TabPiutang({
                             history: { labelLama: 'Nilai Total Nota Awal', nominalLama: record.total, labelAksi: 'Total Berhasil Terbayar', nominalAksi: record.terbayar, labelBaru: 'SISA SALDO GANTUNG SEKARANG', nominalBaru: record.sisa }
                           })} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Cetak Slip Rekap"><Printer size={15}/></button>
 
-                          {/* REKREASI FITUR TRASH KORPORASI DENGAN TIME-LOCK */}
                           {canVoid ? (
                             <button type="button" onClick={() => { if(window.confirm("Void total data transaksi induk ini?")) requestDelete(record.id); }} className="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors opacity-40 group-hover:opacity-100" title="Void Nota Induk">
                               <Trash2 size={15}/>
                             </button>
                           ) : (
-                            <span className="text-[10px] text-slate-300 px-1 font-black" title="Terkunci (Hanya HQ yang bisa void data lampau)"><Lock size={12}/></span>
+                            <span className="text-[10px] text-slate-300 px-1 font-black" title="Terkunci"><Lock size={12}/></span>
                           )}
                         </div>
                       </td>
@@ -297,7 +276,6 @@ export default function TabPiutang({
           </table>
         </div>
       </div>
-
     </div>
   );
 }
