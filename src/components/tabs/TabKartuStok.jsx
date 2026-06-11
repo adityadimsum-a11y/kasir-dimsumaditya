@@ -6,8 +6,8 @@ const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
 export default function TabKartuStok({ 
   masterProducts = [], masterRawMaterials = [], 
-  orders = [], purchases = [], productionBatches = []
-  // Prop 'user' dihapus karena sudah tidak dipakai di file ini
+  orders = [], purchases = [], productionBatches = [],
+  user 
 }) {
   // --- STATE NAVIGASI & FILTER ---
   const [activeTab, setActiveTab] = useState('FREEZER'); // 'FREEZER', 'BAHAN_BAKU', 'MUTASI'
@@ -17,11 +17,11 @@ export default function TabKartuStok({
   const freezerStock = useMemo(() => {
     const stockMap = {};
     
-    // Inisialisasi dari Master Data
+    // Inisialisasi dari Master Data (Diberi pelindung || '')
     (masterProducts || []).forEach(p => {
-      if (!p.isDeleted) {
+      if (!p.isDeleted && p.product_name) {
         stockMap[p.product_name] = { 
-          id: p.id, name: p.product_name, sku: p.sku, category: p.category,
+          id: p.id, name: p.product_name, sku: p.sku || '', category: p.category || '',
           stockIn: 0, stockOut: 0, currentStock: 0 
         };
       }
@@ -44,21 +44,22 @@ export default function TabKartuStok({
           const items = JSON.parse(o.items || '[]');
           items.forEach(item => {
             const pName = item.name || item.product_name;
-            if (stockMap[pName]) {
+            if (pName && stockMap[pName]) {
               stockMap[pName].stockOut += Number(item.qty || 0);
             }
           });
         } catch (e) { 
-          void e; // Trik lolos sensor unused-vars Vercel
+          /* abaikan jika json rusak */ 
         }
       }
     });
 
-    // Hitung Saldo Akhir
+    // Hitung Saldo Akhir & Filter Aman
+    const safeSearch = (searchTerm || '').toLowerCase();
     return Object.values(stockMap).map(item => {
       item.currentStock = item.stockIn - item.stockOut;
       return item;
-    }).filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
+    }).filter(item => (item.name || '').toLowerCase().includes(safeSearch));
   }, [masterProducts, productionBatches, orders, searchTerm]);
 
   // --- ENGINE 2: KALKULASI STOK BAHAN BAKU & PACKAGING ---
@@ -66,9 +67,9 @@ export default function TabKartuStok({
     const stockMap = {};
 
     (masterRawMaterials || []).forEach(r => {
-      if (!r.isDeleted) {
+      if (!r.isDeleted && r.raw_name) {
         stockMap[r.raw_name] = {
-          id: r.id, name: r.raw_name, unit: r.unit, category: r.category,
+          id: r.id, name: r.raw_name, unit: r.unit || '', category: r.category || '',
           stockIn: 0, stockOut: 0, currentStock: 0
         };
       }
@@ -81,13 +82,11 @@ export default function TabKartuStok({
           const items = JSON.parse(p.items || '[]');
           items.forEach(item => {
             const rName = item.name || item.raw_name;
-            if (stockMap[rName]) {
+            if (rName && stockMap[rName]) {
               stockMap[rName].stockIn += Number(item.qty || 0);
             }
           });
         } catch (e) {
-          void e; // Trik lolos sensor unused-vars Vercel
-          // Fallback jika tidak pakai array items tapi langsung nembak nama di nota
           if (p.raw_name && stockMap[p.raw_name]) {
              stockMap[p.raw_name].stockIn += Number(p.qty || 0);
           }
@@ -106,20 +105,21 @@ export default function TabKartuStok({
           const ingredients = JSON.parse(batch.ingredients_used || '[]');
           ingredients.forEach(ing => {
             const rName = ing.name || ing.raw_name;
-            if (stockMap[rName]) {
+            if (rName && stockMap[rName]) {
               stockMap[rName].stockOut += Number(ing.qty || 0);
             }
           });
         } catch (e) { 
-          void e; // Trik lolos sensor unused-vars Vercel
+          /* abaikan */ 
         }
       }
     });
 
+    const safeSearch = (searchTerm || '').toLowerCase();
     return Object.values(stockMap).map(item => {
       item.currentStock = item.stockIn - item.stockOut;
       return item;
-    }).filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
+    }).filter(item => (item.name || '').toLowerCase().includes(safeSearch));
   }, [masterRawMaterials, purchases, productionBatches, searchTerm]);
 
   // --- ENGINE 3: BUKU MUTASI (TIMELINE KARTU STOK) ---
@@ -134,12 +134,11 @@ export default function TabKartuStok({
           items.forEach(item => {
             timeline.push({
               id: o.id, date: o.date, type: 'OUT', category: 'PENJUALAN KASIR',
-              itemName: item.name || item.product_name, qty: item.qty, reference: o.customer_name || 'Pelanggan Umum'
+              itemName: item.name || item.product_name || 'ITEM TIDAK DIKETAHUI', 
+              qty: item.qty || 0, reference: o.customer_name || 'Pelanggan Umum'
             });
           });
-        } catch (e) {
-          void e; // Trik lolos sensor unused-vars Vercel
-        }
+        } catch (e) {}
       }
     });
 
@@ -152,7 +151,8 @@ export default function TabKartuStok({
             items.forEach(item => {
               timeline.push({
                 id: p.id, date: p.date, type: 'IN', category: 'BELANJA LOGISTIK',
-                itemName: item.name || item.raw_name, qty: item.qty, reference: p.supplier_name || 'Supplier'
+                itemName: item.name || item.raw_name || 'ITEM TIDAK DIKETAHUI', 
+                qty: item.qty || 0, reference: p.supplier_name || 'Supplier'
               });
             });
           } else if (p.raw_name) {
@@ -161,9 +161,7 @@ export default function TabKartuStok({
               itemName: p.raw_name, qty: p.qty || 1, reference: p.supplier_name || 'Supplier'
             });
           }
-        } catch (e) {
-          void e; // Trik lolos sensor unused-vars Vercel
-        }
+        } catch (e) {}
       }
     });
 
@@ -172,7 +170,9 @@ export default function TabKartuStok({
       if (!batch.isDeleted && batch.status === 'COMPLETED') {
         timeline.push({
           id: batch.id, date: batch.date, type: 'IN', category: 'HASIL PRODUKSI PABRIK',
-          itemName: batch.product_name || 'DIMSUM FROZEN CORE', qty: batch.total_yield_pcs || batch.actual_yield || batch.qty, reference: `Batch Porsi: ${batch.id}`
+          itemName: batch.product_name || 'DIMSUM FROZEN CORE', 
+          qty: batch.total_yield_pcs || batch.actual_yield || batch.qty || 0, 
+          reference: `Batch Porsi: ${batch.id}`
         });
 
         if (batch.total_ayam_kg) {
@@ -187,17 +187,17 @@ export default function TabKartuStok({
           ingredients.forEach(ing => {
             timeline.push({
               id: batch.id + '-ING', date: batch.date, type: 'OUT', category: 'PEMAKAIAN PRODUKSI',
-              itemName: ing.name || ing.raw_name, qty: ing.qty, reference: `Untuk Batch: ${batch.id}`
+              itemName: ing.name || ing.raw_name || 'ITEM TIDAK DIKETAHUI', 
+              qty: ing.qty || 0, reference: `Untuk Batch: ${batch.id}`
             });
           });
-        } catch (e) {
-          void e; // Trik lolos sensor unused-vars Vercel
-        }
+        } catch (e) {}
       }
     });
 
+    const safeSearch = (searchTerm || '').toLowerCase();
     return timeline
-      .filter(t => t.itemName?.toLowerCase().includes(searchTerm.toLowerCase()) || t.category?.toLowerCase().includes(searchTerm.toLowerCase()))
+      .filter(t => (t.itemName || '').toLowerCase().includes(safeSearch) || (t.category || '').toLowerCase().includes(safeSearch))
       .sort((a, b) => new Date(b.date) - new Date(a.date));
   }, [orders, purchases, productionBatches, searchTerm]);
 
@@ -250,8 +250,8 @@ export default function TabKartuStok({
                   freezerStock.map((item, idx) => (
                     <tr key={idx} className="hover:bg-slate-50 transition-colors">
                       <td className="px-5 py-4 whitespace-nowrap">
-                        <div className="text-slate-800 font-black uppercase">{item.name}</div>
-                        <div className="text-[9px] font-mono text-slate-400 mt-1">{item.sku || 'NO-SKU'} | {item.category.replace('_', ' ')}</div>
+                        <div className="text-slate-800 font-black uppercase">{item.name || 'UMUM'}</div>
+                        <div className="text-[9px] font-mono text-slate-400 mt-1">{item.sku || 'NO-SKU'} | {item.category ? item.category.replace(/_/g, ' ') : 'UMUM'}</div>
                       </td>
                       <td className="px-5 py-4 text-center font-black text-emerald-600 bg-emerald-50/30">+{formatNumber(item.stockIn)}</td>
                       <td className="px-5 py-4 text-center font-black text-rose-600 bg-rose-50/30">-{formatNumber(item.stockOut)}</td>
@@ -292,15 +292,15 @@ export default function TabKartuStok({
                 ) : (
                   rawStock.map((item, idx) => (
                     <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-5 py-4 whitespace-nowrap font-black text-slate-800 uppercase">{item.name}</td>
+                      <td className="px-5 py-4 whitespace-nowrap font-black text-slate-800 uppercase">{item.name || 'UMUM'}</td>
                       <td className="px-5 py-4 text-center">
-                        <span className={`px-2.5 py-1 text-[9px] font-black uppercase rounded border ${item.category === 'PACKAGING' ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>{item.category.replace('_', ' ')}</span>
-                        <div className="text-[10px] text-slate-500 mt-2 uppercase tracking-widest">Sistem: {item.unit}</div>
+                        <span className={`px-2.5 py-1 text-[9px] font-black uppercase rounded border ${item.category === 'PACKAGING' ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>{item.category ? item.category.replace(/_/g, ' ') : 'UMUM'}</span>
+                        <div className="text-[10px] text-slate-500 mt-2 uppercase tracking-widest">Sistem: {item.unit || 'PCS'}</div>
                       </td>
                       <td className="px-5 py-4 text-center font-black text-emerald-600 bg-emerald-50/30">+{formatNumber(item.stockIn)}</td>
                       <td className="px-5 py-4 text-center font-black text-rose-600 bg-rose-50/30">-{formatNumber(item.stockOut)}</td>
                       <td className="px-5 py-4 text-right">
-                        <div className={`text-lg font-black ${item.currentStock <= 5 ? 'text-rose-600' : 'text-orange-700'}`}>{formatNumber(item.currentStock)} <span className="text-[10px] text-slate-400 ml-1">{item.unit}</span></div>
+                        <div className={`text-lg font-black ${item.currentStock <= 5 ? 'text-rose-600' : 'text-orange-700'}`}>{formatNumber(item.currentStock)} <span className="text-[10px] text-slate-400 ml-1">{item.unit || ''}</span></div>
                       </td>
                     </tr>
                   ))
