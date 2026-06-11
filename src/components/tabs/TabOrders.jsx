@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { ShoppingCart, User, Plus, Trash2, Printer, Search, CreditCard, Banknote, Smartphone, MapPin, Store, Tag, CheckCircle2, AlertCircle } from 'lucide-react';
+import { ShoppingCart, User, Trash2, Printer, Search, Banknote, Smartphone, MapPin, Tag, CheckCircle2, AlertCircle } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
 
@@ -23,8 +23,8 @@ export default function TabOrders({
   // --- STATE CRM & FORM KASIR ---
   const [customerSearch, setCustomerSearch] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState(null); // Menyimpan objek pelanggan jika agen lama
-  const [isNewCustomer, setIsNewCustomer] = useState(false); // Toggle pendaftaran member baru
+  const [selectedCustomer, setSelectedCustomer] = useState(null); 
+  const [isNewCustomer, setIsNewCustomer] = useState(false); 
 
   const [form, setForm] = useState({
     phone: '', address: '',
@@ -47,13 +47,38 @@ export default function TabOrders({
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [wrapperRef]);
+  }, []);
+
+  // --- 🌟 MATRIX RADAR HARGA OTOMATIS BERDASARKAN JALUR MERCHANT 🌟 ---
+  const getProductPriceByChannel = (prod, channel) => {
+    const basePrice = Number(prod.price || 0);
+    // Deteksi jika di master data ada field tier khusus, jika tidak ada lakukan auto-kalkulasi persen
+    if (channel === 'RESELLER_AGEN') return prod.price_reseller || prod.price_agen || Math.round(basePrice * 0.9);
+    if (channel === 'MITRA_DISTRIBUTOR') return prod.price_distributor || prod.price_mitra || Math.round(basePrice * 0.85);
+    if (['GOFOOD', 'GRABFOOD', 'SHOPEEFOOD'].includes(channel)) return prod.price_online || Math.round(basePrice * 1.2);
+    return basePrice; // Default Eceran Walk-In
+  };
+
+  // 🔥 EFEK SAKTI: Jika Jalur Merchant diubah, HARGA DI KERANJANG IKUT BERUBAH OTOMATIS!
+  useEffect(() => {
+    if (cart.length > 0) {
+      setCart(prevCart => 
+        prevCart.map(item => {
+          const freshProd = realProducts.find(p => p.id === item.id);
+          if (freshProd) {
+            return { ...item, currentPrice: getProductPriceByChannel(freshProd, form.salesChannel) };
+          }
+          return item;
+        })
+      );
+    }
+  }, [form.salesChannel, realProducts]);
 
   // --- ENGINE AUTO-SUGGESTION CUSTOMER ---
   const filteredCustomers = useMemo(() => {
     if (!customerSearch) return [];
     const searchLower = customerSearch.toLowerCase();
-    return realCustomers.filter(c => !c.isDeleted && c.name && c.name.toLowerCase().includes(searchLower)).slice(0, 5); // Ambil 5 teratas
+    return realCustomers.filter(c => !c.isDeleted && c.name && c.name.toLowerCase().includes(searchLower)).slice(0, 5);
   }, [realCustomers, customerSearch]);
 
   const handleSelectCustomer = (cust) => {
@@ -67,8 +92,8 @@ export default function TabOrders({
   const handleCustomerSearchChange = (e) => {
     const val = e.target.value.toUpperCase();
     setCustomerSearch(val);
-    setSelectedCustomer(null); // Reset pilihan lama
-    setIsNewCustomer(true); // Default anggap pelanggan baru jika diketik manual
+    setSelectedCustomer(null); 
+    setIsNewCustomer(true); 
     setShowSuggestions(true);
   };
 
@@ -76,9 +101,9 @@ export default function TabOrders({
   const handleAddToCart = (product) => {
     setCart(prev => {
       const exist = prev.find(item => item.id === product.id);
+      const matchedPrice = getProductPriceByChannel(product, form.salesChannel);
       if (exist) return prev.map(item => item.id === product.id ? { ...item, qty: item.qty + 1 } : item);
-      // Harga bawaan bisa ditimpa nanti jika ada Master Price khusus
-      return [...prev, { ...product, qty: 1, currentPrice: product.price || 0 }];
+      return [...prev, { ...product, qty: 1, currentPrice: matchedPrice }];
     });
   };
 
@@ -91,6 +116,10 @@ export default function TabOrders({
     setCart(prev => prev.map(item => item.id === id ? { ...item, currentPrice: Number(newPrice) } : item));
   };
 
+  const handleRemoveFromCart = (id) => {
+    setCart(prev => prev.filter(item => item.id !== id));
+  };
+
   const totalTagihan = useMemo(() => cart.reduce((sum, item) => sum + (item.qty * item.currentPrice), 0), [cart]);
   const kembalian = useMemo(() => Math.max(0, Number(form.amountPaid || 0) - totalTagihan), [form.amountPaid, totalTagihan]);
 
@@ -99,32 +128,32 @@ export default function TabOrders({
     e.preventDefault();
     if (cart.length === 0) return alert("Keranjang kosong!");
     if (!customerSearch) return alert("Nama Pelanggan/Agen wajib diisi!");
-    if (form.paymentMethod !== 'HUTANG' && Number(form.amountPaid || 0) < totalTagihan && form.paymentMethod !== 'DP') {
-      return alert("Uang bayar kurang dari tagihan!");
+    
+    // Proteksi Pembayaran
+    if (form.paymentMethod !== 'TEMPO' && Number(form.amountPaid || 0) < totalTagihan && form.paymentMethod !== 'DP') {
+      return alert("Uang bayar kurang dari total tagihan!");
     }
 
     const orderId = generateId('ORD', todayStr);
     let sisaTagihan = totalTagihan - Number(form.amountPaid || 0);
-    if (sisaTagihan < 0) sisaTagihan = 0;
+    if (sisaTagihan < 0 || form.paymentMethod === 'CASH' || form.paymentMethod === 'TF') sisaTagihan = 0;
 
-    const orderStatus = form.paymentMethod === 'HUTANG' || form.paymentMethod === 'DP' ? 'PIUTANG' : 'SELESAI';
+    // Jika pilih TEMPO atau DP, maka status transaksi otomatis digantung menjadi 'PIUTANG'
+    const orderStatus = form.paymentMethod === 'TEMPO' || form.paymentMethod === 'DP' ? 'PIUTANG' : 'SELESAI';
 
-    // 1. PAYLOAD TRANSAKSI PENJUALAN
     const payloadOrder = {
       id: orderId, date: todayStr, branch_id: currentBranch,
       customer_name: customerSearch, sales_channel: form.salesChannel,
-      total_amount: totalTagihan, amount_paid: Number(form.amountPaid || 0),
+      total_amount: totalTagihan, amount_paid: form.paymentMethod === 'TEMPO' ? 0 : Number(form.amountPaid || 0),
       payment_method: form.paymentMethod, status: orderStatus,
       notes: form.notes.toUpperCase(),
       items: JSON.stringify(cart.map(c => ({ id: c.id, name: c.name, qty: c.qty, price: c.currentPrice })))
     };
 
-    // Eksekusi API utama (Penjualan)
     const successOrder = await sendToSheet('insert', payloadOrder, 'orders');
 
     if (successOrder) {
-      
-      // 2. OTOMATISASI CRM: SIMPAN PELANGGAN BARU ATAU UPDATE HARGA MASTER
+      // 2. SIMPAN PELANGGAN BARU / UPDATE HARGA MASTER KLIEN (Jika ada perubahan mendatang)
       if (isNewCustomer || form.isUpdateMasterPrice) {
         const custId = selectedCustomer ? selectedCustomer.id : generateId('CUST', todayStr);
         const payloadCustomer = {
@@ -132,13 +161,13 @@ export default function TabOrders({
           branch_id: currentBranch, join_date: todayStr,
           custom_price: form.isUpdateMasterPrice ? Number(form.newMasterPrice || 0) : (selectedCustomer ? selectedCustomer.custom_price : 0)
         };
-        // Jika pelanggan lama tapi update harga, pakai update. Jika baru, pakai insert.
         await sendToSheet(selectedCustomer ? 'update' : 'insert', payloadCustomer, 'master_customers');
       }
 
-      // 3. OTOMATISASI KEUANGAN: CATAT UANG MASUK DOMPET PERUSAHAAN (Jika ada uang dibayar)
-      if (Number(form.amountPaid || 0) > 0) {
-        const dppMasuk = Math.min(Number(form.amountPaid || 0), totalTagihan); // Yang masuk dompet sbg omzet real hanya sebatas tagihan
+      // 3. AMANKAN DOMPET PERUSAHAAN (Hanya rekam kas masuk jika bayar tunai/TF/DP)
+      const nominalKasMasuk = form.paymentMethod === 'TEMPO' ? 0 : Number(form.amountPaid || 0);
+      if (nominalKasMasuk > 0) {
+        const dppMasuk = Math.min(nominalKasMasuk, totalTagihan); 
         await sendToSheet('insert', {
           id: 'CFI-' + new Date().getTime(), date: todayStr, branch_id: currentBranch, type: 'IN',
           category: 'PENJUALAN ' + form.salesChannel, description: `Nota: ${orderId} (${customerSearch})`,
@@ -146,18 +175,18 @@ export default function TabOrders({
         }, 'cashflow_transactions');
       }
 
-      showToast('Transaksi Sukses! Bukti nota siap dicetak.', 'success');
+      showToast('Transaksi Sukses! Nota gantung/lunas berhasil direkam.', 'success');
       
-      // TRIGGER CETAK NOTA OTOMATIS
+      // TRIGGER CETAK NOTA SAKTI
       triggerPrint('NOTA_DOTMATRIX', {
         title: 'NOTA PENJUALAN DIMSUM', id: orderId, date: formatDate(todayStr),
         branch_name: currentBranch, admin_name: user?.name || 'KASIR',
         customer_name: customerSearch, items: cart.map(c => ({ name: c.name, qty: c.qty, subtotal: c.qty * c.currentPrice })),
-        amount: totalTagihan, paymentMethod: form.paymentMethod,
-        history: form.paymentMethod === 'HUTANG' || form.paymentMethod === 'DP' ? { labelAksi: 'UANG MUKA / DIBAYAR', nominalAksi: Number(form.amountPaid||0), labelBaru: 'SISA TAGIHAN', nominalBaru: sisaTagihan } : null
+        amount: totalTagihan, paymentMethod: form.paymentMethod === 'TEMPO' ? 'TEMPO / GANTUNG' : form.paymentMethod,
+        history: form.paymentMethod === 'TEMPO' || form.paymentMethod === 'DP' ? { labelAksi: 'NOMINAL DP/BAYAR', nominalAksi: form.paymentMethod === 'TEMPO' ? 0 : Number(form.amountPaid||0), labelBaru: 'SISA PIUTANG GANTUNG', nominalBaru: sisaTagihan } : null
       });
 
-      // RESET FORM
+      // RESET FORM KASIR KE NORMAL
       setCart([]); setCustomerSearch(''); setSelectedCustomer(null); setIsNewCustomer(false);
       setForm({ phone: '', address: '', salesChannel: 'ECERAN_WALKIN', paymentMethod: 'CASH', amountPaid: '', notes: '', isUpdateMasterPrice: false, newMasterPrice: '' });
     }
@@ -166,52 +195,59 @@ export default function TabOrders({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pb-10 h-full min-h-screen">
       
-      {/* 🛒 KOLOM KIRI: MENU PRODUK & KERANJANG (7 KOLOM) */}
+      {/* 🛒 KOLOM KIRI: KATALOG & KERANJANG */}
       <div className="lg:col-span-7 flex flex-col gap-6">
         
-        {/* KATALOG PRODUK CEPAT */}
+        {/* KATALOG PRODUK */}
         <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
-          <h3 className="text-xs font-black uppercase text-slate-700 tracking-widest flex items-center gap-2 mb-4"><ShoppingCart size={16} className="text-blue-500"/> Katalog Produk Gudang</h3>
+          <h3 className="text-xs font-black uppercase text-slate-700 tracking-widest flex items-center gap-2 mb-4">
+            <ShoppingCart size={16} className="text-blue-500"/> Katalog Produk Gudang
+          </h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {realProducts.length === 0 ? (
               <div className="col-span-full py-8 text-center text-xs font-bold text-slate-400">Master produk belum diatur.</div>
             ) : (
-              realProducts.filter(p => !p.isDeleted).map(prod => (
-                <div key={prod.id} onClick={() => handleAddToCart(prod)} className="border border-slate-200 rounded-2xl p-3 cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-colors group flex flex-col justify-between h-full relative overflow-hidden">
-                  <div className="absolute top-0 right-0 bg-blue-100 text-blue-700 text-[8px] font-black px-2 py-0.5 rounded-bl-lg">KLIK</div>
-                  <div className="font-black text-slate-800 text-xs uppercase leading-tight mb-2 group-hover:text-blue-700">{prod.name}</div>
-                  <div className="text-sm font-black text-emerald-600">{formatRupiah(prod.price)}<span className="text-[9px] text-slate-400 ml-1">/ {prod.unit || 'Pcs'}</span></div>
-                </div>
-              ))
+              realProducts.filter(p => !p.isDeleted).map(prod => {
+                const dynamicPrice = getProductPriceByChannel(prod, form.salesChannel);
+                return (
+                  <div key={prod.id} onClick={() => handleAddToCart(prod)} className="border border-slate-200 rounded-2xl p-3 cursor-pointer hover:border-blue-500 hover:bg-blue-600/5 transition-all active:scale-95 group flex flex-col justify-between h-full relative overflow-hidden">
+                    <div className="absolute top-0 right-0 bg-blue-100 text-blue-700 text-[8px] font-black px-2 py-0.5 rounded-bl-lg">🛒 AMBIL</div>
+                    <div className="font-black text-slate-800 text-xs uppercase leading-tight mb-2 group-hover:text-blue-700">{prod.name}</div>
+                    <div className="text-sm font-black text-emerald-600">{formatRupiah(dynamicPrice)}<span className="text-[9px] text-slate-400 ml-1">/ {prod.unit || 'Pcs'}</span></div>
+                  </div>
+                );
+              })
             )}
           </div>
         </div>
 
-        {/* LIST KERANJANG BELANJA */}
+        {/* KERANJANG BELANJA */}
         <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm flex-1 flex flex-col">
-          <h3 className="text-xs font-black uppercase text-slate-700 tracking-widest flex items-center gap-2 mb-4 border-b pb-3"><Tag size={16} className="text-orange-500"/> Keranjang Pesanan</h3>
+          <h3 className="text-xs font-black uppercase text-slate-700 tracking-widest flex items-center gap-2 mb-4 border-b pb-3">
+            <Tag size={16} className="text-orange-500"/> Keranjang Pesanan
+          </h3>
           
           <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
             {cart.length === 0 ? (
               <div className="h-40 flex items-center justify-center text-xs font-bold text-slate-400 uppercase tracking-widest">Keranjang masih kosong</div>
             ) : (
               cart.map((item, index) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-2xl">
-                  <div className="flex-1">
-                    <div className="font-black text-slate-800 uppercase text-xs mb-1.5">{item.name}</div>
+                <div key={index} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-2xl animate-in fade-in">
+                  <div className="flex-1 pr-4">
+                    <div className="font-black text-slate-800 uppercase text-xs mb-1">{item.name}</div>
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold text-slate-500">Harga Satuan:</span>
-                      {/* INPUT HARGA DINAMIS DI KERANJANG (Bisa diedit kasir langsung) */}
-                      <input type="number" value={item.currentPrice} onChange={(e) => handleUpdateCartPrice(item.id, e.target.value)} className="w-24 p-1 border rounded bg-white text-xs font-black text-emerald-600 outline-none focus:border-blue-400" />
+                      <span className="text-[10px] font-bold text-slate-400">Harga Terhitung:</span>
+                      <input type="number" value={item.currentPrice} onChange={(e) => handleUpdateCartPrice(item.id, e.target.value)} className="w-24 p-1 border rounded bg-white text-xs font-black text-emerald-600 outline-none" />
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="flex items-center bg-white border rounded-xl overflow-hidden shadow-sm">
-                      <button type="button" onClick={() => handleUpdateCartQty(item.id, item.qty - 1)} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 font-black text-slate-600 transition-colors">-</button>
+                      <button type="button" onClick={() => handleUpdateCartQty(item.id, item.qty - 1)} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 font-black text-slate-600">-</button>
                       <input type="number" value={item.qty} readOnly className="w-10 text-center text-xs font-black outline-none" />
-                      <button type="button" onClick={() => handleUpdateCartQty(item.id, item.qty + 1)} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 font-black text-slate-600 transition-colors">+</button>
+                      <button type="button" onClick={() => handleUpdateCartQty(item.id, item.qty + 1)} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 font-black text-slate-600">+</button>
                     </div>
-                    <div className="font-black text-slate-800 text-sm w-20 text-right">{formatRupiah(item.qty * item.currentPrice)}</div>
+                    <div className="font-black text-slate-800 text-sm w-24 text-right">{formatRupiah(item.qty * item.currentPrice)}</div>
+                    <button type="button" onClick={() => handleRemoveFromCart(item.id)} className="p-2 text-slate-300 hover:text-rose-600 transition-colors"><Trash2 size={14}/></button>
                   </div>
                 </div>
               ))
@@ -220,15 +256,17 @@ export default function TabOrders({
         </div>
       </div>
 
-      {/* 💼 KOLOM KANAN: FORM CHECKOUT CRM & PAYMENT (5 KOLOM) */}
+      {/* 💼 KOLOM KANAN: CRM & LOGIKA TEMPO PIUTANG */}
       <div className="lg:col-span-5 flex flex-col gap-6">
-        <form onSubmit={handleCheckout} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/50 flex-1 flex flex-col relative overflow-hidden">
+        <form onSubmit={handleCheckout} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xl flex-1 flex flex-col relative overflow-hidden">
           
-          <h3 className="text-xs font-black uppercase text-slate-800 tracking-widest flex items-center gap-2 mb-5 border-b pb-3"><User size={16} className="text-blue-600"/> Data Agen &amp; Pembayaran</h3>
+          <h3 className="text-xs font-black uppercase text-slate-800 tracking-widest flex items-center gap-2 mb-5 border-b pb-3">
+            <User size={16} className="text-blue-600"/> Data Agen &amp; Pembayaran
+          </h3>
 
           <div className="space-y-5 flex-1 overflow-y-auto pr-2 custom-scrollbar">
             
-            {/* 1. INPUT SMART CRM (AUTO-SUGGESTION) */}
+            {/* SEARCH CRM DENGAN DATABASE DROPDOWN */}
             <div className="relative" ref={wrapperRef}>
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Nama Pelanggan / Agen</label>
               <div className="relative">
@@ -236,12 +274,13 @@ export default function TabOrders({
                 <input type="text" required placeholder="Ketik nama pelanggan..." value={customerSearch} onChange={handleCustomerSearchChange} onFocus={() => customerSearch && setShowSuggestions(true)} className={`w-full pl-9 pr-3 py-3 border rounded-xl text-sm uppercase font-black outline-none transition-colors ${isNewCustomer && customerSearch ? 'bg-amber-50 border-amber-300 focus:border-amber-500 text-amber-900' : 'bg-slate-50 border-slate-200 focus:border-blue-400 focus:bg-white text-slate-800'}`} />
               </div>
               
-              {/* Dropdown Saran Nama */}
               {showSuggestions && filteredCustomers.length > 0 && (
                 <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
                   {filteredCustomers.map(cust => (
                     <div key={cust.id} onClick={() => handleSelectCustomer(cust)} className="p-3 hover:bg-blue-50 cursor-pointer border-b last:border-0 transition-colors">
-                      <div className="font-black text-xs text-slate-800 uppercase flex items-center gap-2">{cust.name} {cust.custom_price > 0 && <span className="text-[8px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">HARGA MASTER: {formatRupiah(cust.custom_price)}</span>}</div>
+                      <div className="font-black text-xs text-slate-800 uppercase flex items-center gap-2">
+                        {cust.name} {cust.custom_price > 0 && <span className="text-[8px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">HARGA MASTER: {formatRupiah(cust.custom_price)}</span>}
+                      </div>
                       <div className="text-[9px] font-bold text-slate-400 mt-1 flex items-center gap-3">
                         <span className="flex items-center gap-1"><Smartphone size={10}/> {cust.phone}</span>
                         <span className="flex items-center gap-1"><MapPin size={10}/> {cust.branch_id}</span>
@@ -251,19 +290,17 @@ export default function TabOrders({
                 </div>
               )}
 
-              {/* Badge Indikator Pelanggan */}
               {customerSearch && (
                 <div className="mt-2 flex items-center gap-1.5">
                   {isNewCustomer ? (
-                    <span className="text-[9px] font-black uppercase text-amber-600 bg-amber-100 px-2 py-0.5 rounded flex items-center gap-1 animate-pulse"><AlertCircle size={10}/> Pelanggan Baru (Belum Terdaftar)</span>
+                    <span className="text-[9px] font-black uppercase text-amber-600 bg-amber-100 px-2 py-0.5 rounded flex items-center gap-1 animate-pulse"><AlertCircle size={10}/> Agen Baru (Akan didaftarkan ke Master)</span>
                   ) : (
-                    <span className="text-[9px] font-black uppercase text-blue-600 bg-blue-100 px-2 py-0.5 rounded flex items-center gap-1"><CheckCircle2 size={10}/> Database Agen Ditemukan</span>
+                    <span className="text-[9px] font-black uppercase text-blue-600 bg-blue-100 px-2 py-0.5 rounded flex items-center gap-1"><CheckCircle2 size={10}/> Database Terdaftar</span>
                   )}
                 </div>
               )}
             </div>
 
-            {/* Field Tambahan Khusus Pelanggan Baru (Auto-Expand) */}
             {isNewCustomer && customerSearch && (
               <div className="grid grid-cols-2 gap-3 p-3 bg-amber-50/50 border border-amber-100 rounded-2xl animate-in slide-in-from-top-2">
                 <div><label className="text-[9px] font-black text-amber-700 uppercase tracking-widest block mb-1"><Smartphone size={10} className="inline mr-1"/> No. WhatsApp</label><input type="text" placeholder="0812..." value={form.phone} onChange={e=>setForm({...form, phone: e.target.value})} className="w-full p-2 border border-amber-200 rounded-lg text-xs font-bold bg-white outline-none focus:border-amber-400" /></div>
@@ -271,7 +308,7 @@ export default function TabOrders({
               </div>
             )}
 
-            {/* 2. JALUR MERCHANT / OJEK ONLINE LENGKAP */}
+            {/* JALUR PLATFORM YANG MENGATUR HARGA CATALOG SECARA OTOMATIS */}
             <div>
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Platform / Jalur Merchant</label>
               <select value={form.salesChannel} onChange={e=>setForm({...form, salesChannel: e.target.value})} className="w-full p-3 border border-slate-200 rounded-xl text-xs font-black uppercase outline-none bg-slate-50 cursor-pointer focus:border-blue-400 focus:bg-white">
@@ -286,38 +323,44 @@ export default function TabOrders({
                 <option value="SHOPEE">📦 SHOPEE E-COMMERCE</option>
                 <option value="TOKOPEDIA">📦 TOKOPEDIA</option>
                 <option value="TIKTOK_SHOP">📦 TIKTOK SHOP</option>
-                <option disabled>───────────────</option>
-                <option value="B2B_KATERING">🤝 B2B / KATERING EVENT</option>
               </select>
             </div>
 
-            {/* 3. SMART MASTER PRICE UPDATE */}
+            {/* PASIF CHECKLIST: HANYA DIAKTIFKAN UNTUK PERUBAHAN HARGA MASA DEPAN */}
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl shadow-inner">
               <label className="flex items-start gap-2.5 cursor-pointer">
                 <input type="checkbox" checked={form.isUpdateMasterPrice} onChange={e=>setForm({...form, isUpdateMasterPrice: e.target.checked})} className="w-4 h-4 mt-0.5 accent-blue-600" />
                 <div>
-                  <span className="text-[10px] font-black uppercase text-slate-700 tracking-widest block">Simpan Sebagai Harga Master Klien Ini</span>
-                  <span className="text-[9px] font-bold text-slate-400">Harga akan terekam di database untuk transaksi berikutnya.</span>
+                  <span className="text-[10px] font-black uppercase text-slate-700 tracking-widest block">Simpan Sebagai Perubahan Harga Master Klien</span>
+                  <span className="text-[9px] font-bold text-slate-400">Centang hanya jika ada negosiasi kontrak harga baru di masa mendatang.</span>
                 </div>
               </label>
               
-              {/* Kolom Input Harga Terbuka Otomatis jika dicentang */}
               {form.isUpdateMasterPrice && (
                 <div className="mt-3 pt-3 border-t border-slate-200 animate-in slide-in-from-top-1">
-                  <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest block mb-1">Ketik Harga Master Baru (Per Pcs/Box)</label>
+                  <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest block mb-1">Ketik Harga Master Kontrak Baru (Rp)</label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">Rp</span>
-                    <input type="number" required placeholder="Contoh: 1850" value={form.newMasterPrice} onChange={e=>setForm({...form, newMasterPrice: e.target.value})} className="w-full pl-9 pr-3 py-2.5 border border-blue-300 rounded-xl text-sm font-black text-blue-900 bg-white outline-none focus:ring-2 focus:ring-blue-100" />
+                    <input type="number" required placeholder="Contoh: 1850" value={form.newMasterPrice} onChange={e=>setForm({...form, newMasterPrice: e.target.value})} className="w-full pl-9 pr-3 py-2.5 border border-blue-300 rounded-xl text-sm font-black text-blue-900 bg-white outline-none" />
                   </div>
                 </div>
               )}
             </div>
 
+            {/* METODE PEMBAYARAN: REVISI TOTAL (HUTANG -> TEMPO GANTUNG BONG) */}
             <div className="border-t border-slate-100 pt-4 mt-2">
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Metode Pembayaran</label>
               <div className="grid grid-cols-4 gap-2 mb-3">
-                {['CASH', 'TF', 'DP', 'HUTANG'].map(method => (
-                  <button key={method} type="button" onClick={() => setForm({...form, paymentMethod: method})} className={`py-2 rounded-xl text-[10px] font-black uppercase transition-all border ${form.paymentMethod === method ? 'bg-slate-800 text-white border-slate-800 shadow-md scale-105' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>{method}</button>
+                {[
+                  { id: 'CASH', label: 'CASH' },
+                  { id: 'TF', label: 'TRANSFER' },
+                  { id: 'DP', label: 'TITIP DP' },
+                  { id: 'TEMPO', label: 'TEMPO / BONG' }
+                ].map(method => (
+                  <button key={method.id} type="button" onClick={() => {
+                    const nextPaid = method.id === 'TEMPO' ? '0' : form.amountPaid;
+                    setForm({...form, paymentMethod: method.id, amountPaid: nextPaid});
+                  }} className={`py-3 rounded-xl text-[9px] font-black uppercase transition-all border ${form.paymentMethod === method.id ? 'bg-slate-900 text-white border-slate-900 shadow-md scale-105' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>{method.label}</button>
                 ))}
               </div>
             </div>
@@ -328,21 +371,26 @@ export default function TabOrders({
               <div className="text-3xl font-black tracking-tight z-10 relative">{formatRupiah(totalTagihan)}</div>
             </div>
 
-            {form.paymentMethod !== 'HUTANG' && (
+            {form.paymentMethod !== 'TEMPO' ? (
               <div>
                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5 flex justify-between">
-                  <span>Nominal Uang Diterima</span>
-                  {kembalian > 0 && <span className="text-amber-500">Kembalian: {formatRupiah(kembalian)}</span>}
+                  <span>Nominal Uang Diterima Kasir</span>
+                  {kembalian > 0 && <span className="text-amber-500 font-black">Kembalian: {formatRupiah(kembalian)}</span>}
                 </label>
                 <input type="text" required value={formatRupiah(form.amountPaid)} onChange={e=>setForm({...form, amountPaid: e.target.value.replace(/\D/g, '')})} className={`w-full p-4 border rounded-xl text-lg font-black outline-none text-center ${Number(form.amountPaid||0) < totalTagihan && form.paymentMethod !== 'DP' ? 'bg-rose-50 border-rose-300 text-rose-700' : 'bg-emerald-50 border-emerald-300 text-emerald-800 focus:bg-white'}`} placeholder="Rp 0" />
               </div>
+            ) : (
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-[11px] font-bold text-amber-800 uppercase tracking-wide flex items-center gap-2 animate-in fade-in">
+                <AlertCircle size={16} className="shrink-0 text-amber-600"/>
+                <span>Sistem mencatat sebagai Piutang Gantung Agen. Total tagihan akan ditagih pada penarikan bong berikutnya.</span>
+              </div>
             )}
             
-            <div><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Catatan Pesanan</label><input type="text" value={form.notes} onChange={e=>setForm({...form, notes: e.target.value})} className="w-full p-2.5 border border-slate-200 bg-slate-50 rounded-xl text-xs font-bold uppercase outline-none focus:bg-white" placeholder="Contoh: Saus dipisah..." /></div>
+            <div><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Catatan Pesanan / Keterangan Gantung</label><input type="text" value={form.notes} onChange={e=>setForm({...form, notes: e.target.value})} className="w-full p-2.5 border border-slate-200 bg-slate-50 rounded-xl text-xs font-bold uppercase outline-none focus:bg-white" placeholder="Contoh: Nota gantung diambil senin..." /></div>
           </div>
 
-          <button type="submit" disabled={cart.length === 0} className="w-full bg-emerald-600 text-white font-black py-4 rounded-xl text-xs uppercase disabled:opacity-40 shadow-xl shadow-emerald-600/30 hover:bg-emerald-700 transition-colors mt-4 tracking-widest flex items-center justify-center gap-2 shrink-0">
-            <Printer size={16}/> SIMPAN &amp; CETAK NOTA
+          <button type="submit" disabled={cart.length === 0} className="w-full bg-emerald-600 text-white font-black py-4 rounded-xl text-xs uppercase disabled:opacity-40 shadow-xl shadow-emerald-600/30 hover:bg-emerald-700 transition-transform active:scale-95 mt-4 tracking-widest flex items-center justify-center gap-2 shrink-0">
+            <Printer size={16}/> SIMPAN &amp; CETAK NOTA KASIR
           </button>
         </form>
       </div>
