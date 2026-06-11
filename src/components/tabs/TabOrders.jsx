@@ -1,21 +1,24 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { ShoppingCart, User, Trash2, Printer, Search, Banknote, Tag, CheckCircle2, AlertCircle, RefreshCw, PlusCircle, Smartphone, MapPin } from 'lucide-react';
+import { User, Printer, Search, Banknote, CheckCircle2, AlertCircle, RefreshCw, ShoppingBag, History, Lock, Unlock, Plus, Trash2, PackageOpen } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
 
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 
-const getProductPriceByChannel = (prod, channel) => {
-  if (channel === 'MITRA_DISTRIBUTOR') return 2000;
-  if (channel === 'RESELLER_AGEN') return 2125;
-  if (channel === 'ECERAN_WALKIN') return 3000;
-  return Number(prod.price || 3000); 
+const STANDARD_PRICES = {
+  'MITRA_DISTRIBUTOR': 2000,
+  'RESELLER_AGEN': 2125,
+  'ECERAN_WALKIN': 3000
 };
+
+const OJOL_CHANNELS = ['GOFOOD', 'GRABFOOD', 'SHOPEEFOOD'];
+const ECOMMERCE_CHANNELS = ['SHOPEE', 'TOKOPEDIA', 'TIKTOK_SHOP', 'PAKETAN_ACARA'];
 
 export default function TabOrders({ 
   masterProducts = [], master_products,
   masterCustomers = [], master_customers,
   masterConversionRules = [], master_conversion_rules, 
+  orders = [], // Tarik data order untuk riwayat
   user, sendToSheet, showToast 
 }) {
   const todayStr = getTodayStr();
@@ -24,24 +27,31 @@ export default function TabOrders({
   const realProducts = useMemo(() => master_products || masterProducts || [], [master_products, masterProducts]);
   const realCustomers = useMemo(() => master_customers || masterCustomers || [], [master_customers, masterCustomers]);
   const realConversions = useMemo(() => master_conversion_rules || masterConversionRules || [], [master_conversion_rules, masterConversionRules]);
-
-  const [cart, setCart] = useState([]);
   
-  // 🔥 STATE BARU: Untuk Input Barang Kustom (Tanpa Katalog)
-  const [customItem, setCustomItem] = useState({ name: '', price: '', qty: '1' });
+  // Ambil transaksi khusus hari ini untuk papan riwayat
+  const todaysOrders = useMemo(() => orders.filter(o => o.date === todayStr).reverse(), [orders, todayStr]);
 
+  // --- STATE CRM ---
   const [customerSearch, setCustomerSearch] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null); 
 
+  // --- STATE FORM TRANSAKSI ---
   const [form, setForm] = useState({
-    salesChannel: 'ECERAN_WALKIN',
+    salesChannel: 'RESELLER_AGEN',
     paymentMethod: 'CASH',
     amountPaid: '',
     notes: '',
-    isUpdateMasterPrice: false,
-    newMasterPrice: ''
+    isUpdateMasterPrice: false
   });
+
+  // --- STATE MODE GROSIR (BULK) ---
+  const [bulkQty, setBulkQty] = useState('');
+  const [bulkPrice, setBulkPrice] = useState(2125);
+
+  // --- STATE MODE MERCHANT OJOL ---
+  const [merchantCart, setMerchantCart] = useState([]);
+  const [merchantInput, setMerchantInput] = useState({ productId: '', qty: '', price: '' });
 
   const wrapperRef = useRef(null);
 
@@ -55,36 +65,35 @@ export default function TabOrders({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // 🔥 ENGINE CERDAS: Update harga grosir otomatis saat jalur platform diubah
   useEffect(() => {
-    setCart(prevCart => {
-      if (prevCart.length === 0) return prevCart;
-      return prevCart.map(item => {
-        const freshProd = realProducts.find(p => p.id === item.id);
-        if (freshProd) {
-          return { ...item, currentPrice: getProductPriceByChannel(freshProd, form.salesChannel) };
-        }
-        return item;
-      });
-    });
-  }, [form.salesChannel, realProducts]);
+    if (STANDARD_PRICES[form.salesChannel]) {
+      setBulkPrice(STANDARD_PRICES[form.salesChannel]);
+      setForm(prev => ({ ...prev, isUpdateMasterPrice: false })); // Reset gembok
+    } else {
+      setBulkPrice(3000); // Default untuk e-commerce/paketan
+    }
+  }, [form.salesChannel]);
 
-  const isCustomPriceChannel = !['MITRA_DISTRIBUTOR', 'RESELLER_AGEN', 'ECERAN_WALKIN'].includes(form.salesChannel);
+  // Status Logika Gembok
+  const isStandardChannel = Object.keys(STANDARD_PRICES).includes(form.salesChannel);
+  const isPriceLocked = isStandardChannel && !form.isUpdateMasterPrice;
+  const isOjolMode = OJOL_CHANNELS.includes(form.salesChannel);
 
-  const calculateConversion = (itemName, qtyPcs) => {
+  // --- ENGINE ESTIMASI KONVERSI MIKA PACK ---
+  const calculateConversion = (qtyPcs) => {
     const qty = Number(qtyPcs || 0);
     if (qty <= 0) return '';
     const rule = realConversions.find(c => 
-      (c.product_name && c.product_name.toUpperCase() === itemName.toUpperCase()) ||
-      (c.item_name && c.item_name.toUpperCase() === itemName.toUpperCase())
+      (c.item_name && c.item_name.toUpperCase().includes('MKA')) || 
+      (c.item_name && c.item_name.toUpperCase().includes('PACK'))
     );
-    if (rule) {
-      const nilai = Number(rule.nilai_konversi || rule.qty_konversi || 50); 
-      const namaUnit = rule.nama_konversi || rule.unit_konversi || 'PACK';
-      return `${(qty / nilai).toFixed(1)} ${namaUnit}`;
-    }
-    return `${(qty / 50).toFixed(1)} PACK`;
+    const nilai = Number(rule?.nilai_konversi || rule?.qty_konversi || 50); 
+    const namaUnit = rule?.nama_konversi || rule?.unit_konversi || 'PACK';
+    return `${(qty / nilai).toFixed(1)} ${namaUnit}`;
   };
 
+  // --- HANDLER CUSTOMER ---
   const filteredCustomers = useMemo(() => {
     if (!customerSearch) return [];
     const searchLower = customerSearch.toLowerCase();
@@ -97,57 +106,36 @@ export default function TabOrders({
     setShowSuggestions(false);
   };
 
-  const handleCustomerSearchChange = (e) => {
-    const val = e.target.value.toUpperCase();
-    setCustomerSearch(val);
-    setSelectedCustomer(null); 
-    setShowSuggestions(true);
-  };
-
-  // 🔥 HANDLER: Tambah Barang Manual
-  const handleAddCustomItem = (e) => {
-    e.preventDefault();
-    if (!customItem.name) return alert('Nama produk harus diisi!');
-    setCart(prev => [...prev, {
-      id: 'CUSTOM-' + new Date().getTime(),
-      name: customItem.name.toUpperCase(),
-      currentPrice: Number(customItem.price || 0),
-      qty: Math.max(1, Number(customItem.qty || 1)),
-      isCustom: true
+  // --- HANDLER MERCHANT OJOL ---
+  const handleAddMerchantItem = () => {
+    if (!merchantInput.productId || !merchantInput.qty || !merchantInput.price) return alert('Lengkapi data menu!');
+    const prod = realProducts.find(p => p.id === merchantInput.productId);
+    setMerchantCart(prev => [...prev, {
+      id: prod.id, name: prod.name,
+      qty: Number(merchantInput.qty),
+      currentPrice: Number(merchantInput.price)
     }]);
-    setCustomItem({ name: '', price: '', qty: '1' });
+    setMerchantInput({ productId: '', qty: '', price: '' });
   };
 
-  const handleAddToCart = (product) => {
-    setCart(prev => {
-      const exist = prev.find(item => item.id === product.id);
-      const matchedPrice = getProductPriceByChannel(product, form.salesChannel);
-      if (exist) return prev.map(item => item.id === product.id ? { ...item, qty: item.qty + 1 } : item);
-      return [...prev, { ...product, qty: 1, currentPrice: matchedPrice }];
-    });
+  const handleRemoveMerchantItem = (index) => {
+    setMerchantCart(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleUpdateCartQty = (id, newQty) => {
-    const cleanQty = Math.max(0, Number(newQty || 0));
-    if (cleanQty === 0) return setCart(prev => prev.filter(item => item.id !== id));
-    setCart(prev => prev.map(item => item.id === id ? { ...item, qty: cleanQty } : item));
-  };
+  // --- KALKULASI TAGIHAN ---
+  const totalTagihan = useMemo(() => {
+    if (isOjolMode) return merchantCart.reduce((sum, item) => sum + (item.qty * item.currentPrice), 0);
+    return Number(bulkQty || 0) * Number(bulkPrice || 0);
+  }, [isOjolMode, merchantCart, bulkQty, bulkPrice]);
 
-  const handleUpdateCartPrice = (id, newPrice) => {
-    setCart(prev => prev.map(item => item.id === id ? { ...item, currentPrice: Number(newPrice) } : item));
-  };
-
-  const handleRemoveFromCart = (id) => {
-    setCart(prev => prev.filter(item => item.id !== id));
-  };
-
-  const totalTagihan = useMemo(() => cart.reduce((sum, item) => sum + (item.qty * item.currentPrice), 0), [cart]);
   const kembalian = useMemo(() => Math.max(0, Number(form.amountPaid || 0) - totalTagihan), [form.amountPaid, totalTagihan]);
 
+  // --- ACTIONS: SUBMIT TRANSAKSI ---
   const handleCheckout = async (e) => {
     e.preventDefault();
-    if (cart.length === 0) return alert("Keranjang kosong!");
     if (!customerSearch) return alert("Nama Pelanggan/Agen wajib diisi!");
+    if (isOjolMode && merchantCart.length === 0) return alert("Keranjang menu ojol masih kosong!");
+    if (!isOjolMode && Number(bulkQty || 0) <= 0) return alert("Quantity Dimsum harus diisi!");
     
     if (form.paymentMethod !== 'TEMPO' && Number(form.amountPaid || 0) < totalTagihan && form.paymentMethod !== 'DP') {
       return alert("Uang bayar kurang dari total tagihan!");
@@ -159,24 +147,29 @@ export default function TabOrders({
 
     const orderStatus = form.paymentMethod === 'TEMPO' || form.paymentMethod === 'DP' ? 'PIUTANG' : 'SELESAI';
 
+    // Rangkai item berdasarkan Mode (Ojol vs Bulk)
+    const finalItems = isOjolMode ? merchantCart.map(c => ({ id: c.id, name: c.name, qty: c.qty, price: c.currentPrice })) 
+      : [{ id: 'DIMSUM-MIX-BULK', name: 'DIMSUM AYAM MIX (GROSIR)', qty: Number(bulkQty), price: Number(bulkPrice) }];
+
     const payloadOrder = {
       id: orderId, date: todayStr, branch_id: currentBranch,
       customer_name: customerSearch, sales_channel: form.salesChannel,
       total_amount: totalTagihan, amount_paid: form.paymentMethod === 'TEMPO' ? 0 : Number(form.amountPaid || 0),
       payment_method: form.paymentMethod, status: orderStatus,
       notes: form.notes.toUpperCase(),
-      items: JSON.stringify(cart.map(c => ({ id: c.id, name: c.name, qty: c.qty, price: c.currentPrice })))
+      items: JSON.stringify(finalItems)
     };
 
     const successOrder = await sendToSheet('insert', payloadOrder, 'orders');
 
     if (successOrder) {
-      if (form.isUpdateMasterPrice) {
+      // Jika ubah harga master dicentang
+      if (form.isUpdateMasterPrice && isStandardChannel) {
         const custId = selectedCustomer ? selectedCustomer.id : generateId('CUST', todayStr);
         const payloadCustomer = {
           id: custId, name: customerSearch, phone: selectedCustomer?.phone || '-', address: selectedCustomer?.address || '-',
           branch_id: currentBranch, join_date: todayStr,
-          custom_price: Number(form.newMasterPrice || 0)
+          custom_price: Number(bulkPrice || 0)
         };
         await sendToSheet(selectedCustomer ? 'update' : 'insert', payloadCustomer, 'master_customers');
       }
@@ -191,160 +184,41 @@ export default function TabOrders({
         }, 'cashflow_transactions');
       }
 
-      showToast('Transaksi Sukses! Invoice berhasil dicatat.', 'success');
+      showToast('Transaksi Sukses! Nota Bon berhasil direkam.', 'success');
       
       triggerPrint('NOTA_DOTMATRIX', {
         title: 'NOTA PENJUALAN DIMSUM', id: orderId, date: formatDate(todayStr),
         branch_name: currentBranch, admin_name: user?.name || 'KASIR',
-        customer_name: customerSearch, items: cart.map(c => ({ name: c.name, qty: c.qty, subtotal: c.qty * c.currentPrice })),
+        customer_name: customerSearch, items: finalItems.map(c => ({ name: c.name, qty: c.qty, subtotal: c.qty * c.price })),
         amount: totalTagihan, paymentMethod: form.paymentMethod === 'TEMPO' ? 'TEMPO / BON GANTUNG' : form.paymentMethod,
         history: form.paymentMethod === 'TEMPO' || form.paymentMethod === 'DP' ? { labelAksi: 'NOMINAL DP/BAYAR', nominalAksi: form.paymentMethod === 'TEMPO' ? 0 : Number(form.amountPaid||0), labelBaru: 'SISA PIUTANG BON', nominalBaru: sisaTagihan } : null
       });
 
-      setCart([]); setCustomerSearch(''); setSelectedCustomer(null);
-      setForm({ salesChannel: 'ECERAN_WALKIN', paymentMethod: 'CASH', amountPaid: '', notes: '', isUpdateMasterPrice: false, newMasterPrice: '' });
+      // Reset
+      setMerchantCart([]); setCustomerSearch(''); setSelectedCustomer(null); setBulkQty('');
+      setForm({ salesChannel: 'RESELLER_AGEN', paymentMethod: 'CASH', amountPaid: '', notes: '', isUpdateMasterPrice: false });
     }
   };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pb-10 h-full min-h-screen">
       
-      {/* 🛒 KOLOM KIRI: KATALOG DAN KERANJANG */}
+      {/* 💼 KOLOM KIRI (JANTUNG OPERASIONAL): FORM MESIN KASIR */}
       <div className="lg:col-span-7 flex flex-col gap-6">
-        
-        {/* 🔥 FITUR BARU: INPUT BARANG MANUAL */}
-        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
-          <h3 className="text-xs font-black uppercase text-slate-700 tracking-widest flex items-center gap-2 mb-4 border-b pb-3">
-            <PlusCircle size={16} className="text-emerald-500"/> Entri Barang Manual / Dadakan
-          </h3>
-          <form onSubmit={handleAddCustomItem} className="flex flex-col sm:flex-row gap-3">
-            <div className="flex-1">
-              <input type="text" required placeholder="Ketik Nama Barang..." value={customItem.name} onChange={e => setCustomItem({...customItem, name: e.target.value})} className="w-full p-3 border border-slate-200 rounded-xl text-xs font-black uppercase outline-none focus:border-emerald-400 focus:bg-emerald-50 transition-colors" />
-            </div>
-            <div className="w-full sm:w-32 relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">Rp</span>
-              <input type="number" required placeholder="Harga" value={customItem.price} onChange={e => setCustomItem({...customItem, price: e.target.value})} className="w-full pl-9 pr-3 py-3 border border-slate-200 rounded-xl text-xs font-black outline-none focus:border-emerald-400 focus:bg-emerald-50 transition-colors" />
-            </div>
-            <div className="w-full sm:w-24 relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">Qty</span>
-              <input type="number" required min="1" value={customItem.qty} onChange={e => setCustomItem({...customItem, qty: e.target.value})} className="w-full pl-9 pr-3 py-3 border border-slate-200 rounded-xl text-xs font-black outline-none focus:border-emerald-400 focus:bg-emerald-50 transition-colors text-center" />
-            </div>
-            <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-6 py-3 rounded-xl text-xs uppercase transition-transform active:scale-95 shadow-md shadow-emerald-600/20 whitespace-nowrap">
-              Tambah
-            </button>
-          </form>
-        </div>
-
-        {/* KATALOG PRODUK MASTER */}
-        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
-          <h3 className="text-xs font-black uppercase text-slate-700 tracking-widest flex items-center gap-2 mb-4">
-            <ShoppingCart size={16} className="text-blue-500"/> Katalog Master Sistem
-          </h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {realProducts.length === 0 ? (
-              <div className="col-span-full py-6 text-center">
-                <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Katalog Masih Kosong</div>
-                <div className="text-[10px] text-slate-400">Silakan gunakan fitur <b>Entri Manual</b> di atas untuk tes transaksi sementara.</div>
-              </div>
-            ) : (
-              realProducts.filter(p => !p.isDeleted).map(prod => {
-                const dynamicPrice = getProductPriceByChannel(prod, form.salesChannel);
-                return (
-                  <div key={prod.id} onClick={() => handleAddToCart(prod)} className="border border-slate-200 rounded-2xl p-3 cursor-pointer hover:border-blue-500 hover:bg-blue-600/5 transition-all active:scale-95 group flex flex-col justify-between h-full relative overflow-hidden">
-                    <div className="absolute top-0 right-0 bg-blue-100 text-blue-700 text-[8px] font-black px-2 py-0.5 rounded-bl-lg">➕ AMBIL</div>
-                    <div className="font-black text-slate-800 text-xs uppercase leading-tight mb-2 group-hover:text-blue-700">{prod.name}</div>
-                    <div className="text-sm font-black text-emerald-600">{formatRupiah(dynamicPrice)}<span className="text-[9px] text-slate-400 ml-1">/ {prod.unit || 'Pcs'}</span></div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-
-        {/* KERANJANG PESANAN */}
-        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm flex-1 flex flex-col">
-          <h3 className="text-xs font-black uppercase text-slate-700 tracking-widest flex items-center gap-2 mb-4 border-b pb-3">
-            <Tag size={16} className="text-orange-500"/> Keranjang Pesanan (Input QTY &amp; Harga)
-          </h3>
+        <form onSubmit={handleCheckout} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xl flex-1 flex flex-col relative overflow-hidden">
           
-          <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
-            {cart.length === 0 ? (
-              <div className="h-40 flex flex-col items-center justify-center opacity-40">
-                <ShoppingCart size={40} className="text-slate-400 mb-3" />
-                <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">Keranjang Kosong</div>
-              </div>
-            ) : (
-              cart.map((item, index) => {
-                const conversionText = calculateConversion(item.name, item.qty);
-                return (
-                  <div key={index} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl animate-in fade-in flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="font-black text-slate-800 uppercase text-sm mb-2 flex items-center gap-2">
-                        {item.name} 
-                        {item.isCustom && <span className="text-[8px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded-full">KUSTOM</span>}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold text-slate-500">
-                          {isCustomPriceChannel || item.isCustom ? 'Harga Satuan (Rp):' : 'Harga Tetap (Rp):'}
-                        </span>
-                        <input 
-                          type="number" 
-                          value={item.currentPrice} 
-                          onChange={(e) => handleUpdateCartPrice(item.id, e.target.value)} 
-                          className={`w-28 p-1.5 border rounded-lg text-sm font-black outline-none focus:ring-2 focus:ring-blue-400 transition-colors ${isCustomPriceChannel || item.isCustom ? 'bg-amber-50 text-amber-700 border-amber-300' : 'bg-white text-emerald-600 border-slate-200'}`} 
-                        />
-                      </div>
-                    </div>
+          <h3 className="text-xs font-black uppercase text-slate-800 tracking-widest flex items-center gap-2 border-b pb-3 mb-5">
+            <ShoppingBag size={16} className="text-blue-600"/> Mesin Kasir Operasional (POS)
+          </h3>
 
-                    <div className="flex flex-wrap items-center justify-between sm:justify-end gap-4 w-full sm:w-auto">
-                      <div className="flex flex-col items-start sm:items-center">
-                        <label className="text-[10px] font-black text-blue-600 uppercase tracking-wider mb-1">QTY (PCS)</label>
-                        <div className="flex items-center bg-white border border-blue-200 rounded-xl overflow-hidden shadow-sm focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-200 transition-all">
-                          <button type="button" onClick={() => handleUpdateCartQty(item.id, item.qty - 1)} className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 font-black text-slate-600 transition-colors">-</button>
-                          <input type="number" value={item.qty} onChange={(e) => handleUpdateCartQty(item.id, e.target.value)} className="w-16 text-center text-sm font-black outline-none bg-white py-2 text-blue-800" placeholder="0" />
-                          <button type="button" onClick={() => handleUpdateCartQty(item.id, item.qty + 1)} className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 font-black text-slate-600 transition-colors">+</button>
-                        </div>
-                      </div>
-
-                      {conversionText && (
-                        <div className="bg-blue-50 border border-blue-100 px-3 py-2 rounded-xl flex items-center gap-1.5 min-w-[90px] justify-center shadow-inner hidden lg:flex">
-                          <RefreshCw size={12} className="text-blue-500 animate-spin" style={{ animationDuration: '4s' }} />
-                          <div className="text-center">
-                            <div className="text-[8px] font-black text-blue-400 uppercase tracking-widest">Estimasi</div>
-                            <div className="text-[10px] font-black text-blue-700 tracking-wide">{conversionText}</div>
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="text-right min-w-[100px]">
-                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Subtotal</div>
-                        <div className="font-black text-slate-800 text-base">{formatRupiah(item.qty * item.currentPrice)}</div>
-                      </div>
-
-                      <button type="button" onClick={() => handleRemoveFromCart(item.id)} className="p-2 text-slate-300 hover:text-rose-600 bg-white border border-slate-200 rounded-xl shadow-sm transition-colors"><Trash2 size={16}/></button>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* 💼 KOLOM KANAN: DATA KLIEN & PEMBAYARAN */}
-      <div className="lg:col-span-5 flex flex-col gap-6">
-        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xl flex-1 flex flex-col relative overflow-hidden">
-          <form onSubmit={handleCheckout} className="space-y-5 flex-1 overflow-y-auto pr-2 custom-scrollbar">
+          <div className="space-y-5 flex-1 overflow-y-auto pr-2 custom-scrollbar">
             
-            <h3 className="text-xs font-black uppercase text-slate-800 tracking-widest flex items-center gap-2 border-b pb-3">
-              <User size={16} className="text-blue-600"/> Data Agen dan Pembayaran
-            </h3>
-
+            {/* 1. NAMA PELANGGAN */}
             <div className="relative" ref={wrapperRef}>
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Nama Pelanggan / Agen</label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                <input type="text" required placeholder="Ketik nama pelanggan..." value={customerSearch} onChange={handleCustomerSearchChange} onFocus={() => customerSearch && setShowSuggestions(true)} className="w-full pl-9 pr-3 py-3 border rounded-xl text-sm uppercase font-black outline-none bg-slate-50 border-slate-200 focus:border-blue-400 focus:bg-white text-slate-800" />
+                <input type="text" required placeholder="Ketik nama pelanggan..." value={customerSearch} onChange={(e) => { setCustomerSearch(e.target.value.toUpperCase()); setSelectedCustomer(null); setShowSuggestions(true); }} onFocus={() => customerSearch && setShowSuggestions(true)} className="w-full pl-9 pr-3 py-3 border rounded-xl text-sm uppercase font-black outline-none bg-slate-50 border-slate-200 focus:border-blue-400 focus:bg-white text-slate-800" />
               </div>
               
               {showSuggestions && filteredCustomers.length > 0 && (
@@ -354,32 +228,28 @@ export default function TabOrders({
                       <div className="font-black text-xs text-slate-800 uppercase flex items-center gap-2">
                         {cust.name} {cust.custom_price > 0 && <span className="text-[8px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">HARGA MASTER: {formatRupiah(cust.custom_price)}</span>}
                       </div>
-                      <div className="text-[9px] font-bold text-slate-400 mt-1 flex items-center gap-3">
-                        <span className="flex items-center gap-1"><Smartphone size={10}/> {cust.phone || '-'}</span>
-                        <span className="flex items-center gap-1"><MapPin size={10}/> {cust.branch_id || '-'}</span>
-                      </div>
                     </div>
                   ))}
                 </div>
               )}
-
               {customerSearch && (
                 <div className="mt-2 flex items-center gap-1.5">
                   {selectedCustomer ? (
                     <span className="text-[9px] font-black uppercase text-blue-600 bg-blue-100 px-2 py-0.5 rounded flex items-center gap-1"><CheckCircle2 size={10}/> Database Terdaftar</span>
                   ) : (
-                    <span className="text-[9px] font-black uppercase text-amber-600 bg-amber-100 px-2 py-0.5 rounded flex items-center gap-1"><AlertCircle size={10}/> Pembeli Umum (Tidak Terikat Master Klien)</span>
+                    <span className="text-[9px] font-black uppercase text-amber-600 bg-amber-100 px-2 py-0.5 rounded flex items-center gap-1"><AlertCircle size={10}/> Pembeli Umum Biasa</span>
                   )}
                 </div>
               )}
             </div>
 
+            {/* 2. JALUR PLATFORM */}
             <div>
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Platform / Jalur Merchant</label>
-              <select value={form.salesChannel} onChange={e=>setForm({...form, salesChannel: e.target.value})} className={`w-full p-3 border rounded-xl text-xs font-black uppercase outline-none cursor-pointer focus:border-blue-400 ${isCustomPriceChannel ? 'bg-amber-50 border-amber-300 text-amber-800' : 'bg-slate-50 border-slate-200'}`}>
-                <option value="ECERAN_WALKIN">🛒 ECERAN / WALK-IN</option>
+              <select value={form.salesChannel} onChange={e=>setForm({...form, salesChannel: e.target.value})} className="w-full p-3 border rounded-xl text-xs font-black uppercase outline-none bg-slate-50 border-slate-200 cursor-pointer focus:border-blue-400 focus:bg-white">
                 <option value="RESELLER_AGEN">💼 RESELLER / AGEN LANGSUNG</option>
                 <option value="MITRA_DISTRIBUTOR">🏢 MITRA / DISTRIBUTOR</option>
+                <option value="ECERAN_WALKIN">🛒 ECERAN / WALK-IN</option>
                 <option value="PAKETAN_ACARA">🎁 PAKETAN ACARA</option>
                 <option disabled>───────────────</option>
                 <option value="GOFOOD">🛵 GOFOOD</option>
@@ -392,26 +262,75 @@ export default function TabOrders({
               </select>
             </div>
 
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl shadow-inner">
-              <label className="flex items-start gap-2.5 cursor-pointer">
-                <input type="checkbox" checked={form.isUpdateMasterPrice} onChange={e=>setForm({...form, isUpdateMasterPrice: e.target.checked})} className="w-4 h-4 mt-0.5 accent-blue-600" />
-                <div>
-                  <span className="text-[10px] font-black uppercase text-slate-700 tracking-widest block">Simpan Sebagai Perubahan Harga Master Klien</span>
-                  <span className="text-[9px] font-bold text-slate-400">Centang ini jika harga di atas sengaja Bos ubah karena ada penyesuaian kontrak baru.</span>
+            {/* 3. AREA HYBRID: GROSIR VS OJOL */}
+            {isOjolMode ? (
+              <div className="p-4 bg-orange-50/50 border border-orange-200 rounded-2xl animate-in fade-in space-y-4">
+                <div className="text-[10px] font-black text-orange-600 uppercase tracking-widest flex items-center gap-1.5"><PackageOpen size={14}/> Mode Merchant Ojol (Multi Menu)</div>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <select value={merchantInput.productId} onChange={e => {
+                    const id = e.target.value;
+                    const p = realProducts.find(x => x.id === id);
+                    setMerchantInput({ ...merchantInput, productId: id, price: p?.price || '' });
+                  }} className="flex-1 p-2.5 text-xs font-black uppercase border border-orange-200 rounded-xl outline-none">
+                    <option value="">-- Pilih Menu Ojol --</option>
+                    {realProducts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                  <input type="number" placeholder="Qty" value={merchantInput.qty} onChange={e=>setMerchantInput({...merchantInput, qty: e.target.value})} className="w-20 p-2.5 text-xs font-black text-center border border-orange-200 rounded-xl outline-none" />
+                  <input type="number" placeholder="Harga Jual" value={merchantInput.price} onChange={e=>setMerchantInput({...merchantInput, price: e.target.value})} className="w-28 p-2.5 text-xs font-black border border-orange-200 rounded-xl outline-none" />
+                  <button type="button" onClick={handleAddMerchantItem} className="bg-orange-500 hover:bg-orange-600 text-white p-2.5 rounded-xl transition-colors"><Plus size={16}/></button>
                 </div>
-              </label>
-              
-              {form.isUpdateMasterPrice && (
-                <div className="mt-3 pt-3 border-t border-slate-200 animate-in slide-in-from-top-1">
-                  <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest block mb-1">Ketik Ulang Harga Kontrak Baru yang Disepakati (Rp)</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">Rp</span>
-                    <input type="number" required placeholder="Contoh: 2200" value={form.newMasterPrice} onChange={e=>setForm({...form, newMasterPrice: e.target.value})} className="w-full pl-9 pr-3 py-2.5 border border-blue-300 rounded-xl text-sm font-black text-blue-900 bg-white outline-none" />
+                {/* Mini Cart Ojol */}
+                {merchantCart.length > 0 && (
+                  <div className="space-y-2 mt-3 pt-3 border-t border-orange-200">
+                    {merchantCart.map((c, i) => (
+                      <div key={i} className="flex justify-between items-center bg-white p-2 rounded-lg border border-orange-100 text-xs font-bold uppercase">
+                        <span>{c.qty}x {c.name}</span>
+                        <div className="flex items-center gap-3">
+                          <span className="text-emerald-600 font-black">{formatRupiah(c.qty * c.currentPrice)}</span>
+                          <button type="button" onClick={()=>handleRemoveMerchantItem(i)} className="text-rose-400 hover:text-rose-600"><Trash2 size={12}/></button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="p-5 bg-blue-50 border border-blue-200 rounded-2xl shadow-inner animate-in fade-in">
+                <div className="text-[10px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-1.5 mb-3"><PackageOpen size={14}/> Mode Penjualan Grosir (Bulk)</div>
+                <div className="flex flex-col sm:flex-row items-end gap-4">
+                  <div className="flex-1 w-full">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Nama Produk Fix</label>
+                    <div className="p-3 bg-slate-200 text-slate-500 rounded-xl text-xs font-black uppercase cursor-not-allowed border border-slate-300">DIMSUM AYAM MIX (MASTER)</div>
+                  </div>
+                  <div className="w-full sm:w-32">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Input Qty (Pcs)</label>
+                    <input type="number" required={!isOjolMode} min="1" value={bulkQty} onChange={e=>setBulkQty(e.target.value)} className="w-full p-3 border border-blue-300 rounded-xl text-sm font-black text-blue-800 outline-none text-center focus:ring-2 focus:ring-blue-400 bg-white" placeholder="Cth: 1000" />
+                  </div>
+                  <div className="w-full sm:w-40 relative">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1 flex items-center gap-1">Harga Satuan {isPriceLocked ? <Lock size={10} className="text-rose-500"/> : <Unlock size={10} className="text-emerald-500"/>}</label>
+                    <span className="absolute left-3 bottom-3 text-xs font-black text-slate-400">Rp</span>
+                    <input type="number" required value={bulkPrice} onChange={e=>setBulkPrice(e.target.value)} readOnly={isPriceLocked} className={`w-full pl-9 pr-3 py-3 border rounded-xl text-sm font-black outline-none transition-colors ${isPriceLocked ? 'bg-slate-200 text-slate-500 border-slate-300 cursor-not-allowed' : 'bg-white text-emerald-700 border-emerald-300 focus:ring-2 focus:ring-emerald-400'}`} />
                   </div>
                 </div>
-              )}
-            </div>
+                
+                {/* Radar Konversi & Checklist Update Master */}
+                <div className="mt-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                  <div className="flex items-center gap-2 text-[10px] font-black text-blue-600 bg-blue-100 px-3 py-1.5 rounded-lg border border-blue-200">
+                    <RefreshCw size={12} className="animate-spin" style={{ animationDuration: '4s' }}/> 
+                    {calculateConversion(bulkQty) ? `ESTIMASI: ${calculateConversion(bulkQty)}` : 'ESTIMASI: 0 PACK'}
+                  </div>
+                  
+                  {isStandardChannel && (
+                    <label className="flex items-center gap-2 cursor-pointer bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm hover:bg-slate-50">
+                      <input type="checkbox" checked={form.isUpdateMasterPrice} onChange={e=>setForm({...form, isUpdateMasterPrice: e.target.checked})} className="w-3.5 h-3.5 accent-blue-600" />
+                      <span className="text-[9px] font-bold text-slate-600">Buka Gembok Harga &amp; Simpan ke Master</span>
+                    </label>
+                  )}
+                </div>
+              </div>
+            )}
 
+            {/* 4. TOTAL & PEMBAYARAN */}
             <div className="border-t border-slate-100 pt-4 mt-2">
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Metode Pembayaran</label>
               <div className="grid grid-cols-4 gap-2 mb-3">
@@ -450,12 +369,49 @@ export default function TabOrders({
               </div>
             )}
             
-            <div><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Catatan Pesanan / Keterangan Gantung Bon</label><input type="text" value={form.notes} onChange={e=>setForm({...form, notes: e.target.value})} className="w-full p-2.5 border border-slate-200 bg-slate-50 rounded-xl text-xs font-bold uppercase outline-none focus:bg-white" placeholder="Contoh: Nota bon gantung diambil senin..." /></div>
+            <div><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Catatan Tambahan Nota</label><input type="text" value={form.notes} onChange={e=>setForm({...form, notes: e.target.value})} className="w-full p-2.5 border border-slate-200 bg-slate-50 rounded-xl text-xs font-bold uppercase outline-none focus:bg-white" placeholder="Ketik catatan..." /></div>
 
-            <button type="submit" disabled={cart.length === 0} className="w-full bg-emerald-600 text-white font-black py-4 rounded-xl text-xs uppercase disabled:opacity-40 shadow-xl shadow-emerald-600/30 hover:bg-emerald-700 transition-all active:scale-95 mt-4 tracking-widest flex items-center justify-center gap-2 shrink-0">
+            <button type="submit" className="w-full bg-emerald-600 text-white font-black py-4 rounded-xl text-xs uppercase shadow-xl shadow-emerald-600/30 hover:bg-emerald-700 transition-all active:scale-95 mt-4 tracking-widest flex items-center justify-center gap-2 shrink-0">
               <Printer size={16}/> SIMPAN DAN CETAK NOTA KASIR
             </button>
           </form>
+        </div>
+      </div>
+
+      {/* 📊 KOLOM KANAN (PAPAN KONTROL): TABEL RIWAYAT TRANSAKSI HARI INI */}
+      <div className="lg:col-span-5 flex flex-col gap-6">
+        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex-1 flex flex-col h-full max-h-[85vh]">
+          <h3 className="text-xs font-black uppercase text-slate-800 tracking-widest flex items-center justify-between border-b pb-3 mb-4">
+            <span className="flex items-center gap-2"><History size={16} className="text-orange-500"/> Riwayat Nota Hari Ini</span>
+            <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[9px]">{todaysOrders.length} TRX</span>
+          </h3>
+          
+          <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+            {todaysOrders.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center opacity-40">
+                <History size={40} className="text-slate-400 mb-3" />
+                <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">Belum Ada Transaksi</div>
+              </div>
+            ) : (
+              todaysOrders.map((ord, idx) => (
+                <div key={idx} className="p-3 border border-slate-200 rounded-xl bg-slate-50 hover:bg-white transition-colors cursor-default">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <div className="text-[10px] font-black text-blue-600">{ord.id}</div>
+                      <div className="text-xs font-black text-slate-800 uppercase mt-0.5">{ord.customer_name}</div>
+                    </div>
+                    <div className={`text-[8px] font-black uppercase px-2 py-0.5 rounded ${ord.status === 'PIUTANG' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                      {ord.payment_method === 'TEMPO' ? 'BON GANTUNG' : ord.payment_method}
+                    </div>
+                  </div>
+                  <div className="flex justify-between items-center text-[10px] font-bold text-slate-500">
+                    <span className="truncate max-w-[150px]">{ord.sales_channel.replace('_', ' ')}</span>
+                    <span className="text-xs font-black text-slate-800">{formatRupiah(ord.total_amount)}</span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
 
