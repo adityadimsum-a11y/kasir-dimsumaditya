@@ -12,7 +12,7 @@ const STANDARD_PRICES = {
 };
 
 const OJOL_CHANNELS = ['GOFOOD', 'GRABFOOD', 'SHOPEEFOOD'];
-const ECOMMERCE_CHANNELS = ['SHOPEE', 'TOKOPEDIA', 'TIKTOK_SHOP', 'PAKETAN_ACARA'];
+// 🔥 VARIABEL ECOMMERCE_CHANNELS SUDAH DIHAPUS TOTAL KARENA BIKIN VERCEL NGAMUK
 
 export default function TabOrders({ 
   masterProducts = [], master_products,
