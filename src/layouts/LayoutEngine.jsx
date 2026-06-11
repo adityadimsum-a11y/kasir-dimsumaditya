@@ -5,7 +5,8 @@ import {
   Send, Store, Package, Lock, Globe, Landmark, AlertTriangle, ShieldAlert,
   Archive
 } from 'lucide-react';
-import { getTodayStr, formatDate } from '../../utils/helpers';
+// 🔥 JALAN ALAMATNYA SUDAH SAYA BENARKAN JADI '../'
+import { getTodayStr, formatDate } from '../utils/helpers';
 
 export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogout, masterCapabilities, children }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -35,7 +36,6 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
         coreItems.push({ id: 'orders', label: 'POS & Penjualan', icon: ShoppingCart });
     }
     if (nodeCapability.can_production === true || nodeCapability.can_production === 'true') {
-        // Ini form lapor produksi dapur (TabStok.jsx)
         coreItems.push({ id: 'stok', label: 'Laporan Produksi', icon: Factory });
     }
     if (nodeCapability.can_purchase === true || nodeCapability.can_purchase === 'true') {
@@ -43,14 +43,12 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
     }
     
     // 🔥 MENU BARU: KARTU STOK GUDANG 
-    // Ini mengarah ke 'kartu_stok' (pastikan di App.jsx nanti ada mapping untuk id ini)
     coreItems.push({ id: 'kartu_stok', label: 'Kartu Stok & Gudang', icon: Archive });
 
     if (nodeCapability.can_distribution === true || nodeCapability.can_distribution === 'true') {
         coreItems.push({ id: 'distribusi', label: 'Distribusi Global', icon: Send });
     }
     
-    // Stok opname / basi tetap
     coreItems.push({ id: 'discrepancy', label: 'Stok Basi / Opname', icon: AlertTriangle });
 
     if (coreItems.length > 0) groups.push({ groupName: "Core Operations", items: coreItems });
@@ -66,7 +64,6 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
         financeItems.push({ id: 'karyawan', label: 'Smart Payroll & SDM', icon: Users });
     }
     
-    // Tab Setoran Cabang diubah labelnya jadi Closing & Settlement
     financeItems.push({ id: 'setoran_cabang', label: 'Closing & Settlement', icon: Lock });
     
     if (financeItems.length > 0) groups.push({ groupName: "Finance & Settlement", items: financeItems });
