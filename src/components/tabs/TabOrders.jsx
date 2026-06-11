@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { User, Printer, Search, Banknote, CheckCircle2, AlertCircle, RefreshCw, ShoppingBag, History, Lock, Unlock, Plus, Trash2, PackageOpen } from 'lucide-react';
+import { User, Printer, Search, Banknote, CheckCircle2, AlertCircle, RefreshCw, ShoppingBag, Clock, Lock, Unlock, Plus, Trash2, Package } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
 
@@ -12,7 +12,6 @@ const STANDARD_PRICES = {
 };
 
 const OJOL_CHANNELS = ['GOFOOD', 'GRABFOOD', 'SHOPEEFOOD'];
-// 🔥 VARIABEL ECOMMERCE_CHANNELS SUDAH DIHAPUS TOTAL KARENA BIKIN VERCEL NGAMUK
 
 export default function TabOrders({ 
   masterProducts = [], master_products,
@@ -22,14 +21,29 @@ export default function TabOrders({
   user, sendToSheet, showToast 
 }) {
   const todayStr = getTodayStr();
-  const currentBranch = (user?.branch_id === 'PUSAT' || !user?.branch_id) ? 'TANGERANG_PUSAT' : user?.branch_id;
+  const currentBranch = (user && user.branch_id && user.branch_id !== 'PUSAT') ? user.branch_id : 'TANGERANG_PUSAT';
 
-  const realProducts = useMemo(() => master_products || masterProducts || [], [master_products, masterProducts]);
-  const realCustomers = useMemo(() => master_customers || masterCustomers || [], [master_customers, masterCustomers]);
-  const realConversions = useMemo(() => master_conversion_rules || masterConversionRules || [], [master_conversion_rules, masterConversionRules]);
+  // --- SINKRONISASI DATABASE (ANTI-CRASH) ---
+  const realProducts = useMemo(() => {
+    const data = master_products || masterProducts;
+    return Array.isArray(data) ? data : [];
+  }, [master_products, masterProducts]);
+
+  const realCustomers = useMemo(() => {
+    const data = master_customers || masterCustomers;
+    return Array.isArray(data) ? data : [];
+  }, [master_customers, masterCustomers]);
+
+  const realConversions = useMemo(() => {
+    const data = master_conversion_rules || masterConversionRules;
+    return Array.isArray(data) ? data : [];
+  }, [master_conversion_rules, masterConversionRules]);
   
-  // Ambil transaksi khusus hari ini untuk papan riwayat
-  const todaysOrders = useMemo(() => orders.filter(o => o.date === todayStr).reverse(), [orders, todayStr]);
+  // Ambil transaksi khusus hari ini untuk papan riwayat (Aman dari null array)
+  const todaysOrders = useMemo(() => {
+    if (!orders || !Array.isArray(orders)) return [];
+    return orders.filter(o => o && o.date === todayStr).reverse();
+  }, [orders, todayStr]);
 
   // --- STATE CRM ---
   const [customerSearch, setCustomerSearch] = useState('');
@@ -65,15 +79,17 @@ export default function TabOrders({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // 🔥 ENGINE CERDAS: Update harga grosir otomatis saat jalur platform diubah
-  useEffect(() => {
-    if (STANDARD_PRICES[form.salesChannel]) {
-      setBulkPrice(STANDARD_PRICES[form.salesChannel]);
-      setForm(prev => ({ ...prev, isUpdateMasterPrice: false })); // Reset gembok
+  // 🔥 SAKTI: Fungsi pengubah harga & channel murni (Lolos Vercel Strict Mode)
+  const handleChannelChange = (e) => {
+    const channel = e.target.value;
+    setForm({ ...form, salesChannel: channel, isUpdateMasterPrice: false });
+    
+    if (STANDARD_PRICES[channel]) {
+      setBulkPrice(STANDARD_PRICES[channel]);
     } else {
-      setBulkPrice(3000); // Default untuk e-commerce/paketan
+      setBulkPrice(3000); // Default open price untuk e-commerce/paketan
     }
-  }, [form.salesChannel]);
+  };
 
   // Status Logika Gembok
   const isStandardChannel = Object.keys(STANDARD_PRICES).includes(form.salesChannel);
@@ -88,8 +104,8 @@ export default function TabOrders({
       (c.item_name && c.item_name.toUpperCase().includes('MKA')) || 
       (c.item_name && c.item_name.toUpperCase().includes('PACK'))
     );
-    const nilai = Number(rule?.nilai_konversi || rule?.qty_konversi || 50); 
-    const namaUnit = rule?.nama_konversi || rule?.unit_konversi || 'PACK';
+    const nilai = Number(rule ? (rule.nilai_konversi || rule.qty_konversi || 50) : 50); 
+    const namaUnit = rule ? (rule.nama_konversi || rule.unit_konversi || 'PACK') : 'PACK';
     return `${(qty / nilai).toFixed(1)} ${namaUnit}`;
   };
 
@@ -110,6 +126,8 @@ export default function TabOrders({
   const handleAddMerchantItem = () => {
     if (!merchantInput.productId || !merchantInput.qty || !merchantInput.price) return alert('Lengkapi data menu!');
     const prod = realProducts.find(p => p.id === merchantInput.productId);
+    if (!prod) return alert('Menu tidak valid di database!');
+    
     setMerchantCart(prev => [...prev, {
       id: prod.id, name: prod.name,
       qty: Number(merchantInput.qty),
@@ -163,11 +181,10 @@ export default function TabOrders({
     const successOrder = await sendToSheet('insert', payloadOrder, 'orders');
 
     if (successOrder) {
-      // Jika ubah harga master dicentang
       if (form.isUpdateMasterPrice && isStandardChannel) {
         const custId = selectedCustomer ? selectedCustomer.id : generateId('CUST', todayStr);
         const payloadCustomer = {
-          id: custId, name: customerSearch, phone: selectedCustomer?.phone || '-', address: selectedCustomer?.address || '-',
+          id: custId, name: customerSearch, phone: (selectedCustomer && selectedCustomer.phone) ? selectedCustomer.phone : '-', address: (selectedCustomer && selectedCustomer.address) ? selectedCustomer.address : '-',
           branch_id: currentBranch, join_date: todayStr,
           custom_price: Number(bulkPrice || 0)
         };
@@ -246,7 +263,7 @@ export default function TabOrders({
             {/* 2. JALUR PLATFORM */}
             <div>
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Platform / Jalur Merchant</label>
-              <select value={form.salesChannel} onChange={e=>setForm({...form, salesChannel: e.target.value})} className="w-full p-3 border rounded-xl text-xs font-black uppercase outline-none bg-slate-50 border-slate-200 cursor-pointer focus:border-blue-400 focus:bg-white">
+              <select value={form.salesChannel} onChange={handleChannelChange} className="w-full p-3 border rounded-xl text-xs font-black uppercase outline-none bg-slate-50 border-slate-200 cursor-pointer focus:border-blue-400 focus:bg-white">
                 <option value="RESELLER_AGEN">💼 RESELLER / AGEN LANGSUNG</option>
                 <option value="MITRA_DISTRIBUTOR">🏢 MITRA / DISTRIBUTOR</option>
                 <option value="ECERAN_WALKIN">🛒 ECERAN / WALK-IN</option>
@@ -265,12 +282,12 @@ export default function TabOrders({
             {/* 3. AREA HYBRID: GROSIR VS OJOL */}
             {isOjolMode ? (
               <div className="p-4 bg-orange-50/50 border border-orange-200 rounded-2xl animate-in fade-in space-y-4">
-                <div className="text-[10px] font-black text-orange-600 uppercase tracking-widest flex items-center gap-1.5"><PackageOpen size={14}/> Mode Merchant Ojol (Multi Menu)</div>
+                <div className="text-[10px] font-black text-orange-600 uppercase tracking-widest flex items-center gap-1.5"><Package size={14}/> Mode Merchant Ojol (Multi Menu)</div>
                 <div className="flex flex-col sm:flex-row gap-2">
                   <select value={merchantInput.productId} onChange={e => {
                     const id = e.target.value;
                     const p = realProducts.find(x => x.id === id);
-                    setMerchantInput({ ...merchantInput, productId: id, price: p?.price || '' });
+                    setMerchantInput({ ...merchantInput, productId: id, price: p ? p.price : '' });
                   }} className="flex-1 p-2.5 text-xs font-black uppercase border border-orange-200 rounded-xl outline-none">
                     <option value="">-- Pilih Menu Ojol --</option>
                     {realProducts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -296,7 +313,7 @@ export default function TabOrders({
               </div>
             ) : (
               <div className="p-5 bg-blue-50 border border-blue-200 rounded-2xl shadow-inner animate-in fade-in">
-                <div className="text-[10px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-1.5 mb-3"><PackageOpen size={14}/> Mode Penjualan Grosir (Bulk)</div>
+                <div className="text-[10px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-1.5 mb-3"><Package size={14}/> Mode Penjualan Grosir (Bulk)</div>
                 <div className="flex flex-col sm:flex-row items-end gap-4">
                   <div className="flex-1 w-full">
                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Nama Produk Fix</label>
@@ -382,14 +399,14 @@ export default function TabOrders({
       <div className="lg:col-span-5 flex flex-col gap-6">
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex-1 flex flex-col h-full max-h-[85vh]">
           <h3 className="text-xs font-black uppercase text-slate-800 tracking-widest flex items-center justify-between border-b pb-3 mb-4">
-            <span className="flex items-center gap-2"><History size={16} className="text-orange-500"/> Riwayat Nota Hari Ini</span>
+            <span className="flex items-center gap-2"><Clock size={16} className="text-orange-500"/> Riwayat Nota Hari Ini</span>
             <span className="bg-orange-100 text-orange-700 px-2 py-0.5 rounded text-[9px]">{todaysOrders.length} TRX</span>
           </h3>
           
           <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
             {todaysOrders.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center opacity-40">
-                <History size={40} className="text-slate-400 mb-3" />
+                <Clock size={40} className="text-slate-400 mb-3" />
                 <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">Belum Ada Transaksi</div>
               </div>
             ) : (
