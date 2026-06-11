@@ -1,8 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { Users, Landmark, Banknote, Layers, TrendingDown, ShieldAlert, Trash2, Edit2, Check, X, Phone, Image, Eye, MapPin, Undo, Link, Printer, CalendarDays, History, ShoppingCart, CheckCircle, FileText, Wallet, ArrowRightLeft, Clock, Trophy, Coffee, CheckCircle2, DollarSign, Calculator } from 'lucide-react';
+import { Users, Landmark, Banknote, Layers, TrendingDown, ShieldAlert, Trash2, Edit2, Check, X, Phone, Image, Eye, MapPin, Undo, Link, Printer, CalendarDays, History, ShoppingCart, CheckCircle, FileText, Wallet, ArrowRightLeft, Clock, Trophy, Coffee, CheckCircle2, DollarSign, Calculator, ArrowDownToLine, Database } from 'lucide-react';
 import { triggerPrint } from '../../utils/PrintUtility';
 
+// --- HUB KUNCI ASESORI FORMATTING & AKUNTANSI ---
 const formatRupiah = (angka) => "Rp. " + Number(angka || 0).toLocaleString('id-ID');
+const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
 const parseDriveLink = (url) => {
   if (!url) return '';
@@ -11,6 +13,25 @@ const parseDriveLink = (url) => {
     if (match && match[1]) { return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w1000`; }
   }
   return url;
+};
+
+// 🔥 AMUNISI UTAMA: INJEKSI FUNGSI HELPER AMAN ANTI-CRASH LANGSUNG DI TEMPAT
+const getTodayStr = () => {
+  const today = new Date();
+  const tzOffset = today.getTimezoneOffset() * 60000;
+  return new Date(today - tzOffset).toISOString().split('T')[0];
+};
+
+const formatDate = (dateString) => {
+  if (!dateString) return '-';
+  const date = new Date(dateString);
+  return date.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
+const generateId = (prefix, dateStr) => {
+  const dStr = dateStr ? dateStr.replace(/-/g, '') : new Date().toISOString().split('T')[0].replace(/-/g, '');
+  const randomPart = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+  return `${prefix}-${dStr}-${randomPart}`;
 };
 
 export default function TabKaryawan({ 
@@ -134,7 +155,6 @@ export default function TabKaryawan({
       }
     });
 
-    // Menghitung Anggaran Amplop 2 (20% Omzet)
     let omzet2Minggu = 0;
     const batas = new Date(); batas.setDate(batas.getDate() - 14);
     realOrders.filter(o => !o.isDeleted && new Date(o.date) >= batas).forEach(o => {
@@ -200,9 +220,9 @@ export default function TabKaryawan({
 
       {/* 🚀 NAVIGASI SUB TABS MEWAH */}
       <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-4">
-        {isHQ && <button onClick={() => setActiveSubTab('payroll')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase transition-colors ${activeSubTab === 'payroll' ? 'bg-slate-900 text-white shadow-md' : 'bg-white text-slate-500 border hover:bg-slate-50'}`}><DollarSign size={14} className="inline mr-1"/> Gaji & Payroll</button>}
-        <button onClick={() => setActiveSubTab('lembur')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase transition-colors ${activeSubTab === 'lembur' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-500 border hover:bg-slate-50'}`}><Clock size={14} className="inline mr-1"/> Lembur & Bonus</button>
-        <button onClick={() => setActiveSubTab('kasbon')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase transition-colors ${activeSubTab === 'kasbon' ? 'bg-orange-600 text-white shadow-md' : 'bg-white text-slate-500 border hover:bg-slate-50'}`}><Banknote size={14} className="inline mr-1"/> Kasbon & Kredit</button>
+        {isHQ && <button onClick={() => setActiveSubTab('payroll')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase transition-colors ${activeSubTab === 'payroll' ? 'bg-slate-900 text-white shadow-md' : 'bg-white text-slate-500 border hover:bg-slate-50'}`}><DollarSign size={14} className="inline mr-1"/> Gaji &amp; Payroll</button>}
+        <button onClick={() => setActiveSubTab('lembur')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase transition-colors ${activeSubTab === 'lembur' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-500 border hover:bg-slate-50'}`}><Clock size={14} className="inline mr-1"/> Lembur &amp; Bonus</button>
+        <button onClick={() => setActiveSubTab('kasbon')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase transition-colors ${activeSubTab === 'kasbon' ? 'bg-orange-600 text-white shadow-md' : 'bg-white text-slate-500 border hover:bg-slate-50'}`}><Banknote size={14} className="inline mr-1"/> Kasbon &amp; Kredit</button>
         <button onClick={() => setActiveSubTab('master')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase transition-colors ${activeSubTab === 'master' ? 'bg-emerald-600 text-white shadow-md' : 'bg-white text-slate-500 border hover:bg-slate-50'}`}><Users size={14} className="inline mr-1"/> Master SDM</button>
       </div>
 
@@ -211,18 +231,17 @@ export default function TabKaryawan({
       {activeSubTab === 'kasbon' && <KasbonModule employees={employeesDiCabangAktif} expenses={expenses} globalCompiled={globalEmployeeCompiled} activeBranch={activeProcessingBranch} todayStr={todayStr} sendToSheet={sendToSheet} onViewDetails={setSelectedEmployeeDetails} user={user} setOptimisticDeletedIds={setOptimisticDeletedIds} isHQ={isHQ} showToast={showToast} optimisticDeletedIds={optimisticDeletedIds} />}
       {activeSubTab === 'master' && <MasterSDMModule employees={employeesDiCabangAktif} branchListId={daftarCabangId} branchMapName={petaNamaCabang} activeBranch={activeProcessingBranch} isHQ={isHQ} sendToSheet={sendToSheet} showToast={showToast} onViewDetails={setSelectedEmployeeDetails} setOptimisticDeletedIds={setOptimisticDeletedIds} />}
 
-      {/* POP-UP SULTAN: ARSIP PROFIL KARYAWAN (UI TIDAK BERUBAH) */}
+      {/* POP-UP SULTAN: ARSIP PROFIL KARYAWAN */}
       {selectedEmployeeDetails && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[9999] flex justify-center items-start pt-12 md:pt-16 p-4 overflow-y-auto animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl shadow-2xl border max-w-5xl w-full overflow-hidden flex flex-col mb-10">
             <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2"><Users size={18} className="text-amber-400"/><h3 className="font-black text-sm uppercase tracking-wider">Arsip Profil & Rekam Jejak Karyawan</h3></div>
+              <div className="flex items-center gap-2"><Users size={18} className="text-amber-400"/><h3 className="font-black text-sm uppercase tracking-wider">Arsip Profil &amp; Rekam Jejak Karyawan</h3></div>
               <button type="button" onClick={() => setSelectedEmployeeDetails(null)} className="p-1 rounded-lg bg-slate-800 text-slate-400 hover:text-white transition"><X size={20}/></button>
             </div>
             
             <div className="p-6 overflow-y-auto max-h-[78vh]">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                {/* KOLOM KIRI PROFIL */}
                 <div className="space-y-6">
                   <div className="w-full aspect-[3/4] rounded-2xl overflow-hidden border shadow-inner bg-slate-50 flex items-center justify-center">
                     <img src={selectedEmployeeDetails.photo_url} alt="Profil Full" className="w-full h-full object-contain" onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
@@ -247,7 +266,6 @@ export default function TabKaryawan({
                   )}
                 </div>
 
-                {/* KOLOM KANAN: TRACK RECORD */}
                 <div className="md:col-span-2 space-y-6">
                   <div className="bg-slate-50 border rounded-2xl p-5">
                     <h4 className="text-xs font-black uppercase text-slate-800 border-b pb-2 mb-4 flex items-center gap-2"><ShoppingCart size={14} className="text-blue-600"/> Buku Mutasi Kredit Barang</h4>
@@ -323,7 +341,6 @@ export default function TabKaryawan({
                       ) : (<div className="text-center py-6 text-xs font-bold text-slate-400 italic">Belum ada riwayat penggajian.</div>)}
                     </div>
                   </div>
-
                 </div>
               </div>
             </div>
@@ -429,8 +446,7 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
           if (isEditing) { success = await sendToSheet('update', payload, 'expenses'); } else { success = await sendToSheet('insert', payload, 'expenses'); }
           
           if (success) {
-            // 🔥 OTOMATISASI POTONG KAS DOMPET PERUSAHAAN SAAT BAYAR GAJI
-            if (!isEditing) await sendToSheet('insert', { id: 'CFO-' + new Date().getTime(), date: form.date, branch_id: form.paymentMethod === 'TF' ? 'HQ_FACTORY' : penempatanTrx, type: 'OUT', category: 'GAJI KARYAWAN', amount: hitungNetto.totalCair, method: form.paymentMethod, reference_id: expenseId, description: `Payroll: ${selectedStafData?.name} (${form.periode_bulan})` }, 'cashflow_transactions');
+            if (!isEditing) await sendToSheet('insert', { id: 'CFO-' + new Date().getTime(), date: form.date, branch_id: form.paymentMethod === 'TF' ? 'HQ_FACTORY' : penempatanTrx, type: 'OUT', category: 'GAJI KARYAWAN', amount: hitungNetto.totalCair, method: fontMethod || form.paymentMethod, reference_id: expenseId, description: `Payroll: ${selectedStafData?.name} (${form.periode_bulan})` }, 'cashflow_transactions');
             if (showToast) showToast(`Gaji berhasil dicairkan! Kas Dompet otomatis terpotong.`, 'success');
             setForm({ id: '', date: todayStr, periode_bulan: currentMonthValue, employeeId: '', baseSalary: '0', allowance: '0', potKasbonInput: '', otherDeduction: '0', paymentMethod: 'TF', isProrata: false, hariNormal: '26', hariHadir: '26' }); setIsEditing(false);
           }
@@ -611,7 +627,6 @@ function LemburModule({ employees, expenses, globalCompiled, activeBranch, today
           
           const success = await sendToSheet('insert', payload, 'expenses');
           if (success) {
-            // TERHUBUNG KE DOMPET PERUSAHAAN OUTFLOW
             await sendToSheet('insert', { id: 'CFO-' + new Date().getTime(), date: form.date, branch_id: penempatanTrx, type: 'OUT', category: 'UANG LEMBUR & BONUS', amount: totalCair, method: 'CASH', reference_id: expenseId, description: `Pencairan Lembur/Bonus (PIC: ${empData?.name})` }, 'cashflow_transactions');
             setForm({ date: todayStr, picId: '', participants: [], isLembur: false, isBonus: false, isJamuan: false });
             if (showToast) showToast('Dana lembur/bonus berhasil dicairkan. Laci kas cabang terpotong.', 'success');
@@ -665,16 +680,16 @@ function LemburModule({ employees, expenses, globalCompiled, activeBranch, today
           </div>
 
           <button type="submit" disabled={!form.picId} className="w-full bg-slate-900 text-white font-black py-4 rounded-xl text-xs uppercase disabled:opacity-40 shadow-lg hover:bg-slate-800 transition-colors mt-4 tracking-widest flex items-center justify-center gap-2">
-            <DollarSign size={14}/> Cetak Bukti & Cairkan Kas
+            <DollarSign size={14}/> Cetak Bukti &amp; Cairkan Kas
           </button>
         </form>
       </div>
 
       <div className="lg:col-span-2 bg-white rounded-3xl border flex flex-col overflow-hidden shadow-sm">
-        <div className="p-5 bg-slate-50 border-b font-black text-xs uppercase tracking-widest text-slate-700 flex items-center gap-2"><Clock size={16} className="text-blue-500"/> Arsip Pencairan Lembur & Bonus Harian</div>
+        <div className="p-5 bg-slate-50 border-b font-black text-xs uppercase tracking-widest text-slate-700 flex items-center gap-2"><Clock size={16} className="text-blue-500"/> Arsip Pencairan Lembur &amp; Bonus Harian</div>
         <div className="overflow-x-auto p-2 custom-scrollbar flex-1">
           <table className="w-full text-sm text-left">
-            <thead className="bg-white text-[10px] uppercase text-slate-400 border-b border-slate-100"><tr><th className="px-4 py-3 font-black">Tgl & ID</th><th className="px-4 py-3 font-black">Penerima Dana (PIC)</th><th className="px-4 py-3 font-black">Komponen Diklaim</th><th className="px-4 py-3 font-black text-right">Total Cair</th><th className="px-4 py-3 font-black text-center">Aksi</th></tr></thead>
+            <thead className="bg-white text-[10px] uppercase text-slate-400 border-b border-slate-100"><tr><th className="px-4 py-3 font-black">Tgl &amp; ID</th><th className="px-4 py-3 font-black">Penerima Dana (PIC)</th><th className="px-4 py-3 font-black">Komponen Diklaim</th><th className="px-4 py-3 font-black text-right">Total Cair</th><th className="px-4 py-3 font-black text-center">Aksi</th></tr></thead>
             <tbody className="divide-y divide-slate-50 text-xs font-bold">
               {historyLembur.length === 0 ? (
                 <tr><td colSpan="5" className="text-center py-20 text-slate-400 font-bold uppercase tracking-widest">Belum ada catatan lembur/bonus di cabang ini.</td></tr>
@@ -751,7 +766,6 @@ function KasbonModule({ employees, expenses, globalCompiled, activeBranch, today
           let success = false;
           if(isEditing) { success = await sendToSheet('update', payload, 'expenses'); } else { success = await sendToSheet('insert', payload, 'expenses'); }
           if (success) {
-            // TERHUBUNG KE DOMPET PERUSAHAAN OUTFLOW UNTUK KASBON TUNAI
             if (!isKredit && !isEditing) await sendToSheet('insert', { id: 'CFO-' + new Date().getTime(), date: form.date, branch_id: penempatanTrx, type: 'OUT', category: 'KASBON KARYAWAN', amount: Number(form.amount), method: 'CASH', reference_id: expenseId, description: `Pencairan Kasbon Laci (${empData?.name})` }, 'cashflow_transactions');
             setForm({ id: '', date: todayStr, employeeId: '', amount: '', notes: '', tenor: '1', foto_url: '' }); setIsEditing(false);
             if (showToast) showToast('Transaksi kasbon/kredit berhasil dicatat.', 'success');
@@ -786,10 +800,10 @@ function KasbonModule({ employees, expenses, globalCompiled, activeBranch, today
       </div>
 
       <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-200 flex flex-col overflow-hidden shadow-sm">
-        <div className="p-5 bg-slate-50 border-b border-slate-100 font-black text-xs uppercase tracking-widest text-slate-700 flex items-center gap-2"><History size={16} className="text-orange-500"/> Buku Hutang & Kredit Berjalan ({activeBranch === 'SEMUA_CABANG' ? 'NASIONAL' : activeBranch})</div>
+        <div className="p-5 bg-slate-50 border-b border-slate-100 font-black text-xs uppercase tracking-widest text-slate-700 flex items-center gap-2"><History size={16} className="text-orange-500"/> Buku Hutang &amp; Kredit Berjalan ({activeBranch === 'SEMUA_CABANG' ? 'NASIONAL' : activeBranch})</div>
         <div className="overflow-x-auto flex-1 p-2 custom-scrollbar">
           <table className="w-full text-sm text-left">
-            <thead className="bg-white text-[10px] uppercase text-slate-400 border-b border-slate-100"><tr><th className="px-4 py-3 font-black">Tgl & ID</th><th className="px-4 py-3 font-black">Karyawan</th><th className="px-4 py-3 font-black">Keterangan Pinjaman</th><th className="px-4 py-3 font-black text-right">Nominal Awal</th><th className="px-4 py-3 font-black text-center">Aksi</th></tr></thead>
+            <thead className="bg-white text-[10px] uppercase text-slate-400 border-b border-slate-100"><tr><th className="px-4 py-3 font-black">Tgl &amp; ID</th><th className="px-4 py-3 font-black">Karyawan</th><th className="px-4 py-3 font-black">Keterangan Pinjaman</th><th className="px-4 py-3 font-black text-right">Nominal Awal</th><th className="px-4 py-3 font-black text-center">Aksi</th></tr></thead>
             <tbody className="divide-y divide-slate-50 text-xs font-bold">
               {historyKasbonLog.length === 0 ? (
                 <tr><td colSpan="5" className="text-center py-20 text-slate-400 font-bold uppercase tracking-widest">Tidak ada riwayat pinjaman/kasbon.</td></tr>
@@ -893,7 +907,7 @@ function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch,
         <div className="p-5 bg-slate-50 border-b border-slate-100 font-black text-xs uppercase tracking-widest text-slate-700 flex items-center gap-2"><Database size={16} className="text-emerald-500"/> Database Karyawan {activeBranch === 'SEMUA_CABANG' ? 'NASIONAL' : activeBranch}</div>
         <div className="overflow-x-auto p-2 custom-scrollbar flex-1">
           <table className="w-full text-sm text-left">
-            <thead className="bg-white text-[10px] uppercase text-slate-400 border-b border-slate-100"><tr><th className="px-4 py-3 font-black">Profil Karyawan (Arsip)</th><th className="px-4 py-3 font-black">Jabatan & Gaji Master</th><th className="px-4 py-3 font-black text-center">Status</th><th className="px-4 py-3 font-black text-center">Aksi</th></tr></thead>
+            <thead className="bg-white text-[10px] uppercase text-slate-400 border-b border-slate-100"><tr><th className="px-4 py-3 font-black">Profil Karyawan (Arsip)</th><th className="px-4 py-3 font-black">Jabatan &amp; Gaji Master</th><th className="px-4 py-3 font-black text-center">Status</th><th className="px-4 py-3 font-black text-center">Aksi</th></tr></thead>
             <tbody className="divide-y divide-slate-50 text-xs font-bold">
               {employees.map(k => (
                 <tr key={k.id} className="hover:bg-slate-50/80 transition-colors group">
