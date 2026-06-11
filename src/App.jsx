@@ -30,6 +30,7 @@ import TabMasterData from './components/tabs/TabMasterData';
 import TabStokOutlet from './components/tabs/TabStokOutlet';
 import TabSetoranCabang from './components/tabs/TabSetoranCabang';
 import TabDiscrepancy from './components/tabs/TabDiscrepancy';
+import TabKartuStok from './components/tabs/TabKartuStok';
 
 // =====================================
 // IMPOR KOMPONEN CETAK
@@ -248,6 +249,7 @@ export default function App() {
       case 'karyawan': return <TabKaryawan user={user} sendToSheet={sendToSheet} setPrintData={setPrintData} showToast={showToast} {...dbData} />;
       case 'master_data': return <TabMasterData user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
       case 'monitoring_pemalang': return <TabMonitoringPemalang user={user} {...dbData} />;
+      case 'kartu_stok': return <TabKartuStok user={user} {...dbData} />;
       default: return <TabDashboardBranch user={user} {...dbData} />;
     }
   };
