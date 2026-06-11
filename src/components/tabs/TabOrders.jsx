@@ -5,7 +5,7 @@ import { triggerPrint } from '../../utils/PrintUtility';
 
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 
-// 🔥 JALUR SAKTI: PINDAHKAN KE LUAR KOMPONEN UTAMA AGAR 100% BEBAS DARI WARNING SENSOR EXHAUSTIVE-DEPS VERCEL
+// 🔥 JALUR SAKTI: Fungsi statis di luar komponen agar 100% steril dari sensor Exhaustive-Deps Vercel
 const getProductPriceByChannel = (prod, channel) => {
   const basePrice = Number(prod.price || 0);
   if (channel === 'RESELLER_AGEN') return prod.price_reseller || prod.price_agen || Math.round(basePrice * 0.9);
@@ -60,7 +60,7 @@ export default function TabOrders({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // 🔥 PERBAIKAN TOTAL: Pengecekan length dipindah ke dalam functional setter agar aman dari sensor ESLint
+  // 🔥 PERBAIKAN TIMING: Update harga otomatis di dalam keranjang belanja jika Jalur Merchant berubah
   useEffect(() => {
     setCart(prevCart => {
       if (prevCart.length === 0) return prevCart;
@@ -238,7 +238,7 @@ export default function TabOrders({
           </div>
         </div>
 
-        {/* KERANJANG BELANJA */}
+        {/* KERANJANG PESANAN */}
         <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm flex-1 flex flex-col">
           <h3 className="text-xs font-black uppercase text-slate-700 tracking-widest flex items-center gap-2 mb-4 border-b pb-3">
             <Tag size={16} className="text-orange-500"/> Keranjang Pesanan
@@ -295,16 +295,17 @@ export default function TabOrders({
         </div>
       </div>
 
-      {/* 💼 KOLOM KANAN: CRM & LOGIKA TEMPO PIUTANG */}
+      {/* 💼 KOLOM KANAN: CRM & FORM PEMBAYARAN */}
       <div className="lg:col-span-5 flex flex-col gap-6">
+        {/* 🔥 PERBAIKAN EMAS: SELURUH TEKS YANG PUNYA KARAKTER DAN (&) SEKARANG DIBUNGKUS STRING ES6 {"..."} BIAR ANTI-CRASH VERCEL */}
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xl flex-1 flex flex-col relative overflow-hidden">
           <form onSubmit={handleCheckout} className="space-y-5 flex-1 overflow-y-auto pr-2 custom-scrollbar">
             
             <h3 className="text-xs font-black uppercase text-slate-800 tracking-widest flex items-center gap-2 border-b pb-3">
-              <User size={16} className="text-blue-600"/> Data Agen &amp; Pembayaran
+              <User size={16} className="text-blue-600"/> {"Data Agen & Pembayaran"}
             </h3>
 
-            {/* SEARCH CRM DENGAN DATABASE DROPDOWN */}
+            {/* SEARCH CRM DROPDOWN */}
             <div className="relative" ref={wrapperRef}>
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Nama Pelanggan / Agen</label>
               <div className="relative">
@@ -427,7 +428,7 @@ export default function TabOrders({
             <div><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Catatan Pesanan / Keterangan Gantung</label><input type="text" value={form.notes} onChange={e=>setForm({...form, notes: e.target.value})} className="w-full p-2.5 border border-slate-200 bg-slate-50 rounded-xl text-xs font-bold uppercase outline-none focus:bg-white" placeholder="Contoh: Nota gantung diambil senin..." /></div>
 
             <button type="submit" disabled={cart.length === 0} className="w-full bg-emerald-600 text-white font-black py-4 rounded-xl text-xs uppercase disabled:opacity-40 shadow-xl shadow-emerald-600/30 hover:bg-emerald-700 transition-all active:scale-95 mt-4 tracking-widest flex items-center justify-center gap-2 shrink-0">
-              <Printer size={16}/> SIMPAN &amp; CETAK NOTA KASIR
+              <Printer size={16}/> {"SIMPAN & CETAK NOTA KASIR"}
             </button>
           </form>
         </div>
