@@ -1,11 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { Activity, TrendingUp, ArrowDownToLine, ArrowUpRight, Award, ShoppingBag, BarChart3, PieChart, Users, Crown, Medal, CalendarClock, Package, Percent, ShieldAlert, AlertOctagon, HelpCircle } from 'lucide-react';
+import { Activity, TrendingUp, ArrowDownToLine, ArrowUpRight, Award, ShoppingBag, BarChart3, PieChart, Users, Crown, Medal, CalendarClock, Package, Percent, ShieldAlert, AlertOctagon, Store } from 'lucide-react';
 import { getTodayStr, formatDate } from '../../utils/helpers';
 
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
-// ESTIMASI HPP STANDARD UNTUK ANALITIK PABRIKAN
 const ESTIMASI_HPP_PER_PCS = 1150; 
 
 export default function TabBusinessRadar({ 
@@ -17,32 +16,35 @@ export default function TabBusinessRadar({
   const currentBranch = (user?.branch_id === 'PUSAT' || !user?.branch_id) ? 'TANGERANG_PUSAT' : user?.branch_id;
   const isHQ = user?.branch_type === 'HQ_FACTORY' || user?.branch_id === 'PUSAT' || currentBranch === 'TANGERANG_PUSAT';
 
-  // --- STATE PERIODE ANALITIK ---
-  const [timeRange, setTimeRange] = useState('TODAY'); // TODAY, 7_DAYS, 30_DAYS
+  const [timeRange, setTimeRange] = useState('TODAY'); 
 
-  // --- SINKRONISASI DATABASE CLOUD ---
   const realOrders = useMemo(() => orders_data || orders || [], [orders, orders_data]);
   const realPurchases = useMemo(() => purchases_data || purchases || [], [purchases, purchases_data]);
   const realExpenses = useMemo(() => expenses_data || expenses || [], [expenses, expenses_data]);
   const realCashflow = useMemo(() => cashflow_transactions_data || cashflow_transactions || [], [cashflow_transactions, cashflow_transactions_data]);
+  const rawBranches = useMemo(() => master_branches || masterBranches || [], [master_branches, masterBranches]);
 
-  // --- COMPILER ALGORITMA CORE KEUANGAN & LEADERBOARD ---
+  const branchMap = useMemo(() => {
+    const mapping = { TANGERANG_PUSAT: 'Tangerang Pusat', PUSAT: 'Tangerang Pusat' };
+    rawBranches.forEach(b => { if (b.branch_id) mapping[b.branch_id] = b.branch_name; });
+    return mapping;
+  }, [rawBranches]);
+
   const radarMetrics = useMemo(() => {
     const limitDate = new Date();
     let daysToCount = 0;
     if (timeRange === '7_DAYS') { daysToCount = 7; limitDate.setDate(limitDate.getDate() - 7); }
     else if (timeRange === '30_DAYS') { daysToCount = 30; limitDate.setDate(limitDate.getDate() - 30); }
-    else { limitDate.setHours(0,0,0,0); } // TODAY
+    else { limitDate.setHours(0,0,0,0); } 
 
-    // AREA DATASET TREN GRAFIK
     const trendMap = {};
     if (timeRange !== 'TODAY') {
       for (let i = daysToCount - 1; i >= 0; i--) {
         const d = new Date(); d.setDate(d.getDate() - i);
-        trendMap[d.toISOString().substring(0, 10)] = { label: d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }), omzet: 0, beban: 0 };
+        trendMap[d.toISOString().substring(0, 10)] = { label: d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }), omzet: 0, bebas: 0 };
       }
     } else {
-      trendMap[todayStr] = { label: 'Hari Ini', omzet: 0, beban: 0 };
+      trendMap[todayStr] = { label: 'Hari Ini', omzet: 0, bebas: 0 };
     }
 
     const clientStats = {};
@@ -53,7 +55,6 @@ export default function TabBusinessRadar({
     let totalPcsHariIni = 0;
     let omzetHariIniRealtime = 0;
 
-    // 1. ANALISIS DATA ORDERS (OMZET & VOLUME)
     realOrders.filter(o => !o.isDeleted).forEach(o => {
       const orderDateStr = o.date.substring(0, 10);
       const d = new Date(o.date);
@@ -62,7 +63,6 @@ export default function TabBusinessRadar({
       if (timeRange === 'TODAY' && orderDateStr === todayStr) isIncluded = true;
       else if (timeRange !== 'TODAY' && d >= limitDate) isIncluded = true;
 
-      // Hitung Volume Pcs dari JSON String
       let totalPcs = 0;
       try {
         const itemsArr = JSON.parse(o.items || '[]');
@@ -83,7 +83,6 @@ export default function TabBusinessRadar({
         const estimasiHpp = totalPcs * ESTIMASI_HPP_PER_PCS;
         const labaBersih = amt - estimasiHpp;
 
-        // ARENA 1: KLIEN PERSONAL
         const custName = o.customer_name?.toUpperCase() || 'PELANGGAN ANONIM';
         if (!clientStats[custName]) clientStats[custName] = { qty: 0, omzet: 0, hpp: 0, profit: 0 };
         clientStats[custName].qty += totalPcs;
@@ -91,7 +90,6 @@ export default function TabBusinessRadar({
         clientStats[custName].hpp += estimasiHpp;
         clientStats[custName].profit += labaBersih;
 
-        // ARENA 2: PLATFORM / MERCHANT MALAM
         const channelName = o.sales_channel?.toUpperCase() || 'ECERAN_WALKIN';
         if (!channelStats[channelName]) channelStats[channelName] = { qty: 0, omzet: 0, hpp: 0, profit: 0 };
         channelStats[channelName].qty += totalPcs;
@@ -101,8 +99,7 @@ export default function TabBusinessRadar({
       }
     });
 
-    // 2. ANALISIS DATA BEBAN PABRIKAN
-    const processBeban = (arr, dateField, amountField, isPurchaseTable = false) => {
+    const processBeban = (arr, dateField, amountField) => {
       arr.filter(x => !x.isDeleted).forEach(x => {
         const dStr = x[dateField]?.substring(0, 10);
         const dObj = new Date(x[dateField]);
@@ -111,14 +108,13 @@ export default function TabBusinessRadar({
         else if (timeRange !== 'TODAY' && dObj >= limitDate) isIncluded = true;
 
         if (isIncluded) {
-          // Jika purchase menggunakan metode BON_GANTUNG, tetap masuk beban akumulasi P&L radar
           const amt = Number(x[amountField] || 0);
           totalBeban += amt;
           if (trendMap[dStr]) trendMap[dStr].beban += amt;
         }
       });
     };
-    processBeban(realPurchases, 'date', 'total_amount', true);
+    processBeban(realPurchases, 'date', 'total_amount');
     processBeban(realExpenses, 'date', 'amount');
     realCashflow.filter(c => !c.isDeleted && c.type === 'OUT').forEach(c => {
       const dStr = c.date.substring(0, 10);
@@ -131,10 +127,8 @@ export default function TabBusinessRadar({
       }
     });
 
-    // RADAR UNTUK FOLLOW-UP TRANSAKSI MACET JATUH TEMPO
     const outstandingDebtsAndReceivables = [];
     
-    // Tarik Piutang Agen Belum Lunas
     realOrders.filter(o => !o.isDeleted && ['DP', 'HUTANG'].includes(o.payment_method) && o.status !== 'SELESAI').forEach(o => {
       if (!isHQ && o.branch_id !== currentBranch) return;
       let paid = Number(o.amount_paid || 0);
@@ -145,7 +139,6 @@ export default function TabBusinessRadar({
       }
     });
 
-    // Tarik Hutang Ayam / Supplier Gantung (BON GANTUNG)
     realPurchases.filter(p => !p.isDeleted && (p.payment_method === 'BON_GANTUNG' || p.payment_method === 'HUTANG') && p.status !== 'LUNAS').forEach(p => {
       if (!isHQ && p.branch_id !== currentBranch) return;
       let paid = Number(p.amount_paid || 0);
@@ -156,8 +149,7 @@ export default function TabBusinessRadar({
       }
     });
 
-    // ESTIMASI SPLIT 4 AMPLOP VIRTUAL HARI INI
-    const hppHari Ini = totalPcsHariIni * ESTIMASI_HPP_PER_PCS;
+    const hppHariIni = totalPcsHariIni * ESTIMASI_HPP_PER_PCS;
     const sisaBahanBaku55 = omzetHariIniRealtime * 0.55;
     const opsGaji20 = omzetHariIniRealtime * 0.20;
     const cadangan10 = omzetHariIniRealtime * 0.10;
@@ -177,7 +169,6 @@ export default function TabBusinessRadar({
     };
   }, [realOrders, realPurchases, realExpenses, realCashflow, timeRange, todayStr, isHQ, currentBranch]);
 
-  // --- GRAPHIC VECTOR CALCULATION ---
   const svgCoordinates = useMemo(() => {
     const width = 500; const height = 180;
     const points = radarMetrics.trendArray;
@@ -204,8 +195,6 @@ export default function TabBusinessRadar({
 
   return (
     <div className="space-y-6 pb-10 text-slate-800">
-      
-      {/* CONTROL BANNER ATAS */}
       <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-md flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 text-white">
         <div>
           <h2 className="text-xl font-black uppercase tracking-widest flex items-center gap-2">
@@ -221,7 +210,6 @@ export default function TabBusinessRadar({
         </div>
       </div>
 
-      {/* THREE CARDS INDIKATOR UTAMA (Menjawab Layout image_573d61.png) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
@@ -248,7 +236,6 @@ export default function TabBusinessRadar({
         </div>
       </div>
 
-      {/* 🔥 INJEKSI FITUR BARU: RADAR BREAKDOWN 4 AMPLOP & HPP BERSIH (HARI INI) */}
       <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm grid grid-cols-2 md:grid-cols-5 gap-4 bg-gradient-to-b from-white to-slate-50/50">
         <div className="p-3 bg-white border border-slate-200 rounded-2xl shadow-sm text-center">
           <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">HPP Bersih Hari Ini</div>
@@ -269,11 +256,10 @@ export default function TabBusinessRadar({
         </div>
         <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl shadow-sm text-center col-span-2 md:col-span-1">
           <div className="text-[9px] font-black text-emerald-600 uppercase tracking-widest flex items-center justify-center gap-1"><Award size={10}/> Amplop 4 (Profit 15%)</div>
-          <div className="text-base font-black text-emerald-800 mt-1">{formatRupiah(radarMetrics.profitBersih15)}</div>
+          <div className="text-base font-black text-emerald-800 mt-1">{formatRupiah(radarMetrics.profitChecks15 || radarMetrics.profitBersih15)}</div>
         </div>
       </div>
 
-      {/* 🔥 INJEKSI FITUR BARU: RADAR WATCHLIST PIUTANG MACET & HUTANG SUPPLIER AYAM */}
       <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
         <h3 className="text-xs font-black uppercase text-slate-700 tracking-widest flex items-center gap-2 mb-4">
           <ShieldAlert size={16} className="text-rose-500 animate-bounce"/> 🚨 Radar Pengawasan Tagihan Macet &amp; Hutang Gantung
@@ -302,7 +288,6 @@ export default function TabBusinessRadar({
         </div>
       </div>
 
-      {/* LINE GRAPH TREN (Sembunyikan kalau filter Hari Ini) */}
       {timeRange !== 'TODAY' && radarMetrics.trendArray.length > 1 && (
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm animate-in fade-in">
           <h3 className="text-xs font-black uppercase text-slate-700 tracking-widest flex items-center gap-2 mb-4"><BarChart3 size={16} className="text-blue-500"/> Tren Fluktuasi Keuangan Pabrik</h3>
@@ -327,10 +312,7 @@ export default function TabBusinessRadar({
         </div>
       )}
 
-      {/* ROW LEADERBOARD DUA ARENA */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-        
-        {/* ARENA 1: RANKING MERCHANT JALUR ONLINE */}
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
           <div className="p-5 bg-slate-50 border-b flex items-center justify-between">
             <h3 className="text-xs font-black uppercase text-slate-800 tracking-widest flex items-center gap-2">
@@ -370,7 +352,6 @@ export default function TabBusinessRadar({
           </div>
         </div>
 
-        {/* ARENA 2: RANKING KLIEN VIP / AGEN PERSONAL */}
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
           <div className="p-5 bg-slate-50 border-b flex items-center justify-between">
             <h3 className="text-xs font-black uppercase text-slate-800 tracking-widest flex items-center gap-2">
@@ -405,9 +386,7 @@ export default function TabBusinessRadar({
             )}
           </div>
         </div>
-
       </div>
-
     </div>
   );
 }
