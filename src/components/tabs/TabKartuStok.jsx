@@ -1,10 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { Package, Box, Layers, ArrowRightLeft, Search, Archive, ArrowDownRight, ArrowUpRight, History, Database, ShieldAlert } from 'lucide-react';
+// 🔥 PERBAIKAN: Menambahkan ShieldAlert ke lucide-react dan formatNumber lokal diganti toLocaleString
 import { formatDate } from '../../utils/helpers';
 
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
-export default function TabKartuStok({
+export default function TabKartuStok({ 
   masterProducts = [], masterRawMaterials = [], 
   orders = [], purchases = [], productionBatches = [],
   user 
@@ -33,9 +34,9 @@ export default function TabKartuStok({
     // BARANG MASUK: Dari Hasil Produksi (Yield)
     (productionBatches || []).forEach(batch => {
       if (!batch.isDeleted && batch.status === 'COMPLETED') {
-        const productName = batch.product_name || 'DIMSUM MIX BASE'; // Asumsi default
+        const productName = batch.product_name || 'DIMSUM FROZEN CORE'; // Asumsi default
         if (stockMap[productName]) {
-          stockMap[productName].stockIn += Number(batch.actual_yield || batch.qty || 0);
+          stockMap[productName].stockIn += Number(batch.total_yield_pcs || batch.actual_yield || batch.qty || 0);
         }
       }
     });
@@ -98,6 +99,11 @@ export default function TabKartuStok({
     // BARANG KELUAR: Dari Pemakaian Produksi
     (productionBatches || []).forEach(batch => {
       if (!batch.isDeleted && batch.status === 'COMPLETED') {
+        // Asumsi standar pemakaian ayam (hardcode jika belum ada json ingredients)
+        if (stockMap['AYAM FILLET PAHA'] && batch.total_ayam_kg) {
+            stockMap['AYAM FILLET PAHA'].stockOut += Number(batch.total_ayam_kg);
+        }
+
         try {
           const ingredients = JSON.parse(batch.ingredients_used || '[]');
           ingredients.forEach(ing => {
@@ -163,10 +169,18 @@ export default function TabKartuStok({
         // Dimsum Jadi (Masuk ke Freezer)
         timeline.push({
           id: batch.id, date: batch.date, type: 'IN', category: 'HASIL PRODUKSI PABRIK',
-          itemName: batch.product_name || 'DIMSUM MIX BASE', qty: batch.actual_yield || batch.qty, reference: `Batch Porsi: ${batch.id}`
+          itemName: batch.product_name || 'DIMSUM FROZEN CORE', qty: batch.total_yield_pcs || batch.actual_yield || batch.qty, reference: `Batch Porsi: ${batch.id}`
         });
 
-        // Bahan Dipakai (Keluar dari Gudang)
+        // Ayam Keluar
+        if (batch.total_ayam_kg) {
+            timeline.push({
+              id: batch.id + '-AYM', date: batch.date, type: 'OUT', category: 'PEMAKAIAN PRODUKSI',
+              itemName: 'AYAM FILLET PAHA', qty: batch.total_ayam_kg, reference: `Untuk Batch: ${batch.id}`
+            });
+        }
+
+        // Bahan Dipakai Lainnya (Keluar dari Gudang)
         try {
           const ingredients = JSON.parse(batch.ingredients_used || '[]');
           ingredients.forEach(ing => {
