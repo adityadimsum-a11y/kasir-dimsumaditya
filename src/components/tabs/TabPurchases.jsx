@@ -58,21 +58,84 @@ export default function TabPurchases({
     return { totalTagihan: total, dibayar: form.paymentMethod === 'HUTANG' ? Number(form.amountPaid || 0) : total };
   }, [form]);
 
-  // --- ACTIONS: SUBMIT BELANJA SUPPLIER ---
+  // --- ACTIONS: SUBMIT BELANJA SUPPLIER (QUADRUPLE ENTRY ENGINE) ---
   const handleSubmitSupplier = async (e) => {
     e.preventDefault();
     if (Number(form.qty) <= 0) return alert("Jumlah kuantitas harus lebih dari 0!");
     
+    // 1. SIAPKAN DATA BELANJA UTAMA (PURCHASES)
     const trxId = isEditing ? form.id : generateId('PO', form.date);
-    const payload = {
+    const payloadPurchase = {
       id: trxId, date: form.date, branch_id: currentBranch, supplier_name: form.supplierName.toUpperCase(), 
       category: form.category, item_name: form.itemName.toUpperCase(), qty: Number(form.qty), qty_kg: Number(form.qtyKg || 0),
       unit_price: Number(form.unitPrice), total_amount: perhitungan.totalTagihan, payment_method: form.paymentMethod, 
       amount_paid: perhitungan.dibayar, status: form.paymentMethod === 'HUTANG' ? 'BELUM_LUNAS' : 'LUNAS', notes: form.notes.toUpperCase()
     };
 
-    if (await sendToSheet(isEditing ? 'update' : 'insert', payload, 'purchases')) {
-      showToast('Data belanja supplier berhasil disimpan!', 'success');
+    // 2. SIAPKAN DATA POTONG SALDO (CASHFLOW OUT)
+    let payloadCashflow = null;
+    if (!isEditing && perhitungan.dibayar > 0) {
+      payloadCashflow = {
+        id: generateId('CFO', form.date),
+        date: form.date,
+        branch_id: currentBranch,
+        type: 'OUT',
+        category: 'PEMBELIAN ' + form.category,
+        description: `PO: ${trxId} - ${form.supplierName} (${form.itemName})`,
+        amount: perhitungan.dibayar,
+        method: form.paymentMethod === 'HUTANG' ? 'DP/CASH' : form.paymentMethod,
+        reference_id: trxId
+      };
+    }
+
+    // 3. SIAPKAN DATA STOK MASUK GUDANG (INVENTORY COST LAYERS)
+    let payloadInventory = null;
+    // Hanya dicatat sebagai aset gudang jika berupa Ayam, Bumbu, atau Mika
+    if (!isEditing && ['BAHAN_BAKU', 'PACKAGING', 'BUMBU'].includes(form.category)) {
+      const isPakaiKg = form.category === 'BAHAN_BAKU' && Number(form.qtyKg) > 0;
+      payloadInventory = {
+        id: generateId('INV', form.date),
+        date: form.date,
+        branch_id: currentBranch,
+        item_name: form.itemName.toUpperCase(),
+        qty_remaining: isPakaiKg ? Number(form.qtyKg) : Number(form.qty), // Prioritaskan KG untuk daging
+        unit_cost: isPakaiKg ? Math.round(perhitungan.totalTagihan / Number(form.qtyKg)) : Number(form.unitPrice), // Hitung HPP per Kg atau per Pcs
+        status: 'ACTIVE',
+        reference_id: trxId
+      };
+    }
+
+    // 4. SIAPKAN BUKU UTANG JIKA KASIR PILIH "HUTANG" (SUPPLIER LEDGER)
+    let payloadLedger = null;
+    if (!isEditing && form.paymentMethod === 'HUTANG') {
+      const sisaHutang = perhitungan.totalTagihan - perhitungan.dibayar;
+      if (sisaHutang > 0) {
+        payloadLedger = {
+          id: generateId('SL', form.date),
+          date: form.date,
+          branch_id: currentBranch,
+          supplier_name: form.supplierName.toUpperCase(),
+          transaction_type: 'PURCHASE', 
+          amount: sisaHutang,
+          description: `Kekurangan bayar PO: ${trxId}`,
+          reference_id: trxId
+        };
+      }
+    }
+
+    // --- TEMBAK KE DATABASE BERUNTUN ---
+    // Simpan nota utamanya terlebih dahulu
+    const isSuccess = await sendToSheet(isEditing ? 'update' : 'insert', payloadPurchase, 'purchases');
+    
+    if (isSuccess) {
+      if (!isEditing) {
+        // Tembak sisanya di latar belakang agar antarmuka tidak freeze (lag)
+        if (payloadCashflow) sendToSheet('insert', payloadCashflow, 'cashflow_transactions');
+        if (payloadInventory) sendToSheet('insert', payloadInventory, 'inventory_cost_layers');
+        if (payloadLedger) sendToSheet('insert', payloadLedger, 'supplier_ledger');
+      }
+      
+      showToast('Belanja dicatat! Saldo kas, stok gudang & hutang berhasil di-update otomatis.', 'success');
       handleCancelEdit();
     }
   };
