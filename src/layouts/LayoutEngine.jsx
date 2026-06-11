@@ -45,7 +45,7 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
     if (nodeCapability.can_receive_frozen === true || nodeCapability.can_receive_frozen === 'true') {
         coreItems.push({ id: 'stok_outlet', label: 'Logistik Freezer', icon: Package });
     }
-    coreItems.push({ id: 'discrepancy', label: 'Stok Opname & Basi', icon: AlertTriangle });
+    coreItems.push({ id: 'discrepancy', label: 'Laporan Produksi Dapur', icon: AlertTriangle });
     if (coreItems.length > 0) groups.push({ groupName: "Core Operations", items: coreItems });
 
     const financeItems = [];
