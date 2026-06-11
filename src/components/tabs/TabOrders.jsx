@@ -1,16 +1,14 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { ShoppingCart, User, Trash2, Printer, Search, Banknote, Tag, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
+import { ShoppingCart, User, Trash2, Printer, Search, Banknote, Tag, CheckCircle2, AlertCircle, RefreshCw, PlusCircle } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
 
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 
-// 🔥 FIX KUNCI: Patokan Harga Otomatis Sesuai Aturan Utama Pabrik Dimsum Aditya
 const getProductPriceByChannel = (prod, channel) => {
   if (channel === 'MITRA_DISTRIBUTOR') return 2000;
   if (channel === 'RESELLER_AGEN') return 2125;
   if (channel === 'ECERAN_WALKIN') return 3000;
-  // Untuk Paketan Acara, Merchant Online, & Toko Online otomatis open custom (ambil base price awal 3000)
   return Number(prod.price || 3000); 
 };
 
@@ -23,15 +21,15 @@ export default function TabOrders({
   const todayStr = getTodayStr();
   const currentBranch = (user?.branch_id === 'PUSAT' || !user?.branch_id) ? 'TANGERANG_PUSAT' : user?.branch_id;
 
-  // --- SINKRONISASI DATABASE ---
   const realProducts = useMemo(() => master_products || masterProducts || [], [master_products, masterProducts]);
   const realCustomers = useMemo(() => master_customers || masterCustomers || [], [master_customers, masterCustomers]);
   const realConversions = useMemo(() => master_conversion_rules || masterConversionRules || [], [master_conversion_rules, masterConversionRules]);
 
-  // --- STATE KERANJANG BELANJA ---
   const [cart, setCart] = useState([]);
   
-  // --- STATE CRM & FORM KASIR ---
+  // 🔥 STATE BARU: Untuk Input Barang Kustom (Tanpa Katalog)
+  const [customItem, setCustomItem] = useState({ name: '', price: '', qty: '1' });
+
   const [customerSearch, setCustomerSearch] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState(null); 
@@ -57,7 +55,6 @@ export default function TabOrders({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // 🔥 SINKRONISASI HARGA OTOMATIS SAAT JALUR MERCHANT DIKLIK
   useEffect(() => {
     setCart(prevCart => {
       if (prevCart.length === 0) return prevCart;
@@ -71,29 +68,23 @@ export default function TabOrders({
     });
   }, [form.salesChannel, realProducts]);
 
-  // Cek apakah mode saat ini butuh input Custom Harga
   const isCustomPriceChannel = !['MITRA_DISTRIBUTOR', 'RESELLER_AGEN', 'ECERAN_WALKIN'].includes(form.salesChannel);
 
-  // --- ENGINE SAKTI: LIVE ESTIMASI KONVERSI PACK MIKA (Isi 50 Pcs) ---
   const calculateConversion = (itemName, qtyPcs) => {
     const qty = Number(qtyPcs || 0);
     if (qty <= 0) return '';
-
     const rule = realConversions.find(c => 
       (c.product_name && c.product_name.toUpperCase() === itemName.toUpperCase()) ||
       (c.item_name && c.item_name.toUpperCase() === itemName.toUpperCase())
     );
-
     if (rule) {
       const nilai = Number(rule.nilai_konversi || rule.qty_konversi || 50); 
       const namaUnit = rule.nama_konversi || rule.unit_konversi || 'PACK';
       return `${(qty / nilai).toFixed(1)} ${namaUnit}`;
     }
-
     return `${(qty / 50).toFixed(1)} PACK`;
   };
 
-  // --- ENGINE AUTO-SUGGESTION CUSTOMER ---
   const filteredCustomers = useMemo(() => {
     if (!customerSearch) return [];
     const searchLower = customerSearch.toLowerCase();
@@ -113,7 +104,20 @@ export default function TabOrders({
     setShowSuggestions(true);
   };
 
-  // --- LOGIKA PERHITUNGAN KERANJANG ---
+  // 🔥 HANDLER: Tambah Barang Manual
+  const handleAddCustomItem = (e) => {
+    e.preventDefault();
+    if (!customItem.name) return alert('Nama produk harus diisi!');
+    setCart(prev => [...prev, {
+      id: 'CUSTOM-' + new Date().getTime(),
+      name: customItem.name.toUpperCase(),
+      currentPrice: Number(customItem.price || 0),
+      qty: Math.max(1, Number(customItem.qty || 1)),
+      isCustom: true
+    }]);
+    setCustomItem({ name: '', price: '', qty: '1' });
+  };
+
   const handleAddToCart = (product) => {
     setCart(prev => {
       const exist = prev.find(item => item.id === product.id);
@@ -140,7 +144,6 @@ export default function TabOrders({
   const totalTagihan = useMemo(() => cart.reduce((sum, item) => sum + (item.qty * item.currentPrice), 0), [cart]);
   const kembalian = useMemo(() => Math.max(0, Number(form.amountPaid || 0) - totalTagihan), [form.amountPaid, totalTagihan]);
 
-  // --- ACTIONS: SUBMIT TRANSAKSI ---
   const handleCheckout = async (e) => {
     e.preventDefault();
     if (cart.length === 0) return alert("Keranjang kosong!");
@@ -188,7 +191,7 @@ export default function TabOrders({
         }, 'cashflow_transactions');
       }
 
-      showToast('Transaksi Sukses! Invoice Bon Gantung berhasil dicatat.', 'success');
+      showToast('Transaksi Sukses! Invoice berhasil dicatat.', 'success');
       
       triggerPrint('NOTA_DOTMATRIX', {
         title: 'NOTA PENJUALAN DIMSUM', id: orderId, date: formatDate(todayStr),
@@ -209,14 +212,40 @@ export default function TabOrders({
       {/* 🛒 KOLOM KIRI: KATALOG DAN KERANJANG */}
       <div className="lg:col-span-7 flex flex-col gap-6">
         
-        {/* KATALOG PRODUK */}
+        {/* 🔥 FITUR BARU: INPUT BARANG MANUAL */}
+        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
+          <h3 className="text-xs font-black uppercase text-slate-700 tracking-widest flex items-center gap-2 mb-4 border-b pb-3">
+            <PlusCircle size={16} className="text-emerald-500"/> Entri Barang Manual / Dadakan
+          </h3>
+          <form onSubmit={handleAddCustomItem} className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1">
+              <input type="text" required placeholder="Ketik Nama Barang..." value={customItem.name} onChange={e => setCustomItem({...customItem, name: e.target.value})} className="w-full p-3 border border-slate-200 rounded-xl text-xs font-black uppercase outline-none focus:border-emerald-400 focus:bg-emerald-50 transition-colors" />
+            </div>
+            <div className="w-full sm:w-32 relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">Rp</span>
+              <input type="number" required placeholder="Harga" value={customItem.price} onChange={e => setCustomItem({...customItem, price: e.target.value})} className="w-full pl-9 pr-3 py-3 border border-slate-200 rounded-xl text-xs font-black outline-none focus:border-emerald-400 focus:bg-emerald-50 transition-colors" />
+            </div>
+            <div className="w-full sm:w-24 relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">Qty</span>
+              <input type="number" required min="1" value={customItem.qty} onChange={e => setCustomItem({...customItem, qty: e.target.value})} className="w-full pl-9 pr-3 py-3 border border-slate-200 rounded-xl text-xs font-black outline-none focus:border-emerald-400 focus:bg-emerald-50 transition-colors text-center" />
+            </div>
+            <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-6 py-3 rounded-xl text-xs uppercase transition-transform active:scale-95 shadow-md shadow-emerald-600/20 whitespace-nowrap">
+              Tambah
+            </button>
+          </form>
+        </div>
+
+        {/* KATALOG PRODUK MASTER */}
         <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
           <h3 className="text-xs font-black uppercase text-slate-700 tracking-widest flex items-center gap-2 mb-4">
-            <ShoppingCart size={16} className="text-blue-500"/> Katalog Produk Gudang
+            <ShoppingCart size={16} className="text-blue-500"/> Katalog Master Sistem
           </h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {realProducts.length === 0 ? (
-              <div className="col-span-full py-8 text-center text-xs font-bold text-slate-400">Master produk belum diatur.</div>
+              <div className="col-span-full py-6 text-center">
+                <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Katalog Masih Kosong</div>
+                <div className="text-[10px] text-slate-400">Silakan gunakan fitur <b>Entri Manual</b> di atas untuk tes transaksi sementara.</div>
+              </div>
             ) : (
               realProducts.filter(p => !p.isDeleted).map(prod => {
                 const dynamicPrice = getProductPriceByChannel(prod, form.salesChannel);
@@ -240,24 +269,29 @@ export default function TabOrders({
           
           <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
             {cart.length === 0 ? (
-              <div className="h-40 flex items-center justify-center text-xs font-bold text-slate-400 uppercase tracking-widest">Keranjang masih kosong</div>
+              <div className="h-40 flex flex-col items-center justify-center opacity-40">
+                <ShoppingCart size={40} className="text-slate-400 mb-3" />
+                <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">Keranjang Kosong</div>
+              </div>
             ) : (
               cart.map((item, index) => {
                 const conversionText = calculateConversion(item.name, item.qty);
                 return (
                   <div key={index} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl animate-in fade-in flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex-1">
-                      <div className="font-black text-slate-800 uppercase text-sm mb-2">{item.name}</div>
+                      <div className="font-black text-slate-800 uppercase text-sm mb-2 flex items-center gap-2">
+                        {item.name} 
+                        {item.isCustom && <span className="text-[8px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded-full">KUSTOM</span>}
+                      </div>
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] font-bold text-slate-500">
-                          {isCustomPriceChannel ? 'Input Harga (Custom):' : 'Harga Tetap:'}
+                          {isCustomPriceChannel || item.isCustom ? 'Harga Satuan (Rp):' : 'Harga Tetap (Rp):'}
                         </span>
-                        {/* INPUT BOX HARGA: Berubah warna jadi Amber jika mode Custom */}
                         <input 
                           type="number" 
                           value={item.currentPrice} 
                           onChange={(e) => handleUpdateCartPrice(item.id, e.target.value)} 
-                          className={`w-28 p-1.5 border rounded-lg text-sm font-black outline-none focus:ring-2 focus:ring-blue-400 transition-colors ${isCustomPriceChannel ? 'bg-amber-50 text-amber-700 border-amber-300' : 'bg-white text-emerald-600 border-slate-200'}`} 
+                          className={`w-28 p-1.5 border rounded-lg text-sm font-black outline-none focus:ring-2 focus:ring-blue-400 transition-colors ${isCustomPriceChannel || item.isCustom ? 'bg-amber-50 text-amber-700 border-amber-300' : 'bg-white text-emerald-600 border-slate-200'}`} 
                         />
                       </div>
                     </div>
@@ -265,7 +299,7 @@ export default function TabOrders({
                     <div className="flex flex-wrap items-center justify-between sm:justify-end gap-4 w-full sm:w-auto">
                       {/* INPUT QTY PENJUALAN UTAMA */}
                       <div className="flex flex-col items-start sm:items-center">
-                        <label className="text-[10px] font-black text-blue-600 uppercase tracking-wider mb-1">QTY (PCS) ⬇️</label>
+                        <label className="text-[10px] font-black text-blue-600 uppercase tracking-wider mb-1">QTY (PCS)</label>
                         <div className="flex items-center bg-white border border-blue-200 rounded-xl overflow-hidden shadow-sm focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-200 transition-all">
                           <button type="button" onClick={() => handleUpdateCartQty(item.id, item.qty - 1)} className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 font-black text-slate-600 transition-colors">-</button>
                           <input type="number" value={item.qty} onChange={(e) => handleUpdateCartQty(item.id, e.target.value)} className="w-16 text-center text-sm font-black outline-none bg-white py-2 text-blue-800" placeholder="0" />
@@ -307,7 +341,6 @@ export default function TabOrders({
               <User size={16} className="text-blue-600"/> Data Agen dan Pembayaran
             </h3>
 
-            {/* SEARCH CRM DROPDOWN */}
             <div className="relative" ref={wrapperRef}>
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Nama Pelanggan / Agen</label>
               <div className="relative">
@@ -338,7 +371,6 @@ export default function TabOrders({
               )}
             </div>
 
-            {/* DROPDOWN PLATFORM BERSIH TANPA KURUNG */}
             <div>
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Platform / Jalur Merchant</label>
               <select value={form.salesChannel} onChange={e=>setForm({...form, salesChannel: e.target.value})} className={`w-full p-3 border rounded-xl text-xs font-black uppercase outline-none cursor-pointer focus:border-blue-400 ${isCustomPriceChannel ? 'bg-amber-50 border-amber-300 text-amber-800' : 'bg-slate-50 border-slate-200'}`}>
@@ -357,7 +389,6 @@ export default function TabOrders({
               </select>
             </div>
 
-            {/* CHECKLIST UPDATE HARGA MASTER MASA DEPAN */}
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl shadow-inner">
               <label className="flex items-start gap-2.5 cursor-pointer">
                 <input type="checkbox" checked={form.isUpdateMasterPrice} onChange={e=>setForm({...form, isUpdateMasterPrice: e.target.checked})} className="w-4 h-4 mt-0.5 accent-blue-600" />
@@ -378,7 +409,6 @@ export default function TabOrders({
               )}
             </div>
 
-            {/* METODE PEMBAYARAN */}
             <div className="border-t border-slate-100 pt-4 mt-2">
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Metode Pembayaran</label>
               <div className="grid grid-cols-4 gap-2 mb-3">
