@@ -56,7 +56,7 @@ export default function TabStok({
     }).sort((a, b) => new Date(b.date) - new Date(a.date));
   }, [realProduction, isHQ, currentBranch, tableDateFilter]);
 
-  // --- ACTIONS ---
+  // --- ACTIONS (DENGAN INJEKSI TRIPLE-ENTRY STOK OTOMATIS) ---
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (Number(form.yieldPcs) <= 0) return alert("Hasil jadi (Yield) tidak boleh 0!");
@@ -66,6 +66,7 @@ export default function TabStok({
       if (!window.confirm(`PERINGATAN! Hasil produksi sangat rendah (${persenYield}% dari Target).\nAda kebocoran ${Math.abs(selisihYield)} Pcs.\n\nYakin ingin tetap menyimpan data ini?`)) return;
     }
 
+    // 1. DATA PRODUKSI UTAMA (Log Riwayat Dapur)
     const trxId = isEditing ? form.id : generateId('PRD', form.date);
     const payload = {
       id: trxId, date: form.date, branch_id: currentBranch,
@@ -74,8 +75,48 @@ export default function TabStok({
       notes: form.notes.toUpperCase()
     };
 
-    if (await sendToSheet(isEditing ? 'update' : 'insert', payload, 'production_batches')) {
-      showToast(`Data produksi berhasil ${isEditing ? 'diperbarui' : 'disimpan'}!`, 'success');
+    // 2. DATA INJEKSI: STOK DIMSUM BERTAMBAH DI GUDANG
+    let payloadDimsumIn = null;
+    if (!isEditing) {
+       payloadDimsumIn = {
+          id: generateId('SM-IN', form.date),
+          date: form.date,
+          branch_id: currentBranch,
+          movement_type: 'PRODUCTION_RESULT', // Tipe Barang Masuk
+          item_name: form.productName,        // DIMSUM FROZEN CORE
+          qty: Number(form.yieldPcs),
+          reference_id: trxId,
+          notes: `Hasil produksi dapur PIC: ${form.picName.toUpperCase()}`
+       };
+    }
+
+    // 3. DATA INJEKSI: STOK AYAM MENTAH BERKURANG DI GUDANG
+    let payloadAyamOut = null;
+    if (!isEditing) {
+       payloadAyamOut = {
+          id: generateId('SM-OUT', form.date),
+          date: form.date,
+          branch_id: currentBranch,
+          movement_type: 'INVENTORY_OUT',      // Tipe Barang Keluar/Dipakai
+          item_name: 'DAGING AYAM MENTAH FILLET', 
+          qty: Number(form.ayamKg),
+          reference_id: trxId,
+          notes: `Pemakaian adukan batch ${trxId}`
+       };
+    }
+
+    // --- TEMBAK KE DATABASE BERUNTUN ---
+    const isSuccess = await sendToSheet(isEditing ? 'update' : 'insert', payload, 'production_batches');
+    
+    if (isSuccess) {
+      // Jika simpan produksi sukses, tembak mutasi stok diam-diam di background
+      if (!isEditing) {
+         if (payloadDimsumIn) sendToSheet('insert', payloadDimsumIn, 'stock_movements');
+         if (payloadAyamOut) sendToSheet('insert', payloadAyamOut, 'stock_movements');
+      }
+      
+      showToast(`Produksi disahkan! Stok Ayam terpotong & Stok Frozen bertambah otomatis.`, 'success');
+      
       if (!isEditing && window.confirm("Cetak Tiket Bukti Produksi?")) handlePrint(payload, targetPcs, selisihYield);
       handleCancelEdit();
     }
