@@ -5,10 +5,19 @@ import { triggerPrint } from '../../utils/PrintUtility';
 
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 
+// 🔥 JALUR SAKTI: PINDAHKAN KE LUAR KOMPONEN UTAMA AGAR 100% BEBAS DARI WARNING SENSOR EXHAUSTIVE-DEPS VERCEL
+const getProductPriceByChannel = (prod, channel) => {
+  const basePrice = Number(prod.price || 0);
+  if (channel === 'RESELLER_AGEN') return prod.price_reseller || prod.price_agen || Math.round(basePrice * 0.9);
+  if (channel === 'MITRA_DISTRIBUTOR') return prod.price_distributor || prod.price_mitra || Math.round(basePrice * 0.85);
+  if (['GOFOOD', 'GRABFOOD', 'SHOPEEFOOD'].includes(channel)) return prod.price_online || Math.round(basePrice * 1.2);
+  return basePrice; 
+};
+
 export default function TabOrders({ 
   masterProducts = [], master_products,
   masterCustomers = [], master_customers,
-  masterConversionRules = [], master_conversion_rules, // 🔥 DATA ATURAN KONVERSI MASUK
+  masterConversionRules = [], master_conversion_rules, 
   user, sendToSheet, showToast 
 }) {
   const todayStr = getTodayStr();
@@ -51,50 +60,36 @@ export default function TabOrders({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // --- MATRIX RADAR HARGA OTOMATIS BERDASARKAN JALUR MERCHANT ---
-  const getProductPriceByChannel = (prod, channel) => {
-    const basePrice = Number(prod.price || 0);
-    if (channel === 'RESELLER_AGEN') return prod.price_reseller || prod.price_agen || Math.round(basePrice * 0.9);
-    if (channel === 'MITRA_DISTRIBUTOR') return prod.price_distributor || prod.price_mitra || Math.round(basePrice * 0.85);
-    if (['GOFOOD', 'GRABFOOD', 'SHOPEEFOOD'].includes(channel)) return prod.price_online || Math.round(basePrice * 1.2);
-    return basePrice; 
-  };
-
-  // Efek Otomatis Update Harga jika Jalur Merchant Berubah
+  // 🔥 PERBAIKAN TOTAL: Pengecekan length dipindah ke dalam functional setter agar aman dari sensor ESLint
   useEffect(() => {
-    if (cart.length > 0) {
-      setCart(prevCart => 
-        prevCart.map(item => {
-          const freshProd = realProducts.find(p => p.id === item.id);
-          if (freshProd) {
-            return { ...item, currentPrice: getProductPriceByChannel(freshProd, form.salesChannel) };
-          }
-          return item;
-        })
-      );
-    }
+    setCart(prevCart => {
+      if (prevCart.length === 0) return prevCart;
+      return prevCart.map(item => {
+        const freshProd = realProducts.find(p => p.id === item.id);
+        if (freshProd) {
+          return { ...item, currentPrice: getProductPriceByChannel(freshProd, form.salesChannel) };
+        }
+        return item;
+      });
+    });
   }, [form.salesChannel, realProducts]);
 
-  // --- ENGINE SAKTI: LIVE ESTIMASI KONVERSI (PCS -> BONG/BOX/PACK) ---
+  // --- ENGINE SAKTI: LIVE ESTIMASI KONVERSI ---
   const calculateConversion = (itemName, qtyPcs) => {
     const qty = Number(qtyPcs || 0);
     if (qty <= 0) return '';
 
-    // Cari paksa di master data konversi rules
     const rule = realConversions.find(c => 
       (c.product_name && c.product_name.toUpperCase() === itemName.toUpperCase()) ||
       (c.item_name && c.item_name.toUpperCase() === itemName.toUpperCase())
     );
 
     if (rule) {
-      const nilai = Number(rule.nilai_konversi || rule.qty_konversi || 500); // fallback 1 bong = 500 pcs
+      const nilai = Number(rule.nilai_konversi || rule.qty_konversi || 500); 
       const namaUnit = rule.nama_konversi || rule.unit_konversi || 'BONG';
-      const hasilKonversi = (qty / nilai).toFixed(1);
-      return `${hasilKonversi} ${namaUnit}`;
+      return `${(qty / nilai).toFixed(1)} ${namaUnit}`;
     }
 
-    // Fallback standard pabrik dimsum Aditya jika master rules masih kosong:
-    // 1 Bong Core = 500 Pcs, 1 Pack mika = 50 Pcs
     if (qty >= 500) {
       return `${(qty / 500).toFixed(1)} BONG`;
     }
@@ -265,19 +260,16 @@ export default function TabOrders({
                       </div>
                     </div>
 
-                    {/* 🔥 AREA INPUT QTY & RADAR LIVE KONVERSI */}
                     <div className="flex items-center justify-between sm:justify-end gap-4">
                       <div className="flex flex-col items-center">
                         <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">Input Qty (PCS)</label>
                         <div className="flex items-center bg-white border rounded-xl overflow-hidden shadow-sm focus-within:border-blue-400">
                           <button type="button" onClick={() => handleUpdateCartQty(item.id, item.qty - 1)} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 font-black text-slate-600 transition-colors">-</button>
-                          {/* 🔥 SEKARANG FULLY EDITABLE INPUT ANGKANYA! */}
                           <input type="number" value={item.qty} onChange={(e) => handleUpdateCartQty(item.id, e.target.value)} className="w-16 text-center text-xs font-black outline-none bg-white p-1" placeholder="0" />
                           <button type="button" onClick={() => handleUpdateCartQty(item.id, item.qty + 1)} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 font-black text-slate-600 transition-colors">+</button>
                         </div>
                       </div>
 
-                      {/* 🔥 BADGE INDIKATOR KONVERSI OTOMATIS */}
                       {conversionText && (
                         <div className="bg-blue-50 border border-blue-100 px-3 py-2 rounded-xl flex items-center gap-1.5 min-w-[90px] justify-center">
                           <RefreshCw size={12} className="text-blue-500 animate-spin" style={{ animationDuration: '4s' }} />
@@ -305,14 +297,13 @@ export default function TabOrders({
 
       {/* 💼 KOLOM KANAN: CRM & LOGIKA TEMPO PIUTANG */}
       <div className="lg:col-span-5 flex flex-col gap-6">
-        <form onSubmit={handleCheckout} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xl flex-1 flex flex-col relative overflow-hidden">
-          
-          <h3 className="text-xs font-black uppercase text-slate-800 tracking-widest flex items-center gap-2 mb-5 border-b pb-3">
-            <User size={16} className="text-blue-600"/> Data Agen &amp; Pembayaran
-          </h3>
-
-          <div className="space-y-5 flex-1 overflow-y-auto pr-2 custom-scrollbar">
+        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xl flex-1 flex flex-col relative overflow-hidden">
+          <form onSubmit={handleCheckout} className="space-y-5 flex-1 overflow-y-auto pr-2 custom-scrollbar">
             
+            <h3 className="text-xs font-black uppercase text-slate-800 tracking-widest flex items-center gap-2 border-b pb-3">
+              <User size={16} className="text-blue-600"/> Data Agen &amp; Pembayaran
+            </h3>
+
             {/* SEARCH CRM DENGAN DATABASE DROPDOWN */}
             <div className="relative" ref={wrapperRef}>
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Nama Pelanggan / Agen</label>
@@ -355,7 +346,7 @@ export default function TabOrders({
               </div>
             )}
 
-            {/* JALUR PLATFORM YANG MENGATUR HARGA CATALOG SECARA OTOMATIS */}
+            {/* JALUR PLATFORM */}
             <div>
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Platform / Jalur Merchant</label>
               <select value={form.salesChannel} onChange={e=>setForm({...form, salesChannel: e.target.value})} className="w-full p-3 border border-slate-200 rounded-xl text-xs font-black uppercase outline-none bg-slate-50 cursor-pointer focus:border-blue-400 focus:bg-white">
@@ -434,12 +425,12 @@ export default function TabOrders({
             )}
             
             <div><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Catatan Pesanan / Keterangan Gantung</label><input type="text" value={form.notes} onChange={e=>setForm({...form, notes: e.target.value})} className="w-full p-2.5 border border-slate-200 bg-slate-50 rounded-xl text-xs font-bold uppercase outline-none focus:bg-white" placeholder="Contoh: Nota gantung diambil senin..." /></div>
-          </div>
 
-          <button type="submit" disabled={cart.length === 0} className="w-full bg-emerald-600 text-white font-black py-4 rounded-xl text-xs uppercase disabled:opacity-40 shadow-xl shadow-emerald-600/30 hover:bg-emerald-700 transition-all active:scale-95 mt-4 tracking-widest flex items-center justify-center gap-2 shrink-0">
-            <Printer size={16}/> SIMPAN &amp; CETAK NOTA KASIR
-          </button>
-        </form>
+            <button type="submit" disabled={cart.length === 0} className="w-full bg-emerald-600 text-white font-black py-4 rounded-xl text-xs uppercase disabled:opacity-40 shadow-xl shadow-emerald-600/30 hover:bg-emerald-700 transition-all active:scale-95 mt-4 tracking-widest flex items-center justify-center gap-2 shrink-0">
+              <Printer size={16}/> SIMPAN &amp; CETAK NOTA KASIR
+            </button>
+          </form>
+        </div>
       </div>
 
     </div>
