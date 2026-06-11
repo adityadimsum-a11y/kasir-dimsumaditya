@@ -5,7 +5,7 @@ import {
   Send, Store, Package, Lock, Globe, Landmark, AlertTriangle, ShieldAlert,
   Archive
 } from 'lucide-react';
-// 🔥 JALAN ALAMATNYA SUDAH SAYA BENARKAN JADI '../'
+
 import { getTodayStr, formatDate } from '../utils/helpers';
 
 export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogout, masterCapabilities, children }) {
@@ -22,15 +22,23 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
   const menuGroups = useMemo(() => {
     const groups = [];
 
+    // =====================================
+    // 1. COMMAND CENTER (DASHBOARD & RADAR)
+    // =====================================
     const dashboardItems = [];
     if (nodeCapability.can_global_dashboard === true || nodeCapability.can_global_dashboard === 'true') {
         dashboardItems.push({ id: 'dashboard', label: 'Global HQ Radar', icon: Globe });
         dashboardItems.push({ id: 'business_radar', label: 'Business Radar', icon: Activity });
+        // 🔥 MENU BARU: MONITORING CABANG
+        dashboardItems.push({ id: 'monitoring_pemalang', label: 'Monitor Pemalang', icon: Factory });
     } else {
         dashboardItems.push({ id: 'dashboard_branch', label: 'Dashboard Node', icon: LayoutDashboard });
     }
     if (dashboardItems.length > 0) groups.push({ groupName: "Command Center", items: dashboardItems });
 
+    // =====================================
+    // 2. CORE OPERATIONS (TRANSAKSI & LOGISTIK)
+    // =====================================
     const coreItems = [];
     if (nodeCapability.can_marketplace === true || nodeCapability.can_marketplace === 'true') {
         coreItems.push({ id: 'orders', label: 'POS & Penjualan', icon: ShoppingCart });
@@ -42,7 +50,6 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
         coreItems.push({ id: 'purchases', label: 'Belanja Logistik', icon: Truck });
     }
     
-    // 🔥 MENU BARU: KARTU STOK GUDANG 
     coreItems.push({ id: 'kartu_stok', label: 'Kartu Stok & Gudang', icon: Archive });
 
     if (nodeCapability.can_distribution === true || nodeCapability.can_distribution === 'true') {
@@ -53,9 +60,14 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
 
     if (coreItems.length > 0) groups.push({ groupName: "Core Operations", items: coreItems });
 
+    // =====================================
+    // 3. FINANCE & SETTLEMENT (KEUANGAN & SDM)
+    // =====================================
     const financeItems = [];
     if (nodeCapability.can_treasury === true || nodeCapability.can_treasury === 'true') {
         financeItems.push({ id: 'cash_war_room', label: 'Dompet Perusahaan', icon: Wallet });
+        // 🔥 MENU BARU: MANAJEMEN PIUTANG
+        financeItems.push({ id: 'piutang', label: 'Manajemen Piutang', icon: Landmark });
     }
     if (nodeCapability.can_accounting === true || nodeCapability.can_accounting === 'true') {
         financeItems.push({ id: 'accounting', label: 'Laba Rugi & Aset', icon: Database });
@@ -68,6 +80,9 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
     
     if (financeItems.length > 0) groups.push({ groupName: "Finance & Settlement", items: financeItems });
 
+    // =====================================
+    // 4. SYSTEM & CONFIGURATION
+    // =====================================
     if (nodeCapability.can_global_dashboard === true || nodeCapability.can_global_dashboard === 'true') {
         groups.push({ 
             groupName: "System Configuration", 
