@@ -79,7 +79,7 @@ export default function TabOrders({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // 🔥 SAKTI: Fungsi pengubah harga & channel murni (Lolos Vercel Strict Mode)
+  // 🔥 SAKTI: Fungsi pengubah harga & channel murni
   const handleChannelChange = (e) => {
     const channel = e.target.value;
     setForm({ ...form, salesChannel: channel, isUpdateMasterPrice: false });
@@ -388,7 +388,8 @@ export default function TabOrders({
             
             <div><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Catatan Tambahan Nota</label><input type="text" value={form.notes} onChange={e=>setForm({...form, notes: e.target.value})} className="w-full p-2.5 border border-slate-200 bg-slate-50 rounded-xl text-xs font-bold uppercase outline-none focus:bg-white" placeholder="Ketik catatan..." /></div>
 
-            <button type="submit" className="w-full bg-emerald-600 text-white font-black py-4 rounded-xl text-xs uppercase shadow-xl shadow-emerald-600/30 hover:bg-emerald-700 transition-all active:scale-95 mt-4 tracking-widest flex items-center justify-center gap-2 shrink-0">
+            {/* 🔥 BUTTON SIMPAN (SUDAH ANTI-ERROR KARENA TIDAK ADA SYARAT CART.LENGTH LAGI) */}
+            <button type="submit" disabled={isOjolMode ? merchantCart.length === 0 : !bulkQty} className="w-full bg-emerald-600 text-white font-black py-4 rounded-xl text-xs uppercase shadow-xl shadow-emerald-600/30 hover:bg-emerald-700 transition-all active:scale-95 mt-4 tracking-widest flex items-center justify-center gap-2 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed">
               <Printer size={16}/> SIMPAN DAN CETAK NOTA KASIR
             </button>
           </form>
