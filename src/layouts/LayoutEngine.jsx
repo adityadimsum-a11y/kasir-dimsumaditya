@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { 
   LayoutDashboard, ShoppingCart, Activity, Factory, Truck, 
   Wallet, Users, Database, LogOut, Menu, X, ShieldCheck, 
-  Send, Store, Package, Lock, Globe, Landmark, AlertTriangle
+  Send, Store, Package, Lock, Globe, Landmark, AlertTriangle, ShieldAlert
 } from 'lucide-react';
 import { getTodayStr, formatDate } from '../utils/helpers';
 
