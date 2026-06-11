@@ -4,14 +4,14 @@ import { getTodayStr, formatDate } from '../../utils/helpers';
 
 export default function TabAccountingAudit({ 
   auditLogs = [], audit_logs,
-  masterBranches = [], user 
+  masterBranches = [], master_branches, user 
 }) {
   const todayStr = getTodayStr();
   const currentBranch = (user?.branch_id === 'PUSAT' || !user?.branch_id) ? 'TANGERANG_PUSAT' : user?.branch_id;
   const isHQ = user?.branch_type === 'HQ_FACTORY' || user?.branch_id === 'PUSAT' || currentBranch === 'TANGERANG_PUSAT';
 
   // --- STATE MANAGEMENT ---
-  const [tableDateFilter, setTableDateFilter] = useState(todayStr.substring(0, 7)); // Default: Bulan Ini (YYYY-MM)
+  const [tableDateFilter, setTableDateFilter] = useState(todayStr.substring(0, 7)); 
   const [searchTerm, setSearchTerm] = useState('');
   const [activeBranchFilter, setActiveBranchFilter] = useState(isHQ ? 'SEMUA_CABANG' : currentBranch);
 
@@ -21,14 +21,11 @@ export default function TabAccountingAudit({
   // --- FILTER ENGINE (RADAR AUDIT) ---
   const filteredAudit = useMemo(() => {
     return realAudit.filter(log => {
-      // 1. Filter Cabang (HQ bisa lihat semua, Cabang cuma lihat sampahnya sendiri)
       if (!isHQ && log.branch_id !== currentBranch) return false;
       if (isHQ && activeBranchFilter !== 'SEMUA_CABANG' && log.branch_id !== activeBranchFilter) return false;
       
-      // 2. Filter Waktu (Bulan)
       if (log.timestamp && log.timestamp.substring(0, 7) !== tableDateFilter) return false;
 
-      // 3. Filter Pencarian
       if (searchTerm) {
         const s = searchTerm.toLowerCase();
         if (
@@ -44,11 +41,10 @@ export default function TabAccountingAudit({
   // --- KPI METRIK KEAMANAN ---
   const securityMetrics = useMemo(() => {
     let voidBulanIni = 0;
-    let highRiskCount = 0; // Transaksi uang dihapus
+    let highRiskCount = 0; 
 
     filteredAudit.forEach(log => {
       voidBulanIni += 1;
-      // Deteksi kalau yang dihapus itu urusan uang/kasir
       if (['orders', 'cashflow_transactions', 'expenses', 'interbranch_treasury'].includes(log.table_name)) {
         highRiskCount += 1;
       }
@@ -57,8 +53,6 @@ export default function TabAccountingAudit({
     return { voidBulanIni, highRiskCount };
   }, [filteredAudit]);
 
-  // --- TAMPILAN JIKA BUKAN HQ (Blokir Akses) ---
-  // Fitur ini sangat rahasia, cabang bisa lihat tapi dibatasi
   if (!isHQ) {
     return (
       <div className="flex flex-col items-center justify-center py-32 text-slate-400">
@@ -97,7 +91,7 @@ export default function TabAccountingAudit({
           <ShieldAlert className="absolute -right-4 -bottom-4 text-amber-500/10 pointer-events-none" size={120} />
           <div className="text-[10px] font-black text-amber-600 uppercase tracking-widest flex items-center gap-1.5 mb-1"><AlertOctagon size={12}/> Risiko Tinggi (Kas/Uang)</div>
           <div className="text-4xl font-black text-amber-700 tracking-tight">{securityMetrics.highRiskCount} <span className="text-sm text-amber-400">KASUS</span></div>
-          <div className="mt-2 text-[9px] font-bold text-amber-700/60 uppercase">Void pada tabel Kasir, Kasbon, & Pengeluaran.</div>
+          <div className="mt-2 text-[9px] font-bold text-amber-700/60 uppercase">Void pada tabel Kasir, Kasbon, &amp; Pengeluaran.</div>
         </div>
 
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-center">
@@ -114,7 +108,6 @@ export default function TabAccountingAudit({
       {/* FILTER PENCARIAN & TABEL */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
         
-        {/* PANEL FILTER */}
         <div className="p-5 bg-slate-50 border-b border-slate-100 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
           <h4 className="font-black text-xs uppercase text-slate-700 tracking-widest flex items-center gap-2">
             <History size={16} className="text-blue-500"/> Log Jejak Penghapusan Sistem
@@ -140,7 +133,6 @@ export default function TabAccountingAudit({
           </div>
         </div>
 
-        {/* TABEL AUDIT */}
         <div className="overflow-x-auto flex-1 p-2 custom-scrollbar min-h-[50vh]">
           <table className="w-full text-sm text-left">
             <thead className="bg-white text-[10px] uppercase text-slate-400 border-b border-slate-100">
