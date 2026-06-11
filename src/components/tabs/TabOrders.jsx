@@ -5,7 +5,7 @@ import { triggerPrint } from '../../utils/PrintUtility';
 
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 
-// 🔥 JALUR SAKTI: Fungsi statis di luar komponen agar 100% steril dari sensor Exhaustive-Deps Vercel
+// 🔥 JALUR SAKTI VERCEL: Fungsi statis ditaruh di luar komponen agar bebas dari error Hooks Dependency
 const getProductPriceByChannel = (prod, channel) => {
   const basePrice = Number(prod.price || 0);
   if (channel === 'RESELLER_AGEN') return prod.price_reseller || prod.price_agen || Math.round(basePrice * 0.9);
@@ -17,7 +17,7 @@ const getProductPriceByChannel = (prod, channel) => {
 export default function TabOrders({ 
   masterProducts = [], master_products,
   masterCustomers = [], master_customers,
-  masterConversionRules = [], master_conversion_rules, 
+  masterConversionRules = [], master_conversion_rules, // 🔥 DATA ATURAN KONVERSI MASUK
   user, sendToSheet, showToast 
 }) {
   const todayStr = getTodayStr();
@@ -60,7 +60,7 @@ export default function TabOrders({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // 🔥 PERBAIKAN TIMING: Update harga otomatis di dalam keranjang belanja jika Jalur Merchant berubah
+  // 🔥 UPDATE HARGA OTOMATIS JIKA SALES CHANNEL BERUBAH
   useEffect(() => {
     setCart(prevCart => {
       if (prevCart.length === 0) return prevCart;
@@ -74,7 +74,7 @@ export default function TabOrders({
     });
   }, [form.salesChannel, realProducts]);
 
-  // --- ENGINE SAKTI: LIVE ESTIMASI KONVERSI ---
+  // --- ENGINE SAKTI: LIVE ESTIMASI KONVERSI (PCS -> BONG/PACK) ---
   const calculateConversion = (itemName, qtyPcs) => {
     const qty = Number(qtyPcs || 0);
     if (qty <= 0) return '';
@@ -212,7 +212,7 @@ export default function TabOrders({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pb-10 h-full min-h-screen">
       
-      {/* 🛒 KOLOM KIRI: KATALOG & KERANJANG */}
+      {/* 🛒 KOLOM KIRI: KATALOG DAN KERANJANG */}
       <div className="lg:col-span-7 flex flex-col gap-6">
         
         {/* KATALOG PRODUK */}
@@ -260,16 +260,19 @@ export default function TabOrders({
                       </div>
                     </div>
 
+                    {/* 🔥 MODIFIKASI EMAS: INPUT EDITABLE + LIVE RADAR KONVERSI */}
                     <div className="flex items-center justify-between sm:justify-end gap-4">
                       <div className="flex flex-col items-center">
                         <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">Input Qty (PCS)</label>
                         <div className="flex items-center bg-white border rounded-xl overflow-hidden shadow-sm focus-within:border-blue-400">
                           <button type="button" onClick={() => handleUpdateCartQty(item.id, item.qty - 1)} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 font-black text-slate-600 transition-colors">-</button>
+                          {/* 🔥 INPUT PCS SEKARANG EDITABLE TOTAL (TIDAK READONLY) */}
                           <input type="number" value={item.qty} onChange={(e) => handleUpdateCartQty(item.id, e.target.value)} className="w-16 text-center text-xs font-black outline-none bg-white p-1" placeholder="0" />
                           <button type="button" onClick={() => handleUpdateCartQty(item.id, item.qty + 1)} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 font-black text-slate-600 transition-colors">+</button>
                         </div>
                       </div>
 
+                      {/* 🔥 BADGE ESTIMASI KONVERSI PABRIK */}
                       {conversionText && (
                         <div className="bg-blue-50 border border-blue-100 px-3 py-2 rounded-xl flex items-center gap-1.5 min-w-[90px] justify-center">
                           <RefreshCw size={12} className="text-blue-500 animate-spin" style={{ animationDuration: '4s' }} />
@@ -295,14 +298,14 @@ export default function TabOrders({
         </div>
       </div>
 
-      {/* 💼 KOLOM KANAN: CRM & FORM PEMBAYARAN */}
+      {/* 💼 KOLOM KANAN: CRM DAN FORM PEMBAYARAN */}
       <div className="lg:col-span-5 flex flex-col gap-6">
-        {/* 🔥 PERBAIKAN EMAS: SELURUH TEKS YANG PUNYA KARAKTER DAN (&) SEKARANG DIBUNGKUS STRING ES6 {"..."} BIAR ANTI-CRASH VERCEL */}
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xl flex-1 flex flex-col relative overflow-hidden">
           <form onSubmit={handleCheckout} className="space-y-5 flex-1 overflow-y-auto pr-2 custom-scrollbar">
             
+            {/* 🔥 ANTI-BADAI SENSOR VERCEL: Teks bermasalah karakter '&' diganti total jadi 'dan' */}
             <h3 className="text-xs font-black uppercase text-slate-800 tracking-widest flex items-center gap-2 border-b pb-3">
-              <User size={16} className="text-blue-600"/> {"Data Agen & Pembayaran"}
+              <User size={16} className="text-blue-600"/> Data Agen dan Pembayaran
             </h3>
 
             {/* SEARCH CRM DROPDOWN */}
@@ -428,7 +431,7 @@ export default function TabOrders({
             <div><label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Catatan Pesanan / Keterangan Gantung</label><input type="text" value={form.notes} onChange={e=>setForm({...form, notes: e.target.value})} className="w-full p-2.5 border border-slate-200 bg-slate-50 rounded-xl text-xs font-bold uppercase outline-none focus:bg-white" placeholder="Contoh: Nota gantung diambil senin..." /></div>
 
             <button type="submit" disabled={cart.length === 0} className="w-full bg-emerald-600 text-white font-black py-4 rounded-xl text-xs uppercase disabled:opacity-40 shadow-xl shadow-emerald-600/30 hover:bg-emerald-700 transition-all active:scale-95 mt-4 tracking-widest flex items-center justify-center gap-2 shrink-0">
-              <Printer size={16}/> {"SIMPAN & CETAK NOTA KASIR"}
+              <Printer size={16}/> SIMPAN DAN CETAK NOTA KASIR
             </button>
           </form>
         </div>
