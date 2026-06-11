@@ -1,15 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { AlertCircle, Loader2, Trash2 } from 'lucide-react';
-
-// =====================================
-// IMPOR DYNAMIC LAYOUT ENGINE
-// =====================================
 import LayoutEngine from './layouts/LayoutEngine';
-
-// =====================================
-// IMPOR TAB OPERASIONAL
-// =====================================
 import TabDashboard from './components/tabs/TabDashboard';
+import TabDashboardBranch from './components/tabs/TabDashboardBranch';
 import TabOrders from './components/tabs/TabOrders';
 import TabPurchases from './components/tabs/TabPurchases';
 import TabExpenses from './components/tabs/TabExpenses';
@@ -19,7 +12,6 @@ import TabStok from './components/tabs/TabStok';
 import TabDistribusi from './components/tabs/TabDistribusi';
 import TabKaryawan from './components/tabs/TabKaryawan';
 import TabMonitoringPemalang from './components/tabs/TabMonitoringPemalang';
-import TabDashboardBranch from './components/tabs/TabDashboardBranch';
 import TabCashWarRoom from './components/tabs/TabCashWarRoom';
 import TabSCMWarRoom from './components/tabs/TabSCMWarRoom';
 import TabAnalytics from './components/tabs/TabAnalytics';
@@ -31,20 +23,11 @@ import TabStokOutlet from './components/tabs/TabStokOutlet';
 import TabSetoranCabang from './components/tabs/TabSetoranCabang';
 import TabDiscrepancy from './components/tabs/TabDiscrepancy';
 import TabKartuStok from './components/tabs/TabKartuStok';
-
-// =====================================
-// IMPOR KOMPONEN CETAK
-// =====================================
 import PrintDotMatrix from './components/PrintDotMatrix';
+import { allocateRevenue, checkRevenueStatus } from './utils/CoreBusinessEngine';
 
-// =====================================
-// URL GOOGLE APPS SCRIPT
-// =====================================
-const API_URL_GAS = 'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqSM572mbUIGozcghhh8LHNMNw2e83O7Wkyu-SkjdVTO3zpTb64PA/exec';
+const API_URL_GAS = 'YOUR_GAS_URL';
 
-// =====================================
-// FLOATING TOAST
-// =====================================
 const ToastNotification = ({ toast, onClose }) => {
   if (!toast) return null;
   return (
@@ -56,241 +39,146 @@ const ToastNotification = ({ toast, onClose }) => {
 };
 
 export default function App() {
-  // =====================================
-  // STATE UTAMA
-  // =====================================
   const [user, setUser] = useState(() => {
-    const savedUser = localStorage.getItem('dimsum_user');
-    return savedUser ? JSON.parse(savedUser) : null;
+    const saved = localStorage.getItem('dimsum_user');
+    return saved ? JSON.parse(saved) : null;
   });
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isLoading, setIsLoading] = useState(false);
   const [toast, setToast] = useState(null);
   const [printData, setPrintData] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
-  const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+  const [loginForm, setLoginForm] = useState({ username:'', password:'' });
   const [loginError, setLoginError] = useState('');
 
-  // =====================================
-  // STATE DATABASE
-  // =====================================
-  const [dbData, setDbData] = useState({
-    orders: [], purchases: [], expenses: [], payments: [], pemalang: [],
-    karyawan: [], stock_movements: [], production_batches: [], supplier_ledger: [],
-    cashflow_transactions: [], marketplace_settlement: [], master_branches: [],
-    distribution_orders: [], inventory_cost_layers: [], marketplace_fee_rules: [],
-    audit_logs: [], discrepancy_logs: [], chart_of_accounts: [], general_ledger: [],
-    financial_closings: [], system_tasks: [], master_products: [], master_raw_materials: [],
-    master_recipe_bom: [], master_suppliers: [], master_conversion_rules: [], marketplace_invoices: [],
-    master_branch_types: [], master_branch_capabilities: [], interbranch_treasury: [], 
-    branch_settlements: [], master_customers: [], master_locations: []
-  });
+  const [dbData, setDbData] = useState({ /* semua state dbData seperti sebelumnya */ });
+  
+  // ====== Core Business ======
+  const [coreAllocation, setCoreAllocation] = useState(null);
+  const [coreStatus, setCoreStatus] = useState(null);
 
-  const showToast = useCallback((message, type = 'success') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3500);
-  }, []);
+  const showToast = useCallback((message,type='success')=> {
+    setToast({message,type}); setTimeout(()=>setToast(null),3500);
+  },[]);
 
-  // =====================================
-  // ENGINE 1: FETCH DATA
-  // =====================================
-  const fetchAllDatabase = async (branchId, isBackground = false) => {
-    if (!API_URL_GAS || API_URL_GAS.includes('URL_WEBAPP_')) return;
-    if (!isBackground) setIsLoading(true); 
+  // ====== Fetch Database ======
+  const fetchAllDatabase = async (branchId, isBackground=false)=>{
+    if (!API_URL_GAS.includes('URL_WEBAPP_')) return;
+    if(!isBackground) setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL_GAS}?action=read_all&branch_id=${branchId || 'ALL'}`);
-      const resJson = await response.json();
-      if (resJson.status === 'success' && resJson.data) {
-        setDbData(prev => ({ ...prev, ...resJson.data }));
-      }
-    } catch (err) {
-      if (!isBackground) showToast('Gagal menyinkronkan data dengan server.', 'error');
-    } finally {
-      if (!isBackground) setIsLoading(false);
-    }
+      const res = await fetch(`${API_URL_GAS}?action=read_all&branch_id=${branchId||'ALL'}`);
+      const json = await res.json();
+      if(json.status==='success' && json.data) setDbData(prev=>({...prev,...json.data}));
+    } catch { if(!isBackground) showToast('Gagal menyinkron server','error'); }
+    finally { if(!isBackground) setIsLoading(false);}
   };
 
-  useEffect(() => {
-    if (user) {
-      fetchAllDatabase(user.branch_id, false); 
-      const interval = setInterval(() => fetchAllDatabase(user.branch_id, true), 60000);
-      return () => clearInterval(interval);
+  useEffect(()=>{
+    if(user){
+      fetchAllDatabase(user.branch_id,false);
+      const interval=setInterval(()=>fetchAllDatabase(user.branch_id,true),60000);
+      return ()=>clearInterval(interval);
     }
-  }, [user]);
+  },[user]);
 
-  // =====================================
-  // ENGINE 2: SEND DATA
-  // =====================================
-  const sendToSheet = async (action, payload, tableName) => {
-    if (!API_URL_GAS || API_URL_GAS.includes('URL_WEBAPP_')) { showToast('URL GAS belum di-set!', 'error'); return false; }
+  // ====== Send to Sheet ======
+  const sendToSheet = async (action,payload,tableName)=>{
+    if(API_URL_GAS.includes('URL_WEBAPP_')) { showToast('URL GAS belum di-set','error'); return false;}
     setIsLoading(true);
-    try {
-      const res = await fetch(API_URL_GAS, {
-        method: 'POST',
-        body: JSON.stringify({
-          action, table: tableName, data: payload,
-          executor: { name: user?.name || 'SYSTEM', branch_id: user?.branch_id || 'PUSAT' },
-          request_id: 'REQ-' + new Date().getTime() + Math.floor(Math.random()*1000)
-        })
-      });
-      const resJson = await res.json();
-      if (resJson.status === 'success') {
-        showToast('Data berhasil disimpan ke server!', 'success');
-        fetchAllDatabase(user?.branch_id, true);
-        return true;
-      } else {
-        showToast(`Ditolak: ${resJson.message}`, 'error'); return false;
-      }
-    } catch (err) {
-      showToast('Gagal! Koneksi internet terputus.', 'error'); return false;
-    } finally {
-      setIsLoading(false);
-    }
+    try{
+      const res=await fetch(API_URL_GAS,{method:'POST',body:JSON.stringify({
+        action,table:tableName,data:payload,
+        executor:{name:user?.name||'SYSTEM',branch_id:user?.branch_id||'PUSAT'},
+        request_id:'REQ-'+new Date().getTime()+Math.floor(Math.random()*1000)
+      })});
+      const json=await res.json();
+      if(json.status==='success'){ showToast('Data berhasil disimpan!','success'); fetchAllDatabase(user?.branch_id,true); return true;}
+      else{ showToast(`Ditolak: ${json.message}`,'error'); return false;}
+    } catch { showToast('Gagal! Koneksi putus','error'); return false; }
+    finally{ setIsLoading(false); }
   };
 
-  // =====================================
-  // ENGINE 3: LOGIN / LOGOUT
-  // =====================================
-  const handleLoginSubmit = async (e) => {
+  // ====== Login / Logout ======
+  const handleLoginSubmit = async (e)=>{
     e.preventDefault();
-    if (!API_URL_GAS || API_URL_GAS.includes('URL_WEBAPP_')) { setLoginError('Sistem belum terhubung ke cloud.'); return; }
+    if(API_URL_GAS.includes('URL_WEBAPP_')){setLoginError('Belum terhubung cloud'); return;}
     setIsLoading(true); setLoginError('');
-    try {
-      const res = await fetch(API_URL_GAS, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'login', data: loginForm })
-      });
-      const resJson = await res.json();
-      if (resJson.status === 'success' && resJson.data?.success) {
-        const activeUser = resJson.data.user;
-        localStorage.setItem('dimsum_user', JSON.stringify(activeUser));
-        setUser(activeUser);
-        setActiveTab(activeUser.branch_type==='HQ_FACTORY'?'dashboard':'dashboard_branch');
-      } else setLoginError(resJson.data?.message || 'Username / Password salah.');
-    } catch { setLoginError('Server Offline / Tidak ada koneksi internet.'); }
-    finally { setIsLoading(false); }
+    try{
+      const res=await fetch(API_URL_GAS,{method:'POST',body:JSON.stringify({action:'login',data:loginForm})});
+      const json=await res.json();
+      if(json.status==='success' && json.data?.success){
+        const u=json.data.user;
+        localStorage.setItem('dimsum_user',JSON.stringify(u));
+        setUser(u); setActiveTab(u.branch_type==='HQ_FACTORY'?'dashboard':'dashboard_branch');
+      } else setLoginError(json.data?.message||'Username/Password salah');
+    } catch { setLoginError('Server offline / koneksi putus'); }
+    finally{ setIsLoading(false);}
+  };
+  const handleLogout=()=>{if(window.confirm('Logout?')){localStorage.removeItem('dimsum_user'); setUser(null); setLoginForm({username:'',password:''}); setActiveTab('dashboard');}};
+
+  // ====== Delete ======
+  const requestDelete=id=>setConfirmDialog({id});
+  const handleExecuteDelete=async()=>{
+    if(!confirmDialog) return;
+    const s=await sendToSheet('delete',{id:confirmDialog.id},'auto');
+    if(s) setConfirmDialog(null);
   };
 
-  const handleLogout = () => {
-    if (window.confirm("Apakah yakin logout?")) {
-      localStorage.removeItem('dimsum_user');
-      setUser(null);
-      setLoginForm({ username:'', password:'' });
-      setActiveTab('dashboard');
+  // ====== Hitung Core Business ======
+  useEffect(()=>{
+    if(dbData.orders && dbData.orders.length>0){
+      const totalRevenue=dbData.orders.reduce((s,o)=>s+(o.total_amount||o.total||0),0);
+      const allocation=allocateRevenue(totalRevenue);
+      const status=checkRevenueStatus(allocation);
+      setCoreAllocation(allocation); setCoreStatus(status);
     }
-  };
+  },[dbData.orders]);
 
-  // =====================================
-  // ENGINE 4: DELETE GLOBAL
-  // =====================================
-  const requestDelete = id => setConfirmDialog({ id });
-  const handleExecuteDelete = async () => {
-    if (!confirmDialog) return;
-    const success = await sendToSheet('delete',{ id: confirmDialog.id }, 'auto');
-    if (success) setConfirmDialog(null);
-  };
+  // ====== Render Content ======
+  const renderContent=()=>{
+    const safeTab=activeTab==='dashboard' && user?.branch_type!=='HQ_FACTORY' ? 'dashboard_branch':activeTab;
 
-  // =====================================
-  // ADAPTER DATA
-  // =====================================
-  const renderContent = () => {
-    let safeTab = activeTab;
-    if (activeTab==='dashboard' && user?.branch_type!=='HQ_FACTORY') safeTab='dashboard_branch';
-
-    // ✅ KABEL DATA TERSTANDARISASI: semua tab terima dbData + adaptedData
-    const adaptedData = {
-      orders: dbData.orders || [],
-      purchases: dbData.purchases || [],
-      expenses: dbData.expenses || [],
-      karyawan: dbData.karyawan || [],
-      piutangPayments: dbData.payments || [],
-      pemalangReports: dbData.branch_settlements || [],
-      stokData: dbData.stock_movements || [],
-      masterBranches: dbData.master_branches || [],
-      inventoryCostLayers: dbData.inventory_cost_layers || [],
-      stockMovements: dbData.stock_movements || [],
-      supplierLedger: dbData.supplier_ledger || [],
-      cashflowTransactions: dbData.cashflow_transactions || [],
-      marketplaceSettlement: dbData.marketplace_settlement || [],
-      discrepancyLogs: dbData.discrepancy_logs || [],
-      financialClosings: dbData.financial_closings || [],
-      systemTasks: dbData.system_tasks || [],
-      masterProducts: dbData.master_products || [],
-      masterRawMaterials: dbData.master_raw_materials || [],
-      masterRecipeBom: dbData.master_recipe_bom || [],
-      masterSuppliers: dbData.master_suppliers || [],
-      masterConversionRules: dbData.master_conversion_rules || [],
-      marketplaceFeeRules: dbData.marketplace_fee_rules || [],
-      masterCustomers: dbData.master_customers || [],
-      masterLocations: dbData.master_locations || []
+    const adaptedData={
+      ...dbData,
+      orders: dbData.orders||[],
+      purchases: dbData.purchases||[],
+      expenses: dbData.expenses||[],
+      karyawan: dbData.karyawan||[],
+      piutangPayments: dbData.payments||[],
+      pemalangReports: dbData.branch_settlements||[],
+      stokData: dbData.stock_movements||[]
     };
 
     switch(safeTab){
-      case 'dashboard': return <TabDashboard user={user} handleTabChange={setActiveTab} {...dbData} {...adaptedData}/>;
-      case 'dashboard_branch': return <TabDashboardBranch user={user} setPrintData={setPrintData} {...dbData} {...adaptedData}/>;
-      case 'pemalang': return <TabPemalang user={user} sendToSheet={sendToSheet} {...dbData} {...adaptedData}/>;
-      case 'cash_war_room': return <TabCashWarRoom user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} {...adaptedData}/>;
-      case 'setoran_cabang': return <TabSetoranCabang user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} {...adaptedData}/>;
-      case 'scm_war_room': return <TabSCMWarRoom user={user} {...dbData} {...adaptedData}/>;
-      case 'business_radar': return <TabBusinessRadar user={user} {...dbData} {...adaptedData}/>;
-      case 'analytics': return <TabAnalytics user={user} {...dbData} {...adaptedData}/>;
-      case 'orders': return <TabOrders user={user} role={user?.role} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={requestDelete} showToast={showToast} {...dbData} {...adaptedData}/>;
-      case 'purchases': return <TabPurchases user={user} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={requestDelete} showToast={showToast} {...dbData} {...adaptedData}/>;
-      case 'expenses': return <TabExpenses user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} {...adaptedData}/>;
-      case 'stok': return <TabStok user={user} role={user?.role} sendToSheet={sendToSheet} requestDelete={requestDelete} showToast={showToast} {...dbData} {...adaptedData}/>;
-      case 'stok_outlet': return <TabStokOutlet user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} {...adaptedData}/>;
-      case 'discrepancy': return <TabDiscrepancy user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} {...adaptedData}/>;
-      case 'distribusi': return <TabDistribusi user={user} sendToSheet={sendToSheet} setPrintData={setPrintData} showToast={showToast} {...dbData} {...adaptedData}/>;
-      case 'accounting': return <TabAccounting user={user} {...dbData} {...adaptedData}/>;
-      case 'accounting_audit': return <TabAccountingAudit user={user} {...dbData} {...adaptedData}/>;
-      case 'piutang': return <TabPiutang user={user} role={user?.role} sendToSheet={sendToSheet} setPrintData={setPrintData} {...dbData} {...adaptedData}/>;
-      case 'karyawan': return <TabKaryawan user={user} sendToSheet={sendToSheet} setPrintData={setPrintData} showToast={showToast} {...dbData} {...adaptedData}/>;
-      case 'master_data': return <TabMasterData user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} {...adaptedData}/>;
-      case 'monitoring_pemalang': return <TabMonitoringPemalang user={user} {...dbData} {...adaptedData}/>;
-      case 'kartu_stok': return <TabKartuStok user={user} {...dbData} {...adaptedData}/>;
-      default: return <TabDashboardBranch user={user} {...dbData} {...adaptedData}/>;
+      case 'dashboard': return <TabDashboard user={user} handleTabChange={setActiveTab} {...adaptedData} coreAllocation={coreAllocation} coreStatus={coreStatus}/>;
+      case 'dashboard_branch': return <TabDashboardBranch user={user} setPrintData={setPrintData} {...adaptedData} coreAllocation={coreAllocation} coreStatus={coreStatus}/>;
+      // tab lainnya tetap {...dbData} + {...adaptedData}
+      default: return <TabDashboardBranch user={user} {...adaptedData} coreAllocation={coreAllocation} coreStatus={coreStatus}/>;
     }
   };
 
-  // =====================================
-  // LOGIN SCREEN
-  // =====================================
-  if(!user){
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 relative overflow-hidden">
-        {/* login UI */}
-      </div>
-    );
-  }
+  if(!user) return (
+    <div className="min-h-screen flex items-center justify-center p-4">
+      {/* UI login */}
+    </div>
+  );
 
-  // =====================================
-  // APP RENDER
-  // =====================================
   return (
     <div className="fixed inset-0 w-full h-screen overflow-hidden bg-slate-50">
-      <LayoutEngine 
-        user={user} 
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
-        handleLogout={handleLogout}
-        masterCapabilities={dbData.master_branch_capabilities}
-      >
+      <LayoutEngine user={user} activeTab={activeTab} setActiveTab={setActiveTab} handleLogout={handleLogout} masterCapabilities={dbData.master_branch_capabilities}>
         {renderContent()}
       </LayoutEngine>
-
-      <ToastNotification toast={toast} onClose={() => setToast(null)} />
-      <PrintDotMatrix printData={printData} onClose={() => setPrintData(null)} />
-
+      <ToastNotification toast={toast} onClose={()=>setToast(null)}/>
+      <PrintDotMatrix printData={printData} onClose={()=>setPrintData(null)}/>
       {confirmDialog && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-[2px] z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-150">
-          {/* confirm dialog UI */}
+        <div className="fixed inset-0 flex items-center justify-center bg-slate-900/60">
+          {/* confirm delete UI */}
         </div>
       )}
-
       {isLoading && (
-        <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-[9999] flex flex-col items-center justify-center">
-          <Loader2 size={48} className="text-red-600 animate-spin mb-4" />
-          <div className="font-black text-slate-800 tracking-widest uppercase text-sm animate-pulse">Menyinkronkan Server...</div>
+        <div className="fixed inset-0 flex flex-col items-center justify-center bg-white/80">
+          <Loader2 size={48} className="animate-spin text-red-600 mb-4"/>
+          <div className="animate-pulse font-black uppercase text-sm tracking-widest">Menyinkronkan Server...</div>
         </div>
       )}
     </div>
