@@ -109,6 +109,7 @@ export default function TabPiutang({
 
   const displayedList = subTab === 'OUTSTANDING' ? ledgerData.outstanding : ledgerData.historyLunas;
 
+  // --- ACTIONS (DENGAN INJEKSI SINKRONISASI BUKU UTANG SUPPLIER) ---
   const handleEksekusiCicilan = async (record) => {
     const isPiutang = record.kategori === 'PIUTANG_AGEN';
     
@@ -127,6 +128,7 @@ export default function TabPiutang({
     const trxId = generateId(isPiutang ? 'BYR' : 'PAY', todayStr);
     const isLunasFinal = nominal === record.sisa;
 
+    // 1. DATA DOMPET PERUSAHAAN (CASHFLOW)
     const cashflowPayload = {
       id: trxId, date: todayStr, branch_id: record.branch_id,
       type: isPiutang ? 'IN' : 'OUT',
@@ -135,7 +137,30 @@ export default function TabPiutang({
       amount: nominal, method: 'CASH', reference_id: record.id
     };
 
+    // 2. DATA BUKU UTANG PABRIK (SUPPLIER LEDGER) - HANYA JIKA BAYAR SUPPLIER
+    let ledgerPayload = null;
+    if (!isPiutang) {
+      ledgerPayload = {
+          id: generateId('SL-PAY', todayStr),
+          date: todayStr,
+          branch_id: record.branch_id,
+          supplier_name: record.clientName.toUpperCase(),
+          transaction_type: 'PAYMENT', 
+          amount: nominal,
+          description: `Cicilan/Pelunasan untuk PO: ${record.id}`,
+          reference_id: record.id
+      };
+    }
+
+    // --- TEMBAK KE DATABASE BERUNTUN ---
     if (await sendToSheet('insert', cashflowPayload, 'cashflow_transactions')) {
+      
+      // Tembak pengurangan hutang supplier secara diam-diam (Background Sync)
+      if (ledgerPayload) {
+          sendToSheet('insert', ledgerPayload, 'supplier_ledger');
+      }
+
+      // Update status nota induk jika sudah lunas total
       if (isLunasFinal) {
         if (isPiutang) {
           await sendToSheet('update', { ...record.rawOrder, status: 'SELESAI' }, 'orders');
