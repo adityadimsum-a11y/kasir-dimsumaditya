@@ -181,6 +181,7 @@ export default function TabOrders({
     const successOrder = await sendToSheet('insert', payloadOrder, 'orders');
 
     if (successOrder) {
+      // 1. UPDATE HARGA MASTER CUSTOMER (Fitur Asli)
       if (form.isUpdateMasterPrice && isStandardChannel) {
         const custId = selectedCustomer ? selectedCustomer.id : generateId('CUST', todayStr);
         const payloadCustomer = {
@@ -191,6 +192,7 @@ export default function TabOrders({
         await sendToSheet(selectedCustomer ? 'update' : 'insert', payloadCustomer, 'master_customers');
       }
 
+      // 2. MASUKKAN UANG KE DOMPET KASIR (Fitur Asli)
       const nominalKasMasuk = form.paymentMethod === 'TEMPO' ? 0 : Number(form.amountPaid || 0);
       if (nominalKasMasuk > 0) {
         const dppMasuk = Math.min(nominalKasMasuk, totalTagihan); 
@@ -201,7 +203,22 @@ export default function TabOrders({
         }, 'cashflow_transactions');
       }
 
-      showToast('Transaksi Sukses! Nota Bon berhasil direkam.', 'success');
+      // 🔥 3. INJEKSI BARU: POTONG STOK GUDANG OUTLET OTOMATIS
+      // Loop semua barang yang dibeli pelanggan, lalu potong stoknya satu per satu di background
+      finalItems.forEach((item, index) => {
+        sendToSheet('insert', {
+          id: generateId('SM-OUT', todayStr) + '-' + index,
+          date: todayStr,
+          branch_id: currentBranch,
+          movement_type: 'SALE', // Penanda barang keluar karena terjual
+          item_name: item.name.toUpperCase(),
+          qty: Number(item.qty),
+          reference_id: orderId,
+          notes: `Terjual via ${form.salesChannel}`
+        }, 'stock_movements');
+      });
+
+      showToast('Transaksi Sukses! Nota terekam, uang masuk & stok terpotong otomatis.', 'success');
       
       triggerPrint('NOTA_DOTMATRIX', {
         title: 'NOTA PENJUALAN DIMSUM', id: orderId, date: formatDate(todayStr),
@@ -211,11 +228,10 @@ export default function TabOrders({
         history: form.paymentMethod === 'TEMPO' || form.paymentMethod === 'DP' ? { labelAksi: 'NOMINAL DP/BAYAR', nominalAksi: form.paymentMethod === 'TEMPO' ? 0 : Number(form.amountPaid||0), labelBaru: 'SISA PIUTANG BON', nominalBaru: sisaTagihan } : null
       });
 
-      // Reset
+      // Reset Form
       setMerchantCart([]); setCustomerSearch(''); setSelectedCustomer(null); setBulkQty('');
       setForm({ salesChannel: 'RESELLER_AGEN', paymentMethod: 'CASH', amountPaid: '', notes: '', isUpdateMasterPrice: false });
     }
-  };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pb-10 h-full min-h-screen">
