@@ -216,41 +216,122 @@ export default function App() {
     if (isSuccess) setConfirmDialog(null);
   };
 
-  // =====================================
-  // GATEKEEPER ROUTING (TAB RENDER)
+// =====================================
+  // GATEKEEPER ROUTING (TAB RENDER) WITH DATA ADAPTER
   // =====================================
   const renderContent = () => {
-    // 🛡️ KUNCI PENGAMAN OTOMATIS
+    // 🛡️ KUNCI PENGAMAN OTOMATIS ROLING TAB
     let safeTab = activeTab;
     if (activeTab === 'dashboard' && user?.branch_type !== 'HQ_FACTORY') {
       safeTab = 'dashboard_branch';
     }
 
-    switch (safeTab) {
-      case 'dashboard': return <TabDashboard user={user} handleTabChange={setActiveTab} {...dbData} />;
-      case 'dashboard_branch': return <TabDashboardBranch user={user} setPrintData={setPrintData} {...dbData} />;
-      case 'pemalang': return <TabPemalang user={user} sendToSheet={sendToSheet} {...dbData} />;
+    // 🌟 DATA ADAPTER ADAPTER: Menghubungkan data snake_case dari GAS ke camelCase Komponen
+    const adaptedData = {
+      // Data Transaksi & Operasional Inti
+      orders: dbData.orders || [],
+      purchases: dbData.purchases || [],
+      expenses: dbData.expenses || [],
+      karyawan: dbData.karyawan || [],
       
-      case 'cash_war_room': return <TabCashWarRoom user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
-      case 'setoran_cabang': return <TabSetoranCabang user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />; // 🔥 DAN DIRENDER DI SINI
-      case 'scm_war_room': return <TabSCMWarRoom user={user} {...dbData} />;
-      case 'business_radar': return <TabBusinessRadar user={user} {...dbData} />;
-      case 'analytics': return <TabAnalytics user={user} {...dbData} />;
-      case 'orders': return <TabOrders user={user} role={user?.role} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={requestDelete} showToast={showToast} {...dbData} />;
-      case 'purchases': return <TabPurchases user={user} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={requestDelete} showToast={showToast} {...dbData} />;
-      case 'expenses': return <TabExpenses user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
-      case 'stok': return <TabStok user={user} role={user?.role} sendToSheet={sendToSheet} requestDelete={requestDelete} showToast={showToast} {...dbData} />;
-      case 'stok_outlet': return <TabStokOutlet user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
-      case 'discrepancy': return <TabDiscrepancy user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
-      case 'distribusi': return <TabDistribusi user={user} sendToSheet={sendToSheet} setPrintData={setPrintData} showToast={showToast} {...dbData} />;
-      case 'accounting': return <TabAccounting user={user} {...dbData} />;
-      case 'accounting_audit': return <TabAccountingAudit user={user} {...dbData} />;
-      case 'piutang': return <TabPiutang user={user} role={user?.role} sendToSheet={sendToSheet} setPrintData={setPrintData} {...dbData} />;
-      case 'karyawan': return <TabKaryawan user={user} sendToSheet={sendToSheet} setPrintData={setPrintData} showToast={showToast} {...dbData} />;
-      case 'master_data': return <TabMasterData user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
-      case 'monitoring_pemalang': return <TabMonitoringPemalang user={user} {...dbData} />;
-      case 'kartu_stok': return <TabKartuStok user={user} {...dbData} />;
-      default: return <TabDashboardBranch user={user} {...dbData} />;
+      // Sinkronisasi Modul Piutang & Setoran Cabang
+      piutangPayments: dbData.payments || [],       // 'payments' di Sheets menjadi 'piutangPayments'
+      pemalangReports: dbData.branch_settlements || [], // 'branch_settlements' di Sheets menjadi 'pemalangReports'
+      stokData: dbData.stock_movements || [],        // 'stock_movements' untuk dashboard cabang
+      
+      // Sinkronisasi Variabel camelCase untuk Dashboard Pusat (HQ)
+      masterBranches: dbData.master_branches || [],
+      inventoryCostLayers: dbData.inventory_cost_layers || [],
+      stockMovements: dbData.stock_movements || [],
+      supplierLedger: dbData.supplier_ledger || [],
+      cashflowTransactions: dbData.cashflow_transactions || [],
+      marketplaceSettlement: dbData.marketplace_settlement || [],
+      discrepancyLogs: dbData.discrepancy_logs || [],
+      financialClosings: dbData.financial_closings || [],
+      systemTasks: dbData.system_tasks || [],
+      
+      // Referensi Master Data Global
+      masterProducts: dbData.master_products || [],
+      masterRawMaterials: dbData.master_raw_materials || [],
+      masterRecipeBom: dbData.master_recipe_bom || [],
+      masterSuppliers: dbData.master_suppliers || [],
+      masterConversionRules: dbData.master_conversion_rules || [],
+      marketplaceFeeRules: dbData.marketplace_fee_rules || [],
+      masterCustomers: dbData.master_customers || [],
+      masterLocations: dbData.master_locations || []
+    };
+
+    switch (safeTab) {
+      // Menggunakan adaptedData agar useDashboardPusat.js menerima parameter yang valid
+      case 'dashboard': 
+        return <TabDashboard user={user} handleTabChange={setActiveTab} {...adaptedData} />;
+        
+      // Menggunakan adaptedData agar variabel stokData, pemalangReports, dan piutangPayments terisi murni
+      case 'dashboard_branch': 
+        return <TabDashboardBranch user={user} setPrintData={setPrintData} {...adaptedData} />;
+        
+      case 'pemalang': 
+        return <TabPemalang user={user} sendToSheet={sendToSheet} {...dbData} />;
+      
+      case 'cash_war_room': 
+        return <TabCashWarRoom user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
+        
+      case 'setoran_cabang': 
+        return <TabSetoranCabang user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
+        
+      case 'scm_war_room': 
+        return <TabSCMWarRoom user={user} {...adaptedData} />;
+        
+      case 'business_radar': 
+        return <TabBusinessRadar user={user} {...adaptedData} />;
+        
+      case 'analytics': 
+        return <TabAnalytics user={user} {...adaptedData} />;
+        
+      case 'orders': 
+        return <TabOrders user={user} role={user?.role} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={requestDelete} showToast={showToast} {...dbData} />;
+        
+      case 'purchases': 
+        return <TabPurchases user={user} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={requestDelete} showToast={showToast} {...dbData} />;
+        
+      case 'expenses': 
+        return <TabExpenses user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
+        
+      case 'stok': 
+        return <TabStok user={user} role={user?.role} sendToSheet={sendToSheet} requestDelete={requestDelete} showToast={showToast} {...dbData} />;
+        
+      case 'stok_outlet': 
+        return <TabStokOutlet user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
+        
+      case 'discrepancy': 
+        return <TabDiscrepancy user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
+        
+      case 'distribusi': 
+        return <TabDistribusi user={user} sendToSheet={sendToSheet} setPrintData={setPrintData} showToast={showToast} {...dbData} />;
+        
+      case 'accounting': 
+        return <TabAccounting user={user} {...dbData} />;
+        
+      case 'accounting_audit': 
+        return <TabAccountingAudit user={user} {...dbData} />;
+        
+      case 'piutang': 
+        return <TabPiutang user={user} role={user?.role} sendToSheet={sendToSheet} setPrintData={setPrintData} {...dbData} />;
+        
+      case 'karyawan': 
+        return <TabKaryawan user={user} sendToSheet={sendToSheet} setPrintData={setPrintData} showToast={showToast} {...dbData} />;
+        
+      case 'master_data': 
+        return <TabMasterData user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
+        
+      case 'monitoring_pemalang': 
+        return <TabMonitoringPemalang user={user} {...adaptedData} />;
+        
+      case 'kartu_stok': 
+        return <TabKartuStok user={user} {...dbData} />;
+        
+      default: 
+        return <TabDashboardBranch user={user} {...adaptedData} />;
     }
   };
 
