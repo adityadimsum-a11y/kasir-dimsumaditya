@@ -28,6 +28,7 @@ import TabAccounting from './components/tabs/TabAccounting';
 import TabAccountingAudit from './components/tabs/TabAccountingAudit';
 import TabMasterData from './components/tabs/TabMasterData';
 import TabStokOutlet from './components/tabs/TabStokOutlet';
+import TabSetoranCabang from './components/tabs/TabSetoranCabang'; // 🔥 INI FILE BARUNYA BOS!
 
 // =====================================
 // IMPOR KOMPONEN CETAK
@@ -229,6 +230,7 @@ export default function App() {
       case 'pemalang': return <TabPemalang user={user} sendToSheet={sendToSheet} {...dbData} />;
       
       case 'cash_war_room': return <TabCashWarRoom user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
+      case 'setoran_cabang': return <TabSetoranCabang user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />; // 🔥 DAN DIRENDER DI SINI
       case 'scm_war_room': return <TabSCMWarRoom user={user} {...dbData} />;
       case 'business_radar': return <TabBusinessRadar user={user} {...dbData} />;
       case 'analytics': return <TabAnalytics user={user} {...dbData} />;
