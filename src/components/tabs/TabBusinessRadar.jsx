@@ -41,10 +41,10 @@ export default function TabBusinessRadar({
     if (timeRange !== 'TODAY') {
       for (let i = daysToCount - 1; i >= 0; i--) {
         const d = new Date(); d.setDate(d.getDate() - i);
-        trendMap[d.toISOString().substring(0, 10)] = { label: d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }), omzet: 0, beban: 0 };
+        trendMap[d.toISOString().substring(0, 10)] = { label: d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }), omzet: 0, bebas: 0 };
       }
     } else {
-      trendMap[todayStr] = { label: 'Hari Ini', omzet: 0, beban: 0 };
+      trendMap[todayStr] = { label: 'Hari Ini', omzet: 0, bebas: 0 };
     }
 
     const clientStats = {};
@@ -159,9 +159,13 @@ export default function TabBusinessRadar({
     const sortedChannels = Object.entries(channelStats).sort((a,b) => b[1].profit - a[1].profit).slice(0, 10);
     const totalGlobalProfit = sortedChannels.reduce((sum, item) => sum + item[1].profit, 0);
 
+    // 🔥 FORMULASI ARRAY TREN YANG SUDAH DISINKRONKAN AGAR BEBAS DARI REFERENCE ERROR
+    const finalTrendArray = Object.values(trendMap);
+    const maxOmzetValue = Math.max(...finalTrendArray.map(t => Math.max(t.omzet, t.beban)), 100000);
+
     return {
       totalOmzet, totalBeban, netProfit: totalOmzet - totalBeban,
-      trendArray, maxOmzetValue,
+      trendArray: finalTrendArray, maxOmzetValue,
       topClients: sortedClients, topChannels: sortedChannels, totalGlobalProfit,
       totalPcsHariIni, omzetHariIniRealtime, hppHariIni,
       sisaBahanBaku55, opsGaji20, cadangan10, profitBersih15,
@@ -169,7 +173,6 @@ export default function TabBusinessRadar({
     };
   }, [realOrders, realPurchases, realExpenses, realCashflow, timeRange, todayStr, isHQ, currentBranch]);
 
-  // 🔥 PERBAIKAN UTAMA: SINKRONISASI NAMA VARIABEL SENSOR GRAFIK SECARA PRESISI
   const svgCoordinates = useMemo(() => {
     const width = 500; const height = 180;
     const points = radarMetrics.trendArray;
@@ -268,7 +271,7 @@ export default function TabBusinessRadar({
         
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {radarMetrics.watchList.length === 0 ? (
-            <div className="col-span-full py-6 text-center text-xs font-bold text-slate-400 bg-slate-50 border border-dashed rounded-2xl uppercase tracking-widest">Bersih Total! Tidak ada tagihan gantung yang menunggak.</div>
+            <div className="col-span-full py-6 text-center text-xs font-bold text-slate-400 bg-slate-50 border border-dashed rounded-2xl uppercase tracking-widest">Besih Total! Tidak ada tagihan gantung yang menunggak.</div>
           ) : (
             radarMetrics.watchList.map((bill, index) => (
               <div key={index} className="p-3.5 bg-white border border-slate-200 rounded-2xl shadow-sm flex items-center justify-between group hover:border-slate-400 transition-colors">
@@ -379,7 +382,7 @@ export default function TabBusinessRadar({
                     </div>
                   </div>
                   <div className="text-right bg-slate-50 p-2 rounded-xl border border-slate-100 shrink-0">
-                    <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Kontribusi Laba</div>
+                    <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Bagian Laba</div>
                     <div className="font-black text-xs text-emerald-600">+{formatRupiah(stats.profit)}</div>
                   </div>
                 </div>
