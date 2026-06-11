@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Package, Box, Layers, ArrowRightLeft, Search, Archive, ArrowDownRight, ArrowUpRight, History, Database, ShieldAlert } from 'lucide-react';
-// 🔥 PERBAIKAN: Menambahkan ShieldAlert ke lucide-react dan formatNumber lokal diganti toLocaleString
+import { Package, Box, ArrowRightLeft, Search, Archive, ArrowDownRight, ArrowUpRight, History, Database, ShieldAlert } from 'lucide-react';
 import { formatDate } from '../../utils/helpers';
 
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
@@ -10,9 +9,6 @@ export default function TabKartuStok({
   orders = [], purchases = [], productionBatches = [],
   user 
 }) {
-  const currentBranch = user?.branch_id || 'PUSAT';
-  const isHQ = user?.branch_type === 'HQ_FACTORY' || currentBranch === 'PUSAT';
-
   // --- STATE NAVIGASI & FILTER ---
   const [activeTab, setActiveTab] = useState('FREEZER'); // 'FREEZER', 'BAHAN_BAKU', 'MUTASI'
   const [searchTerm, setSearchTerm] = useState('');
@@ -34,7 +30,7 @@ export default function TabKartuStok({
     // BARANG MASUK: Dari Hasil Produksi (Yield)
     (productionBatches || []).forEach(batch => {
       if (!batch.isDeleted && batch.status === 'COMPLETED') {
-        const productName = batch.product_name || 'DIMSUM FROZEN CORE'; // Asumsi default
+        const productName = batch.product_name || 'DIMSUM FROZEN CORE'; 
         if (stockMap[productName]) {
           stockMap[productName].stockIn += Number(batch.total_yield_pcs || batch.actual_yield || batch.qty || 0);
         }
@@ -52,7 +48,9 @@ export default function TabKartuStok({
               stockMap[pName].stockOut += Number(item.qty || 0);
             }
           });
-        } catch (e) { /* Abaikan jika JSON rusak */ }
+        } catch (e) { 
+          /* abaikan jika json rusak */ 
+        }
       }
     });
 
@@ -99,7 +97,6 @@ export default function TabKartuStok({
     // BARANG KELUAR: Dari Pemakaian Produksi
     (productionBatches || []).forEach(batch => {
       if (!batch.isDeleted && batch.status === 'COMPLETED') {
-        // Asumsi standar pemakaian ayam (hardcode jika belum ada json ingredients)
         if (stockMap['AYAM FILLET PAHA'] && batch.total_ayam_kg) {
             stockMap['AYAM FILLET PAHA'].stockOut += Number(batch.total_ayam_kg);
         }
@@ -112,7 +109,9 @@ export default function TabKartuStok({
               stockMap[rName].stockOut += Number(ing.qty || 0);
             }
           });
-        } catch (e) { /* Abaikan */ }
+        } catch (e) { 
+          /* abaikan jika json pemakaian kosong */ 
+        }
       }
     });
 
@@ -137,7 +136,9 @@ export default function TabKartuStok({
               itemName: item.name || item.product_name, qty: item.qty, reference: o.customer_name || 'Pelanggan Umum'
             });
           });
-        } catch (e) {}
+        } catch (e) {
+          /* abaikan error parsing json penjualan */
+        }
       }
     });
 
@@ -159,20 +160,20 @@ export default function TabKartuStok({
               itemName: p.raw_name, qty: p.qty || 1, reference: p.supplier_name || 'Supplier'
             });
           }
-        } catch (e) {}
+        } catch (e) {
+          /* abaikan error belanja */
+        }
       }
     });
 
     // 3. Catat Produksi (Ayam/Bahan Keluar, Dimsum Masuk)
     (productionBatches || []).forEach(batch => {
       if (!batch.isDeleted && batch.status === 'COMPLETED') {
-        // Dimsum Jadi (Masuk ke Freezer)
         timeline.push({
           id: batch.id, date: batch.date, type: 'IN', category: 'HASIL PRODUKSI PABRIK',
           itemName: batch.product_name || 'DIMSUM FROZEN CORE', qty: batch.total_yield_pcs || batch.actual_yield || batch.qty, reference: `Batch Porsi: ${batch.id}`
         });
 
-        // Ayam Keluar
         if (batch.total_ayam_kg) {
             timeline.push({
               id: batch.id + '-AYM', date: batch.date, type: 'OUT', category: 'PEMAKAIAN PRODUKSI',
@@ -180,7 +181,6 @@ export default function TabKartuStok({
             });
         }
 
-        // Bahan Dipakai Lainnya (Keluar dari Gudang)
         try {
           const ingredients = JSON.parse(batch.ingredients_used || '[]');
           ingredients.forEach(ing => {
@@ -189,11 +189,12 @@ export default function TabKartuStok({
               itemName: ing.name || ing.raw_name, qty: ing.qty, reference: `Untuk Batch: ${batch.id}`
             });
           });
-        } catch (e) {}
+        } catch (e) {
+          /* abaikan error bahan baku adukan */
+        }
       }
     });
 
-    // Urutkan dari yang terbaru ke terlama
     return timeline
       .filter(t => t.itemName?.toLowerCase().includes(searchTerm.toLowerCase()) || t.category?.toLowerCase().includes(searchTerm.toLowerCase()))
       .sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -201,7 +202,6 @@ export default function TabKartuStok({
 
   return (
     <div className="space-y-6 pb-10 text-slate-800 animate-in fade-in duration-300">
-      
       {/* HEADER BANNER */}
       <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-md text-white flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
@@ -366,7 +366,6 @@ export default function TabKartuStok({
           </div>
         </div>
       )}
-
     </div>
   );
 }
