@@ -5,12 +5,11 @@ import { triggerPrint } from '../../utils/PrintUtility';
 
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 
-// 🔥 FIX SAKTI: Mengunci Aturan Harga Sesuai Standar Mutlak Pabrik Dimsum Aditya
+// 🔥 JALUR SAKTI VERCEL: Aturan harga mati multi-channel ditaruh di luar komponen agar bebas error dependency
 const getProductPriceByChannel = (prod, channel) => {
   if (channel === 'MITRA_DISTRIBUTOR') return 2000;
   if (channel === 'RESELLER_AGEN') return 2125;
   if (channel === 'ECERAN_WALKIN') return 3000;
-  // Untuk Merchant Online / Paketan Acara, ambil harga default master produk sebagai basis awal (bisa diedit manual)
   return Number(prod.price || 3000); 
 };
 
@@ -49,6 +48,7 @@ export default function TabOrders({
 
   const wrapperRef = useRef(null);
 
+  // Auto-Close Suggestion kalau klik di luar area
   useEffect(() => {
     function handleClickOutside(event) {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
@@ -59,7 +59,7 @@ export default function TabOrders({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // 🔥 UPDATE HARGA SINKRON REAL-TIME SAAT KLIK JALUR PLATFORM MERCHANT
+  // 🔥 UPDATE HARGA SINKRON REAL-TIME
   useEffect(() => {
     setCart(prevCart => {
       if (prevCart.length === 0) return prevCart;
@@ -73,7 +73,7 @@ export default function TabOrders({
     });
   }, [form.salesChannel, realProducts]);
 
-  // --- ENGINE SAKTI: KONVERSI SATUAN PACK MIKA (Isi 50 Pcs per Pack) ---
+  // --- ENGINE SAKTI: LIVE ESTIMASI KONVERSI PACK MIKA ---
   const calculateConversion = (itemName, qtyPcs) => {
     const qty = Number(qtyPcs || 0);
     if (qty <= 0) return '';
@@ -89,7 +89,6 @@ export default function TabOrders({
       return `${(qty / nilai).toFixed(1)} ${namaUnit}`;
     }
 
-    // Default standar mika dimsum: 1 Pack isi 50 biji
     return `${(qty / 50).toFixed(1)} PACK`;
   };
 
@@ -257,11 +256,13 @@ export default function TabOrders({
                       </div>
                     </div>
 
+                    {/* AREA INPUT QTY & RADAR LIVE REFRESHCW (TERPAKE DENGAN BENAR) */}
                     <div className="flex items-center justify-between sm:justify-end gap-4">
                       <div className="flex flex-col items-center">
                         <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">Input Qty (PCS)</label>
                         <div className="flex items-center bg-white border rounded-xl overflow-hidden shadow-sm focus-within:border-blue-400">
                           <button type="button" onClick={() => handleUpdateCartQty(item.id, item.qty - 1)} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 font-black text-slate-600 transition-colors">-</button>
+                          {/* STOK QTY SEKARANG BISA DIKETIK MANUAL */}
                           <input type="number" value={item.qty} onChange={(e) => handleUpdateCartQty(item.id, e.target.value)} className="w-16 text-center text-xs font-black outline-none bg-white p-1" placeholder="0" />
                           <button type="button" onClick={() => handleUpdateCartQty(item.id, item.qty + 1)} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 font-black text-slate-600 transition-colors">+</button>
                         </div>
@@ -361,7 +362,7 @@ export default function TabOrders({
               </select>
             </div>
 
-            {/* PASIF CHECKLIST PERUBAHAN HARGA MASTER KONTRAK */}
+            {/* PASIF CHECKLIST */}
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl shadow-inner">
               <label className="flex items-start gap-2.5 cursor-pointer">
                 <input type="checkbox" checked={form.isUpdateMasterPrice} onChange={e=>setForm({...form, isUpdateMasterPrice: e.target.checked})} className="w-4 h-4 mt-0.5 accent-blue-600" />
