@@ -1,8 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { Factory, Printer, Edit2, Trash2, Calendar, ClipboardList, CheckCircle2, Lock, Target, AlertTriangle, TrendingDown, TrendingUp } from 'lucide-react';
-import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
+// 🔥 PERBAIKAN: Menambahkan 'formatRp' dari helpers dan membuang formatNumber lokal
+import { getTodayStr, generateId, formatDate, formatRp } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
 
+// Fungsi lokal formatNumber kita ganti pakai Number(...).toLocaleString biar aman
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
 export default function TabStok({ 
@@ -189,7 +191,7 @@ export default function TabStok({
 
         <div className="overflow-x-auto flex-1 p-2 custom-scrollbar min-h-[50vh]">
           <table className="w-full text-sm text-left">
-            <thead className="bg-white text-[10px] uppercase text-slate-400 border-b border-slate-100"><tr><th className="px-4 py-4 font-black">Tgl &amp; ID</th><th className="px-4 py-4 font-black">Kinerja Produksi</th><th className="px-4 py-4 font-black text-center">PIC</th><th className="px-4 py-4 font-black text-center">Aksi &amp; Validasi</th></tr></thead>
+            <thead className="bg-white text-[10px] uppercase text-slate-400 border-b border-slate-100"><tr><th className="px-4 py-4 font-black">Tgl & ID</th><th className="px-4 py-4 font-black">Kinerja Produksi</th><th className="px-4 py-4 font-black text-center">PIC</th><th className="px-4 py-4 font-black text-center">Aksi & Validasi</th></tr></thead>
             <tbody className="divide-y divide-slate-50 text-xs font-bold">
               {filteredProduction.length === 0 ? (
                 <tr><td colSpan="4" className="text-center py-20 text-slate-400 font-bold uppercase tracking-widest">Tidak ada aktivitas produksi hari ini.</td></tr>
