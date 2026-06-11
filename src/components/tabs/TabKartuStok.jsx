@@ -4,7 +4,7 @@ import { formatDate } from '../../utils/helpers';
 
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
-export default function TabStokGudang({ 
+export default function TabKartuStok({
   masterProducts = [], masterRawMaterials = [], 
   orders = [], purchases = [], productionBatches = [],
   user 
