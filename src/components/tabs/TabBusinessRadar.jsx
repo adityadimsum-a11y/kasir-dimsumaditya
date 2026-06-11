@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Activity, TrendingUp, ArrowDownToLine, ArrowUpRight, Award, ShoppingBag, BarChart3, PieChart, Users, Crown, Medal, CalendarClock, Package, Percent, ShieldAlert, AlertOctagon, Store } from 'lucide-react';
+import { Activity, TrendingUp, ArrowDownToLine, ArrowUpRight, Award, ShoppingBag, BarChart3, PieChart, Users, Crown, Medal, CalendarClock, Package, Percent, ShieldAlert, Store } from 'lucide-react';
 import { getTodayStr, formatDate } from '../../utils/helpers';
 
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
@@ -41,10 +41,10 @@ export default function TabBusinessRadar({
     if (timeRange !== 'TODAY') {
       for (let i = daysToCount - 1; i >= 0; i--) {
         const d = new Date(); d.setDate(d.getDate() - i);
-        trendMap[d.toISOString().substring(0, 10)] = { label: d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }), omzet: 0, bebas: 0 };
+        trendMap[d.toISOString().substring(0, 10)] = { label: d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }), omzet: 0, beban: 0 };
       }
     } else {
-      trendMap[todayStr] = { label: 'Hari Ini', omzet: 0, bebas: 0 };
+      trendMap[todayStr] = { label: 'Hari Ini', omzet: 0, beban: 0 };
     }
 
     const clientStats = {};
@@ -169,11 +169,12 @@ export default function TabBusinessRadar({
     };
   }, [realOrders, realPurchases, realExpenses, realCashflow, timeRange, todayStr, isHQ, currentBranch]);
 
+  // 🔥 PERBAIKAN UTAMA: SINKRONISASI NAMA VARIABEL SENSOR GRAFIK SECARA PRESISI
   const svgCoordinates = useMemo(() => {
     const width = 500; const height = 180;
     const points = radarMetrics.trendArray;
     const maxVal = radarMetrics.maxOmzetValue;
-    if (points.length <= 1) return { omzetPath: '', bebanPath: '' };
+    if (!points || points.length <= 1) return { omzetPath: '', bebanPath: '' };
     const stepX = width / (points.length - 1);
     let omzetPath = ''; let bebanPath = '';
     points.forEach((p, idx) => {
@@ -204,9 +205,9 @@ export default function TabBusinessRadar({
         </div>
 
         <div className="flex bg-slate-800 p-1.5 rounded-2xl border border-slate-700">
-          <button onClick={() => setTimeRange('TODAY')} className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${timeRange === 'TODAY' ? 'bg-emerald-500 text-slate-900 shadow-md scale-105' : 'text-slate-400 hover:text-white'}`}><CalendarClock size={12}/> Hari Ini</button>
-          <button onClick={() => setTimeRange('7_DAYS')} className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${timeRange === '7_DAYS' ? 'bg-emerald-500 text-slate-900 shadow-md scale-105' : 'text-slate-400 hover:text-white'}`}><TrendingUp size={12}/> 7 Hari</button>
-          <button onClick={() => setTimeRange('30_DAYS')} className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${timeRange === '30_DAYS' ? 'bg-emerald-500 text-slate-900 shadow-md scale-105' : 'text-slate-400 hover:text-white'}`}><BarChart3 size={12}/> 30 Hari</button>
+          <button type="button" onClick={() => setTimeRange('TODAY')} className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${timeRange === 'TODAY' ? 'bg-emerald-500 text-slate-900 shadow-md scale-105' : 'text-slate-400 hover:text-white'}`}><CalendarClock size={12}/> Hari Ini</button>
+          <button type="button" onClick={() => setTimeRange('7_DAYS')} className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${timeRange === '7_DAYS' ? 'bg-emerald-500 text-slate-900 shadow-md scale-105' : 'text-slate-400 hover:text-white'}`}><TrendingUp size={12}/> 7 Hari</button>
+          <button type="button" onClick={() => setTimeRange('30_DAYS')} className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${timeRange === '30_DAYS' ? 'bg-emerald-500 text-slate-900 shadow-md scale-105' : 'text-slate-400 hover:text-white'}`}><BarChart3 size={12}/> 30 Hari</button>
         </div>
       </div>
 
@@ -256,7 +257,7 @@ export default function TabBusinessRadar({
         </div>
         <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl shadow-sm text-center col-span-2 md:col-span-1">
           <div className="text-[9px] font-black text-emerald-600 uppercase tracking-widest flex items-center justify-center gap-1"><Award size={10}/> Amplop 4 (Profit 15%)</div>
-          <div className="text-base font-black text-emerald-800 mt-1">{formatRupiah(radarMetrics.profitChecks15 || radarMetrics.profitBersih15)}</div>
+          <div className="text-base font-black text-emerald-800 mt-1">{formatRupiah(radarMetrics.profitBersih15)}</div>
         </div>
       </div>
 
