@@ -2,9 +2,10 @@ import React, { useState, useMemo } from 'react';
 import { 
   LayoutDashboard, ShoppingCart, Activity, Factory, Truck, 
   Wallet, Users, Database, LogOut, Menu, X, ShieldCheck, 
-  Send, Store, Package, Lock, Globe, Landmark, AlertTriangle, ShieldAlert
+  Send, Store, Package, Lock, Globe, Landmark, AlertTriangle, ShieldAlert,
+  Archive
 } from 'lucide-react';
-import { getTodayStr, formatDate } from '../utils/helpers';
+import { getTodayStr, formatDate } from '../../utils/helpers';
 
 export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogout, masterCapabilities, children }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -34,41 +35,48 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
         coreItems.push({ id: 'orders', label: 'POS & Penjualan', icon: ShoppingCart });
     }
     if (nodeCapability.can_production === true || nodeCapability.can_production === 'true') {
-        coreItems.push({ id: 'stok', label: 'Produksi & Yield', icon: Factory });
+        // Ini form lapor produksi dapur (TabStok.jsx)
+        coreItems.push({ id: 'stok', label: 'Laporan Produksi', icon: Factory });
     }
     if (nodeCapability.can_purchase === true || nodeCapability.can_purchase === 'true') {
         coreItems.push({ id: 'purchases', label: 'Belanja Logistik', icon: Truck });
     }
+    
+    // 🔥 MENU BARU: KARTU STOK GUDANG 
+    // Ini mengarah ke 'kartu_stok' (pastikan di App.jsx nanti ada mapping untuk id ini)
+    coreItems.push({ id: 'kartu_stok', label: 'Kartu Stok & Gudang', icon: Archive });
+
     if (nodeCapability.can_distribution === true || nodeCapability.can_distribution === 'true') {
         coreItems.push({ id: 'distribusi', label: 'Distribusi Global', icon: Send });
     }
-    if (nodeCapability.can_receive_frozen === true || nodeCapability.can_receive_frozen === 'true') {
-        coreItems.push({ id: 'stok_outlet', label: 'Logistik Freezer', icon: Package });
-    }
-    coreItems.push({ id: 'discrepancy', label: 'Stok Opname & Basi', icon: AlertTriangle });
+    
+    // Stok opname / basi tetap
+    coreItems.push({ id: 'discrepancy', label: 'Stok Basi / Opname', icon: AlertTriangle });
+
     if (coreItems.length > 0) groups.push({ groupName: "Core Operations", items: coreItems });
 
     const financeItems = [];
     if (nodeCapability.can_treasury === true || nodeCapability.can_treasury === 'true') {
         financeItems.push({ id: 'cash_war_room', label: 'Dompet Perusahaan', icon: Wallet });
-        financeItems.push({ id: 'setoran_cabang', label: 'Setoran Cabang', icon: Landmark }); // 🔥 MENU BARUNYA MUNCUL DI SINI!
     }
     if (nodeCapability.can_accounting === true || nodeCapability.can_accounting === 'true') {
         financeItems.push({ id: 'accounting', label: 'Laba Rugi & Aset', icon: Database });
     }
     if (nodeCapability.can_payroll === true || nodeCapability.can_payroll === 'true') {
-        financeItems.push({ id: 'karyawan', label: 'Smart Payroll', icon: Users });
+        financeItems.push({ id: 'karyawan', label: 'Smart Payroll & SDM', icon: Users });
     }
-    financeItems.push({ id: 'pemalang', label: 'Closing & Settlement', icon: Lock });
+    
+    // Tab Setoran Cabang diubah labelnya jadi Closing & Settlement
+    financeItems.push({ id: 'setoran_cabang', label: 'Closing & Settlement', icon: Lock });
     
     if (financeItems.length > 0) groups.push({ groupName: "Finance & Settlement", items: financeItems });
 
-if (nodeCapability.can_global_dashboard === true || nodeCapability.can_global_dashboard === 'true') {
+    if (nodeCapability.can_global_dashboard === true || nodeCapability.can_global_dashboard === 'true') {
         groups.push({ 
             groupName: "System Configuration", 
             items: [
               { id: 'master_data', label: 'Master Data & Rules', icon: Database },
-              { id: 'accounting_audit', label: 'Log Sampah (Audit)', icon: ShieldAlert } // 🔥 INI MENU BARUNYA BOS
+              { id: 'accounting_audit', label: 'Log Sampah (Audit)', icon: ShieldAlert } 
             ] 
         });
     }
@@ -121,7 +129,7 @@ if (nodeCapability.can_global_dashboard === true || nodeCapability.can_global_da
                     <button 
                       key={item.id} 
                       onClick={() => { setActiveTab(item.id); setIsMobileMenuOpen(false); }} 
-                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${isActive ? `${themeConfig.bg} text-white shadow-md` : 'text-slate-400 hover:text-white'}`}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${isActive ? `${themeConfig.bg} text-white shadow-md` : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
                       style={!isActive ? { backgroundColor: 'transparent' } : {}}
                     >
                       <Icon size={18} className={isActive ? 'text-white' : 'text-slate-500'} />
@@ -167,7 +175,7 @@ if (nodeCapability.can_global_dashboard === true || nodeCapability.can_global_da
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-full shadow-sm">
               <div className={`w-2 h-2 rounded-full ${themeConfig.bg} animate-pulse`}></div>
-              <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Online &amp; Tersinkronisasi</span>
+              <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest hidden sm:inline-block">Online &amp; Tersinkronisasi</span>
             </div>
           </div>
         </header>
