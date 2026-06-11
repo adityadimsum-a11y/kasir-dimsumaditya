@@ -10,7 +10,7 @@ const getProductPriceByChannel = (prod, channel) => {
   if (channel === 'MITRA_DISTRIBUTOR') return 2000;
   if (channel === 'RESELLER_AGEN') return 2125;
   if (channel === 'ECERAN_WALKIN') return 3000;
-  // Untuk Paketan Acara, Merchant Online, & Toko Online otomatis open custom (ambil base price awal)
+  // Untuk Paketan Acara, Merchant Online, & Toko Online otomatis open custom (ambil base price awal 3000)
   return Number(prod.price || 3000); 
 };
 
@@ -70,6 +70,9 @@ export default function TabOrders({
       });
     });
   }, [form.salesChannel, realProducts]);
+
+  // Cek apakah mode saat ini butuh input Custom Harga
+  const isCustomPriceChannel = !['MITRA_DISTRIBUTOR', 'RESELLER_AGEN', 'ECERAN_WALKIN'].includes(form.salesChannel);
 
   // --- ENGINE SAKTI: LIVE ESTIMASI KONVERSI PACK MIKA (Isi 50 Pcs) ---
   const calculateConversion = (itemName, qtyPcs) => {
@@ -232,7 +235,7 @@ export default function TabOrders({
         {/* KERANJANG PESANAN */}
         <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm flex-1 flex flex-col">
           <h3 className="text-xs font-black uppercase text-slate-700 tracking-widest flex items-center gap-2 mb-4 border-b pb-3">
-            <Tag size={16} className="text-orange-500"/> Keranjang Pesanan
+            <Tag size={16} className="text-orange-500"/> Keranjang Pesanan (Input QTY & Harga)
           </h3>
           
           <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
@@ -242,29 +245,36 @@ export default function TabOrders({
               cart.map((item, index) => {
                 const conversionText = calculateConversion(item.name, item.qty);
                 return (
-                  <div key={index} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl animate-in fade-in flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div key={index} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl animate-in fade-in flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex-1">
-                      <div className="font-black text-slate-800 uppercase text-xs mb-1.5">{item.name}</div>
+                      <div className="font-black text-slate-800 uppercase text-sm mb-2">{item.name}</div>
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold text-slate-400">Harga Kontrak (Rp):</span>
-                        {/* INPUT BOX UNTUK NGE-TWEAK HARGA JIKA ADA KENAIKAN KONTRAK */}
-                        <input type="number" value={item.currentPrice} onChange={(e) => handleUpdateCartPrice(item.id, e.target.value)} className="w-24 p-1 border rounded bg-white text-xs font-black text-emerald-600 outline-none focus:border-blue-400" />
+                        <span className="text-[10px] font-bold text-slate-500">
+                          {isCustomPriceChannel ? 'Input Harga (Custom):' : 'Harga Tetap:'}
+                        </span>
+                        {/* INPUT BOX HARGA: Berubah warna jadi Amber jika mode Custom */}
+                        <input 
+                          type="number" 
+                          value={item.currentPrice} 
+                          onChange={(e) => handleUpdateCartPrice(item.id, e.target.value)} 
+                          className={`w-28 p-1.5 border rounded-lg text-sm font-black outline-none focus:ring-2 focus:ring-blue-400 transition-colors ${isCustomPriceChannel ? 'bg-amber-50 text-amber-700 border-amber-300' : 'bg-white text-emerald-600 border-slate-200'}`} 
+                        />
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between sm:justify-end gap-4">
-                      {/* INPUT QTY PCS UTAMA UNTUK DIKALIKAN HARGA */}
-                      <div className="flex flex-col items-center">
-                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">Input Qty (PCS)</label>
-                        <div className="flex items-center bg-white border rounded-xl overflow-hidden shadow-sm focus-within:border-blue-400">
-                          <button type="button" onClick={() => handleUpdateCartQty(item.id, item.qty - 1)} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 font-black text-slate-600 transition-colors">-</button>
-                          <input type="number" value={item.qty} onChange={(e) => handleUpdateCartQty(item.id, e.target.value)} className="w-16 text-center text-xs font-black outline-none bg-white p-1" placeholder="0" />
-                          <button type="button" onClick={() => handleUpdateCartQty(item.id, item.qty + 1)} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 font-black text-slate-600 transition-colors">+</button>
+                    <div className="flex flex-wrap items-center justify-between sm:justify-end gap-4 w-full sm:w-auto">
+                      {/* INPUT QTY PENJUALAN UTAMA */}
+                      <div className="flex flex-col items-start sm:items-center">
+                        <label className="text-[10px] font-black text-blue-600 uppercase tracking-wider mb-1">QTY (PCS) ⬇️</label>
+                        <div className="flex items-center bg-white border border-blue-200 rounded-xl overflow-hidden shadow-sm focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-200 transition-all">
+                          <button type="button" onClick={() => handleUpdateCartQty(item.id, item.qty - 1)} className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 font-black text-slate-600 transition-colors">-</button>
+                          <input type="number" value={item.qty} onChange={(e) => handleUpdateCartQty(item.id, e.target.value)} className="w-16 text-center text-sm font-black outline-none bg-white py-2 text-blue-800" placeholder="0" />
+                          <button type="button" onClick={() => handleUpdateCartQty(item.id, item.qty + 1)} className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 font-black text-slate-600 transition-colors">+</button>
                         </div>
                       </div>
 
                       {conversionText && (
-                        <div className="bg-blue-50 border border-blue-100 px-3 py-2 rounded-xl flex items-center gap-1.5 min-w-[90px] justify-center">
+                        <div className="bg-blue-50 border border-blue-100 px-3 py-2 rounded-xl flex items-center gap-1.5 min-w-[90px] justify-center shadow-inner hidden lg:flex">
                           <RefreshCw size={12} className="text-blue-500 animate-spin" style={{ animationDuration: '4s' }} />
                           <div className="text-center">
                             <div className="text-[8px] font-black text-blue-400 uppercase tracking-widest">Estimasi</div>
@@ -274,11 +284,11 @@ export default function TabOrders({
                       )}
 
                       <div className="text-right min-w-[100px]">
-                        <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Subtotal</div>
-                        <div className="font-black text-slate-800 text-sm">{formatRupiah(item.qty * item.currentPrice)}</div>
+                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Subtotal</div>
+                        <div className="font-black text-slate-800 text-base">{formatRupiah(item.qty * item.currentPrice)}</div>
                       </div>
 
-                      <button type="button" onClick={() => handleRemoveFromCart(item.id)} className="p-2 text-slate-300 hover:text-rose-600 transition-colors"><Trash2 size={14}/></button>
+                      <button type="button" onClick={() => handleRemoveFromCart(item.id)} className="p-2 text-slate-300 hover:text-rose-600 bg-white border border-slate-200 rounded-xl shadow-sm transition-colors"><Trash2 size={16}/></button>
                     </div>
                   </div>
                 );
@@ -328,10 +338,10 @@ export default function TabOrders({
               )}
             </div>
 
-            {/* 🔥 REVISI BERSIH LENGKAP: DROPDOWN PLATFORM BERSIH TANPA TEKS HARGA DI DALAM KURUNG + ADA PAKETAN ACARA */}
+            {/* DROPDOWN PLATFORM BERSIH TANPA KURUNG */}
             <div>
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Platform / Jalur Merchant</label>
-              <select value={form.salesChannel} onChange={e=>setForm({...form, salesChannel: e.target.value})} className="w-full p-3 border border-slate-200 rounded-xl text-xs font-black uppercase outline-none bg-slate-50 cursor-pointer focus:border-blue-400 focus:bg-white">
+              <select value={form.salesChannel} onChange={e=>setForm({...form, salesChannel: e.target.value})} className={`w-full p-3 border rounded-xl text-xs font-black uppercase outline-none cursor-pointer focus:border-blue-400 ${isCustomPriceChannel ? 'bg-amber-50 border-amber-300 text-amber-800' : 'bg-slate-50 border-slate-200'}`}>
                 <option value="ECERAN_WALKIN">🛒 ECERAN / WALK-IN</option>
                 <option value="RESELLER_AGEN">💼 RESELLER / AGEN LANGSUNG</option>
                 <option value="MITRA_DISTRIBUTOR">🏢 MITRA / DISTRIBUTOR</option>
