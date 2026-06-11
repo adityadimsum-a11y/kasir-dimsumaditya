@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Users, Landmark, Banknote, Layers, TrendingDown, ShieldAlert, Trash2, Edit2, Check, X, Phone, Image, Eye, MapPin, Undo, Link, Printer, CalendarDays, History, ShoppingCart, CheckCircle2, Calculator, Clock, Coffee, Target, Trophy, DollarSign, Wallet, ArrowRightLeft } from 'lucide-react';
+import { Users, Landmark, Banknote, Layers, TrendingDown, ShieldAlert, Trash2, Edit2, Check, X, Phone, Image, Eye, MapPin, Undo, Link, Printer, CalendarDays, History, ShoppingCart, CheckCircle, FileText } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
 
