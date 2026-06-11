@@ -7,7 +7,7 @@ const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
 export default function TabStok({ 
   productionBatches = [], production_batches, 
-  masterRules = [], master_rules, // 🔥 DATA RULES OTOMATIS MASUK
+  masterRules = [], master_rules, 
   user, sendToSheet, showToast, requestDelete 
 }) {
   const todayStr = getTodayStr();
@@ -27,8 +27,7 @@ export default function TabStok({
   // --- ENGINE SAKTI: TARIK ATURAN DARI MASTER DATA ---
   const dynamicRules = useMemo(() => {
     const rulesData = master_rules || masterRules || [];
-    if (rulesData.length > 0) return rulesData[0]; // Ambil data baris pertama
-    // Fallback keamanan jika Master Data kosong
+    if (rulesData.length > 0) return rulesData[0]; 
     return { resep_adukan: 30, target_yield: 1000 }; 
   }, [masterRules, master_rules]);
 
@@ -195,13 +194,11 @@ export default function TabStok({
                 <tr><td colSpan="4" className="text-center py-20 text-slate-400 font-bold uppercase tracking-widest">Tidak ada aktivitas produksi hari ini.</td></tr>
               ) : (
                 filteredProduction.map(log => {
-                  // Re-kalkulasi on the fly untuk histori
                   const ratioHist = Number(dynamicRules.target_yield) / Number(dynamicRules.resep_adukan);
                   const targetHist = Math.round(Number(log.total_ayam_kg || 0) * ratioHist);
                   const selisihHist = Number(log.total_yield_pcs || 0) - targetHist;
                   const isSusut = selisihHist < 0;
 
-                  // 🔥 LOGIKA GEMBOK WAKTU ANTI FRAUD (TIME-LOCK)
                   const isLogToday = log.date.substring(0, 10) === todayStr;
                   const canModify = isHQ || isLogToday; 
 
@@ -212,12 +209,10 @@ export default function TabStok({
                         <div className="flex items-center gap-2 mb-2"><span className="bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider">Ayam: {log.total_ayam_kg} Kg</span></div>
                         <div className="font-black text-emerald-600 text-sm flex items-center gap-2">HASIL: {formatNumber(log.total_yield_pcs)} PCS</div>
                         
-                        {/* Status Bar Selisih */}
                         <div className={`mt-2 text-[9px] font-black uppercase tracking-widest flex items-center gap-1 ${isSusut ? 'text-rose-500' : 'text-blue-500'}`}>
                            {isSusut ? <AlertTriangle size={10}/> : <CheckCircle2 size={10}/>}
                            {isSusut ? `Susut ${formatNumber(Math.abs(selisihHist))} Pcs dari Target` : `Target Tercapai / Surplus`}
                         </div>
-                        {/* 🔥 PERBAIKAN ESLINT: Menggunakan HTML entities &quot; sebagai ganti tanda kutip langsung */}
                         {log.notes && <div className="text-[9px] text-slate-400 mt-1 uppercase italic line-clamp-1 border-t pt-1 border-slate-100">Ket: &quot;{log.notes}&quot;</div>}
                       </td>
                       <td className="px-4 py-4 text-center whitespace-nowrap"><div className="bg-slate-100 px-3 py-1.5 rounded-lg text-[10px] font-black text-slate-700 uppercase inline-block border shadow-sm">{log.pic_name}</div></td>
@@ -225,7 +220,6 @@ export default function TabStok({
                         <div className="flex items-center justify-center gap-1.5">
                           <button type="button" onClick={() => handlePrint(log, targetHist, selisihHist)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-100" title="Cetak Tiket"><Printer size={15}/></button>
                           
-                          {/* RENDER TOMBOL JIKA LOLOS GEMBOK WAKTU */}
                           {canModify ? (
                             <>
                               <button type="button" onClick={() => handleEdit(log)} className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-colors border border-transparent hover:border-amber-100" title="Edit Data"><Edit2 size={13}/></button>
