@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ShoppingCart, Package, AlertCircle, Edit2, Printer, Trash2, X, FileText, Undo, Lock, CheckCircle2 } from 'lucide-react';
+import { ShoppingCart, Package, AlertCircle, Edit2, Printer, Trash2, X, FileText, Undo, Lock, CheckCircle2, Calendar } from 'lucide-react';
 import { getTodayStr, generateId, formatDate, safeJsonParse, formatRp } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
 
@@ -31,6 +31,7 @@ export default function TabOrders({
 
   const [isEditing, setIsEditing] = useState(false);
   const [showKarantinaModal, setShowKarantinaModal] = useState(false);
+  const [filterDate, setFilterDate] = useState(todayStr); // 🔥 STATE UNTUK FILTER TANGGAL
   
   const [form, setForm] = useState({
     id: '', date: todayStr, customerName: '', channel: 'ECERAN_WALKIN', 
@@ -245,207 +246,240 @@ export default function TabOrders({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+      {/* ========================================= */}
+      {/* ROW ATAS: KATALOG & KERANJANG KASIR         */}
+      {/* ========================================= */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        {/* KOLOM KIRI (KASIR & KERANJANG BELANJA) */}
-        <div className="xl:col-span-5 space-y-6">
-            
-            {/* KATALOG MENU */}
-            <div className="bg-white rounded-2xl border shadow-sm p-5 border-t-4 border-t-blue-500">
-               <h3 className="font-black text-xs uppercase text-slate-800 tracking-widest flex items-center gap-2 mb-4"><Package size={16} className="text-blue-600"/> Katalog Menu (Klik untuk tambah)</h3>
-               <div className="grid grid-cols-2 gap-3 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
-                 {realProducts.length === 0 ? (
-                    <div className="col-span-2 text-center py-6 text-slate-400 text-xs font-bold border border-dashed rounded-xl bg-slate-50 uppercase tracking-widest">
-                       Menu kosong. Tambahkan menu di "Master Data".
-                    </div>
-                 ) : (
-                   realProducts.map(prod => (
-                     <div key={prod.id} onClick={() => handleAddToCart(prod)} className="bg-slate-50 border border-slate-200 p-3 rounded-xl cursor-pointer hover:border-blue-400 hover:shadow-md transition-all active:scale-95 group flex flex-col justify-between">
-                        <div>
-                          <div className="text-xs font-black text-slate-800 uppercase group-hover:text-blue-700 leading-tight">{prod.product_name}</div>
-                          <div className="text-[9px] font-bold text-slate-400 uppercase mt-1">{prod.category.replace('_', ' ')}</div>
-                        </div>
-                        <div className="mt-2 pt-2 border-t border-slate-200/60">
-                          <div className="text-sm font-black text-emerald-600">{formatRupiah(prod.selling_price)}</div>
-                          <div className="text-[8px] font-black text-amber-600 uppercase mt-0.5 tracking-wider">Min: {prod.min_order || 1} Pcs | Ecer: {formatRupiah(prod.penalty_price || prod.selling_price)}</div>
-                        </div>
-                     </div>
-                   ))
-                 )}
-               </div>
-            </div>
-
-            {/* FORM CHECKOUT & KERANJANG */}
-            <div className={`rounded-2xl border shadow-sm p-6 transition-all ${isEditing ? 'bg-amber-50/40 border-amber-300' : 'bg-white border-slate-200'}`}>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
-                  <h3 className={`font-black text-sm uppercase flex items-center gap-2 tracking-widest ${isEditing ? 'text-amber-700' : 'text-slate-800'}`}>
-                    {isEditing ? <Edit2 size={16}/> : <ShoppingCart size={16} className="text-emerald-600"/>} 
-                    {isEditing ? 'Revisi Invoice' : 'Keranjang Kasir'}
-                  </h3>
-                  {isEditing && <button type="button" onClick={handleCancelEdit} className="text-[10px] border border-amber-200 px-2.5 py-1 rounded-lg font-black uppercase text-amber-700 bg-white shadow-sm flex items-center gap-1 hover:bg-amber-100 transition-colors"><Undo size={12}/> Batal Edit</button>}
+        {/* KATALOG MENU (KIRI) */}
+        <div className="lg:col-span-5 bg-white rounded-2xl border shadow-sm p-5 border-t-4 border-t-blue-500 h-max">
+           <h3 className="font-black text-xs uppercase text-slate-800 tracking-widest flex items-center gap-2 mb-4"><Package size={16} className="text-blue-600"/> Katalog Menu (Klik untuk tambah)</h3>
+           <div className="grid grid-cols-2 gap-3 max-h-[500px] overflow-y-auto custom-scrollbar pr-2">
+             {realProducts.length === 0 ? (
+                <div className="col-span-2 text-center py-6 text-slate-400 text-xs font-bold border border-dashed rounded-xl bg-slate-50 uppercase tracking-widest">
+                   Menu kosong. Tambahkan menu di "Master Data".
                 </div>
-
-                {/* LIST KERANJANG (MULTI-ITEM) */}
-                <div className="space-y-3 mb-6 max-h-[40vh] overflow-y-auto custom-scrollbar pr-2">
-                  {cart.length === 0 ? (
-                    <div className="text-center py-8 border border-dashed rounded-xl bg-slate-50 text-slate-400 text-xs font-bold uppercase tracking-widest">Keranjang masih kosong.</div>
-                  ) : (
-                    cart.map((item, index) => {
-                      const masterProd = realProducts.find(p => p.id === item.product_id);
-                      const minOrder = masterProd?.min_order || 1;
-                      const isPenalty = item.qty < minOrder;
-
-                      return (
-                        <div key={index} className={`p-3 border rounded-xl relative ${isPenalty ? 'bg-rose-50/30 border-rose-200' : 'bg-white border-slate-200 shadow-sm'}`}>
-                          <button type="button" onClick={() => handleRemoveFromCart(index)} className="absolute -top-2 -right-2 bg-rose-100 text-rose-600 rounded-full p-1 border border-rose-200 hover:bg-rose-600 hover:text-white transition-colors"><X size={12}/></button>
-                          
-                          <div className="font-black text-xs text-slate-800 uppercase mb-2">{item.name}</div>
-                          
-                          <div className="flex items-center gap-3">
-                            <div className="w-20">
-                              <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Kuantitas</label>
-                              <input type="number" min="1" value={item.qty} onChange={(e) => handleUpdateCartItem(index, 'qty', e.target.value)} className="w-full p-1.5 border rounded-md text-sm font-black text-center outline-none focus:border-blue-400" />
-                            </div>
-                            <div className="flex-1">
-                              <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Catatan/Request Khusus</label>
-                              <input type="text" value={item.request} onChange={(e) => handleUpdateCartItem(index, 'request', e.target.value)} placeholder="Mix Hakau, dll..." className="w-full p-1.5 border rounded-md text-xs font-bold uppercase outline-none focus:border-blue-400" />
-                            </div>
-                          </div>
-                          
-                          <div className="mt-3 flex justify-between items-end border-t border-slate-100 pt-2">
-                            <div>
-                              <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Harga/Pcs {isPenalty && <span className="text-rose-500 bg-rose-100 px-1 rounded ml-1 animate-pulse">Pinalti Ecer</span>}</div>
-                              <div className={`font-black text-sm ${isPenalty ? 'text-rose-600' : 'text-slate-800'}`}>{formatRupiah(item.price)}</div>
-                            </div>
-                            <div className="text-right">
-                              <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Subtotal</div>
-                              <div className="font-black text-emerald-600 text-sm">{formatRupiah(item.subtotal)}</div>
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    })
-                  )}
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 border-t border-slate-100 pt-4">
-                  <div>
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Nama Klien</label>
-                    <input type="text" required value={form.customerName} onChange={e=>setForm({...form, customerName: e.target.value})} className="w-full p-2.5 border rounded-xl text-xs font-black uppercase outline-none focus:border-blue-400" placeholder="UMUM" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Sales Channel</label>
-                    <select value={form.channel} onChange={e=>setForm({...form, channel: e.target.value})} className="w-full p-2.5 border rounded-xl text-[10px] font-black bg-white uppercase outline-none cursor-pointer">
-                      <optgroup label="Offline">{SALES_CHANNELS.filter(c => c.group === 'OFFLINE').map(c => <option key={c.id} value={c.id}>{c.label}</option>)}</optgroup>
-                      <optgroup label="Online">{SALES_CHANNELS.filter(c => c.group !== 'OFFLINE').map(c => <option key={c.id} value={c.id}>{c.label}</option>)}</optgroup>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="bg-slate-50 p-3 rounded-xl border">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Pilih Metode Serah Terima Barang</label>
-                  <div className="flex gap-2">
-                    <button type="button" onClick={() => setForm({...form, deliveryMethod: 'DIRECT', paymentMethod: 'CASH'})} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase transition-all ${form.deliveryMethod === 'DIRECT' ? 'bg-emerald-100 text-emerald-700 border-2 border-emerald-400 shadow-sm scale-105' : 'bg-white border text-slate-500 hover:bg-slate-100'}`}><CheckCircle2 size={14} className="inline mr-1"/> Ambil Langsung</button>
-                    
-                    {/* TOMBOL PO KARANTINA DIPERJELAS */}
-                    <button type="button" onClick={() => setForm({...form, deliveryMethod: 'PRE_ORDER', paymentMethod: 'DP', amountPaid: ''})} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase transition-all flex flex-col items-center justify-center ${form.deliveryMethod === 'PRE_ORDER' ? 'bg-orange-500 text-white border-2 border-orange-600 shadow-md scale-105' : 'bg-white border text-slate-500 hover:bg-slate-100'}`}>
-                      <span><Lock size={12} className="inline mr-1 mb-0.5"/> PO Karantina</span>
-                      <span className={`text-[7px] ${form.deliveryMethod === 'PRE_ORDER' ? 'text-orange-200' : 'text-slate-400'}`}>(Stok Ditahan)</span>
-                    </button>
-                  </div>
-                </div>
-                
-                {/* BOX TAGIHAN (TOTAL) */}
-                <div className="bg-slate-900 text-white p-5 rounded-xl shadow-inner relative overflow-hidden mt-4">
-                  <div className="flex justify-between items-end relative z-10 mb-2">
+             ) : (
+               realProducts.map(prod => (
+                 <div key={prod.id} onClick={() => handleAddToCart(prod)} className="bg-slate-50 border border-slate-200 p-3 rounded-xl cursor-pointer hover:border-blue-400 hover:shadow-md transition-all active:scale-95 group flex flex-col justify-between">
                     <div>
-                      <span className="text-[10px] font-black uppercase text-emerald-400 tracking-widest block">Total Tagihan Bill</span>
-                      <span className="text-[9px] text-slate-400">Total Item: {formatNumber(cartTotals.totalQty)}</span>
+                      <div className="text-xs font-black text-slate-800 uppercase group-hover:text-blue-700 leading-tight">{prod.product_name}</div>
+                      <div className="text-[9px] font-bold text-slate-400 uppercase mt-1">{prod.category.replace('_', ' ')}</div>
                     </div>
-                    <span className="text-3xl font-black text-emerald-400 tracking-tight">{formatRupiah(cartTotals.totalTagihan)}</span>
-                  </div>
-                  {cartTotals.totalQty > 0 && (
-                    <div className="pt-3 border-t border-slate-700/50 space-y-1 relative z-10">
-                      <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400"><span>Estimasi Modal (HPP):</span><span className="text-orange-400">{formatRupiah(cartTotals.totalHpp)}</span></div>
-                      <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400"><span>Estimasi Laba Kotor:</span><span className="text-emerald-400">+{formatRupiah(cartTotals.profitKotor)}</span></div>
+                    <div className="mt-2 pt-2 border-t border-slate-200/60">
+                      <div className="text-sm font-black text-emerald-600">{formatRupiah(prod.selling_price)}</div>
+                      <div className="text-[8px] font-black text-amber-600 uppercase mt-0.5 tracking-wider">Min: {prod.min_order || 1} Pcs | Ecer: {formatRupiah(prod.penalty_price || prod.selling_price)}</div>
                     </div>
-                  )}
-                </div>
-
-                <div className="p-4 rounded-xl border bg-white mt-2">
-                  <div className="flex justify-between items-center mb-3 border-b pb-2">
-                    <label className="text-[10px] font-black text-slate-700 uppercase tracking-widest">Metode Pembayaran</label>
-                    <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
-                      {['CASH', 'TF', 'DP'].map(m => <button key={m} type="button" onClick={() => setForm({...form, paymentMethod: m})} className={`px-3 py-1 rounded text-[9px] font-black transition-colors ${form.paymentMethod === m ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}>{m}</button>)}
-                    </div>
-                  </div>
-                  
-                  {form.paymentMethod === 'DP' && (
-                    <div className="animate-in fade-in">
-                      <label className="text-[10px] font-black text-orange-600 uppercase tracking-widest block mb-1">Nominal Setoran DP (Uang Muka)</label>
-                      <input type="number" required value={form.amountPaid} onChange={e=>setForm({...form, amountPaid: e.target.value})} className="w-full p-3 border-2 border-orange-200 rounded-lg text-right font-black text-orange-700 bg-orange-50/50 outline-none focus:border-orange-400" placeholder="Masukkan angka DP..." />
-                    </div>
-                  )}
-                  {form.paymentMethod !== 'DP' && form.deliveryMethod === 'PRE_ORDER' && (
-                     <div className="text-[9px] font-bold text-amber-600 bg-amber-50 p-2 rounded border border-amber-200">
-                       <AlertCircle size={10} className="inline mr-1"/> Pilih 'DP' jika pelanggan bayar uang muka. Pilih 'CASH/TF' jika Lunas di awal.
-                     </div>
-                  )}
-                </div>
-
-                <button type="submit" className={`w-full text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest shadow-xl transition-transform active:scale-95 flex items-center justify-center gap-2 mt-4 ${isEditing ? 'bg-amber-500 hover:bg-amber-600' : 'bg-emerald-600 hover:bg-emerald-700'}`}>
-                  {isEditing ? <><Edit2 size={16}/> Simpan Revisi Nota</> : <><Printer size={16}/> Simpan &amp; Cetak Tiket</>}
-                </button>
-              </form>
-            </div>
+                 </div>
+               ))
+             )}
+           </div>
         </div>
-        
-        {/* KOLOM KANAN (LOG JURNAL HISTORI) */}
-        <div className="xl:col-span-7 bg-white rounded-3xl border flex flex-col overflow-hidden shadow-sm h-max">
-          <div className="p-5 bg-slate-50 border-b flex items-center justify-between">
-             <h4 className="font-black text-xs uppercase text-slate-700 tracking-widest flex items-center gap-2"><FileText size={16} className="text-blue-500"/> Log Jurnal Penjualan Kasir</h4>
-             <span className="text-[9px] font-black text-slate-400 bg-white border px-2 py-1 rounded shadow-sm">REAL-TIME</span>
-          </div>
-          <div className="overflow-x-auto flex-1 custom-scrollbar min-h-[60vh] p-2">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-white text-[10px] uppercase text-slate-400 border-b border-slate-100">
-                <tr><th className="px-4 py-3 font-black">Invoice</th><th className="px-4 py-3 font-black">Pelanggan &amp; Item</th><th className="px-4 py-3 font-black text-center">Fulfillment</th><th className="px-4 py-3 font-black text-center">Aksi Dokumen</th></tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50 text-xs font-bold">
-                {realOrders.filter(o => !o.isDeleted).sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 50).map(log => {
-                  const itemsArr = safeJsonParse(log.items, []);
-                  let displayItemName = log.item_name || 'MULTIPLE ITEMS';
-                  if (itemsArr.length === 1) displayItemName = itemsArr[0].name;
-                  else if (itemsArr.length > 1) displayItemName = `${itemsArr[0].name} +${itemsArr.length - 1} item lain`;
+
+        {/* KERANJANG KASIR (KANAN) */}
+        <div className={`lg:col-span-7 rounded-2xl border shadow-sm p-6 transition-all h-max ${isEditing ? 'bg-amber-50/40 border-amber-300' : 'bg-white border-slate-200'}`}>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
+              <h3 className={`font-black text-sm uppercase flex items-center gap-2 tracking-widest ${isEditing ? 'text-amber-700' : 'text-slate-800'}`}>
+                {isEditing ? <Edit2 size={16}/> : <ShoppingCart size={16} className="text-emerald-600"/>} 
+                {isEditing ? 'Revisi Invoice' : 'Keranjang Kasir'}
+              </h3>
+              {isEditing && <button type="button" onClick={handleCancelEdit} className="text-[10px] border border-amber-200 px-2.5 py-1 rounded-lg font-black uppercase text-amber-700 bg-white shadow-sm flex items-center gap-1 hover:bg-amber-100 transition-colors"><Undo size={12}/> Batal Edit</button>}
+            </div>
+
+            {/* LIST KERANJANG (MULTI-ITEM) */}
+            <div className="space-y-3 mb-6 max-h-[35vh] overflow-y-auto custom-scrollbar pr-2">
+              {cart.length === 0 ? (
+                <div className="text-center py-8 border border-dashed rounded-xl bg-slate-50 text-slate-400 text-xs font-bold uppercase tracking-widest">Keranjang masih kosong.</div>
+              ) : (
+                cart.map((item, index) => {
+                  const masterProd = realProducts.find(p => p.id === item.product_id);
+                  const minOrder = masterProd?.min_order || 1;
+                  const isPenalty = item.qty < minOrder;
 
                   return (
-                    <tr key={log.id} className="hover:bg-slate-50 group transition-colors">
-                      <td className="px-4 py-4 whitespace-nowrap"><div className="text-slate-800 font-black">{formatDate(log.date)}</div><div className="text-[9px] font-mono text-slate-400 mt-0.5">{log.id}</div></td>
-                      <td className="px-4 py-4 min-w-[200px]">
-                        <div className="uppercase font-black text-slate-800 text-sm mb-1">{log.customer_name}</div>
-                        <div className="text-[9px] font-black tracking-widest text-blue-600 uppercase mb-1.5">{log.sales_channel.replace('_', ' ')} • <span className="text-slate-600">{formatNumber(log.qty)} PCS TOTAL</span></div>
-                        <div className="text-[10px] text-slate-500 font-bold bg-slate-100 px-2 py-1 rounded inline-block border">{displayItemName}</div>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-center">
-                        <div className={`text-[9px] font-black uppercase px-2 py-1 rounded-md border shadow-sm w-max mx-auto ${log.delivery_method === 'PRE_ORDER' ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-emerald-700 bg-emerald-50 border-emerald-200'}`}>
-                          {log.delivery_method === 'PRE_ORDER' ? <><Lock size={10} className="inline mr-1 mb-0.5"/> PO KARANTINA</> : <><CheckCircle2 size={10} className="inline mr-1 mb-0.5"/> DIRECT (LGSG)</>}
+                    <div key={index} className={`p-3 border rounded-xl relative ${isPenalty ? 'bg-rose-50/30 border-rose-200' : 'bg-white border-slate-200 shadow-sm'}`}>
+                      <button type="button" onClick={() => handleRemoveFromCart(index)} className="absolute -top-2 -right-2 bg-rose-100 text-rose-600 rounded-full p-1 border border-rose-200 hover:bg-rose-600 hover:text-white transition-colors"><X size={12}/></button>
+                      
+                      <div className="font-black text-xs text-slate-800 uppercase mb-2">{item.name}</div>
+                      
+                      <div className="flex items-center gap-3">
+                        <div className="w-20">
+                          <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Kuantitas</label>
+                          <input type="number" min="1" value={item.qty} onChange={(e) => handleUpdateCartItem(index, 'qty', e.target.value)} className="w-full p-1.5 border rounded-md text-sm font-black text-center outline-none focus:border-blue-400" />
                         </div>
-                      </td>
-                      <td className="px-4 py-4 text-center whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity">
-                          <button type="button" onClick={() => handlePrintTiketProduksi(log)} className="p-2 px-3 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-black uppercase flex items-center gap-1.5 text-[9px] shadow-sm"><FileText size={12}/> Tiket</button>
-                          <button type="button" onClick={() => handlePrintInvoiceKlien(log)} className="p-2 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-black uppercase flex items-center gap-1.5 text-[9px] shadow-sm"><Printer size={12}/> Nota</button>
-                          <button type="button" onClick={() => handleEditSafe(log)} className="p-2 bg-amber-50 border border-amber-200 text-amber-600 hover:bg-amber-100 rounded-lg flex items-center justify-center"><Edit2 size={14}/></button>
-                          <button type="button" onClick={() => { if(window.confirm("Yakin ingin void total nota kasir ini?")) requestDelete(log.id); }} className="p-2 bg-rose-50 border border-rose-200 text-rose-600 hover:bg-rose-100 rounded-lg flex items-center justify-center"><Trash2 size={14}/></button>
+                        <div className="flex-1">
+                          <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Catatan/Request Khusus</label>
+                          <input type="text" value={item.request} onChange={(e) => handleUpdateCartItem(index, 'request', e.target.value)} placeholder="Mix Hakau, dll..." className="w-full p-1.5 border rounded-md text-xs font-bold uppercase outline-none focus:border-blue-400" />
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      </div>
+                      
+                      <div className="mt-3 flex justify-between items-end border-t border-slate-100 pt-2">
+                        <div>
+                          <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Harga/Pcs {isPenalty && <span className="text-rose-500 bg-rose-100 px-1 rounded ml-1 animate-pulse">Pinalti Ecer</span>}</div>
+                          <div className={`font-black text-sm ${isPenalty ? 'text-rose-600' : 'text-slate-800'}`}>{formatRupiah(item.price)}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Subtotal</div>
+                          <div className="font-black text-emerald-600 text-sm">{formatRupiah(item.subtotal)}</div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 border-t border-slate-100 pt-4">
+              <div>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Nama Klien</label>
+                <input type="text" required value={form.customerName} onChange={e=>setForm({...form, customerName: e.target.value})} className="w-full p-2.5 border rounded-xl text-xs font-black uppercase outline-none focus:border-blue-400" placeholder="UMUM" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Sales Channel</label>
+                <select value={form.channel} onChange={e=>setForm({...form, channel: e.target.value})} className="w-full p-2.5 border rounded-xl text-[10px] font-black bg-white uppercase outline-none cursor-pointer">
+                  <optgroup label="Offline">{SALES_CHANNELS.filter(c => c.group === 'OFFLINE').map(c => <option key={c.id} value={c.id}>{c.label}</option>)}</optgroup>
+                  <optgroup label="Online">{SALES_CHANNELS.filter(c => c.group !== 'OFFLINE').map(c => <option key={c.id} value={c.id}>{c.label}</option>)}</optgroup>
+                </select>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 p-3 rounded-xl border">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Pilih Metode Serah Terima Barang</label>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setForm({...form, deliveryMethod: 'DIRECT', paymentMethod: 'CASH'})} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase transition-all ${form.deliveryMethod === 'DIRECT' ? 'bg-emerald-100 text-emerald-700 border-2 border-emerald-400 shadow-sm scale-105' : 'bg-white border text-slate-500 hover:bg-slate-100'}`}><CheckCircle2 size={14} className="inline mr-1"/> Ambil Langsung</button>
+                
+                <button type="button" onClick={() => setForm({...form, deliveryMethod: 'PRE_ORDER', paymentMethod: 'DP', amountPaid: ''})} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase transition-all flex flex-col items-center justify-center ${form.deliveryMethod === 'PRE_ORDER' ? 'bg-orange-500 text-white border-2 border-orange-600 shadow-md scale-105' : 'bg-white border text-slate-500 hover:bg-slate-100'}`}>
+                  <span><Lock size={12} className="inline mr-1 mb-0.5"/> PO Karantina</span>
+                  <span className={`text-[7px] ${form.deliveryMethod === 'PRE_ORDER' ? 'text-orange-200' : 'text-slate-400'}`}>(Stok Ditahan)</span>
+                </button>
+              </div>
+            </div>
+            
+            {/* BOX TAGIHAN (TOTAL) */}
+            <div className="bg-slate-900 text-white p-5 rounded-xl shadow-inner relative overflow-hidden mt-4">
+              <div className="flex justify-between items-end relative z-10 mb-2">
+                <div>
+                  <span className="text-[10px] font-black uppercase text-emerald-400 tracking-widest block">Total Tagihan Bill</span>
+                  <span className="text-[9px] text-slate-400">Total Item: {formatNumber(cartTotals.totalQty)}</span>
+                </div>
+                <span className="text-3xl font-black text-emerald-400 tracking-tight">{formatRupiah(cartTotals.totalTagihan)}</span>
+              </div>
+              {cartTotals.totalQty > 0 && (
+                <div className="pt-3 border-t border-slate-700/50 space-y-1 relative z-10">
+                  <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400"><span>Estimasi Modal (HPP):</span><span className="text-orange-400">{formatRupiah(cartTotals.totalHpp)}</span></div>
+                  <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400"><span>Estimasi Laba Kotor:</span><span className="text-emerald-400">+{formatRupiah(cartTotals.profitKotor)}</span></div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 rounded-xl border bg-white mt-2">
+              <div className="flex justify-between items-center mb-3 border-b pb-2">
+                <label className="text-[10px] font-black text-slate-700 uppercase tracking-widest">Metode Pembayaran</label>
+                <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
+                  {['CASH', 'TF', 'DP'].map(m => <button key={m} type="button" onClick={() => setForm({...form, paymentMethod: m})} className={`px-3 py-1 rounded text-[9px] font-black transition-colors ${form.paymentMethod === m ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}>{m}</button>)}
+                </div>
+              </div>
+              
+              {form.paymentMethod === 'DP' && (
+                <div className="animate-in fade-in">
+                  <label className="text-[10px] font-black text-orange-600 uppercase tracking-widest block mb-1">Nominal Setoran DP (Uang Muka)</label>
+                  <input type="number" required value={form.amountPaid} onChange={e=>setForm({...form, amountPaid: e.target.value})} className="w-full p-3 border-2 border-orange-200 rounded-lg text-right font-black text-orange-700 bg-orange-50/50 outline-none focus:border-orange-400" placeholder="Masukkan angka DP..." />
+                </div>
+              )}
+              {form.paymentMethod !== 'DP' && form.deliveryMethod === 'PRE_ORDER' && (
+                 <div className="text-[9px] font-bold text-amber-600 bg-amber-50 p-2 rounded border border-amber-200">
+                   <AlertCircle size={10} className="inline mr-1"/> Pilih 'DP' jika pelanggan bayar uang muka. Pilih 'CASH/TF' jika Lunas di awal.
+                 </div>
+              )}
+            </div>
+
+            <button type="submit" className={`w-full text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest shadow-xl transition-transform active:scale-95 flex items-center justify-center gap-2 mt-4 ${isEditing ? 'bg-amber-500 hover:bg-amber-600' : 'bg-emerald-600 hover:bg-emerald-700'}`}>
+              {isEditing ? <><Edit2 size={16}/> Simpan Revisi Nota</> : <><Printer size={16}/> Simpan &amp; Cetak Tiket</>}
+            </button>
+          </form>
+        </div>
+
+      </div>
+
+      {/* ========================================= */}
+      {/* ROW BAWAH: LOG HISTORI TRANSAKSI (FULL)     */}
+      {/* ========================================= */}
+      <div className="bg-white rounded-3xl border flex flex-col overflow-hidden shadow-sm mt-8">
+        <div className="p-5 bg-slate-50 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+           <div>
+             <h4 className="font-black text-sm uppercase text-slate-800 tracking-widest flex items-center gap-2"><FileText size={18} className="text-blue-600"/> Histori Transaksi Kasir</h4>
+             <p className="text-[10px] font-bold text-slate-500 uppercase mt-1">Menampilkan data sesuai tanggal yang dipilih</p>
+           </div>
+           
+           {/* FILTER TANGGAL */}
+           <div className="flex items-center gap-2 bg-white border border-slate-300 p-2 rounded-xl shadow-sm">
+             <Calendar size={16} className="text-blue-600 ml-1"/>
+             <input type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} className="text-xs font-black text-slate-800 uppercase outline-none bg-transparent cursor-pointer pr-2" />
+           </div>
+        </div>
+        <div className="overflow-x-auto p-4 custom-scrollbar">
+          <table className="w-full text-sm text-left border-collapse">
+            <thead className="bg-slate-100 text-[10px] uppercase text-slate-500 border-b-2 border-slate-200">
+              <tr>
+                <th className="px-5 py-4 font-black rounded-tl-xl">Invoice / Tanggal</th>
+                <th className="px-5 py-4 font-black">Pelanggan &amp; Item</th>
+                <th className="px-5 py-4 font-black text-center">Fulfillment</th>
+                <th className="px-5 py-4 font-black text-right">Total Transaksi</th>
+                <th className="px-5 py-4 font-black text-center rounded-tr-xl">Aksi Dokumen</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-xs font-bold">
+              {realOrders
+                .filter(o => !o.isDeleted && o.date.substring(0, 10) === filterDate) // 🔥 LOGIC FILTER TANGGAL
+                .sort((a, b) => new Date(b.date) - new Date(a.date))
+                .map(log => {
+                const itemsArr = safeJsonParse(log.items, []);
+                let displayItemName = log.item_name || 'MULTIPLE ITEMS';
+                if (itemsArr.length === 1) displayItemName = itemsArr[0].name;
+                else if (itemsArr.length > 1) displayItemName = `${itemsArr[0].name} +${itemsArr.length - 1} item lain`;
+
+                return (
+                  <tr key={log.id} className="hover:bg-blue-50/50 group transition-colors">
+                    <td className="px-5 py-4 whitespace-nowrap"><div className="text-slate-800 font-black">{formatDate(log.date)}</div><div className="text-[10px] font-mono text-slate-400 mt-1">{log.id}</div></td>
+                    <td className="px-5 py-4 min-w-[250px]">
+                      <div className="uppercase font-black text-slate-800 text-sm mb-1">{log.customer_name}</div>
+                      <div className="text-[9px] font-black tracking-widest text-blue-600 uppercase mb-2 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 w-max">{log.sales_channel.replace('_', ' ')} • <span className="text-slate-600">{formatNumber(log.qty)} PCS</span></div>
+                      <div className="text-[10px] text-slate-500 font-bold bg-slate-100 px-2 py-1 rounded inline-block border">{displayItemName}</div>
+                    </td>
+                    <td className="px-5 py-4 whitespace-nowrap text-center">
+                      <div className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-lg border shadow-sm w-max mx-auto ${log.delivery_method === 'PRE_ORDER' ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-emerald-700 bg-emerald-50 border-emerald-200'}`}>
+                        {log.delivery_method === 'PRE_ORDER' ? <><Lock size={12} className="inline mr-1 mb-0.5"/> PO Karantina</> : <><CheckCircle2 size={12} className="inline mr-1 mb-0.5"/> Direct</>}
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 text-right whitespace-nowrap">
+                      <div className="text-sm font-black text-slate-800">{formatRupiah(log.total_amount)}</div>
+                      <div className={`text-[9px] font-black uppercase tracking-widest mt-1 ${log.payment_method === 'DP' ? 'text-orange-500' : 'text-emerald-500'}`}>{log.payment_method === 'DP' ? `DP: ${formatRupiah(log.amount_paid)}` : 'LUNAS'}</div>
+                    </td>
+                    <td className="px-5 py-4 text-center whitespace-nowrap">
+                      <div className="flex items-center justify-center gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
+                        <button type="button" onClick={() => handlePrintTiketProduksi(log)} className="p-2 px-3 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-black uppercase flex items-center gap-1.5 text-[10px] shadow-sm"><FileText size={14}/> Tiket</button>
+                        <button type="button" onClick={() => handlePrintInvoiceKlien(log)} className="p-2 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-black uppercase flex items-center gap-1.5 text-[10px] shadow-sm"><Printer size={14}/> Nota</button>
+                        <button type="button" onClick={() => handleEditSafe(log)} className="p-2 bg-amber-50 border border-amber-200 text-amber-600 hover:bg-amber-500 hover:text-white rounded-lg transition-colors"><Edit2 size={16}/></button>
+                        <button type="button" onClick={() => { if(window.confirm("Yakin ingin void total nota kasir ini?")) requestDelete(log.id); }} className="p-2 bg-rose-50 border border-rose-200 text-rose-600 hover:bg-rose-600 hover:text-white rounded-lg transition-colors"><Trash2 size={16}/></button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              
+              {realOrders.filter(o => !o.isDeleted && o.date.substring(0, 10) === filterDate).length === 0 && (
+                <tr>
+                  <td colSpan="5" className="text-center py-20 bg-slate-50 border-t border-slate-100">
+                    <div className="flex flex-col items-center justify-center text-slate-400">
+                      <Calendar size={40} className="mb-3 opacity-20"/>
+                      <span className="font-black uppercase tracking-widest text-xs">Tidak ada transaksi tercatat pada tanggal ini.</span>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
