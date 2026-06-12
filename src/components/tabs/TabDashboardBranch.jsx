@@ -1,226 +1,302 @@
-import React, { useMemo } from 'react';
-import { Store, Receipt, Package, AlertCircle, FileText, Wallet, ShoppingBag, Layers, Pizza, Timer, Users, Banknote } from 'lucide-react';
-import { formatRp, formatDate, getTodayStr, safeJsonParse } from '../../utils/helpers';
+import React, { useState, useMemo } from 'react';
+import { Calendar, Store, Factory, Wallet, Coins, AlertCircle, ShoppingCart, Users, CheckCircle, Percent, Building, Award, ShieldAlert, Undo } from 'lucide-react';
+import { getTodayStr, formatDate, safeSort, safeJsonParse } from '../../utils/helpers';
 
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
-export default function TabDashboardBranch({ orders = [], orders_data, stockMovements = [], expenses = [], expenses_data, purchases = [], purchases_data, user }) {
+// --- KARTU STATISTIK FINANSIAL MERAKYAT ---
+const StatCard = ({ title, amount, icon, color }) => (
+  <div className={`p-5 rounded-2xl border shadow-sm flex flex-col justify-between transition-all hover:shadow-md ${color}`}>
+    <div className="flex justify-between items-start mb-3">
+      <h3 className="font-black text-xs uppercase tracking-wider opacity-80 leading-tight">{title}</h3>
+      <div className="p-2 bg-white/80 rounded-xl shadow-sm border border-inherit shrink-0">{icon}</div>
+    </div>
+    <div className="text-2xl font-black tracking-tight mt-1">{amount}</div>
+  </div>
+);
+
+export default function TabDashboardBranch({ orders = [], orders_data, pemalangReports = [], purchases_data, purchases = [], stokData, user }) {
   const todayStr = getTodayStr();
   
-  // 🔥 KONEKSI KABEL CABANG INDUK SINKRON TANGERANG PUSAT
-  const currentBranch = (user?.branch_id === 'PUSAT' || !user?.branch_id) ? 'TANGERANG_PUSAT' : user?.branch_id;
-  const branchName = user?.branch_name || currentBranch.replace('_', ' ');
-  const curMonth = todayStr.substring(0, 7);
+  // 🔥 FIX KABEL UTAMA: DINAMIS MENGUNCI SIMPUL KENDALI PRODUKSI PEMALANG
+  const currentBranch = 'PRODUKSI_PEMALANG';
+  const [dateFrom, setDateFrom] = useState(todayStr); 
+  const [dateTo, setDateTo] = useState(todayStr);
+  
+  // --- KONVERSI STANDAR SESUAI MANIFEST DOKTRIN ADITYA CORE ---
+  const MASTER_AYAM_KG = 30;  
+  const MASTER_PCS = 1000;   
+  const KG_PER_KANTONG = 10;
+  const PCS_PER_MIKA = 50;
 
   // --- SINKRONISASI DATABASE ---
   const realOrders = useMemo(() => orders_data || orders || [], [orders, orders_data]);
-  const realExpenses = useMemo(() => expenses_data || expenses || [], [expenses, expenses_data]);
+  const realPurchases = useMemo(() => purchases_data || purchases || [], [purchases, purchases_data]);
 
-  // 1. ENGINE HITUNG STOK FISIK FREEZER RESTO HUB LOKAL
-  const outletStock = useMemo(() => {
-      const stock = {};
-      (stockMovements || []).forEach(m => {
-          if (m.isDeleted || String(m.branch_id).toUpperCase() !== currentBranch.toUpperCase()) return;
-          const item = m.item_name.toUpperCase();
-          if (!stock[item]) stock[item] = 0;
+  const stats = useMemo(() => {
+    const isPeriod = (dateVal) => {
+      if (!dateVal) return false;
+      const cleanDate = dateVal.substring(0, 10);
+      return cleanDate >= dateFrom && cleanDate <= dateTo;
+    };
 
-          if (['PRODUCTION_RESULT', 'SALE_RETURN', 'INVENTORY_IN', 'DISTRIBUTION_RECEIPT'].includes(m.movement_type) || (m.to_location && m.to_location.includes('FREEZER')) || (m.to_location && m.to_location.includes('GUDANG'))) {
-              stock[item] += Number(m.qty) || 0;
-          } else if (['SALE', 'WASTE', 'INVENTORY_OUT', 'DISTRIBUTION_USAGE'].includes(m.movement_type) || (m.from_location && m.from_location.includes('FREEZER')) || (m.from_location && m.from_location.includes('GUDANG'))) {
-              stock[item] -= Number(m.qty) || 0;
-          }
-      });
-      return stock;
-  }, [stockMovements, currentBranch]);
-
-  // 2. METRIK UTAMA & RADAR SALURAN PENJUALAN TERBESAR CABANG (LIVE SINKRON POS)
-  const data = useMemo(() => {
-    const myOrders = realOrders.filter(o => !o.isDeleted && String(o.branch_id).toUpperCase() === currentBranch.toUpperCase());
-    const sortedOrders = myOrders.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-    // Filter Khusus Hari Ini untuk Radar Banner Atas
-    const todayOrders = myOrders.filter(o => o.date && o.date.substring(0, 10) === todayStr.substring(0, 10));
-    
-    // 🔥 KOREKSI VARIABEL: SINKRON KE total_amount PENJUALAN KASIR
-    const omsetHariIni = todayOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
-
-    let offlineRevenue = 0;
-    let gofoodRevenue = 0;
-    let shopeefoodRevenue = 0;
-    let grabfoodRevenue = 0;
-    let lainnyaRevenue = 0;
-
-    todayOrders.forEach(o => {
-        const channel = String(o.sales_channel || 'OFFLINE').toUpperCase();
-        const amt = Number(o.total_amount || 0);
-
-        if (channel.includes('WALKIN') || channel.includes('OFFLINE') || channel.includes('ECERAN')) offlineRevenue += amt;
-        else if (channel.includes('GOFOOD')) gofoodRevenue += amt;
-        else if (channel.includes('SHOPEEFOOD')) shopeefoodRevenue += amt;
-        else if (channel.includes('GRABFOOD')) grabfoodRevenue += amt;
-        else lainnyaRevenue += amt;
+    // --- 1. DATA AYAM MENTAH PEMALANG (SINKRON DARI REKAP LOGISTIK PUSAT) ---
+    let mutasiAyamPemalang = 0;
+    realPurchases.filter(p => !p.isDeleted && p.category === 'BAHAN_BAKU' && String(p.branch_id).toUpperCase() === currentBranch).forEach(p => {
+       mutasiAyamPemalang += Number(p.qty_kg || p.qty || 0);
     });
 
-    const channels = [
-        { label: 'BELI LANGSUNG DI TOKO', value: offlineRevenue },
-        { label: 'APLIKASI GOFOOD', value: gofoodRevenue },
-        { label: 'APLIKASI SHOPEEFOOD', value: shopeefoodRevenue },
-        { label: 'APLIKASI GRABFOOD', value: grabfoodRevenue },
-        { label: 'SALURAN LAINNYA', value: lainnyaRevenue }
-    ];
-    channels.sort((a,b) => b.value - a.value);
-    const channelTerbesar = channels[0].value > 0 ? `${channels[0].label} (${formatRupiah(channels[0].value)})` : 'BELUM ADA TRANSAKSI MASUK';
+    // Hitung adukan dapur yang tercatat di cabang Pemalang
+    const prodPemalangAll = (stokData || []).filter(s => !s.isDeleted && s.type === 'PRODUKSI_PEMALANG').reduce((sum, s) => sum + Number(s.qty || s.jumlah_adukan || 0), 0);
+    const sisaAyamCabang = Math.max(0, mutasiAyamPemalang - (prodPemalangAll * MASTER_AYAM_KG));
 
-    const myExpenses = realExpenses.filter(e => !e.isDeleted);
+    // --- 2. DATA STOK JADI FREEZER PEMALANG ---
+    const branchOrdersAll = realOrders.filter(o => !o.isDeleted && String(o.branch_id).toUpperCase() === currentBranch);
     
-    return {
-        sortedOrders,
-        omsetHariIni,
-        channelTerbesar,
-        offlineRevenue,
-        gofoodRevenue,
-        shopeefoodRevenue,
-        grabfoodRevenue,
-        lainnyaRevenue,
-        totalGajiBulanIni: myExpenses.filter(e => (e.category === 'GAJI' || e.category === 'PAYROLL') && e.date.startsWith(curMonth) && String(e.branch_id).toUpperCase() === currentBranch.toUpperCase()).reduce((sum, e) => sum + Number(e.amount || 0), 0),
-        totalKasbonBulanIni: myExpenses.filter(e => (e.category === 'KASBON' || e.category === 'LAINNYA') && e.description?.includes('KASBON') && e.date.startsWith(curMonth) && String(e.branch_id).toUpperCase() === currentBranch.toUpperCase()).reduce((sum, e) => sum + Number(e.amount || 0), 0)
+    let terjualPcsAll = 0;
+    branchOrdersAll.forEach(o => {
+       const items = safeJsonParse(o.items, []);
+       let subPcs = 0;
+       items.forEach(i => subPcs += Number(i.qty || 0));
+       if (subPcs === 0) subPcs = Number(o.qty || 0);
+       terjualPcsAll += subPcs;
+    });
+
+    const totalOmsetAll = branchOrdersAll.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
+    const sisaStokFreezer = Math.max(0, (prodPemalangAll * MASTER_PCS) - terjualPcsAll);
+
+    // --- 3. FILTER MONITOR BERDASARKAN PERIODE KALENDER AKTIF ---
+    const branchOrdersPeriod = branchOrdersAll.filter(o => isPeriod(o.date));
+    const branchReportsPeriod = (pemalangReports || []).filter(r => !r.isDeleted && isPeriod(r.date));
+    
+    const prodPeriode = (stokData || []).filter(s => !s.isDeleted && s.type === 'PRODUKSI_PEMALANG' && isPeriod(s.date)).reduce((sum, s) => sum + Number(s.qty || s.jumlah_adukan || 0), 0);
+    
+    const omsetPeriode = branchOrdersPeriod.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
+    const setoranPeriode = branchReportsPeriod.reduce((sum, r) => sum + Number(r.nominal || r.amount || 0), 0);
+
+    // 🔥 AUTOMATIC GENERATE PECAHAN 4 AMPLOP BERDASARKAN OMSET PERIODE (55% - 20% - 10% - 15%)
+    const jatahAyam55 = omsetPeriode * 0.55;
+    const jatahOps20 = omsetPeriode * 0.20;
+    const jatahCadangan10 = omsetPeriode * 0.10;
+    const jatahCuan15 = omsetPeriode * 0.15;
+
+    // Leaderboard CRM Pelanggan Terloyal Cabang Pemalang
+    const customerMap = {};
+    branchOrdersPeriod.forEach(o => {
+        const cName = String(o.customer_name || 'UMUM / CASH').toUpperCase();
+        if(!customerMap[cName]) customerMap[cName] = { name: cName, qty: 0, porsi: 0, total: 0, frequency: 0 };
+        
+        let subPcs = 0;
+        const items = safeJsonParse(o.items, []);
+        items.forEach(i => subPcs += Number(i.qty || 0));
+        if (subPcs === 0) subPcs = Number(o.qty || 0);
+
+        customerMap[cName].qty += subPcs;
+        customerMap[cName].porsi += (subPcs / 4);
+        customerMap[cName].total += Number(o.total_amount || 0);
+        customerMap[cName].frequency += 1;
+    });
+    const topCustomersList = Object.values(customerMap).sort((a,b) => b.total - a.total).slice(0, 10);
+
+    const laporanUrut = [...branchReportsPeriod].sort((a,b) => new Date(b.date) - new Date(a.date));
+
+    return { 
+        sisaAyamCabang, sisaStokFreezer, totalOmsetAll, omsetPeriode, setoranPeriode,
+        prodPeriode, jatahAyam55, jatahOps20, jatahCadangan10, jatahCuan15,
+        ayamTerpakaiPeriode: prodPeriode * MASTER_AYAM_KG,
+        dimsumMasukPeriode: prodPeriode * MASTER_PCS,
+        laporanUrut, branchOrdersPeriod, topCustomersList 
     };
-  }, [realOrders, realExpenses, currentBranch, todayStr, curMonth]);
+  }, [realOrders, realPurchases, pemalangReports, stokData, dateFrom, dateTo]);
 
   return (
     <div className="space-y-6 animate-in fade-in pb-10 text-slate-800">
       
-      {/* HEADER HERO CABANG */}
-      <div className="bg-slate-900 rounded-3xl p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between shadow-xl border border-slate-800 relative overflow-hidden text-white">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
-        <div>
-            <h2 className="text-2xl font-black uppercase tracking-widest text-white">{branchName}</h2>
-            <p className="text-amber-400 font-bold text-[10px] uppercase tracking-widest mt-1">Terminal Pusat Kendali Operasional Cabang Lokal</p>
-        </div>
-        <div className="bg-amber-500 px-5 py-3 rounded-2xl text-slate-950 font-black shadow-lg text-base uppercase tracking-wider mt-4 md:mt-0">
-            TOTAL OMSET HARI INI: {formatRupiah(data.omsetHariIni)}
-        </div>
+      {/* FILTER CONTROL KALENDER */}
+      <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest mb-2 flex items-center gap-1.5"><Calendar size={16} className="text-blue-500"/> Filter Rentang Pemantauan Cabang</h3>
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-300 px-3 py-1.5 rounded-xl shadow-inner">
+              <span className="text-[9px] font-black text-slate-400 uppercase">DARI</span>
+              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="text-xs font-black text-slate-800 outline-none bg-transparent cursor-pointer" />
+              <span className="text-[9px] font-black text-slate-400 uppercase border-l border-slate-300 pl-2">SAMPAI</span>
+              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="text-xs font-black text-slate-800 outline-none bg-transparent cursor-pointer" />
+            </div>
+          </div>
+          <div className="bg-emerald-50 text-emerald-700 px-4 py-2.5 rounded-xl text-xs font-black uppercase border border-emerald-200 shadow-sm flex items-center gap-1.5"><CheckCircle size={14}/> Mode Audit Sinkron HQ</div>
       </div>
 
-      {/* RADAR SALURAN OMSET TERBESAR HARI INI */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-4 opacity-5"><Pizza size={120}/></div>
-          <div className="flex items-center gap-2 mb-4">
-              <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
-              <h3 className="font-black text-slate-800 text-xs uppercase tracking-widest">Radar Live Saluran Jualan Terlaris Cabang</h3>
-          </div>
-          <div className="text-sm font-black text-rose-700 bg-rose-50 border border-rose-100 px-4 py-3 rounded-xl w-max mb-6 uppercase tracking-wide shadow-inner">
-              JUARA SALES HARI INI: {data.channelTerbesar}
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-              <div className="bg-slate-50 p-3.5 rounded-xl border shadow-inner"><div className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Toko / Walk-In</div><div className="text-sm font-black text-slate-800 mt-1">{formatRupiah(data.offlineRevenue)}</div></div>
-              <div className="bg-slate-50 p-3.5 rounded-xl border border-emerald-100"><div className="text-[9px] font-black text-emerald-600 uppercase tracking-wider">GoFood Online</div><div className="text-sm font-black text-slate-800 mt-1">{formatRupiah(data.gofoodRevenue)}</div></div>
-              <div className="bg-slate-50 p-3.5 rounded-xl border border-orange-100"><div className="text-[9px] font-black text-orange-600 uppercase tracking-wider">ShopeeFood Online</div><div className="text-sm font-black text-slate-800 mt-1">{formatRupiah(data.shopeefoodRevenue)}</div></div>
-              <div className="bg-slate-50 p-3.5 rounded-xl border border-red-100"><div className="text-[9px] font-black text-red-600 uppercase tracking-wider">GrabFood Online</div><div className="text-sm font-black text-slate-800 mt-1">{formatRupiah(data.grabfoodRevenue)}</div></div>
-              <div className="bg-slate-50 p-3.5 rounded-xl border"><div className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Saluran Lainnya</div><div className="text-sm font-black text-slate-800 mt-1">{formatRupiah(data.lainnyaRevenue)}</div></div>
-          </div>
-      </div>
-
-      {/* MONITOR STOK FISIK FREEZER RESTO */}
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
-          <div className="flex items-center gap-2 mb-4 border-b pb-3">
-              <Package size={18} className="text-amber-500"/>
-              <h4 className="font-black text-slate-800 text-xs uppercase tracking-widest">Real-Time Monitor Isi Freezer &amp; Gudang Cabang</h4>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="p-5 bg-slate-900 text-white rounded-2xl flex flex-col justify-between shadow-md">
-                  <div className="text-[9px] font-black text-amber-400 uppercase tracking-widest">Bahan Inti (Drop Suplai Pusat)</div>
-                  <div className="text-3xl font-black my-2">{formatNumber(outletStock['DIMSUM'] || outletStock['DIMSUM_FROZEN'] || 0)} <span className="text-xs text-slate-400">Pcs</span></div>
-                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Stok Dimsum Mentah Induk</p>
+      {/* MONITOR OPERASIONAL LIVE PANTAUAN PEMALANG */}
+      <div className="bg-slate-900 rounded-3xl shadow-xl overflow-hidden border border-slate-800 relative text-white">
+          <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-500 via-emerald-400 to-amber-500"></div>
+          
+          <div className="p-5 border-b border-slate-800/60 flex justify-between items-center bg-slate-950">
+              <div>
+                  <h2 className="text-base font-black text-white flex items-center gap-2 tracking-widest uppercase"><Factory className="text-blue-400"/> PANTAUAN LIVE HASIL DAPUR PRODUKSI (PEMALANG)</h2>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Monitoring otomatis pergerakan adonan dan isi freezer langsung dari server pusat</p>
               </div>
-              {Object.keys(outletStock).map(key => {
-                  if (key === 'DIMSUM' || key === 'DIMSUM_FROZEN') return null;
-                  return (
-                      <div key={key} className="p-4 bg-slate-50 border rounded-2xl flex flex-col justify-between shadow-inner">
-                          <div className="text-[9px] font-black text-blue-600 uppercase tracking-widest">Logistik Pendukung</div>
-                          <div className="text-2xl font-black text-slate-800 my-1.5">{formatNumber(outletStock[key] || 0)} <span className="text-xs text-slate-400">Unit</span></div>
-                          <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wide">{key.replace('_', ' ')}</p>
-                      </div>
-                  );
-              })}
+              <div className="text-right hidden sm:block">
+                  <div className="text-xs font-black text-emerald-400 flex items-center justify-end gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span> LIVE DATA SINKRON</div>
+              </div>
+          </div>
+          
+          <div className="grid grid-cols-2 md:grid-cols-5 divide-y md:divide-y-0 md:divide-x divide-slate-800 bg-slate-900/50 text-center">
+              <div className="p-6 hover:bg-slate-800/40 transition-colors">
+                  <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Adukan Cabang</div>
+                  <div className="text-3xl font-black text-white tracking-tight">{stats.prodPeriode} <span className="text-xs text-blue-400 font-medium">ADK</span></div>
+              </div>
+              <div className="p-6 hover:bg-slate-800/40 transition-colors">
+                  <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Daging Terpakai</div>
+                  <div className="text-3xl font-black text-white tracking-tight">-{formatNumber(stats.ayamTerpakaiPeriode)} <span className="text-xs text-rose-400 font-medium">KG</span></div>
+              </div>
+              <div className="p-6 hover:bg-slate-800/40 transition-colors bg-slate-950/20 relative">
+                  <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Sisa Ayam Gudang</div>
+                  <div className="text-3xl font-black text-rose-400 tracking-tight">{formatNumber(stats.sisaAyamCabang)} <span className="text-xs text-slate-400 font-medium">KG</span></div>
+                  <div className="text-[8px] font-black text-rose-400 bg-rose-950/80 px-2 py-0.5 rounded-md border border-rose-900/50 mt-2 inline-block uppercase tracking-wider">{formatNumber((stats.sisaAyamCabang / KG_PER_KANTONG).toFixed(0))} Kantong</div>
+              </div>
+              <div className="p-6 hover:bg-slate-800/40 transition-colors">
+                  <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Masuk Freezer</div>
+                  <div className="text-3xl font-black text-white tracking-tight">+{formatNumber(stats.dimsumMasukPeriode)} <span className="text-xs text-blue-400 font-medium">PCS</span></div>
+                  <div className="text-[8px] font-black text-blue-400 bg-blue-950/80 px-2 py-0.5 rounded-md border border-blue-900/50 mt-2 inline-block uppercase tracking-wider">{formatNumber((stats.dimsumMasukPeriode / PCS_PER_MIKA).toFixed(0))} Mika</div>
+              </div>
+              <div className="p-6 hover:bg-slate-800/40 transition-colors bg-slate-950/20">
+                  <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Sisa Freezer (Live)</div>
+                  <div className="text-3xl font-black text-emerald-400 tracking-tight">{formatNumber(stats.sisaStokFreezer)} <span className="text-xs text-slate-400 font-medium">PCS</span></div>
+                  <div className="text-[8px] font-black text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded-md border border-emerald-900/50 mt-2 inline-block uppercase tracking-wider">{formatNumber((stats.sisaStokFreezer / PCS_PER_MIKA).toFixed(0))} Mika</div>
+              </div>
           </div>
       </div>
 
-      {/* OPERASIONAL SUMMARY CABANG LOKAL */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm border-l-4 border-l-blue-500 flex items-center justify-between">
-            <div>
-               <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Beban Penggajian Cabang (Bulan Ini)</div>
-               <div className="text-xl font-black text-blue-600 mt-1">{formatRupiah(data.totalGajiBulanIni)}</div>
-            </div>
-            <Users size={24} className="text-blue-200"/>
-        </div>
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm border-l-4 border-l-orange-500 flex items-center justify-between">
-            <div>
-               <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kasbon Staf Aktif Cabang (Bulan Ini)</div>
-               <div className="text-xl font-black text-orange-600 mt-1">{formatRupiah(data.totalKasbonBulanIni)}</div>
-            </div>
-            <Banknote size={24} className="text-orange-200"/>
-        </div>
+      {/* DASHBOARD PERFORMA FINANSIAL PERIODE */}
+      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+          <div className="mb-5 border-b pb-3">
+              <h2 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-1.5"><Wallet size={16} className="text-indigo-600"/> Analitik Keuangan Buku Cabang Pemalang</h2>
+              <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Laporan otomatis periode terpilih harian</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <StatCard title="Total Omset Cabang (All Time)" amount={formatRupiah(stats.totalOmsetAll)} icon={<Store size={16} className="text-blue-600"/>} color="bg-blue-50/50 text-blue-700 border-blue-200" />
+              <StatCard title="Omset Cabang (Periode Ini)" amount={formatRupiah(stats.omsetPeriode)} icon={<Wallet size={16} className="text-indigo-600"/>} color="bg-indigo-50/50 text-indigo-700 border-indigo-200" />
+              <StatCard title="Total Setoran Kasir Masuk" amount={formatRupiah(stats.setoranPeriode)} icon={<Coins size={16} className="text-emerald-600"/>} color="bg-emerald-50/50 text-emerald-700 border-emerald-200" />
+          </div>
       </div>
 
-      {/* DETAIL PENJUALAN TERBARU */}
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-          <div className="p-5 border-b bg-slate-50 flex items-center justify-between">
-            <h4 className="font-black text-slate-800 uppercase text-xs tracking-widest flex items-center gap-2"><Receipt size={16} className="text-blue-500"/> Jurnal Histori Antrean Nota Kasir Cabang</h4>
-            <span className="text-[9px] font-black text-slate-500 bg-white px-2.5 py-1 rounded-md border shadow-sm">VOLUME: {data.sortedOrders.length} NOTA</span>
+      {/* 🔥 ADJUSTMENT SUNTIKAN: TARGET BRANKAS 4 AMPLOP BERJALAN PEMALANG */}
+      {stats.omsetPeriode > 0 && (
+         <div className="bg-slate-900 text-white p-5 rounded-3xl border border-slate-800 shadow-xl">
+           <h3 className="font-black text-xs uppercase tracking-widest text-amber-400 mb-4 flex items-center gap-1.5"><Percent size={14}/> Proyeksi Kuota Jatah 4 Amplop (Dari Omset Periode Ini)</h3>
+           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800"><div className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Amplop 1: Kas Ayam (55%)</div><div className="text-base font-black text-rose-400 mt-1">{formatRupiah(stats.jatahAyam55)}</div></div>
+              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800"><div className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Amplop 2: Ops &amp; Gaji (20%)</div><div className="text-base font-black text-blue-400 mt-1">{formatRupiah(stats.jatahOps20)}</div></div>
+              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800"><div className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Amplop 3: Cadangan (10%)</div><div className="text-base font-black text-amber-400 mt-1">{formatRupiah(stats.jatahCadangan10)}</div></div>
+              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800"><div className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Amplop 4: Profit Bersih (15%)</div><div className="text-base font-black text-emerald-400 mt-1">{formatRupiah(stats.jatahCuan15)}</div></div>
+           </div>
+         </div>
+      )}
+
+      {/* PENGECEKAN SILANG EOD LAPORAN */}
+      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+          <div className="p-5 bg-slate-50 border-b flex items-center gap-2">
+             <AlertCircle size={18} className="text-orange-500 animate-pulse"/>
+             <h4 className="font-black text-slate-800 text-xs uppercase tracking-widest">Jurnal Pengecekan Silang Setoran (EOD Cabang)</h4>
           </div>
-          <div className="overflow-x-auto custom-scrollbar">
+          <div className="overflow-x-auto p-2 custom-scrollbar">
               <table className="w-full text-sm text-left border-collapse">
-                  <thead className="bg-white border-b text-[10px] uppercase text-slate-400">
+                  <thead className="bg-white border-b text-[10px] text-slate-400 uppercase">
                       <tr>
-                          <th className="px-6 py-4 font-black">Waktu Nota</th>
-                          <th className="px-6 py-4 font-black">ID Nota</th>
-                          <th className="px-6 py-4 font-black">Identitas Pelanggan</th>
-                          <th className="px-6 py-4 font-black">Menu Dibeli (Keranjang)</th>
-                          <th className="px-6 py-4 text-center font-black">Volume</th>
-                          <th className="px-6 py-4 text-right font-black">Total Net Omset</th>
-                          <th className="px-6 py-4 text-center font-black">Saluran</th>
+                        <th className="px-5 py-3 font-black">Tanggal Lapor</th>
+                        <th className="px-5 py-3 text-center font-black">Klaim Adukan Dapur</th>
+                        <th className="px-5 py-3 font-black">Fisik Freezer Kulkas</th>
+                        <th className="px-5 py-3 font-black">Fisik Stok Ayam</th>
+                        <th className="px-5 py-3 text-right font-black">Uang Setoran Masuk</th>
                       </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-bold text-xs">
-                      {data.sortedOrders.length === 0 ? (
-                          <tr><td colSpan="7" className="text-center py-16 text-slate-400 uppercase tracking-widest font-black bg-slate-50/50">Belum ada struk penjualan keluar untuk cabang ini harian.</td></tr>
+                      {(!stats.laporanUrut || stats.laporanUrut.length === 0) ? (
+                          <tr><td colSpan="5" className="text-center py-12 text-slate-400 uppercase font-black tracking-widest bg-slate-50/50">Tidak ada setoran EOD tertulis dari cabang di rentang tanggal ini.</td></tr>
                       ) : (
-                          data.sortedOrders.map(o => {
-                              // 🔥 UNTUK MEMBONGKAR MULTI ITEM KERANJANG KASIR POS BIAR TIDAK KOSONG BLANK
-                              const itemsArr = safeJsonParse(o.items, []);
-                              let displayMenuName = o.itemName || 'DIMSUM OLAHAN CORE';
-                              if (itemsArr.length === 1) displayMenuName = itemsArr[0].name;
-                              else if (itemsArr.length > 1) displayMenuName = `${itemsArr[0].name} (+${itemsArr.length - 1} Menu Lain)`;
-
-                              let totalPcsLog = 0;
-                              itemsArr.forEach(i => totalPcsLog += Number(i.qty || 0));
-                              if (totalPcsLog === 0) totalPcsLog = Number(o.qty || 0);
-
-                              return (
-                                  <tr key={o.id} className="hover:bg-blue-50/30 transition-colors">
-                                      <td className="px-6 py-4 whitespace-nowrap text-slate-500">{formatDate(o.date)}</td>
-                                      <td className="px-6 py-4 font-mono text-slate-400 text-[10px] whitespace-nowrap">{o.id}</td>
-                                      <td className="px-6 py-4 uppercase font-black text-slate-800 whitespace-nowrap">{o.customer_name}</td>
-                                      <td className="px-6 py-4 text-slate-600 uppercase font-black text-xs min-w-[180px]">{displayMenuName}</td>
-                                      <td className="px-6 py-4 text-center font-black text-blue-600 bg-blue-50/30 rounded-lg whitespace-nowrap">{formatNumber(totalPcsLog)} PCS</td>
-                                      <td className="px-4 py-4 text-right font-black text-slate-900 whitespace-nowrap">{formatRupiah(o.total_amount || o.total)}</td>
-                                      <td className="px-6 py-4 text-center whitespace-nowrap">
-                                          <span className="px-2.5 py-1 rounded-md text-[9px] font-black uppercase bg-amber-50 text-amber-800 border border-amber-200 shadow-sm">
-                                              {(o.sales_channel || o.source || 'OFFLINE').replace('_', ' ')}
-                                          </span>
-                                      </td>
-                                  </tr>
-                              )
-                          })
+                          stats.laporanUrut.map((r, i) => (
+                              <tr key={i} className="hover:bg-blue-50/30 transition-colors">
+                                  <td className="px-5 py-4 whitespace-nowrap"><div className="font-black text-slate-800">{formatDate(r.date)}</div></td>
+                                  <td className="px-5 py-4 text-center whitespace-nowrap font-black text-blue-600 bg-blue-50/30 rounded-lg">{r.produksiMika || '0'} Batch / {r.pesananMika || '0'} Order</td>
+                                  <td className="px-5 py-4 font-black uppercase text-indigo-700">{formatNumber(r.stokFreezer)} PCS</td>
+                                  <td className="px-5 py-4 font-black uppercase text-orange-700">{formatNumber(r.stokAyam)} KG</td>
+                                  <td className="px-5 py-4 text-right font-black text-emerald-600 text-sm">{formatRupiah(r.nominal)}</td>
+                              </tr>
+                          ))
                       )}
                   </tbody>
               </table>
           </div>
       </div>
-      
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        {/* AKTIVITAS INVOICE JUALAN NOTA */}
+        <div className="lg:col-span-7 bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+            <div className="p-5 bg-slate-50 border-b flex items-center gap-2">
+               <ShoppingCart size={16} className="text-blue-500"/>
+               <h3 className="font-black text-slate-800 text-xs tracking-widest uppercase">Buku Harian Antrean Invoice Jualan Pemalang</h3>
+            </div>
+            <div className="overflow-x-auto p-2 custom-scrollbar max-h-[350px]">
+                <table className="w-full text-sm text-left border-collapse">
+                    <thead className="bg-white border-b text-[10px] uppercase text-slate-400 sticky top-0 z-10 shadow-sm">
+                        <tr>
+                          <th className="px-4 py-3 font-black bg-white">Tanggal &amp; ID</th>
+                          <th className="px-4 py-3 font-black bg-white">Nama Pelanggan</th>
+                          <th className="px-4 py-3 text-center font-black bg-white">Volume</th>
+                          <th className="px-4 py-3 text-right font-black bg-white">Total Tagihan</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-xs font-bold">
+                        {(!stats.branchOrdersPeriod || stats.branchOrdersPeriod.length === 0) ? (
+                            <tr><td colSpan="4" className="text-center py-12 text-slate-400 uppercase font-black tracking-widest bg-slate-50/50">Tidak ada struk transaksi penjualan pada rentang periode ini.</td></tr>
+                        ) : (
+                            stats.branchOrdersPeriod.map((o, i) => {
+                                let totalPcsInvoice = 0;
+                                const items = safeJsonParse(o.items, []);
+                                items.forEach(item => totalPcsInvoice += Number(item.qty || 0));
+                                if (totalPcsInvoice === 0) totalPcsInvoice = Number(o.qty || 0);
+
+                                return (
+                                    <tr key={i} className="hover:bg-blue-50/30 transition-colors">
+                                        <td className="px-4 py-4 whitespace-nowrap"><div className="font-black text-slate-800">{formatDate(o?.date)}</div><div className="text-[9px] text-slate-400 font-mono mt-0.5">{o?.id || '-'}</div></td>
+                                        <td className="px-4 py-4 uppercase font-black text-xs text-slate-700 whitespace-nowrap">{o?.customer_name || '-'}</td>
+                                        <td className="px-4 py-4 text-center font-black text-blue-600 bg-blue-50/30 rounded-lg whitespace-nowrap">{formatNumber(totalPcsInvoice)} Pcs</td>
+                                        <td className="px-4 py-4 text-right font-black text-emerald-600 whitespace-nowrap">{formatRupiah(o?.total_amount)}</td>
+                                    </tr>
+                                )
+                            })
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {/* CRM CUSTOMER LEADERBOARD */}
+        <div className="lg:col-span-5 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col max-h-[415px]">
+            <h3 className="font-black text-slate-800 text-xs tracking-widest uppercase flex items-center gap-2 mb-4 border-b pb-3"><Users size={16} className="text-indigo-600"/> Klasemen Pelanggan Terloyal (Pemalang Node)</h3>
+            <div className="overflow-y-auto pr-1 flex-1 space-y-3 custom-scrollbar">
+               {(!stats.topCustomersList || stats.topCustomersList.length === 0) ? (
+                   <div className="text-center text-slate-400 uppercase font-black text-[10px] tracking-widest py-12 bg-slate-50 rounded-2xl border border-dashed">Belum ada pelanggan loyal yang masuk hitungan.</div>
+               ) : (
+                   stats.topCustomersList.map((cust, i) => (
+                       <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-200/60 hover:border-indigo-300 transition-colors shadow-sm group">
+                           <div className="flex items-center gap-3">
+                               <div className={`w-7 h-7 rounded-xl flex items-center justify-center font-black text-xs shadow-md shrink-0 border ${i === 0 ? 'bg-amber-400 text-white border-amber-500' : i === 1 ? 'bg-slate-200 text-slate-700' : i === 2 ? 'bg-orange-300 text-white' : 'bg-white text-slate-400'}`}>#{i+1}</div>
+                               <div>
+                                 <div className="font-black text-slate-800 text-xs uppercase line-clamp-1 group-hover:text-indigo-600 transition-colors">{cust.name}</div>
+                                 <div className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">{cust.frequency}x Belanja • {formatNumber(cust.qty)} Pcs ({formatNumber(cust.porsi.toFixed(0))} Porsi)</div>
+                               </div>
+                           </div>
+                           <div className="font-black text-emerald-600 text-xs shrink-0 pl-2">{formatRupiah(cust.total)}</div>
+                       </div>
+                   ))
+               )}
+            </div>
+        </div>
+      </div>
+
     </div>
   );
 }
