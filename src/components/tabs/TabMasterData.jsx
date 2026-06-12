@@ -6,7 +6,7 @@ export default function TabMasterData({
   masterProducts = [], masterRawMaterials = [], masterSuppliers = [], masterRules = [], 
   sendToSheet, showToast 
 }) {
-  const [activeSubTab, setActiveSubTab] = useState('products'); // Default langsung buka Master Menu
+  const [activeSubTab, setActiveSubTab] = useState('products');
 
   // =====================================
   // STATE FORMS
@@ -226,6 +226,8 @@ export default function TabMasterData({
             </div>
             
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                
+                {/* RULE 1 */}
                 <div className="bg-slate-800 rounded-2xl p-5 border border-slate-700 relative overflow-hidden focus-within:border-amber-500 transition-colors">
                     <Hash className="absolute -right-4 -bottom-4 text-slate-700 opacity-50" size={100}/>
                     <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #1: Timbangan Mentah</div>
@@ -239,6 +241,7 @@ export default function TabMasterData({
                     </div>
                 </div>
 
+                {/* RULE 2 */}
                 <div className="bg-slate-800 rounded-2xl p-5 border border-slate-700 relative overflow-hidden focus-within:border-amber-500 transition-colors">
                     <Hash className="absolute -right-4 -bottom-4 text-slate-700 opacity-50" size={100}/>
                     <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #2: Resep Adukan</div>
@@ -252,6 +255,7 @@ export default function TabMasterData({
                     </div>
                 </div>
 
+                {/* RULE 3 */}
                 <div className="bg-slate-800 rounded-2xl p-5 border border-slate-700 relative overflow-hidden focus-within:border-amber-500 transition-colors">
                     <Hash className="absolute -right-4 -bottom-4 text-slate-700 opacity-50" size={100}/>
                     <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #3: Target Yield Dasar</div>
@@ -264,6 +268,52 @@ export default function TabMasterData({
                         </div>
                     </div>
                 </div>
+
+                {/* RULE 4 - DIKEMBALIKAN */}
+                <div className="bg-slate-800 rounded-2xl p-5 border border-slate-700 relative overflow-hidden focus-within:border-amber-500 transition-colors md:col-span-2 lg:col-span-1">
+                    <Hash className="absolute -right-4 -bottom-4 text-slate-700 opacity-50" size={100}/>
+                    <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #4: Konversi Porsi Eceran</div>
+                    <div className="flex items-end justify-between relative z-10">
+                        <div>
+                            <div className="text-3xl font-black text-white">1 <span className="text-sm text-slate-400">Porsi</span></div>
+                            <div className="text-xs font-bold text-slate-500 mt-2">Penjualan Resto</div>
+                        </div>
+                        <div className="text-slate-500 mb-2 font-black text-xl">=</div>
+                        <div className="text-right">
+                            <div className="flex items-end gap-1 justify-end">
+                              <input type="number" value={engineRules.porsi_eceran} onChange={e=>setEngineRules({...engineRules, porsi_eceran: Number(e.target.value)})} className="w-16 bg-slate-900 border border-slate-600 text-purple-400 text-3xl font-black text-center rounded-lg outline-none focus:border-amber-500 py-1" />
+                              <span className="text-sm text-slate-400 font-black mb-1">PCS</span>
+                            </div>
+                            <div className="text-xs font-bold text-slate-500 mt-2">Dimsum Mentah</div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* RULE 5 - DIKEMBALIKAN */}
+                <div className="bg-slate-800 rounded-2xl p-5 border border-slate-700 relative overflow-hidden focus-within:border-amber-500 transition-colors md:col-span-2 lg:col-span-2">
+                    <Hash className="absolute -right-4 -bottom-4 text-slate-700 opacity-50" size={100}/>
+                    <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #5: Konversi Packaging / Mika Frozen</div>
+                    <div className="flex items-end justify-between relative z-10">
+                        <div>
+                            <div className="text-3xl font-black text-white">1 <span className="text-sm text-slate-400">Mika</span></div>
+                            <div className="text-xs font-bold text-slate-500 mt-2">Kemasan Frozen</div>
+                        </div>
+                        <div className="text-slate-500 mb-2 font-black text-xl">=</div>
+                        <div className="text-center">
+                            <div className="flex items-end gap-1 justify-center">
+                              <input type="number" value={engineRules.mika_frozen} onChange={e=>setEngineRules({...engineRules, mika_frozen: Number(e.target.value)})} className="w-20 bg-slate-900 border border-slate-600 text-pink-400 text-3xl font-black text-center rounded-lg outline-none focus:border-amber-500 py-1" />
+                              <span className="text-sm text-slate-400 font-black mb-1">PCS</span>
+                            </div>
+                            <div className="text-xs font-bold text-slate-500 mt-2">Dimsum / Mika</div>
+                        </div>
+                        <div className="text-slate-500 mb-2 font-black text-xl">=</div>
+                        <div className="text-right">
+                            <div className="text-3xl font-black text-emerald-400">{(engineRules.target_yield / engineRules.mika_frozen).toFixed(0)} <span className="text-sm">Mika</span></div>
+                            <div className="text-xs font-bold text-slate-500 mt-2">Per Adukan (Auto)</div>
+                        </div>
+                    </div>
+                </div>
+
             </div>
             <div className="p-4 bg-slate-950 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="text-xs font-bold text-slate-400 flex items-center gap-2"><CheckCircle size={14} className="text-amber-500"/> Pastikan klik simpan setelah mengubah angka konfigurasi di atas.</div>
@@ -274,7 +324,6 @@ export default function TabMasterData({
 
       {/* ======================================= */}
       {/* TAB 3, 4, 5 (Packaging, Raw, Suppliers) */}
-      {/* Kodenya sama persis, tidak ada yang dipotong */}
       {/* ======================================= */}
       {activeSubTab === 'packaging' && (
          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
