@@ -3,6 +3,8 @@ import { ShoppingCart, Package, AlertCircle, Edit2, Printer, Trash2, X, FileText
 import { getTodayStr, generateId, formatDate, safeJsonParse, formatRp } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
 
+// 🔥 INI DIA TERSANGKANYA! SUDAH SAYA KUNCI MATI DI SINI BOS WKWK
+const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
 const SALES_CHANNELS = [
@@ -43,7 +45,6 @@ export default function TabOrders({
   const realProd = useMemo(() => production_batches || productionBatches || [], [productionBatches, production_batches]);
   const realPurchases = useMemo(() => purchases_data || purchases || [], [purchases, purchases_data]);
   
-  // SINKRONISASI MURNI MASTER PRODUK
   const realProducts = useMemo(() => {
       const data = master_products || masterProducts;
       return Array.isArray(data) ? data : [];
@@ -169,13 +170,9 @@ export default function TabOrders({
     });
   };
 
-  // 🔥 PENYAKITNYA DI SINI BOS, SUDAH SAYA OPRASI BERSIH!
   const handleEditSafe = (log) => {
     try {
       const parsedItems = safeJsonParse(log.items, []);
-      
-      // Jika hasil edit ternyata array kosong (transaksi zaman jebot), kita buat item fiktif "ITEM HISTORI"
-      // Tapi kita TIDAK BOLEH menampilkannya di Katalog Menu!
       if (parsedItems.length === 0) {
         setCart([{ product_id: 'LEGACY', name: log.item_name || 'ITEM HISTORI LAMA', qty: log.qty, price: log.unit_price, subtotal: log.subtotal, request: log.custom_request }]);
       } else {
@@ -270,8 +267,8 @@ export default function TabOrders({
                           <div className="text-[9px] font-bold text-slate-400 uppercase mt-1">{prod.category.replace('_', ' ')}</div>
                         </div>
                         <div className="mt-2 pt-2 border-t border-slate-200/60">
-                          <div className="text-sm font-black text-emerald-600">{formatRp(prod.selling_price)}</div>
-                          <div className="text-[8px] font-black text-amber-600 uppercase mt-0.5 tracking-wider">Min: {prod.min_order || 1} Pcs | Ecer: {formatRp(prod.penalty_price || prod.selling_price)}</div>
+                          <div className="text-sm font-black text-emerald-600">{formatRupiah(prod.selling_price)}</div>
+                          <div className="text-[8px] font-black text-amber-600 uppercase mt-0.5 tracking-wider">Min: {prod.min_order || 1} Pcs | Ecer: {formatRupiah(prod.penalty_price || prod.selling_price)}</div>
                         </div>
                      </div>
                    ))
@@ -320,11 +317,11 @@ export default function TabOrders({
                           <div className="mt-3 flex justify-between items-end border-t border-slate-100 pt-2">
                             <div>
                               <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Harga/Pcs {isPenalty && <span className="text-rose-500 bg-rose-100 px-1 rounded ml-1 animate-pulse">Pinalti Ecer</span>}</div>
-                              <div className={`font-black text-sm ${isPenalty ? 'text-rose-600' : 'text-slate-800'}`}>{formatRp(item.price)}</div>
+                              <div className={`font-black text-sm ${isPenalty ? 'text-rose-600' : 'text-slate-800'}`}>{formatRupiah(item.price)}</div>
                             </div>
                             <div className="text-right">
                               <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Subtotal</div>
-                              <div className="font-black text-emerald-600 text-sm">{formatRp(item.subtotal)}</div>
+                              <div className="font-black text-emerald-600 text-sm">{formatRupiah(item.subtotal)}</div>
                             </div>
                           </div>
                         </div>
