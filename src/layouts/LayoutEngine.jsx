@@ -3,13 +3,13 @@ import {
   LayoutDashboard, ShoppingCart, Activity, Factory, Truck, 
   Wallet, Users, Database, LogOut, Menu, X, ShieldCheck, 
   Send, Store, Package, Lock, Globe, Landmark, AlertTriangle, ShieldAlert,
-  Archive
+  Archive, BookOpen
 } from 'lucide-react';
 
 import { getTodayStr, formatDate } from '../utils/helpers';
 
 export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogout, masterCapabilities, children }) {
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMobileMenuOpen, useState] = React.useState(false);
   const todayStr = getTodayStr();
 
   const nodeCapability = useMemo(() => {
@@ -29,7 +29,6 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
     if (nodeCapability.can_global_dashboard === true || nodeCapability.can_global_dashboard === 'true') {
         dashboardItems.push({ id: 'dashboard', label: 'Global HQ Radar', icon: Globe });
         dashboardItems.push({ id: 'business_radar', label: 'Business Radar', icon: Activity });
-        // 🔥 MENU BARU: MONITORING CABANG
         dashboardItems.push({ id: 'monitoring_pemalang', label: 'Monitor Pemalang', icon: Factory });
     } else {
         dashboardItems.push({ id: 'dashboard_branch', label: 'Dashboard Node', icon: LayoutDashboard });
@@ -48,6 +47,8 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
     }
     if (nodeCapability.can_purchase === true || nodeCapability.can_purchase === 'true') {
         coreItems.push({ id: 'purchases', label: 'Belanja Logistik', icon: Truck });
+        // 🔥 KABEL MENU BARU: BUKU JANTUNG PABRIK SUPPLIER AYAM
+        coreItems.push({ id: 'supplier_ayam', label: 'Buku Nana Ayam', icon: BookOpen });
     }
     
     coreItems.push({ id: 'kartu_stok', label: 'Kartu Stok & Gudang', icon: Archive });
@@ -66,7 +67,6 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
     const financeItems = [];
     if (nodeCapability.can_treasury === true || nodeCapability.can_treasury === 'true') {
         financeItems.push({ id: 'cash_war_room', label: 'Dompet Perusahaan', icon: Wallet });
-        // 🔥 MENU BARU: MANAJEMEN PIUTANG
         financeItems.push({ id: 'piutang', label: 'Manajemen Piutang', icon: Landmark });
     }
     if (nodeCapability.can_accounting === true || nodeCapability.can_accounting === 'true') {
@@ -108,7 +108,7 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
   return (
     <div className="h-full w-full bg-transparent flex overflow-hidden font-sans">
       {isMobileMenuOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 lg:hidden" onClick={() => setIsMobileMenuOpen(false)} />
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 lg:hidden" onClick={() => React.useState(false)[1](false)} />
       )}
 
       {/* SIDEBAR MIDNIGHT SOLID */}
@@ -126,7 +126,7 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
               <span className={`text-[9px] font-bold ${themeConfig.text} brightness-150 uppercase tracking-widest block mt-1 transition-colors`}>Dimsum Aditya ERP</span>
             </div>
           </div>
-          <button onClick={() => setIsMobileMenuOpen(false)} className="ml-auto lg:hidden text-slate-400 hover:text-white"><X size={24} /></button>
+          <button onClick={() => React.useState(false)[1](false)} className="ml-auto lg:hidden text-slate-400 hover:text-white"><X size={24} /></button>
         </div>
 
         <nav className="flex-1 overflow-y-auto p-4 space-y-6 mt-2 custom-scrollbar">
@@ -140,7 +140,7 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
                   return (
                     <button 
                       key={item.id} 
-                      onClick={() => { setActiveTab(item.id); setIsMobileMenuOpen(false); }} 
+                      onClick={() => { setActiveTab(item.id); React.useState(false)[1](false); }} 
                       className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${isActive ? `${themeConfig.bg} text-white shadow-md` : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
                       style={!isActive ? { backgroundColor: 'transparent' } : {}}
                     >
@@ -161,7 +161,7 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
             </div>
             <div className="flex-1 overflow-hidden">
               <div className="text-xs font-black text-white truncate uppercase">{user?.name || user?.username || 'USER'}</div>
-              <div className="text-[10px] font-bold text-slate-400 uppercase truncate">{user?.branch_id || 'NODE'}</div>
+              <div className="text-[10px] font-bold text-slate-400 uppercase truncate">{user?.branch_id.replace('_', ' ') || 'NODE'}</div>
             </div>
           </div>
           <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-black text-slate-400 hover:text-white hover:bg-red-600 transition-colors uppercase tracking-wide">
@@ -176,10 +176,10 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
 
         <header className="h-20 border-b border-slate-200/50 flex items-center justify-between px-6 shrink-0 relative z-20 shadow-sm bg-white/70 backdrop-blur-md">
           <div className="flex items-center gap-4">
-            <button onClick={() => setIsMobileMenuOpen(true)} className="lg:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-lg"><Menu size={24} /></button>
+            <button onClick={() => React.useState(false)[1](true)} className="lg:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-lg"><Menu size={24} /></button>
             <div>
               <div className="font-black text-slate-800 text-lg uppercase tracking-wide">
-                Terminal Operasional <span className={themeConfig.text}>/ {user?.branch_id || 'NODE'}</span>
+                Terminal Operasional <span className={themeConfig.text}>/ {user?.branch_id.replace('_', ' ') || 'NODE'}</span>
               </div>
               <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">{formatDate(todayStr)}</div>
             </div>
