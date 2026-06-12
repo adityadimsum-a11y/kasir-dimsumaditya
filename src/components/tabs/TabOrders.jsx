@@ -29,9 +29,15 @@ export default function TabOrders({
   const todayStr = getTodayStr();
   const currentBranch = (user?.branch_id === 'PUSAT' || !user?.branch_id) ? 'TANGERANG_PUSAT' : user?.branch_id;
 
+  // 🔥 FORMAT TANGGAL ROBOT UNTUK KALENDER (YYYY-MM-DD)
+  const todayYMD = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }, []);
+
   const [isEditing, setIsEditing] = useState(false);
   const [showKarantinaModal, setShowKarantinaModal] = useState(false);
-  const [filterDate, setFilterDate] = useState(todayStr); // 🔥 STATE UNTUK FILTER TANGGAL
+  const [filterDate, setFilterDate] = useState(todayYMD); // SET DEFAULT HARI INI
   
   const [form, setForm] = useState({
     id: '', date: todayStr, customerName: '', channel: 'ECERAN_WALKIN', 
@@ -215,6 +221,36 @@ export default function TabOrders({
       if (form.deliveryMethod === 'PRE_ORDER') handlePrintTiketProduksi(payload);
       handleCancelEdit();
     }
+  };
+
+  // 🔥 ENGINE PENERJEMAH TANGGAL ANTI-BADAI
+  const isMatchDate = (dbDate, targetYMD) => {
+    if (!targetYMD) return true; // Jika Filter Kosong, Tampilkan Semua
+    if (!dbDate) return false;
+    
+    // Kamus Terjemahan Bulan (Indo -> English)
+    const EN_MONTHS = {
+      'januari': 'january', 'februari': 'february', 'maret': 'march', 'mei': 'may',
+      'juni': 'june', 'juli': 'july', 'agustus': 'august', 'oktober': 'october', 'desember': 'december'
+    };
+    
+    let safeDateStr = String(dbDate).toLowerCase();
+    for (const [id, en] of Object.entries(EN_MONTHS)) {
+      safeDateStr = safeDateStr.replace(id, en);
+    }
+    
+    try {
+      const d = new Date(safeDateStr);
+      if(!isNaN(d.getTime())) {
+          const yyyy = d.getFullYear();
+          const mm = String(d.getMonth() + 1).padStart(2, '0');
+          const dd = String(d.getDate()).padStart(2, '0');
+          return `${yyyy}-${mm}-${dd}` === targetYMD;
+      }
+    } catch(e){}
+
+    // Fallback terakhir
+    return String(dbDate).includes(targetYMD);
   };
 
   return (
@@ -412,12 +448,26 @@ export default function TabOrders({
              <p className="text-[10px] font-bold text-slate-500 uppercase mt-1">Menampilkan data sesuai tanggal yang dipilih</p>
            </div>
            
-           {/* FILTER TANGGAL */}
-           <div className="flex items-center gap-2 bg-white border border-slate-300 p-2 rounded-xl shadow-sm">
-             <Calendar size={16} className="text-blue-600 ml-1"/>
-             <input type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} className="text-xs font-black text-slate-800 uppercase outline-none bg-transparent cursor-pointer pr-2" />
+           {/* FITUR TOMBOL FILTER TANGGAL SAKTI */}
+           <div className="flex flex-wrap items-center gap-2">
+             <div className="flex items-center gap-2 bg-white border border-slate-300 p-2 rounded-xl shadow-sm">
+               <Calendar size={16} className="text-blue-600 ml-1"/>
+               <input type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} className="text-xs font-black text-slate-800 uppercase outline-none bg-transparent cursor-pointer pr-2" />
+             </div>
+             
+             {/* Tombol Tampilkan Semua / Reset Hari Ini */}
+             {filterDate !== '' ? (
+               <button onClick={() => setFilterDate('')} className="bg-slate-100 border border-slate-200 text-slate-600 px-3 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-slate-200 transition-colors shadow-sm">
+                 Tampilkan Semua
+               </button>
+             ) : (
+               <button onClick={() => setFilterDate(todayYMD)} className="bg-blue-50 border border-blue-200 text-blue-600 px-3 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-blue-100 transition-colors shadow-sm">
+                 Hari Ini
+               </button>
+             )}
            </div>
         </div>
+        
         <div className="overflow-x-auto p-4 custom-scrollbar">
           <table className="w-full text-sm text-left border-collapse">
             <thead className="bg-slate-100 text-[10px] uppercase text-slate-500 border-b-2 border-slate-200">
@@ -431,7 +481,7 @@ export default function TabOrders({
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs font-bold">
               {realOrders
-                .filter(o => !o.isDeleted && o.date.substring(0, 10) === filterDate) // 🔥 LOGIC FILTER TANGGAL
+                .filter(o => !o.isDeleted && isMatchDate(o.date, filterDate)) // Panggil Mesin Pengecek Tanggal
                 .sort((a, b) => new Date(b.date) - new Date(a.date))
                 .map(log => {
                 const itemsArr = safeJsonParse(log.items, []);
@@ -468,7 +518,7 @@ export default function TabOrders({
                 );
               })}
               
-              {realOrders.filter(o => !o.isDeleted && o.date.substring(0, 10) === filterDate).length === 0 && (
+              {realOrders.filter(o => !o.isDeleted && isMatchDate(o.date, filterDate)).length === 0 && (
                 <tr>
                   <td colSpan="5" className="text-center py-20 bg-slate-50 border-t border-slate-100">
                     <div className="flex flex-col items-center justify-center text-slate-400">
