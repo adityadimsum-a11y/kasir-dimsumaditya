@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Calendar, Store, Factory, Wallet, Coins, AlertCircle, ShoppingCart, Users, CheckCircle, Percent, Building, Award, ShieldAlert, Undo } from 'lucide-react';
+import { Calendar, Store, Factory, Wallet, Coins, AlertCircle, ShoppingCart, Users, CheckCircle, Percent } from 'lucide-react';
 import { getTodayStr, formatDate, safeSort, safeJsonParse } from '../../utils/helpers';
 
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
@@ -77,7 +77,7 @@ export default function TabDashboardBranch({ orders = [], orders_data, pemalangR
 
     // 🔥 AUTOMATIC GENERATE PECAHAN 4 AMPLOP BERDASARKAN OMSET PERIODE (55% - 20% - 10% - 15%)
     const jatahAyam55 = omsetPeriode * 0.55;
-    const jatahOps20 = omzetPeriode * 0.20;
+    const jatahOps20 = omsetPeriode * 0.20;
     const jatahCadangan10 = omsetPeriode * 0.10;
     const jatahCuan15 = omsetPeriode * 0.15;
 
@@ -181,15 +181,15 @@ export default function TabDashboardBranch({ orders = [], orders_data, pemalangR
           </div>
       </div>
 
-      {/* 🔥 ADJUSTMENT SUNTIKAN: TARGET BRANKAS 4 AMPLOP BERJALAN PEMALANG */}
+      {/* 🔥 TARGET BRANKAS 4 AMPLOP BERJALAN PEMALANG */}
       {stats.omsetPeriode > 0 && (
          <div className="bg-slate-900 text-white p-5 rounded-3xl border border-slate-800 shadow-xl">
            <h3 className="font-black text-xs uppercase tracking-widest text-amber-400 mb-4 flex items-center gap-1.5"><Percent size={14}/> Proyeksi Kuota Jatah 4 Amplop (Dari Omset Periode Ini)</h3>
            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800"><div className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Amplop 1: Kas Ayam (55%)</div><div className="text-base font-black text-rose-400 mt-1">{formatRupiah(stats.jatahAyam55)}</div></div>
-              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800"><div className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Amplop 2: Ops &amp; Gaji (20%)</div><div className="text-base font-black text-blue-400 mt-1">{formatRupiah(stats.jatahOps20)}</div></div>
-              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800"><div className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Amplop 3: Cadangan (10%)</div><div className="text-base font-black text-amber-400 mt-1">{formatRupiah(stats.jatahCadangan10)}</div></div>
-              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800"><div className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Amplop 4: Profit Bersih (15%)</div><div className="text-base font-black text-emerald-400 mt-1">{formatRupiah(stats.jatahCuan15)}</div></div>
+              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800"><div className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Amplop 1: Kas Ayam (55%)[cite: 1]</div><div className="text-base font-black text-rose-400 mt-1">{formatRupiah(stats.jatahAyam55)}</div></div>
+              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800"><div className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Amplop 2: Ops &amp; Gaji (20%)[cite: 1]</div><div className="text-base font-black text-blue-400 mt-1">{formatRupiah(stats.jatahOps20)}</div></div>
+              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800"><div className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Amplop 3: Cadangan (10%)[cite: 1]</div><div className="text-base font-black text-amber-400 mt-1">{formatRupiah(stats.jatahCadangan10)}</div></div>
+              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800"><div className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Amplop 4: Profit Bersih (15%)[cite: 1]</div><div className="text-base font-black text-emerald-400 mt-1">{formatRupiah(stats.jatahCuan15)}</div></div>
            </div>
          </div>
       )}
