@@ -1,8 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Users, Landmark, Banknote, Layers, TrendingDown, ShieldAlert, Trash2, Edit2, Check, X, Phone, Image, Eye, MapPin, Undo, Link, Printer, CalendarDays, History, ShoppingCart, CheckCircle, FileText, Wallet, ArrowRightLeft, Clock, Trophy, Coffee, CheckCircle2, DollarSign, Calculator, ArrowDownToLine, Database } from 'lucide-react';
-import { triggerPrint } from '../../utils/PrintUtility';
-
-// --- HUB KUNCI ASESORI FORMATTING & AKUNTANSI ---
+import { Users, Landmark, Banknote, Layers, TrendingDown, ShieldAlert, Trash2, Edit2, Check, X, Phone, Image, Eye, MapPin, Undo, Link, Printer, CalendarDays, History, ShoppingCart, CheckCircle, FileText, Wallet, ArrowRightLeft, Clock, Trophy, Coffee, CheckCircle2, DollarSign, Calculator, ArrowDownToLine, Database, AlertTriangle } from 'lucide-react';
 const formatRupiah = (angka) => "Rp. " + Number(angka || 0).toLocaleString('id-ID');
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
