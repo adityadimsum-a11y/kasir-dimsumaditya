@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Activity, TrendingUp, ArrowDownToLine, ArrowUpRight, Award, ShoppingBag, BarChart3, PieChart, Users, Crown, Medal, CalendarClock, Package, Percent, ShieldAlert } from 'lucide-react';
-import { getTodayStr, formatDate } from '../../utils/helpers';
+import { getTodayStr, formatDate, safeJsonParse } from '../../utils/helpers';
 
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
@@ -34,10 +34,10 @@ export default function TabBusinessRadar({
     if (timeRange !== 'TODAY') {
       for (let i = daysToCount - 1; i >= 0; i--) {
         const d = new Date(); d.setDate(d.getDate() - i);
-        trendMap[d.toISOString().substring(0, 10)] = { label: d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }), omzet: 0, bebas: 0 };
+        trendMap[d.toISOString().substring(0, 10)] = { label: d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }), omzet: 0, beban: 0 };
       }
     } else {
-      trendMap[todayStr] = { label: 'Hari Ini', omzet: 0, bebas: 0 };
+      trendMap[todayStr] = { label: 'Hari Ini', omzet: 0, beban: 0 };
     }
 
     const clientStats = {};
@@ -57,10 +57,8 @@ export default function TabBusinessRadar({
       else if (timeRange !== 'TODAY' && d >= limitDate) isIncluded = true;
 
       let totalPcs = 0;
-      try {
-        const itemsArr = JSON.parse(o.items || '[]');
-        itemsArr.forEach(item => totalPcs += Number(item.qty || 0));
-      } catch(e) { totalPcs = 0; }
+      const itemsArr = safeJsonParse(o.items, []);
+      itemsArr.forEach(item => totalPcs += Number(item.qty || 0));
 
       if (orderDateStr === todayStr) {
         totalPcsHariIni += totalPcs;
@@ -109,6 +107,7 @@ export default function TabBusinessRadar({
     };
     processBeban(realPurchases, 'date', 'total_amount');
     processBeban(realExpenses, 'date', 'amount');
+    
     realCashflow.filter(c => !c.isDeleted && c.type === 'OUT').forEach(c => {
       const dStr = c.date.substring(0, 10);
       let isIncluded = false;
@@ -322,7 +321,6 @@ export default function TabBusinessRadar({
               <div className="text-center py-10 text-xs font-bold text-slate-400 uppercase">Tidak ada jualan terdeteksi.</div>
             ) : (
               radarMetrics.topChannels.map(([name, stats], idx) => {
-                // 🔥 PROTEKSI ANTI-BLANK JIKA DATA LABA GLOBAL MASIH NOL / KOSONG
                 const ratio = radarMetrics.totalGlobalProfit > 0 ? (stats.profit / radarMetrics.totalGlobalProfit) * 100 : 0;
                 return (
                   <div key={idx} className="flex items-center gap-3 p-3.5 border border-slate-100 rounded-2xl hover:bg-orange-50/20 transition-all hover:border-orange-200 group">
