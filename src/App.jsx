@@ -12,6 +12,7 @@ import LayoutEngine from './layouts/LayoutEngine';
 import TabDashboard from './components/tabs/TabDashboard';
 import TabOrders from './components/tabs/TabOrders';
 import TabPurchases from './components/tabs/TabPurchases';
+import TabSupplierAyam from './components/tabs/TabSupplierAyam'; // 🔥 KABEL MENU JANTUNG PABRIK BARU
 import TabExpenses from './components/tabs/TabExpenses';
 import TabPiutang from './components/tabs/TabPiutang';
 import TabPemalang from './components/tabs/TabPemalang';
@@ -232,12 +233,16 @@ export default function App() {
       case 'pemalang': return <TabPemalang user={user} sendToSheet={sendToSheet} {...dbData} />;
       
       case 'cash_war_room': return <TabCashWarRoom user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
-      case 'setoran_cabang': return <TabSetoranCabang user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />; // 🔥 DAN DIRENDER DI SINI
+      case 'setoran_cabang': return <TabSetoranCabang user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />; 
       case 'scm_war_room': return <TabSCMWarRoom user={user} {...dbData} />;
       case 'business_radar': return <TabBusinessRadar user={user} {...dbData} />;
       case 'analytics': return <TabAnalytics user={user} {...dbData} />;
       case 'orders': return <TabOrders user={user} role={user?.role} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={requestDelete} showToast={showToast} {...dbData} />;
       case 'purchases': return <TabPurchases user={user} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={requestDelete} showToast={showToast} {...dbData} />;
+      
+      // 🔥 RENDER MENU JANTUNG PABRIK BARU
+      case 'supplier_ayam': return <TabSupplierAyam user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
+      
       case 'expenses': return <TabExpenses user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
       case 'stok': return <TabStok user={user} role={user?.role} sendToSheet={sendToSheet} requestDelete={requestDelete} showToast={showToast} {...dbData} />;
       case 'stok_outlet': return <TabStokOutlet user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
