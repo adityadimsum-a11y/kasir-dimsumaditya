@@ -32,7 +32,7 @@ const SALES_CHANNELS = [
   { id: 'GRABFOOD', label: 'GrabFood', group: 'MERCHANT' },
 ];
 
-// 🔥 MESIN PENERJEMAH TANGGAL OTOMATIS (Bisa baca format Indo & Inggris)
+// 🔥 MESIN PENERJEMAH TANGGAL OTOMATIS
 const parseDateToYMD = (dbDate) => {
   if (!dbDate) return null;
   const EN_MONTHS = {
@@ -76,9 +76,8 @@ export default function TabOrders({
   const [isEditing, setIsEditing] = useState(false);
   const [showKarantinaModal, setShowKarantinaModal] = useState(false);
   
-  // 🔥 STATE BARU UNTUK FILTER MULTI-MODE
+  // 🔥 STATE FILTER TRANSAKSI YANG SUDAH DIRINGKAS
   const [filterMode, setFilterMode] = useState('HARI_INI');
-  const [singleDate, setSingleDate] = useState(todayYMD);
   const [dateRange, setDateRange] = useState({ start: todayYMD, end: todayYMD });
   
   const [form, setForm] = useState({
@@ -119,7 +118,7 @@ export default function TabOrders({
   }, [realOrders, realProd, realPurchases, currentBranch]);
 
 
-  // 🔥 ENGINE FILTER TRANSAKSI SAKTI
+  // 🔥 ENGINE FILTER TRANSAKSI
   const filteredOrders = useMemo(() => {
     return realOrders.filter(o => {
       if (o.isDeleted) return false;
@@ -129,12 +128,11 @@ export default function TabOrders({
       if (!oYMD) return false; 
 
       if (filterMode === 'HARI_INI') return oYMD === todayYMD;
-      if (filterMode === 'TANGGAL') return oYMD === singleDate;
       if (filterMode === 'RENTANG') return oYMD >= dateRange.start && oYMD <= dateRange.end;
       
       return true;
     }).sort((a, b) => new Date(b.date) - new Date(a.date));
-  }, [realOrders, filterMode, singleDate, dateRange, todayYMD]);
+  }, [realOrders, filterMode, dateRange, todayYMD]);
 
   // 🔥 ENGINE HITUNG OMSET DARI HASIL FILTER
   const summaryFiltered = useMemo(() => {
@@ -475,24 +473,16 @@ export default function TabOrders({
              <p className="text-[10px] font-bold text-slate-500 uppercase mt-1">Gunakan alat di samping untuk memfilter data dan melihat total omset.</p>
            </div>
            
-           {/* ALAT FILTER SUPER CANGGIH */}
+           {/* ALAT FILTER SUPER CANGGIH (DIRINGKAS) */}
            <div className="flex flex-wrap items-center gap-2 bg-white p-1.5 border border-slate-200 rounded-2xl shadow-sm">
-             <div className="flex items-center gap-2 pl-2">
+             <div className="flex items-center gap-2 pl-2 pr-1">
                 <Filter size={14} className="text-blue-500"/>
                 <select value={filterMode} onChange={e => setFilterMode(e.target.value)} className="text-xs font-black text-slate-700 bg-transparent py-2 outline-none cursor-pointer uppercase">
                   <option value="HARI_INI">HARI INI (REALTIME)</option>
-                  <option value="TANGGAL">1 TANGGAL KHUSUS</option>
                   <option value="RENTANG">RENTANG WAKTU (DARI - SAMPAI)</option>
                   <option value="SEMUA">BUKA SEMUA CATATAN</option>
                 </select>
              </div>
-
-             {filterMode === 'TANGGAL' && (
-               <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl">
-                 <Calendar size={14} className="text-slate-500"/>
-                 <input type="date" value={singleDate} onChange={e => setSingleDate(e.target.value)} className="text-xs font-black text-slate-800 uppercase outline-none bg-transparent cursor-pointer" />
-               </div>
-             )}
 
              {filterMode === 'RENTANG' && (
                <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl">
