@@ -1,12 +1,11 @@
 import React, { useState, useMemo } from 'react';
-import { ShoppingCart, Package, AlertCircle, Edit2, Printer, Trash2, X, FileText, Undo, Lock, CheckCircle2, Calendar } from 'lucide-react';
+import { ShoppingCart, Package, AlertCircle, Edit2, Printer, Trash2, X, FileText, Undo, Lock, CheckCircle2, Calendar, Filter, DollarSign } from 'lucide-react';
 import { getTodayStr, generateId, formatDate, safeJsonParse, formatRp } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
 
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
-// TRANSLATE KATEGORI MENU BIAR ENAK DIBACA
 const terjemahkanKategori = (kat) => {
   if(kat === 'READY_TO_EAT') return 'SIAP SAJI (MATANG)';
   if(kat === 'FROZEN_GOODS') return 'MENTAH / FROZEN';
@@ -14,7 +13,6 @@ const terjemahkanKategori = (kat) => {
   return kat;
 };
 
-// DAFTAR PILIHAN METODE BAYAR YANG GAMPANG DIMENGERTI
 const PILIHAN_BAYAR = [
   { id: 'CASH', label: 'TUNAI (LUNAS)' },
   { id: 'TF', label: 'TRANSFER (LUNAS)' },
@@ -34,6 +32,32 @@ const SALES_CHANNELS = [
   { id: 'GRABFOOD', label: 'GrabFood', group: 'MERCHANT' },
 ];
 
+// 🔥 MESIN PENERJEMAH TANGGAL OTOMATIS (Bisa baca format Indo & Inggris)
+const parseDateToYMD = (dbDate) => {
+  if (!dbDate) return null;
+  const EN_MONTHS = {
+    'januari': 'january', 'februari': 'february', 'maret': 'march', 'mei': 'may',
+    'juni': 'june', 'juli': 'july', 'agustus': 'august', 'oktober': 'october', 'desember': 'december'
+  };
+  let safeDateStr = String(dbDate).toLowerCase();
+  for (const [id, en] of Object.entries(EN_MONTHS)) {
+    safeDateStr = safeDateStr.replace(id, en);
+  }
+  try {
+    const d = new Date(safeDateStr);
+    if(!isNaN(d.getTime())) {
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+    }
+  } catch(e){}
+  
+  if (typeof dbDate === 'string' && dbDate.match(/^\d{4}-\d{2}-\d{2}/)) return dbDate.substring(0, 10);
+  return null; 
+};
+
+
 export default function TabOrders({ 
   orders = [], orders_data, 
   productionBatches = [], production_batches, 
@@ -51,7 +75,11 @@ export default function TabOrders({
 
   const [isEditing, setIsEditing] = useState(false);
   const [showKarantinaModal, setShowKarantinaModal] = useState(false);
-  const [filterDate, setFilterDate] = useState(todayYMD); 
+  
+  // 🔥 STATE BARU UNTUK FILTER MULTI-MODE
+  const [filterMode, setFilterMode] = useState('HARI_INI');
+  const [singleDate, setSingleDate] = useState(todayYMD);
+  const [dateRange, setDateRange] = useState({ start: todayYMD, end: todayYMD });
   
   const [form, setForm] = useState({
     id: '', date: todayStr, customerName: '', channel: 'ECERAN_WALKIN', 
@@ -64,11 +92,7 @@ export default function TabOrders({
   const realOrders = useMemo(() => orders_data || orders || [], [orders, orders_data]);
   const realProd = useMemo(() => production_batches || productionBatches || [], [productionBatches, production_batches]);
   const realPurchases = useMemo(() => purchases_data || purchases || [], [purchases, purchases_data]);
-  
-  const realProducts = useMemo(() => {
-      const data = master_products || masterProducts;
-      return Array.isArray(data) ? data : [];
-  }, [masterProducts, master_products]);
+  const realProducts = useMemo(() => Array.isArray(master_products || masterProducts) ? (master_products || masterProducts) : [], [masterProducts, master_products]);
 
   // --- ENGINE STOK & KARANTINA ---
   const stockMetrics = useMemo(() => {
@@ -94,6 +118,41 @@ export default function TabOrders({
     return { saldoFisikFreezer, karantinaPcs, sisaAvailable: saldoFisikFreezer - karantinaPcs, saldoAyamKg: Math.max(0, totalAyamMasukKg - totalAyamKeluarKg), listKarantina: listKarantina.sort((a,b) => new Date(a.date) - new Date(b.date)) };
   }, [realOrders, realProd, realPurchases, currentBranch]);
 
+
+  // 🔥 ENGINE FILTER TRANSAKSI SAKTI
+  const filteredOrders = useMemo(() => {
+    return realOrders.filter(o => {
+      if (o.isDeleted) return false;
+      if (filterMode === 'SEMUA') return true;
+      
+      const oYMD = parseDateToYMD(o.date);
+      if (!oYMD) return false; 
+
+      if (filterMode === 'HARI_INI') return oYMD === todayYMD;
+      if (filterMode === 'TANGGAL') return oYMD === singleDate;
+      if (filterMode === 'RENTANG') return oYMD >= dateRange.start && oYMD <= dateRange.end;
+      
+      return true;
+    }).sort((a, b) => new Date(b.date) - new Date(a.date));
+  }, [realOrders, filterMode, singleDate, dateRange, todayYMD]);
+
+  // 🔥 ENGINE HITUNG OMSET DARI HASIL FILTER
+  const summaryFiltered = useMemo(() => {
+    let totalRp = 0; let totalPcs = 0; let count = 0;
+    filteredOrders.forEach(o => {
+      totalRp += Number(o.total_amount || 0);
+      let calcQty = 0;
+      const items = safeJsonParse(o.items, []);
+      items.forEach(i => calcQty += Number(i.qty || 0));
+      if(calcQty === 0) calcQty = Number(o.qty || 0);
+      
+      totalPcs += calcQty;
+      count++;
+    });
+    return { totalRp, totalPcs, count };
+  }, [filteredOrders]);
+
+
   // --- ENGINE KERANJANG & HARGA PINTAR ---
   const handleAddToCart = (product) => {
     setCart(prevCart => {
@@ -102,16 +161,12 @@ export default function TabOrders({
         const newCart = [...prevCart];
         const newQty = newCart[existingIdx].qty + 1;
         const finalPrice = newQty >= (product.min_order || 1) ? Number(product.selling_price) : Number(product.penalty_price || product.selling_price);
-        
         newCart[existingIdx] = { ...newCart[existingIdx], qty: newQty, price: finalPrice, subtotal: newQty * finalPrice };
         return newCart;
       } else {
         const initialQty = 1;
         const finalPrice = initialQty >= (product.min_order || 1) ? Number(product.selling_price) : Number(product.penalty_price || product.selling_price);
-        return [...prevCart, {
-          product_id: product.id, name: product.product_name, category: product.category,
-          qty: initialQty, price: finalPrice, subtotal: initialQty * finalPrice, request: ''
-        }];
+        return [...prevCart, { product_id: product.id, name: product.product_name, category: product.category, qty: initialQty, price: finalPrice, subtotal: initialQty * finalPrice, request: '' }];
       }
     });
   };
@@ -120,7 +175,6 @@ export default function TabOrders({
     setCart(prevCart => {
       const newCart = [...prevCart];
       const item = newCart[index];
-      
       if (field === 'qty') {
         const newQty = Number(value);
         const masterProd = realProducts.find(p => p.id === item.product_id);
@@ -137,15 +191,12 @@ export default function TabOrders({
     });
   };
 
-  const handleRemoveFromCart = (index) => {
-    setCart(prev => prev.filter((_, i) => i !== index));
-  };
+  const handleRemoveFromCart = (index) => setCart(prev => prev.filter((_, i) => i !== index));
 
   const cartTotals = useMemo(() => {
     let totalQty = 0; let totalTagihan = 0; let totalHpp = 0;
     cart.forEach(item => {
-      totalQty += item.qty;
-      totalTagihan += item.subtotal;
+      totalQty += item.qty; totalTagihan += item.subtotal;
       const masterProd = realProducts.find(p => p.id === item.product_id);
       totalHpp += item.qty * Number(masterProd?.default_hpp || 0);
     });
@@ -158,13 +209,11 @@ export default function TabOrders({
   const handlePrintTiketProduksi = (log) => {
     const parsedItems = safeJsonParse(log.items, []);
     const printItems = parsedItems.map(item => ({
-      name: `@@WORK_ORDER@@||${log.sales_channel}||${item.name} (${item.request || 'STANDAR'})||${log.notes || '-'}`,
-      qty: item.qty, subtotal: 0
+      name: `@@WORK_ORDER@@||${log.sales_channel}||${item.name} (${item.request || 'STANDAR'})||${log.notes || '-'}`, qty: item.qty, subtotal: 0
     }));
 
     triggerPrint('NOTA_DOTMATRIX', {
-      title: 'WORK ORDER & MANIFEST PABRIK',
-      id: log.id, date: formatDate(log.date), branch_name: log.branch_id || currentBranch,
+      title: 'WORK ORDER & MANIFEST PABRIK', id: log.id, date: formatDate(log.date), branch_name: log.branch_id || currentBranch,
       admin_name: user?.name || 'KASIR', customer_name: log.customer_name?.toUpperCase(),
       items: printItems.length > 0 ? printItems : [{ name: `@@WORK_ORDER@@||${log.sales_channel}||STANDAR MIX||${log.notes || '-'}`, qty: log.qty, subtotal: 0 }],
       paymentMethod: log.delivery_method === 'PRE_ORDER' ? 'ANTREAN PRE-ORDER' : 'PENGAMBILAN LANGSUNG'
@@ -177,13 +226,11 @@ export default function TabOrders({
     
     const parsedItems = safeJsonParse(log.items, []);
     const printItems = parsedItems.map(item => ({
-      name: `${item.name}\nKet: ${item.request || 'Sesuai Standar'}`, 
-      qty: item.qty, subtotal: item.subtotal, suffix: ' Pcs'
+      name: `${item.name}\nKet: ${item.request || 'Sesuai Standar'}`, qty: item.qty, subtotal: item.subtotal, suffix: ' Pcs'
     }));
 
     triggerPrint('NOTA_DOTMATRIX', {
-      title: 'INVOICE PENJUALAN KLIEN',
-      id: log.id, date: formatDate(log.date), branch_name: log.branch_id || currentBranch,
+      title: 'INVOICE PENJUALAN KLIEN', id: log.id, date: formatDate(log.date), branch_name: log.branch_id || currentBranch,
       admin_name: user?.name || 'KASIR', customer_name: log.customer_name?.toUpperCase(),
       items: printItems.length > 0 ? printItems : [{ name: `DIMSUM FROZEN (${log.sales_channel})`, qty: log.qty, subtotal: log.subtotal, suffix: ' Pcs' }],
       amount: log.total_amount, paymentMethod: textPembayaran
@@ -193,17 +240,12 @@ export default function TabOrders({
   const handleEditSafe = (log) => {
     try {
       const parsedItems = safeJsonParse(log.items, []);
-      if (parsedItems.length === 0) {
-        setCart([{ product_id: 'LEGACY', name: log.item_name || 'ITEM HISTORI LAMA', qty: log.qty, price: log.unit_price, subtotal: log.subtotal, request: log.custom_request }]);
-      } else {
-        setCart(parsedItems);
-      }
+      if (parsedItems.length === 0) setCart([{ product_id: 'LEGACY', name: log.item_name || 'ITEM HISTORI LAMA', qty: log.qty, price: log.unit_price, subtotal: log.subtotal, request: log.custom_request }]);
+      else setCart(parsedItems);
       
       setForm({
-        id: log.id || '', date: log.date ? String(log.date).substring(0, 10) : todayStr, 
-        customerName: log.customer_name || '', channel: log.sales_channel || 'ECERAN_WALKIN', 
-        deliveryMethod: log.delivery_method || 'DIRECT', paymentMethod: log.payment_method || 'CASH', 
-        amountPaid: log.amount_paid !== undefined ? log.amount_paid : (log.total_amount || 0), notes: log.notes || ''
+        id: log.id || '', date: log.date ? String(log.date).substring(0, 10) : todayStr, customerName: log.customer_name || '', channel: log.sales_channel || 'ECERAN_WALKIN', 
+        deliveryMethod: log.delivery_method || 'DIRECT', paymentMethod: log.payment_method || 'CASH', amountPaid: log.amount_paid !== undefined ? log.amount_paid : (log.total_amount || 0), notes: log.notes || ''
       });
       setIsEditing(true); window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (e) { alert('Gagal memuat data edit.'); }
@@ -222,12 +264,8 @@ export default function TabOrders({
     const trxId = isEditing ? form.id : generateId('INV', form.date);
     const payload = {
       id: trxId, date: form.date, branch_id: currentBranch, customer_name: form.customerName.toUpperCase(), sales_channel: form.channel,
-      items: JSON.stringify(cart), 
-      qty: cartTotals.totalQty, 
-      unit_price: cart[0]?.price || 0, 
-      subtotal: cartTotals.totalTagihan, total_amount: cartTotals.totalTagihan, payment_method: form.paymentMethod, amount_paid: dibayarFinal,
-      delivery_method: form.deliveryMethod, shipping_fee: 0,
-      status: form.deliveryMethod === 'PRE_ORDER' ? 'BELUM_DIKIRIM' : 'SELESAI', notes: form.notes.toUpperCase()
+      items: JSON.stringify(cart), qty: cartTotals.totalQty, unit_price: cart[0]?.price || 0, subtotal: cartTotals.totalTagihan, total_amount: cartTotals.totalTagihan, payment_method: form.paymentMethod, amount_paid: dibayarFinal,
+      delivery_method: form.deliveryMethod, shipping_fee: 0, status: form.deliveryMethod === 'PRE_ORDER' ? 'BELUM_DIKIRIM' : 'SELESAI', notes: form.notes.toUpperCase()
     };
 
     if (await sendToSheet(isEditing ? 'update' : 'insert', payload, 'orders')) {
@@ -235,33 +273,6 @@ export default function TabOrders({
       if (form.deliveryMethod === 'PRE_ORDER') handlePrintTiketProduksi(payload);
       handleCancelEdit();
     }
-  };
-
-  const isMatchDate = (dbDate, targetYMD) => {
-    if (!targetYMD) return true; 
-    if (!dbDate) return false;
-    
-    const EN_MONTHS = {
-      'januari': 'january', 'februari': 'february', 'maret': 'march', 'mei': 'may',
-      'juni': 'june', 'juli': 'july', 'agustus': 'august', 'oktober': 'october', 'desember': 'december'
-    };
-    
-    let safeDateStr = String(dbDate).toLowerCase();
-    for (const [id, en] of Object.entries(EN_MONTHS)) {
-      safeDateStr = safeDateStr.replace(id, en);
-    }
-    
-    try {
-      const d = new Date(safeDateStr);
-      if(!isNaN(d.getTime())) {
-          const yyyy = d.getFullYear();
-          const mm = String(d.getMonth() + 1).padStart(2, '0');
-          const dd = String(d.getDate()).padStart(2, '0');
-          return `${yyyy}-${mm}-${dd}` === targetYMD;
-      }
-    } catch(e){}
-
-    return String(dbDate).includes(targetYMD);
   };
 
   return (
@@ -405,7 +416,6 @@ export default function TabOrders({
               </div>
             </div>
             
-            {/* BOX TAGIHAN (TOTAL) */}
             <div className="bg-slate-900 text-white p-5 rounded-xl shadow-inner relative overflow-hidden mt-4">
               <div className="flex justify-between items-end relative z-10 mb-2">
                 <div>
@@ -457,29 +467,66 @@ export default function TabOrders({
       {/* ROW BAWAH: LOG HISTORI TRANSAKSI (FULL)     */}
       {/* ========================================= */}
       <div className="bg-white rounded-3xl border flex flex-col overflow-hidden shadow-sm mt-8">
-        <div className="p-5 bg-slate-50 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        
+        {/* HEADER FILTER TRANSAKSI */}
+        <div className="p-5 bg-slate-50 border-b flex flex-col lg:flex-row lg:items-center justify-between gap-4">
            <div>
-             <h4 className="font-black text-sm uppercase text-slate-800 tracking-widest flex items-center gap-2"><FileText size={18} className="text-blue-600"/> Riwayat Transaksi Kasir</h4>
-             <p className="text-[10px] font-bold text-slate-500 uppercase mt-1">Hanya menampilkan data pada tanggal yang dipilih di kanan</p>
+             <h4 className="font-black text-sm uppercase text-slate-800 tracking-widest flex items-center gap-2"><FileText size={18} className="text-blue-600"/> Riwayat Transaksi Penjualan</h4>
+             <p className="text-[10px] font-bold text-slate-500 uppercase mt-1">Gunakan alat di samping untuk memfilter data dan melihat total omset.</p>
            </div>
            
-           <div className="flex flex-wrap items-center gap-2">
-             <div className="flex items-center gap-2 bg-white border border-slate-300 p-2 rounded-xl shadow-sm">
-               <Calendar size={16} className="text-blue-600 ml-1"/>
-               <input type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} className="text-xs font-black text-slate-800 uppercase outline-none bg-transparent cursor-pointer pr-2" />
+           {/* ALAT FILTER SUPER CANGGIH */}
+           <div className="flex flex-wrap items-center gap-2 bg-white p-1.5 border border-slate-200 rounded-2xl shadow-sm">
+             <div className="flex items-center gap-2 pl-2">
+                <Filter size={14} className="text-blue-500"/>
+                <select value={filterMode} onChange={e => setFilterMode(e.target.value)} className="text-xs font-black text-slate-700 bg-transparent py-2 outline-none cursor-pointer uppercase">
+                  <option value="HARI_INI">HARI INI (REALTIME)</option>
+                  <option value="TANGGAL">1 TANGGAL KHUSUS</option>
+                  <option value="RENTANG">RENTANG WAKTU (DARI - SAMPAI)</option>
+                  <option value="SEMUA">BUKA SEMUA CATATAN</option>
+                </select>
              </div>
-             
-             {filterDate !== '' ? (
-               <button onClick={() => setFilterDate('')} className="bg-slate-100 border border-slate-200 text-slate-600 px-3 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-slate-200 transition-colors shadow-sm">
-                 Tampilkan Semua Tanggal
-               </button>
-             ) : (
-               <button onClick={() => setFilterDate(todayYMD)} className="bg-blue-50 border border-blue-200 text-blue-600 px-3 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-blue-100 transition-colors shadow-sm">
-                 Tampilkan Hari Ini
-               </button>
+
+             {filterMode === 'TANGGAL' && (
+               <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl">
+                 <Calendar size={14} className="text-slate-500"/>
+                 <input type="date" value={singleDate} onChange={e => setSingleDate(e.target.value)} className="text-xs font-black text-slate-800 uppercase outline-none bg-transparent cursor-pointer" />
+               </div>
+             )}
+
+             {filterMode === 'RENTANG' && (
+               <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl">
+                  <span className="text-[9px] font-black text-slate-400 uppercase">DARI</span>
+                  <input type="date" value={dateRange.start} onChange={e => setDateRange({...dateRange, start: e.target.value})} className="text-xs font-black text-slate-800 outline-none bg-transparent cursor-pointer" />
+                  <span className="text-[9px] font-black text-slate-400 uppercase border-l border-slate-300 pl-2">SAMPAI</span>
+                  <input type="date" value={dateRange.end} onChange={e => setDateRange({...dateRange, end: e.target.value})} className="text-xs font-black text-slate-800 outline-none bg-transparent cursor-pointer" />
+               </div>
              )}
            </div>
         </div>
+
+        {/* REKAP TOTAL OMSET (MUNCUL OTOMATIS) */}
+        {summaryFiltered.count > 0 && (
+          <div className="bg-emerald-50 border-b border-emerald-100 px-6 py-4 flex flex-wrap justify-between items-center gap-4">
+            <div className="flex items-center gap-3">
+               <div className="bg-emerald-500 text-white p-2 rounded-lg shadow-sm"><DollarSign size={20}/></div>
+               <div>
+                 <div className="text-xs font-black text-emerald-800 uppercase tracking-widest">Total {summaryFiltered.count} Transaksi Ditemukan</div>
+                 <div className="text-[10px] font-bold text-emerald-600 uppercase mt-0.5">Sesuai filter tanggal yang Bos pilih di atas</div>
+               </div>
+            </div>
+            <div className="flex flex-wrap gap-6 bg-white p-3 rounded-xl border border-emerald-100 shadow-sm">
+               <div className="border-r border-slate-100 pr-6">
+                  <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Barang Terjual</div>
+                  <div className="text-lg font-black text-slate-800">{formatNumber(summaryFiltered.totalPcs)} <span className="text-[10px] text-slate-500">PCS</span></div>
+               </div>
+               <div>
+                  <div className="text-[9px] font-black text-emerald-600/70 uppercase tracking-widest mb-1">Total Omset Pendapatan</div>
+                  <div className="text-xl font-black text-emerald-600">{formatRupiah(summaryFiltered.totalRp)}</div>
+               </div>
+            </div>
+          </div>
+        )}
         
         <div className="overflow-x-auto p-4 custom-scrollbar">
           <table className="w-full text-sm text-left border-collapse">
@@ -493,10 +540,7 @@ export default function TabOrders({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs font-bold">
-              {realOrders
-                .filter(o => !o.isDeleted && isMatchDate(o.date, filterDate)) 
-                .sort((a, b) => new Date(b.date) - new Date(a.date))
-                .map(log => {
+              {filteredOrders.map(log => {
                 const itemsArr = safeJsonParse(log.items, []);
                 let displayItemName = log.item_name || 'BANYAK JENIS MENU';
                 if (itemsArr.length === 1) displayItemName = itemsArr[0].name;
@@ -531,7 +575,7 @@ export default function TabOrders({
                 );
               })}
               
-              {realOrders.filter(o => !o.isDeleted && isMatchDate(o.date, filterDate)).length === 0 && (
+              {filteredOrders.length === 0 && (
                 <tr>
                   <td colSpan="5" className="text-center py-20 bg-slate-50 border-t border-slate-100">
                     <div className="flex flex-col items-center justify-center text-slate-400">
