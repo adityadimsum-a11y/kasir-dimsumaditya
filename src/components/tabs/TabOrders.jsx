@@ -1,13 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { ShoppingCart, Package, AlertCircle, Edit2, Printer, Trash2, X, FileText, Undo, Plus, Minus, Lock, CheckCircle2 } from 'lucide-react';
+import { ShoppingCart, Package, AlertCircle, Edit2, Printer, Trash2, X, FileText, Undo, Lock, CheckCircle2 } from 'lucide-react';
 import { getTodayStr, generateId, formatDate, safeJsonParse, formatRp } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
 
-// 🔥 INI DIA YANG KETINGGALAN TADI BOS! WKWK
-const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
-// CHANNEL HANYA UNTUK LABEL TRACKING ANALYTICS (Harga asli ditarik dari Master Menu Owner)
 const SALES_CHANNELS = [
   { id: 'ECERAN_WALKIN', label: 'Eceran / Walk-in Resto', group: 'OFFLINE' },
   { id: 'MITRA_AGEN', label: 'Mitra Agen', group: 'OFFLINE' },
@@ -34,20 +31,23 @@ export default function TabOrders({
   const [isEditing, setIsEditing] = useState(false);
   const [showKarantinaModal, setShowKarantinaModal] = useState(false);
   
-  // FORM NOTA INDUK
   const [form, setForm] = useState({
     id: '', date: todayStr, customerName: '', channel: 'ECERAN_WALKIN', 
     deliveryMethod: 'DIRECT', paymentMethod: 'CASH', amountPaid: '', notes: '',
   });
 
-  // STATE KERANJANG BELANJA (MULTI-ITEM)
   const [cart, setCart] = useState([]);
 
   // --- SINKRONISASI DATABASE ---
   const realOrders = useMemo(() => orders_data || orders || [], [orders, orders_data]);
   const realProd = useMemo(() => production_batches || productionBatches || [], [productionBatches, production_batches]);
   const realPurchases = useMemo(() => purchases_data || purchases || [], [purchases, purchases_data]);
-  const realProducts = useMemo(() => master_products || masterProducts || [], [masterProducts, master_products]);
+  
+  // SINKRONISASI MURNI MASTER PRODUK
+  const realProducts = useMemo(() => {
+      const data = master_products || masterProducts;
+      return Array.isArray(data) ? data : [];
+  }, [masterProducts, master_products]);
 
   // --- ENGINE STOK & KARANTINA ---
   const stockMetrics = useMemo(() => {
@@ -60,7 +60,6 @@ export default function TabOrders({
       let totalQtyNota = 0;
       const parsedItems = safeJsonParse(o.items, []);
       parsedItems.forEach(i => totalQtyNota += Number(i.qty || 0));
-      // Fallback jika json kosong (data lama)
       if (totalQtyNota === 0) totalQtyNota = Number(o.qty || 0);
 
       if (o.delivery_method === 'PRE_ORDER' && o.status !== 'SELESAI') { 
@@ -79,7 +78,6 @@ export default function TabOrders({
     setCart(prevCart => {
       const existingIdx = prevCart.findIndex(item => item.product_id === product.id);
       if (existingIdx >= 0) {
-        // Jika barang sudah ada, tambah Qty +1, lalu cek harga pinalti
         const newCart = [...prevCart];
         const newQty = newCart[existingIdx].qty + 1;
         const finalPrice = newQty >= (product.min_order || 1) ? Number(product.selling_price) : Number(product.penalty_price || product.selling_price);
@@ -87,7 +85,6 @@ export default function TabOrders({
         newCart[existingIdx] = { ...newCart[existingIdx], qty: newQty, price: finalPrice, subtotal: newQty * finalPrice };
         return newCart;
       } else {
-        // Masukkan barang baru (Default qty = 1, cek pinalti)
         const initialQty = 1;
         const finalPrice = initialQty >= (product.min_order || 1) ? Number(product.selling_price) : Number(product.penalty_price || product.selling_price);
         return [...prevCart, {
@@ -105,7 +102,6 @@ export default function TabOrders({
       
       if (field === 'qty') {
         const newQty = Number(value);
-        // Cari master product untuk cek aturan
         const masterProd = realProducts.find(p => p.id === item.product_id);
         if (masterProd) {
           const finalPrice = newQty >= (masterProd.min_order || 1) ? Number(masterProd.selling_price) : Number(masterProd.penalty_price || masterProd.selling_price);
@@ -156,7 +152,7 @@ export default function TabOrders({
 
   const handlePrintInvoiceKlien = (log) => {
     const sisaUtang = Number(log.total_amount) - Number(log.amount_paid);
-    const textPembayaran = sisaUtang > 0 ? `BELUM LUNAS (SISA: ${formatRupiah(sisaUtang)})` : `LUNAS (${log.payment_method})`;
+    const textPembayaran = sisaUtang > 0 ? `BELUM LUNAS (SISA: ${formatRp(sisaUtang)})` : `LUNAS (${log.payment_method})`;
     
     const parsedItems = safeJsonParse(log.items, []);
     const printItems = parsedItems.map(item => ({
@@ -173,10 +169,18 @@ export default function TabOrders({
     });
   };
 
+  // 🔥 PENYAKITNYA DI SINI BOS, SUDAH SAYA OPRASI BERSIH!
   const handleEditSafe = (log) => {
     try {
       const parsedItems = safeJsonParse(log.items, []);
-      setCart(parsedItems.length > 0 ? parsedItems : [{ product_id: 'LEGACY', name: 'DIMSUM (DATA LAMA)', qty: log.qty, price: log.unit_price, subtotal: log.subtotal, request: log.custom_request }]);
+      
+      // Jika hasil edit ternyata array kosong (transaksi zaman jebot), kita buat item fiktif "ITEM HISTORI"
+      // Tapi kita TIDAK BOLEH menampilkannya di Katalog Menu!
+      if (parsedItems.length === 0) {
+        setCart([{ product_id: 'LEGACY', name: log.item_name || 'ITEM HISTORI LAMA', qty: log.qty, price: log.unit_price, subtotal: log.subtotal, request: log.custom_request }]);
+      } else {
+        setCart(parsedItems);
+      }
       
       setForm({
         id: log.id || '', date: log.date ? String(log.date).substring(0, 10) : todayStr, 
@@ -201,9 +205,9 @@ export default function TabOrders({
     const trxId = isEditing ? form.id : generateId('INV', form.date);
     const payload = {
       id: trxId, date: form.date, branch_id: currentBranch, customer_name: form.customerName.toUpperCase(), sales_channel: form.channel,
-      items: JSON.stringify(cart), // SIMPAN DATA KERANJANG KE JSON
-      qty: cartTotals.totalQty, // Fallback untuk dashboard agar tidak error
-      unit_price: cart[0]?.price || 0, // Fallback
+      items: JSON.stringify(cart), 
+      qty: cartTotals.totalQty, 
+      unit_price: cart[0]?.price || 0, 
       subtotal: cartTotals.totalTagihan, total_amount: cartTotals.totalTagihan, payment_method: form.paymentMethod, amount_paid: dibayarFinal,
       delivery_method: form.deliveryMethod, shipping_fee: 0,
       status: form.deliveryMethod === 'PRE_ORDER' ? 'BELUM_DIKIRIM' : 'SELESAI', notes: form.notes.toUpperCase()
@@ -254,18 +258,24 @@ export default function TabOrders({
             <div className="bg-white rounded-2xl border shadow-sm p-5 border-t-4 border-t-blue-500">
                <h3 className="font-black text-xs uppercase text-slate-800 tracking-widest flex items-center gap-2 mb-4"><Package size={16} className="text-blue-600"/> Katalog Menu (Klik untuk tambah)</h3>
                <div className="grid grid-cols-2 gap-3 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
-                 {realProducts.filter(p => !p.isDeleted).map(prod => (
-                   <div key={prod.id} onClick={() => handleAddToCart(prod)} className="bg-slate-50 border border-slate-200 p-3 rounded-xl cursor-pointer hover:border-blue-400 hover:shadow-md transition-all active:scale-95 group flex flex-col justify-between">
-                      <div>
-                        <div className="text-xs font-black text-slate-800 uppercase group-hover:text-blue-700 leading-tight">{prod.product_name}</div>
-                        <div className="text-[9px] font-bold text-slate-400 uppercase mt-1">{prod.category.replace('_', ' ')}</div>
-                      </div>
-                      <div className="mt-2 pt-2 border-t border-slate-200/60">
-                        <div className="text-sm font-black text-emerald-600">{formatRupiah(prod.selling_price)}</div>
-                        <div className="text-[8px] font-black text-amber-600 uppercase mt-0.5 tracking-wider">Min: {prod.min_order || 1} Pcs | Ecer: {formatRupiah(prod.penalty_price || prod.selling_price)}</div>
-                      </div>
-                   </div>
-                 ))}
+                 {realProducts.length === 0 ? (
+                    <div className="col-span-2 text-center py-6 text-slate-400 text-xs font-bold border border-dashed rounded-xl bg-slate-50 uppercase tracking-widest">
+                       Menu kosong. Tambahkan menu di "Master Data".
+                    </div>
+                 ) : (
+                   realProducts.map(prod => (
+                     <div key={prod.id} onClick={() => handleAddToCart(prod)} className="bg-slate-50 border border-slate-200 p-3 rounded-xl cursor-pointer hover:border-blue-400 hover:shadow-md transition-all active:scale-95 group flex flex-col justify-between">
+                        <div>
+                          <div className="text-xs font-black text-slate-800 uppercase group-hover:text-blue-700 leading-tight">{prod.product_name}</div>
+                          <div className="text-[9px] font-bold text-slate-400 uppercase mt-1">{prod.category.replace('_', ' ')}</div>
+                        </div>
+                        <div className="mt-2 pt-2 border-t border-slate-200/60">
+                          <div className="text-sm font-black text-emerald-600">{formatRp(prod.selling_price)}</div>
+                          <div className="text-[8px] font-black text-amber-600 uppercase mt-0.5 tracking-wider">Min: {prod.min_order || 1} Pcs | Ecer: {formatRp(prod.penalty_price || prod.selling_price)}</div>
+                        </div>
+                     </div>
+                   ))
+                 )}
                </div>
             </div>
 
@@ -310,11 +320,11 @@ export default function TabOrders({
                           <div className="mt-3 flex justify-between items-end border-t border-slate-100 pt-2">
                             <div>
                               <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Harga/Pcs {isPenalty && <span className="text-rose-500 bg-rose-100 px-1 rounded ml-1 animate-pulse">Pinalti Ecer</span>}</div>
-                              <div className={`font-black text-sm ${isPenalty ? 'text-rose-600' : 'text-slate-800'}`}>{formatRupiah(item.price)}</div>
+                              <div className={`font-black text-sm ${isPenalty ? 'text-rose-600' : 'text-slate-800'}`}>{formatRp(item.price)}</div>
                             </div>
                             <div className="text-right">
                               <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Subtotal</div>
-                              <div className="font-black text-emerald-600 text-sm">{formatRupiah(item.subtotal)}</div>
+                              <div className="font-black text-emerald-600 text-sm">{formatRp(item.subtotal)}</div>
                             </div>
                           </div>
                         </div>
