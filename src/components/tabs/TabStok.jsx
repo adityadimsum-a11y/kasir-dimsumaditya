@@ -1,10 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Factory, Calendar, Edit2, CheckCircle2, AlertTriangle, Printer, Trash2, Scale, Package, Filter, Activity, Undo, Layers, Utensils } from 'lucide-react';
+import { Factory, Calendar, Edit2, CheckCircle2, AlertTriangle, Printer, Trash2, Scale, Package, Filter, Activity, Undo } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
 
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
+// FORMAT TANGGAL INTERNASIONAL KE ROBOT
 const parseDateToYMD = (dbDate) => {
   if (!dbDate) return null;
   const EN_MONTHS = {
@@ -41,20 +42,17 @@ export default function TabStok({
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }, []);
 
-  // --- STATE FILTER ---
+  // --- FILTER ATAS RIWAYAT TABEL ---
   const [filterMode, setFilterMode] = useState('HARI_INI');
   const [dateRange, setDateRange] = useState({ start: todayYMD, end: todayYMD });
 
-  // --- STATE INPUT JUMLAH ADUKAN (PATOKAN UTAMA) ---
-  const [inputAdukan, setInputAdukan] = useState('1'); 
-
-  // --- STATE FORM INPUT ---
+  // --- FORM INPUT UTAMA DAPUR ---
   const [form, setForm] = useState({
-    id: '', date: todayStr, pic_name: '', total_yield_pcs: '', notes: ''
+    id: '', date: todayStr, pic_name: '', jumlah_adukan: '1', total_yield_pcs: '', notes: ''
   });
   const [isEditing, setIsEditing] = useState(false);
 
-  // --- STANDARD ATURAN MASTER ---
+  // --- STANDAR REWAN KONVERSI DARI ATURAN PABRIKAN MASTER ---
   const [rules, setRules] = useState({
     timbangan_mentah: 10, resep_adukan: 30, target_yield: 1000, porsi_eceran: 4, mika_frozen: 50
   });
@@ -71,19 +69,18 @@ export default function TabStok({
     }
   }, [masterRules]);
 
-  // --- PERHITUNGAN LIVE MONITOR BANNER ---
-  const jumlahAdukan = Number(inputAdukan || 0);
-  const monitorAyamKg = jumlahAdukan * rules.resep_adukan;
-  const monitorTargetPcs = jumlahAdukan * rules.target_yield;
-  const monitorSetaraMika = monitorTargetPcs / rules.mika_frozen;
-  const monitorSetaraPorsi = monitorTargetPcs / rules.porsi_eceran;
+  // --- LIVE HITUNG KONVERSI MONITOR SAKTI (IKUT INPUT FORM UTAMA) ---
+  const nilaiAdukan = Number(form.jumlah_adukan || 0);
+  const monitorAyamKg = nilaiAdukan * rules.resep_adukan;
+  const monitorTargetPcs = nilaiAdukan * rules.target_yield;
+  const monitorMika = monitorTargetPcs / rules.mika_frozen;
+  const monitorPorsi = monitorTargetPcs / rules.porsi_eceran;
 
-  // Real-time validasi hasil input fisik lapangan
+  // Cek live penyusutan barang
   const selisih = Number(form.total_yield_pcs || 0) - monitorTargetPcs;
-  const realMika = Number(form.total_yield_pcs || 0) / rules.mika_frozen;
-  const realPorsi = Number(form.total_yield_pcs || 0) / rules.porsi_eceran;
+  const hasilMikaAktual = Number(form.total_yield_pcs || 0) / rules.mika_frozen;
 
-  // --- ENGINE SINKRON DATA TABLE ---
+  // --- DATA SYNC TABEL ---
   const realBatches = useMemo(() => Array.isArray(productionBatches) ? productionBatches : [], [productionBatches]);
   
   const filteredBatches = useMemo(() => {
@@ -111,16 +108,17 @@ export default function TabStok({
     return { totalAyam, totalDimsum, count: filteredBatches.length };
   }, [filteredBatches]);
 
-  // --- ACTIONS ---
+  // --- SUBMIT KUNCI ---
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const finalStatus = Number(form.total_yield_pcs) >= monitorTargetPcs ? 'VALID' : 'DEFICIT';
+    if(Number(form.jumlah_adukan || 0) <= 0) return alert("Jumlah adukan produksi minimal 1 adukan!");
 
+    const finalStatus = Number(form.total_yield_pcs) >= monitorTargetPcs ? 'VALID' : 'DEFICIT';
     const payload = {
       id: isEditing ? form.id : generateId('PRD', form.date),
       date: form.date,
       pic_name: form.pic_name.toUpperCase(),
-      total_ayam_kg: monitorAyamKg, // Di-lock dari monitor adukan
+      total_ayam_kg: monitorAyamKg, 
       total_yield_pcs: Number(form.total_yield_pcs),
       notes: form.notes.toUpperCase(),
       branch_id: currentBranch,
@@ -128,10 +126,9 @@ export default function TabStok({
     };
 
     if (await sendToSheet(isEditing ? 'update' : 'insert', payload, 'production_batches')) {
-      showToast('Laporan produksi berhasil dikunci masuk freezer!', 'success');
+      showToast('Laporan produksi berhasil dicatat resmi!', 'success');
       handlePrint(payload);
-      setForm({ id: '', date: todayStr, pic_name: '', total_yield_pcs: '', notes: '' });
-      setInputAdukan('1');
+      setForm({ id: '', date: todayStr, pic_name: '', jumlah_adukan: '1', total_yield_pcs: '', notes: '' });
       setIsEditing(false);
     }
   };
@@ -139,9 +136,9 @@ export default function TabStok({
   const handleEdit = (b) => {
     setForm({
       id: b.id, date: b.date ? String(b.date).substring(0, 10) : todayStr,
-      pic_name: b.pic_name || '', total_yield_pcs: String(b.total_yield_pcs || ''), notes: b.notes || ''
+      pic_name: b.pic_name || '', total_yield_pcs: String(b.total_yield_pcs || ''), notes: b.notes || '',
+      jumlah_adukan: String(Number(b.total_ayam_kg || 0) / rules.resep_adukan)
     });
-    setInputAdukan(String(Number(b.total_ayam_kg || 0) / rules.resep_adukan));
     setIsEditing(true); window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -149,12 +146,12 @@ export default function TabStok({
     triggerPrint('NOTA_DOTMATRIX', {
       title: 'BUKTI PRODUKSI MASUK FREEZER',
       id: log.id, date: formatDate(log.date), branch_name: log.branch_id || currentBranch,
-      admin_name: log.pic_name, customer_name: 'GUDANG FREEZER UTAMA',
+      admin_name: log.pic_name, customer_name: 'GUDANG FREEZER INDUK',
       items: [
-        { name: 'TOTAL BAHAN AYAM', qty: log.total_ayam_kg, subtotal: 0, suffix: ' Kg' },
-        { name: 'TOTAL DIMSUM JADI', qty: log.total_yield_pcs, subtotal: 0, suffix: ' Pcs' }
+        { name: 'TOTAL BERAT AYAM OLAHAN', qty: log.total_ayam_kg, subtotal: 0, suffix: ' Kg' },
+        { name: 'TOTAL BIJI DIMSUM JADI', qty: log.total_yield_pcs, subtotal: 0, suffix: ' Pcs' }
       ],
-      paymentMethod: 'CATATAN: ' + (log.notes || 'PRODUKSI AMAN')
+      paymentMethod: 'KETERANGAN: ' + (log.notes || 'PRODUKSI AMAN')
     });
   };
 
@@ -162,29 +159,20 @@ export default function TabStok({
     <div className="space-y-6 pb-10 relative animate-in fade-in duration-300">
       
       {/* ========================================= */}
-      {/* 🔥 BANNER PAPAN MONITOR PRODUKSI DIGITAL RAKSASA */}
+      {/* 🖥️ PAPAN MONITOR KENDALI PRODUKSI (LIVE)     */}
       {/* ========================================= */}
       <div className="bg-slate-900 rounded-3xl border border-slate-800 p-6 text-white shadow-xl">
-         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-800 pb-4 mb-6">
-           <div>
-              <h2 className="text-xl font-black uppercase tracking-widest text-amber-400 flex items-center gap-2">
-                <Activity size={22}/> Papan Monitor Kendali Produksi (Live)
-              </h2>
-              <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Ketik jumlah rencana adukan untuk melihat proyeksi nilai konversi</p>
-           </div>
-           
-           {/* KOTAK SETTING ADUKAN UTAMA */}
-           <div className="bg-slate-950 p-2 rounded-2xl border border-slate-700 flex items-center gap-3">
-              <span className="text-xs font-black text-amber-400 uppercase pl-2">SET ADUKAN:</span>
-              <input type="number" min="1" max="100" value={inputAdukan} onChange={e => setInputAdukan(e.target.value)} className="w-16 bg-slate-800 border border-slate-600 text-white text-xl font-black text-center rounded-xl py-1 outline-none focus:border-amber-400" />
-           </div>
+         <div className="border-b border-slate-800 pb-4 mb-5">
+            <h2 className="text-xl font-black uppercase tracking-widest text-amber-400 flex items-center gap-2">
+              <Activity size={22}/> Papan Monitor Kendali Produksi (Live)
+            </h2>
+            <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Mengikuti jumlah adukan yang diisi di formulir bawah</p>
          </div>
 
-         {/* GRID BANNER MONITOR */}
          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-slate-950/60 border border-slate-800 p-4 rounded-2xl">
               <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Adukan Aktif</div>
-              <div className="text-2xl font-black text-amber-400 mt-1">{formatNumber(jumlahAdukan)} <span className="text-xs text-slate-500">KALI</span></div>
+              <div className="text-2xl font-black text-amber-400 mt-1">{formatNumber(nilaiAdukan)} <span className="text-xs text-slate-500">KALI</span></div>
             </div>
             <div className="bg-slate-950/60 border border-slate-800 p-4 rounded-2xl">
               <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Wajib Sedia Ayam Mentah</div>
@@ -197,88 +185,92 @@ export default function TabStok({
             <div className="bg-slate-950/60 border border-slate-800 p-4 rounded-2xl">
               <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Proyeksi Hasil Kemasan</div>
               <div className="text-xs font-black text-blue-400 mt-1.5 flex flex-col gap-0.5 uppercase">
-                 <span>📦 {formatNumber(monitorSetaraMika)} Mika Frozen</span>
-                 <span>🍽️ {formatNumber(monitorSetaraPorsi)} Porsi Resto</span>
+                 <span>📦 {formatNumber(monitorMika)} Mika Frozen</span>
+                 <span>🍽️ {formatNumber(monitorPorsi)} Porsi Resto</span>
               </div>
             </div>
          </div>
       </div>
 
-      {/* FORM & RIWAYAT */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        {/* FORMULIR INPUT */}
+        {/* ========================================= */}
+        {/* FORMULIR UTAMA: ISI HASIL KERJA LAPANGAN  */}
+        {/* ========================================= */}
         <div className="lg:col-span-4 bg-white rounded-2xl border shadow-sm p-6 border-t-4 border-t-blue-600 h-max">
           <div className="flex items-center justify-between border-b pb-4 mb-5">
             <h3 className="font-black text-sm uppercase text-slate-800 tracking-widest flex items-center gap-2">
               <Factory size={18} className="text-blue-600"/> Isi Hasil Kerja Lapangan
             </h3>
-            {isEditing && <button type="button" onClick={() => { setIsEditing(false); setForm({ id: '', date: todayStr, pic_name: '', total_yield_pcs: '', notes: '' }); setInputAdukan('1'); }} className="text-[10px] border border-amber-200 px-2 py-1 rounded-lg font-black uppercase text-amber-700 bg-white hover:bg-amber-50"><Undo size={12}/></button>}
+            {isEditing && <button type="button" onClick={() => { setIsEditing(false); setForm({ id: '', date: todayStr, pic_name: '', jumlah_adukan: '1', total_yield_pcs: '', notes: '' }); }} className="text-[10px] border border-amber-200 p-2 rounded-lg font-black text-amber-700 bg-white hover:bg-amber-50"><Undo size={12}/></button>}
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[10px] font-black text-slate-500 uppercase block mb-1.5">Tanggal Kerja</label>
+                <label className="text-[10px] font-black text-slate-500 uppercase block mb-1">Tanggal Kerja</label>
                 <input type="date" required value={form.date} onChange={e=>setForm({...form, date: e.target.value})} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold text-xs uppercase outline-none focus:border-blue-400" />
               </div>
               <div>
-                <label className="text-[10px] font-black text-slate-500 uppercase block mb-1.5">Kepala Dapur (PIC)</label>
-                <input type="text" required value={form.pic_name} onChange={e=>setForm({...form, pic_name: e.target.value})} placeholder="Nama..." className="w-full p-2.5 bg-slate-50 border rounded-xl font-black text-xs uppercase outline-none focus:border-blue-400" />
+                <label className="text-[10px] font-black text-slate-500 uppercase block mb-1">Nama Kepala Dapur</label>
+                <input type="text" required value={form.pic_name} onChange={e=>setForm({...form, pic_name: e.target.value})} placeholder="Nama PIC..." className="w-full p-2.5 bg-slate-50 border rounded-xl font-black text-xs uppercase outline-none focus:border-blue-400" />
               </div>
             </div>
 
-            {/* BOX 1: AYAM LOCK */}
-            <div className="bg-slate-100 border border-slate-200 rounded-xl p-4 relative overflow-hidden opacity-80">
-              <Scale size={60} className="absolute -right-4 -bottom-4 text-slate-300 opacity-40"/>
-              <label className="text-[10px] font-black text-slate-500 uppercase block mb-1">1. Bahan Ayam Terkunci (Sesuai Monitor)</label>
-              <div className="text-2xl font-black text-slate-700 mt-1">{formatNumber(monitorAyamKg)} <span className="text-xs text-slate-400">KG ASLI</span></div>
+            {/* 🔥 DISINI TEMPAT INPUT JUMLAH ADUKANNYA BOS! */}
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 transition-all">
+              <label className="text-[10px] font-black text-amber-800 uppercase tracking-widest block mb-2">1. Masukkan Jumlah Adukan Hari Ini</label>
+              <div className="flex items-center gap-3">
+                <input type="number" required min="1" max="100" value={form.jumlah_adukan} onChange={e=>setForm({...form, jumlah_adukan: e.target.value})} className="w-full p-2.5 bg-white border-2 border-amber-300 rounded-xl text-xl font-black text-amber-700 text-center outline-none focus:border-amber-500" placeholder="1" />
+                <span className="font-black text-amber-800 text-sm uppercase shrink-0">Kali Adukan</span>
+              </div>
+              <div className="text-[8px] font-bold text-amber-600/80 uppercase mt-2">Otomatis menghitung berat ayam {monitorAyamKg} Kg di papan monitor atas.</div>
             </div>
 
-            {/* BOX 2: INPUT PCS REAL JADI */}
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 relative overflow-hidden focus-within:border-emerald-400 focus-within:ring-2 focus-within:ring-emerald-100 transition-all">
+            {/* INPUT JUMLAH BIJI DIMSUM FISIK */}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 focus-within:border-emerald-400 focus-within:ring-2 focus-within:ring-emerald-100 transition-all">
               <label className="text-[10px] font-black text-emerald-700 uppercase tracking-widest block mb-2">2. Ketik Hasil Jadi Fisik Dimsum (PCS)</label>
               <div className="flex items-center gap-2">
                 <input type="number" required min="0" value={form.total_yield_pcs} onChange={e=>setForm({...form, total_yield_pcs: e.target.value})} className="w-full p-3 bg-white border-2 border-emerald-300 rounded-lg text-2xl font-black text-emerald-700 text-center outline-none focus:border-emerald-500" placeholder="0" />
                 <span className="font-black text-slate-500 text-lg">Pcs</span>
               </div>
-              
               {Number(form.total_yield_pcs) > 0 && (
-                <div className="mt-3 bg-emerald-100/50 p-2 rounded border border-emerald-200 flex justify-between text-[10px] font-black text-emerald-800 uppercase">
-                  <span>Mika Jadi: {formatNumber(realMika.toFixed(0))} Mika</span>
-                  <span>Porsi Jadi: {formatNumber(realPorsi.toFixed(0))} Porsi</span>
+                <div className="mt-2 text-[9px] font-black text-emerald-800 bg-emerald-100/50 p-1.5 rounded text-center uppercase">
+                  Nyata Terkumpul: {formatNumber(hasilMikaAktual.toFixed(0))} Mika Frozen
                 </div>
               )}
             </div>
 
-            {/* DETEKSI SUSUT LIVE */}
-            {jumlahAdukan > 0 && Number(form.total_yield_pcs) > 0 && (
+            {/* BAR PROSES LIVE DETEKSI */}
+            {nilaiAdukan > 0 && Number(form.total_yield_pcs) > 0 && (
               <div className={`p-3 rounded-xl border flex items-start gap-2 ${selisih < 0 ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-emerald-50 border-emerald-200 text-emerald-700'}`}>
                 {selisih < 0 ? <AlertTriangle size={18} className="shrink-0 mt-0.5"/> : <CheckCircle2 size={18} className="shrink-0 mt-0.5"/>}
                 <div>
-                  <div className="text-[10px] font-black uppercase tracking-widest">{selisih < 0 ? 'Hati-hati: Hasil Susut!' : 'Sukses: Sesuai Target!'}</div>
-                  <div className="text-xs font-bold mt-1">{selisih < 0 ? `Kurang ${formatNumber(Math.abs(selisih))} Pcs dari target monitor (${formatNumber(monitorTargetPcs)} Pcs).` : `Produksi aman & subur.`}</div>
+                  <div className="text-[10px] font-black uppercase tracking-widest">{selisih < 0 ? 'Peringatan: Hasil Susut!' : 'Sukses: Sesuai Target Standar!'}</div>
+                  <div className="text-xs font-bold mt-1">{selisih < 0 ? `Kurang ${formatNumber(Math.abs(selisih))} Pcs dari target monitor (${formatNumber(monitorTargetPcs)} Pcs).` : `Produksi dapur subur dan aman.`}</div>
                 </div>
               </div>
             )}
 
             <div>
-              <label className="text-[10px] font-black text-slate-500 uppercase block mb-1.5">Catatan Tambahan / Alasan Susut</label>
+              <label className="text-[10px] font-black text-slate-500 uppercase block mb-1.5">Catatan Tambahan Kondisi Adonan</label>
               <textarea rows="2" value={form.notes} onChange={e=>setForm({...form, notes: e.target.value})} placeholder="Ketik info penting adonan jika ada..." className={`w-full p-3 bg-slate-50 border rounded-xl font-bold text-xs uppercase outline-none ${selisih < 0 ? 'border-rose-300 focus:border-rose-500' : 'focus:border-blue-400'}`}></textarea>
             </div>
 
-            <button type="submit" className={`w-full text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest shadow-xl transition-transform active:scale-95 flex items-center justify-center gap-2 ${isEditing ? 'bg-amber-500 hover:bg-amber-600' : 'bg-blue-600 hover:bg-blue-700'}`}>
-              {isEditing ? 'Simpan Revisi' : 'Kunci Masuk Freezer &amp; Cetak'}
+            <button type="submit" className="w-full text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest shadow-xl bg-blue-600 hover:bg-blue-700 transition-all active:scale-95">
+              Kunci Masuk Freezer &amp; Cetak Tiket
             </button>
           </form>
         </div>
 
-        {/* RIWAYAT PENJUALAN / PRODUKSI TABEL */}
+        {/* ========================================= */}
+        {/* RIWAYAT PENJUALAN TABLE                     */}
+        {/* ========================================= */}
         <div className="lg:col-span-8 bg-white rounded-3xl border flex flex-col overflow-hidden shadow-sm h-max">
           <div className="p-5 bg-slate-50 border-b flex flex-col lg:flex-row lg:items-center justify-between gap-4">
              <div>
-               <h4 className="font-black text-sm uppercase text-slate-800 tracking-widest flex items-center gap-2"><Activity size={18} className="text-blue-600"/> Log Jurnal Buku Produksi Dapur</h4>
-               <p className="text-[10px] font-bold text-slate-500 uppercase mt-1">Gunakan alat filter di samping untuk merekap total barang.</p>
+               <h4 className="font-black text-sm uppercase text-slate-800 tracking-widest flex items-center gap-2"><Activity size={18} className="text-blue-600"/> Riwayat Catatan Dapur</h4>
+               <p className="text-[10px] font-bold text-slate-500 uppercase mt-1">Gunakan alat filter di samping untuk melihat total data.</p>
              </div>
              
              <div className="flex flex-wrap items-center gap-2 bg-white p-1.5 border border-slate-200 rounded-2xl shadow-sm">
@@ -329,7 +321,7 @@ export default function TabStok({
                 <tr>
                   <th className="px-5 py-4 font-black rounded-tl-xl">Tgl &amp; ID</th>
                   <th className="px-5 py-4 font-black">Kinerja Produksi Dapur</th>
-                  <th className="px-5 py-4 font-black text-center">PIC Kepala Dapur</th>
+                  <th className="px-5 py-4 font-black text-center">Nama Kepala Dapur</th>
                   <th className="px-5 py-4 font-black text-center rounded-tr-xl">Aksi / Cetak</th>
                 </tr>
               </thead>
@@ -349,7 +341,7 @@ export default function TabStok({
                       <td className="px-5 py-4 min-w-[300px]">
                         <div className="flex items-center gap-4 mb-2">
                            <div className="bg-amber-50 border border-amber-100 px-3 py-1.5 rounded-lg text-center">
-                             <div className="text-[9px] font-black text-amber-500 uppercase tracking-widest mb-0.5">Volume Skala</div>
+                             <div className="text-[9px] font-black text-amber-500 uppercase tracking-widest mb-0.5">Skala Volume</div>
                              <div className="text-sm font-black text-amber-600">{currentAdukan.toFixed(0)} Adukan</div>
                            </div>
                            <div className="text-slate-300 font-black">➔</div>
