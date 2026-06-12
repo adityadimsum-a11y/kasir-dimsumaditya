@@ -1,427 +1,498 @@
-import React, { useState, useEffect } from 'react';
-import { Database, PackagePlus, Box, Truck, CheckCircle, Save, Settings, Layers, Hash, Edit2, Trash2, Calculator } from 'lucide-react';
-import { generateId, formatRp } from '../../utils/helpers';
+import React, { useState, useMemo } from 'react';
+import { ShoppingCart, Package, AlertCircle, Edit2, Printer, Trash2, X, FileText, Undo, Lock, CheckCircle2 } from 'lucide-react';
+import { getTodayStr, generateId, formatDate, safeJsonParse, formatRp } from '../../utils/helpers';
+import { triggerPrint } from '../../utils/PrintUtility';
 
-export default function TabMasterData({ 
-  masterProducts = [], masterRawMaterials = [], masterSuppliers = [], masterRules = [], 
-  sendToSheet, showToast 
+const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
+const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
+
+const SALES_CHANNELS = [
+  { id: 'ECERAN_WALKIN', label: 'Eceran / Walk-in Resto', group: 'OFFLINE' },
+  { id: 'MITRA_AGEN', label: 'Mitra Agen', group: 'OFFLINE' },
+  { id: 'RESELLER', label: 'Reseller', group: 'OFFLINE' },
+  { id: 'PAKETAN_ACARA', label: 'Paketan Acara (Catering)', group: 'OFFLINE' },
+  { id: 'SHOPEE', label: 'Toko Shopee', group: 'MARKETPLACE' },
+  { id: 'TOKOPEDIA', label: 'Tokopedia', group: 'MARKETPLACE' },
+  { id: 'TIKTOK', label: 'TikTok Shop', group: 'MARKETPLACE' },
+  { id: 'SHOPEEFOOD', label: 'ShopeeFood', group: 'MERCHANT' },
+  { id: 'GOFOOD', label: 'GoFood', group: 'MERCHANT' },
+  { id: 'GRABFOOD', label: 'GrabFood', group: 'MERCHANT' },
+];
+
+export default function TabOrders({ 
+  orders = [], orders_data, 
+  productionBatches = [], production_batches, 
+  purchases = [], purchases_data, 
+  masterProducts = [], master_products,
+  sendToSheet, showToast, user, requestDelete 
 }) {
-  const [activeSubTab, setActiveSubTab] = useState('products');
+  const todayStr = getTodayStr();
+  const currentBranch = (user?.branch_id === 'PUSAT' || !user?.branch_id) ? 'TANGERANG_PUSAT' : user?.branch_id;
 
-  // =====================================
-  // STATE FORMS
-  // =====================================
-  const [formProduct, setFormProduct] = useState({ 
-    id: '', product_name: '', sku: '', category: 'FROZEN_GOODS', unit: 'PCS', 
-    selling_price: '', default_hpp: '', min_order: '1', penalty_price: '0' 
-  });
-  const [isEditingProduct, setIsEditingProduct] = useState(false);
-
-  const [formRaw, setFormRaw] = useState({ raw_name: '', unit: 'KG', average_cost: '', category: 'BAHAN_BAKU' });
-  const [formSupplier, setFormSupplier] = useState({ supplier_name: '', payment_term: 'CASH', contact: '' });
-
-  // STATE DINAMIS UNTUK ENGINE KONVERSI
-  const [engineRules, setEngineRules] = useState({
-    timbangan_mentah: 10, resep_adukan: 30, target_yield: 1000, porsi_eceran: 4, mika_frozen: 50
+  const [isEditing, setIsEditing] = useState(false);
+  const [showKarantinaModal, setShowKarantinaModal] = useState(false);
+  
+  const [form, setForm] = useState({
+    id: '', date: todayStr, customerName: '', channel: 'ECERAN_WALKIN', 
+    deliveryMethod: 'DIRECT', paymentMethod: 'CASH', amountPaid: '', notes: '',
   });
 
-  useEffect(() => {
-    if (masterRules && masterRules.length > 0) {
-      const dbRules = masterRules[0];
-      setEngineRules({
-        timbangan_mentah: Number(dbRules.timbangan_mentah || 10),
-        resep_adukan: Number(dbRules.resep_adukan || 30),
-        target_yield: Number(dbRules.target_yield || 1000),
-        porsi_eceran: Number(dbRules.porsi_eceran || 4),
-        mika_frozen: Number(dbRules.mika_frozen || 50)
-      });
-    }
-  }, [masterRules]);
+  const [cart, setCart] = useState([]);
 
-  // =====================================
-  // HELPER: INPUT RUPIAH OTOMATIS & AUTO HPP
-  // =====================================
-  const handleCurrencyChange = (setter, field, value) => {
-      const rawValue = value.replace(/\D/g, ''); 
-      setter(prev => ({ ...prev, [field]: rawValue }));
-  };
+  // --- SINKRONISASI DATABASE ---
+  const realOrders = useMemo(() => orders_data || orders || [], [orders, orders_data]);
+  const realProd = useMemo(() => production_batches || productionBatches || [], [productionBatches, production_batches]);
+  const realPurchases = useMemo(() => purchases_data || purchases || [], [purchases, purchases_data]);
+  
+  const realProducts = useMemo(() => {
+      const data = master_products || masterProducts;
+      return Array.isArray(data) ? data : [];
+  }, [masterProducts, master_products]);
 
-  // 🔥 ENGINE AUTO-HITUNG HPP BERDASARKAN CORE AYAM PABRIK
-  const handleAutoCalculateHPP = () => {
-    // Cari harga ayam mentah di Database (Jika kosong, pakai patokan Bos: Rp 37.500)
-    const ayamMentah = (masterRawMaterials || []).find(r => r.raw_name.toUpperCase().includes('AYAM'));
-    const hargaAyam = ayamMentah ? Number(ayamMentah.average_cost) : 37500;
+  // --- ENGINE STOK & KARANTINA ---
+  const stockMetrics = useMemo(() => {
+    let totalMasukFreezer = 0; let totalKeluarFreezer = 0; let totalAyamMasukKg = 0; let totalAyamKeluarKg = 0; let karantinaPcs = 0; let listKarantina = [];
 
-    // RUMUS: (Kg Resep Adukan x Harga Ayam) / Target Yield Pcs
-    const hppDasar = (engineRules.resep_adukan * hargaAyam) / engineRules.target_yield;
-    const hppBulat = Math.round(hppDasar);
-
-    setFormProduct(prev => ({ ...prev, default_hpp: String(hppBulat) }));
-    if(showToast) showToast(`HPP Otomatis dari Core Ayam: ${formatRp(hppBulat)}/Pcs!`, 'success');
-  };
-
-  // =====================================
-  // HANDLERS SUBMIT & ACTIONS
-  // =====================================
-  const handleSimpanRules = async () => {
-    if(!window.confirm("Yakin ingin mengubah standar mutlak konversi pabrik? Perubahan ini akan mempengaruhi HPP baru!")) return;
-    const payload = { id: 'RULE-MASTER', ...engineRules };
-    const success = await sendToSheet('update', payload, 'master_rules'); 
-    if(success && showToast) showToast('Konfigurasi Mesin Konversi Berhasil Diperbarui!', 'success');
-  };
-
-  // --- KEKUASAAN OWNER: MASTER MENU ---
-  const handleSimpanProduct = async (e) => {
-    e.preventDefault();
-    const payload = { 
-        ...formProduct, 
-        id: isEditingProduct ? formProduct.id : generateId('PRD', new Date().toISOString()), 
-        selling_price: Number(formProduct.selling_price),
-        default_hpp: Number(formProduct.default_hpp),
-        min_order: Number(formProduct.min_order || 1),
-        penalty_price: Number(formProduct.penalty_price || formProduct.selling_price),
-        status_active: true 
-    };
+    realPurchases.filter(p => !p.isDeleted && p.category === 'BAHAN_BAKU' && (p.branch_id === currentBranch || p.branch_id === 'PUSAT')).forEach(p => { totalAyamMasukKg += Number(p.qty_kg || 0); });
+    realProd.filter(p => !p.isDeleted && (p.branch_id === currentBranch || p.branch_id === 'PUSAT')).forEach(p => { totalMasukFreezer += Number(p.total_yield_pcs || 0); totalAyamKeluarKg += Number(p.total_ayam_kg || 0); });
     
-    const action = isEditingProduct ? 'update' : 'insert';
-    const success = await sendToSheet(action, payload, 'master_products');
-    
-    if(success) {
-      if(showToast) showToast(isEditingProduct ? 'Menu berhasil di-update!' : 'Menu baru berhasil ditambah!', 'success');
-      setFormProduct({ id: '', product_name: '', sku: '', category: 'FROZEN_GOODS', unit: 'PCS', selling_price: '', default_hpp: '', min_order: '1', penalty_price: '0' });
-      setIsEditingProduct(false);
-    }
-  };
+    realOrders.filter(o => !o.isDeleted && (o.branch_id === currentBranch || o.branch_id === 'PUSAT')).forEach(o => {
+      let totalQtyNota = 0;
+      const parsedItems = safeJsonParse(o.items, []);
+      parsedItems.forEach(i => totalQtyNota += Number(i.qty || 0));
+      if (totalQtyNota === 0) totalQtyNota = Number(o.qty || 0);
 
-  const handleEditProduct = (p) => {
-    setFormProduct({
-      id: p.id, product_name: p.product_name, sku: p.sku || '', category: p.category || 'FROZEN_GOODS', unit: 'PCS',
-      selling_price: String(p.selling_price || 0), default_hpp: String(p.default_hpp || 0),
-      min_order: String(p.min_order || 1), penalty_price: String(p.penalty_price || p.selling_price || 0)
+      if (o.delivery_method === 'PRE_ORDER' && o.status !== 'SELESAI') { 
+        karantinaPcs += totalQtyNota; listKarantina.push({...o, calculatedQty: totalQtyNota}); 
+      } else { 
+        totalKeluarFreezer += totalQtyNota; 
+      }
     });
-    setIsEditingProduct(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    const saldoFisikFreezer = totalMasukFreezer - totalKeluarFreezer;
+    return { saldoFisikFreezer, karantinaPcs, sisaAvailable: saldoFisikFreezer - karantinaPcs, saldoAyamKg: Math.max(0, totalAyamMasukKg - totalAyamKeluarKg), listKarantina: listKarantina.sort((a,b) => new Date(a.date) - new Date(b.date)) };
+  }, [realOrders, realProd, realPurchases, currentBranch]);
+
+  // --- ENGINE KERANJANG & HARGA PINTAR ---
+  const handleAddToCart = (product) => {
+    setCart(prevCart => {
+      const existingIdx = prevCart.findIndex(item => item.product_id === product.id);
+      if (existingIdx >= 0) {
+        const newCart = [...prevCart];
+        const newQty = newCart[existingIdx].qty + 1;
+        const finalPrice = newQty >= (product.min_order || 1) ? Number(product.selling_price) : Number(product.penalty_price || product.selling_price);
+        
+        newCart[existingIdx] = { ...newCart[existingIdx], qty: newQty, price: finalPrice, subtotal: newQty * finalPrice };
+        return newCart;
+      } else {
+        const initialQty = 1;
+        const finalPrice = initialQty >= (product.min_order || 1) ? Number(product.selling_price) : Number(product.penalty_price || product.selling_price);
+        return [...prevCart, {
+          product_id: product.id, name: product.product_name, category: product.category,
+          qty: initialQty, price: finalPrice, subtotal: initialQty * finalPrice, request: ''
+        }];
+      }
+    });
   };
 
-  const handleDeleteProduct = async (id) => {
-    if(window.confirm("Yakin ingin menghapus menu ini dari sistem kasir?")) {
-      const success = await sendToSheet('delete', { id }, 'master_products');
-      if(success && showToast) showToast('Menu berhasil dihapus!', 'success');
-    }
+  const handleUpdateCartItem = (index, field, value) => {
+    setCart(prevCart => {
+      const newCart = [...prevCart];
+      const item = newCart[index];
+      
+      if (field === 'qty') {
+        const newQty = Number(value);
+        const masterProd = realProducts.find(p => p.id === item.product_id);
+        if (masterProd) {
+          const finalPrice = newQty >= (masterProd.min_order || 1) ? Number(masterProd.selling_price) : Number(masterProd.penalty_price || masterProd.selling_price);
+          newCart[index] = { ...item, qty: newQty, price: finalPrice, subtotal: newQty * finalPrice };
+        } else {
+          newCart[index] = { ...item, qty: newQty, subtotal: newQty * item.price };
+        }
+      } else {
+        newCart[index] = { ...item, [field]: value };
+      }
+      return newCart;
+    });
   };
 
-  const handleSimpanRaw = async (e) => {
+  const handleRemoveFromCart = (index) => {
+    setCart(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const cartTotals = useMemo(() => {
+    let totalQty = 0; let totalTagihan = 0; let totalHpp = 0;
+    cart.forEach(item => {
+      totalQty += item.qty;
+      totalTagihan += item.subtotal;
+      const masterProd = realProducts.find(p => p.id === item.product_id);
+      totalHpp += item.qty * Number(masterProd?.default_hpp || 0);
+    });
+    return { totalQty, totalTagihan, totalHpp, profitKotor: totalTagihan - totalHpp };
+  }, [cart, realProducts]);
+
+  const dibayarFinal = form.paymentMethod === 'DP' ? Number(form.amountPaid || 0) : cartTotals.totalTagihan;
+
+  // --- ACTIONS PRINT & SUBMIT ---
+  const handlePrintTiketProduksi = (log) => {
+    const parsedItems = safeJsonParse(log.items, []);
+    const printItems = parsedItems.map(item => ({
+      name: `@@WORK_ORDER@@||${log.sales_channel}||${item.name} (${item.request || 'STANDAR'})||${log.notes || '-'}`,
+      qty: item.qty, subtotal: 0
+    }));
+
+    triggerPrint('NOTA_DOTMATRIX', {
+      title: 'WORK ORDER & MANIFEST PABRIK',
+      id: log.id, date: formatDate(log.date), branch_name: log.branch_id || currentBranch,
+      admin_name: user?.name || 'KASIR', customer_name: log.customer_name?.toUpperCase(),
+      items: printItems.length > 0 ? printItems : [{ name: `@@WORK_ORDER@@||${log.sales_channel}||STANDAR MIX||${log.notes || '-'}`, qty: log.qty, subtotal: 0 }],
+      paymentMethod: log.delivery_method === 'PRE_ORDER' ? 'ANTREAN PRE-ORDER' : 'PENGAMBILAN LANGSUNG'
+    });
+  };
+
+  const handlePrintInvoiceKlien = (log) => {
+    const sisaUtang = Number(log.total_amount) - Number(log.amount_paid);
+    const textPembayaran = sisaUtang > 0 ? `BELUM LUNAS (SISA: ${formatRp(sisaUtang)})` : `LUNAS (${log.payment_method})`;
+    
+    const parsedItems = safeJsonParse(log.items, []);
+    const printItems = parsedItems.map(item => ({
+      name: `${item.name}\nKet: ${item.request || 'Sesuai Standar'}`, 
+      qty: item.qty, subtotal: item.subtotal, suffix: ' Pcs'
+    }));
+
+    triggerPrint('NOTA_DOTMATRIX', {
+      title: 'INVOICE PENJUALAN KLIEN',
+      id: log.id, date: formatDate(log.date), branch_name: log.branch_id || currentBranch,
+      admin_name: user?.name || 'KASIR', customer_name: log.customer_name?.toUpperCase(),
+      items: printItems.length > 0 ? printItems : [{ name: `DIMSUM FROZEN (${log.sales_channel})`, qty: log.qty, subtotal: log.subtotal, suffix: ' Pcs' }],
+      amount: log.total_amount, paymentMethod: textPembayaran
+    });
+  };
+
+  const handleEditSafe = (log) => {
+    try {
+      const parsedItems = safeJsonParse(log.items, []);
+      if (parsedItems.length === 0) {
+        setCart([{ product_id: 'LEGACY', name: log.item_name || 'ITEM HISTORI LAMA', qty: log.qty, price: log.unit_price, subtotal: log.subtotal, request: log.custom_request }]);
+      } else {
+        setCart(parsedItems);
+      }
+      
+      setForm({
+        id: log.id || '', date: log.date ? String(log.date).substring(0, 10) : todayStr, 
+        customerName: log.customer_name || '', channel: log.sales_channel || 'ECERAN_WALKIN', 
+        deliveryMethod: log.delivery_method || 'DIRECT', paymentMethod: log.payment_method || 'CASH', 
+        amountPaid: log.amount_paid !== undefined ? log.amount_paid : (log.total_amount || 0), notes: log.notes || ''
+      });
+      setIsEditing(true); window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (e) { alert('Gagal memuat data edit.'); }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false); setCart([]);
+    setForm({ id: '', date: todayStr, customerName: '', channel: 'ECERAN_WALKIN', deliveryMethod: 'DIRECT', paymentMethod: 'CASH', amountPaid: '', notes: '' });
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const payload = { ...formRaw, id: generateId('RAW', new Date().toISOString()), average_cost: Number(formRaw.average_cost), status: 'ACTIVE' };
-    if (await sendToSheet('insert', payload, 'master_raw_materials')) {
-      if(showToast) showToast('Data Inventory ditambah', 'success');
-      setFormRaw({ raw_name: '', unit: 'KG', average_cost: '', category: formRaw.category });
+    if (cart.length === 0) return alert("Keranjang belanja masih kosong! Silakan pilih menu.");
+    if (cartTotals.totalQty <= 0) return alert("Jumlah kuantitas tidak boleh 0!");
+
+    const trxId = isEditing ? form.id : generateId('INV', form.date);
+    const payload = {
+      id: trxId, date: form.date, branch_id: currentBranch, customer_name: form.customerName.toUpperCase(), sales_channel: form.channel,
+      items: JSON.stringify(cart), 
+      qty: cartTotals.totalQty, 
+      unit_price: cart[0]?.price || 0, 
+      subtotal: cartTotals.totalTagihan, total_amount: cartTotals.totalTagihan, payment_method: form.paymentMethod, amount_paid: dibayarFinal,
+      delivery_method: form.deliveryMethod, shipping_fee: 0,
+      status: form.deliveryMethod === 'PRE_ORDER' ? 'BELUM_DIKIRIM' : 'SELESAI', notes: form.notes.toUpperCase()
+    };
+
+    if (await sendToSheet(isEditing ? 'update' : 'insert', payload, 'orders')) {
+      showToast('Data penjualan disimpan & stok berhasil terpotong!', 'success');
+      if (form.deliveryMethod === 'PRE_ORDER') handlePrintTiketProduksi(payload);
+      handleCancelEdit();
     }
   };
-
-  const handleSimpanSupplier = async (e) => {
-    e.preventDefault();
-    const payload = { ...formSupplier, id: generateId('SUP', new Date().toISOString()), status: 'ACTIVE' };
-    if (await sendToSheet('insert', payload, 'master_suppliers')) {
-      if(showToast) showToast('Mitra Supplier ditambah', 'success');
-      setFormSupplier({ supplier_name: '', payment_term: 'CASH', contact: '' });
-    }
-  };
-
-  const listBahanBaku = (masterRawMaterials || []).filter(r => r.category !== 'PACKAGING');
-  const listPackaging = (masterRawMaterials || []).filter(r => r.category === 'PACKAGING');
-  const listProducts = masterProducts || [];
-  const listSuppliers = masterSuppliers || [];
 
   return (
-    <div className="space-y-6 animate-in fade-in pb-10">
+    <div className="space-y-6 pb-10 relative animate-in fade-in duration-300">
       
-      {/* HEADER NAVIGASI */}
-      <div className="flex flex-wrap gap-2 mb-6 border-b pb-4">
-        <button onClick={() => setActiveSubTab('products')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wide transition-all ${activeSubTab === 'products' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-100'}`}><PackagePlus size={16} className="inline mr-2"/> Master Daftar Menu</button>
-        <button onClick={() => setActiveSubTab('rules')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wide transition-all ${activeSubTab === 'rules' ? 'bg-amber-500 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-100'}`}><Settings size={16} className="inline mr-2"/> Aturan Pabrik</button>
-        <button onClick={() => setActiveSubTab('raw')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wide transition-all ${activeSubTab === 'raw' ? 'bg-orange-600 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-100'}`}><Box size={16} className="inline mr-2"/> Bahan Baku (Ayam)</button>
-        <button onClick={() => setActiveSubTab('packaging')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wide transition-all ${activeSubTab === 'packaging' ? 'bg-purple-600 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-100'}`}><Layers size={16} className="inline mr-2"/> Packaging Inventory</button>
-        <button onClick={() => setActiveSubTab('suppliers')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wide transition-all ${activeSubTab === 'suppliers' ? 'bg-slate-800 text-white shadow-md' : 'bg-white text-slate-500 hover:bg-slate-100'}`}><Truck size={16} className="inline mr-2"/> Mitra Supplier</button>
+      {/* HEADER METRIK STOK */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800 text-white shadow-md relative overflow-hidden">
+          <div className="absolute right-0 top-0 w-24 h-24 bg-emerald-500/20 rounded-full blur-2xl"></div>
+          <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest relative z-10">Stok Available</div>
+          <div className="text-3xl font-black mt-1 relative z-10">{formatNumber(stockMetrics.sisaAvailable)} <span className="text-xs">PCS</span></div>
+        </div>
+        <div className="bg-amber-50 p-5 rounded-2xl border border-amber-200 cursor-pointer shadow-sm hover:shadow-md transition-all hover:border-amber-400" onClick={() => setShowKarantinaModal(true)}>
+          <div className="flex justify-between items-start">
+            <div>
+              <div className="text-[10px] font-black text-amber-600 uppercase tracking-widest flex items-center gap-1"><Lock size={12}/> Di-Booking (Karantina)</div>
+              <div className="text-3xl font-black text-amber-700 mt-1">{formatNumber(stockMetrics.karantinaPcs)} <span className="text-xs">PCS</span></div>
+            </div>
+            <span className="bg-amber-500 text-white text-[9px] px-2.5 py-1 rounded-md font-black uppercase shadow-sm">Detail</span>
+          </div>
+        </div>
+        <div className="bg-white p-5 rounded-2xl border border-l-4 border-l-blue-500 shadow-sm">
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Fisik Freezer (Total)</div>
+          <div className="text-2xl font-black text-blue-600 mt-1">{formatNumber(stockMetrics.saldoFisikFreezer)} <span className="text-xs">PCS</span></div>
+        </div>
+        <div className="bg-rose-50 p-5 rounded-2xl border border-l-4 border-l-rose-500 shadow-sm">
+          <div className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Stok Ayam Gudang</div>
+          <div className="text-2xl font-black text-rose-700 mt-1">{formatNumber(stockMetrics.saldoAyamKg)} <span className="text-xs">KG</span></div>
+        </div>
       </div>
 
-      {/* ======================================= */}
-      {/* TAB 1: MASTER MENU & HARGA PINTAR (OWNER)*/}
-      {/* ======================================= */}
-      {activeSubTab === 'products' && (
-         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-             <div className="lg:col-span-4 bg-white rounded-2xl border shadow-sm p-6 border-t-4 border-t-blue-600 h-max">
-                <div className="flex items-center justify-between gap-3 mb-6 border-b pb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-blue-100 text-blue-700 p-2 rounded-lg"><PackagePlus size={20}/></div>
-                    <div>
-                      <h3 className="font-black text-slate-800 text-sm uppercase tracking-wide">{isEditingProduct ? 'Revisi Menu' : 'Tambah Menu Baru'}</h3>
-                      <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Sinkron ke Kasir POS</p>
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+        
+        {/* KOLOM KIRI (KASIR & KERANJANG BELANJA) */}
+        <div className="xl:col-span-5 space-y-6">
+            
+            {/* KATALOG MENU */}
+            <div className="bg-white rounded-2xl border shadow-sm p-5 border-t-4 border-t-blue-500">
+               <h3 className="font-black text-xs uppercase text-slate-800 tracking-widest flex items-center gap-2 mb-4"><Package size={16} className="text-blue-600"/> Katalog Menu (Klik untuk tambah)</h3>
+               <div className="grid grid-cols-2 gap-3 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
+                 {realProducts.length === 0 ? (
+                    <div className="col-span-2 text-center py-6 text-slate-400 text-xs font-bold border border-dashed rounded-xl bg-slate-50 uppercase tracking-widest">
+                       Menu kosong. Tambahkan menu di "Master Data".
                     </div>
+                 ) : (
+                   realProducts.map(prod => (
+                     <div key={prod.id} onClick={() => handleAddToCart(prod)} className="bg-slate-50 border border-slate-200 p-3 rounded-xl cursor-pointer hover:border-blue-400 hover:shadow-md transition-all active:scale-95 group flex flex-col justify-between">
+                        <div>
+                          <div className="text-xs font-black text-slate-800 uppercase group-hover:text-blue-700 leading-tight">{prod.product_name}</div>
+                          <div className="text-[9px] font-bold text-slate-400 uppercase mt-1">{prod.category.replace('_', ' ')}</div>
+                        </div>
+                        <div className="mt-2 pt-2 border-t border-slate-200/60">
+                          <div className="text-sm font-black text-emerald-600">{formatRupiah(prod.selling_price)}</div>
+                          <div className="text-[8px] font-black text-amber-600 uppercase mt-0.5 tracking-wider">Min: {prod.min_order || 1} Pcs | Ecer: {formatRupiah(prod.penalty_price || prod.selling_price)}</div>
+                        </div>
+                     </div>
+                   ))
+                 )}
+               </div>
+            </div>
+
+            {/* FORM CHECKOUT & KERANJANG */}
+            <div className={`rounded-2xl border shadow-sm p-6 transition-all ${isEditing ? 'bg-amber-50/40 border-amber-300' : 'bg-white border-slate-200'}`}>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
+                  <h3 className={`font-black text-sm uppercase flex items-center gap-2 tracking-widest ${isEditing ? 'text-amber-700' : 'text-slate-800'}`}>
+                    {isEditing ? <Edit2 size={16}/> : <ShoppingCart size={16} className="text-emerald-600"/>} 
+                    {isEditing ? 'Revisi Invoice' : 'Keranjang Kasir'}
+                  </h3>
+                  {isEditing && <button type="button" onClick={handleCancelEdit} className="text-[10px] border border-amber-200 px-2.5 py-1 rounded-lg font-black uppercase text-amber-700 bg-white shadow-sm flex items-center gap-1 hover:bg-amber-100 transition-colors"><Undo size={12}/> Batal Edit</button>}
+                </div>
+
+                {/* LIST KERANJANG (MULTI-ITEM) */}
+                <div className="space-y-3 mb-6 max-h-[40vh] overflow-y-auto custom-scrollbar pr-2">
+                  {cart.length === 0 ? (
+                    <div className="text-center py-8 border border-dashed rounded-xl bg-slate-50 text-slate-400 text-xs font-bold uppercase tracking-widest">Keranjang masih kosong.</div>
+                  ) : (
+                    cart.map((item, index) => {
+                      const masterProd = realProducts.find(p => p.id === item.product_id);
+                      const minOrder = masterProd?.min_order || 1;
+                      const isPenalty = item.qty < minOrder;
+
+                      return (
+                        <div key={index} className={`p-3 border rounded-xl relative ${isPenalty ? 'bg-rose-50/30 border-rose-200' : 'bg-white border-slate-200 shadow-sm'}`}>
+                          <button type="button" onClick={() => handleRemoveFromCart(index)} className="absolute -top-2 -right-2 bg-rose-100 text-rose-600 rounded-full p-1 border border-rose-200 hover:bg-rose-600 hover:text-white transition-colors"><X size={12}/></button>
+                          
+                          <div className="font-black text-xs text-slate-800 uppercase mb-2">{item.name}</div>
+                          
+                          <div className="flex items-center gap-3">
+                            <div className="w-20">
+                              <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Kuantitas</label>
+                              <input type="number" min="1" value={item.qty} onChange={(e) => handleUpdateCartItem(index, 'qty', e.target.value)} className="w-full p-1.5 border rounded-md text-sm font-black text-center outline-none focus:border-blue-400" />
+                            </div>
+                            <div className="flex-1">
+                              <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Catatan/Request Khusus</label>
+                              <input type="text" value={item.request} onChange={(e) => handleUpdateCartItem(index, 'request', e.target.value)} placeholder="Mix Hakau, dll..." className="w-full p-1.5 border rounded-md text-xs font-bold uppercase outline-none focus:border-blue-400" />
+                            </div>
+                          </div>
+                          
+                          <div className="mt-3 flex justify-between items-end border-t border-slate-100 pt-2">
+                            <div>
+                              <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Harga/Pcs {isPenalty && <span className="text-rose-500 bg-rose-100 px-1 rounded ml-1 animate-pulse">Pinalti Ecer</span>}</div>
+                              <div className={`font-black text-sm ${isPenalty ? 'text-rose-600' : 'text-slate-800'}`}>{formatRupiah(item.price)}</div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Subtotal</div>
+                              <div className="font-black text-emerald-600 text-sm">{formatRupiah(item.subtotal)}</div>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 border-t border-slate-100 pt-4">
+                  <div>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Nama Klien</label>
+                    <input type="text" required value={form.customerName} onChange={e=>setForm({...form, customerName: e.target.value})} className="w-full p-2.5 border rounded-xl text-xs font-black uppercase outline-none focus:border-blue-400" placeholder="UMUM" />
                   </div>
-                  {isEditingProduct && <button type="button" onClick={() => {setIsEditingProduct(false); setFormProduct({ id: '', product_name: '', sku: '', category: 'FROZEN_GOODS', unit: 'PCS', selling_price: '', default_hpp: '', min_order: '1', penalty_price: '0' })}} className="text-[10px] bg-slate-100 text-slate-600 px-2 py-1 rounded font-black uppercase border hover:bg-slate-200">Batal</button>}
+                  <div>
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Sales Channel</label>
+                    <select value={form.channel} onChange={e=>setForm({...form, channel: e.target.value})} className="w-full p-2.5 border rounded-xl text-[10px] font-black bg-white uppercase outline-none cursor-pointer">
+                      <optgroup label="Offline">{SALES_CHANNELS.filter(c => c.group === 'OFFLINE').map(c => <option key={c.id} value={c.id}>{c.label}</option>)}</optgroup>
+                      <optgroup label="Online">{SALES_CHANNELS.filter(c => c.group !== 'OFFLINE').map(c => <option key={c.id} value={c.id}>{c.label}</option>)}</optgroup>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 p-3 rounded-xl border">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Pilih Metode Serah Terima Barang</label>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setForm({...form, deliveryMethod: 'DIRECT', paymentMethod: 'CASH'})} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase transition-all ${form.deliveryMethod === 'DIRECT' ? 'bg-emerald-100 text-emerald-700 border-2 border-emerald-400 shadow-sm scale-105' : 'bg-white border text-slate-500 hover:bg-slate-100'}`}><CheckCircle2 size={14} className="inline mr-1"/> Ambil Langsung</button>
+                    
+                    {/* TOMBOL PO KARANTINA DIPERJELAS */}
+                    <button type="button" onClick={() => setForm({...form, deliveryMethod: 'PRE_ORDER', paymentMethod: 'DP', amountPaid: ''})} className={`flex-1 py-2.5 rounded-lg text-[10px] font-black uppercase transition-all flex flex-col items-center justify-center ${form.deliveryMethod === 'PRE_ORDER' ? 'bg-orange-500 text-white border-2 border-orange-600 shadow-md scale-105' : 'bg-white border text-slate-500 hover:bg-slate-100'}`}>
+                      <span><Lock size={12} className="inline mr-1 mb-0.5"/> PO Karantina</span>
+                      <span className={`text-[7px] ${form.deliveryMethod === 'PRE_ORDER' ? 'text-orange-200' : 'text-slate-400'}`}>(Stok Ditahan)</span>
+                    </button>
+                  </div>
                 </div>
                 
-                <form onSubmit={handleSimpanProduct} className="space-y-4">
-                    <div className="space-y-1"><label className="text-[10px] font-bold text-slate-600 uppercase">Nama Menu / Produk</label><input type="text" required value={formProduct.product_name} onChange={e=>setFormProduct({...formProduct, product_name: e.target.value.toUpperCase()})} placeholder="Cth: DIMSUM AYAM MIX" className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold text-sm uppercase outline-none focus:border-blue-400" /></div>
-                    
-                    <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1"><label className="text-[10px] font-bold text-slate-600 uppercase">Kategori</label><select required value={formProduct.category} onChange={e=>setFormProduct({...formProduct, category: e.target.value})} className="w-full p-2.5 bg-white border rounded-xl font-black text-xs uppercase outline-none focus:border-blue-400"><option value="FROZEN_GOODS">Frozen / Mentah</option><option value="READY_TO_EAT">Siap Saji</option><option value="SAOS_BUMBU">Saos & Bumbu</option></select></div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-blue-600 uppercase">Harga Utama/Pcs</label>
-                          <div className="relative"><span className="absolute left-3 top-2.5 font-black text-blue-400">Rp</span><input type="text" required value={formProduct.selling_price ? Number(formProduct.selling_price).toLocaleString('id-ID') : ''} onChange={e=>handleCurrencyChange(setFormProduct, 'selling_price', e.target.value)} className="w-full pl-9 pr-2 py-2.5 bg-blue-50 border border-blue-200 rounded-xl font-black text-blue-700 outline-none" placeholder="2125" /></div>
-                        </div>
+                {/* BOX TAGIHAN (TOTAL) */}
+                <div className="bg-slate-900 text-white p-5 rounded-xl shadow-inner relative overflow-hidden mt-4">
+                  <div className="flex justify-between items-end relative z-10 mb-2">
+                    <div>
+                      <span className="text-[10px] font-black uppercase text-emerald-400 tracking-widest block">Total Tagihan Bill</span>
+                      <span className="text-[9px] text-slate-400">Total Item: {formatNumber(cartTotals.totalQty)}</span>
                     </div>
-
-                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-3">
-                      <div className="text-[10px] font-black text-amber-800 uppercase tracking-widest border-b border-amber-200/50 pb-1.5">Aturan Harga Bertingkat</div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-bold text-amber-700 uppercase">Minimal Beli (Pcs)</label>
-                          <input type="number" required value={formProduct.min_order} onChange={e=>setFormProduct({...formProduct, min_order: e.target.value})} className="w-full p-2 bg-white border border-amber-200 rounded-lg font-black text-xs text-center outline-none focus:border-amber-400" placeholder="100" />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[9px] font-bold text-rose-600 uppercase">Harga Pinalti/Ecer</label>
-                          <div className="relative"><span className="absolute left-2 top-1.5 font-black text-rose-400 text-xs">Rp</span><input type="text" required value={formProduct.penalty_price ? Number(formProduct.penalty_price).toLocaleString('id-ID') : ''} onChange={e=>handleCurrencyChange(setFormProduct, 'penalty_price', e.target.value)} className="w-full pl-7 pr-2 py-2 bg-white border border-rose-200 rounded-lg font-black text-rose-700 text-xs outline-none focus:border-rose-400" placeholder="3000" /></div>
-                        </div>
-                      </div>
-                      <div className="text-[8px] font-bold text-amber-600/80 leading-relaxed uppercase">Jika pelanggan beli di bawah {formProduct.min_order || 1} pcs, sistem POS akan otomatis mengunci harga di Rp {formProduct.penalty_price ? Number(formProduct.penalty_price).toLocaleString('id-ID') : 0}/pcs.</div>
-                    </div>
-
-                    {/* 🔥 FITUR AUTO HITUNG HPP CORE AYAM */}
-                    <div className="space-y-1">
-                        <div className="flex justify-between items-end mb-1">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase">Estimasi Modal (HPP)</label>
-                          <button type="button" onClick={handleAutoCalculateHPP} className="text-[8px] bg-indigo-100 text-indigo-700 px-2 py-1 rounded font-black uppercase tracking-wider hover:bg-indigo-600 hover:text-white transition-colors flex items-center gap-1 shadow-sm">
-                            <Calculator size={10}/> Auto Core
-                          </button>
-                        </div>
-                        <div className="relative"><span className="absolute left-3 top-2.5 font-black text-slate-400">Rp</span><input type="text" required value={formProduct.default_hpp ? Number(formProduct.default_hpp).toLocaleString('id-ID') : ''} onChange={e=>handleCurrencyChange(setFormProduct, 'default_hpp', e.target.value)} className="w-full pl-9 pr-2 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:border-blue-400" placeholder="1125" /></div>
-                    </div>
-
-                    <button type="submit" className={`w-full text-white font-black py-3.5 rounded-xl uppercase text-xs mt-4 transition shadow-md ${isEditingProduct ? 'bg-amber-500 hover:bg-amber-600' : 'bg-blue-600 hover:bg-blue-700'}`}>{isEditingProduct ? 'Simpan Perubahan' : 'Tambahkan Menu'}</button>
-                </form>
-             </div>
-
-             <div className="lg:col-span-8 bg-white rounded-2xl border shadow-sm overflow-hidden flex flex-col">
-                  <div className="p-4 border-b bg-slate-50"><h4 className="font-bold text-slate-800 tracking-wide uppercase text-sm">Daftar Menu Kasir POS</h4></div>
-                  <div className="overflow-x-auto custom-scrollbar flex-1">
-                    <table className="w-full text-sm text-left"><thead className="bg-slate-50 border-b text-[10px] text-slate-500 uppercase"><tr><th className="px-4 py-3">Nama Menu</th><th className="px-4 py-3 text-center">Kategori</th><th className="px-4 py-3 text-right">Harga Grosir</th><th className="px-4 py-3 text-right">Aturan Min. Order</th><th className="px-4 py-3 text-center">Aksi</th></tr></thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {listProducts.length === 0 ? <tr><td colSpan="5" className="text-center py-8 text-slate-400">Belum ada daftar menu.</td></tr> : 
-                        listProducts.map(p => (
-                            <tr key={p.id} className="hover:bg-slate-50 group">
-                                <td className="px-4 py-3 font-black text-slate-800 uppercase">{p.product_name}</td>
-                                <td className="px-4 py-3 text-center"><span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-[9px] font-black uppercase">{p.category.replace('_', ' ')}</span></td>
-                                <td className="px-4 py-3 text-right font-black text-blue-600">{formatRp(p.selling_price)}</td>
-                                <td className="px-4 py-3 text-right">
-                                  <div className="text-xs font-black text-amber-700">Min. {p.min_order || 1} Pcs</div>
-                                  <div className="text-[9px] text-rose-500 font-bold uppercase mt-0.5">Ecer: {formatRp(p.penalty_price || p.selling_price)}</div>
-                                </td>
-                                <td className="px-4 py-3 text-center opacity-40 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                                  <button onClick={() => handleEditProduct(p)} className="p-1.5 text-slate-400 hover:text-amber-600 bg-amber-50 rounded mx-1"><Edit2 size={14}/></button>
-                                  <button onClick={() => handleDeleteProduct(p.id)} className="p-1.5 text-slate-400 hover:text-rose-600 bg-rose-50 rounded mx-1"><Trash2 size={14}/></button>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody></table>
+                    <span className="text-3xl font-black text-emerald-400 tracking-tight">{formatRupiah(cartTotals.totalTagihan)}</span>
                   </div>
-             </div>
-         </div>
-      )}
-
-      {/* ======================================= */}
-      {/* TAB 2: MASTER CONVERSION RULES (DYNAMIC)*/}
-      {/* ======================================= */}
-      {activeSubTab === 'rules' && (
-         <div className="bg-slate-900 rounded-2xl border border-slate-800 shadow-xl overflow-hidden">
-            <div className="p-6 border-b border-slate-800 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-4">
-                  <div className="bg-amber-500/20 text-amber-400 p-3 rounded-xl"><Settings size={28}/></div>
-                  <div>
-                      <h3 className="font-black text-white text-xl uppercase tracking-wide">Master Conversion Engine</h3>
-                      <p className="text-[10px] font-bold text-amber-400 uppercase tracking-widest mt-1">Ubah angka di bawah ini untuk menyesuaikan perhitungan pabrik</p>
-                  </div>
+                  {cartTotals.totalQty > 0 && (
+                    <div className="pt-3 border-t border-slate-700/50 space-y-1 relative z-10">
+                      <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400"><span>Estimasi Modal (HPP):</span><span className="text-orange-400">{formatRupiah(cartTotals.totalHpp)}</span></div>
+                      <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400"><span>Estimasi Laba Kotor:</span><span className="text-emerald-400">+{formatRupiah(cartTotals.profitKotor)}</span></div>
+                    </div>
+                  )}
                 </div>
+
+                <div className="p-4 rounded-xl border bg-white mt-2">
+                  <div className="flex justify-between items-center mb-3 border-b pb-2">
+                    <label className="text-[10px] font-black text-slate-700 uppercase tracking-widest">Metode Pembayaran</label>
+                    <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
+                      {['CASH', 'TF', 'DP'].map(m => <button key={m} type="button" onClick={() => setForm({...form, paymentMethod: m})} className={`px-3 py-1 rounded text-[9px] font-black transition-colors ${form.paymentMethod === m ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}>{m}</button>)}
+                    </div>
+                  </div>
+                  
+                  {form.paymentMethod === 'DP' && (
+                    <div className="animate-in fade-in">
+                      <label className="text-[10px] font-black text-orange-600 uppercase tracking-widest block mb-1">Nominal Setoran DP (Uang Muka)</label>
+                      <input type="number" required value={form.amountPaid} onChange={e=>setForm({...form, amountPaid: e.target.value})} className="w-full p-3 border-2 border-orange-200 rounded-lg text-right font-black text-orange-700 bg-orange-50/50 outline-none focus:border-orange-400" placeholder="Masukkan angka DP..." />
+                    </div>
+                  )}
+                  {form.paymentMethod !== 'DP' && form.deliveryMethod === 'PRE_ORDER' && (
+                     <div className="text-[9px] font-bold text-amber-600 bg-amber-50 p-2 rounded border border-amber-200">
+                       <AlertCircle size={10} className="inline mr-1"/> Pilih 'DP' jika pelanggan bayar uang muka. Pilih 'CASH/TF' jika Lunas di awal.
+                     </div>
+                  )}
+                </div>
+
+                <button type="submit" className={`w-full text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest shadow-xl transition-transform active:scale-95 flex items-center justify-center gap-2 mt-4 ${isEditing ? 'bg-amber-500 hover:bg-amber-600' : 'bg-emerald-600 hover:bg-emerald-700'}`}>
+                  {isEditing ? <><Edit2 size={16}/> Simpan Revisi Nota</> : <><Printer size={16}/> Simpan &amp; Cetak Tiket</>}
+                </button>
+              </form>
+            </div>
+        </div>
+        
+        {/* KOLOM KANAN (LOG JURNAL HISTORI) */}
+        <div className="xl:col-span-7 bg-white rounded-3xl border flex flex-col overflow-hidden shadow-sm h-max">
+          <div className="p-5 bg-slate-50 border-b flex items-center justify-between">
+             <h4 className="font-black text-xs uppercase text-slate-700 tracking-widest flex items-center gap-2"><FileText size={16} className="text-blue-500"/> Log Jurnal Penjualan Kasir</h4>
+             <span className="text-[9px] font-black text-slate-400 bg-white border px-2 py-1 rounded shadow-sm">REAL-TIME</span>
+          </div>
+          <div className="overflow-x-auto flex-1 custom-scrollbar min-h-[60vh] p-2">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-white text-[10px] uppercase text-slate-400 border-b border-slate-100">
+                <tr><th className="px-4 py-3 font-black">Invoice</th><th className="px-4 py-3 font-black">Pelanggan &amp; Item</th><th className="px-4 py-3 font-black text-center">Fulfillment</th><th className="px-4 py-3 font-black text-center">Aksi Dokumen</th></tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50 text-xs font-bold">
+                {realOrders.filter(o => !o.isDeleted).sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 50).map(log => {
+                  const itemsArr = safeJsonParse(log.items, []);
+                  let displayItemName = log.item_name || 'MULTIPLE ITEMS';
+                  if (itemsArr.length === 1) displayItemName = itemsArr[0].name;
+                  else if (itemsArr.length > 1) displayItemName = `${itemsArr[0].name} +${itemsArr.length - 1} item lain`;
+
+                  return (
+                    <tr key={log.id} className="hover:bg-slate-50 group transition-colors">
+                      <td className="px-4 py-4 whitespace-nowrap"><div className="text-slate-800 font-black">{formatDate(log.date)}</div><div className="text-[9px] font-mono text-slate-400 mt-0.5">{log.id}</div></td>
+                      <td className="px-4 py-4 min-w-[200px]">
+                        <div className="uppercase font-black text-slate-800 text-sm mb-1">{log.customer_name}</div>
+                        <div className="text-[9px] font-black tracking-widest text-blue-600 uppercase mb-1.5">{log.sales_channel.replace('_', ' ')} • <span className="text-slate-600">{formatNumber(log.qty)} PCS TOTAL</span></div>
+                        <div className="text-[10px] text-slate-500 font-bold bg-slate-100 px-2 py-1 rounded inline-block border">{displayItemName}</div>
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-center">
+                        <div className={`text-[9px] font-black uppercase px-2 py-1 rounded-md border shadow-sm w-max mx-auto ${log.delivery_method === 'PRE_ORDER' ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-emerald-700 bg-emerald-50 border-emerald-200'}`}>
+                          {log.delivery_method === 'PRE_ORDER' ? <><Lock size={10} className="inline mr-1 mb-0.5"/> PO KARANTINA</> : <><CheckCircle2 size={10} className="inline mr-1 mb-0.5"/> DIRECT (LGSG)</>}
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity">
+                          <button type="button" onClick={() => handlePrintTiketProduksi(log)} className="p-2 px-3 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-black uppercase flex items-center gap-1.5 text-[9px] shadow-sm"><FileText size={12}/> Tiket</button>
+                          <button type="button" onClick={() => handlePrintInvoiceKlien(log)} className="p-2 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-black uppercase flex items-center gap-1.5 text-[9px] shadow-sm"><Printer size={12}/> Nota</button>
+                          <button type="button" onClick={() => handleEditSafe(log)} className="p-2 bg-amber-50 border border-amber-200 text-amber-600 hover:bg-amber-100 rounded-lg flex items-center justify-center"><Edit2 size={14}/></button>
+                          <button type="button" onClick={() => { if(window.confirm("Yakin ingin void total nota kasir ini?")) requestDelete(log.id); }} className="p-2 bg-rose-50 border border-rose-200 text-rose-600 hover:bg-rose-100 rounded-lg flex items-center justify-center"><Trash2 size={14}/></button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* POP-UP MODAL DAFTAR ANTRIAN PO KARANTINA */}
+      {showKarantinaModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[9999] flex justify-center items-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-4xl w-full overflow-hidden flex flex-col max-h-[85vh]">
+            <div className="p-5 bg-amber-50 border-b border-amber-200 flex justify-between items-center">
+              <div>
+                <h3 className="font-black text-sm uppercase tracking-widest text-amber-800 flex items-center gap-2"><Lock size={18}/> Daftar Antrean PO Karantina (Ditahan)</h3>
+                <p className="text-[10px] font-bold text-amber-600/80 mt-1 uppercase">Stok ini sudah dikunci dan tidak boleh dijual ke pelanggan walk-in.</p>
+              </div>
+              <button onClick={() => setShowKarantinaModal(false)} className="p-2 bg-amber-100 text-amber-700 hover:bg-amber-600 hover:text-white rounded-xl transition-colors"><X size={20}/></button>
             </div>
             
-            <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                
-                <div className="bg-slate-800 rounded-2xl p-5 border border-slate-700 relative overflow-hidden focus-within:border-amber-500 transition-colors">
-                    <Hash className="absolute -right-4 -bottom-4 text-slate-700 opacity-50" size={100}/>
-                    <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #1: Timbangan Mentah</div>
-                    <div className="flex items-end justify-between relative z-10">
-                        <div>
-                            <div className="flex items-end gap-1"><input type="number" value={engineRules.timbangan_mentah} onChange={e=>setEngineRules({...engineRules, timbangan_mentah: Number(e.target.value)})} className="w-16 bg-slate-900 border border-slate-600 text-white text-3xl font-black text-center rounded-lg outline-none focus:border-amber-500 py-1" /><span className="text-sm text-slate-400 font-black mb-1">KG</span></div>
-                            <div className="text-xs font-bold text-slate-500 mt-2">Timbangan Mutlak</div>
-                        </div>
-                        <div className="text-slate-500 mb-2 font-black text-xl">=</div>
-                        <div className="text-right"><div className="text-2xl font-black text-orange-400">1 <span className="text-sm">Kantong</span></div><div className="text-xs font-bold text-slate-500 mt-1">Ayam Mentah</div></div>
-                    </div>
-                </div>
-
-                <div className="bg-slate-800 rounded-2xl p-5 border border-slate-700 relative overflow-hidden focus-within:border-amber-500 transition-colors">
-                    <Hash className="absolute -right-4 -bottom-4 text-slate-700 opacity-50" size={100}/>
-                    <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #2: Resep Adukan</div>
-                    <div className="flex items-end justify-between relative z-10">
-                        <div>
-                            <div className="flex items-end gap-1"><input type="number" value={engineRules.resep_adukan} onChange={e=>setEngineRules({...engineRules, resep_adukan: Number(e.target.value)})} className="w-16 bg-slate-900 border border-slate-600 text-white text-3xl font-black text-center rounded-lg outline-none focus:border-amber-500 py-1" /><span className="text-sm text-slate-400 font-black mb-1">KG</span></div>
-                            <div className="text-xs font-bold text-slate-500 mt-2">Ayam Fillet</div>
-                        </div>
-                        <div className="text-slate-500 mb-2 font-black text-xl">=</div>
-                        <div className="text-right"><div className="text-2xl font-black text-orange-400">1 <span className="text-sm">Adukan</span></div><div className="text-xs font-bold text-slate-500 mt-1">Mix Base</div></div>
-                    </div>
-                </div>
-
-                <div className="bg-slate-800 rounded-2xl p-5 border border-slate-700 relative overflow-hidden focus-within:border-amber-500 transition-colors">
-                    <Hash className="absolute -right-4 -bottom-4 text-slate-700 opacity-50" size={100}/>
-                    <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #3: Target Yield Dasar</div>
-                    <div className="flex items-end justify-between relative z-10">
-                        <div><div className="text-3xl font-black text-white">1 <span className="text-sm text-slate-400">Adukan</span></div><div className="text-xs font-bold text-slate-500 mt-2">Mix Base</div></div>
-                        <div className="text-slate-500 mb-2 font-black text-xl">=</div>
-                        <div className="text-right">
-                            <div className="flex items-end gap-1 justify-end"><input type="number" value={engineRules.target_yield} onChange={e=>setEngineRules({...engineRules, target_yield: Number(e.target.value)})} className="w-24 bg-slate-900 border border-slate-600 text-blue-400 text-3xl font-black text-center rounded-lg outline-none focus:border-amber-500 py-1" /><span className="text-sm text-slate-400 font-black mb-1">PCS</span></div>
-                            <div className="text-xs font-bold text-slate-500 mt-2">Dimsum Mentah</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-slate-800 rounded-2xl p-5 border border-slate-700 relative overflow-hidden focus-within:border-amber-500 transition-colors md:col-span-2 lg:col-span-1">
-                    <Hash className="absolute -right-4 -bottom-4 text-slate-700 opacity-50" size={100}/>
-                    <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #4: Konversi Porsi Eceran</div>
-                    <div className="flex items-end justify-between relative z-10">
-                        <div>
-                            <div className="text-3xl font-black text-white">1 <span className="text-sm text-slate-400">Porsi</span></div>
-                            <div className="text-xs font-bold text-slate-500 mt-2">Penjualan Resto</div>
-                        </div>
-                        <div className="text-slate-500 mb-2 font-black text-xl">=</div>
-                        <div className="text-right">
-                            <div className="flex items-end gap-1 justify-end">
-                              <input type="number" value={engineRules.porsi_eceran} onChange={e=>setEngineRules({...engineRules, porsi_eceran: Number(e.target.value)})} className="w-16 bg-slate-900 border border-slate-600 text-purple-400 text-3xl font-black text-center rounded-lg outline-none focus:border-amber-500 py-1" />
-                              <span className="text-sm text-slate-400 font-black mb-1">PCS</span>
-                            </div>
-                            <div className="text-xs font-bold text-slate-500 mt-2">Dimsum Mentah</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-slate-800 rounded-2xl p-5 border border-slate-700 relative overflow-hidden focus-within:border-amber-500 transition-colors md:col-span-2 lg:col-span-2">
-                    <Hash className="absolute -right-4 -bottom-4 text-slate-700 opacity-50" size={100}/>
-                    <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #5: Konversi Packaging / Mika Frozen</div>
-                    <div className="flex items-end justify-between relative z-10">
-                        <div>
-                            <div className="text-3xl font-black text-white">1 <span className="text-sm text-slate-400">Mika</span></div>
-                            <div className="text-xs font-bold text-slate-500 mt-2">Kemasan Frozen</div>
-                        </div>
-                        <div className="text-slate-500 mb-2 font-black text-xl">=</div>
-                        <div className="text-center">
-                            <div className="flex items-end gap-1 justify-center">
-                              <input type="number" value={engineRules.mika_frozen} onChange={e=>setEngineRules({...engineRules, mika_frozen: Number(e.target.value)})} className="w-20 bg-slate-900 border border-slate-600 text-pink-400 text-3xl font-black text-center rounded-lg outline-none focus:border-amber-500 py-1" />
-                              <span className="text-sm text-slate-400 font-black mb-1">PCS</span>
-                            </div>
-                            <div className="text-xs font-bold text-slate-500 mt-2">Dimsum / Mika</div>
-                        </div>
-                        <div className="text-slate-500 mb-2 font-black text-xl">=</div>
-                        <div className="text-right">
-                            <div className="text-3xl font-black text-emerald-400">{(engineRules.target_yield / engineRules.mika_frozen).toFixed(0)} <span className="text-sm">Mika</span></div>
-                            <div className="text-xs font-bold text-slate-500 mt-2">Per Adukan (Auto)</div>
-                        </div>
-                    </div>
-                </div>
-
+            <div className="p-2 overflow-y-auto custom-scrollbar flex-1">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-white text-[10px] uppercase text-slate-400 border-b border-slate-100 sticky top-0 z-10">
+                  <tr><th className="px-5 py-4 font-black">Tgl &amp; Invoice</th><th className="px-5 py-4 font-black">Nama Klien / Agen</th><th className="px-5 py-4 font-black text-center">Volume Ditahan</th><th className="px-5 py-4 font-black text-center">Aksi / Status</th></tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50 text-xs font-bold">
+                  {stockMetrics.listKarantina.length === 0 ? (
+                    <tr><td colSpan="4" className="text-center py-20 text-slate-400 font-bold uppercase tracking-widest">Tidak ada antrean PO (karantina kosong).</td></tr>
+                  ) : (
+                    stockMetrics.listKarantina.map(order => (
+                      <tr key={order.id} className="hover:bg-slate-50">
+                        <td className="px-5 py-4 whitespace-nowrap"><div className="text-slate-800 font-black">{formatDate(order.date)}</div><div className="text-[9px] font-mono text-slate-400 mt-0.5">{order.id}</div></td>
+                        <td className="px-5 py-4"><div className="font-black text-slate-800 text-sm uppercase">{order.customer_name}</div><div className="text-[9px] text-blue-600 font-black tracking-widest mt-1 uppercase">VIA: {order.sales_channel.replace('_', ' ')}</div></td>
+                        <td className="px-5 py-4 text-center whitespace-nowrap"><div className="text-xl font-black text-amber-600">{formatNumber(order.calculatedQty)} <span className="text-[10px] text-amber-500/50">PCS</span></div></td>
+                        <td className="px-5 py-4 text-center whitespace-nowrap">
+                          <button onClick={() => {
+                            if(window.confirm(`Selesaikan PO atas nama ${order.customer_name}? Stok fisik akan langsung dipotong.`)) {
+                              sendToSheet('update', { ...order, status: 'SELESAI' }, 'orders');
+                              setShowKarantinaModal(false); showToast('PO Selesai! Stok fisik telah terpotong resmi.', 'success');
+                            }
+                          }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md transition-colors flex items-center justify-center gap-1.5 mx-auto">
+                            <CheckCircle2 size={12}/> Lepas Fisik (Selesai)
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
-            <div className="p-4 bg-slate-950 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="text-xs font-bold text-slate-400 flex items-center gap-2"><CheckCircle size={14} className="text-amber-500"/> Pastikan klik simpan setelah mengubah angka konfigurasi di atas.</div>
-                <button onClick={handleSimpanRules} className="w-full sm:w-auto bg-amber-500 hover:bg-amber-400 text-slate-900 px-6 py-3 rounded-xl font-black uppercase text-xs tracking-widest transition-transform active:scale-95 flex items-center justify-center gap-2 shadow-lg"><Save size={16}/> Simpan Konfigurasi</button>
-            </div>
-         </div>
-      )}
-
-      {/* ======================================= */}
-      {/* TAB 3, 4, 5 (Packaging, Raw, Suppliers) */}
-      {/* ======================================= */}
-      {activeSubTab === 'packaging' && (
-         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-1 bg-white rounded-2xl border shadow-sm p-6 border-t-4 border-t-purple-600 h-max">
-                <div className="flex items-center gap-3 mb-6 border-b pb-4"><div className="bg-purple-100 text-purple-700 p-2 rounded-lg"><Layers size={20}/></div><div><h3 className="font-black text-slate-800 text-sm uppercase tracking-wide">Data Packaging Baru</h3></div></div>
-                <form onSubmit={(e) => { setFormRaw(prev => ({...prev, category: 'PACKAGING'})); handleSimpanRaw(e); }} className="space-y-4">
-                    <div className="space-y-1"><label className="text-[10px] font-bold text-slate-600 uppercase">Nama Kemasan</label><input type="text" required value={formRaw.raw_name} onChange={e=>setFormRaw({...formRaw, raw_name: e.target.value.toUpperCase()})} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold text-sm uppercase outline-none focus:border-purple-400" /></div>
-                    <div className="space-y-1"><label className="text-[10px] font-bold text-slate-600 uppercase">Satuan Beli</label><select required value={formRaw.unit} onChange={e=>setFormRaw({...formRaw, unit: e.target.value})} className="w-full p-2.5 bg-white border rounded-xl font-black text-sm uppercase outline-none focus:border-purple-400"><option value="PCS">Pieces (Pcs)</option><option value="PACK">Pack</option><option value="BALL">Bal / Roll</option></select></div>
-                    <div className="space-y-1"><label className="text-[10px] font-bold text-purple-600 uppercase">Harga Modal / Satuan</label><div className="relative"><span className="absolute left-3 top-2.5 font-black text-purple-400">Rp</span><input type="text" required value={formRaw.average_cost ? Number(formRaw.average_cost).toLocaleString('id-ID') : ''} onChange={e=>handleCurrencyChange(setFormRaw, 'average_cost', e.target.value)} className="w-full pl-9 pr-2 py-2.5 bg-purple-50 border border-purple-200 rounded-xl font-black text-purple-700 outline-none" /></div></div>
-                    <button type="submit" className="w-full bg-purple-600 hover:bg-purple-700 text-white font-black py-3.5 rounded-xl uppercase text-xs mt-4 transition shadow-md">Simpan Master Kemasan</button>
-                </form>
-            </div>
-            <div className="lg:col-span-2 bg-white rounded-2xl border shadow-sm overflow-hidden flex flex-col">
-                  <div className="p-4 border-b bg-slate-50"><h4 className="font-bold text-slate-800 tracking-wide uppercase text-sm">Database Inventory Packaging</h4></div>
-                  <table className="w-full text-sm text-left"><thead className="bg-slate-50 border-b text-[10px] text-slate-500 uppercase"><tr><th className="px-4 py-3">Nama Kemasan / Packaging</th><th className="px-4 py-3 text-center">Satuan Stok</th><th className="px-4 py-3 text-right">Biaya / Harga Modal</th></tr></thead>
-                  <tbody className="divide-y divide-slate-100">
-                      {listPackaging.length === 0 ? <tr><td colSpan="3" className="text-center py-8 text-slate-400">Belum ada data kemasan.</td></tr> : 
-                      listPackaging.map(r => (
-                          <tr key={r.id} className="hover:bg-slate-50">
-                              <td className="px-4 py-3 font-black text-slate-800 uppercase">{r.raw_name}</td>
-                              <td className="px-4 py-3 text-center font-bold text-slate-500 uppercase">{r.unit}</td>
-                              <td className="px-4 py-3 text-right font-black text-purple-600">{formatRp(r.average_cost)}</td>
-                          </tr>
-                      ))}
-                  </tbody></table>
-            </div>
-         </div>
-      )}
-
-      {activeSubTab === 'raw' && (
-         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-             <div className="lg:col-span-1 bg-white rounded-2xl border shadow-sm p-6 border-t-4 border-t-orange-600 h-max">
-                <div className="flex items-center gap-3 mb-6 border-b pb-4"><div className="bg-orange-100 text-orange-700 p-2 rounded-lg"><Box size={20}/></div><div><h3 className="font-black text-slate-800 text-sm uppercase tracking-wide">Data Bahan Baku</h3></div></div>
-                <form onSubmit={(e) => { setFormRaw(prev => ({...prev, category: 'BAHAN_BAKU'})); handleSimpanRaw(e); }} className="space-y-4">
-                    <div className="space-y-1"><label className="text-[10px] font-bold text-slate-600 uppercase">Nama Bahan Baku</label><input type="text" required value={formRaw.raw_name} onChange={e=>setFormRaw({...formRaw, raw_name: e.target.value.toUpperCase()})} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold text-sm uppercase outline-none focus:border-orange-400" /></div>
-                    <div className="space-y-1"><label className="text-[10px] font-bold text-slate-600 uppercase">Satuan Beli</label><select required value={formRaw.unit} onChange={e=>setFormRaw({...formRaw, unit: e.target.value})} className="w-full p-2.5 bg-white border rounded-xl font-black text-sm uppercase outline-none focus:border-orange-400"><option value="KG">Kilogram (KG)</option><option value="LITER">Liter</option></select></div>
-                    <div className="space-y-1"><label className="text-[10px] font-bold text-orange-600 uppercase">Harga Acuan Default</label><div className="relative"><span className="absolute left-3 top-2.5 font-black text-orange-400">Rp</span><input type="text" required value={formRaw.average_cost ? Number(formRaw.average_cost).toLocaleString('id-ID') : ''} onChange={e=>handleCurrencyChange(setFormRaw, 'average_cost', e.target.value)} className="w-full pl-9 pr-2 py-2.5 bg-orange-50 border border-orange-200 rounded-xl font-black text-orange-700 outline-none" /></div></div>
-                    <button type="submit" className="w-full bg-orange-600 hover:bg-orange-700 text-white font-black py-3.5 rounded-xl uppercase text-xs mt-4 transition shadow-md">Simpan Bahan Baku</button>
-                </form>
-             </div>
-             <div className="lg:col-span-2 bg-white rounded-2xl border shadow-sm overflow-hidden flex flex-col">
-                  <div className="p-4 border-b bg-slate-50"><h4 className="font-bold text-slate-800 tracking-wide uppercase text-sm">Database Bahan Baku</h4></div>
-                  <table className="w-full text-sm text-left"><thead className="bg-slate-50 border-b text-[10px] text-slate-500 uppercase"><tr><th className="px-4 py-3">Nama Bahan Baku</th><th className="px-4 py-3 text-center">Satuan</th><th className="px-4 py-3 text-right">Harga Modal Dasar</th></tr></thead>
-                  <tbody className="divide-y divide-slate-100">
-                      {listBahanBaku.length === 0 ? <tr><td colSpan="3" className="text-center py-8 text-slate-400">Belum ada data bahan baku.</td></tr> : 
-                      listBahanBaku.map(r => (
-                          <tr key={r.id} className="hover:bg-slate-50">
-                              <td className="px-4 py-3 font-black text-slate-800 uppercase">{r.raw_name}</td>
-                              <td className="px-4 py-3 text-center font-bold text-slate-500 uppercase">{r.unit}</td>
-                              <td className="px-4 py-3 text-right font-black text-orange-600">{formatRp(r.average_cost)}</td>
-                          </tr>
-                      ))}
-                  </tbody></table>
-             </div>
-         </div>
-      )}
-
-      {activeSubTab === 'suppliers' && (
-         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-             <div className="lg:col-span-1 bg-white rounded-2xl border shadow-sm p-6 border-t-4 border-t-slate-800 h-max">
-                <div className="flex items-center gap-3 mb-6 border-b pb-4"><div className="bg-slate-100 text-slate-700 p-2 rounded-lg"><Truck size={20}/></div><div><h3 className="font-black text-slate-800 text-sm uppercase tracking-wide">Data Mitra Supplier</h3></div></div>
-                <form onSubmit={handleSimpanSupplier} className="space-y-4">
-                    <div className="space-y-1"><label className="text-[10px] font-bold text-slate-600 uppercase">Nama Pemasok</label><input type="text" required value={formSupplier.supplier_name} onChange={e=>setFormSupplier({...formSupplier, supplier_name: e.target.value.toUpperCase()})} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold text-sm uppercase outline-none focus:border-slate-800" placeholder="PT / Toko" /></div>
-                    <div className="space-y-1"><label className="text-[10px] font-bold text-slate-600 uppercase">Sistem Pembayaran</label><select required value={formSupplier.payment_term} onChange={e=>setFormSupplier({...formSupplier, payment_term: e.target.value})} className="w-full p-2.5 bg-white border rounded-xl font-black text-sm uppercase outline-none focus:border-slate-800"><option value="CASH">Tunai (CASH)</option><option value="TEMPO_7_HARI">Tempo 7 Hari</option><option value="TEMPO_14_HARI">Tempo 14 Hari</option></select></div>
-                    <div className="space-y-1"><label className="text-[10px] font-bold text-slate-600 uppercase">Kontak / Keterangan</label><input type="text" required value={formSupplier.contact} onChange={e=>setFormSupplier({...formSupplier, contact: e.target.value})} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold text-xs outline-none focus:border-slate-800" /></div>
-                    <button type="submit" className="w-full bg-slate-800 hover:bg-slate-900 text-white font-black py-3.5 rounded-xl uppercase text-xs mt-4 transition shadow-md">Simpan Supplier</button>
-                </form>
-             </div>
-             <div className="lg:col-span-2 bg-white rounded-2xl border shadow-sm overflow-hidden flex flex-col">
-                  <div className="p-4 border-b bg-slate-50"><h4 className="font-bold text-slate-800 tracking-wide uppercase text-sm">Database Mitra Supplier</h4></div>
-                  <table className="w-full text-sm text-left"><thead className="bg-slate-50 border-b text-[10px] text-slate-500 uppercase"><tr><th className="px-4 py-3">Nama Mitra</th><th className="px-4 py-3 text-center">Sistem Bayar</th><th className="px-4 py-3">Kontak / Ket</th></tr></thead>
-                  <tbody className="divide-y divide-slate-100">
-                      {listSuppliers.length === 0 ? <tr><td colSpan="3" className="text-center py-8 text-slate-400">Belum ada data supplier.</td></tr> : 
-                      listSuppliers.map(s => (
-                          <tr key={s.id} className="hover:bg-slate-50">
-                              <td className="px-4 py-3 font-black text-slate-800 uppercase">{s.supplier_name}</td>
-                              <td className="px-4 py-3 text-center font-bold text-slate-500 uppercase"><span className="bg-slate-100 px-2 py-1 rounded">{s.payment_term.replace(/_/g, ' ')}</span></td>
-                              <td className="px-4 py-3 font-bold text-slate-600">{s.contact}</td>
-                          </tr>
-                      ))}
-                  </tbody></table>
-             </div>
-         </div>
+          </div>
+        </div>
       )}
 
     </div>
