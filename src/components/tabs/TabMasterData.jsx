@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Database, PackagePlus, Box, Truck, CheckCircle, Save, Settings, Layers, Hash, Edit2, Trash2 } from 'lucide-react';
+import { Database, PackagePlus, Box, Truck, CheckCircle, Save, Settings, Layers, Hash, Edit2, Trash2, Calculator } from 'lucide-react';
 import { generateId, formatRp } from '../../utils/helpers';
 
 export default function TabMasterData({ 
@@ -39,11 +39,25 @@ export default function TabMasterData({
   }, [masterRules]);
 
   // =====================================
-  // HELPER: INPUT RUPIAH OTOMATIS
+  // HELPER: INPUT RUPIAH OTOMATIS & AUTO HPP
   // =====================================
   const handleCurrencyChange = (setter, field, value) => {
       const rawValue = value.replace(/\D/g, ''); 
       setter(prev => ({ ...prev, [field]: rawValue }));
+  };
+
+  // 🔥 ENGINE AUTO-HITUNG HPP BERDASARKAN CORE AYAM PABRIK
+  const handleAutoCalculateHPP = () => {
+    // Cari harga ayam mentah di Database (Jika kosong, pakai patokan Bos: Rp 37.500)
+    const ayamMentah = (masterRawMaterials || []).find(r => r.raw_name.toUpperCase().includes('AYAM'));
+    const hargaAyam = ayamMentah ? Number(ayamMentah.average_cost) : 37500;
+
+    // RUMUS: (Kg Resep Adukan x Harga Ayam) / Target Yield Pcs
+    const hppDasar = (engineRules.resep_adukan * hargaAyam) / engineRules.target_yield;
+    const hppBulat = Math.round(hppDasar);
+
+    setFormProduct(prev => ({ ...prev, default_hpp: String(hppBulat) }));
+    if(showToast) showToast(`HPP Otomatis dari Core Ayam: ${formatRp(hppBulat)}/Pcs!`, 'success');
   };
 
   // =====================================
@@ -56,7 +70,6 @@ export default function TabMasterData({
     if(success && showToast) showToast('Konfigurasi Mesin Konversi Berhasil Diperbarui!', 'success');
   };
 
-  // --- KEKUASAAN OWNER: MASTER MENU ---
   const handleSimpanProduct = async (e) => {
     e.preventDefault();
     const payload = { 
@@ -114,7 +127,6 @@ export default function TabMasterData({
     }
   };
 
-  // Filter Data Arrays
   const listBahanBaku = (masterRawMaterials || []).filter(r => r.category !== 'PACKAGING');
   const listPackaging = (masterRawMaterials || []).filter(r => r.category === 'PACKAGING');
   const listProducts = masterProducts || [];
@@ -175,10 +187,17 @@ export default function TabMasterData({
                       <div className="text-[8px] font-bold text-amber-600/80 leading-relaxed uppercase">Jika pelanggan beli di bawah {formProduct.min_order || 1} pcs, sistem POS akan otomatis mengunci harga di Rp {formProduct.penalty_price ? Number(formProduct.penalty_price).toLocaleString('id-ID') : 0}/pcs.</div>
                     </div>
 
+                    {/* 🔥 INI DIA TOMBOL AUTO CORE-NYA BOS! */}
                     <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase">Estimasi Modal (HPP)</label>
+                        <div className="flex justify-between items-end mb-1">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase">Estimasi Modal (HPP)</label>
+                          <button type="button" onClick={handleAutoCalculateHPP} className="text-[8px] bg-indigo-100 text-indigo-700 px-2 py-1 rounded font-black uppercase tracking-wider hover:bg-indigo-600 hover:text-white transition-colors flex items-center gap-1 shadow-sm">
+                            <Calculator size={10}/> Auto Core
+                          </button>
+                        </div>
                         <div className="relative"><span className="absolute left-3 top-2.5 font-black text-slate-400">Rp</span><input type="text" required value={formProduct.default_hpp ? Number(formProduct.default_hpp).toLocaleString('id-ID') : ''} onChange={e=>handleCurrencyChange(setFormProduct, 'default_hpp', e.target.value)} className="w-full pl-9 pr-2 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:border-blue-400" placeholder="1125" /></div>
                     </div>
+
                     <button type="submit" className={`w-full text-white font-black py-3.5 rounded-xl uppercase text-xs mt-4 transition shadow-md ${isEditingProduct ? 'bg-amber-500 hover:bg-amber-600' : 'bg-blue-600 hover:bg-blue-700'}`}>{isEditingProduct ? 'Simpan Perubahan' : 'Tambahkan Menu'}</button>
                 </form>
              </div>
@@ -227,7 +246,6 @@ export default function TabMasterData({
             
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 
-                {/* RULE 1 */}
                 <div className="bg-slate-800 rounded-2xl p-5 border border-slate-700 relative overflow-hidden focus-within:border-amber-500 transition-colors">
                     <Hash className="absolute -right-4 -bottom-4 text-slate-700 opacity-50" size={100}/>
                     <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #1: Timbangan Mentah</div>
@@ -241,7 +259,6 @@ export default function TabMasterData({
                     </div>
                 </div>
 
-                {/* RULE 2 */}
                 <div className="bg-slate-800 rounded-2xl p-5 border border-slate-700 relative overflow-hidden focus-within:border-amber-500 transition-colors">
                     <Hash className="absolute -right-4 -bottom-4 text-slate-700 opacity-50" size={100}/>
                     <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #2: Resep Adukan</div>
@@ -255,7 +272,6 @@ export default function TabMasterData({
                     </div>
                 </div>
 
-                {/* RULE 3 */}
                 <div className="bg-slate-800 rounded-2xl p-5 border border-slate-700 relative overflow-hidden focus-within:border-amber-500 transition-colors">
                     <Hash className="absolute -right-4 -bottom-4 text-slate-700 opacity-50" size={100}/>
                     <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #3: Target Yield Dasar</div>
@@ -269,7 +285,6 @@ export default function TabMasterData({
                     </div>
                 </div>
 
-                {/* RULE 4 - DIKEMBALIKAN */}
                 <div className="bg-slate-800 rounded-2xl p-5 border border-slate-700 relative overflow-hidden focus-within:border-amber-500 transition-colors md:col-span-2 lg:col-span-1">
                     <Hash className="absolute -right-4 -bottom-4 text-slate-700 opacity-50" size={100}/>
                     <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #4: Konversi Porsi Eceran</div>
@@ -289,7 +304,6 @@ export default function TabMasterData({
                     </div>
                 </div>
 
-                {/* RULE 5 - DIKEMBALIKAN */}
                 <div className="bg-slate-800 rounded-2xl p-5 border border-slate-700 relative overflow-hidden focus-within:border-amber-500 transition-colors md:col-span-2 lg:col-span-2">
                     <Hash className="absolute -right-4 -bottom-4 text-slate-700 opacity-50" size={100}/>
                     <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #5: Konversi Packaging / Mika Frozen</div>
