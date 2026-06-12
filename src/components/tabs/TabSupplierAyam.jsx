@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { Landmark, ArrowRightLeft, TrendingDown, ArrowDownToLine, Receipt, Printer, Send, Search, Calendar, CheckCircle2, AlertTriangle, ShieldAlert } from 'lucide-react';
+// 🔥 FIX CRASH: IKON 'X' SUDAH DITAMBAHKAN DI SINI
+import { Landmark, ArrowDownToLine, Receipt, Send, AlertTriangle, ShieldAlert, X } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
-import { triggerPrint } from '../../utils/PrintUtility';
 
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
