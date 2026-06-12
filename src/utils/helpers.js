@@ -42,12 +42,10 @@ export const getLocalYMD = (dateVal) => {
 
   const str = String(dateVal);
 
-  // Jika format sudah YYYY-MM-DD murni, langsung kembalikan
   if (str.length === 10 && str[4] === '-') return str;
 
   const d = new Date(dateVal);
 
-  // Fallback jika tanggal tidak valid
   if (isNaN(d.getTime())) {
     return str.split('T')[0].substring(0, 10);
   }
@@ -71,7 +69,6 @@ export const formatDate = (date) => {
   return dateFormatter.format(d);
 };
 
-// ✅ Tambahan penting agar import formatTime tidak bikin Vercel gagal build
 export const formatTime = (date) => {
   if (!date) return '-';
 
@@ -85,7 +82,6 @@ export const formatTime = (date) => {
   });
 };
 
-// Format tanggal + jam, aman jika suatu modul butuh timestamp lengkap
 export const formatDateTime = (date) => {
   if (!date) return '-';
 
@@ -140,51 +136,17 @@ export const terbilang = (angka) => {
   const t = (n) => {
     if (n < 12) {
       return [
-        '',
-        'Satu',
-        'Dua',
-        'Tiga',
-        'Empat',
-        'Lima',
-        'Enam',
-        'Tujuh',
-        'Delapan',
-        'Sembilan',
-        'Sepuluh',
-        'Sebelas',
+        '', 'Satu', 'Dua', 'Tiga', 'Empat', 'Lima', 'Enam', 'Tujuh', 'Delapan', 'Sembilan', 'Sepuluh', 'Sebelas',
       ][n];
     }
-
     if (n < 20) return `${t(n - 10)} Belas`;
-
-    if (n < 100) {
-      return `${t(Math.floor(n / 10))} Puluh${n % 10 === 0 ? '' : ` ${t(n % 10)}`}`;
-    }
-
-    if (n < 200) {
-      return `Seratus${n - 100 === 0 ? '' : ` ${t(n - 100)}`}`;
-    }
-
-    if (n < 1000) {
-      return `${t(Math.floor(n / 100))} Ratus${n % 100 === 0 ? '' : ` ${t(n % 100)}`}`;
-    }
-
-    if (n < 2000) {
-      return `Seribu${n - 1000 === 0 ? '' : ` ${t(n - 1000)}`}`;
-    }
-
-    if (n < 1000000) {
-      return `${t(Math.floor(n / 1000))} Ribu${n % 1000 === 0 ? '' : ` ${t(n % 1000)}`}`;
-    }
-
-    if (n < 1000000000) {
-      return `${t(Math.floor(n / 1000000))} Juta${n % 1000000 === 0 ? '' : ` ${t(n % 1000000)}`}`;
-    }
-
-    if (n < 1000000000000) {
-      return `${t(Math.floor(n / 1000000000))} Milyar${n % 1000000000 === 0 ? '' : ` ${t(n % 1000000000)}`}`;
-    }
-
+    if (n < 100) return `${t(Math.floor(n / 10))} Puluh${n % 10 === 0 ? '' : ` ${t(n % 10)}`}`;
+    if (n < 200) return `Seratus${n - 100 === 0 ? '' : ` ${t(n - 100)}`}`;
+    if (n < 1000) return `${t(Math.floor(n / 100))} Ratus${n % 100 === 0 ? '' : ` ${t(n % 100)}`}`;
+    if (n < 2000) return `Seribu${n - 1000 === 0 ? '' : ` ${t(n - 1000)}`}`;
+    if (n < 1000000) return `${t(Math.floor(n / 1000))} Ribu${n % 1000 === 0 ? '' : ` ${t(n % 1000)}`}`;
+    if (n < 1000000000) return `${t(Math.floor(n / 1000000))} Juta${n % 1000000 === 0 ? '' : ` ${t(n % 1000000)}`}`;
+    if (n < 1000000000000) return `${t(Math.floor(n / 1000000000))} Milyar${n % 1000000000 === 0 ? '' : ` ${t(n % 1000000000)}`}`;
     return '';
   };
 
@@ -192,37 +154,24 @@ export const terbilang = (angka) => {
 };
 
 export const KATEGORI_HARGA = {
-  Reseller: 2125,
-  Pemalang: 2250,
-  Mitra: 2000,
-  Eceran: 3000,
-  Shopee: 0,
-  Tokopedia: 0,
-  TikTok: 0,
-  ShopeeFood: 0,
-  GoFood: 0,
+  Reseller: 2125, Pemalang: 2250, Mitra: 2000, Eceran: 3000, Shopee: 0, Tokopedia: 0, TikTok: 0, ShopeeFood: 0, GoFood: 0,
 };
 
 export const SATUAN_BARANG = [
-  'Kg',
-  'Gram',
-  'Pack',
-  'Kantong',
-  'Pcs',
-  'Bungkus',
-  'Liter',
-  'Tabung',
-  'Bal',
-  'Dus',
-  'Krat',
-  'Lusin',
+  'Kg', 'Gram', 'Pack', 'Kantong', 'Pcs', 'Bungkus', 'Liter', 'Tabung', 'Bal', 'Dus', 'Krat', 'Lusin',
 ];
 
 export const KATEGORI_PENGELUARAN = [
-  'Operasional & Transport',
-  'Konsumsi Karyawan',
-  'Kasbon',
-  'Jamuan',
-  'Setoran / Closing Kas Harian',
-  'Lainnya',
+  'Operasional & Transport', 'Konsumsi Karyawan', 'Kasbon', 'Jamuan', 'Setoran / Closing Kas Harian', 'Lainnya',
 ];
+
+// 🔥 ENGINE ANTI-CRASH JSON PARSER
+export const safeJsonParse = (str, fallback = []) => {
+  if (!str) return fallback;
+  try {
+    return JSON.parse(str);
+  } catch (e) {
+    console.warn("⚠️ [Dimsum Aditya ERP] Mencegah Crash! Gagal parsing JSON:", str);
+    return fallback;
+  }
+};
