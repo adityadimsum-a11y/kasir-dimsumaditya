@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Package, Box, ArrowRightLeft, Search, Archive, ArrowDownRight, ArrowUpRight, History, Database, ShieldAlert } from 'lucide-react';
-import { formatDate } from '../../utils/helpers';
+import { formatDate, safeJsonParse } from '../../utils/helpers';
 
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
@@ -8,15 +8,12 @@ export default function TabKartuStok({
   masterProducts = [], masterRawMaterials = [],
   orders = [], purchases = [], productionBatches = []
 }) {
-  // --- STATE NAVIGASI & FILTER ---
-  const [activeTab, setActiveTab] = useState('FREEZER'); // 'FREEZER', 'BAHAN_BAKU', 'MUTASI'
+  const [activeTab, setActiveTab] = useState('FREEZER');
   const [searchTerm, setSearchTerm] = useState('');
 
-  // --- ENGINE 1: KALKULASI STOK FREEZER (PRODUK AKHIR) ---
   const freezerStock = useMemo(() => {
     const stockMap = {};
     
-    // Inisialisasi dari Master Data (Diberi pelindung || '')
     (masterProducts || []).forEach(p => {
       if (!p.isDeleted && p.product_name) {
         stockMap[p.product_name] = { 
@@ -26,7 +23,6 @@ export default function TabKartuStok({
       }
     });
 
-    // BARANG MASUK: Dari Hasil Produksi (Yield)
     (productionBatches || []).forEach(batch => {
       if (!batch.isDeleted && batch.status === 'COMPLETED') {
         const productName = batch.product_name || 'DIMSUM FROZEN CORE'; 
@@ -36,24 +32,18 @@ export default function TabKartuStok({
       }
     });
 
-    // BARANG KELUAR: Dari Penjualan Kasir (Orders)
     (orders || []).forEach(o => {
       if (!o.isDeleted && o.status !== 'BATAL') {
-        try {
-          const items = JSON.parse(o.items || '[]');
-          items.forEach(item => {
-            const pName = item.name || item.product_name;
-            if (pName && stockMap[pName]) {
-              stockMap[pName].stockOut += Number(item.qty || 0);
-            }
-          });
-        } catch (e) { 
-          /* abaikan jika json rusak */ 
-        }
+        const items = safeJsonParse(o.items, []);
+        items.forEach(item => {
+          const pName = item.name || item.product_name;
+          if (pName && stockMap[pName]) {
+            stockMap[pName].stockOut += Number(item.qty || 0);
+          }
+        });
       }
     });
 
-    // Hitung Saldo Akhir & Filter Aman
     const safeSearch = (searchTerm || '').toLowerCase();
     return Object.values(stockMap).map(item => {
       item.currentStock = item.stockIn - item.stockOut;
@@ -61,7 +51,6 @@ export default function TabKartuStok({
     }).filter(item => (item.name || '').toLowerCase().includes(safeSearch));
   }, [masterProducts, productionBatches, orders, searchTerm]);
 
-  // --- ENGINE 2: KALKULASI STOK BAHAN BAKU & PACKAGING ---
   const rawStock = useMemo(() => {
     const stockMap = {};
 
@@ -74,43 +63,34 @@ export default function TabKartuStok({
       }
     });
 
-    // BARANG MASUK: Dari Belanja Logistik / Supplier
     (purchases || []).forEach(p => {
       if (!p.isDeleted) {
-        try {
-          const items = JSON.parse(p.items || '[]');
+        const items = safeJsonParse(p.items, []);
+        if (items.length > 0) {
           items.forEach(item => {
             const rName = item.name || item.raw_name;
             if (rName && stockMap[rName]) {
               stockMap[rName].stockIn += Number(item.qty || 0);
             }
           });
-        } catch (e) {
-          if (p.raw_name && stockMap[p.raw_name]) {
-             stockMap[p.raw_name].stockIn += Number(p.qty || 0);
-          }
+        } else if (p.raw_name && stockMap[p.raw_name]) {
+           stockMap[p.raw_name].stockIn += Number(p.qty || 0);
         }
       }
     });
 
-    // BARANG KELUAR: Dari Pemakaian Produksi
     (productionBatches || []).forEach(batch => {
       if (!batch.isDeleted && batch.status === 'COMPLETED') {
         if (stockMap['AYAM FILLET PAHA'] && batch.total_ayam_kg) {
             stockMap['AYAM FILLET PAHA'].stockOut += Number(batch.total_ayam_kg);
         }
-
-        try {
-          const ingredients = JSON.parse(batch.ingredients_used || '[]');
-          ingredients.forEach(ing => {
-            const rName = ing.name || ing.raw_name;
-            if (rName && stockMap[rName]) {
-              stockMap[rName].stockOut += Number(ing.qty || 0);
-            }
-          });
-        } catch (e) { 
-          /* abaikan */ 
-        }
+        const ingredients = safeJsonParse(batch.ingredients_used, []);
+        ingredients.forEach(ing => {
+          const rName = ing.name || ing.raw_name;
+          if (rName && stockMap[rName]) {
+            stockMap[rName].stockOut += Number(ing.qty || 0);
+          }
+        });
       }
     });
 
@@ -121,50 +101,42 @@ export default function TabKartuStok({
     }).filter(item => (item.name || '').toLowerCase().includes(safeSearch));
   }, [masterRawMaterials, purchases, productionBatches, searchTerm]);
 
-  // --- ENGINE 3: BUKU MUTASI (TIMELINE KARTU STOK) ---
   const kartuMutasi = useMemo(() => {
     const timeline = [];
 
-    // 1. Catat Semua Penjualan (Keluar)
     (orders || []).forEach(o => {
       if (!o.isDeleted && o.status !== 'BATAL') {
-        try {
-          const items = JSON.parse(o.items || '[]');
-          items.forEach(item => {
-            timeline.push({
-              id: o.id, date: o.date, type: 'OUT', category: 'PENJUALAN KASIR',
-              itemName: item.name || item.product_name || 'ITEM TIDAK DIKETAHUI', 
-              qty: item.qty || 0, reference: o.customer_name || 'Pelanggan Umum'
-            });
+        const items = safeJsonParse(o.items, []);
+        items.forEach(item => {
+          timeline.push({
+            id: o.id, date: o.date, type: 'OUT', category: 'PENJUALAN KASIR',
+            itemName: item.name || item.product_name || 'ITEM TIDAK DIKETAHUI', 
+            qty: item.qty || 0, reference: o.customer_name || 'Pelanggan Umum'
           });
-        } catch (e) {}
+        });
       }
     });
 
-    // 2. Catat Semua Belanja (Masuk)
     (purchases || []).forEach(p => {
       if (!p.isDeleted) {
-        try {
-          const items = JSON.parse(p.items || '[]');
-          if(items.length > 0) {
-            items.forEach(item => {
-              timeline.push({
-                id: p.id, date: p.date, type: 'IN', category: 'BELANJA LOGISTIK',
-                itemName: item.name || item.raw_name || 'ITEM TIDAK DIKETAHUI', 
-                qty: item.qty || 0, reference: p.supplier_name || 'Supplier'
-              });
-            });
-          } else if (p.raw_name) {
+        const items = safeJsonParse(p.items, []);
+        if(items.length > 0) {
+          items.forEach(item => {
             timeline.push({
               id: p.id, date: p.date, type: 'IN', category: 'BELANJA LOGISTIK',
-              itemName: p.raw_name, qty: p.qty || 1, reference: p.supplier_name || 'Supplier'
+              itemName: item.name || item.raw_name || 'ITEM TIDAK DIKETAHUI', 
+              qty: item.qty || 0, reference: p.supplier_name || 'Supplier'
             });
-          }
-        } catch (e) {}
+          });
+        } else if (p.raw_name) {
+          timeline.push({
+            id: p.id, date: p.date, type: 'IN', category: 'BELANJA LOGISTIK',
+            itemName: p.raw_name, qty: p.qty || 1, reference: p.supplier_name || 'Supplier'
+          });
+        }
       }
     });
 
-    // 3. Catat Produksi (Ayam/Bahan Keluar, Dimsum Masuk)
     (productionBatches || []).forEach(batch => {
       if (!batch.isDeleted && batch.status === 'COMPLETED') {
         timeline.push({
@@ -181,16 +153,14 @@ export default function TabKartuStok({
             });
         }
 
-        try {
-          const ingredients = JSON.parse(batch.ingredients_used || '[]');
-          ingredients.forEach(ing => {
-            timeline.push({
-              id: batch.id + '-ING', date: batch.date, type: 'OUT', category: 'PEMAKAIAN PRODUKSI',
-              itemName: ing.name || ing.raw_name || 'ITEM TIDAK DIKETAHUI', 
-              qty: ing.qty || 0, reference: `Untuk Batch: ${batch.id}`
-            });
+        const ingredients = safeJsonParse(batch.ingredients_used, []);
+        ingredients.forEach(ing => {
+          timeline.push({
+            id: batch.id + '-ING', date: batch.date, type: 'OUT', category: 'PEMAKAIAN PRODUKSI',
+            itemName: ing.name || ing.raw_name || 'ITEM TIDAK DIKETAHUI', 
+            qty: ing.qty || 0, reference: `Untuk Batch: ${batch.id}`
           });
-        } catch (e) {}
+        });
       }
     });
 
@@ -202,7 +172,6 @@ export default function TabKartuStok({
 
   return (
     <div className="space-y-6 pb-10 text-slate-800 animate-in fade-in duration-300">
-      {/* HEADER BANNER */}
       <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-md text-white flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-xl font-black uppercase tracking-widest flex items-center gap-2">
@@ -218,14 +187,12 @@ export default function TabKartuStok({
         </div>
       </div>
 
-      {/* NAVIGASI SUB TABS */}
       <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-4">
         <button onClick={() => setActiveTab('FREEZER')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase transition-colors flex items-center gap-2 ${activeTab === 'FREEZER' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-500 border hover:bg-slate-50'}`}><Package size={14}/> Gudang Freezer (Produk Akhir)</button>
         <button onClick={() => setActiveTab('BAHAN_BAKU')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase transition-colors flex items-center gap-2 ${activeTab === 'BAHAN_BAKU' ? 'bg-orange-600 text-white shadow-md' : 'bg-white text-slate-500 border hover:bg-slate-50'}`}><Box size={14}/> Gudang Mentah &amp; Packaging</button>
         <button onClick={() => setActiveTab('MUTASI')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase transition-colors flex items-center gap-2 ${activeTab === 'MUTASI' ? 'bg-slate-900 text-white shadow-md' : 'bg-white text-slate-500 border hover:bg-slate-50'}`}><ArrowRightLeft size={14}/> Buku Mutasi Kartu Stok</button>
       </div>
 
-      {/* TAB 1: GUDANG FREEZER */}
       {activeTab === 'FREEZER' && (
         <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm flex flex-col">
           <div className="p-5 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
@@ -267,7 +234,6 @@ export default function TabKartuStok({
         </div>
       )}
 
-      {/* TAB 2: GUDANG BAHAN BAKU & PACKAGING */}
       {activeTab === 'BAHAN_BAKU' && (
         <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm flex flex-col">
           <div className="p-5 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
@@ -310,7 +276,6 @@ export default function TabKartuStok({
         </div>
       )}
 
-      {/* TAB 3: BUKU MUTASI (KARTU STOK RIIL) */}
       {activeTab === 'MUTASI' && (
         <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm flex flex-col">
           <div className="p-5 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
