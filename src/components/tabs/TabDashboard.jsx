@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { 
   TrendingUp, Wallet, ArrowUpRight, ArrowDownRight, 
   AlertOctagon, ShieldCheck, Database, Layers, Package,
-  FileSpreadsheet, ArrowRight, HelpCircle
+  ArrowRight
 } from 'lucide-react';
 import { safeJsonParse } from '../../utils/helpers';
 
@@ -15,19 +15,18 @@ export default function TabDashboard({
   productionBatches = [], production_batches,
   cashflowTransactions = [], cashflow_transactions,
   supplierInvoices = [], supplier_invoices,
-  setActiveTab // 🔥 DIGUNAKAN UNTUK MEMINDAHKAN HALAMAN SECARA OTOMATIS
+  setActiveTab // Di-bypass aman
 }) {
 
   // --- SINKRONISASI DATABASE ---
   const realOrders = useMemo(() => orders_data || orders || [], [orders, orders_data]);
   const realInventory = useMemo(() => inventory_cost_layers || inventoryCostLayers || [], [inventory_cost_layers, inventoryCostLayers]);
-  const realProduction = useMemo(() => production_batches || productionBatches || [], [production_batches, productionBatches]);
+  const realProduction = useMemo(() => production_batches || productionBatches || [], [production_batches, production_batches]);
   const realCashflow = useMemo(() => cashflow_transactions || cashflowTransactions || [], [cashflow_transactions, cashflowTransactions]);
   const realInvoices = useMemo(() => supplier_invoices || supplierInvoices || [], [supplier_invoices, supplierInvoices]);
 
-  // --- 1. ENGINE KALKULATOR UTAMA DASHBOARD ---
+  // --- ENGINE KALKULATOR UTAMA ---
   const ringkasan = useMemo(() => {
-    // A. Saldo Dompet Perusahaan Riil (Kas Bersih)
     let totalKas = 0;
     realCashflow.forEach(c => {
       if (!c.isDeleted) {
@@ -36,7 +35,6 @@ export default function TabDashboard({
       }
     });
 
-    // B. Total Sisa Bon Agen (Piutang Dagang)
     let totalPiutang = 0;
     realOrders.forEach(o => {
       if (!o.isDeleted) {
@@ -46,7 +44,6 @@ export default function TabDashboard({
       }
     });
 
-    // C. Hutang Gantung Belum Bayar ke Supplier Ayam
     let totalHutang = 0;
     realInvoices.forEach(inv => {
       if (!inv.isDeleted && inv.status_payment === 'BELUM_LUNAS') {
@@ -54,19 +51,15 @@ export default function TabDashboard({
       }
     });
 
-    // D. Nilai Modal Aset Di Dalam Gudang (HPP layers tersisa)
     let nilaiAsetGudang = 0;
     let sisaAyamKantong = 0;
     realInventory.forEach(inv => {
       if (!inv.isDeleted) {
         nilaiAsetGudang += (Number(inv.qty_remaining || 0) * Number(inv.unit_cost || 0));
-        if (inv.category === 'BAHAN_BAKU') {
-          sisaAyamKantong += Number(inv.qty_remaining || 0);
-        }
+        if (inv.category === 'BAHAN_BAKU') sisaAyamKantong += Number(inv.qty_remaining || 0);
       }
     });
 
-    // E. Sisa Dimsum Frozen Aktual di Freezer Kasir POS
     let sisaDimsumPcs = 0;
     realProduction.forEach(b => {
       if (!b.isDeleted) sisaDimsumPcs += Number(b.actual_yield || b.qty || 0);
@@ -78,7 +71,6 @@ export default function TabDashboard({
       }
     });
 
-    // F. Omzet Omset 7 Hari Terakhir
     let omzetSeminggu = 0;
     realOrders.forEach(o => {
       if (!o.isDeleted) omzetSeminggu += Number(o.total_amount || 0);
@@ -92,13 +84,12 @@ export default function TabDashboard({
     };
   }, [realOrders, realInventory, realProduction, realCashflow, realInvoices]);
 
-  // --- 2. ENGINE DETEKSI BAHAN BAKU KRITIS ---
-  const isAyamKritis = ringkasan.sisaAyamKantong <= 5; // Batas aman: 5 kantong
+  const isAyamKritis = ringkasan.sisaAyamKantong <= 5;
 
   return (
     <div className="space-y-6 pb-10 text-slate-800 animate-in fade-in duration-300">
       
-      {/* 🚀 BANNER COMMAND CENTER UTAMA */}
+      {/* BANNER HEAD */}
       <div className="bg-[#151a25] rounded-3xl p-6 shadow-xl border border-slate-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-indigo-500"></div>
         <div>
@@ -115,11 +106,9 @@ export default function TabDashboard({
         </div>
       </div>
 
-      {/* 💰 BARIS INDIKATOR KEUANGAN INTI (BAHASA SUDAH DIJELASKAN DETAIL) */}
+      {/* INDIKATOR */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        
-        {/* KAS BERSIH */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm flex flex-col justify-between group hover:border-blue-400 transition-colors">
+        <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm flex flex-col justify-between hover:border-blue-400 transition-colors">
           <div>
             <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center justify-between">
               <span>Uang di Dompet Perusahaan (Kas Bersih)</span>
@@ -130,8 +119,7 @@ export default function TabDashboard({
           <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mt-4 border-t pt-2 border-slate-100">Total dana tunai &amp; saldo bank yang siap dipakai belanja.</p>
         </div>
 
-        {/* PIUTANG AGEN */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm flex flex-col justify-between group hover:border-amber-400 transition-colors">
+        <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm flex flex-col justify-between hover:border-amber-400 transition-colors">
           <div>
             <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center justify-between">
               <span>Total Sisa Bon / Piutang Agen</span>
@@ -142,8 +130,7 @@ export default function TabDashboard({
           <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mt-4 border-t pt-2 border-slate-100">Uang nota pesanan lunas sebagian / belum dibayar oleh mitra.</p>
         </div>
 
-        {/* HUTANG SUPPLIER */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm flex flex-col justify-between group hover:border-rose-400 transition-colors">
+        <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm flex flex-col justify-between hover:border-rose-400 transition-colors">
           <div>
             <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center justify-between">
               <span>Hutang Belum Bayar ke Supplier</span>
@@ -156,12 +143,10 @@ export default function TabDashboard({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        {/* KANTONG KIRI: ALARM PENGINGAT & OMZET BULANAN */}
         <div className="lg:col-span-8 space-y-6">
           
-          {/* 🔔 SISTEM PENGINGAT BELANJA OTOMATIS (UPGRADED DENGAN KABEL INTERAKTIF) */}
-          <div className="bg-white rounded-3xl border border-slate-200 p-5 md:p-6 shadow-sm flex flex-col justify-between relative overflow-hidden">
+          {/* REMINDER PENGINGAT (SAFE LOCK GUARD BYPASS) */}
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between relative overflow-hidden">
             <div className="flex justify-between items-center mb-4">
               <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1.5"><AlertOctagon size={14} className="text-blue-500"/> Sistem Pengingat Belanja Otomatis</span>
               <span className={`px-2.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest ${isAyamKritis ? 'bg-rose-100 text-rose-700 animate-pulse border border-rose-300' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
@@ -170,25 +155,24 @@ export default function TabDashboard({
             </div>
 
             {isAyamKritis ? (
-              <div className="bg-rose-50 border border-rose-200 p-5 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 animate-in zoom-in-95">
+              <div className="bg-rose-50 border border-rose-200 p-5 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                  <div className="space-y-1">
-                   <h4 className="font-black text-rose-800 uppercase tracking-wide text-xs flex items-center gap-1.5">🚨 PERINGATAN: STOK AYAM FILLET MENIPIS DI BAWAH BATAS AMAN!</h4>
+                   <h4 className="font-black text-rose-800 uppercase text-xs flex items-center gap-1.5">🚨 PERINGATAN: STOK AYAM FILLET MENIPIS DI BAWAH BATAS AMAN!</h4>
                    <p className="text-[10px] font-bold text-rose-600/90 uppercase leading-relaxed max-w-xl">
-                     Sisa daging mentah di freezer tinggal {ringkasan.sisaAyamKantong} Kantong ({ringkasan.sisaAyamKg} Kg). Segera kirim Purchase Order (PO) drop ayam sebanyak 1.020 Kg berikutnya ke Supplier. Est Biaya: Rp 38.250.000.
+                     Sisa daging mentah di freezer tinggal {ringkasan.sisaAyamKantong} Kantong ({ringkasan.sisaAyamKg} Kg). Segera lakukan pemesanan drop ayam baru ke supplier logistik.
                    </p>
                  </div>
-                 {/* 🔥 KABEL INTERAKTIF: KLIK LANGSUNG PINDAH TAB BELANJA */}
                  <button 
                    type="button" 
                    onClick={() => {
-                     if (setActiveTab) {
-                       setActiveTab('BELANJA'); // Pindahkan halaman secara paksa ke Tab Belanja
-                       showToast("Mengalihkan otomatis ke menu Belanja Logistik...", "info");
+                     // 🔥 SAFE RETRIEVAL: JIKA APPMENU NGASIH IJIN MAKA JALAN, JIKA TIDAK MAKA PACING MANUAL BIAR GA BLANK
+                     if (typeof setActiveTab === 'function') {
+                       setActiveTab('BELANJA');
                      } else {
-                       alert("Gagal mengalihkan halaman. Silakan buka menu 'Belanja Logistik' di panel kiri secara manual.");
+                       alert("Silakan klik menu 'Belanja Logistik' di panel menu sebelah kiri Bos Sultan!");
                      }
                    }}
-                   className="bg-rose-600 text-white font-black text-[10px] uppercase tracking-widest px-4 py-3.5 rounded-xl shadow-lg shadow-rose-600/20 hover:bg-rose-700 active:scale-95 transition flex items-center gap-2 shrink-0 cursor-pointer"
+                   className="bg-rose-600 text-white font-black text-[10px] uppercase tracking-widest px-4 py-3.5 rounded-xl shadow-lg hover:bg-rose-700 transition flex items-center gap-2 shrink-0 cursor-pointer"
                  >
                    Buat Nota Belanja <ArrowRight size={14}/>
                  </button>
@@ -204,37 +188,33 @@ export default function TabDashboard({
             )}
           </div>
 
-          {/* OMZET REKAPAN KOTAK */}
           <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-1.5"><TrendingUp size={14} className="text-emerald-500"/> Total Omzet Penjualan (7 Hari Terakhir)</div>
              <div className="bg-slate-50 border p-10 rounded-2xl text-center shadow-inner flex flex-col items-center justify-center">
                 <div className="text-4xl font-black text-emerald-600 tracking-tight mb-2">{formatRupiah(ringkasan.omzetSeminggu)}</div>
-                <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Akumulasi total nilai nota transaksi kasir yang tercetak seminggu terakhir</div>
+                <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Akumulasi total nilai nota transaksi kasir seminggu terakhir</div>
              </div>
           </div>
-
         </div>
 
-        {/* KANTONG KANAN: KONDISI FISIK GUDANG AKTUAL */}
+        {/* KANTONG GUDANG */}
         <div className="lg:col-span-4 bg-[#151a25] rounded-3xl p-5 border border-slate-800 shadow-xl flex flex-col justify-between">
           <div className="space-y-5">
             <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5 border-b border-slate-800 pb-3"><Database size={14} className="text-blue-400"/> Kondisi Fisik Gudang Pusat</div>
             
-            {/* BOX STOK AYAM MENTAH */}
             <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-inner">
               <div className="text-[9px] font-black text-rose-400 uppercase tracking-widest mb-1.5 flex items-center gap-1"><Layers size={10}/> Sisa Daging Ayam Mentah Fillet</div>
               <div className="text-2xl font-black text-white tracking-tight">{formatNumber(ringkasan.sisaAyamKg)} <span className="text-xs text-slate-500 font-bold">KG</span></div>
               <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-1.5 pt-1.5 border-t border-slate-800/80">
-                Setara: <span className="text-amber-400 font-black">{formatNumber(ringkasan.sisaAyamKantong)} Kantong</span> | ≈ {formatNumber(Math.floor(ringkasan.sisaAyamKg / 30))} Adukan Dapur
+                Setara: <span className="text-amber-400 font-black">{formatNumber(ringkasan.sisaAyamKantong)} Kantong</span> | ≈ {formatNumber(Math.floor(ringkasan.sisaAyamKg / 30))} Adukan
               </div>
             </div>
 
-            {/* BOX STOK DIMSUM MATANG */}
             <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-inner">
               <div className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-1.5 flex items-center gap-1"><Package size={10}/> Sisa Dimsum Frozen Di Freezer</div>
               <div className="text-2xl font-black text-white tracking-tight">{formatNumber(ringkasan.sisaDimsumPcs)} <span className="text-xs text-slate-500 font-bold">PCS</span></div>
               <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-1.5 pt-1.5 border-t border-slate-800/80">
-                Setara: <span className="text-emerald-400 font-black">{formatNumber(ringkasan.sisaDimsumMika)} Mika Fisik Kotak</span>
+                Setara: <span className="text-emerald-400 font-black">{formatNumber(ringkasan.sisaDimsumMika)} Mika</span>
               </div>
             </div>
           </div>
