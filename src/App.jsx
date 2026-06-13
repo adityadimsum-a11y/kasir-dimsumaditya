@@ -12,7 +12,7 @@ import LayoutEngine from './layouts/LayoutEngine';
 import TabDashboard from './components/tabs/TabDashboard';
 import TabOrders from './components/tabs/TabOrders';
 import TabPurchases from './components/tabs/TabPurchases';
-import TabSupplierAyam from './components/tabs/TabSupplierAyam'; // 🔥 KABEL MENU JANTUNG PABRIK BARU
+import TabSupplierAyam from './components/tabs/TabSupplierAyam'; 
 import TabExpenses from './components/tabs/TabExpenses';
 import TabPiutang from './components/tabs/TabPiutang';
 import TabPemalang from './components/tabs/TabPemalang';
@@ -38,7 +38,7 @@ import TabKartuStok from './components/tabs/TabKartuStok';
 // =====================================
 import PrintDotMatrix from './components/PrintDotMatrix';
 
-// ⚠️ WAJIB GANTI DENGAN URL WEB APP GOOGLE APPS SCRIPT ANDA ⚠️
+// URL WEB APP GOOGLE APPS SCRIPT SULTAN
 const API_URL_GAS = 'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqSM572mbUIGozcghhh8LHNMNw2e83O7Wkyu-SkjdVTO3zpTb64PA/exec';
 
 // =====================================
@@ -111,7 +111,7 @@ export default function App() {
     }
   };
 
-  // Sinkronisasi diam-diam (Background Sync) berjalan otomatis setiap 1 Menit
+  // Sinkronisasi Background Sync berjalan otomatis setiap 1 Menit
   useEffect(() => {
     if (user) {
       fetchAllDatabase(user.branch_id, false); 
@@ -145,7 +145,7 @@ export default function App() {
       const resJson = await response.json();
       if (resJson.status === 'success') {
         showToast('Data berhasil disimpan ke server!', 'success');
-        fetchAllDatabase(user?.branch_id, true); // Update data diam-diam
+        fetchAllDatabase(user?.branch_id, true); 
         return true;
       } else {
         showToast(`Ditolak: ${resJson.message}`, 'error'); return false;
@@ -181,7 +181,6 @@ export default function App() {
         localStorage.setItem('dimsum_user', JSON.stringify(activeUser));
         setUser(activeUser);
         
-        // Cek kapabilitas secara dinamis, arahkan default dashboard
         if (activeUser.branch_type === 'HQ_FACTORY') {
             setActiveTab('dashboard');
         } else {
@@ -193,6 +192,7 @@ export default function App() {
     } catch (err) {
       setLoginError('Server Offline / Tidak ada koneksi internet.');
     } finally {
+      setUser(null);
       setIsLoading(false);
     }
   };
@@ -221,14 +221,22 @@ export default function App() {
   // GATEKEEPER ROUTING (TAB RENDER)
   // =====================================
   const renderContent = () => {
-    // 🛡️ KUNCI PENGAMAN OTOMATIS
     let safeTab = activeTab;
     if (activeTab === 'dashboard' && user?.branch_type !== 'HQ_FACTORY') {
       safeTab = 'dashboard_branch';
     }
 
     switch (safeTab) {
-      case 'dashboard': return <TabDashboard user={user} handleTabChange={setActiveTab} {...dbData} />;
+      // 🔥 KONEKSI INTERAKTIF DIALIRKAN AMAN KE DASHBOARD
+      case 'dashboard': 
+        return (
+          <TabDashboard 
+            user={user} 
+            setActiveTab={setActiveTab} 
+            showToast={showToast}
+            {...dbData} 
+          />
+        );
       case 'dashboard_branch': return <TabDashboardBranch user={user} setPrintData={setPrintData} {...dbData} />;
       case 'pemalang': return <TabPemalang user={user} sendToSheet={sendToSheet} {...dbData} />;
       
@@ -238,11 +246,22 @@ export default function App() {
       case 'business_radar': return <TabBusinessRadar user={user} {...dbData} />;
       case 'analytics': return <TabAnalytics user={user} {...dbData} />;
       case 'orders': return <TabOrders user={user} role={user?.role} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={requestDelete} showToast={showToast} {...dbData} />;
-      case 'purchases': return <TabPurchases user={user} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={requestDelete} showToast={showToast} {...dbData} />;
       
-      // 🔥 RENDER MENU JANTUNG PABRIK BARU
+      // 🔥 KONEKSI SUPREME FEEDER DATA MASTER SUPPLIER KE TAB BELANJA
+      case 'purchases': 
+        return (
+          <TabPurchases 
+            user={user} 
+            sendToSheet={sendToSheet} 
+            setPrintData={setPrintData} 
+            requestDelete={requestDelete} 
+            showToast={showToast} 
+            masterSuppliers={dbData.masterSuppliers}
+            {...dbData} 
+          />
+        );
+      
       case 'supplier_ayam': return <TabSupplierAyam user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
-      
       case 'expenses': return <TabExpenses user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
       case 'stok': return <TabStok user={user} role={user?.role} sendToSheet={sendToSheet} requestDelete={requestDelete} showToast={showToast} {...dbData} />;
       case 'stok_outlet': return <TabStokOutlet user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
@@ -250,7 +269,7 @@ export default function App() {
       case 'distribusi': return <TabDistribusi user={user} sendToSheet={sendToSheet} setPrintData={setPrintData} showToast={showToast} {...dbData} />;
       case 'accounting': return <TabAccounting user={user} {...dbData} />;
       case 'accounting_audit': return <TabAccountingAudit user={user} {...dbData} />;
-      case 'piutang': return <TabPiutang user={user} role={user?.role} sendToSheet={sendToSheet} setPrintData={setPrintData} {...dbData} />;
+      case 'piutang': return <TabPiutang user={user} role={user?.role} sendToSheet={sendToSheet} setPrintData={setPrintData} showToast={showToast} {...dbData} />;
       case 'karyawan': return <TabKaryawan user={user} sendToSheet={sendToSheet} setPrintData={setPrintData} showToast={showToast} {...dbData} />;
       case 'master_data': return <TabMasterData user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
       case 'monitoring_pemalang': return <TabMonitoringPemalang user={user} {...dbData} />;
@@ -260,21 +279,17 @@ export default function App() {
   };
 
   // =====================================
-  // UI 1: GERBANG LOGIN (UPDATED WITH FOOTER)
+  // UI 1: GERBANG LOGIN (WITH FOOTER)
   // =====================================
   if (!user) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 relative overflow-hidden">
-        
-        {/* ANIMATED FLUID GRADIENT BLOBS (Dimsum Aditya Palette) */}
         <div className="absolute top-[-10%] left-[-10%] w-[30rem] md:w-[40rem] h-[30rem] md:h-[40rem] bg-red-500 rounded-full mix-blend-multiply filter blur-[100px] opacity-40 animate-pulse"></div>
         <div className="absolute top-[20%] right-[-10%] w-[25rem] md:w-[35rem] h-[25rem] md:h-[35rem] bg-orange-400 rounded-full mix-blend-multiply filter blur-[100px] opacity-40 animate-pulse" style={{ animationDelay: '2s' }}></div>
         <div className="absolute bottom-[-20%] left-[20%] w-[35rem] md:w-[45rem] h-[35rem] md:h-[45rem] bg-yellow-400 rounded-full mix-blend-multiply filter blur-[100px] opacity-30 animate-pulse" style={{ animationDelay: '4s' }}></div>
 
         <div className="bg-white/90 backdrop-blur-xl p-8 rounded-3xl shadow-2xl max-w-sm w-full relative z-10 border border-white/50 mb-10">
-          
           <div className="text-center mb-6">
-            {/* LOGO BARU */}
             <div className="flex justify-center">
               <img 
                 src="https://dimsumaditya.id/wp-content/uploads/2026/06/Dimsum-Aditya-New-Logo-scaled.webp" 
@@ -305,7 +320,6 @@ export default function App() {
           </form>
         </div>
 
-        {/* FOOTER ANCHOR TEXT */}
         <div className="absolute bottom-6 w-full text-center z-10 flex flex-col items-center justify-center">
             <a href="https://dimsumaditya.id/" target="_blank" rel="noopener noreferrer" className="text-sm font-black text-slate-700 hover:text-red-600 uppercase tracking-widest transition-colors block">
               Dimsum Aditya
@@ -314,13 +328,12 @@ export default function App() {
               Supplier Dimsum Ayam Tangerang.
             </p>
         </div>
-
       </div>
     );
   }
 
   // =====================================
-  // UI 2: RENDER APLIKASI (DYNAMIC LAYOUT ENGINE)
+  // UI 2: RENDER APLIKASI
   // =====================================
   return (
     <div className="fixed inset-0 w-full h-screen overflow-hidden bg-slate-50">
@@ -334,11 +347,9 @@ export default function App() {
         {renderContent()}
       </LayoutEngine>
 
-      {/* Komponen Floating */}
       <ToastNotification toast={toast} onClose={() => setToast(null)} />
       <PrintDotMatrix printData={printData} onClose={() => setPrintData(null)} />
       
-      {/* Dialog Konfirmasi Hapus Data (Void) */}
       {confirmDialog && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-[2px] z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-150">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 text-center border">
@@ -357,7 +368,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Layar Loading - HANYA MUNCUL SAAT SUBMIT / DELETE / LOGIN */}
       {isLoading && (
         <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-[9999] flex flex-col items-center justify-center">
           <Loader2 size={48} className="text-red-600 animate-spin mb-4" />
