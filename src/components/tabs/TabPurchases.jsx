@@ -13,11 +13,8 @@ const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 const normalizeDateStr = (dateVal) => {
   if (!dateVal) return '';
   const strVal = String(dateVal);
-  // Jika sudah format YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}/.test(strVal)) return strVal.substring(0, 10);
-  // Jika format ISO (ada huruf T)
   if (strVal.includes('T')) return strVal.split('T')[0];
-  // Jika format Indonesia DD/MM/YYYY
   const parts = strVal.split('/');
   if (parts.length === 3 && parts[2].length === 4) {
       const day = parts[0].padStart(2, '0');
@@ -25,7 +22,6 @@ const normalizeDateStr = (dateVal) => {
       const year = parts[2];
       return `${year}-${month}-${day}`;
   }
-  // Ultimate Fallback
   try {
       const d = new Date(strVal);
       if (!isNaN(d.getTime())) return d.toISOString().substring(0, 10);
@@ -49,20 +45,23 @@ export default function TabPurchases({
   const [activeSubTab, setActiveTab] = useState('SUPPLIER');
   const [tableDateFilter, setTableDateFilter] = useState(todayStr);
 
+  // 🔥 STATE FORM NOTA SUPPLIER (DI-UPGRADE DENGAN SISTEM PAYMENT HYBRID!)
   const [form, setForm] = useState({
     supplierName: '', 
     category: 'BAHAN_BAKU',
     itemName: '',
-    qty: '', // SEKARANG INI MENGINPUT "KG" JIKA KATEGORINYA BAHAN_BAKU
-    price: '', // INI HARGA PER "KG" JIKA KATEGORINYA BAHAN_BAKU
-    paymentMethod: 'TEMPO' 
+    qty: '', 
+    price: '', 
+    paymentType: 'TEMPO',  // OPSI: TEMPO, DP, LUNAS
+    paymentMethod: 'CASH', // OPSI: CASH, TF_BCA, TF_BRI
+    dpAmount: ''           // Nominal DP (Hanya dipakai jika paymentType === 'DP')
   });
 
   const supplierOptions = useMemo(() => {
     return realSuppliers.filter(s => !s.isDeleted && String(s.isDeleted).toUpperCase() !== 'TRUE');
   }, [realSuppliers]);
 
-  // 🔥 ENGINE KONVERSI (DIBALIK: KG -> KANTONG)
+  // ENGINE KONVERSI (DIBALIK: KG -> KANTONG)
   const hitungKantong = useMemo(() => {
     const volume = Number(form.qty || 0);
     if (form.category === 'BAHAN_BAKU') return volume / 10; // Rule #1: 10 KG = 1 Kantong
@@ -73,7 +72,7 @@ export default function TabPurchases({
     return Number(form.qty || 0) * Number(form.price || 0);
   }, [form.qty, form.price]);
 
-  // --- JURNAL RIWAYAT BELANJA (DENGAN FILTER TANGGAL ANTI-BLANK) ---
+  // JURNAL RIWAYAT BELANJA
   const historyPurchases = useMemo(() => {
     return realPurchases.filter(p => {
       if (p.isDeleted || String(p.isDeleted).toUpperCase() === 'TRUE') return false;
@@ -90,6 +89,7 @@ export default function TabPurchases({
     }).sort((a, b) => new Date(normalizeDateStr(b.date)) - new Date(normalizeDateStr(a.date)));
   }, [realPurchases, tableDateFilter, currentBranch]);
 
+  // --- ACTIONS: SUBMIT NOTA BELANJA SUPPLIER ---
   const handleSubmitBelanja = async (e) => {
     e.preventDefault();
     if (!form.supplierName) return alert("Pilih nama Supplier rekanan resmi terlebih dahulu!");
@@ -98,8 +98,20 @@ export default function TabPurchases({
     const purchaseId = generateId('PO-DMA', todayStr);
     const calculatedTotal = totalTagihanForm;
 
-    // 🔥 PENGAMBILAN KEPUTUSAN PENYIMPANAN MUTLAK GUDANG
-    // Di Database, Gudang kita baca pakai Kantong dan Harga per Kantong.
+    // 🔥 LOGIKA PEMBAYARAN HYBRID SULTAN
+    let paidAmount = 0;
+    if (form.paymentType === 'LUNAS') {
+      paidAmount = calculatedTotal;
+    } else if (form.paymentType === 'DP') {
+      paidAmount = Number(form.dpAmount || 0);
+    }
+    
+    if (form.paymentType === 'DP' && paidAmount <= 0) return alert("Nominal DP tidak boleh kosong atau Rp 0!");
+    if (form.paymentType === 'DP' && paidAmount >= calculatedTotal) return alert("DP melebihi atau sama dengan total tagihan, silakan pilih metode LUNAS FULL.");
+
+    const isLunasTotal = paidAmount >= calculatedTotal;
+
+    // KONVERSI MUTLAK GUDANG
     const finalQty = form.category === 'BAHAN_BAKU' ? hitungKantong : Number(form.qty);
     const finalPrice = finalQty > 0 ? (calculatedTotal / finalQty) : 0;
     const finalUnit = form.category === 'BAHAN_BAKU' ? 'KANTONG' : 'PCS';
@@ -108,13 +120,13 @@ export default function TabPurchases({
       id: purchaseId, date: todayStr, branch_id: currentBranch,
       supplier_name: form.supplierName.toUpperCase(),
       item_name: form.itemName.toUpperCase(), 
-      qty: finalQty, // Simpan sbg kantong
+      qty: finalQty, 
       unit: finalUnit, 
-      price: finalPrice, // Simpan sbg harga per kantong
+      price: finalPrice, 
       total_amount: calculatedTotal, 
-      paid_amount: form.paymentMethod === 'LUNAS' ? calculatedTotal : 0,
-      payment_status: form.paymentMethod === 'LUNAS' ? 'LUNAS' : 'BELUM_LUNAS',
-      payment_method: form.paymentMethod === 'LUNAS' ? 'CASH' : 'HUTANG', 
+      paid_amount: paidAmount,
+      payment_status: isLunasTotal ? 'LUNAS' : 'BELUM_LUNAS',
+      payment_method: form.paymentType === 'TEMPO' ? 'HUTANG' : form.paymentMethod, 
       isDeleted: false
     };
 
@@ -129,16 +141,17 @@ export default function TabPurchases({
         unit_cost: finalPrice, reference_id: purchaseId, isDeleted: false
       }, 'inventory_cost_layers');
 
-      if (form.paymentMethod === 'LUNAS') {
+      // 🔥 CATAT PENGELUARAN JIKA ADA UANG KELUAR (LUNAS / DP)
+      if (paidAmount > 0) {
         await sendToSheet('insert', {
           id: generateId('CFO', todayStr), date: todayStr, branch_id: currentBranch, type: 'OUT',
-          category: 'BELANJA LOGISTIK', description: `Beli ${form.itemName.toUpperCase()} ke ${form.supplierName.toUpperCase()}`,
-          amount: calculatedTotal, method: 'CASH', reference_id: purchaseId
+          category: 'BELANJA LOGISTIK', description: `Beli ${form.itemName.toUpperCase()} ke ${form.supplierName.toUpperCase()} (${form.paymentType})`,
+          amount: paidAmount, method: form.paymentMethod, reference_id: purchaseId
         }, 'cashflow_transactions');
       }
 
       showToast("Nota Belanja Supplier Berhasil Disimpan ke Cloud Sheet!", "success");
-      setForm({ supplierName: '', category: 'BAHAN_BAKU', itemName: '', qty: '', price: '', paymentMethod: 'TEMPO' });
+      setForm({ supplierName: '', category: 'BAHAN_BAKU', itemName: '', qty: '', price: '', paymentType: 'TEMPO', paymentMethod: 'CASH', dpAmount: '' });
     }
   };
 
@@ -200,7 +213,6 @@ export default function TabPurchases({
               <input type="text" required value={form.itemName} onChange={e=>setForm({...form, itemName: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold uppercase text-xs outline-none focus:bg-white" placeholder="Cth: DAGING FILLET DADA" />
             </div>
 
-            {/* 🔥 REVISI UI: INPUT BERAT KG DULUAN, BARU KONVERSI KANTONG */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-[9px] font-black text-slate-500 uppercase block mb-1">
@@ -218,7 +230,6 @@ export default function TabPurchases({
               </div>
             </div>
 
-            {/* 🔥 REVISI UI: HARGA MENGIKUTI KG */}
             <div>
               <label className="text-[9px] font-black text-slate-500 uppercase block mb-1">
                 {form.category === 'BAHAN_BAKU' ? 'Harga Per Satuan (Per KG)' : 'Harga Per Satuan (Per Pcs)'}
@@ -234,9 +245,34 @@ export default function TabPurchases({
               <span className="text-xl font-black text-emerald-400">{formatRupiah(totalTagihanForm)}</span>
             </div>
 
-            <div className="flex gap-3 pt-2">
-              <button type="button" onClick={()=>setForm({...form, paymentMethod: 'TEMPO'})} className={`flex-1 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest border transition-all ${form.paymentMethod === 'TEMPO' ? 'bg-amber-500 text-white border-amber-600 shadow-md' : 'bg-slate-50 text-slate-500'}`}>TEMPO / BON</button>
-              <button type="button" onClick={()=>setForm({...form, paymentMethod: 'LUNAS'})} className={`flex-1 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest border transition-all ${form.paymentMethod === 'LUNAS' ? 'bg-emerald-600 text-white border-emerald-700 shadow-md' : 'bg-slate-50 text-slate-500'}`}>LUNAS (KAS POTONG)</button>
+            {/* 🔥 REVISI UI: KOTAK METODE PEMBAYARAN HYBRID SULTAN */}
+            <div className="p-4 border border-slate-200 rounded-2xl bg-slate-50 shadow-inner">
+              <div className="flex justify-between items-center mb-3">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Metode / Jalur Bayar</label>
+                <div className="flex gap-1 bg-slate-200/60 p-1 rounded-lg">
+                  <button type="button" onClick={() => setForm({...form, paymentType: 'TEMPO', dpAmount: ''})} className={`px-2 py-1.5 rounded-md text-[9px] font-black uppercase tracking-widest ${form.paymentType === 'TEMPO' ? 'bg-white shadow-sm text-rose-600' : 'text-slate-500'}`}>TEMPO FULL</button>
+                  <button type="button" onClick={() => setForm({...form, paymentType: 'DP'})} className={`px-2 py-1.5 rounded-md text-[9px] font-black uppercase tracking-widest ${form.paymentType === 'DP' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}>BAYAR DP</button>
+                  <button type="button" onClick={() => setForm({...form, paymentType: 'LUNAS', dpAmount: ''})} className={`px-2 py-1.5 rounded-md text-[9px] font-black uppercase tracking-widest ${form.paymentType === 'LUNAS' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-500'}`}>LUNAS FULL</button>
+                </div>
+              </div>
+
+              {/* HANYA MUNCUL JIKA BAYAR DP ATAU LUNAS (KARENA BUTUH TRANSFER / UANG KASIR) */}
+              {form.paymentType !== 'TEMPO' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3 animate-in fade-in duration-200 border-t border-slate-200 pt-3">
+                  <select value={form.paymentMethod} onChange={e=>setForm({...form, paymentMethod: e.target.value})} className="w-full p-3 border border-slate-300 rounded-xl text-[10px] font-black uppercase outline-none cursor-pointer bg-white focus:border-emerald-500">
+                    <option value="CASH">UANG TUNAI LACI KASIR</option>
+                    <option value="TF_BCA">TRANSFER REK. BCA PUSAT</option>
+                    <option value="TF_BRI">TRANSFER REK. BRI PUSAT</option>
+                  </select>
+                  
+                  {form.paymentType === 'DP' && (
+                    <div className="relative">
+                      <span className="absolute left-3 top-3.5 font-black text-blue-500 text-xs">Rp</span>
+                      <input type="text" required value={form.dpAmount ? Number(form.dpAmount).toLocaleString('id-ID') : ''} onChange={e=>setForm({...form, dpAmount: e.target.value.replace(/\D/g, '')})} className="w-full pl-9 pr-3 py-3 border-2 border-blue-200 rounded-xl font-black text-sm text-blue-700 bg-white outline-none focus:border-blue-500" placeholder="Nominal DP..." />
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <button type="submit" className="w-full bg-slate-900 text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest shadow-lg hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2 mt-2">
@@ -262,8 +298,8 @@ export default function TabPurchases({
               <thead className="bg-white text-[10px] uppercase text-slate-400 border-b border-slate-100 sticky top-0 shadow-sm">
                 <tr>
                   <th className="px-5 py-4 font-black">Bukti &amp; Ref</th>
-                  <th className="px-5 py-4 font-black">Detail Transaksi Belanja</th>
-                  <th className="px-5 py-4 font-black text-right">Jumlah Uang</th>
+                  <th className="px-5 py-4 font-black min-w-[200px]">Detail Transaksi Belanja</th>
+                  <th className="px-5 py-4 font-black text-right min-w-[180px]">Rincian Pembayaran</th>
                   <th className="px-5 py-4 font-black text-center">Jalur</th>
                   <th className="px-5 py-4 font-black text-center">Tindakan</th>
                 </tr>
@@ -276,7 +312,12 @@ export default function TabPurchases({
                 ) : (
                   historyPurchases.map(p => {
                     const totalBill = Number(p.total_amount || p.amount || 0);
-                    const isLunas = String(p.payment_status).toUpperCase() === 'LUNAS' || String(p.payment_method).toUpperCase() === 'CASH';
+                    const paidAmt = Number(p.paid_amount || 0);
+                    const sisaHutang = totalBill - paidAmt;
+                    
+                    const isLunas = String(p.payment_status).toUpperCase() === 'LUNAS' || sisaHutang <= 0;
+                    const isDP = paidAmt > 0 && sisaHutang > 0;
+                    const pMethod = String(p.payment_method || 'HUTANG').replace('_', ' ');
 
                     return (
                       <tr key={p.id} className="hover:bg-amber-50/30 transition-colors group">
@@ -287,15 +328,38 @@ export default function TabPurchases({
                         <td className="px-5 py-4">
                           <div className="font-black text-blue-700 uppercase text-xs mb-1">{p.supplier_name || p.supplierName || 'SUPPLIER'}</div>
                           <div className="text-[10px] text-slate-700 uppercase font-black">{p.item_name || p.itemName}</div>
-                          {/* 🔥 Tabel langsung mencerminkan data kantong seperti yang dipahami sistem gudang */}
                           <div className="text-[9px] text-slate-400 mt-1">Sistem Masuk Gudang: {formatNumber(p.qty)} {p.unit || 'KANTONG'}</div>
                         </td>
-                        <td className="px-5 py-4 text-right whitespace-nowrap font-black text-sm text-rose-600">{formatRupiah(totalBill)}</td>
-                        <td className="px-5 py-4 text-center whitespace-nowrap"><span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest border ${isLunas ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>{isLunas ? 'LUNAS CASH' : 'BON TEMPO'}</span></td>
+                        <td className="px-5 py-4 text-right whitespace-nowrap">
+                          {/* 🔥 JURNAL RINCIAN TAGIHAN (TOTAL, DP/LUNAS, SISA HUTANG) */}
+                          <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 mb-1">
+                            <span>Total Nota:</span><span>{formatRupiah(totalBill)}</span>
+                          </div>
+                          <div className="flex justify-between items-center text-[10px] font-bold text-rose-600 mb-1 border-b border-slate-100 pb-1">
+                            <span>{isDP ? 'DP Dibayar:' : (isLunas ? 'Lunas Dibayar:' : 'Dibayar:')}</span>
+                            <span>{formatRupiah(paidAmt)}</span>
+                          </div>
+                          {!isLunas && (
+                            <div className="flex justify-between items-center text-[11px] font-black text-amber-600 uppercase">
+                               <span>Sisa Hutang:</span><span>{formatRupiah(sisaHutang)}</span>
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-5 py-4 text-center whitespace-nowrap">
+                          <span className={`px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border shadow-sm ${isLunas ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : isDP ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
+                            {isLunas ? `LUNAS (${pMethod})` : isDP ? `DP (${pMethod})` : 'HUTANG FULL'}
+                          </span>
+                        </td>
                         <td className="px-5 py-4 text-center whitespace-nowrap opacity-40 group-hover:opacity-100 transition-opacity">
                           <div className="flex items-center justify-center gap-1">
-                            <button type="button" onClick={() => triggerPrint('NOTA_DOTMATRIX', { title: 'BUKTI BON BELANJA LOGISTIK PABRIK', id: p.id, date: formatDate(p.date), branch_name: p.branch_id, admin_name: user?.name || 'ADMIN LOGISTIK', customer_name: p.supplier_name, items: [{ name: `BELANJA: ${p.item_name}\n(Jalur: ${p.payment_method})`, qty: p.qty, subtotal: totalBill }], amount: totalBill, paymentMethod: isLunas ? 'LUNAS DIBAYAR' : 'HUTANG DAGANG', history: null })} className="p-2 text-slate-500 bg-white border rounded-lg hover:text-blue-600"><Printer size={14}/></button>
-                            <button type="button" onClick={() => { if(window.confirm("Yakin void data belanja?")) requestDelete(p.id); }} className="p-2 text-slate-500 bg-white border rounded-lg hover:text-rose-600"><Trash2 size={14}/></button>
+                            <button type="button" onClick={() => triggerPrint('NOTA_DOTMATRIX', { 
+                              title: 'BUKTI BON BELANJA LOGISTIK PABRIK', id: p.id, date: formatDate(p.date), 
+                              branch_name: p.branch_id, admin_name: user?.name || 'ADMIN LOGISTIK', customer_name: p.supplier_name, 
+                              items: [{ name: `BELANJA: ${p.item_name}\n(Jalur: ${pMethod})`, qty: p.qty, subtotal: totalBill }], 
+                              amount: totalBill, paymentMethod: isLunas ? `LUNAS (${pMethod})` : isDP ? `DP MASUK (${pMethod})` : 'HUTANG TEMPO', 
+                              history: isDP ? { labelLama: 'Total Tagihan', nominalLama: totalBill, labelAksi: 'Uang Muka (DP)', nominalAksi: paidAmt, labelBaru: 'SISA HUTANG DAGANG', nominalBaru: sisaHutang } : null
+                            })} className="p-2 text-slate-500 bg-white border rounded-lg hover:text-blue-600 shadow-sm"><Printer size={14}/></button>
+                            <button type="button" onClick={() => { if(window.confirm("Yakin void data belanja? Aset gudang akan ditarik mundur!")) requestDelete(p.id); }} className="p-2 text-slate-500 bg-white border rounded-lg hover:text-rose-600 shadow-sm"><Trash2 size={14}/></button>
                           </div>
                         </td>
                       </tr>
