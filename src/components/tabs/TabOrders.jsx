@@ -2,7 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { 
   ShoppingCart, Search, Plus, Trash2, Printer, 
   CheckCircle2, AlertTriangle, Clock, Wallet, Box, User,
-  Calendar, FileText, ArrowDownToLine, PackageCheck, X
+  Calendar, FileText, ArrowDownToLine, PackageCheck, X,
+  Layers, Package
 } from 'lucide-react';
 import { getTodayStr, generateId, formatDate, safeJsonParse } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
@@ -141,18 +142,11 @@ export default function TabOrders({
     const initialQtyDelivered = fulfillment === 'PRE_ORDER' ? 0 : cartCalculated.totalQty;
 
     const payloadOrder = {
-      id: trxId,
-      date: new Date().toISOString(),
-      branch_id: currentBranch,
-      customer_name: customerName.toUpperCase(),
-      sales_channel: orderSource,
-      items: JSON.stringify(cartCalculated.items),
-      qty: cartCalculated.totalQty,
-      qty_delivered: initialQtyDelivered, // TRACKER BARANG DIAMBIL
-      total_amount: cartCalculated.totalTagihan,
-      amount_paid: nominalDibayar,
-      payment_method: paymentMethod,
-      status: statusLunas,
+      id: trxId, date: new Date().toISOString(), branch_id: currentBranch,
+      customer_name: customerName.toUpperCase(), sales_channel: orderSource,
+      items: JSON.stringify(cartCalculated.items), qty: cartCalculated.totalQty,
+      qty_delivered: initialQtyDelivered, total_amount: cartCalculated.totalTagihan,
+      amount_paid: nominalDibayar, payment_method: paymentMethod, status: statusLunas,
       fulfillment_status: fulfillment === 'PRE_ORDER' ? 'PRE_ORDER' : 'DIAMBIL',
       notes: paymentType === 'DP' ? `DP MASUK: ${formatRupiah(nominalDibayar)} VIA ${paymentMethod}` : ''
     };
@@ -185,7 +179,6 @@ export default function TabOrders({
     }
   };
 
-  // --- ACTIONS: SERAHKAN BARANG (PARSIAL / AMBIL SEBAGIAN) ---
   const handleSubmitDelivery = async (e) => {
     e.preventDefault();
     const qtyDiberikan = Number(deliveryQty);
@@ -202,46 +195,65 @@ export default function TabOrders({
     const isSelesaiDiambil = newQtyDelivered >= qtyTotalPesan;
 
     const payloadUpdate = {
-      ...orderTarget,
-      qty_delivered: newQtyDelivered,
+      ...orderTarget, qty_delivered: newQtyDelivered,
       fulfillment_status: isSelesaiDiambil ? 'DIAMBIL' : 'DIAMBIL_SEBAGIAN'
     };
 
     const isSuccess = await sendToSheet('update', payloadUpdate, 'orders');
     if (isSuccess) {
       showToast(`Berhasil mencatat penyerahan ${qtyDiberikan} Pcs ke pelanggan!`, 'success');
-      setDeliveryModal(null);
-      setDeliveryQty('');
+      setDeliveryModal(null); setDeliveryQty('');
     }
   };
 
   return (
     <div className="space-y-6 pb-10 text-slate-800 animate-in fade-in duration-300">
       
-      {/* 🚀 BANNER MONITOR STOK TERATAS (DENGAN KONVERSI KHUSUS DIMSUM MIX) */}
-      <div className="bg-slate-900 rounded-3xl p-6 shadow-xl border border-slate-800 relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-emerald-400 to-amber-500"></div>
-        <div className="flex items-center gap-2 mb-4">
-           <Box size={18} className="text-blue-400"/>
-           <h3 className="text-white font-black uppercase tracking-widest text-xs">Pemantauan Stok Aktual Freezer</h3>
+      {/* 🚀 BANNER MONITOR STOK TERATAS (DESAIN DASHBOARD SULTAN KOTAK-KOTAK) */}
+      <div className="bg-[#151a25] rounded-3xl p-6 shadow-xl border border-slate-800 relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-500 via-emerald-400 to-amber-500"></div>
+        <div className="flex items-center gap-2 mb-5">
+           <Box size={20} className="text-blue-400"/>
+           <h3 className="text-white font-black uppercase tracking-widest text-sm">Dashboard Stok Aktual Freezer</h3>
         </div>
-        <div className="flex overflow-x-auto gap-4 pb-2 custom-scrollbar">
+        
+        <div className="flex overflow-x-auto gap-6 pb-4 custom-scrollbar">
           {activeMenus.map(m => {
             const stok = stockMap[m.product_name] || 0;
-            const isMix = m.product_name.toUpperCase().includes('DIMSUM AYAM MIX'); // Deteksi khusus Dimsum Mix
+            const isMix = m.product_name.toUpperCase().includes('DIMSUM AYAM MIX'); // Trigger konversi kotak
 
             return (
-              <div key={m.id} className={`border rounded-2xl p-4 min-w-[160px] shrink-0 shadow-inner ${isMix ? 'bg-indigo-950/40 border-indigo-500/50' : 'bg-slate-950 border-slate-800'}`}>
-                <div className={`text-[9px] font-black uppercase tracking-widest line-clamp-1 mb-1 ${isMix ? 'text-indigo-300' : 'text-slate-400'}`}>{m.product_name}</div>
-                <div className={`text-2xl font-black tracking-tight ${stok > 0 ? 'text-emerald-400' : 'text-rose-500'}`}>{formatNumber(stok)} <span className="text-[10px] text-slate-500 font-bold">PCS</span></div>
-                
-                {/* KONVERSI KHUSUS DIMSUM MIX */}
-                {isMix && (
-                  <div className="mt-2 pt-2 border-t border-indigo-500/30 flex flex-col gap-0.5">
-                     <div className="text-[9px] font-bold text-indigo-200">≈ {formatNumber(Math.floor(stok / 50))} <span className="text-indigo-400 uppercase">Mika (Isi 50)</span></div>
-                     <div className="text-[9px] font-bold text-indigo-200">≈ {formatNumber(Math.floor(stok / 4))} <span className="text-indigo-400 uppercase">Porsi (Isi 4)</span></div>
-                  </div>
-                )}
+              <div key={m.id} className={`flex flex-col min-w-[320px] shrink-0 rounded-2xl overflow-hidden border shadow-lg ${isMix ? 'border-indigo-500/50 bg-indigo-950/20' : 'border-slate-800 bg-slate-950/50'}`}>
+                 <div className={`p-4 border-b ${isMix ? 'border-indigo-500/30 bg-indigo-900/30' : 'border-slate-800/50 bg-slate-900/50'}`}>
+                   <h4 className={`text-[11px] font-black uppercase tracking-widest leading-tight ${isMix ? 'text-indigo-300' : 'text-slate-400'}`}>{m.product_name}</h4>
+                 </div>
+                 
+                 <div className="p-4 grid grid-cols-3 gap-3">
+                    {/* Kotak PCS Dasar (Pasti Muncul) */}
+                    <div className="flex flex-col items-center justify-center p-3 bg-slate-900 rounded-xl border border-slate-800 shadow-inner">
+                       <div className="text-[9px] font-bold text-slate-500 uppercase mb-1">TOTAL PCS</div>
+                       <div className={`text-xl font-black ${stok > 0 ? 'text-emerald-400' : 'text-rose-500'}`}>{formatNumber(stok)}</div>
+                    </div>
+
+                    {isMix ? (
+                      <>
+                        {/* Kotak MIKA Konversi */}
+                        <div className="flex flex-col items-center justify-center p-3 bg-slate-900 rounded-xl border border-slate-800 shadow-inner">
+                           <div className="text-[9px] font-bold text-blue-400 uppercase mb-1">MIKA (50)</div>
+                           <div className="text-lg font-black text-white">{formatNumber(Math.floor(stok / 50))}</div>
+                        </div>
+                        {/* Kotak PORSI Konversi */}
+                        <div className="flex flex-col items-center justify-center p-3 bg-slate-900 rounded-xl border border-slate-800 shadow-inner">
+                           <div className="text-[9px] font-bold text-amber-400 uppercase mb-1">PORSI (4)</div>
+                           <div className="text-lg font-black text-white">{formatNumber(Math.floor(stok / 4))}</div>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="col-span-2 flex items-center justify-center p-3 bg-slate-900/50 rounded-xl border border-slate-800/50">
+                         <span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">Produk Tanpa Konversi</span>
+                      </div>
+                    )}
+                 </div>
               </div>
             );
           })}
@@ -352,7 +364,7 @@ export default function TabOrders({
                 <button type="button" onClick={() => setFulfillment('PRE_ORDER')} className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 ${fulfillment === 'PRE_ORDER' ? 'bg-white shadow-sm border border-slate-200 text-amber-600' : 'text-slate-500 hover:text-slate-800'}`}><Clock size={14}/> Pre-Order (PO Ditahan)</button>
               </div>
 
-              {/* 🚀 KOTAK TOTAL DENGAN GEMBOK RAHASIA HPP */}
+              {/* 🚀 KOTAK TOTAL DENGAN GEMBOK RAHASIA HPP (TETAP AMAN!) */}
               <div className="bg-slate-900 text-white p-5 rounded-2xl shadow-xl relative overflow-hidden border border-slate-800">
                 <div className="flex justify-between items-end mb-2">
                   <div>
@@ -487,7 +499,7 @@ export default function TabOrders({
                           ))}
                         </div>
                       </td>
-                      <td className="px-5 py-4 text-center whitespace-nowrap">
+                      <td className="px-5 py-4 text-center">
                         <div className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border shadow-sm inline-block ${badgeColor}`}>
                           <div className="mb-1 border-b border-black/10 pb-1">{statusBadge}</div>
                           <div className="text-[8px] flex flex-col gap-0.5">
