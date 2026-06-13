@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { 
   Factory, Search, Printer, Trash2, 
-  CheckCircle2, Layers, Database,
+  CheckCircle2, Layers, Database, PackageCheck,
   FileText, Calendar, Calculator, ArrowRightLeft
 } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
@@ -29,7 +29,9 @@ export default function TabStok({
     date: todayStr,
     pic: user?.name || '',
     productName: '',
-    adukanQty: '', // 🔥 INI YANG BARU: INPUT JUMLAH ADUKAN
+    adukanQty: '',      // Patokan potong ayam
+    actualMika: '',     // Realita fisik mika (Isi 50)
+    actualLoosePcs: '', // Realita sisa pcs lepasan
     notes: ''
   });
 
@@ -49,12 +51,18 @@ export default function TabStok({
   // --- 2. ENGINE KALKULATOR ADUKAN REAL-TIME ---
   const kalkulasi = useMemo(() => {
     const adukan = Number(form.adukanQty || 0);
+    const aktualMika = Number(form.actualMika || 0);
+    const aktualLoosePcs = Number(form.actualLoosePcs || 0);
     
     // RUMUS MUTLAK PABRIK BOS SULTAN:
-    const yieldPcs = adukan * 1000;
-    const yieldMika = adukan * 20;     // 1000 / 50
-    const yieldPorsi = adukan * 250;   // 1000 / 4
+    const stdPcs = adukan * 1000;
+    const stdMika = adukan * 20;     // 1000 / 50
 
+    // HASIL AKTUAL YANG MASUK POS KASIR
+    const actualTotalPcs = (aktualMika * 50) + aktualLoosePcs;
+    const selisihPcs = actualTotalPcs - stdPcs;
+
+    // KEBUTUHAN AYAM (MUTLAK BERDASARKAN ADUKAN)
     const butuhAyamKg = adukan * 30;
     const butuhAyamKantong = adukan * 3; // 30 / 10
     
@@ -62,10 +70,11 @@ export default function TabStok({
     const sisaAyamKg = stockGudang.ayamKg - butuhAyamKg;
 
     return { 
-      adukan, yieldPcs, yieldMika, yieldPorsi, 
+      adukan, stdPcs, stdMika, 
+      actualTotalPcs, aktualMika, aktualLoosePcs, selisihPcs,
       butuhAyamKg, butuhAyamKantong, sisaAyamKantong, sisaAyamKg 
     };
-  }, [form.adukanQty, stockGudang]);
+  }, [form.adukanQty, form.actualMika, form.actualLoosePcs, stockGudang]);
 
   // Filter Menu Aktif
   const activeMenus = useMemo(() => {
@@ -79,10 +88,22 @@ export default function TabStok({
       .sort((a, b) => new Date(b.date) - new Date(a.date));
   }, [realProduction, tableDateFilter, currentBranch]);
 
+  // --- ACTIONS: AUTO-FILL HASIL AKTUAL ---
+  const handleAdukanChange = (val) => {
+    const adukan = Number(val.replace(/\D/g, ''));
+    setForm(prev => ({
+      ...prev,
+      adukanQty: String(adukan),
+      actualMika: String(adukan * 20), // Auto-fill standar mika
+      actualLoosePcs: '0'              // Auto-fill sisa 0
+    }));
+  };
+
   // --- ACTIONS: SUBMIT LAPORAN PRODUKSI ---
   const handleSubmitProduksi = async (e) => {
     e.preventDefault();
     if (kalkulasi.adukan <= 0) return alert("Jumlah adukan tidak boleh kosong!");
+    if (kalkulasi.actualTotalPcs <= 0) return alert("Hasil fisik aktual (Mika/Pcs) tidak boleh kosong!");
     if (!form.productName) return alert("Pilih menu yang diproduksi!");
 
     if (kalkulasi.butuhAyamKantong > stockGudang.ayamKantong) {
@@ -93,16 +114,16 @@ export default function TabStok({
 
     const batchId = generateId('PRD', form.date);
 
-    // 1. PAYLOAD PRODUKSI (Yield dalam PCS untuk Kasir POS)
+    // 1. PAYLOAD PRODUKSI (Yield Aktual dalam PCS untuk Kasir POS)
     const payloadBatch = {
       id: batchId, date: form.date, branch_id: currentBranch,
       item_name: form.productName, 
-      actual_yield: kalkulasi.yieldPcs, // Tetap simpan sebagai Pcs biar kasir jualan eceran gampang
+      actual_yield: kalkulasi.actualTotalPcs, // YANG MASUK KE KASIR ADALAH REALITA AKTUAL
       pic: form.pic.toUpperCase(), 
-      notes: `${form.notes.toUpperCase()} (ASAL: ${kalkulasi.adukan} ADUKAN)`
+      notes: `${form.notes.toUpperCase()} (ASAL: ${kalkulasi.adukan} ADUKAN, FISIK: ${kalkulasi.aktualMika} MIKA + ${kalkulasi.aktualLoosePcs} PCS)`
     };
 
-    // 2. PAYLOAD INVENTORY AYAM (Memotong dalam satuan Kantong)
+    // 2. PAYLOAD INVENTORY AYAM (Memotong dalam satuan Kantong berdasarkan ADUKAN)
     let payloadAyam = null;
     if (kalkulasi.butuhAyamKantong > 0) {
       payloadAyam = {
@@ -116,46 +137,52 @@ export default function TabStok({
     
     if (isSuccess) {
       if (payloadAyam) sendToSheet('insert', payloadAyam, 'inventory_cost_layers');
-      showToast(`Laporan ${kalkulasi.adukan} Adukan Sukses! Kasir mendapat ${formatNumber(kalkulasi.yieldPcs)} Pcs Dimsum.`, 'success');
-      setForm({ ...form, productName: '', adukanQty: '', notes: '' });
+      showToast(`Laporan Sukses! Kasir mendapat suplai aktual ${formatNumber(kalkulasi.actualTotalPcs)} Pcs Dimsum.`, 'success');
+      setForm({ ...form, productName: '', adukanQty: '', actualMika: '', actualLoosePcs: '', notes: '' });
     }
   };
 
   return (
     <div className="space-y-6 pb-10 text-slate-800 animate-in fade-in duration-300">
       
-      {/* 🚀 BANNER MONITOR GUDANG MENTAH & KALKULATOR HASIL (DESAIN BARU!) */}
-      <div className="bg-[#151a25] rounded-3xl p-6 shadow-xl border border-slate-800 relative overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+      {/* 🚀 BANNER MONITOR GUDANG MENTAH & KALKULATOR HASIL (SULTAN VIEW) */}
+      <div className="bg-[#151a25] rounded-3xl p-6 shadow-xl border border-slate-800 relative overflow-hidden flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
         <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-rose-500 via-amber-400 to-emerald-500"></div>
         <div className="relative z-10 text-white flex-1 w-full">
            <div className="flex items-center gap-2 mb-4">
              <Database size={20} className="text-rose-500"/>
-             <h2 className="text-sm font-black uppercase tracking-widest text-slate-300">Gudang Bahan Baku &amp; Estimasi Hasil</h2>
+             <h2 className="text-sm font-black uppercase tracking-widest text-slate-300">Monitor Gudang &amp; Hasil Fisik Aktual</h2>
            </div>
            
-           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full">
-             {/* KOTAK 1: HASIL PCS */}
-             <div className="bg-slate-900/80 border border-slate-700 rounded-2xl p-4 flex flex-col items-center justify-center text-center">
-               <div className="text-[9px] font-black text-emerald-400 uppercase tracking-widest mb-1">Estimasi Total Pcs</div>
-               <div className="text-2xl font-black text-white">{formatNumber(kalkulasi.yieldPcs)}</div>
+           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 w-full">
+             {/* KOTAK 1: HASIL AKTUAL (YANG MASUK KE POS) */}
+             <div className="bg-emerald-950/30 border border-emerald-900/50 rounded-2xl p-4 flex flex-col items-center justify-center text-center relative overflow-hidden">
+               <div className="absolute top-0 w-full bg-emerald-600/20 text-emerald-400 text-[8px] font-black uppercase text-center py-0.5 border-b border-emerald-500/20">MASUK KASIR POS</div>
+               <div className="text-[9px] font-black text-emerald-400 uppercase tracking-widest mb-1 mt-2">Total Aktual (Pcs)</div>
+               <div className="text-3xl font-black text-white">{formatNumber(kalkulasi.actualTotalPcs)}</div>
+               {kalkulasi.selisihPcs !== 0 && (
+                 <div className={`text-[9px] font-black uppercase mt-1 px-2 py-0.5 rounded ${kalkulasi.selisihPcs > 0 ? 'bg-blue-500/20 text-blue-400' : 'bg-rose-500/20 text-rose-400'}`}>
+                   {kalkulasi.selisihPcs > 0 ? `+${formatNumber(kalkulasi.selisihPcs)} PCS (SURPLUS)` : `${formatNumber(kalkulasi.selisihPcs)} PCS (MINUS)`}
+                 </div>
+               )}
              </div>
-             {/* KOTAK 2: HASIL MIKA & PORSI */}
+             {/* KOTAK 2: ESTIMASI STANDAR ADUKAN */}
              <div className="bg-slate-900/80 border border-slate-700 rounded-2xl p-4 flex flex-col items-center justify-center text-center">
-               <div className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-1">Setara Konversi</div>
-               <div className="text-sm font-black text-white">{formatNumber(kalkulasi.yieldMika)} <span className="text-[10px] text-slate-400">MIKA</span></div>
-               <div className="text-sm font-black text-white">{formatNumber(kalkulasi.yieldPorsi)} <span className="text-[10px] text-slate-400">PORSI</span></div>
+               <div className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-1">Target Standar</div>
+               <div className="text-sm font-black text-slate-300">{formatNumber(kalkulasi.stdMika)} <span className="text-[10px] text-slate-500">MIKA</span></div>
+               <div className="text-sm font-black text-slate-300">{formatNumber(kalkulasi.stdPcs)} <span className="text-[10px] text-slate-500">PCS</span></div>
              </div>
-             {/* KOTAK 3: AYAM DIPAKAI */}
+             {/* KOTAK 3: AYAM DIPAKAI (MUTLAK) */}
              <div className="bg-rose-950/30 border border-rose-900/50 rounded-2xl p-4 flex flex-col items-center justify-center text-center">
                <div className="text-[9px] font-black text-rose-400 uppercase tracking-widest mb-1">Ayam Dipakai</div>
-               <div className="text-lg font-black text-white">{formatNumber(kalkulasi.butuhAyamKantong)} <span className="text-[10px] text-slate-400">KANTONG</span></div>
+               <div className="text-xl font-black text-white">{formatNumber(kalkulasi.butuhAyamKantong)} <span className="text-[10px] text-slate-400">KANTONG</span></div>
                <div className="text-xs font-bold text-rose-300">{formatNumber(kalkulasi.butuhAyamKg)} KG</div>
              </div>
              {/* KOTAK 4: SISA GUDANG */}
              <div className="bg-amber-950/30 border border-amber-900/50 rounded-2xl p-4 flex flex-col items-center justify-center text-center relative overflow-hidden">
                {kalkulasi.sisaAyamKantong < 0 && <div className="absolute top-0 w-full bg-rose-600 text-white text-[8px] font-black uppercase text-center py-0.5">MINUS</div>}
                <div className="text-[9px] font-black text-amber-400 uppercase tracking-widest mb-1">Sisa Di Gudang</div>
-               <div className={`text-lg font-black ${kalkulasi.sisaAyamKantong < 0 ? 'text-rose-500' : 'text-white'}`}>{formatNumber(kalkulasi.sisaAyamKantong)} <span className="text-[10px] text-slate-400">KANTONG</span></div>
+               <div className={`text-xl font-black ${kalkulasi.sisaAyamKantong < 0 ? 'text-rose-500' : 'text-white'}`}>{formatNumber(kalkulasi.sisaAyamKantong)} <span className="text-[10px] text-slate-400">KANTONG</span></div>
                <div className={`text-xs font-bold ${kalkulasi.sisaAyamKg < 0 ? 'text-rose-500' : 'text-amber-300'}`}>{formatNumber(kalkulasi.sisaAyamKg)} KG</div>
              </div>
            </div>
@@ -164,13 +191,13 @@ export default function TabStok({
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
         
-        {/* KANTONG KIRI: FORM LAPORAN PRODUKSI (BERDASARKAN ADUKAN) */}
+        {/* KANTONG KIRI: FORM LAPORAN PRODUKSI (DOUBLE MENU INPUT) */}
         <div className="xl:col-span-5 flex flex-col bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden border-t-4 border-t-amber-500">
           <div className="p-6 border-b bg-amber-50/50 shrink-0">
-             <h4 className="font-black text-slate-800 uppercase text-xs tracking-widest flex items-center gap-2"><Factory size={16} className="text-amber-600"/> Laporan Adukan Dapur</h4>
+             <h4 className="font-black text-slate-800 uppercase text-xs tracking-widest flex items-center gap-2"><Factory size={16} className="text-amber-600"/> Laporan Adukan &amp; Hasil Fisik</h4>
           </div>
           
-          <form onSubmit={handleSubmitProduksi} className="p-6 space-y-5 bg-white">
+          <form onSubmit={handleSubmitProduksi} className="p-6 space-y-6 bg-white">
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Tanggal Adukan</label>
@@ -190,19 +217,39 @@ export default function TabStok({
               </select>
             </div>
 
-            <div className="bg-amber-50/50 p-5 rounded-2xl border border-amber-200 shadow-inner">
-              <label className="text-[10px] font-black text-amber-700 uppercase tracking-widest block mb-2 text-center">TOTAL ADUKAN HARI INI</label>
-              <input type="number" min="1" required value={form.adukanQty} onChange={e=>setForm({...form, adukanQty: e.target.value})} className="w-full py-5 border-2 border-amber-300 rounded-2xl text-4xl font-black text-amber-900 bg-white outline-none text-center focus:border-amber-500 transition-colors" placeholder="0" />
-              <p className="text-[8px] font-bold text-amber-600 uppercase text-center mt-3 tracking-widest">Ketik jumlah adukan (Contoh: 21). Sistem akan menghitung Pcs, Mika, Porsi, & Potongan Ayam secara otomatis di monitor atas.</p>
+            {/* KOTAK 1: INPUT ADUKAN (POTONG AYAM) */}
+            <div className="bg-amber-50/50 p-5 rounded-2xl border border-amber-200 shadow-inner relative">
+              <div className="absolute -top-3 left-4 bg-amber-100 border border-amber-300 text-amber-800 text-[8px] font-black px-2 py-1 rounded uppercase tracking-widest">LANGKAH 1</div>
+              <label className="text-[10px] font-black text-amber-800 uppercase tracking-widest block mb-2 text-center mt-2">TOTAL ADUKAN HARI INI</label>
+              <input type="number" min="1" required value={form.adukanQty} onChange={e=>handleAdukanChange(e.target.value)} className="w-full py-4 border-2 border-amber-300 rounded-xl text-3xl font-black text-amber-900 bg-white outline-none text-center focus:border-amber-500 transition-colors" placeholder="Cth: 21" />
+              <p className="text-[8px] font-bold text-amber-600/70 uppercase text-center mt-2 tracking-widest">Angka adukan ini menjadi patokan mutlak sistem untuk menyedot stok Ayam di Gudang.</p>
+            </div>
+
+            {/* KOTAK 2: INPUT HASIL AKTUAL FISIK (YANG BARU BOS MINTA) */}
+            <div className="bg-emerald-50/50 p-5 rounded-2xl border border-emerald-200 shadow-inner relative animate-in slide-in-from-bottom-2 duration-300">
+              <div className="absolute -top-3 left-4 bg-emerald-100 border border-emerald-300 text-emerald-800 text-[8px] font-black px-2 py-1 rounded uppercase tracking-widest flex items-center gap-1"><PackageCheck size={10}/> LANGKAH 2</div>
+              <label className="text-[10px] font-black text-emerald-800 uppercase tracking-widest block mb-3 text-center mt-2">HASIL KEMASAN FISIK NYATA</label>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-1">Total Jadi (Mika 50)</label>
+                  <input type="number" min="0" required value={form.actualMika} onChange={e=>setForm({...form, actualMika: e.target.value})} className="w-full p-3 border border-emerald-300 rounded-xl text-xl font-black text-emerald-800 bg-white outline-none text-center focus:border-emerald-500" placeholder="0" />
+                </div>
+                <div>
+                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-1">Sisa Lepasan (Pcs)</label>
+                  <input type="number" min="0" required value={form.actualLoosePcs} onChange={e=>setForm({...form, actualLoosePcs: e.target.value})} className="w-full p-3 border border-emerald-300 rounded-xl text-xl font-black text-emerald-800 bg-white outline-none text-center focus:border-emerald-500" placeholder="0" />
+                </div>
+              </div>
+              <p className="text-[8px] font-bold text-emerald-600/70 uppercase text-center mt-3 tracking-widest leading-relaxed">Kolom terisi otomatis sesuai standar adukan. <b>Ubah manual</b> jika hasil nyata kardus/mika ternyata lebih atau kurang!</p>
             </div>
 
             <div>
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Catatan Tambahan (Opsional)</label>
-              <input type="text" value={form.notes} onChange={e=>setForm({...form, notes: e.target.value})} className="w-full p-3 border border-slate-200 rounded-xl text-xs font-bold uppercase outline-none bg-slate-50 focus:border-amber-400" placeholder="Shift Pagi, Adonan Bagus..." />
+              <input type="text" value={form.notes} onChange={e=>setForm({...form, notes: e.target.value})} className="w-full p-3 border border-slate-200 rounded-xl text-xs font-bold uppercase outline-none bg-slate-50 focus:border-amber-400" placeholder="Sisa kerokan masuk 12 pcs..." />
             </div>
 
-            <button type="submit" className="w-full bg-amber-500 text-white font-black py-4.5 rounded-2xl text-xs uppercase tracking-widest shadow-xl shadow-amber-500/20 hover:bg-amber-600 transition-transform active:scale-95 flex items-center justify-center gap-2 mt-4">
-              <CheckCircle2 size={16}/> Simpan Produksi &amp; Potong Gudang
+            <button type="submit" className="w-full bg-slate-900 text-white font-black py-4.5 rounded-2xl text-xs uppercase tracking-widest shadow-xl hover:bg-slate-800 transition-transform active:scale-95 flex items-center justify-center gap-2 mt-4">
+              <CheckCircle2 size={16}/> Lapor Fisik &amp; Potong Gudang
             </button>
           </form>
         </div>
@@ -226,7 +273,7 @@ export default function TabStok({
                   <th className="px-5 py-4 font-black">Waktu &amp; Batch</th>
                   <th className="px-5 py-4 font-black">Menu Diaduk</th>
                   <th className="px-5 py-4 font-black text-center">Ayam Dipotong</th>
-                  <th className="px-5 py-4 font-black text-right">Yield (Pcs)</th>
+                  <th className="px-5 py-4 font-black text-right">Hasil Aktual (POS)</th>
                   <th className="px-5 py-4 font-black text-center">Aksi</th>
                 </tr>
               </thead>
@@ -242,10 +289,13 @@ export default function TabStok({
                   historyProduction.map(p => {
                     const logsPotong = realInventory.filter(inv => inv.reference_id === p.id);
                     const potongAyam = logsPotong.find(inv => inv.category === 'BAHAN_BAKU');
-                    const adukanTercatat = (p.actual_yield || p.qty) / 1000;
+                    
+                    // Ekstrak info adukan dari notes jika ada
+                    const notesAdukanMatch = p.notes ? p.notes.match(/ASAL: (\d+) ADUKAN/) : null;
+                    const adukanTercatat = notesAdukanMatch ? notesAdukanMatch[1] : '?';
 
                     return (
-                      <tr key={p.id} className="hover:bg-amber-50/30 transition-colors group">
+                      <tr key={p.id} className="hover:bg-emerald-50/30 transition-colors group">
                         <td className="px-5 py-4 whitespace-nowrap">
                           <div className="text-slate-800 font-black text-sm">{formatDate(p.date)}</div>
                           <div className="text-[9px] font-mono text-slate-400 mt-1">{p.id}</div>
@@ -254,24 +304,25 @@ export default function TabStok({
                           <div className="font-black text-blue-700 uppercase text-xs mb-1 tracking-wide">{p.item_name}</div>
                           <div className="flex gap-2 items-center">
                             <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">PIC: {p.pic || '-'}</span>
-                            <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200">{formatNumber(adukanTercatat)} ADUKAN</span>
+                            <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200">{adukanTercatat} ADUKAN</span>
                           </div>
                         </td>
                         <td className="px-5 py-4 text-center">
                            <span className="text-rose-600 font-black">{potongAyam ? Math.abs(potongAyam.qty_remaining) : 0} Ktg</span>
                         </td>
                         <td className="px-5 py-4 text-right whitespace-nowrap">
-                          <div className="text-sm font-black text-emerald-600">{formatNumber(p.actual_yield || p.qty)}</div>
+                          <div className="text-sm font-black text-emerald-600">{formatNumber(p.actual_yield || p.qty)} <span className="text-[9px] text-emerald-600/70">Pcs</span></div>
+                          <div className="text-[8px] font-black text-slate-400 mt-1 uppercase tracking-widest">{formatNumber(Math.floor((p.actual_yield || p.qty)/50))} Mika + {(p.actual_yield || p.qty)%50} Pcs</div>
                         </td>
                         <td className="px-5 py-4 text-center whitespace-nowrap opacity-50 group-hover:opacity-100 transition-opacity">
                           <div className="flex items-center justify-center gap-1.5">
                             <button type="button" onClick={() => triggerPrint('NOTA_DOTMATRIX', {
                               title: 'BUKTI SETORAN PRODUKSI DAPUR', id: p.id, date: formatDate(p.date),
                               branch_name: currentBranch, admin_name: user?.name || 'ADMIN', customer_name: 'GUDANG FREEZER POS',
-                              items: [{ name: `HASIL ADUKAN: ${p.item_name}\n(PIC: ${p.pic} - ${adukanTercatat} ADUKAN)`, qty: 1, subtotal: p.actual_yield || p.qty }],
+                              items: [{ name: `HASIL AKTUAL FISIK: ${p.item_name}\n(PIC: ${p.pic} - ${adukanTercatat} ADUKAN)`, qty: 1, subtotal: p.actual_yield || p.qty }],
                               amount: p.actual_yield || p.qty, paymentMethod: 'TERCATAT DI KASIR POS',
-                              history: { labelLama: 'Ayam Mentah Dipakai', nominalLama: potongAyam ? Math.abs(potongAyam.qty_remaining) : 0, labelAksi: 'Status Bahan Baku', nominalAksi: 'TERPOTONG OTOMATIS', labelBaru: 'Konversi Setara', nominalBaru: `${formatNumber((p.actual_yield || p.qty)/50)} Mika` }
-                            })} className="p-2.5 text-slate-500 bg-white border border-slate-200 shadow-sm hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-colors" title="Cetak Bukti Adukan"><Printer size={16}/></button>
+                              history: { labelLama: 'Ayam Mentah Dipakai', nominalLama: potongAyam ? Math.abs(potongAyam.qty_remaining) : 0, labelAksi: 'Status Bahan Baku', nominalAksi: 'TERPOTONG OTOMATIS', labelBaru: 'Konversi Setara', nominalBaru: `${formatNumber(Math.floor((p.actual_yield || p.qty)/50))} Mika` }
+                            })} className="p-2.5 text-slate-500 bg-white border border-slate-200 shadow-sm hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-colors" title="Cetak Bukti Adukan"><Printer size={16}/></button>
                             <button type="button" onClick={() => { if(window.confirm("Yakin void transaksi adukan ini? Stok kasir dan ayam gudang akan ditarik mundur!")) requestDelete(p.id); }} className="p-2.5 text-slate-500 bg-white border border-slate-200 shadow-sm hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors" title="Hapus Laporan Adukan"><Trash2 size={16}/></button>
                           </div>
                         </td>
