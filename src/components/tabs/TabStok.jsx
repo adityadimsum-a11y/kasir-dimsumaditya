@@ -29,13 +29,13 @@ export default function TabStok({
     date: todayStr,
     pic: user?.name || '',
     productName: '',
-    adukanQty: '',      // Patokan potong ayam
-    actualMika: '',     // Realita fisik mika (Isi 50)
-    actualLoosePcs: '', // Realita sisa pcs lepasan
+    adukanQty: '',      // Patokan pemotongan ayam mentah
+    actualMika: '',     // Realita fisik kemasan mika dari lapangan
+    actualLoosePcs: '', // Realita sisa pcs lepasan dari lapangan
     notes: ''
   });
 
-  // --- 1. ENGINE STOK BAHAN BAKU (HANYA AYAM) ---
+  // --- 1. ENGINE STOK BAHAN BAKU BERKELANJUTAN (AKUMULASI SISA GUDANG) ---
   const stockGudang = useMemo(() => {
     let ayamKantong = 0;
     realInventory.forEach(inv => {
@@ -44,34 +44,38 @@ export default function TabStok({
     });
     return { 
       ayamKantong, 
-      ayamKg: ayamKantong * 10 // 1 Kantong = 10 Kg
+      ayamKg: ayamKantong * 10 // Aturan Pabrik Rule #1: 1 Kantong = 10 Kg Ayam Mentah
     };
   }, [realInventory, currentBranch]);
 
-  // --- 2. ENGINE KALKULATOR ADUKAN REAL-TIME ---
+  // --- 2. ENGINE KALKULATOR ADUKAN & DETEKSI KONVERSI LIVE ---
   const kalkulasi = useMemo(() => {
     const adukan = Number(form.adukanQty || 0);
     const aktualMika = Number(form.actualMika || 0);
     const aktualLoosePcs = Number(form.actualLoosePcs || 0);
     
-    // RUMUS MUTLAK PABRIK BOS SULTAN:
+    // ATURAN PABRIK RULE #2 & #3 (Target Standar)
     const stdPcs = adukan * 1000;
-    const stdMika = adukan * 20;     // 1000 / 50
+    const stdMika = adukan * 20;
 
-    // HASIL AKTUAL YANG MASUK POS KASIR
+    // TOTAL NILAI KONVERSI FISIK AKTUAL YANG DIINPUT (YANG MASUK POS KASIR)
     const actualTotalPcs = (aktualMika * 50) + aktualLoosePcs;
+    const actualTotalPorsi = Math.floor(actualTotalPcs / 4); // Rule #4: 1 Porsi = 4 Pcs
+    const actualTotalMikaFraction = (actualTotalPcs / 50).toFixed(1); // Rule #5: 1 Mika = 50 Pcs
+
     const selisihPcs = actualTotalPcs - stdPcs;
 
-    // KEBUTUHAN AYAM (MUTLAK BERDASARKAN ADUKAN)
+    // KEBUTUHAN AYAM MUTLAK DARI JUMLAH ADUKAN
     const butuhAyamKg = adukan * 30;
-    const butuhAyamKantong = adukan * 3; // 30 / 10
+    const butuhAyamKantong = adukan * 3; // 1 Adukan = 3 Kantong Ayam
     
+    // HASIL AKUMULASI SISA SEBELUMNYA DIKURANGI ADUKAN HARI INI
     const sisaAyamKantong = stockGudang.ayamKantong - butuhAyamKantong;
     const sisaAyamKg = stockGudang.ayamKg - butuhAyamKg;
 
     return { 
       adukan, stdPcs, stdMika, 
-      actualTotalPcs, aktualMika, aktualLoosePcs, selisihPcs,
+      actualTotalPcs, actualTotalPorsi, actualTotalMikaFraction, aktualMika, aktualLoosePcs, selisihPcs,
       butuhAyamKg, butuhAyamKantong, sisaAyamKantong, sisaAyamKg 
     };
   }, [form.adukanQty, form.actualMika, form.actualLoosePcs, stockGudang]);
@@ -81,7 +85,7 @@ export default function TabStok({
     return realProducts.filter(p => !p.isDeleted && String(p.isDeleted).toUpperCase() !== 'TRUE' && p.status_active).reverse();
   }, [realProducts]);
 
-  // Jurnal Riwayat Produksi
+  // Jurnal Riwayat Transaksi Produksi
   const historyProduction = useMemo(() => {
     return realProduction
       .filter(p => !p.isDeleted && p.date.substring(0, 10) === tableDateFilter && (p.branch_id === currentBranch || currentBranch === 'TANGERANG_PUSAT'))
@@ -94,8 +98,8 @@ export default function TabStok({
     setForm(prev => ({
       ...prev,
       adukanQty: String(adukan),
-      actualMika: String(adukan * 20), // Auto-fill standar mika
-      actualLoosePcs: '0'              // Auto-fill sisa 0
+      actualMika: String(adukan * 20), // Auto-fill pemicu nilai standar mika awal
+      actualLoosePcs: '0'              // Auto-fill sisa pcs lepasan awal
     }));
   };
 
@@ -103,27 +107,27 @@ export default function TabStok({
   const handleSubmitProduksi = async (e) => {
     e.preventDefault();
     if (kalkulasi.adukan <= 0) return alert("Jumlah adukan tidak boleh kosong!");
-    if (kalkulasi.actualTotalPcs <= 0) return alert("Hasil fisik aktual (Mika/Pcs) tidak boleh kosong!");
-    if (!form.productName) return alert("Pilih menu yang diproduksi!");
+    if (kalkulasi.actualTotalPcs <= 0) return alert("Hasil fisik aktual mika/pcs dari lapangan tidak boleh kosong!");
+    if (!form.productName) return alert("Pilih menu dimsum yang diproduksi!");
 
     if (kalkulasi.butuhAyamKantong > stockGudang.ayamKantong) {
-      if (!window.confirm(`⚠️ STOK AYAM MINUS!\n\nDapur butuh ${kalkulasi.butuhAyamKantong} Kantong, tapi di sistem sisa ${stockGudang.ayamKantong} Kantong.\nData gudang akan tercatat minus (-). Tetap lanjutkan?`)) {
+      if (!window.confirm(`⚠️ ATTENTION: STOK AYAM MINUS NOMINAL!\n\nDapur membutuhkan ${kalkulasi.butuhAyamKantong} Kantong, tetapi akumulasi sistem mencatat hanya tersedia ${stockGudang.ayamKantong} Kantong.\nLanjutkan input minus?`)) {
         return;
       }
     }
 
     const batchId = generateId('PRD', form.date);
 
-    // 1. PAYLOAD PRODUKSI (Yield Aktual dalam PCS untuk Kasir POS)
+    // 1. PAYLOAD PRODUKSI (Yield Aktual dalam volume PCS masuk ke Freezer POS Kasir)
     const payloadBatch = {
       id: batchId, date: form.date, branch_id: currentBranch,
       item_name: form.productName, 
-      actual_yield: kalkulasi.actualTotalPcs, // YANG MASUK KE KASIR ADALAH REALITA AKTUAL
+      actual_yield: kalkulasi.actualTotalPcs, 
       pic: form.pic.toUpperCase(), 
-      notes: `${form.notes.toUpperCase()} (ASAL: ${kalkulasi.adukan} ADUKAN, FISIK: ${kalkulasi.aktualMika} MIKA + ${kalkulasi.aktualLoosePcs} PCS)`
+      notes: `${form.notes.toUpperCase()} (ASAL: ${kalkulasi.adukan} ADUKAN, FISIK RIIL: ${kalkulasi.aktualMika} MIKA + ${kalkulasi.aktualLoosePcs} PCS)`
     };
 
-    // 2. PAYLOAD INVENTORY AYAM (Memotong dalam satuan Kantong berdasarkan ADUKAN)
+    // 2. PAYLOAD INVENTORY AYAM (Memotong stok gudang mentah berdasarkan hitungan adukan mutlak)
     let payloadAyam = null;
     if (kalkulasi.butuhAyamKantong > 0) {
       payloadAyam = {
@@ -137,7 +141,7 @@ export default function TabStok({
     
     if (isSuccess) {
       if (payloadAyam) sendToSheet('insert', payloadAyam, 'inventory_cost_layers');
-      showToast(`Laporan Sukses! Kasir mendapat suplai aktual ${formatNumber(kalkulasi.actualTotalPcs)} Pcs Dimsum.`, 'success');
+      showToast(`Laporan Produksi Berhasil! ${formatNumber(kalkulasi.actualTotalPcs)} Pcs Dimsum resmi masuk ke freezer kasir.`, 'success');
       setForm({ ...form, productName: '', adukanQty: '', actualMika: '', actualLoosePcs: '', notes: '' });
     }
   };
@@ -145,7 +149,7 @@ export default function TabStok({
   return (
     <div className="space-y-6 pb-10 text-slate-800 animate-in fade-in duration-300">
       
-      {/* 🚀 BANNER MONITOR GUDANG MENTAH & KALKULATOR HASIL (SULTAN VIEW) */}
+      {/* 🚀 BANNER HEADER: MONITOR GUDANG MENTAH & KALKULATOR AKUMULASI */}
       <div className="bg-[#151a25] rounded-3xl p-6 shadow-xl border border-slate-800 relative overflow-hidden flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
         <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-rose-500 via-amber-400 to-emerald-500"></div>
         <div className="relative z-10 text-white flex-1 w-full">
@@ -155,7 +159,7 @@ export default function TabStok({
            </div>
            
            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 w-full">
-             {/* KOTAK 1: HASIL AKTUAL (YANG MASUK KE POS) */}
+             {/* KOTAK 1: TOTAL AKTUAL YANG AKAN DIKIRIM KE FREEZER POS KASIR */}
              <div className="bg-emerald-950/30 border border-emerald-900/50 rounded-2xl p-4 flex flex-col items-center justify-center text-center relative overflow-hidden">
                <div className="absolute top-0 w-full bg-emerald-600/20 text-emerald-400 text-[8px] font-black uppercase text-center py-0.5 border-b border-emerald-500/20">MASUK KASIR POS</div>
                <div className="text-[9px] font-black text-emerald-400 uppercase tracking-widest mb-1 mt-2">Total Aktual (Pcs)</div>
@@ -166,19 +170,22 @@ export default function TabStok({
                  </div>
                )}
              </div>
-             {/* KOTAK 2: ESTIMASI STANDAR ADUKAN */}
+
+             {/* KOTAK 2: TARGET STANDAR TEORITIS MATEMATIKA */}
              <div className="bg-slate-900/80 border border-slate-700 rounded-2xl p-4 flex flex-col items-center justify-center text-center">
                <div className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-1">Target Standar</div>
                <div className="text-sm font-black text-slate-300">{formatNumber(kalkulasi.stdMika)} <span className="text-[10px] text-slate-500">MIKA</span></div>
                <div className="text-sm font-black text-slate-300">{formatNumber(kalkulasi.stdPcs)} <span className="text-[10px] text-slate-500">PCS</span></div>
              </div>
-             {/* KOTAK 3: AYAM DIPAKAI (MUTLAK) */}
+
+             {/* KOTAK 3: AYAM YANG DIKONSUMSI DI DAPUR ADUKAN */}
              <div className="bg-rose-950/30 border border-rose-900/50 rounded-2xl p-4 flex flex-col items-center justify-center text-center">
                <div className="text-[9px] font-black text-rose-400 uppercase tracking-widest mb-1">Ayam Dipakai</div>
                <div className="text-xl font-black text-white">{formatNumber(kalkulasi.butuhAyamKantong)} <span className="text-[10px] text-slate-400">KANTONG</span></div>
                <div className="text-xs font-bold text-rose-300">{formatNumber(kalkulasi.butuhAyamKg)} KG</div>
              </div>
-             {/* KOTAK 4: SISA GUDANG */}
+
+             {/* KOTAK 4: TOTAL AKUMULASI SISA GUDANG FISIK (BERLANJUT) */}
              <div className="bg-amber-950/30 border border-amber-900/50 rounded-2xl p-4 flex flex-col items-center justify-center text-center relative overflow-hidden">
                {kalkulasi.sisaAyamKantong < 0 && <div className="absolute top-0 w-full bg-rose-600 text-white text-[8px] font-black uppercase text-center py-0.5">MINUS</div>}
                <div className="text-[9px] font-black text-amber-400 uppercase tracking-widest mb-1">Sisa Di Gudang</div>
@@ -191,10 +198,10 @@ export default function TabStok({
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
         
-        {/* KANTONG KIRI: FORM LAPORAN PRODUKSI (DOUBLE MENU INPUT) */}
+        {/* KANTONG KIRI: FORM LAPORAN PRODUKSI DUA LANGKAH OPERASIONAL */}
         <div className="xl:col-span-5 flex flex-col bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden border-t-4 border-t-amber-500">
           <div className="p-6 border-b bg-amber-50/50 shrink-0">
-             <h4 className="font-black text-slate-800 uppercase text-xs tracking-widest flex items-center gap-2"><Factory size={16} className="text-amber-600"/> Laporan Adukan &amp; Hasil Fisik</h4>
+             <h4 className="font-black text-slate-800 uppercase text-xs tracking-widest flex items-center gap-2"><Factory size={16} className="text-amber-600"/> Laporan Laju Produksi Dapur</h4>
           </div>
           
           <form onSubmit={handleSubmitProduksi} className="p-6 space-y-6 bg-white">
@@ -212,20 +219,19 @@ export default function TabStok({
             <div>
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Menu Yang Dihasilkan</label>
               <select required value={form.productName} onChange={e=>setForm({...form, productName: e.target.value})} className="w-full p-3.5 border border-slate-200 rounded-xl text-xs font-black uppercase outline-none cursor-pointer bg-slate-50 focus:border-amber-400">
-                <option value="">-- PILIH PRODUK --</option>
+                <option value="">-- PILIH VARIANT PRODUK --</option>
                 {activeMenus.map(m => <option key={m.id} value={m.product_name}>{m.product_name}</option>)}
               </select>
             </div>
 
-            {/* KOTAK 1: INPUT ADUKAN (POTONG AYAM) */}
+            {/* LANGKAH 1: TOTAL ADUKAN HARI INI */}
             <div className="bg-amber-50/50 p-5 rounded-2xl border border-amber-200 shadow-inner relative">
               <div className="absolute -top-3 left-4 bg-amber-100 border border-amber-300 text-amber-800 text-[8px] font-black px-2 py-1 rounded uppercase tracking-widest">LANGKAH 1</div>
               <label className="text-[10px] font-black text-amber-800 uppercase tracking-widest block mb-2 text-center mt-2">TOTAL ADUKAN HARI INI</label>
               <input type="number" min="1" required value={form.adukanQty} onChange={e=>handleAdukanChange(e.target.value)} className="w-full py-4 border-2 border-amber-300 rounded-xl text-3xl font-black text-amber-900 bg-white outline-none text-center focus:border-amber-500 transition-colors" placeholder="Cth: 21" />
-              <p className="text-[8px] font-bold text-amber-600/70 uppercase text-center mt-2 tracking-widest">Angka adukan ini menjadi patokan mutlak sistem untuk menyedot stok Ayam di Gudang.</p>
             </div>
 
-            {/* KOTAK 2: INPUT HASIL AKTUAL FISIK (YANG BARU BOS MINTA) */}
+            {/* LANGKAH 2: INPUT HASIL KEMASAN FISIK NYATA */}
             <div className="bg-emerald-50/50 p-5 rounded-2xl border border-emerald-200 shadow-inner relative animate-in slide-in-from-bottom-2 duration-300">
               <div className="absolute -top-3 left-4 bg-emerald-100 border border-emerald-300 text-emerald-800 text-[8px] font-black px-2 py-1 rounded uppercase tracking-widest flex items-center gap-1"><PackageCheck size={10}/> LANGKAH 2</div>
               <label className="text-[10px] font-black text-emerald-800 uppercase tracking-widest block mb-3 text-center mt-2">HASIL KEMASAN FISIK NYATA</label>
@@ -240,12 +246,29 @@ export default function TabStok({
                   <input type="number" min="0" required value={form.actualLoosePcs} onChange={e=>setForm({...form, actualLoosePcs: e.target.value})} className="w-full p-3 border border-emerald-300 rounded-xl text-xl font-black text-emerald-800 bg-white outline-none text-center focus:border-emerald-500" placeholder="0" />
                 </div>
               </div>
-              <p className="text-[8px] font-bold text-emerald-600/70 uppercase text-center mt-3 tracking-widest leading-relaxed">Kolom terisi otomatis sesuai standar adukan. <b>Ubah manual</b> jika hasil nyata kardus/mika ternyata lebih atau kurang!</p>
+
+              {/* 🔥 KOTAK PENAMBAHAN FITUR: LIVE BREAKDOWN VALUE DISPLAY PANEL */}
+              {form.adukanQty && (
+                <div className="mt-4 pt-4 border-t border-emerald-200/60 grid grid-cols-3 gap-2 animate-in fade-in duration-300">
+                  <div className="bg-white/80 border border-emerald-200 rounded-xl p-2 text-center shadow-sm">
+                    <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Total Pcs</div>
+                    <div className="text-xs font-black text-emerald-700">{formatNumber(kalkulasi.actualTotalPcs)}</div>
+                  </div>
+                  <div className="bg-white/80 border border-emerald-200 rounded-xl p-2 text-center shadow-sm">
+                    <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Total Mika</div>
+                    <div className="text-xs font-black text-blue-700">{kalkulasi.actualTotalMikaFraction} M</div>
+                  </div>
+                  <div className="bg-white/80 border border-emerald-200 rounded-xl p-2 text-center shadow-sm">
+                    <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Total Porsi</div>
+                    <div className="text-xs font-black text-amber-700">{formatNumber(kalkulasi.actualTotalPorsi)} P</div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Catatan Tambahan (Opsional)</label>
-              <input type="text" value={form.notes} onChange={e=>setForm({...form, notes: e.target.value})} className="w-full p-3 border border-slate-200 rounded-xl text-xs font-bold uppercase outline-none bg-slate-50 focus:border-amber-400" placeholder="Sisa kerokan masuk 12 pcs..." />
+              <input type="text" value={form.notes} onChange={e=>setForm({...form, notes: e.target.value})} className="w-full p-3 border border-slate-200 rounded-xl text-xs font-bold uppercase outline-none bg-slate-50 focus:border-amber-400" placeholder="Sisa adonan dimasukkan cup..." />
             </div>
 
             <button type="submit" className="w-full bg-slate-900 text-white font-black py-4.5 rounded-2xl text-xs uppercase tracking-widest shadow-xl hover:bg-slate-800 transition-transform active:scale-95 flex items-center justify-center gap-2 mt-4">
@@ -254,7 +277,7 @@ export default function TabStok({
           </form>
         </div>
 
-        {/* KANTONG KANAN: JURNAL RIWAYAT PRODUKSI */}
+        {/* KANTONG KANAN: JURNAL BUKU RIWAYAT PRODUKSI */}
         <div className="xl:col-span-7 bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
           <div className="p-5 bg-slate-50 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
@@ -290,7 +313,6 @@ export default function TabStok({
                     const logsPotong = realInventory.filter(inv => inv.reference_id === p.id);
                     const potongAyam = logsPotong.find(inv => inv.category === 'BAHAN_BAKU');
                     
-                    // Ekstrak info adukan dari notes jika ada
                     const notesAdukanMatch = p.notes ? p.notes.match(/ASAL: (\d+) ADUKAN/) : null;
                     const adukanTercatat = notesAdukanMatch ? notesAdukanMatch[1] : '?';
 
