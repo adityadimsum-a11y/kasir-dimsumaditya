@@ -20,7 +20,15 @@ export default function TabMasterData({
 
   // --- SINKRONISASI DATABASE ---
   const realProducts = useMemo(() => master_products || masterProducts || [], [master_products, masterProducts]);
-  const realRules = useMemo(() => master_conversion_rules || masterConversionRules || [], [master_conversion_rules, masterConversionRules]);
+  
+  // STATE ATURAN KONVERSI PABRIK (RESTORED)
+  const [rules, setRules] = useState({
+    kgPerKantong: 10,
+    kgPerAdukan: 30,
+    pcsPerAdukan: 1000,
+    pcsPerPorsi: 4,
+    pcsPerMika: 50
+  });
 
   // --- STATE FORM MASTER MENU ---
   const [formMenu, setFormMenu] = useState({
@@ -85,7 +93,7 @@ export default function TabMasterData({
       {/* 🚀 NAVIGASI SUB TABS */}
       <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-4">
         <button onClick={() => setActiveTab('MENU')} className={`px-5 py-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'MENU' ? 'bg-blue-600 text-white shadow-md scale-105' : 'bg-white text-slate-500 border hover:bg-slate-50'}`}><Box size={16}/> Master Daftar Menu</button>
-        <button onClick={() => setActiveTab('RULES')} className={`px-5 py-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'RULES' ? 'bg-slate-800 text-white shadow-md scale-105' : 'bg-white text-slate-500 border hover:bg-slate-50'}`}><Settings size={16}/> Aturan Pabrik</button>
+        <button onClick={() => setActiveTab('RULES')} className={`px-5 py-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'RULES' ? 'bg-slate-800 text-amber-400 shadow-md scale-105' : 'bg-white text-slate-500 border hover:bg-slate-50'}`}><Settings size={16}/> Aturan Pabrik</button>
         <button onClick={() => setActiveTab('AYAM')} className={`px-5 py-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'AYAM' ? 'bg-rose-600 text-white shadow-md scale-105' : 'bg-white text-slate-500 border hover:bg-slate-50'}`}><Layers size={16}/> Bahan Baku (Ayam)</button>
         <button onClick={() => setActiveTab('PACKAGING')} className={`px-5 py-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'PACKAGING' ? 'bg-amber-500 text-white shadow-md scale-105' : 'bg-white text-slate-500 border hover:bg-slate-50'}`}><Package size={16}/> Packaging Inventory</button>
         <button onClick={() => setActiveTab('SUPPLIER')} className={`px-5 py-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'SUPPLIER' ? 'bg-emerald-600 text-white shadow-md scale-105' : 'bg-white text-slate-500 border hover:bg-slate-50'}`}><Truck size={16}/> Mitra Supplier</button>
@@ -223,39 +231,121 @@ export default function TabMasterData({
         </div>
       )}
 
-      {/* 🔥 TAB BARU: ATURAN PABRIK (DIBUKA GEMBOKNYA) */}
+      {/* 🔥 TAB BARU: ATURAN PABRIK (UI DI-RESTORE 100%) */}
       {activeTab === 'RULES' && (
-        <div className="bg-slate-900 p-8 rounded-3xl border border-slate-800 shadow-xl relative overflow-hidden animate-in zoom-in-95 duration-300">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-slate-500 to-slate-300"></div>
-          <div className="flex items-center gap-3 mb-6 text-white">
-            <ShieldCheck size={32} className="text-emerald-400"/>
+        <div className="bg-[#151a25] rounded-3xl border border-slate-800 shadow-2xl relative overflow-hidden animate-in fade-in duration-300">
+          <div className="p-6 md:p-8 flex items-center gap-4 border-b border-slate-800/80">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center border border-amber-500/20">
+              <Settings size={24} className="text-amber-500"/>
+            </div>
             <div>
-              <h3 className="text-xl font-black uppercase tracking-widest">Aturan Konversi Sistem (Read-Only)</h3>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Nilai baku yang digunakan oleh seluruh modul ERP Dimsum Aditya.</p>
+              <h3 className="text-xl font-black uppercase tracking-widest text-white">Master Conversion Engine</h3>
+              <p className="text-[10px] font-bold text-amber-500 uppercase tracking-widest mt-1">Ubah angka di bawah ini untuk menyesuaikan perhitungan pabrik</p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 shadow-inner text-center">
-              <Calculator size={36} className="mx-auto text-rose-500 mb-4 opacity-50"/>
-              <div className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-1">Rasio Ayam vs Dimsum</div>
-              <div className="text-3xl font-black text-white">1 : 1.000</div>
-              <div className="text-[9px] font-bold text-slate-500 mt-2 uppercase">(1 Kantong Ayam Mentah = Estimasi 1.000 Pcs Dimsum Jadi)</div>
-            </div>
-            
-            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 shadow-inner text-center">
-              <Package size={36} className="mx-auto text-amber-500 mb-4 opacity-50"/>
-              <div className="text-[10px] font-black text-amber-400 uppercase tracking-widest mb-1">Rasio Grosir Mika</div>
-              <div className="text-3xl font-black text-white">1 : 50</div>
-              <div className="text-[9px] font-bold text-slate-500 mt-2 uppercase">(1 Mika Grosir Frozen = Berisi 50 Pcs Dimsum)</div>
+          <div className="p-6 md:p-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Rule 1: Timbangan Mentah */}
+            <div className="bg-[#1c2331] border border-slate-700/50 rounded-2xl p-5 relative overflow-hidden">
+              <div className="absolute right-[-20px] bottom-[-20px] text-slate-700/20 text-8xl font-black">#</div>
+              <div className="text-[9px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #1: Timbangan Mentah</div>
+              <div className="flex items-center justify-between mt-2">
+                <div>
+                  <input type="number" value={rules.kgPerKantong} onChange={e=>setRules({...rules, kgPerKantong: e.target.value})} className="w-16 h-12 bg-transparent border border-slate-600 rounded-lg text-white text-2xl font-black text-center outline-none focus:border-amber-500"/>
+                  <span className="text-slate-400 text-xs font-bold ml-2">KG</span>
+                  <div className="text-[10px] text-slate-500 mt-2">Timbangan Mutlak</div>
+                </div>
+                <div className="text-slate-500 font-bold">=</div>
+                <div className="text-right">
+                  <div className="text-2xl font-black text-amber-500">1 <span className="text-sm">Kantong</span></div>
+                  <div className="text-[10px] text-slate-500 mt-2">Ayam Mentah</div>
+                </div>
+              </div>
             </div>
 
-            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 shadow-inner text-center">
-              <Box size={36} className="mx-auto text-blue-500 mb-4 opacity-50"/>
-              <div className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Rasio Porsi Eceran</div>
-              <div className="text-3xl font-black text-white">1 : 4</div>
-              <div className="text-[9px] font-bold text-slate-500 mt-2 uppercase">(1 Porsi Matang / Eceran = Berisi 4 Pcs Dimsum)</div>
+            {/* Rule 2: Resep Adukan */}
+            <div className="bg-[#1c2331] border border-slate-700/50 rounded-2xl p-5 relative overflow-hidden">
+              <div className="absolute right-[-20px] bottom-[-20px] text-slate-700/20 text-8xl font-black">#</div>
+              <div className="text-[9px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #2: Resep Adukan</div>
+              <div className="flex items-center justify-between mt-2">
+                <div>
+                  <input type="number" value={rules.kgPerAdukan} onChange={e=>setRules({...rules, kgPerAdukan: e.target.value})} className="w-16 h-12 bg-transparent border border-slate-600 rounded-lg text-white text-2xl font-black text-center outline-none focus:border-amber-500"/>
+                  <span className="text-slate-400 text-xs font-bold ml-2">KG</span>
+                  <div className="text-[10px] text-slate-500 mt-2">Ayam Fillet</div>
+                </div>
+                <div className="text-slate-500 font-bold">=</div>
+                <div className="text-right">
+                  <div className="text-2xl font-black text-amber-500">1 <span className="text-sm">Adukan</span></div>
+                  <div className="text-[10px] text-slate-500 mt-2">Mix Base</div>
+                </div>
+              </div>
             </div>
+
+            {/* Rule 3: Target Yield Dasar */}
+            <div className="bg-[#1c2331] border border-slate-700/50 rounded-2xl p-5 relative overflow-hidden">
+              <div className="absolute right-[-20px] bottom-[-20px] text-slate-700/20 text-8xl font-black">#</div>
+              <div className="text-[9px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #3: Target Yield Dasar</div>
+              <div className="flex items-center justify-between mt-2">
+                <div>
+                  <div className="text-2xl font-black text-white">1 <span className="text-sm text-slate-400">Adukan</span></div>
+                  <div className="text-[10px] text-slate-500 mt-2">Mix Base</div>
+                </div>
+                <div className="text-slate-500 font-bold">=</div>
+                <div className="text-right">
+                  <input type="number" value={rules.pcsPerAdukan} onChange={e=>setRules({...rules, pcsPerAdukan: e.target.value})} className="w-20 h-12 bg-transparent border border-slate-600 rounded-lg text-blue-400 text-2xl font-black text-center outline-none focus:border-amber-500"/>
+                  <span className="text-slate-400 text-xs font-bold ml-2">PCS</span>
+                  <div className="text-[10px] text-slate-500 mt-2">Dimsum Mentah</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Rule 4: Konversi Porsi */}
+            <div className="bg-[#1c2331] border border-slate-700/50 rounded-2xl p-5 relative overflow-hidden">
+              <div className="absolute right-[-20px] bottom-[-20px] text-slate-700/20 text-8xl font-black">#</div>
+              <div className="text-[9px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #4: Konversi Porsi Eceran</div>
+              <div className="flex items-center justify-between mt-2">
+                <div>
+                  <div className="text-2xl font-black text-white">1 <span className="text-sm text-slate-400">Porsi</span></div>
+                  <div className="text-[10px] text-slate-500 mt-2">Penjualan Resto</div>
+                </div>
+                <div className="text-slate-500 font-bold">=</div>
+                <div className="text-right">
+                  <input type="number" value={rules.pcsPerPorsi} onChange={e=>setRules({...rules, pcsPerPorsi: e.target.value})} className="w-16 h-12 bg-transparent border border-slate-600 rounded-lg text-blue-400 text-2xl font-black text-center outline-none focus:border-amber-500"/>
+                  <span className="text-slate-400 text-xs font-bold ml-2">PCS</span>
+                  <div className="text-[10px] text-slate-500 mt-2">Dimsum Mentah</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Rule 5: Konversi Mika */}
+            <div className="bg-[#1c2331] border border-slate-700/50 rounded-2xl p-5 md:col-span-2 relative overflow-hidden">
+              <div className="absolute right-[-20px] bottom-[-20px] text-slate-700/20 text-8xl font-black">#</div>
+              <div className="text-[9px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #5: Konversi Packaging / Mika Frozen</div>
+              <div className="flex items-center justify-between mt-2">
+                <div>
+                  <div className="text-2xl font-black text-white">1 <span className="text-sm text-slate-400">Mika</span></div>
+                  <div className="text-[10px] text-slate-500 mt-2">Kemasan Frozen</div>
+                </div>
+                <div className="text-slate-500 font-bold">=</div>
+                <div className="text-center">
+                  <input type="number" value={rules.pcsPerMika} onChange={e=>setRules({...rules, pcsPerMika: e.target.value})} className="w-16 h-12 bg-transparent border border-pink-500/50 rounded-lg text-pink-400 text-2xl font-black text-center outline-none focus:border-amber-500"/>
+                  <span className="text-slate-400 text-xs font-bold ml-2">PCS</span>
+                  <div className="text-[10px] text-slate-500 mt-2">Dimsum / Mika</div>
+                </div>
+                <div className="text-slate-500 font-bold">=</div>
+                <div className="text-right">
+                  <div className="text-2xl font-black text-emerald-400">{rules.pcsPerAdukan / rules.pcsPerMika} <span className="text-sm">Mika</span></div>
+                  <div className="text-[10px] text-slate-500 mt-2">Per Adukan (Auto)</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-[#0b0f19] p-6 flex justify-between items-center border-t border-slate-800">
+            <div className="text-[10px] text-amber-500 font-bold flex items-center gap-2"><CheckCircle2 size={14}/> Pastikan klik simpan setelah mengubah angka konfigurasi di atas.</div>
+            <button onClick={() => showToast("Konfigurasi Master Pabrik Berhasil Disimpan!", "success")} className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-black text-[10px] uppercase tracking-widest px-6 py-3 rounded-xl transition-colors flex items-center gap-2">
+              <Save size={14}/> Simpan Konfigurasi
+            </button>
           </div>
         </div>
       )}
