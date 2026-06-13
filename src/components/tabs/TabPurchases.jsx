@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { 
   ShoppingBag, Calendar, FileText, Trash2, Printer, 
-  Wallet, Truck, CheckCircle2, Package, Plus
+  Wallet, Truck, CheckCircle2 
 } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
@@ -9,10 +9,34 @@ import { triggerPrint } from '../../utils/PrintUtility';
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
+// 🔥 AUTO-NORMALIZER TANGGAL: Senjata rahasia agar data Google Sheets selalu kebaca!
+const normalizeDateStr = (dateVal) => {
+  if (!dateVal) return '';
+  const strVal = String(dateVal);
+  // Jika sudah format YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}/.test(strVal)) return strVal.substring(0, 10);
+  // Jika format ISO (ada huruf T)
+  if (strVal.includes('T')) return strVal.split('T')[0];
+  // Jika format Indonesia DD/MM/YYYY
+  const parts = strVal.split('/');
+  if (parts.length === 3 && parts[2].length === 4) {
+      const day = parts[0].padStart(2, '0');
+      const month = parts[1].padStart(2, '0');
+      const year = parts[2];
+      return `${year}-${month}-${day}`;
+  }
+  // Ultimate Fallback
+  try {
+      const d = new Date(strVal);
+      if (!isNaN(d.getTime())) return d.toISOString().substring(0, 10);
+  } catch(e) {}
+  return strVal.substring(0, 10);
+};
+
 export default function TabPurchases({ 
   purchases = [], purchases_data,
   supplierInvoices = [], supplier_invoices,
-  masterSuppliers = [], master_suppliers, // 🔥 SEKARANG DIALIRKAN KE SINI KABEL DATA MASTER NYA!
+  masterSuppliers = [], master_suppliers, 
   sendToSheet, showToast, user, requestDelete 
 }) {
   const todayStr = getTodayStr();
@@ -25,24 +49,23 @@ export default function TabPurchases({
   const [activeSubTab, setActiveTab] = useState('SUPPLIER');
   const [tableDateFilter, setTableDateFilter] = useState(todayStr);
 
-  // --- STATE FORM NOTA SUPPLIER (KABEL DROPDOWN DIKUNCI!) ---
   const [form, setForm] = useState({
-    supplierName: '', // Menyimpan nama supplier terpilih dari dropdown master
+    supplierName: '', 
     category: 'BAHAN_BAKU',
     itemName: '',
-    qty: '',
-    price: '',
+    qty: '', // SEKARANG INI MENGINPUT "KG" JIKA KATEGORINYA BAHAN_BAKU
+    price: '', // INI HARGA PER "KG" JIKA KATEGORINYA BAHAN_BAKU
     paymentMethod: 'TEMPO' 
   });
 
-  // Ambil hanya supplier aktif yang terdaftar legal di master data
   const supplierOptions = useMemo(() => {
     return realSuppliers.filter(s => !s.isDeleted && String(s.isDeleted).toUpperCase() !== 'TRUE');
   }, [realSuppliers]);
 
-  const hitungBeratKg = useMemo(() => {
+  // 🔥 ENGINE KONVERSI (DIBALIK: KG -> KANTONG)
+  const hitungKantong = useMemo(() => {
     const volume = Number(form.qty || 0);
-    if (form.category === 'BAHAN_BAKU') return volume * 10; // Aturan 1 Kantong = 10 KG
+    if (form.category === 'BAHAN_BAKU') return volume / 10; // Rule #1: 10 KG = 1 Kantong
     return 0;
   }, [form.qty, form.category]);
 
@@ -50,15 +73,21 @@ export default function TabPurchases({
     return Number(form.qty || 0) * Number(form.price || 0);
   }, [form.qty, form.price]);
 
+  // --- JURNAL RIWAYAT BELANJA (DENGAN FILTER TANGGAL ANTI-BLANK) ---
   const historyPurchases = useMemo(() => {
     return realPurchases.filter(p => {
       if (p.isDeleted || String(p.isDeleted).toUpperCase() === 'TRUE') return false;
-      const dateMatch = p.date && p.date.substring(0, 10) === tableDateFilter;
+      
+      const pDate = normalizeDateStr(p.date);
+      const dateMatch = pDate === tableDateFilter;
+      
+      const pBranch = String(p.branch_id || '').toUpperCase();
       const branchMatch = currentBranch === 'TANGERANG_PUSAT' 
-        ? String(p.branch_id).toUpperCase().includes('TANGERANG')
-        : String(p.branch_id).toUpperCase() === currentBranch.toUpperCase();
+        ? pBranch.includes('TANGERANG')
+        : pBranch === currentBranch.toUpperCase();
+        
       return dateMatch && branchMatch;
-    }).sort((a, b) => new Date(b.date) - new Date(a.date));
+    }).sort((a, b) => new Date(normalizeDateStr(b.date)) - new Date(normalizeDateStr(a.date)));
   }, [realPurchases, tableDateFilter, currentBranch]);
 
   const handleSubmitBelanja = async (e) => {
@@ -69,24 +98,35 @@ export default function TabPurchases({
     const purchaseId = generateId('PO-DMA', todayStr);
     const calculatedTotal = totalTagihanForm;
 
+    // 🔥 PENGAMBILAN KEPUTUSAN PENYIMPANAN MUTLAK GUDANG
+    // Di Database, Gudang kita baca pakai Kantong dan Harga per Kantong.
+    const finalQty = form.category === 'BAHAN_BAKU' ? hitungKantong : Number(form.qty);
+    const finalPrice = finalQty > 0 ? (calculatedTotal / finalQty) : 0;
+    const finalUnit = form.category === 'BAHAN_BAKU' ? 'KANTONG' : 'PCS';
+
     const payloadPurchase = {
       id: purchaseId, date: todayStr, branch_id: currentBranch,
       supplier_name: form.supplierName.toUpperCase(),
-      item_name: form.itemName.toUpperCase(), qty: Number(form.qty),
-      unit: form.category === 'BAHAN_BAKU' ? 'KANTONG' : 'PCS', price: Number(form.price || 0),
-      total_amount: calculatedTotal, paid_amount: form.paymentMethod === 'LUNAS' ? calculatedTotal : 0,
+      item_name: form.itemName.toUpperCase(), 
+      qty: finalQty, // Simpan sbg kantong
+      unit: finalUnit, 
+      price: finalPrice, // Simpan sbg harga per kantong
+      total_amount: calculatedTotal, 
+      paid_amount: form.paymentMethod === 'LUNAS' ? calculatedTotal : 0,
       payment_status: form.paymentMethod === 'LUNAS' ? 'LUNAS' : 'BELUM_LUNAS',
-      payment_method: form.paymentMethod === 'LUNAS' ? 'CASH' : 'HUTANG', isDeleted: false
+      payment_method: form.paymentMethod === 'LUNAS' ? 'CASH' : 'HUTANG', 
+      isDeleted: false
     };
 
     const isSuccess = await sendToSheet('insert', payloadPurchase, 'purchases');
 
     if (isSuccess) {
+      // Potong ke stok lapisan biaya gudang
       await sendToSheet('insert', {
         id: generateId('LAY', todayStr), date: todayStr, branch_id: currentBranch,
         category: form.category, item_name: form.itemName.toUpperCase(),
-        qty_received: Number(form.qty), qty_remaining: Number(form.qty),
-        unit_cost: Number(form.price || 0), reference_id: purchaseId, isDeleted: false
+        qty_received: finalQty, qty_remaining: finalQty,
+        unit_cost: finalPrice, reference_id: purchaseId, isDeleted: false
       }, 'inventory_cost_layers');
 
       if (form.paymentMethod === 'LUNAS') {
@@ -130,9 +170,8 @@ export default function TabPurchases({
 
           <form onSubmit={handleSubmitBelanja} className="p-5 space-y-4">
             <div className="grid grid-cols-2 gap-3">
-              {/* 🔥 KOTAK INTERKONEKSI DROPDOWN PILIHAN REAL SUPPLIER */}
               <div>
-                <label className="text-[9px] font-black text-emerald-700 uppercase block mb-1">Pilih Rekanan Supplier Master</label>
+                <label className="text-[9px] font-black text-emerald-700 uppercase block mb-1">Pilih Rekanan Supplier</label>
                 <select 
                   required 
                   value={form.supplierName} 
@@ -158,26 +197,32 @@ export default function TabPurchases({
 
             <div>
               <label className="text-[9px] font-black text-slate-500 uppercase block mb-1">Nama Item / Deskripsi</label>
-              <input type="text" required value={form.itemName} onChange={e=>setForm({...form, itemName: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold uppercase text-xs outline-none focus:bg-white" placeholder="Cth: DAGING FILLET DADA / MIKA ISI 50" />
+              <input type="text" required value={form.itemName} onChange={e=>setForm({...form, itemName: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold uppercase text-xs outline-none focus:bg-white" placeholder="Cth: DAGING FILLET DADA" />
             </div>
 
+            {/* 🔥 REVISI UI: INPUT BERAT KG DULUAN, BARU KONVERSI KANTONG */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-[9px] font-black text-slate-500 uppercase block mb-1">
-                  {form.category === 'BAHAN_BAKU' ? 'Volume Beli (Kantong)' : 'Volume Beli (Pcs)'}
+                  {form.category === 'BAHAN_BAKU' ? 'Volume Beli (KG)' : 'Volume Beli (Pcs)'}
                 </label>
-                <input type="number" min="1" required value={form.qty} onChange={e=>setForm({...form, qty: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-black text-sm text-center outline-none focus:bg-white" placeholder="0" />
+                <input type="number" min="1" step="0.1" required value={form.qty} onChange={e=>setForm({...form, qty: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-black text-sm text-center outline-none focus:bg-white" placeholder="0" />
               </div>
               <div>
-                <label className="text-[9px] font-black text-blue-600 uppercase block mb-1">Konversi Berat (KG)</label>
+                <label className="text-[9px] font-black text-blue-600 uppercase block mb-1">
+                  {form.category === 'BAHAN_BAKU' ? 'Setara (Kantong)' : 'Satuan'}
+                </label>
                 <div className="w-full p-3 bg-blue-50 border border-blue-200 rounded-xl font-black text-sm text-center text-blue-700">
-                  {formatNumber(hitungBeratKg)} KG
+                  {form.category === 'BAHAN_BAKU' ? `${formatNumber(hitungKantong)} KANTONG` : 'PCS'}
                 </div>
               </div>
             </div>
 
+            {/* 🔥 REVISI UI: HARGA MENGIKUTI KG */}
             <div>
-              <label className="text-[9px] font-black text-slate-500 uppercase block mb-1">Harga Per Satuan (Kantong/Pcs)</label>
+              <label className="text-[9px] font-black text-slate-500 uppercase block mb-1">
+                {form.category === 'BAHAN_BAKU' ? 'Harga Per Satuan (Per KG)' : 'Harga Per Satuan (Per Pcs)'}
+              </label>
               <div className="relative">
                 <span className="absolute left-3 top-3 font-black text-slate-400 text-sm">Rp</span>
                 <input type="text" required value={form.price ? Number(form.price).toLocaleString('id-ID') : ''} onChange={e=>setForm({...form, price: e.target.value.replace(/\D/g, '')})} className="w-full pl-9 pr-3 py-3 bg-slate-50 border border-slate-200 rounded-xl font-black text-sm outline-none focus:bg-white" placeholder="0" />
@@ -242,7 +287,8 @@ export default function TabPurchases({
                         <td className="px-5 py-4">
                           <div className="font-black text-blue-700 uppercase text-xs mb-1">{p.supplier_name || p.supplierName || 'SUPPLIER'}</div>
                           <div className="text-[10px] text-slate-700 uppercase font-black">{p.item_name || p.itemName}</div>
-                          <div className="text-[9px] text-slate-400 mt-1">Volume Beli: {formatNumber(p.qty)} {p.unit || 'KANTONG'}</div>
+                          {/* 🔥 Tabel langsung mencerminkan data kantong seperti yang dipahami sistem gudang */}
+                          <div className="text-[9px] text-slate-400 mt-1">Sistem Masuk Gudang: {formatNumber(p.qty)} {p.unit || 'KANTONG'}</div>
                         </td>
                         <td className="px-5 py-4 text-right whitespace-nowrap font-black text-sm text-rose-600">{formatRupiah(totalBill)}</td>
                         <td className="px-5 py-4 text-center whitespace-nowrap"><span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest border ${isLunas ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>{isLunas ? 'LUNAS CASH' : 'BON TEMPO'}</span></td>
