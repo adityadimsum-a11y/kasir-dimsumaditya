@@ -352,15 +352,29 @@ export default function TabOrders({
                 <button type="button" onClick={() => setFulfillment('PRE_ORDER')} className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 ${fulfillment === 'PRE_ORDER' ? 'bg-white shadow-sm border border-slate-200 text-amber-600' : 'text-slate-500 hover:text-slate-800'}`}><Clock size={14}/> Pre-Order (PO Ditahan)</button>
               </div>
 
+              {/* 🚀 KOTAK TOTAL DENGAN GEMBOK RAHASIA HPP */}
               <div className="bg-slate-900 text-white p-5 rounded-2xl shadow-xl relative overflow-hidden border border-slate-800">
-                <div className="flex justify-between items-start mb-2">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Total Tagihan Nota</span>
-                  <span className="text-3xl font-black tracking-tight">{formatRupiah(cartCalculated.totalTagihan)}</span>
+                <div className="flex justify-between items-end mb-2">
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400 block mb-1">Total Tagihan Nota</span>
+                    <span className="text-[9px] font-bold text-slate-400">Total Kuantitas: {formatNumber(cartCalculated.totalQty)} Pcs</span>
+                  </div>
+                  <span className="text-3xl font-black tracking-tight text-emerald-400">{formatRupiah(cartCalculated.totalTagihan)}</span>
                 </div>
-                <div className="flex justify-between text-[9px] font-black uppercase tracking-widest border-t border-slate-800 pt-2 text-slate-400">
-                  <span>Total Kuantitas: {formatNumber(cartCalculated.totalQty)} Pcs</span>
-                  <span className="text-indigo-400">Est. Laba Kotor: {formatRupiah(cartCalculated.totalTagihan - cartCalculated.totalHpp)}</span>
-                </div>
+
+                {/* HANYA MUNCUL JIKA AKUN PUSAT / TANGERANG (BOS SULTAN) */}
+                {currentBranch === 'TANGERANG_PUSAT' && (
+                  <div className="mt-4 pt-3 border-t border-slate-700/50 space-y-1.5">
+                    <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-slate-400">
+                      <span>Perkiraan Modal Pabrik (HPP):</span>
+                      <span className="text-rose-400">{formatRupiah(cartCalculated.totalHpp)}</span>
+                    </div>
+                    <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-white">
+                      <span>Perkiraan Laba Keuntungan:</span>
+                      <span className="text-blue-400">+{formatRupiah(cartCalculated.totalTagihan - cartCalculated.totalHpp)}</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="p-4 border border-slate-200 rounded-2xl bg-slate-50 shadow-inner">
