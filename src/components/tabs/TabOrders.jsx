@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { 
   ShoppingCart, Search, Plus, Trash2, Printer, 
   CheckCircle2, AlertTriangle, Clock, Wallet, Box, User,
-  Calendar, FileText, ArrowDownToLine, ArrowUpRight
+  Calendar, FileText, ArrowDownToLine, PackageCheck, X
 } from 'lucide-react';
 import { getTodayStr, generateId, formatDate, safeJsonParse } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
@@ -29,10 +29,14 @@ export default function TabOrders({
   const [customerName, setCustomerName] = useState('');
   const [orderSource, setOrderSource] = useState('WALK_IN_TOKO');
   const [fulfillment, setFulfillment] = useState('LANGSUNG');
-  const [paymentType, setPaymentType] = useState('LUNAS'); // LUNAS atau DP
-  const [paymentMethod, setPaymentMethod] = useState('CASH'); // CASH, TF_BCA, TF_BRI
+  const [paymentType, setPaymentType] = useState('LUNAS');
+  const [paymentMethod, setPaymentMethod] = useState('CASH');
   const [dpAmount, setDpAmount] = useState('');
   const [tableDateFilter, setTableDateFilter] = useState(todayStr);
+
+  // STATE MODAL DELIVERY (AMBIL SEBAGIAN)
+  const [deliveryModal, setDeliveryModal] = useState(null);
+  const [deliveryQty, setDeliveryQty] = useState('');
 
   // --- 1. ENGINE STOK & MASTER MENU AKTIF ---
   const activeMenus = useMemo(() => {
@@ -43,14 +47,12 @@ export default function TabOrders({
     const map = {};
     activeMenus.forEach(p => map[p.product_name] = 0);
     
-    // Tambah dari hasil produksi
     realProduction.forEach(b => {
        if(!b.isDeleted && b.item_name && (b.branch_id === currentBranch || currentBranch === 'TANGERANG_PUSAT')) {
           map[b.item_name] = (map[b.item_name] || 0) + Number(b.actual_yield || b.qty || 0);
        }
     });
     
-    // Kurangi dari penjualan (Parser Keranjang Json)
     realOrders.forEach(o => {
        if(!o.isDeleted && (o.branch_id === currentBranch || currentBranch === 'TANGERANG_PUSAT')) {
           const items = safeJsonParse(o.items, []);
@@ -62,14 +64,13 @@ export default function TabOrders({
     return map;
   }, [activeMenus, realProduction, realOrders, currentBranch]);
 
-  // --- 2. ENGINE KALKULATOR KERANJANG (AUTO-PINALTI ECERAN) ---
+  // --- 2. ENGINE KALKULATOR KERANJANG ---
   const cartCalculated = useMemo(() => {
     let totalHpp = 0;
     let totalTagihan = 0;
     let totalQty = 0;
 
     const items = cart.map(item => {
-      // Logika Harga Bertingkat
       const isEceran = item.qty < item.min_order;
       const hargaBerlaku = isEceran ? item.penalty_price : item.selling_price;
       const subtotal = item.qty * hargaBerlaku;
@@ -100,7 +101,7 @@ export default function TabOrders({
       if (!window.confirm(`⚠️ STOK FREEZER KOSONG!\n\nMenu ${menu.product_name} saat ini habis.\nKlik OK jika ingin tetap menerima pesanan ini sebagai PRE-ORDER (Barang ditahan / DP dulu).`)) {
         return;
       }
-      setFulfillment('PRE_ORDER'); // Otomatis ubah mode pengambilan
+      setFulfillment('PRE_ORDER');
     }
 
     setCart(prev => {
@@ -121,14 +122,10 @@ export default function TabOrders({
     setCart(prev => prev.map(i => i.id === id ? { ...i, qty: newQty } : i));
   };
 
-  const removeCartItem = (id) => {
-    setCart(prev => prev.filter(i => i.id !== id));
-  };
+  const removeCartItem = (id) => setCart(prev => prev.filter(i => i.id !== id));
+  const updateCartNote = (id, note) => setCart(prev => prev.map(i => i.id === id ? { ...i, note } : i));
 
-  const updateCartNote = (id, note) => {
-    setCart(prev => prev.map(i => i.id === id ? { ...i, note } : i));
-  };
-
+  // --- ACTIONS: SUBMIT CHECKOUT ---
   const handleCheckout = async (e) => {
     e.preventDefault();
     if (cart.length === 0) return alert("Keranjang kasir masih kosong!");
@@ -136,12 +133,12 @@ export default function TabOrders({
 
     const trxId = generateId('INV', todayStr);
     
-    // Logika Hybrid Payment
     const nominalDibayar = paymentType === 'LUNAS' ? cartCalculated.totalTagihan : Number(dpAmount || 0);
     if (paymentType === 'DP' && nominalDibayar <= 0) return alert("Nominal uang muka (DP) tidak boleh kosong!");
     if (paymentType === 'DP' && nominalDibayar >= cartCalculated.totalTagihan) return alert("Nominal DP melebih total tagihan. Silakan gunakan metode LUNAS.");
 
     const statusLunas = paymentType === 'LUNAS' ? 'LUNAS' : 'BELUM_LUNAS';
+    const initialQtyDelivered = fulfillment === 'PRE_ORDER' ? 0 : cartCalculated.totalQty;
 
     const payloadOrder = {
       id: trxId,
@@ -151,18 +148,18 @@ export default function TabOrders({
       sales_channel: orderSource,
       items: JSON.stringify(cartCalculated.items),
       qty: cartCalculated.totalQty,
+      qty_delivered: initialQtyDelivered, // TRACKER BARANG DIAMBIL
       total_amount: cartCalculated.totalTagihan,
       amount_paid: nominalDibayar,
-      payment_method: paymentMethod, // Menyimpan detail CASH/TF_BCA/TF_BRI
+      payment_method: paymentMethod,
       status: statusLunas,
-      fulfillment_status: fulfillment,
+      fulfillment_status: fulfillment === 'PRE_ORDER' ? 'PRE_ORDER' : 'DIAMBIL',
       notes: paymentType === 'DP' ? `DP MASUK: ${formatRupiah(nominalDibayar)} VIA ${paymentMethod}` : ''
     };
 
     const isSuccess = await sendToSheet('insert', payloadOrder, 'orders');
 
     if (isSuccess) {
-      // Catat ke Cashflow jika ada uang masuk
       if (nominalDibayar > 0) {
         await sendToSheet('insert', {
           id: generateId('CFI', todayStr), date: todayStr, branch_id: currentBranch, type: 'IN',
@@ -173,36 +170,55 @@ export default function TabOrders({
 
       showToast('Transaksi Penjualan Berhasil Disimpan!', 'success');
       
-      // Auto Print
       if (window.confirm("Cetak Tiket Nota / Struk Pembelian?")) {
         triggerPrint('NOTA_DOTMATRIX', {
           title: fulfillment === 'PRE_ORDER' ? 'BUKTI PRE-ORDER (PO)' : 'STRUK PENJUALAN',
           id: trxId, date: formatDate(todayStr), branch_name: currentBranch,
           admin_name: user?.name || 'KASIR', customer_name: customerName.toUpperCase(),
-          items: cartCalculated.items.map(i => ({
-             name: `${i.name} ${i.isEceran ? '(Ecer)' : '(Grosir)'}\n  ${i.note ? `*Ket: ${i.note}` : ''}`,
-             qty: i.qty,
-             subtotal: i.subtotal
-          })),
-          amount: cartCalculated.totalTagihan,
-          paymentMethod: `${paymentType} (${paymentMethod.replace('_', ' ')})`,
-          history: paymentType === 'DP' ? {
-             labelLama: 'Total Tagihan', nominalLama: cartCalculated.totalTagihan,
-             labelAksi: 'Uang Muka (DP) Masuk', nominalAksi: nominalDibayar,
-             labelBaru: 'SISA PIUTANG (BELUM BAYAR)', nominalBaru: cartCalculated.totalTagihan - nominalDibayar
-          } : null
+          items: cartCalculated.items.map(i => ({ name: `${i.name} ${i.isEceran ? '(Ecer)' : '(Grosir)'}\n  ${i.note ? `*Ket: ${i.note}` : ''}`, qty: i.qty, subtotal: i.subtotal })),
+          amount: cartCalculated.totalTagihan, paymentMethod: `${paymentType} (${paymentMethod.replace('_', ' ')})`,
+          history: paymentType === 'DP' ? { labelLama: 'Total Tagihan', nominalLama: cartCalculated.totalTagihan, labelAksi: 'Uang Muka (DP) Masuk', nominalAksi: nominalDibayar, labelBaru: 'SISA PIUTANG (BELUM BAYAR)', nominalBaru: cartCalculated.totalTagihan - nominalDibayar } : null
         });
       }
 
-      // Reset Kasir
       setCart([]); setCustomerName(''); setDpAmount(''); setPaymentType('LUNAS'); setFulfillment('LANGSUNG');
+    }
+  };
+
+  // --- ACTIONS: SERAHKAN BARANG (PARSIAL / AMBIL SEBAGIAN) ---
+  const handleSubmitDelivery = async (e) => {
+    e.preventDefault();
+    const qtyDiberikan = Number(deliveryQty);
+    if (qtyDiberikan <= 0) return alert("Jumlah barang diserahkan tidak boleh kosong!");
+
+    const orderTarget = deliveryModal;
+    const qtyTotalPesan = Number(orderTarget.qty);
+    const qtySudahDiambil = Number(orderTarget.qty_delivered !== undefined ? orderTarget.qty_delivered : 0);
+    const sisaHakAmbil = qtyTotalPesan - qtySudahDiambil;
+
+    if (qtyDiberikan > sisaHakAmbil) return alert(`Gagal! Jumlah yang diserahkan (${qtyDiberikan} Pcs) melebihi sisa hak ambil pelanggan (${sisaHakAmbil} Pcs).`);
+
+    const newQtyDelivered = qtySudahDiambil + qtyDiberikan;
+    const isSelesaiDiambil = newQtyDelivered >= qtyTotalPesan;
+
+    const payloadUpdate = {
+      ...orderTarget,
+      qty_delivered: newQtyDelivered,
+      fulfillment_status: isSelesaiDiambil ? 'DIAMBIL' : 'DIAMBIL_SEBAGIAN'
+    };
+
+    const isSuccess = await sendToSheet('update', payloadUpdate, 'orders');
+    if (isSuccess) {
+      showToast(`Berhasil mencatat penyerahan ${qtyDiberikan} Pcs ke pelanggan!`, 'success');
+      setDeliveryModal(null);
+      setDeliveryQty('');
     }
   };
 
   return (
     <div className="space-y-6 pb-10 text-slate-800 animate-in fade-in duration-300">
       
-      {/* 🚀 BANNER MONITOR STOK TERATAS */}
+      {/* 🚀 BANNER MONITOR STOK TERATAS (DENGAN KONVERSI KHUSUS DIMSUM MIX) */}
       <div className="bg-slate-900 rounded-3xl p-6 shadow-xl border border-slate-800 relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-emerald-400 to-amber-500"></div>
         <div className="flex items-center gap-2 mb-4">
@@ -212,10 +228,20 @@ export default function TabOrders({
         <div className="flex overflow-x-auto gap-4 pb-2 custom-scrollbar">
           {activeMenus.map(m => {
             const stok = stockMap[m.product_name] || 0;
+            const isMix = m.product_name.toUpperCase().includes('DIMSUM AYAM MIX'); // Deteksi khusus Dimsum Mix
+
             return (
-              <div key={m.id} className="bg-slate-950 border border-slate-800 rounded-2xl p-4 min-w-[160px] shrink-0 shadow-inner">
-                <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest line-clamp-1 mb-1">{m.product_name}</div>
+              <div key={m.id} className={`border rounded-2xl p-4 min-w-[160px] shrink-0 shadow-inner ${isMix ? 'bg-indigo-950/40 border-indigo-500/50' : 'bg-slate-950 border-slate-800'}`}>
+                <div className={`text-[9px] font-black uppercase tracking-widest line-clamp-1 mb-1 ${isMix ? 'text-indigo-300' : 'text-slate-400'}`}>{m.product_name}</div>
                 <div className={`text-2xl font-black tracking-tight ${stok > 0 ? 'text-emerald-400' : 'text-rose-500'}`}>{formatNumber(stok)} <span className="text-[10px] text-slate-500 font-bold">PCS</span></div>
+                
+                {/* KONVERSI KHUSUS DIMSUM MIX */}
+                {isMix && (
+                  <div className="mt-2 pt-2 border-t border-indigo-500/30 flex flex-col gap-0.5">
+                     <div className="text-[9px] font-bold text-indigo-200">≈ {formatNumber(Math.floor(stok / 50))} <span className="text-indigo-400 uppercase">Mika (Isi 50)</span></div>
+                     <div className="text-[9px] font-bold text-indigo-200">≈ {formatNumber(Math.floor(stok / 4))} <span className="text-indigo-400 uppercase">Porsi (Isi 4)</span></div>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -389,7 +415,7 @@ export default function TabOrders({
               <tr>
                 <th className="px-5 py-4 font-black">Waktu Nota &amp; ID</th>
                 <th className="px-5 py-4 font-black min-w-[250px]">Pelanggan &amp; Rincian Keranjang</th>
-                <th className="px-5 py-4 font-black text-center">Status Barang</th>
+                <th className="px-5 py-4 font-black text-center">Tracker Pengambilan Barang</th>
                 <th className="px-5 py-4 font-black text-right">Rincian Tagihan Nota</th>
                 <th className="px-5 py-4 font-black text-center">Aksi Op</th>
               </tr>
@@ -404,12 +430,30 @@ export default function TabOrders({
                 </tr>
               ) : (
                 historyOrders.map(o => {
-                  // PARSER JSON MULTI-ITEM KERANJANG SAKTI
                   const parsedItems = safeJsonParse(o.items, []);
                   const totalMasuk = Number(o.amount_paid || 0);
                   const totalTagihan = Number(o.total_amount || 0);
                   const sisaHutang = totalTagihan - totalMasuk;
                   const isDP = sisaHutang > 0;
+
+                  // TRACKER BARANG LOGIC
+                  const qtyTotal = Number(o.qty || 0);
+                  const qtyDelivered = Number(o.qty_delivered !== undefined ? o.qty_delivered : (o.fulfillment_status === 'PRE_ORDER' ? 0 : qtyTotal));
+                  const sisaBelumDiambil = qtyTotal - qtyDelivered;
+                  
+                  let statusBadge = '';
+                  let badgeColor = '';
+                  
+                  if (sisaBelumDiambil <= 0) {
+                    statusBadge = '✅ DIAMBIL FULL';
+                    badgeColor = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                  } else if (qtyDelivered > 0 && sisaBelumDiambil > 0) {
+                    statusBadge = '⏳ DIAMBIL SEBAGIAN';
+                    badgeColor = 'bg-blue-50 text-blue-700 border-blue-200';
+                  } else {
+                    statusBadge = '⏳ PO DITAHAN FULL';
+                    badgeColor = 'bg-amber-50 text-amber-700 border-amber-200';
+                  }
 
                   return (
                     <tr key={o.id} className="hover:bg-blue-50/30 transition-colors group">
@@ -430,9 +474,14 @@ export default function TabOrders({
                         </div>
                       </td>
                       <td className="px-5 py-4 text-center whitespace-nowrap">
-                        <span className={`px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border shadow-sm ${o.fulfillment_status === 'PRE_ORDER' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
-                          {o.fulfillment_status === 'PRE_ORDER' ? '⏳ PO DITAHAN' : '✅ DIAMBIL'}
-                        </span>
+                        <div className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest border shadow-sm inline-block ${badgeColor}`}>
+                          <div className="mb-1 border-b border-black/10 pb-1">{statusBadge}</div>
+                          <div className="text-[8px] flex flex-col gap-0.5">
+                            <span>Total Pesan: {formatNumber(qtyTotal)}</span>
+                            <span className="text-emerald-600">Sdh Diambil: {formatNumber(qtyDelivered)}</span>
+                            {sisaBelumDiambil > 0 && <span className="text-rose-600 mt-1 font-black bg-rose-100 rounded px-1 py-0.5">SISA TERTINGGAL: {formatNumber(sisaBelumDiambil)}</span>}
+                          </div>
+                        </div>
                       </td>
                       <td className="px-5 py-4 text-right whitespace-nowrap min-w-[180px]">
                         <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 mb-1"><span>Total Tagihan:</span><span>{formatRupiah(totalTagihan)}</span></div>
@@ -446,16 +495,21 @@ export default function TabOrders({
                         <div className="text-[8px] font-black text-slate-400 mt-1.5 uppercase text-right tracking-widest">Jalur: {String(o.payment_method || 'CASH').replace('_', ' ')}</div>
                       </td>
                       <td className="px-5 py-4 text-center whitespace-nowrap opacity-50 group-hover:opacity-100 transition-opacity">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <button type="button" onClick={() => triggerPrint('NOTA_DOTMATRIX', {
-                            title: o.fulfillment_status === 'PRE_ORDER' ? 'BUKTI PRE-ORDER DITAHAN' : 'STRUK PENJUALAN RE-PRINT', id: o.id, date: formatDate(o.date),
-                            branch_name: currentBranch, admin_name: user?.name || 'KASIR', customer_name: o.customer_name,
-                            items: parsedItems.map(i => ({ name: `${i.name}\n  ${i.note ? `*Ket: ${i.note}` : ''}`, qty: i.qty, subtotal: i.subtotal })),
-                            amount: totalTagihan, paymentMethod: `${isDP ? 'DP/UANG MUKA' : 'LUNAS 100%'} (${String(o.payment_method).replace('_', ' ')})`,
-                            history: isDP ? { labelLama: 'Total Tagihan', nominalLama: totalTagihan, labelAksi: 'Uang Muka (DP) Masuk', nominalAksi: totalMasuk, labelBaru: 'SISA PIUTANG (BELUM BAYAR)', nominalBaru: sisaHutang } : null
-                          })} className="p-2.5 text-slate-500 bg-white border border-slate-200 shadow-sm hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors" title="Cetak Ulang Tiket Nota"><Printer size={16}/></button>
-                          
-                          <button type="button" onClick={() => { if(window.confirm("PERINGATAN! Yakin ingin MENGHAPUS (Void) transaksi penjualan ini? Stok dan Omset akan ditarik kembali!")) requestDelete(o.id); }} className="p-2.5 text-slate-500 bg-white border border-slate-200 shadow-sm hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors" title="Void Hapus Transaksi"><Trash2 size={16}/></button>
+                        <div className="flex flex-col items-center justify-center gap-1.5">
+                          {sisaBelumDiambil > 0 && (
+                            <button type="button" onClick={() => setDeliveryModal(o)} className="w-full py-2 px-3 text-[9px] font-black uppercase tracking-widest text-amber-700 bg-amber-100 border border-amber-300 shadow-sm hover:bg-amber-200 rounded-lg transition-colors flex items-center justify-center gap-1.5 mb-1"><PackageCheck size={14}/> Serahkan Barang</button>
+                          )}
+                          <div className="flex gap-1.5 w-full">
+                            <button type="button" onClick={() => triggerPrint('NOTA_DOTMATRIX', {
+                              title: o.fulfillment_status === 'PRE_ORDER' ? 'BUKTI PRE-ORDER DITAHAN' : 'STRUK PENJUALAN RE-PRINT', id: o.id, date: formatDate(o.date),
+                              branch_name: currentBranch, admin_name: user?.name || 'KASIR', customer_name: o.customer_name,
+                              items: parsedItems.map(i => ({ name: `${i.name}\n  ${i.note ? `*Ket: ${i.note}` : ''}`, qty: i.qty, subtotal: i.subtotal })),
+                              amount: totalTagihan, paymentMethod: `${isDP ? 'DP/UANG MUKA' : 'LUNAS 100%'} (${String(o.payment_method).replace('_', ' ')})`,
+                              history: isDP ? { labelLama: 'Total Tagihan', nominalLama: totalTagihan, labelAksi: 'Uang Muka (DP) Masuk', nominalAksi: totalMasuk, labelBaru: 'SISA PIUTANG (BELUM BAYAR)', nominalBaru: sisaHutang } : null
+                            })} className="flex-1 p-2 text-slate-500 bg-white border border-slate-200 shadow-sm hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors flex justify-center" title="Cetak Ulang Tiket Nota"><Printer size={16}/></button>
+                            
+                            <button type="button" onClick={() => { if(window.confirm("PERINGATAN! Yakin ingin MENGHAPUS (Void) transaksi penjualan ini? Stok dan Omset akan ditarik kembali!")) requestDelete(o.id); }} className="flex-1 p-2 text-slate-500 bg-white border border-slate-200 shadow-sm hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors flex justify-center" title="Void Hapus Transaksi"><Trash2 size={16}/></button>
+                          </div>
                         </div>
                       </td>
                     </tr>
@@ -466,6 +520,45 @@ export default function TabOrders({
           </table>
         </div>
       </div>
+
+      {/* 🚀 MODAL TRACKER PENGAMBILAN BARANG (AMBIL SEBAGIAN) */}
+      {deliveryModal && (() => {
+        const qtyTotalPesan = Number(deliveryModal.qty);
+        const qtySudahDiambil = Number(deliveryModal.qty_delivered !== undefined ? deliveryModal.qty_delivered : 0);
+        const sisaHakAmbil = qtyTotalPesan - qtySudahDiambil;
+
+        return (
+          <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[9999] flex justify-center items-center p-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-white rounded-3xl shadow-2xl border w-full max-w-sm overflow-hidden flex flex-col">
+               <div className="bg-amber-500 text-white px-6 py-4 flex items-center justify-between">
+                 <div className="flex items-center gap-2"><PackageCheck size={18}/><h3 className="font-black text-sm uppercase tracking-wider">Serahkan Barang (Cicil)</h3></div>
+                 <button onClick={() => { setDeliveryModal(null); setDeliveryQty(''); }} className="hover:text-amber-200 transition"><X size={20}/></button>
+               </div>
+               
+               <form onSubmit={handleSubmitDelivery} className="p-6 space-y-5">
+                 <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl shadow-inner text-center">
+                   <div className="text-[10px] font-black text-amber-700 uppercase tracking-widest mb-1">Nota: {deliveryModal.id}</div>
+                   <div className="text-lg font-black text-amber-900 uppercase leading-tight">{deliveryModal.customer_name}</div>
+                   <div className="text-xs font-black text-rose-600 uppercase mt-2 pt-2 border-t border-amber-200 border-dashed">
+                     Sisa Hak Ambil: {formatNumber(sisaHakAmbil)} Pcs
+                   </div>
+                 </div>
+
+                 <div>
+                   <label className="text-[10px] font-black text-emerald-600 uppercase block mb-1">Jumlah Diserahkan Saat Ini (Pcs)</label>
+                   <input type="number" min="1" max={sisaHakAmbil} required value={deliveryQty} onChange={e=>setDeliveryQty(e.target.value)} className="w-full p-4 border-2 border-emerald-200 rounded-xl text-lg font-black text-emerald-700 bg-emerald-50/30 text-center outline-none focus:bg-white focus:border-emerald-500 transition-colors" placeholder={`Maks: ${sisaHakAmbil}`} />
+                   <p className="text-[9px] font-bold text-slate-500 uppercase mt-2 text-center leading-relaxed tracking-wider">Jika Agen ambil 7 Mika, ketik 350. Sisa 3 Mika (150 Pcs) akan dilacak otomatis di sistem.</p>
+                 </div>
+
+                 <button type="submit" className="w-full text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest shadow-xl bg-amber-500 hover:bg-amber-600 transition-transform active:scale-95 flex justify-center items-center gap-2">
+                   <CheckCircle2 size={16}/> Konfirmasi Penyerahan
+                 </button>
+               </form>
+            </div>
+          </div>
+        );
+      })()}
+
     </div>
   );
 }
