@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { 
   Factory, Box, Package, Search, Plus, Trash2, Printer, 
-  CheckCircle2, AlertTriangle, Clock, Layers, ArrowRightLeft, Database
+  CheckCircle2, AlertTriangle, Clock, Layers, ArrowRightLeft, Database,
+  FileText, Calendar // 🔥 FIX CRASH: IKON SUDAH DITAMBAHKAN DI SINI
 } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
