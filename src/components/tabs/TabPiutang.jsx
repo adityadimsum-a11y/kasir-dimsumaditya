@@ -1,6 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { Landmark, Search, Trash2, Printer, CheckCircle2, Lock, Banknote, ArrowUpRight, ArrowDownToLine, FileText, Filter, Undo } from 'lucide-react';
-import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
+import { 
+  Landmark, Search, Wallet, FileText, CheckCircle2, 
+  AlertTriangle, Clock, ArrowRightLeft, ArrowDownToLine,
+  X, Printer, User, ShieldCheck
+} from 'lucide-react';
+import { getTodayStr, generateId, formatDate, safeJsonParse } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
 
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
@@ -8,318 +12,324 @@ const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
 export default function TabPiutang({ 
   orders = [], orders_data, 
-  purchases = [], purchases_data,
   cashflow_transactions = [], cashflow_transactions_data,
-  user, sendToSheet, showToast, requestDelete 
+  sendToSheet, showToast, user, requestDelete 
 }) {
   const todayStr = getTodayStr();
   const currentBranch = (user?.branch_id === 'PUSAT' || !user?.branch_id) ? 'TANGERANG_PUSAT' : user?.branch_id;
-  const isHQ = user?.branch_type === 'HQ_FACTORY' || user?.branch_id === 'PUSAT' || currentBranch === 'TANGERANG_PUSAT';
 
-  // --- STATE MANAJEMEN ---
-  const [subTab, setSubTab] = useState('OUTSTANDING'); 
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState('SEMUA'); 
-
-  // --- DATABASE SINKRONISASI ---
+  // --- SINKRONISASI DATABASE ---
   const realOrders = useMemo(() => orders_data || orders || [], [orders, orders_data]);
-  const realPurchases = useMemo(() => purchases_data || purchases || [], [purchases, purchases_data]);
   const realCashflow = useMemo(() => cashflow_transactions_data || cashflow_transactions || [], [cashflow_transactions, cashflow_transactions_data]);
 
-  // --- JANTUNG ENGINE UTANG PIUTANG BUKU BESAR ---
-  const ledgerData = useMemo(() => {
-    let activeRecords = [];
-    let archivedRecords = [];
+  // --- STATE MANAGEMENT ---
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedAR, setSelectedAR] = useState(null); // Menyimpan data order yang mau dilunasi
+  const [paymentForm, setPaymentForm] = useState({ date: todayStr, amount: '', method: 'TF_BCA', notes: '' });
 
-    let totalPiutangMacet = 0;
-    let totalHutangGantung = 0;
+  // --- 1. ENGINE PIUTANG AKTIF (BELUM LUNAS) ---
+  const activeAR = useMemo(() => {
+    return realOrders.filter(o => {
+      if (o.isDeleted || (o.branch_id !== currentBranch && currentBranch !== 'TANGERANG_PUSAT')) return false;
+      const sisa = Number(o.total_amount || 0) - Number(o.amount_paid || 0);
+      return sisa > 0 || o.status === 'BELUM_LUNAS';
+    }).sort((a, b) => new Date(a.date) - new Date(b.date)); // Yang paling lama ngutang di atas
+  }, [realOrders, currentBranch]);
 
-    // 1. Saring Data Piutang Agen dari Nota Jualan Kasir POS
-    realOrders.filter(o => !o.isDeleted).forEach(o => {
-      if (!isHQ && o.branch_id !== currentBranch) return;
-      if (!['DP', 'HUTANG', 'PIUTANG'].includes(o.payment_method) && o.status !== 'PIUTANG') return;
+  // Filter pencarian nama pelanggan
+  const filteredAR = useMemo(() => {
+    if (!searchQuery) return activeAR;
+    return activeAR.filter(o => String(o.customer_name).toUpperCase().includes(searchQuery.toUpperCase()));
+  }, [activeAR, searchQuery]);
 
-      const totalTagihan = Number(o.total_amount || 0);
-      let totalTerbayar = Number(o.amount_paid || 0);
-
-      // Cari total cicilan masuk dari kasir harian
-      realCashflow.filter(c => !c.isDeleted && c.type === 'IN' && c.reference_id === o.id).forEach(c => {
-        totalTerbayar += Number(c.amount || 0);
-      });
-
-      const sisaHutang = Math.max(0, totalTagihan - totalTerbayar);
-      const isLunas = sisaHutang === 0 || o.status === 'SELESAI';
-
-      const recordObj = {
-        id: o.id, date: o.date, branch_id: o.branch_id,
-        kategori: 'PIUTANG_AGEN', labelKategori: 'PIUTANG AGEN OLAHAN',
-        clientName: o.customer_name?.toUpperCase() || 'AGEN ANONIM',
-        total: totalTagihan, terbayar: totalTerbayar, sisa: sisaHutang,
-        isLunas, rawOrder: o
-      };
-
-      if (isLunas) {
-        archivedRecords.push(recordObj);
-      } else {
-        totalPiutangMacet += sisaHutang;
-        activeRecords.push(recordObj);
-      }
-    });
-
-    // 2. Saring Data Hutang Pabrik dari Nota Belanja Bahan Baku / Ayam Nana
-    realPurchases.filter(p => !p.isDeleted).forEach(p => {
-      if (!isHQ && p.branch_id !== currentBranch) return;
-      if (!['BON_GANTUNG', 'HUTANG'].includes(p.payment_method) && p.status !== 'HUTANG') return;
-
-      const totalTagihan = Number(p.total_amount || p.amount || 0);
-      let totalTerbayar = Number(p.amount_paid || 0);
-
-      // Cari total cicilan keluar untuk bayar supplier
-      realCashflow.filter(c => !c.isDeleted && c.type === 'OUT' && c.reference_id === p.id).forEach(c => {
-        totalTerbayar += Number(c.amount || 0);
-      });
-
-      const sisaHutang = Math.max(0, totalTagihan - totalTerbayar);
-      const isLunas = sisaHutang === 0 || p.status === 'LUNAS';
-
-      const recordObj = {
-        id: p.id, date: p.date, branch_id: p.branch_id,
-        kategori: 'HUTANG_BON', labelKategori: 'HUTANG BON SUPPLIER',
-        clientName: p.supplier_name?.toUpperCase() || 'SUPPLIER NANA AYAM',
-        total: totalTagihan, terbayar: totalTerbayar, sisa: sisaHutang,
-        isLunas, rawPurchase: p
-      };
-
-      if (isLunas) {
-        archivedRecords.push(recordObj);
-      } else {
-        totalHutangGantung += sisaHutang;
-        activeRecords.push(recordObj);
-      }
-    });
-
-    const filterFn = (list) => list.filter(r => {
-      if (filterType !== 'SEMUA' && r.kategori !== filterType) return false;
-      if (searchTerm) {
-        const s = searchTerm.toLowerCase();
-        if (!r.clientName.toLowerCase().includes(s) && !r.id.toLowerCase().includes(s)) return false;
-      }
-      return true;
+  // --- 2. ENGINE HISTORI PELUNASAN PIUTANG ---
+  const historyPelunasan = useMemo(() => {
+    return realCashflow.filter(c => {
+      return !c.isDeleted && 
+             c.type === 'IN' && 
+             c.category === 'PELUNASAN PIUTANG AGEN' && 
+             (c.branch_id === currentBranch || currentBranch === 'TANGERANG_PUSAT');
     }).sort((a, b) => new Date(b.date) - new Date(a.date));
+  }, [realCashflow, currentBranch]);
 
-    return {
-      outstanding: filterFn(activeRecords),
-      historyLunas: filterFn(archivedRecords),
-      totalPiutangMacet,
-      totalHutangGantung
-    };
-  }, [realOrders, realPurchases, realCashflow, isHQ, currentBranch, searchTerm, filterType]);
+  // --- 3. METRIK DASHBOARD ---
+  const metrik = useMemo(() => {
+    let totalPiutangMengambang = 0;
+    let totalPelangganNgutang = activeAR.length;
 
-  const displayedList = subTab === 'OUTSTANDING' ? ledgerData.outstanding : ledgerData.historyLunas;
+    activeAR.forEach(o => {
+      totalPiutangMengambang += (Number(o.total_amount || 0) - Number(o.amount_paid || 0));
+    });
 
-  // --- ACTIONS (PROSES CICILAN / PENERIMAAN BON) ---
-  const handleEksekusiCicilan = async (record) => {
-    const isPiutang = record.kategori === 'PIUTANG_AGEN';
-    
-    const inputNominal = window.prompt(
-      `PROSES ${isPiutang ? 'PENERIMAAN PIUTANG TAGIHAN' : 'PELUNASAN BON GANTUNG SUPPLIER'}\n` +
-      `Klien: ${record.clientName}\n` +
-      `Sisa Saldo Gantung Saat Ini: ${formatRupiah(record.sisa)}\n\n` +
-      `Masukkan jumlah nominal uang bayar/tagih (Ketik Angka Mentah):`, record.sisa
-    );
+    return { totalPiutangMengambang, totalPelangganNgutang };
+  }, [activeAR]);
 
-    if (!inputNominal) return;
-    const nominal = Number(inputNominal.replace(/\D/g, ''));
-    if (nominal <= 0 || isNaN(nominal)) return alert("Nominal pembayaran uang tidak valid!");
-    if (nominal > record.sisa) return alert("Nominal melebihi sisa sisa tagihan berjalan!");
+  // --- ACTIONS: PROSES PELUNASAN / CICILAN ---
+  const handleProcessPayment = async (e) => {
+    e.preventDefault();
+    if (!selectedAR) return;
 
-    const trxId = generateId(isPiutang ? 'BYR' : 'PAY', todayStr);
-    const isLunasFinal = nominal === record.sisa;
+    const nominalBayar = Number(paymentForm.amount);
+    const sisaHutang = Number(selectedAR.total_amount) - Number(selectedAR.amount_paid);
 
-    // 1. DATA ENTRY KE BUKU BESAR ARUS KAS (CASHFLOW)
-    const cashflowPayload = {
-      id: trxId, date: todayStr, branch_id: record.branch_id,
-      type: isPiutang ? 'IN' : 'OUT',
-      category: isPiutang ? 'PELUNASAN PIUTANG AGEN' : 'PELUNASAN HUTANG SUPPLIER',
-      description: `${isPiutang ? 'Terima cicilan' : 'Bayar hutang'} Nota: ${record.id} (${record.clientName})`,
-      amount: nominal, method: 'CASH', reference_id: record.id
-    };
-
-    // 2. DATA ENTRY KE BUKU UTANG JURNAL SUPPLIER LEDGER
-    let ledgerPayload = null;
-    if (!isPiutang) {
-      ledgerPayload = {
-          id: generateId('SL-PAY', todayStr),
-          date: todayStr,
-          branch_id: record.branch_id,
-          supplier_name: record.clientName.toUpperCase(),
-          transaction_type: 'PAYMENT', 
-          amount: nominal,
-          description: `Cicilan/Pelunasan untuk PO: ${record.id}`,
-          reference_id: record.id
-      };
+    if (nominalBayar <= 0) return alert("Nominal pembayaran harus lebih dari Rp 0!");
+    if (nominalBayar > sisaHutang) {
+      return alert(`Nominal bayar (${formatRupiah(nominalBayar)}) tidak boleh melebihi sisa hutang (${formatRupiah(sisaHutang)})!`);
     }
 
-    // --- EXECUTE UPDATE KE CLOUD SERVER SPREADSHEET ---
-    if (await sendToSheet('insert', cashflowPayload, 'cashflow_transactions')) {
-      
-      if (ledgerPayload) {
-          sendToSheet('insert', ledgerPayload, 'supplier_ledger');
-      }
+    if (!window.confirm(`Konfirmasi Terima Pembayaran:\n\nPelanggan: ${selectedAR.customer_name}\nSisa Hutang Awal: ${formatRupiah(sisaHutang)}\nDibayar: ${formatRupiah(nominalBayar)}\nVia: ${paymentForm.method.replace('_', ' ')}\n\nLanjutkan?`)) {
+      return;
+    }
 
-      // Kunci status nota induk ke server bila sisa saldo sudah lunas total
-      if (isLunasFinal) {
-        if (isPiutang) {
-          await sendToSheet('update', { ...record.rawOrder, status: 'SELESAI' }, 'orders');
-        } else {
-          await sendToSheet('update', { ...record.rawPurchase, status: 'LUNAS' }, 'purchases');
-        }
-      }
+    const currentTotalPaid = Number(selectedAR.amount_paid || 0);
+    const newTotalPaid = currentTotalPaid + nominalBayar;
+    const isLunasTotal = newTotalPaid >= Number(selectedAR.total_amount);
 
-      showToast(`Transaksi sebesar ${formatRupiah(nominal)} sukses dicatat & Buku Kas Ter-update!`, 'success');
+    // 1. PAYLOAD UPDATE NOTA KASIR (ORDERS)
+    const orderPayload = {
+      ...selectedAR,
+      amount_paid: newTotalPaid,
+      status: isLunasTotal ? 'LUNAS' : 'BELUM_LUNAS'
+    };
+
+    // 2. PAYLOAD UANG MASUK (CASHFLOW IN)
+    const cashflowPayload = {
+      id: generateId('CFI', paymentForm.date),
+      date: paymentForm.date,
+      branch_id: currentBranch,
+      type: 'IN',
+      category: 'PELUNASAN PIUTANG AGEN',
+      description: `Pelunasan Nota: ${selectedAR.id} - Pelanggan: ${selectedAR.customer_name} ${isLunasTotal ? '(LUNAS TOTAL)' : '(CICILAN)'}`,
+      amount: nominalBayar,
+      method: paymentForm.method,
+      reference_id: selectedAR.id
+    };
+
+    // Eksekusi Update & Insert Beruntun
+    const isSuccess = await sendToSheet('update', orderPayload, 'orders');
+    if (isSuccess) {
+      await sendToSheet('insert', cashflowPayload, 'cashflow_transactions');
       
-      if (window.confirm("Cetak Lembar Bukti Pembayaran / Angsuran Ini?")) {
+      showToast(`Pembayaran Rp ${formatNumber(nominalBayar)} diterima! Saldo Kas/Bank otomatis bertambah.`, 'success');
+      setSelectedAR(null);
+      setPaymentForm({ date: todayStr, amount: '', method: 'TF_BCA', notes: '' });
+
+      // Auto Print Kwitansi Pelunasan
+      if (window.confirm("Cetak Kwitansi Pelunasan / Cicilan ini?")) {
         triggerPrint('NOTA_DOTMATRIX', {
-          title: isPiutang ? 'SLIP KWITANSI PENERIMAAN PIUTANG' : 'SLIP BUKTI BAYAR HUTANG SUPPLIER', id: trxId, date: formatDate(todayStr),
-          branch_name: record.branch_id, admin_name: user?.name || 'FINANCE', customer_name: record.clientName,
-          items: [{ name: `Angsuran/Pelunasan untuk ID Nota: ${record.id}`, qty: 1, subtotal: nominal }],
-          amount: nominal, paymentMethod: 'KAS DOMPET UTAMA'
+          title: isLunasTotal ? 'KWITANSI PELUNASAN BON TOTAL' : 'KWITANSI CICILAN PIUTANG',
+          id: cashflowPayload.id, date: formatDate(paymentForm.date),
+          branch_name: currentBranch, admin_name: user?.name || 'ADMIN', customer_name: selectedAR.customer_name,
+          items: [{ name: `Pembayaran Piutang Nota: ${selectedAR.id}\nKet: ${paymentForm.notes || '-'}`, qty: 1, subtotal: nominalBayar }],
+          amount: nominalBayar, paymentMethod: paymentForm.method.replace('_', ' '),
+          history: {
+             labelLama: 'Sisa Hutang Sebelumnya', nominalLama: sisaHutang,
+             labelAksi: 'Pembayaran Masuk Hari Ini', nominalAksi: nominalBayar,
+             labelBaru: 'SISA HUTANG AKTIF SAAT INI', nominalBaru: sisaHutang - nominalBayar
+          }
         });
       }
     }
   };
 
+  const openPaymentModal = (order) => {
+    setSelectedAR(order);
+    const sisa = Number(order.total_amount || 0) - Number(order.amount_paid || 0);
+    // Set default amount ke sisa hutang (Biar gampang kalau mau lunasin full)
+    setPaymentForm({ date: todayStr, amount: String(sisa), method: 'TF_BCA', notes: '' });
+  };
+
   return (
     <div className="space-y-6 pb-10 text-slate-800 animate-in fade-in duration-300">
       
-      {/* ATAS: BOX BANNER REKAP KESELURUHANN */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center justify-between border-l-4 border-l-orange-500">
-          <div>
-            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><ArrowDownToLine size={12} className="text-orange-500"/> Total Uang Piutang Macet di Luar</div>
-            <div className="text-2xl font-black text-orange-600 tracking-tight mt-1">{formatRupiah(ledgerData.totalPiutangMacet)}</div>
-          </div>
-          <div className="bg-orange-50 text-orange-600 p-3 rounded-2xl border border-orange-100 shadow-inner"><Landmark size={20}/></div>
+      {/* 🚀 BANNER DASHBOARD PIUTANG */}
+      <div className="bg-slate-900 rounded-3xl p-6 shadow-xl border border-slate-800 relative overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+        <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-500 via-indigo-400 to-emerald-500"></div>
+        <div className="relative z-10 text-white">
+           <div className="flex items-center gap-2 mb-1.5">
+             <Landmark size={24} className="text-blue-400"/>
+             <h2 className="text-2xl font-black uppercase tracking-widest">Buku Penagihan Piutang</h2>
+           </div>
+           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed max-w-md">
+             Monitor semua nota pelanggan/agen yang masih gantung (DP) dari Kasir POS. Tarik dana pelunasan untuk mengamankan Cashflow pabrik.
+           </p>
         </div>
 
-        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center justify-between border-l-4 border-l-rose-500">
-          <div>
-            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><ArrowUpRight size={12} className="text-rose-500"/> Total Hutang Bon Gantung Pabrik</div>
-            <div className="text-2xl font-black text-rose-600 tracking-tight mt-1">{formatRupiah(ledgerData.totalHutangGantung)}</div>
+        <div className="relative z-10 flex gap-4 shrink-0">
+          <div className="bg-slate-950/50 border border-slate-700/50 rounded-2xl p-4 shadow-inner text-right">
+             <div className="text-[9px] font-black text-rose-400 uppercase tracking-widest mb-1">Total Tagihan Gantung / Piutang</div>
+             <div className="text-2xl md:text-3xl font-black text-white tracking-tight">{formatRupiah(metrik.totalPiutangMengambang)}</div>
           </div>
-          <div className="bg-rose-50 text-rose-600 p-3 rounded-2xl border border-rose-100 shadow-inner"><Banknote size={20}/></div>
         </div>
       </div>
 
-      {/* WORKSPACE DATA UTANG PIUTANG */}
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-        <div className="p-4 bg-slate-50 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-          
-          {/* CONTROL SWITCH SUBTAB BUTTON */}
-          <div className="flex bg-slate-200 p-1 rounded-2xl border shadow-inner w-full sm:w-auto">
-            <button type="button" onClick={() => setSubTab('OUTSTANDING')} className={`flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${subTab === 'OUTSTANDING' ? 'bg-slate-900 text-white shadow-md scale-105' : 'text-slate-500 hover:text-slate-800'}`}>⚠️ Tagihan Aktif berjalan ({displayedList.length})</button>
-            <button type="button" onClick={() => setSubTab('HISTORY_LUNAS')} className={`flex-1 sm:flex-none px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${subTab === 'HISTORY_LUNAS' ? 'bg-slate-900 text-white shadow-md scale-105' : 'text-slate-500 hover:text-slate-800'}`}>✅ Arsip Histori Lunas</button>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        {/* KANTONG KIRI: DAFTAR AGEN YANG NGUTANG */}
+        <div className="lg:col-span-7 bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col overflow-hidden border-t-4 border-t-blue-500 h-[75vh]">
+          <div className="p-5 border-b bg-slate-50 shrink-0 space-y-4">
+             <div className="flex justify-between items-center">
+               <h4 className="font-black text-slate-800 uppercase text-xs tracking-widest flex items-center gap-2"><Clock size={16} className="text-blue-600"/> Daftar Piutang Aktif ({metrik.totalPelangganNgutang} Nota)</h4>
+             </div>
+             <div className="relative">
+               <Search size={16} className="absolute left-3 top-3.5 text-slate-400"/>
+               <input type="text" value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-white border border-slate-300 rounded-xl text-xs font-black uppercase outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all" placeholder="Cari nama agen atau pelanggan..." />
+             </div>
           </div>
+          
+          <div className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-slate-50/30">
+            {filteredAR.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-slate-300">
+                <ShieldCheck size={48} className="mb-3 opacity-20 text-emerald-500"/>
+                <span className="font-black uppercase tracking-widest text-xs text-slate-400">Aman! Tidak ada pelanggan yang ngutang.</span>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {filteredAR.map(order => {
+                  const sisaHutang = Number(order.total_amount) - Number(order.amount_paid);
+                  const parsedItems = safeJsonParse(order.items, []);
+                  
+                  return (
+                    <div key={order.id} className="border border-slate-200 rounded-2xl bg-white shadow-sm p-4 hover:border-blue-300 transition-colors">
+                      <div className="flex justify-between items-start mb-3 border-b border-slate-100 pb-3">
+                        <div className="flex gap-3 items-center">
+                          <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100">
+                            <User size={20}/>
+                          </div>
+                          <div>
+                            <h5 className="font-black text-sm uppercase text-slate-800 leading-tight">{order.customer_name}</h5>
+                            <span className="text-[9px] font-mono text-slate-400 mt-0.5 block">{order.id} • {formatDate(order.date)}</span>
+                          </div>
+                        </div>
+                        <span className="px-2.5 py-1 text-[8px] font-black uppercase rounded bg-rose-50 text-rose-600 border border-rose-200 tracking-widest animate-pulse">BELUM LUNAS</span>
+                      </div>
+                      
+                      <div className="mb-4">
+                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Rincian Barang Diambil:</div>
+                        <div className="space-y-1">
+                          {parsedItems.map((item, idx) => (
+                             <div key={idx} className="text-[10px] text-slate-600 uppercase font-bold flex justify-between items-start">
+                               <span>• {item.name} <span className="text-blue-500 font-black">(x{formatNumber(item.qty)})</span></span>
+                             </div>
+                          ))}
+                        </div>
+                      </div>
 
-          {/* FILTER CONTROL PANEL */}
-          <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap sm:flex-nowrap">
-            <div className="relative flex-1 sm:flex-none">
-              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
-              <select value={filterType} onChange={e => setFilterType(e.target.value)} className="w-full pl-8 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase text-slate-700 outline-none cursor-pointer shadow-sm">
-                <option value="SEMUA">📊 Tampilkan Semua</option>
-                <option value="PIUTANG_AGEN">🍊 JALUR PIUTANG AGEN</option>
-                <option value="HUTANG_BON">🐔 JALUR HUTANG SUPPLIER</option>
-              </select>
-            </div>
+                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 mb-4">
+                        <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 mb-1.5"><span>Total Nilai Nota:</span><span>{formatRupiah(order.total_amount)}</span></div>
+                        <div className="flex justify-between items-center text-[10px] font-bold text-emerald-600 mb-2 border-b border-slate-200 pb-2"><span>DP / Sudah Masuk:</span><span>{formatRupiah(order.amount_paid)}</span></div>
+                        <div className="flex justify-between items-center text-xs font-black text-rose-600 uppercase tracking-wider"><span>Sisa Harus Ditagih:</span><span>{formatRupiah(sisaHutang)}</span></div>
+                      </div>
 
-            <div className="relative flex-1 sm:flex-none">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
-              <input type="text" placeholder="Cari nama klien / ID..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full sm:w-48 pl-8 pr-3 py-2 rounded-xl border border-slate-200 text-xs font-bold outline-none bg-white focus:border-blue-400 shadow-sm uppercase" />
-            </div>
+                      <button onClick={() => openPaymentModal(order)} className="w-full bg-blue-600 text-white font-black py-3 rounded-xl text-xs uppercase tracking-widest shadow-md hover:bg-blue-700 transition-transform active:scale-95 flex justify-center items-center gap-2">
+                        <Wallet size={16}/> Terima Pembayaran Pelunasan
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* DATA TABLE SHEET */}
-        <div className="overflow-x-auto p-2 custom-scrollbar min-h-[45vh]">
-          <table className="w-full text-sm text-left border-collapse">
-            <thead className="bg-white text-[10px] uppercase text-slate-400 border-b border-slate-100">
-              <tr>
-                <th className="px-4 py-3 font-black">Tanggal &amp; ID Nota</th>
-                <th className="px-4 py-3 font-black">Klasifikasi Buku</th>
-                <th className="px-4 py-3 font-black">Nama Klien / Supplier</th>
-                <th className="px-4 py-3 font-black text-right">Nilai Total Awal</th>
-                <th className="px-4 py-3 font-black text-right">Sudah Dicicil</th>
-                <th className="px-4 py-3 font-black text-right">Sisa Saldo Gantung</th>
-                <th className="px-4 py-3 font-black text-center">Aksi Operasional</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50 text-xs font-bold">
-              {displayedList.length === 0 ? (
+        {/* KANTONG KANAN: JURNAL HISTORI PELUNASAN */}
+        <div className="lg:col-span-5 bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col overflow-hidden h-[75vh]">
+          <div className="p-5 border-b bg-slate-50 shrink-0">
+             <h4 className="font-black text-slate-800 uppercase text-xs tracking-widest flex items-center gap-2"><FileText size={16} className="text-emerald-600"/> Histori Uang Tagihan Masuk</h4>
+             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-1.5">Jurnal rekam jejak pelunasan nota (Cashflow Masuk).</p>
+          </div>
+          <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
+            <table className="w-full text-sm text-left border-collapse">
+              <thead className="bg-white text-[10px] uppercase text-slate-400 sticky top-0 shadow-sm border-b border-slate-100">
                 <tr>
-                  <td colSpan="7" className="text-center py-20 text-slate-400 font-bold uppercase tracking-widest bg-slate-50/50">
-                    <div className="flex justify-center mb-2 opacity-20"><FileText size={36}/></div>
-                    Belum ada rekapan data {subTab === 'OUTSTANDING' ? 'tagihan aktif berjalan' : 'histori arsip pelunasan'}
-                  </td>
+                  <th className="px-4 py-3 font-black">Ref Nota &amp; Tgl</th>
+                  <th className="px-4 py-3 font-black">Metode &amp; Pelanggan</th>
+                  <th className="px-4 py-3 font-black text-right">Uang Masuk</th>
                 </tr>
-              ) : (
-                displayedList.map(record => {
-                  const isPiutang = record.kategori === 'PIUTANG_AGEN';
-                  const isLogToday = record.date.substring(0, 10) === todayStr;
-                  const canVoid = isHQ || isLogToday;
-
-                  return (
-                    <tr key={record.id} className={`hover:bg-blue-50/30 transition-colors group ${record.isLunas ? 'bg-slate-50/40 opacity-75' : ''}`}>
-                      <td className="px-4 py-4 whitespace-nowrap"><div className="text-slate-800 font-black">{formatDate(record.date)}</div><div className="text-[9px] font-mono text-slate-400 mt-0.5">{record.id}</div></td>
+              </thead>
+              <tbody className="divide-y divide-slate-50 text-xs font-bold">
+                {historyPelunasan.length === 0 ? (
+                  <tr><td colSpan="3" className="text-center py-16 text-slate-400 font-black uppercase tracking-widest bg-slate-50/50">Belum ada riwayat pelunasan dari agen.</td></tr>
+                ) : (
+                  historyPelunasan.map(log => (
+                    <tr key={log.id} className="hover:bg-emerald-50/30 transition-colors">
                       <td className="px-4 py-4 whitespace-nowrap">
-                        <span className={`px-2.5 py-1 rounded-md text-[8px] font-black uppercase border tracking-wider shadow-sm ${isPiutang ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
-                          {record.labelKategori}
-                        </span>
+                        <div className="text-slate-800 font-black">{formatDate(log.date)}</div>
+                        <div className="text-[9px] font-mono text-blue-500 mt-0.5 font-bold cursor-help" title="ID Referensi Nota Asli">{log.reference_id}</div>
                       </td>
                       <td className="px-4 py-4">
-                        <div className="font-black text-slate-800 text-xs uppercase line-clamp-1">{record.clientName}</div>
-                        {isHQ && <div className="text-[8px] text-slate-400 font-black tracking-wider uppercase mt-1">CABANG NODE: {record.branch_id?.replace('_', ' ')}</div>}
+                        <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider border mb-1.5 inline-block ${log.method === 'CASH' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
+                          {log.method.replace('_', ' ')}
+                        </span>
+                        <div className="font-bold text-slate-700 uppercase text-[10px] leading-relaxed line-clamp-2">{log.description}</div>
                       </td>
-                      <td className="px-4 py-4 text-right whitespace-nowrap text-slate-500 font-bold">{formatRupiah(record.total)}</td>
-                      <td className="px-4 py-4 text-right whitespace-nowrap text-emerald-600 font-black">+{formatRupiah(record.terbayar)}</td>
                       <td className="px-4 py-4 text-right whitespace-nowrap">
-                        {record.isLunas ? (
-                          <span className="text-[9px] font-black bg-emerald-100 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded uppercase inline-block"><CheckCircle2 size={10} className="inline mr-0.5"/> LUNAS TOTAL</span>
-                        ) : (
-                          <span className="text-sm font-black text-rose-600 tracking-tight">{formatRupiah(record.sisa)}</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-4 text-center whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-1.5 opacity-70 group-hover:opacity-100 transition-opacity">
-                          {!record.isLunas && (
-                            <button type="button" onClick={() => handleEksekusiCicilan(record)} className={`px-3 py-2 text-white rounded-lg text-[9px] font-black uppercase tracking-widest shadow-md flex items-center gap-1 transition-transform active:scale-95 ${isPiutang ? 'bg-orange-600 hover:bg-orange-700 border border-orange-700' : 'bg-rose-600 hover:bg-rose-700 border border-rose-700'}`}>
-                              <Banknote size={12}/> {isPiutang ? 'Tarik Cicilan' : 'Bayar Angsuran'}
-                            </button>
-                          )}
-
-                          <button type="button" onClick={() => triggerPrint('NOTA_DOTMATRIX', {
-                            title: isPiutang ? 'SLIP BUKTI NOTA PIUTANG AGEN' : 'SLIP BUKTI NOTA HUTANG SUPPLIER', id: record.id, date: formatDate(record.date),
-                            branch_name: record.branch_id, admin_name: user?.name || 'FINANCE', customer_name: record.clientName,
-                            items: [{ name: `Tagihan Komponen Asal`, qty: 1, subtotal: record.total }], amount: record.total, paymentMethod: 'SISTEM BUKU BESAR',
-                            history: { labelLama: 'Nilai Total Nota Awal', nominalLama: record.total, labelAksi: 'Total Berhasil Terbayar', nominalAksi: record.terbayar, labelBaru: 'SISA SALDO GANTUNG SEKARANG', nominalBaru: record.sisa }
-                          })} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 border rounded-lg shadow-sm transition-colors" title="Cetak Slip Rekap Buku Koran"><Printer size={14}/></button>
-
-                          {canVoid ? (
-                            <button type="button" onClick={() => { if(window.confirm("Yakin ingin menghapus total data transaksi induk ini?")) requestDelete(record.id); }} className="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 border rounded-lg shadow-sm transition-colors" title="Hapus Data Induk">
-                              <Trash2 size={14}/>
-                            </button>
-                          ) : (
-                            <span className="text-[10px] text-slate-300 px-1.5 font-black" title="Terkunci Otomatis (Hanya HQ / Hari ini)"><Lock size={12}/></span>
-                          )}
-                        </div>
+                        <span className="text-emerald-600 font-black text-sm flex items-center justify-end gap-1"><ArrowDownToLine size={12}/> {formatRupiah(log.amount)}</span>
                       </td>
                     </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
+
+      {/* 🚀 MODAL TERIMA PEMBAYARAN (SULTAN POP-UP) */}
+      {selectedAR && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[9999] flex justify-center items-center p-4 animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl border w-full max-w-md overflow-hidden flex flex-col">
+             <div className="bg-blue-600 text-white px-6 py-4 flex items-center justify-between">
+               <div className="flex items-center gap-2"><Wallet size={18}/><h3 className="font-black text-sm uppercase tracking-wider">Terima Dana Pelunasan</h3></div>
+               <button onClick={() => setSelectedAR(null)} className="hover:text-blue-200 transition"><X size={20}/></button>
+             </div>
+             
+             <form onSubmit={handleProcessPayment} className="p-6 space-y-5">
+               <div className="bg-blue-50 border border-blue-200 p-4 rounded-2xl shadow-inner text-center">
+                 <div className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">Target Penagihan Pelanggan</div>
+                 <div className="text-lg font-black text-blue-900 uppercase">{selectedAR.customer_name}</div>
+                 <div className="text-xs font-black text-rose-600 uppercase mt-2 pt-2 border-t border-blue-200 border-dashed">
+                   Sisa Hutang: {formatRupiah(Number(selectedAR.total_amount) - Number(selectedAR.amount_paid))}
+                 </div>
+               </div>
+
+               <div>
+                 <label className="text-[10px] font-black text-emerald-600 uppercase block mb-1">Nominal Uang Diterima Hari Ini</label>
+                 <div className="relative">
+                   <span className="absolute left-4 top-3.5 font-black text-emerald-400">Rp</span>
+                   <input type="text" required value={paymentForm.amount ? Number(paymentForm.amount).toLocaleString('id-ID') : ''} onChange={e=>setPaymentForm({...paymentForm, amount: e.target.value.replace(/\D/g, '')})} className="w-full pl-11 pr-4 py-3 border-2 border-emerald-200 rounded-xl text-lg font-black text-emerald-700 bg-emerald-50/30 outline-none focus:bg-white focus:border-emerald-500 transition-colors" placeholder="0" />
+                 </div>
+                 <p className="text-[9px] font-bold text-slate-500 uppercase mt-1.5 leading-relaxed tracking-wider">Otomatis terisi nominal lunas. Ubah angka jika pelanggan hanya nyicil sebagian.</p>
+               </div>
+
+               <div className="grid grid-cols-2 gap-3">
+                 <div>
+                   <label className="text-[10px] font-black text-slate-500 uppercase block mb-1">Tanggal Cair</label>
+                   <input type="date" required value={paymentForm.date} onChange={e=>setPaymentForm({...paymentForm, date: e.target.value})} className="w-full p-3 border rounded-xl text-xs font-black bg-slate-50 outline-none cursor-pointer" />
+                 </div>
+                 <div>
+                   <label className="text-[10px] font-black text-slate-500 uppercase block mb-1">Metode / Jalur Uang</label>
+                   <select required value={paymentForm.method} onChange={e=>setPaymentForm({...paymentForm, method: e.target.value})} className="w-full p-3 border rounded-xl text-[10px] font-black uppercase bg-slate-50 outline-none cursor-pointer focus:border-blue-400">
+                     <option value="TF_BCA">TRANSFER (BCA PUSAT)</option>
+                     <option value="TF_BRI">TRANSFER (BRI PUSAT)</option>
+                     <option value="CASH">CASH (TUNAI LACI KASIR)</option>
+                   </select>
+                 </div>
+               </div>
+
+               <div>
+                 <label className="text-[10px] font-black text-slate-500 uppercase block mb-1">Catatan Kasir (Opsional)</label>
+                 <input type="text" value={paymentForm.notes} onChange={e=>setPaymentForm({...paymentForm, notes: e.target.value})} className="w-full p-3 border rounded-xl text-xs font-bold uppercase bg-slate-50 outline-none focus:bg-white focus:border-blue-400" placeholder="Misal: Titip supir, Lunas TF, dll..." />
+               </div>
+
+               <button type="submit" className="w-full text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest shadow-xl bg-blue-600 hover:bg-blue-700 transition-transform active:scale-95 flex justify-center items-center gap-2">
+                 <CheckCircle2 size={16}/> Sahkan &amp; Masukkan Ke Kas
+               </button>
+             </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
