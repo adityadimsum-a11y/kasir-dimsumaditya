@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { 
   Box, Settings, Layers, Package, Truck, 
-  Plus, Edit2, Trash2, Save, X, Calculator, ShieldCheck 
+  Plus, Edit2, Trash2, Save, X, Calculator, ShieldCheck, 
+  CheckCircle2 // 🔥 FIX CRASH: IKON DEWA SUDAH DIMASUKKAN DI SINI BOS!
 } from 'lucide-react';
 import { getTodayStr, generateId } from '../../utils/helpers';
 
@@ -21,7 +22,7 @@ export default function TabMasterData({
   // --- SINKRONISASI DATABASE ---
   const realProducts = useMemo(() => master_products || masterProducts || [], [master_products, masterProducts]);
   
-  // STATE ATURAN KONVERSI PABRIK (RESTORED)
+  // STATE ATURAN KONVERSI PABRIK (RESTORED TO SULTAN ENGINE)
   const [rules, setRules] = useState({
     kgPerKantong: 10,
     kgPerAdukan: 30,
@@ -219,7 +220,7 @@ export default function TabMasterData({
                       <td className="px-6 py-4 text-center whitespace-nowrap opacity-50 group-hover:opacity-100 transition-opacity">
                         <div className="flex items-center justify-center gap-1.5">
                           <button type="button" onClick={() => handleEditMenu(p)} className="p-2.5 text-slate-500 bg-white border border-slate-200 shadow-sm hover:bg-amber-50 hover:text-amber-600 rounded-xl transition-colors"><Edit2 size={16}/></button>
-                          <button type="button" onClick={() => handleDeleteMenu(p.id)} className="p-2.5 text-slate-500 bg-white border border-slate-200 shadow-sm hover:bg-rose-50 hover:text-rose-600 rounded-xl transition-colors"><Trash2 size={16}/></button>
+                          <button type="button" onClick={() => handleDeleteMenu(p.id)} className="p-2.5 text-slate-500 bg-white border border-slate-200 shadow-sm hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"><Trash2 size={16}/></button>
                         </div>
                       </td>
                     </tr>
@@ -231,9 +232,10 @@ export default function TabMasterData({
         </div>
       )}
 
-      {/* 🔥 TAB BARU: ATURAN PABRIK (UI DI-RESTORE 100%) */}
+      {/* 🚀 TAB ATURAN PABRIK (SUDAH DI-FIX DARI CRASH IKON) */}
       {activeTab === 'RULES' && (
-        <div className="bg-[#151a25] rounded-3xl border border-slate-800 shadow-2xl relative overflow-hidden animate-in fade-in duration-300">
+        <div className="bg-[#151a25] rounded-3xl border border-slate-800 shadow-2xl relative overflow-hidden animate-in  duration-300">
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-slate-500 to-slate-300"></div>
           <div className="p-6 md:p-8 flex items-center gap-4 border-b border-slate-800/80">
             <div className="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center border border-amber-500/20">
               <Settings size={24} className="text-amber-500"/>
@@ -245,7 +247,7 @@ export default function TabMasterData({
           </div>
 
           <div className="p-6 md:p-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* Rule 1: Timbangan Mentah */}
+            {/* Rule 1 */}
             <div className="bg-[#1c2331] border border-slate-700/50 rounded-2xl p-5 relative overflow-hidden">
               <div className="absolute right-[-20px] bottom-[-20px] text-slate-700/20 text-8xl font-black">#</div>
               <div className="text-[9px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #1: Timbangan Mentah</div>
@@ -263,7 +265,7 @@ export default function TabMasterData({
               </div>
             </div>
 
-            {/* Rule 2: Resep Adukan */}
+            {/* Rule 2 */}
             <div className="bg-[#1c2331] border border-slate-700/50 rounded-2xl p-5 relative overflow-hidden">
               <div className="absolute right-[-20px] bottom-[-20px] text-slate-700/20 text-8xl font-black">#</div>
               <div className="text-[9px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #2: Resep Adukan</div>
@@ -281,7 +283,7 @@ export default function TabMasterData({
               </div>
             </div>
 
-            {/* Rule 3: Target Yield Dasar */}
+            {/* Rule 3 */}
             <div className="bg-[#1c2331] border border-slate-700/50 rounded-2xl p-5 relative overflow-hidden">
               <div className="absolute right-[-20px] bottom-[-20px] text-slate-700/20 text-8xl font-black">#</div>
               <div className="text-[9px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #3: Target Yield Dasar</div>
@@ -299,7 +301,7 @@ export default function TabMasterData({
               </div>
             </div>
 
-            {/* Rule 4: Konversi Porsi */}
+            {/* Rule 4 */}
             <div className="bg-[#1c2331] border border-slate-700/50 rounded-2xl p-5 relative overflow-hidden">
               <div className="absolute right-[-20px] bottom-[-20px] text-slate-700/20 text-8xl font-black">#</div>
               <div className="text-[9px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #4: Konversi Porsi Eceran</div>
@@ -317,7 +319,7 @@ export default function TabMasterData({
               </div>
             </div>
 
-            {/* Rule 5: Konversi Mika */}
+            {/* Rule 5 */}
             <div className="bg-[#1c2331] border border-slate-700/50 rounded-2xl p-5 md:col-span-2 relative overflow-hidden">
               <div className="absolute right-[-20px] bottom-[-20px] text-slate-700/20 text-8xl font-black">#</div>
               <div className="text-[9px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #5: Konversi Packaging / Mika Frozen</div>
