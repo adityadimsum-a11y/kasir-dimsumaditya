@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Lock, Send, Calculator as CalcIcon, History, AlertTriangle, CheckCircle2, Wallet, FileText, ArrowRightLeft, Clock, Building2, Search, Landmark } from 'lucide-react';
+import { Lock, Send, Calculator as CalcIcon, History, AlertTriangle, CheckCircle2, Wallet, FileText, ArrowRightLeft, Clock, Building2, Search, Landmark, Link, Image } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
 
@@ -17,7 +17,8 @@ export default function TabSetoranCabang({
   // Deteksi mutlak: Apakah ini akun tertinggi (Pemilik/Pusat)?
   const isHQ = user?.branch_type === 'HQ_FACTORY' || user?.branch_id === 'PUSAT' || currentBranch === 'TANGERANG_PUSAT';
   
-  const [form, setForm] = useState({ uangFisik: '', nominalSetor: '', metode: 'Transfer BCA Pusat', catatan: '' });
+  // 🔥 TAMBAHAN: State foto_url untuk link struk transfer
+  const [form, setForm] = useState({ uangFisik: '', nominalSetor: '', metode: 'Transfer BCA Pusat', catatan: '', foto_url: '' });
   const [searchTerm, setSearchTerm] = useState('');
 
   const realOrders = useMemo(() => orders_data || orders || [], [orders, orders_data]);
@@ -25,9 +26,9 @@ export default function TabSetoranCabang({
   const realCashflow = useMemo(() => cashflow_transactions_data || cashflow_transactions || [], [cashflow_transactions, cashflow_transactions_data]);
   const realTreasury = useMemo(() => interbranch_treasury_data || interbranch_treasury || [], [interbranch_treasury, interbranch_treasury_data]);
 
-  // KALKULASI KAS LACI (Hanya relevan untuk cabang, tapi biarkan jalan di background)
+  // KALKULASI KAS LACI (Ditambah Logika Auto-Nol Pending)
   const calcMetrics = useMemo(() => {
-    let penjualanTunai = 0; let piutangMarketplace = 0; let pengeluaranCabang = 0;
+    let penjualanTunai = 0; let piutangMarketplace = 0; let pengeluaranCabang = 0; let setoranPending = 0;
 
     realOrders.filter(o => !o.isDeleted && o.date?.startsWith(todayStr) && o.branch_id === currentBranch).forEach(o => {
       const channel = o.sales_channel?.toUpperCase() || '';
@@ -50,9 +51,14 @@ export default function TabSetoranCabang({
       pengeluaranCabang += Number(c.amount || 0);
     });
 
-    const ekspektasiKas = Math.max(0, penjualanTunai - pengeluaranCabang);
-    return { penjualanTunai, piutangMarketplace, pengeluaranCabang, ekspektasiKas };
-  }, [realOrders, realExpenses, realCashflow, todayStr, currentBranch]);
+    // 🔥 FITUR AUTO-NOL: Kurangi laci dengan nominal setoran yang masih PENDING hari ini
+    realTreasury.filter(t => !t.isDeleted && t.date === todayStr && t.from_branch === currentBranch && t.status === 'PENDING').forEach(t => {
+      setoranPending += Number(t.amount || 0);
+    });
+
+    const ekspektasiKas = Math.max(0, penjualanTunai - pengeluaranCabang - setoranPending);
+    return { penjualanTunai, piutangMarketplace, pengeluaranCabang, ekspektasiKas, setoranPending };
+  }, [realOrders, realExpenses, realCashflow, realTreasury, todayStr, currentBranch]);
 
   const uangFisikNum = Number(form.uangFisik || 0);
   const selisih = uangFisikNum - calcMetrics.ekspektasiKas;
@@ -84,19 +90,21 @@ export default function TabSetoranCabang({
     const treasuryId = generateId('SETOR', todayStr);
     const payload = {
       id: treasuryId, date: todayStr, from_branch: currentBranch, to_branch: 'PUSAT', amount: setorNum,
-      method: form.metode, status: 'PENDING', notes: `Uang Fisik: ${formatRupiah(uangFisikNum)} | Selisih Laci: ${formatRupiah(selisih)} | Catatan: ${form.catatan}`
+      method: form.metode, status: 'PENDING', 
+      notes: `Uang Fisik: ${formatRupiah(uangFisikNum)} | Selisih Laci: ${formatRupiah(selisih)} | Catatan: ${form.catatan}`,
+      foto_url: form.foto_url || '' // 🔥 Tambahan Data Struk Transfer
     };
 
     const success = await sendToSheet('insert', payload, 'interbranch_treasury');
     if (success) {
-      showToast('Setoran berhasil dikirim ke Pusat! Menunggu validasi masuk ke Dompet Perusahaan.', 'success');
-      setForm({ uangFisik: '', nominalSetor: '', metode: 'Transfer BCA Pusat', catatan: '' });
+      showToast('Setoran berhasil dikirim ke Pusat! Ekspektasi kas Anda telah disesuaikan menjadi Rp 0 (Jika disetor semua).', 'success');
+      setForm({ uangFisik: '', nominalSetor: '', metode: 'Transfer BCA Pusat', catatan: '', foto_url: '' });
     }
   };
 
   // ACTION: PUSAT MENGESAHKAN SETORAN
   const handleVerifikasiPusat = async (item) => {
-    if (!window.confirm(`Sahkan dana sebesar ${formatRupiah(item.amount)} dari Cabang ${item.from_branch.replace('_', ' ')} ke Dompet Pusat?`)) return;
+    if (!window.confirm(`PENTING: Pastikan Anda sudah mengecek mutasi masuk di Rekening Bank Pusat!\n\nSahkan dana sebesar ${formatRupiah(item.amount)} dari Cabang ${item.from_branch.replace('_', ' ')} ke Dompet Pusat?`)) return;
 
     const updatePayload = { ...item, status: 'VERIFIED', verified_date: new Date().toISOString() };
     const successUpdate = await sendToSheet('update', updatePayload, 'interbranch_treasury');
@@ -136,11 +144,15 @@ export default function TabSetoranCabang({
               <div><div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Penjualan Tunai / QRIS</div><div className="text-xl font-black text-emerald-600">{formatRupiah(calcMetrics.penjualanTunai)}</div></div>
               <div><div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Piutang Marketplace &amp; Agen</div><div className="text-xl font-black text-orange-500">{formatRupiah(calcMetrics.piutangMarketplace)}</div></div>
               <div><div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Pengeluaran Laci Cabang</div><div className="text-xl font-black text-rose-500">- {formatRupiah(calcMetrics.pengeluaranCabang)}</div></div>
+              {calcMetrics.setoranPending > 0 && (
+                <div className="pt-2 border-t"><div className="text-[9px] font-black text-amber-500 uppercase tracking-widest">Setoran Dalam Perjalanan (Pending Pusat)</div><div className="text-lg font-black text-amber-600">- {formatRupiah(calcMetrics.setoranPending)}</div></div>
+              )}
             </div>
 
-            <div className="mt-6 pt-4 border-t border-dashed border-slate-300 bg-slate-50 p-4 rounded-2xl shadow-inner">
-              <div className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">Ekspektasi Kas Laci</div>
-              <div className="text-3xl font-black tracking-tight text-slate-800">{formatRupiah(calcMetrics.ekspektasiKas)}</div>
+            <div className="mt-6 pt-4 border-t border-dashed border-slate-300 bg-slate-50 p-4 rounded-2xl shadow-inner relative overflow-hidden">
+              <div className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">Ekspektasi Kas Laci (Aktif)</div>
+              <div className="text-3xl font-black tracking-tight text-slate-800 relative z-10">{formatRupiah(calcMetrics.ekspektasiKas)}</div>
+              {calcMetrics.ekspektasiKas === 0 && <CheckCircle2 size={80} className="absolute -right-4 -bottom-4 text-emerald-500/10 pointer-events-none" />}
             </div>
           </div>
 
@@ -177,6 +189,13 @@ export default function TabSetoranCabang({
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Catatan Tambahan</label>
                   <input type="text" value={form.catatan} onChange={e=>setForm({...form, catatan: e.target.value})} className="w-full p-3 border border-slate-200 bg-white rounded-xl text-xs font-bold outline-none" placeholder="Titip lewat supir DO..." />
                 </div>
+                
+                {/* 🔥 INPUT BUKTI TRANSFER (FULL WIDTH) */}
+                <div className="md:col-span-2">
+                  <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-1.5 mb-1.5"><Link size={12}/> Link Bukti Transfer / Foto Uang (Google Drive)</label>
+                  <input type="text" value={form.foto_url} onChange={e=>setForm({...form, foto_url: e.target.value})} className="w-full p-3 border border-blue-200 bg-white rounded-xl text-xs font-bold outline-none focus:border-blue-500 transition-colors" placeholder="Paste link URL bukti mutasi/struk di sini (opsional)..." />
+                </div>
+
               </div>
               <button type="submit" disabled={!form.uangFisik || !form.nominalSetor} className="w-full bg-slate-900 text-white font-black py-4 rounded-xl text-xs uppercase disabled:opacity-40 shadow-xl hover:bg-slate-800 transition-colors mt-2 tracking-widest flex items-center justify-center gap-2"><Send size={16}/> Kirim Setoran &amp; Tunggu Approval Pusat</button>
             </form>
@@ -237,6 +256,13 @@ export default function TabSetoranCabang({
                       <div className="font-black text-blue-700 uppercase flex items-center gap-1.5"><Building2 size={12} className="text-slate-400"/> {setoran.from_branch.replace('_', ' ')}</div>
                       <div className="text-[9px] text-slate-500 mt-1.5 font-bold uppercase border bg-slate-50 px-2 py-0.5 rounded inline-block">VIA: {setoran.method}</div>
                       {setoran.notes && <div className="text-[10px] text-slate-400 italic mt-1 max-w-xs line-clamp-1">"{setoran.notes}"</div>}
+                      
+                      {/* 🔥 TOMBOL LIHAT BUKTI TRANSFER (JIKA ADA) */}
+                      {setoran.foto_url && (
+                        <a href={setoran.foto_url} target="_blank" rel="noreferrer" className="mt-2 text-[9px] font-black uppercase text-blue-600 flex items-center gap-1 hover:underline w-max bg-blue-50 px-2 py-1 rounded border border-blue-100">
+                          <Image size={10}/> Lihat Bukti
+                        </a>
+                      )}
                     </td>
                     <td className="px-5 py-4 text-right font-black text-slate-800 text-sm whitespace-nowrap">{formatRupiah(setoran.amount)}</td>
                     <td className="px-5 py-4 text-center whitespace-nowrap">
