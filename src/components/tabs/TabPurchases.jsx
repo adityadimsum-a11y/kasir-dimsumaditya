@@ -265,7 +265,8 @@ export default function TabPurchases({
                       className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-black text-[10px] outline-none cursor-pointer uppercase"
                     >
                       <option value="">-- PILIH KARYAWAN --</option>
-                      {employeeOptions.map(emp => <option key={hist.id || emp.id} value={emp.name}>{emp.name}</option>)}
+                      {/* 🔥 FIX ERROR: Key diubah dari hist.id menjadi emp.id */}
+                      {employeeOptions.map(emp => <option key={emp.id} value={emp.name}>{emp.name}</option>)}
                     </select>
                   </div>
                   <div>
@@ -310,7 +311,7 @@ export default function TabPurchases({
                   </div>
 
                   <button type="button" onClick={handleAddItemToCart} className="w-full bg-rose-700 text-white text-[9px] font-black uppercase tracking-widest py-2 rounded-xl hover:bg-rose-800 transition shadow-sm">
-                     + Masukkan Keranjang
+                      + Masukkan Keranjang
                   </button>
                 </div>
 
