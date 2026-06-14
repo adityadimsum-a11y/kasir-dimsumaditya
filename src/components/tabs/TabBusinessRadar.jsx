@@ -79,14 +79,14 @@ export default function TabBusinessRadar({
         const estimasiHpp = totalPcs * ESTIMASI_HPP_PER_PCS;
         const labaBersih = amt - estimasiHpp;
 
-        const custName = o.customer_name?.toUpperCase() || 'PELANGGAN ANONIM';
+        const custName = o.customer_name?.tonormal-case() || 'PELANGGAN ANONIM';
         if (!clientStats[custName]) clientStats[custName] = { qty: 0, omzet: 0, hpp: 0, profit: 0 };
         clientStats[custName].qty += totalPcs;
         clientStats[custName].omzet += amt;
         clientStats[custName].hpp += estimasiHpp;
         clientStats[custName].profit += labaBersih;
 
-        const channelName = o.sales_channel?.toUpperCase() || 'ECERAN_WALKIN';
+        const channelName = o.sales_channel?.tonormal-case() || 'ECERAN_WALKIN';
         if (!channelStats[channelName]) channelStats[channelName] = { qty: 0, omzet: 0, hpp: 0, profit: 0 };
         channelStats[channelName].qty += totalPcs;
         channelStats[channelName].omzet += amt;
@@ -219,7 +219,7 @@ export default function TabBusinessRadar({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="card-holo p-5 flex items-center justify-between">
           <div>
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5"><ArrowDownToLine size={12} className="text-emerald-600"/> Aliran Omzet Masuk</div>
+            <div className="text-[10px] font-bold text-slate-400 normal-case tracking-wide flex items-center gap-1.5"><ArrowDownToLine size={12} className="text-emerald-600"/> Aliran Omzet Masuk</div>
             <div className="text-xl font-extrabold text-slate-800 tracking-tight mt-1">{formatRupiah(radarMetrics.totalOmzet)}</div>
           </div>
           <div className="bg-emerald-50 text-emerald-600 p-3 rounded-xl border border-emerald-100/50 shadow-xs"><TrendingUp size={20}/></div>
@@ -227,7 +227,7 @@ export default function TabBusinessRadar({
 
         <div className="card-holo p-5 flex items-center justify-between">
           <div>
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5"><ArrowUpRight size={12} className="text-red-600"/> Total Pengeluaran Riil</div>
+            <div className="text-[10px] font-bold text-slate-400 normal-case tracking-wide flex items-center gap-1.5"><ArrowUpRight size={12} className="text-red-600"/> Total Pengeluaran Riil</div>
             <div className="text-xl font-extrabold text-slate-800 tracking-tight mt-1">{formatRupiah(radarMetrics.totalBeban)}</div>
           </div>
           <div className="bg-red-50 text-red-600 p-3 rounded-xl border border-red-100/50 shadow-xs"><ArrowUpRight size={20}/></div>
@@ -235,7 +235,7 @@ export default function TabBusinessRadar({
 
         <div className="card-holo p-5 flex items-center justify-between relative overflow-hidden">
           <div>
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5"><Award size={12} className="text-amber-600"/> Estimasi Sisa Selisih Laba</div>
+            <div className="text-[10px] font-bold text-slate-400 normal-case tracking-wide flex items-center gap-1.5"><Award size={12} className="text-amber-600"/> Estimasi Sisa Selisih Laba</div>
             <div className="text-xl font-extrabold text-slate-900 tracking-tight mt-1">{formatRupiah(radarMetrics.netProfit)}</div>
           </div>
           <div className="bg-amber-50 text-amber-600 p-3 rounded-xl border border-amber-100/50 shadow-xs"><Award size={20}/></div>
@@ -245,24 +245,24 @@ export default function TabBusinessRadar({
       {/* MONITOR BANNER 4 AMPLOP LIVE - FLAT BOX STYLE */}
       <div className="card-holo p-5 grid grid-cols-2 md:grid-cols-5 gap-4">
         <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-xs text-center">
-          <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">HPP Realtime Hari Ini</div>
+          <div className="text-[9px] font-bold text-slate-400 normal-case tracking-wide">HPP Realtime Hari Ini</div>
           <div className="text-sm font-extrabold text-slate-800 mt-1">{formatRupiah(radarMetrics.hppHariIni)}</div>
-          <div className="text-[8px] font-bold text-slate-400 mt-0.5 uppercase">Vol: {formatNumber(radarMetrics.totalPcsHariIni)} Pcs</div>
+          <div className="text-[8px] font-bold text-slate-400 mt-0.5 normal-case">Vol: {formatNumber(radarMetrics.totalPcsHariIni)} Pcs</div>
         </div>
         <div className="p-3 bg-red-50/50 border border-red-100 rounded-xl text-center">
-          <div className="text-[9px] font-bold text-red-600 uppercase tracking-wide flex items-center justify-center gap-1"><Package size={10}/> Amplop 1 (Bahan 55%)</div>
+          <div className="text-[9px] font-bold text-red-600 normal-case tracking-wide flex items-center justify-center gap-1"><Package size={10}/> Amplop 1 (Bahan 55%)</div>
           <div className="text-sm font-extrabold text-red-800 mt-1">{formatRupiah(radarMetrics.sisaBahanBaku55)}</div>
         </div>
         <div className="p-3 bg-blue-50/50 border border-blue-100 rounded-xl text-center">
-          <div className="text-[9px] font-bold text-blue-600 uppercase tracking-wide flex items-center justify-center gap-1"><Percent size={10}/> Amplop 2 (Ops 20%)</div>
+          <div className="text-[9px] font-bold text-blue-600 normal-case tracking-wide flex items-center justify-center gap-1"><Percent size={10}/> Amplop 2 (Ops 20%)</div>
           <div className="text-sm font-extrabold text-blue-800 mt-1">{formatRupiah(radarMetrics.opsGaji20)}</div>
         </div>
         <div className="p-3 bg-amber-50/50 border border-amber-100 rounded-xl text-center">
-          <div className="text-[9px] font-bold text-amber-600 uppercase tracking-wide flex items-center justify-center gap-1"><Activity size={10}/> Amplop 3 (Jaga 10%)</div>
+          <div className="text-[9px] font-bold text-amber-600 normal-case tracking-wide flex items-center justify-center gap-1"><Activity size={10}/> Amplop 3 (Jaga 10%)</div>
           <div className="text-sm font-extrabold text-amber-800 mt-1">{formatRupiah(radarMetrics.cadangan10)}</div>
         </div>
         <div className="p-3 bg-emerald-50/50 border border-emerald-100 rounded-xl text-center col-span-2 md:col-span-1">
-          <div className="text-[9px] font-bold text-emerald-600 uppercase tracking-wide flex items-center justify-center gap-1"><Award size={10}/> Amplop 4 (Profit 15%)</div>
+          <div className="text-[9px] font-bold text-emerald-600 normal-case tracking-wide flex items-center justify-center gap-1"><Award size={10}/> Amplop 4 (Profit 15%)</div>
           <div className="text-sm font-extrabold text-emerald-800 mt-1">{formatRupiah(radarMetrics.profitBarsih15 || radarMetrics.profitBersih15)}</div>
         </div>
       </div>
@@ -275,19 +275,19 @@ export default function TabBusinessRadar({
         
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {radarMetrics.watchList.length === 0 ? (
-            <div className="col-span-full py-6 text-center text-xs font-bold text-slate-400 bg-slate-50 border border-dashed border-slate-200 rounded-xl uppercase">Bersih Total! Tidak ada tagihan gantung yang menunggak.</div>
+            <div className="col-span-full py-6 text-center text-xs font-bold text-slate-400 bg-slate-50 border border-dashed border-slate-200 rounded-xl normal-case">Bersih Total! Tidak ada tagihan gantung yang menunggak.</div>
           ) : (
             radarMetrics.watchList.map((bill, index) => (
               <div key={index} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between group hover:border-red-300 transition-colors">
                 <div className="space-y-1">
-                  <span className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase border ${bill.labelClass}`}>
+                  <span className={`px-2 py-0.5 rounded text-[8px] font-bold normal-case border ${bill.labelClass}`}>
                     {bill.type}
                   </span>
                   <div className="text-xs font-bold text-slate-800 mt-1">{bill.name}</div>
                   <div className="text-[9px] font-mono text-slate-400">ID: {bill.id} | Tgl: {formatDate(bill.date)}</div>
                 </div>
                 <div className="text-right shrink-0">
-                  <div className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">Sisa Bon</div>
+                  <div className="text-[8px] font-bold text-slate-400 normal-case tracking-wider">Sisa Bon</div>
                   <div className="text-sm font-extrabold text-red-600 mt-0.5">{formatRupiah(bill.amount)}</div>
                 </div>
               </div>
@@ -328,7 +328,7 @@ export default function TabBusinessRadar({
             <h3 className="text-xs font-extrabold text-slate-800 flex items-center gap-2">
               <ShoppingBag size={16} className="text-red-600"/> Klasemen Jalur Penjualan Agen
             </h3>
-            <span className="text-[8px] font-bold text-slate-400 bg-white border border-slate-200 px-2 py-0.5 rounded-md uppercase">Realtime</span>
+            <span className="text-[8px] font-bold text-slate-400 bg-white border border-slate-200 px-2 py-0.5 rounded-md normal-case">Realtime</span>
           </div>
           
           <div className="p-4 flex-1 flex flex-col gap-2">
@@ -351,7 +351,7 @@ export default function TabBusinessRadar({
                       </div>
                     </div>
                     <div className="text-right bg-slate-50 border border-slate-100 p-2 rounded-lg shrink-0">
-                      <div className="text-[8px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Laba Bersih</div>
+                      <div className="text-[8px] font-bold text-slate-400 normal-case tracking-wider mb-0.5">Laba Bersih</div>
                       <div className="font-extrabold text-xs text-emerald-600">+{formatRupiah(stats.profit)}</div>
                       {ratio > 0 && <div className="text-[7px] font-bold text-red-500 text-right mt-0.5">Share {ratio.toFixed(1)}%</div>}
                     </div>
@@ -367,7 +367,7 @@ export default function TabBusinessRadar({
             <h3 className="text-xs font-extrabold text-slate-800 flex items-center gap-2">
               <Users size={16} className="text-red-600"/> Klasemen Klien VIP &amp; Mitra Loyal
             </h3>
-            <span className="text-[8px] font-bold text-slate-400 bg-white border border-slate-200 px-2 py-0.5 rounded-md uppercase">CRM</span>
+            <span className="text-[8px] font-bold text-slate-400 bg-white border border-slate-200 px-2 py-0.5 rounded-md normal-case">CRM</span>
           </div>
           
           <div className="p-4 flex-1 flex flex-col gap-2">
@@ -388,7 +388,7 @@ export default function TabBusinessRadar({
                     </div>
                   </div>
                   <div className="text-right bg-slate-50 border border-slate-100 p-2 rounded-lg shrink-0">
-                    <div className="text-[8px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Kontribusi Laba</div>
+                    <div className="text-[8px] font-bold text-slate-400 normal-case tracking-wider mb-0.5">Kontribusi Laba</div>
                     <div className="font-extrabold text-xs text-emerald-600">+{formatRupiah(stats.profit)}</div>
                   </div>
                 </div>
