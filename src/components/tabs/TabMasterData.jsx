@@ -3,7 +3,8 @@ import {
   Box, Settings, Layers, Package, Truck, 
   Plus, Edit2, Trash2, Save, X, Calculator, ShieldCheck, 
   CheckCircle2, User, Phone, MapPin, List, History, 
-  TrendingUp, TrendingDown, ArrowRight, Clock
+  TrendingUp, TrendingDown, ArrowRight, Clock, 
+  Calendar // 🔥 INI DIA TERSANGKANYA! SUDAH DIMASUKKAN BOS!
 } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 
@@ -18,12 +19,12 @@ export default function TabMasterData({
   const todayStr = getTodayStr();
   const currentBranch = (user?.branch_id === 'PUSAT' || !user?.branch_id) ? 'TANGERANG_PUSAT' : user?.branch_id;
 
-  const [activeTab, setActiveTab] = useState('ITEM_BIAYA'); // Default tab master biaya
+  const [activeTab, setActiveTab] = useState('ITEM_BIAYA'); 
   const [isEditing, setIsEditing] = useState(false);
   const [isEditingSpl, setIsEditingSpl] = useState(false);
   const [isEditingItem, setIsEditingItem] = useState(false);
   
-  // 🔥 STATE MODAL RIWAYAT HARGA
+  // STATE MODAL RIWAYAT HARGA
   const [historyModal, setHistoryModal] = useState(null);
 
   // --- SINKRONISASI DATABASE ---
@@ -38,8 +39,6 @@ export default function TabMasterData({
   // --- STATE FORMS ---
   const [formMenu, setFormMenu] = useState({ id: '', product_name: '', category: 'FROZEN_GOODS', selling_price: '', default_hpp: '1125', min_order: '1', penalty_price: '0' });
   const [formSpl, setFormSpl] = useState({ id: '', supplier_name: '', pic_name: '', phone: '', address: '' });
-  
-  // STATE FORM MASTER ITEM 
   const [formItem, setFormItem] = useState({ id: '', item_name: '', category: 'BAHAN BAKU', unit: '', default_price: '' });
 
   const activeProducts = useMemo(() => realProducts.filter(p => !p.isDeleted && String(p.isDeleted).toUpperCase() !== 'TRUE').reverse(), [realProducts]);
@@ -84,7 +83,7 @@ export default function TabMasterData({
     }
   };
 
-  // 🔥 ACTIONS: SUBMIT MASTER ITEM & TRACK PRICE CHANGES (SULTAN ENGINE)
+  // --- ACTIONS: SUBMIT MASTER ITEM & TRACK PRICE CHANGES ---
   const handleSubmitItem = async (e) => {
     e.preventDefault();
     if (!formItem.item_name) return alert("Nama item wajib diisi!");
@@ -94,7 +93,6 @@ export default function TabMasterData({
     
     let newHistoryStr = "";
 
-    // JIKA MODE EDIT: Bandingkan harga lama dan baru
     if (isEditingItem) {
       const oldItem = realRawMaterials.find(m => m.id === formItem.id);
       const oldPrice = oldItem ? Number(oldItem.default_price || 0) : 0;
@@ -104,7 +102,6 @@ export default function TabMasterData({
         try { parsedHistory = JSON.parse(oldItem.price_history); } catch(e) {}
       }
 
-      // Kalau harga berubah, catat riwayatnya!
       if (newPrice !== oldPrice) {
         parsedHistory.push({
           date: todayStr,
@@ -115,7 +112,6 @@ export default function TabMasterData({
       }
       newHistoryStr = JSON.stringify(parsedHistory);
     } else {
-       // JIKA BARANG BARU: Buat riwayat perdana
        newHistoryStr = JSON.stringify([{
           date: todayStr, old_price: 0, new_price: newPrice, type: 'BARU'
        }]);
@@ -125,7 +121,7 @@ export default function TabMasterData({
       id: itemId, date: todayStr, branch_id: currentBranch, isDeleted: false,
       item_name: formItem.item_name.toUpperCase(), category: formItem.category.toUpperCase(),
       unit: formItem.unit.toUpperCase(), default_price: newPrice,
-      price_history: newHistoryStr // 🔥 Kirim jejak rekaman harga ke database
+      price_history: newHistoryStr 
     };
 
     const isSuccess = await sendToSheet(isEditingItem ? 'update' : 'insert', payload, 'master_raw_materials');
@@ -147,7 +143,6 @@ export default function TabMasterData({
   return (
     <div className="space-y-6 pb-10 text-slate-800 animate-in fade-in duration-300">
       
-      {/* NAVIGASI SUB TABS SULTAN */}
       <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-4">
         <button onClick={() => setActiveTab('MENU')} className={`px-5 py-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'MENU' ? 'bg-blue-600 text-white shadow-md scale-105' : 'bg-white text-slate-500 border hover:bg-slate-50'}`}><Box size={16}/> Master Daftar Menu</button>
         <button onClick={() => setActiveTab('RULES')} className={`px-5 py-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'RULES' ? 'bg-slate-800 text-amber-400 shadow-md scale-105' : 'bg-white text-slate-500 border hover:bg-slate-50'}`}><Settings size={16}/> Aturan Pabrik</button>
@@ -155,12 +150,10 @@ export default function TabMasterData({
         <button onClick={() => setActiveTab('ITEM_BIAYA')} className={`px-5 py-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-2 ${activeTab === 'ITEM_BIAYA' ? 'bg-rose-600 text-white shadow-md scale-105' : 'bg-white text-slate-500 border hover:bg-slate-50'}`}><List size={16}/> Master Item &amp; Biaya</button>
       </div>
 
-      {/* --- TAB MENU --- */}
       {activeTab === 'MENU' && (
          <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 animate-in fade-in">
            <div className="xl:col-span-4">
              <div className={`bg-white rounded-3xl border shadow-sm p-6 ${isEditing ? 'border-amber-300' : 'border-blue-200'}`}>
-               {/* 🔥 TOMBOL BATAL EDIT MENU */}
                <div className="flex justify-between items-center mb-5">
                  <h3 className="font-black text-slate-800 uppercase tracking-widest text-sm flex items-center gap-2"><Box size={18} className="text-blue-600"/> {isEditing ? 'Edit Menu' : 'Tambah Menu'}</h3>
                  {isEditing && <button type="button" onClick={() => { setIsEditing(false); setFormMenu({ id: '', product_name: '', category: 'FROZEN_GOODS', selling_price: '', default_hpp: '1125', min_order: '1', penalty_price: '0' }); }} className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg"><X size={16}/></button>}
@@ -189,11 +182,9 @@ export default function TabMasterData({
          </div>
       )}
 
-      {/* --- TAB SUPPLIER --- */}
       {activeTab === 'SUPPLIER' && (
          <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 animate-in fade-in">
            <div className="xl:col-span-4 bg-white rounded-3xl border shadow-sm p-6 border-emerald-200">
-              {/* 🔥 TOMBOL BATAL EDIT SUPPLIER */}
               <div className="flex justify-between items-center mb-5">
                 <h3 className="font-black text-slate-800 uppercase tracking-widest text-sm flex items-center gap-2"><Truck size={18} className="text-emerald-600"/> {isEditingSpl ? 'Edit Supplier' : 'Tambah Supplier'}</h3>
                 {isEditingSpl && <button type="button" onClick={() => { setIsEditingSpl(false); setFormSpl({ id: '', supplier_name: '', pic_name: '', phone: '', address: '' }); }} className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg"><X size={16}/></button>}
@@ -214,14 +205,11 @@ export default function TabMasterData({
          </div>
       )}
 
-      {/* 🔥 TAB SAKTI: MASTER ITEM & BIAYA (DENGAN RIWAYAT HARGA) */}
       {activeTab === 'ITEM_BIAYA' && (
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 animate-in fade-in">
-          {/* SISI KIRI: INPUT MASTER ITEM */}
           <div className="xl:col-span-4">
             <div className={`bg-white rounded-3xl border shadow-sm p-6 md:p-8 transition-all ${isEditingItem ? 'border-amber-300 shadow-amber-500/10' : 'border-rose-200'}`}>
               
-              {/* 🔥 TOMBOL BATAL EDIT & HEADER */}
               <div className="flex justify-between items-start mb-6">
                 <div className="flex items-center gap-3">
                   <div className={`p-2 rounded-xl ${isEditingItem ? 'bg-amber-100 text-amber-600' : 'bg-rose-100 text-rose-600'}`}>
@@ -232,7 +220,6 @@ export default function TabMasterData({
                     {isEditingItem && <p className="text-[9px] font-bold text-slate-500 uppercase mt-0.5">Perubahan harga akan direkam</p>}
                   </div>
                 </div>
-                {/* TOMBOL BATAL EDIT (X) */}
                 {isEditingItem && (
                   <button type="button" onClick={() => { setIsEditingItem(false); setFormItem({ id: '', item_name: '', category: 'BAHAN BAKU', unit: '', default_price: '' }); }} className="p-1.5 bg-slate-100 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors shadow-sm">
                     <X size={16}/>
@@ -272,7 +259,6 @@ export default function TabMasterData({
             </div>
           </div>
           
-          {/* SISI KANAN: TABEL REKAPAN ITEM */}
           <div className="xl:col-span-8 bg-white rounded-3xl border shadow-sm overflow-hidden flex flex-col">
             <div className="p-5 border-b bg-slate-50 font-black text-xs uppercase tracking-widest text-slate-700">Database Master Item &amp; Beban Biaya</div>
             <div className="overflow-x-auto custom-scrollbar min-h-[50vh]">
@@ -294,7 +280,6 @@ export default function TabMasterData({
                         <td className="px-5 py-4 text-right uppercase text-rose-600 font-black text-sm">{formatRupiah(m.default_price)}</td>
                         <td className="px-5 py-4 text-center opacity-50 group-hover:opacity-100 transition-opacity whitespace-nowrap">
                           <div className="flex items-center justify-center gap-1">
-                            {/* 🔥 TOMBOL CEK RIWAYAT HARGA */}
                             <button onClick={() => openHistoryModal(m)} className="p-2 text-slate-400 bg-white border rounded-lg hover:text-blue-600 hover:bg-blue-50 shadow-sm" title="Lihat Riwayat Perubahan Harga"><History size={14}/></button>
                             <button onClick={() => { setFormItem({ id: m.id, item_name: m.item_name, category: m.category, unit: m.unit, default_price: String(m.default_price) }); setIsEditingItem(true); }} className="p-2 text-slate-400 bg-white border rounded-lg hover:text-amber-500 hover:bg-amber-50 shadow-sm"><Edit2 size={14}/></button>
                             <button onClick={async () => { if(window.confirm("Hapus item ini dari kamus pabrik?")) sendToSheet('delete', {id: m.id}, 'master_raw_materials'); }} className="p-2 text-slate-400 bg-white border rounded-lg hover:text-rose-500 hover:bg-rose-50 shadow-sm"><Trash2 size={14}/></button>
@@ -310,7 +295,6 @@ export default function TabMasterData({
         </div>
       )}
 
-      {/* --- TAB RULES --- */}
       {activeTab === 'RULES' && (
         <div className="bg-[#151a25] rounded-3xl border p-6 shadow-2xl overflow-hidden text-white animate-in fade-in">
           <div className="flex items-center gap-3 mb-6 border-b border-slate-800 pb-4"><Settings size={24} className="text-amber-500"/> <h3 className="text-base font-black uppercase tracking-widest">Master Conversion Engine</h3></div>
@@ -321,7 +305,6 @@ export default function TabMasterData({
         </div>
       )}
 
-      {/* 🔥 MODAL POPUP RIWAYAT PERUBAHAN HARGA */}
       {historyModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-in fade-in zoom-in-95 duration-200">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg border border-slate-200 overflow-hidden flex flex-col max-h-[80vh]">
