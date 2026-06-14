@@ -32,6 +32,8 @@ import TabStokOutlet from './components/tabs/TabStokOutlet';
 import TabSetoranCabang from './components/tabs/TabSetoranCabang';
 import TabDiscrepancy from './components/tabs/TabDiscrepancy';
 import TabKartuStok from './components/tabs/TabKartuStok';
+// 🔥 IMPOR MODUL CRM BARU KITA
+import TabMasterCustomer from './components/tabs/TabMasterCustomer';
 
 // =====================================
 // IMPOR KOMPONEN CETAK
@@ -47,9 +49,9 @@ const API_URL_GAS = 'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqS
 const ToastNotification = ({ toast, onClose }) => {
   if (!toast) return null;
   return (
-    <div className={`fixed top-4 right-4 z-[9999] px-6 py-3.5 rounded-2xl shadow-xl font-black text-xs uppercase tracking-wide flex items-center gap-2 animate-in slide-in-from-top-5 border duration-200 ${toast.type === 'error' ? 'bg-rose-600 text-white border-rose-500 shadow-rose-600/20' : 'bg-emerald-600 text-white border-emerald-500 shadow-emerald-600/20'}`}>
+    <div className={`fixed top-4 right-4 z-[9999] px-5 py-3.5 rounded-xl shadow-lg font-bold text-xs normal-case flex items-center gap-3 animate-in slide-in-from-top-5 border duration-200 ${toast.type === 'error' ? 'bg-red-600 text-white border-red-700 shadow-red-600/20' : 'bg-emerald-600 text-white border-emerald-700 shadow-emerald-600/20'}`}>
       <span>{toast.message}</span>
-      <button onClick={onClose} className="ml-4 opacity-60 hover:opacity-100 transition font-mono text-sm">✕</button>
+      <button onClick={onClose} className="opacity-70 hover:opacity-100 transition-opacity font-bold text-base">✕</button>
     </div>
   );
 };
@@ -190,7 +192,7 @@ export default function App() {
         setLoginError(resJson.data?.message || 'Username atau Password salah.');
       }
     } catch (err) {
-      setLoginError('Server Offline / Tidak ada koneksi internet.');
+      setLoginError('Server offline / Tidak ada koneksi internet.');
     } finally {
       setUser(null);
       setIsLoading(false);
@@ -198,7 +200,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    if (window.confirm("Apakah Anda yakin ingin logout dari sistem?")) {
+    if (window.confirm("Apakah Anda yakin ingin keluar dari sistem?")) {
       localStorage.removeItem('dimsum_user');
       setUser(null);
       setLoginForm({ username: '', password: '' });
@@ -227,7 +229,6 @@ export default function App() {
     }
 
     switch (safeTab) {
-      // 🔥 KONEKSI INTERAKTIF DIALIRKAN AMAN KE DASHBOARD
       case 'dashboard': 
         return (
           <TabDashboard 
@@ -247,7 +248,6 @@ export default function App() {
       case 'analytics': return <TabAnalytics user={user} {...dbData} />;
       case 'orders': return <TabOrders user={user} role={user?.role} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={requestDelete} showToast={showToast} {...dbData} />;
       
-      // 🔥 KONEKSI SUPREME FEEDER DATA MASTER SUPPLIER KE TAB BELANJA
       case 'purchases': 
         return (
           <TabPurchases 
@@ -274,6 +274,8 @@ export default function App() {
       case 'master_data': return <TabMasterData user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
       case 'monitoring_pemalang': return <TabMonitoringPemalang user={user} {...dbData} />;
       case 'kartu_stok': return <TabKartuStok user={user} {...dbData} />;
+      // 🔥 RUTE BARU: MASTER CUSTOMER KITA
+      case 'master_customer': return <TabMasterCustomer user={user} sendToSheet={sendToSheet} showToast={showToast} requestDelete={requestDelete} {...dbData} />;
       default: return <TabDashboardBranch user={user} {...dbData} />;
     }
   };
@@ -283,7 +285,6 @@ export default function App() {
   // =====================================
   if (!user) {
     return (
-      /* 🔥 VAKSIN TRANSPARAN: bg-slate-50 diubah jadi bg-transparent */
       <div className="min-h-screen bg-transparent flex items-center justify-center p-4 relative overflow-hidden">
         <div className="absolute top-[-10%] left-[-10%] w-[30rem] md:w-[40rem] h-[30rem] md:h-[40rem] bg-red-500 rounded-full mix-blend-multiply filter blur-[100px] opacity-40 animate-pulse"></div>
         <div className="absolute top-[20%] right-[-10%] w-[25rem] md:w-[35rem] h-[25rem] md:h-[35rem] bg-orange-400 rounded-full mix-blend-multiply filter blur-[100px] opacity-40 animate-pulse" style={{ animationDelay: '2s' }}></div>
@@ -301,31 +302,31 @@ export default function App() {
           </div>
 
           {loginError && (
-            <div className="bg-rose-50 border border-rose-200 text-rose-600 text-xs font-bold p-3 rounded-xl mb-4 flex items-center gap-2">
-              <AlertCircle size={16} className="shrink-0"/> {loginError}
+            <div className="bg-red-50 border border-red-200 text-red-600 text-xs font-bold p-3 rounded-xl mb-4 flex items-center gap-2">
+              <AlertCircle size={16} className="shrink-0"/> <span className="normal-case">{loginError}</span>
             </div>
           )}
 
           <form onSubmit={handleLoginSubmit} className="space-y-4">
             <div>
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Username</label>
-              <input type="text" required value={loginForm.username} onChange={e => setLoginForm({...loginForm, username: e.target.value})} className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-red-500 transition" placeholder="Masukkan username" />
+              <label className="text-[10px] font-bold text-slate-500 normal-case block mb-1">Username</label>
+              <input type="text" required value={loginForm.username} onChange={e => setLoginForm({...loginForm, username: e.target.value})} className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all shadow-inner" placeholder="Masukkan username" />
             </div>
             <div>
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Password</label>
-              <input type="password" required value={loginForm.password} onChange={e => setLoginForm({...loginForm, password: e.target.value})} className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-red-500 transition" placeholder="••••••••" />
+              <label className="text-[10px] font-bold text-slate-500 normal-case block mb-1">Password</label>
+              <input type="password" required value={loginForm.password} onChange={e => setLoginForm({...loginForm, password: e.target.value})} className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all shadow-inner" placeholder="••••••••" />
             </div>
-            <button type="submit" disabled={isLoading} className="w-full bg-red-600 text-white font-black py-4 rounded-xl hover:bg-red-700 transition shadow-lg shadow-red-600/30 uppercase tracking-wide text-xs mt-2 disabled:opacity-50 flex justify-center items-center gap-2">
-              {isLoading ? <><Loader2 size={16} className="animate-spin"/> Memverifikasi...</> : 'Masuk Sistem'}
+            <button type="submit" disabled={isLoading} className="w-full btn-holo py-4 rounded-xl shadow-md normal-case font-bold text-sm mt-2 disabled:opacity-50 flex justify-center items-center gap-2">
+              {isLoading ? <><Loader2 size={16} className="animate-spin"/> Sedang masuk...</> : 'Masuk sistem'}
             </button>
           </form>
         </div>
 
         <div className="absolute bottom-6 w-full text-center z-10 flex flex-col items-center justify-center">
-            <a href="https://dimsumaditya.id/" target="_blank" rel="noopener noreferrer" className="text-sm font-black text-slate-700 hover:text-red-600 uppercase tracking-widest transition-colors block">
-              Dimsum Aditya
+            <a href="https://dimsumaditya.id/" target="_blank" rel="noopener noreferrer" className="text-sm font-extrabold text-slate-700 hover:text-red-600 normal-case transition-colors block">
+              Dimsum Aditya ERP
             </a>
-            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
+            <p className="text-[10px] font-bold text-slate-500 normal-case mt-1">
               Supplier Dimsum Ayam Tangerang.
             </p>
         </div>
@@ -337,7 +338,6 @@ export default function App() {
   // UI 2: RENDER APLIKASI
   // =====================================
   return (
-    /* 🔥 VAKSIN TRANSPARAN: bg-slate-50 diubah jadi bg-transparent */
     <div className="fixed inset-0 w-full h-screen overflow-hidden bg-transparent">
       <LayoutEngine 
         user={user} 
@@ -353,17 +353,17 @@ export default function App() {
       <PrintDotMatrix printData={printData} onClose={() => setPrintData(null)} />
       
       {confirmDialog && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-[2px] z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 text-center border">
-            <div className="w-12 h-12 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Trash2 size={24} className="text-rose-600" />
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center border border-slate-200">
+            <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-100">
+              <Trash2 size={20} className="text-red-600" />
             </div>
-            <h3 className="text-base font-black text-slate-800 mb-1">Batalkan Transaksi?</h3>
-            <p className="text-xs text-slate-500 mb-5 font-bold">Data akan di-void dari sistem. Aksi ini akan terekam dalam audit trail.</p>
-            <div className="flex gap-2 justify-center">
-              <button type="button" onClick={() => setConfirmDialog(null)} className="w-1/2 px-4 py-2.5 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-200 transition">Batal (ESC)</button>
-              <button type="button" onClick={handleExecuteDelete} className="w-1/2 px-4 py-2.5 bg-rose-600 text-white font-black text-xs rounded-xl hover:bg-rose-700 transition flex items-center justify-center gap-2">
-                {isLoading ? <Loader2 size={14} className="animate-spin" /> : 'Ya, Batalkan'}
+            <h3 className="text-base font-extrabold text-slate-800 mb-1 normal-case">Batalkan transaksi?</h3>
+            <p className="text-xs text-slate-500 mb-6 font-medium normal-case">Data akan di-void dari sistem. Aksi ini akan terekam otomatis dalam audit trail.</p>
+            <div className="flex gap-3 justify-center">
+              <button type="button" onClick={() => setConfirmDialog(null)} className="flex-1 py-2.5 bg-slate-50 text-slate-600 border border-slate-200 font-bold text-xs rounded-xl hover:bg-slate-100 transition-colors normal-case">Batal (Esc)</button>
+              <button type="button" onClick={handleExecuteDelete} className="flex-1 py-2.5 bg-red-600 text-white font-bold text-xs rounded-xl hover:bg-red-700 transition-colors flex items-center justify-center gap-2 normal-case shadow-sm">
+                {isLoading ? <Loader2 size={14} className="animate-spin" /> : 'Ya, batalkan'}
               </button>
             </div>
           </div>
@@ -371,9 +371,9 @@ export default function App() {
       )}
 
       {isLoading && (
-        <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-[9999] flex flex-col items-center justify-center">
-          <Loader2 size={48} className="text-red-600 animate-spin mb-4" />
-          <div className="font-black text-slate-800 tracking-widest uppercase text-sm animate-pulse">Menyinkronkan Server...</div>
+        <div className="fixed inset-0 bg-white/60 backdrop-blur-sm z-[9999] flex flex-col items-center justify-center">
+          <Loader2 size={40} className="text-red-600 animate-spin mb-4" />
+          <div className="font-bold text-slate-700 normal-case text-sm animate-pulse">Menyinkronkan server...</div>
         </div>
       )}
     </div>
