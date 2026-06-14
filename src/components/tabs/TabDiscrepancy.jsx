@@ -37,7 +37,6 @@ export default function TabDiscrepancy({
   });
 
   // --- 1. ENGINE DROPDOWN ITEM DINAMIS ---
-  // Ekstrak nama item unik dari Gudang untuk Bahan Baku & Packaging
   const rawMaterials = useMemo(() => [...new Set(realInventory.filter(i => i.category === 'BAHAN_BAKU').map(i => i.item_name))], [realInventory]);
   const packaging = useMemo(() => [...new Set(realInventory.filter(i => i.category === 'PACKAGING').map(i => i.item_name))], [realInventory]);
   const produkJadi = useMemo(() => realProducts.filter(p => !p.isDeleted && String(p.isDeleted).toUpperCase() !== 'TRUE').map(p => p.product_name), [realProducts]);
@@ -61,7 +60,6 @@ export default function TabDiscrepancy({
       const prod = realProducts.find(p => p.product_name === form.itemName);
       if (prod) cost = Number(prod.default_hpp || 0);
     } else {
-      // Cari riwayat beli terakhir di gudang untuk item ini
       const lastPurchase = [...realInventory].reverse().find(i => i.item_name === form.itemName && Number(i.unit_cost) > 0);
       if (lastPurchase) cost = Number(lastPurchase.unit_cost);
     }
@@ -111,20 +109,18 @@ export default function TabDiscrepancy({
       pic: form.pic.toUpperCase()
     };
 
-    // 2. PAYLOAD PEMOTONGAN FISIK (TERGANTUNG KATEGORI BARANG)
+    // 2. PAYLOAD PEMOTONGAN FISIK
     let payloadMinus = null;
     let tableMinus = '';
 
     if (form.category === 'PRODUK_JADI') {
-      // Tembak ke production_batches sebagai "Produksi Minus" agar Kasir POS otomatis ngurang
       tableMinus = 'production_batches';
       payloadMinus = {
         id: generateId('PRD', form.date) + '-VOID', date: form.date, branch_id: currentBranch,
         item_name: form.itemName, actual_yield: -qtyBuang, 
-        pic: 'SISTEM OPNAME', notes: `PENGURANGAN OTOMATIS: ${form.reason} (Ref: ${logId})`
+        pic: 'SISTEM OPNAME', notes: `Pengurangan otomatis: ${form.reason} (Ref: ${logId})`
       };
     } else {
-      // Tembak ke inventory_cost_layers untuk potong gudang ayam/mika
       tableMinus = 'inventory_cost_layers';
       payloadMinus = {
         id: generateId('INV', form.date) + '-VOID', date: form.date, branch_id: currentBranch,
@@ -133,38 +129,36 @@ export default function TabDiscrepancy({
       };
     }
 
-    // Eksekusi API
     const isSuccess = await sendToSheet('insert', payloadLog, 'discrepancy_logs');
 
     if (isSuccess) {
-      // Tembak pemotongan fisik di background
       if (payloadMinus) await sendToSheet('insert', payloadMinus, tableMinus);
 
-      showToast(`Pemutihan Stok Berhasil! Kerugian Rp ${formatNumber(totalKerugian)} telah dicatat.`, 'success');
+      showToast(`Pemutihan stok berhasil! Kerugian Rp ${formatNumber(totalKerugian)} telah dicatat.`, 'success');
       setForm({ ...form, itemName: '', qty: '', unitCost: 0, notes: '' });
     }
   };
 
   return (
-    <div className="space-y-6 pb-10 text-slate-800 animate-in fade-in duration-300">
+    <div className="space-y-6 pb-10 text-slate-700 normal-case">
       
-      {/* 🚀 BANNER MODAL DISCREPANCY */}
-      <div className="bg-slate-900 rounded-3xl p-6 shadow-xl border border-slate-800 relative overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-        <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-rose-500 to-amber-500"></div>
-        <div className="relative z-10 text-white">
+      {/* 🚀 BANNER UTAMA - FLAT ENTERPRISE STYLE */}
+      <div className="card-holo p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative overflow-hidden bg-white">
+        <div className="absolute left-0 top-0 bottom-0 w-1 bg-rose-600"></div>
+        <div className="pl-2">
            <div className="flex items-center gap-2 mb-1.5">
-             <AlertOctagon size={24} className="text-rose-500 animate-pulse"/>
-             <h2 className="text-xl md:text-2xl font-black uppercase tracking-widest">Opname &amp; Pemutihan Stok</h2>
+             <AlertOctagon size={20} className="text-rose-600"/>
+             <h2 className="text-base font-extrabold normal-case text-slate-900">Opname &amp; Pemutihan stok</h2>
            </div>
-           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed max-w-lg">
-             Buang barang basi, rusak, atau hilang secara legal di sistem. Transaksi ini akan mencatat HPP barang sebagai Kerugian Operasional Pabrik.
+           <p className="text-[10px] font-medium text-slate-400 normal-case leading-relaxed max-w-lg">
+             Buang barang basi, rusak, atau hilang secara legal di sistem. Transaksi ini akan mencatat HPP barang sebagai kerugian operasional pabrik.
            </p>
         </div>
 
-        <div className="relative z-10 flex gap-4 shrink-0">
-          <div className="bg-rose-950/30 border border-rose-900/50 rounded-2xl p-4 shadow-inner text-right">
-             <div className="text-[9px] font-black text-rose-400 uppercase tracking-widest mb-1">Total Nilai Kerugian (Hari Ini)</div>
-             <div className="text-2xl md:text-3xl font-black text-white tracking-tight">{formatRupiah(totalKerugianHariIni)}</div>
+        <div className="flex gap-4 shrink-0 mt-4 md:mt-0">
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 shadow-xs text-right min-w-[200px]">
+             <div className="text-[9px] font-bold text-rose-600 normal-case mb-1">Total nilai kerugian (Hari ini)</div>
+             <div className="text-2xl font-black text-slate-800 tracking-tight">{formatRupiah(totalKerugianHariIni)}</div>
           </div>
         </div>
       </div>
@@ -172,124 +166,124 @@ export default function TabDiscrepancy({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
         {/* KANTONG KIRI: FORM INPUT BARANG RUSAK */}
-        <div className="lg:col-span-5 bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col overflow-hidden border-t-4 border-t-rose-500">
-          <div className="p-6 border-b bg-rose-50/30 shrink-0">
-             <h4 className="font-black text-slate-800 uppercase text-xs tracking-widest flex items-center gap-2"><Trash2 size={16} className="text-rose-600"/> Form Laporan Barang Rusak / Hilang</h4>
+        <div className="lg:col-span-5 card-holo flex flex-col overflow-hidden border-t-4 border-t-rose-500">
+          <div className="p-5 border-b border-slate-200 bg-slate-50 shrink-0">
+             <h4 className="font-extrabold text-slate-800 normal-case text-xs flex items-center gap-2"><Trash2 size={16} className="text-rose-600"/> Form laporan barang rusak / hilang</h4>
           </div>
           
           <form onSubmit={handleSubmitDiscrepancy} className="p-6 space-y-5 flex-1 bg-white">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Tanggal Kejadian</label>
-                <input type="date" required value={form.date} onChange={e=>setForm({...form, date: e.target.value})} className="w-full p-3 border border-slate-200 rounded-xl text-xs font-black outline-none bg-slate-50 focus:bg-white focus:border-rose-400 transition-colors" />
+                <label className="text-[9px] font-bold text-slate-500 normal-case block mb-1">Tanggal kejadian</label>
+                <input type="date" required value={form.date} onChange={e=>setForm({...form, date: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-xl text-xs font-bold outline-none bg-slate-50 focus:bg-white focus:border-rose-400 transition-colors" />
               </div>
               <div>
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Nama PIC Laporan</label>
-                <input type="text" required value={form.pic} onChange={e=>setForm({...form, pic: e.target.value})} className="w-full p-3 border border-slate-200 rounded-xl text-xs font-black uppercase outline-none bg-slate-50 focus:bg-white focus:border-rose-400 transition-colors" placeholder="Nama..." />
+                <label className="text-[9px] font-bold text-slate-500 normal-case block mb-1">Nama PIC laporan</label>
+                <input type="text" required value={form.pic} onChange={e=>setForm({...form, pic: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-xl text-xs font-bold normal-case outline-none bg-slate-50 focus:bg-white focus:border-rose-400 transition-colors" placeholder="Ketik nama..." />
               </div>
             </div>
 
             <div>
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Pilih Kategori Lokasi Barang</label>
-              <select required value={form.category} onChange={e=>setForm({...form, category: e.target.value, itemName: ''})} className="w-full p-3 border border-slate-200 rounded-xl text-[10px] font-black uppercase outline-none cursor-pointer bg-slate-50 focus:bg-white focus:border-rose-400 transition-colors">
-                <option value="PRODUK_JADI">🛒 PRODUK MATANG (KASIR POS / FREEZER DEPAN)</option>
-                <option value="BAHAN_BAKU">🥩 BAHAN BAKU AYAM (GUDANG BELAKANG)</option>
-                <option value="PACKAGING">📦 PACKAGING MIKA (GUDANG BELAKANG)</option>
+              <label className="text-[9px] font-bold text-slate-500 normal-case block mb-1">Pilih kategori lokasi barang</label>
+              <select required value={form.category} onChange={e=>setForm({...form, category: e.target.value, itemName: ''})} className="w-full p-2.5 border border-slate-200 rounded-xl text-[10px] font-bold outline-none cursor-pointer bg-slate-50 focus:bg-white focus:border-rose-400 transition-colors">
+                <option value="PRODUK_JADI">🛒 Produk matang (Kasir POS / Freezer)</option>
+                <option value="BAHAN_BAKU">🥩 Bahan baku ayam (Gudang belakang)</option>
+                <option value="PACKAGING">📦 Packaging mika (Gudang belakang)</option>
               </select>
             </div>
 
-            <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl shadow-inner">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5 flex items-center justify-between">
-                <span>Nama Barang Spesifik</span>
-                {form.unitCost > 0 && <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-[8px]">HPP: {formatRupiah(form.unitCost)}</span>}
+            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl shadow-inner">
+              <label className="text-[10px] font-bold text-slate-500 normal-case block mb-1.5 flex items-center justify-between">
+                <span>Nama barang spesifik</span>
+                {form.unitCost > 0 && <span className="bg-white border border-slate-200 text-rose-600 px-2 py-0.5 rounded-lg text-[9px] shadow-xs">HPP: {formatRupiah(form.unitCost)}</span>}
               </label>
-              <select required value={form.itemName} onChange={e=>setForm({...form, itemName: e.target.value})} className="w-full p-3 border border-slate-300 rounded-xl text-xs font-black uppercase outline-none cursor-pointer bg-white focus:border-rose-500 shadow-sm transition-colors">
-                <option value="">-- DAFTAR BARANG {form.category.replace('_', ' ')} --</option>
+              <select required value={form.itemName} onChange={e=>setForm({...form, itemName: e.target.value})} className="w-full p-2.5 border border-slate-300 rounded-xl text-xs font-bold normal-case outline-none cursor-pointer bg-white focus:border-rose-500 shadow-xs transition-colors">
+                <option value="">-- Daftar barang {form.category.replace('_', ' ').toLowerCase()} --</option>
                 {currentOptions.map((opt, i) => <option key={i} value={opt}>{opt}</option>)}
               </select>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-[10px] font-black text-rose-600 uppercase tracking-widest block mb-1">Jumlah Dibuang</label>
-                <input type="number" min="1" required value={form.qty} onChange={e=>setForm({...form, qty: e.target.value})} className="w-full p-3 border-2 border-rose-200 rounded-xl text-lg font-black text-rose-800 text-center bg-rose-50/50 outline-none focus:bg-white focus:border-rose-500 transition-colors shadow-inner" placeholder="0" />
+                <label className="text-[9px] font-bold text-rose-600 normal-case block mb-1">Jumlah dibuang</label>
+                <input type="number" min="1" required value={form.qty} onChange={e=>setForm({...form, qty: e.target.value})} className="w-full p-2.5 border-2 border-rose-200 rounded-xl text-lg font-black text-rose-700 text-center bg-rose-50/50 outline-none focus:bg-white focus:border-rose-500 transition-colors shadow-inner" placeholder="0" />
               </div>
               <div>
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Penyebab / Alasan</label>
-                <select required value={form.reason} onChange={e=>setForm({...form, reason: e.target.value})} className="w-full p-3.5 border border-slate-200 rounded-xl text-[10px] font-black uppercase outline-none cursor-pointer bg-slate-50 focus:border-rose-400 transition-colors">
-                  <option value="BASI / RUSAK">BASI / RUSAK</option>
-                  <option value="HILANG DICURI">HILANG DICURI</option>
-                  <option value="BUNGKUS SOBEK">BUNGKUS SOBEK / PECAH</option>
-                  <option value="SELISIH OPNAME">SELISIH OPNAME GUDANG</option>
+                <label className="text-[9px] font-bold text-slate-500 normal-case block mb-1">Penyebab / Alasan</label>
+                <select required value={form.reason} onChange={e=>setForm({...form, reason: e.target.value})} className="w-full p-3 border border-slate-200 rounded-xl text-[10px] font-bold normal-case outline-none cursor-pointer bg-slate-50 focus:border-rose-400 transition-colors">
+                  <option value="BASI / RUSAK">Basi / Rusak</option>
+                  <option value="HILANG DICURI">Hilang dicuri</option>
+                  <option value="BUNGKUS SOBEK">Bungkus sobek / pecah</option>
+                  <option value="SELISIH OPNAME">Selisih opname gudang</option>
                 </select>
               </div>
             </div>
 
             <div>
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Keterangan Detail (Wajib Diisi)</label>
-              <input type="text" required value={form.notes} onChange={e=>setForm({...form, notes: e.target.value})} className="w-full p-3 border border-slate-200 rounded-xl text-xs font-bold uppercase outline-none bg-slate-50 focus:bg-white focus:border-rose-400 transition-colors" placeholder="Cth: Jatuh saat diangkut, dimakan tikus..." />
+              <label className="text-[9px] font-bold text-slate-500 normal-case block mb-1">Keterangan detail (Wajib diisi)</label>
+              <input type="text" required value={form.notes} onChange={e=>setForm({...form, notes: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-xl text-xs font-medium normal-case outline-none bg-slate-50 focus:bg-white focus:border-rose-400 transition-colors" placeholder="Cth: Jatuh saat diangkut, dimakan tikus..." />
             </div>
 
-            <button type="submit" className="w-full bg-rose-600 text-white font-black py-4 rounded-2xl text-xs uppercase tracking-widest shadow-xl shadow-rose-600/20 hover:bg-rose-700 transition-transform active:scale-95 flex justify-center items-center gap-2 mt-4">
-              <AlertTriangle size={16}/> Putihkan Stok &amp; Catat Kerugian
+            <button type="submit" className="w-full btn-holo py-3.5 rounded-xl text-xs font-bold shadow-xs flex justify-center items-center gap-2 mt-4">
+              <AlertTriangle size={14}/> Putihkan stok &amp; catat kerugian
             </button>
           </form>
         </div>
 
         {/* KANTONG KANAN: JURNAL HISTORI DISCREPANCY */}
-        <div className="lg:col-span-7 bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col overflow-hidden h-[75vh]">
-          <div className="p-5 border-b bg-slate-50 shrink-0 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="lg:col-span-7 card-holo flex flex-col overflow-hidden h-[75vh]">
+          <div className="p-5 border-b border-slate-200 bg-slate-50 shrink-0 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
              <div>
-               <h4 className="font-black text-slate-800 uppercase text-xs tracking-widest flex items-center gap-2"><FileText size={16} className="text-amber-600"/> Buku Jurnal Kerugian Operasional</h4>
-               <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-1.5">Histori stok dibuang / diputihkan secara sistem.</p>
+               <h4 className="font-extrabold text-slate-800 normal-case text-xs flex items-center gap-2"><FileText size={16} className="text-rose-600"/> Buku jurnal kerugian operasional</h4>
+               <p className="text-[10px] text-slate-500 font-medium normal-case mt-1">Histori stok dibuang / diputihkan secara sistem.</p>
              </div>
-             <div className="flex items-center gap-2 bg-white border border-slate-300 px-3 py-2 rounded-xl shadow-sm">
-               <Calendar size={14} className="text-blue-500 ml-0.5"/>
-               <input type="date" value={tableDateFilter} onChange={e => setTableDateFilter(e.target.value || todayStr)} className="text-xs font-black text-slate-800 outline-none bg-transparent cursor-pointer" />
+             <div className="flex items-center gap-2 bg-white border border-slate-200 px-3 py-1.5 rounded-xl shadow-xs">
+               <Calendar size={14} className="text-red-500 ml-0.5"/>
+               <input type="date" value={tableDateFilter} onChange={e => setTableDateFilter(e.target.value || todayStr)} className="text-xs font-bold text-slate-700 outline-none bg-transparent cursor-pointer" />
              </div>
           </div>
           
-          <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto p-1 custom-scrollbar">
             <table className="w-full text-sm text-left border-collapse">
-              <thead className="bg-white text-[10px] uppercase text-slate-400 sticky top-0 shadow-sm border-b border-slate-100">
+              <thead className="bg-white border-b border-slate-200 text-[10px] normal-case text-slate-500 sticky top-0 shadow-xs">
                 <tr>
-                  <th className="px-5 py-4 font-black">Waktu &amp; Laporan</th>
-                  <th className="px-5 py-4 font-black">Detail Barang Rusak</th>
-                  <th className="px-5 py-4 font-black text-right">Nilai Kerugian</th>
-                  <th className="px-5 py-4 font-black text-center">Aksi</th>
+                  <th className="px-5 py-3 font-bold">Waktu &amp; laporan</th>
+                  <th className="px-5 py-3 font-bold">Detail barang rusak</th>
+                  <th className="px-5 py-3 font-bold text-right">Nilai kerugian</th>
+                  <th className="px-5 py-3 font-bold text-center">Aksi</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50 text-xs font-bold">
+              <tbody className="divide-y divide-slate-100 text-xs font-bold bg-white">
                 {historyDiscrepancy.length === 0 ? (
                   <tr>
-                    <td colSpan="4" className="text-center py-24 text-slate-400 font-black uppercase tracking-widest bg-slate-50/50">
-                      <div className="flex justify-center mb-3 opacity-20"><Archive size={40}/></div>
-                      Aman Terkendali! Tidak ada laporan barang rusak hari ini.
+                    <td colSpan="4" className="text-center py-24 text-slate-400 font-medium normal-case bg-white">
+                      <div className="flex justify-center mb-3 opacity-30"><Archive size={40}/></div>
+                      Aman terkendali! Tidak ada laporan barang rusak hari ini.
                     </td>
                   </tr>
                 ) : (
                   historyDiscrepancy.map(log => (
-                    <tr key={log.id} className="hover:bg-rose-50/30 transition-colors group">
+                    <tr key={log.id} className="hover:bg-slate-50 transition-colors group">
                       <td className="px-5 py-4 whitespace-nowrap">
-                        <div className="text-slate-800 font-black">{formatDate(log.date)}</div>
+                        <div className="text-slate-800 font-bold">{formatDate(log.date)}</div>
                         <div className="text-[9px] font-mono text-slate-400 mt-1">{log.id}</div>
                       </td>
                       <td className="px-5 py-4">
-                        <span className="px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider border mb-1.5 inline-block bg-slate-100 text-slate-600 border-slate-200">
-                          {log.category.replace('_', ' ')}
+                        <span className="px-2 py-0.5 rounded text-[8px] font-bold normal-case border mb-1.5 inline-block bg-slate-100 text-slate-600 border-slate-200 shadow-xs">
+                          {log.category.replace('_', ' ').toLowerCase()}
                         </span>
-                        <div className="font-black text-rose-700 uppercase text-xs mb-1 line-clamp-2">{log.item_name} <span className="text-slate-500">(x{formatNumber(log.qty)})</span></div>
-                        <div className="text-[9px] font-bold text-slate-500 uppercase flex flex-col gap-0.5">
-                          <span>Alasan: <span className="text-amber-600">{log.reason}</span></span>
+                        <div className="font-extrabold text-slate-800 normal-case text-xs mb-1 line-clamp-2">{log.item_name} <span className="text-red-500 font-bold">(x{formatNumber(log.qty)})</span></div>
+                        <div className="text-[9px] font-medium text-slate-500 normal-case flex flex-col gap-0.5">
+                          <span>Alasan: <span className="text-amber-600 font-bold">{log.reason}</span></span>
                           <span className="line-clamp-1 truncate">"{log.notes}" - (PIC: {log.pic})</span>
                         </div>
                       </td>
                       <td className="px-5 py-4 text-right whitespace-nowrap">
-                        <div className="text-rose-600 font-black text-sm">{formatRupiah(log.total_loss)}</div>
-                        <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-1">HPP: {formatRupiah(log.unit_cost)}/Pcs</div>
+                        <div className="text-rose-600 font-extrabold text-sm">{formatRupiah(log.total_loss)}</div>
+                        <div className="text-[8px] font-medium text-slate-400 normal-case mt-1">HPP: {formatRupiah(log.unit_cost)}/Pcs</div>
                       </td>
                       <td className="px-5 py-4 text-center whitespace-nowrap opacity-50 group-hover:opacity-100 transition-opacity">
-                        <button type="button" onClick={() => { if(window.confirm("PERINGATAN!\n\nMenghapus log ini HANYA menghilangkan catatan kerugian di layar, namun STOK BARANG TIDAK AKAN KEMBALI secara otomatis (karena sudah terlanjur dibuang).\n\nTetap hapus catatan ini?")) requestDelete(log.id); }} className="p-2.5 text-slate-500 bg-white border shadow-sm hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors" title="Hapus Catatan Kerugian"><Trash2 size={16}/></button>
+                        <button type="button" onClick={() => { if(window.confirm("PERINGATAN!\n\nMenghapus log ini HANYA menghilangkan catatan kerugian di layar, namun STOK BARANG TIDAK AKAN KEMBALI secara otomatis (karena sudah terlanjur dibuang).\n\nTetap hapus catatan ini?")) requestDelete(log.id); }} className="p-2 text-slate-400 bg-white border border-slate-200 shadow-xs hover:text-rose-600 hover:bg-slate-50 rounded-lg transition-colors" title="Hapus catatan kerugian"><Trash2 size={16}/></button>
                       </td>
                     </tr>
                   ))
