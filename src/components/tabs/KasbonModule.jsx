@@ -1,8 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { ShoppingCart, Banknote, Link, History, Printer, Edit2, Trash2 } from 'lucide-react';
-
-// 🔥 FIX JALUR KABEL PRINTER: Cukup mundur 2 langkah (../../)
-import { triggerPrint } from '../../utils/PrintUtility';
+import { triggerPrint } from '../../../utils/PrintUtility';
 
 // --- HELPER LOKAL ANTI-CRASH ---
 const formatRupiah = (angka) => "Rp. " + Number(angka || 0).toLocaleString('id-ID');
