@@ -110,7 +110,7 @@ export default function TabSetoranCabang({
     const successUpdate = await sendToSheet('update', updatePayload, 'interbranch_treasury');
 
     if (successUpdate) {
-      await sendToSheet('insert', { id: generateId('CSH', todayStr), date: todayStr, branch_id: 'HQ_FACTORY', type: 'IN', category: 'SETORAN CABANG MASUK', description: `TERIMA SETORAN CLOSING DARI: ${item.from_branch}`, amount: Number(item.amount), method: 'TF', reference_id: item.id }, 'cashflow_transactions');
+      await sendToSheet('insert', { id: generateId('CSH', todayStr), date: todayStr, branch_id: 'TANGERANG_PUSAT', type: 'IN', category: 'SETORAN CABANG MASUK', description: `TERIMA SETORAN CLOSING DARI: ${item.from_branch}`, amount: Number(item.amount), method: 'TF', reference_id: item.id }, 'cashflow_transactions');
       await sendToSheet('insert', { id: generateId('CSH', todayStr) + 'X', date: todayStr, branch_id: item.from_branch, type: 'OUT', category: 'SETOR CLOSING KE PUSAT', description: `Disahkan Pusat (Setoran ID: ${item.id})`, amount: Number(item.amount), method: 'CASH', reference_id: item.id }, 'cashflow_transactions');
       showToast('Setoran disahkan! Dana sudah masuk mutasi Dompet Perusahaan.', 'success');
     }
