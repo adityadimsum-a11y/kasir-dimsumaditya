@@ -55,7 +55,8 @@ export default function TabKaryawan({
 
   // --- PEMETAAN CABANG DINAMIS ---
   const petaNamaCabang = useMemo(() => {
-    const mapping = { TANGERANG_PUSAT: '🍊 TANGERANG PUSAT', PUSAT: '🍊 TANGERANG PUSAT' };
+    // 🔥 FIX PROBLEM: 'PUSAT' dihilangkan dari awal agar tidak ada Double Tab Tangerang Pusat!
+    const mapping = { TANGERANG_PUSAT: '🍊 TANGERANG PUSAT' };
     (realMasterBranches || []).forEach(b => {
       if (b && !b.isDeleted && b.branch_id && b.branch_id !== 'PUSAT' && b.branch_id !== 'TANGERANG_PUSAT') { 
         mapping[String(b.branch_id).trim().toUpperCase()] = `🏪 ${String(b.branch_name || b.branch_id).toUpperCase()}`; 
@@ -65,7 +66,7 @@ export default function TabKaryawan({
   }, [realMasterBranches]);
   const daftarCabangId = useMemo(() => Object.keys(petaNamaCabang), [petaNamaCabang]);
 
-  // --- TARGET PRODUKSI HARIAN (LEMBUR MODULE) - 🔥 FIX LOGIKA PORSI vs PCS ---
+  // --- TARGET PRODUKSI HARIAN (LEMBUR MODULE) - FIX LOGIKA PORSI vs PCS ---
   const totalPcsHariIni = useMemo(() => {
     return realProductionBatches.filter(p => {
       const isToday = p.date && p.date.substring(0, 10) === todayStr;
@@ -82,7 +83,11 @@ export default function TabKaryawan({
     const dataStaf = {};
     (karyawan || []).forEach(k => {
       if (!k || k.isDeleted) return;
-      const bId = String(k.branch_id || 'TANGERANG_PUSAT').trim().toUpperCase();
+      
+      // 🔥 FIX STANDARISASI: Jadikan 'PUSAT' langsung menjadi 'TANGERANG_PUSAT' agar datanya melebur rapi!
+      let bId = String(k.branch_id || 'TANGERANG_PUSAT').trim().toUpperCase();
+      if (bId === 'PUSAT') bId = 'TANGERANG_PUSAT';
+
       dataStaf[k.id] = {
         id: k.id, name: k.name || 'TANPA NAMA', position: k.position || 'STAF', baseSalary: Number(k.baseSalary || 0), branch_id: bId, status: k.status || 'AKTIF',
         phone: k.phone || '-', address: k.address || 'ALAMAT BELUM DIISI',
@@ -154,7 +159,11 @@ export default function TabKaryawan({
       const logDate = e.date ? e.date.substring(0, 10) : '';
       if (e.category === 'PAYROLL' && logDate.startsWith(curMonth)) {
         gajiGlobal += Number(e.amount || 0);
-        if (activeProcessingBranch === 'SEMUA_CABANG' || String(e.branch_id || '').trim().toUpperCase() === activeProcessingBranch) { 
+        
+        let targetBId = String(e.branch_id || '').trim().toUpperCase();
+        if (targetBId === 'PUSAT') targetBId = 'TANGERANG_PUSAT';
+
+        if (activeProcessingBranch === 'SEMUA_CABANG' || targetBId === activeProcessingBranch) { 
           gajiCabangBulanIni += Number(e.amount || 0); 
         }
       }
@@ -165,7 +174,7 @@ export default function TabKaryawan({
     const batas = new Date(); batas.setDate(batas.getDate() - 14);
     realOrders.filter(o => !o.isDeleted && new Date(o.date) >= batas).forEach(o => {
       if (isHQ || o.branch_id === currentBranch) {
-        omzet2Minggu += Number(o.total_amount || o.amount_paid || 0); // Koreksi ke total_amount
+        omzet2Minggu += Number(o.total_amount || o.amount_paid || 0); 
       }
     });
 
@@ -235,10 +244,10 @@ export default function TabKaryawan({
 
       {activeSubTab === 'payroll' && isHQ && <PayrollModule employees={employeesDiCabangAktif} expenses={expenses} globalCompiled={globalEmployeeCompiled} activeBranch={activeProcessingBranch} todayStr={todayStr} sendToSheet={sendToSheet} onViewDetails={setSelectedEmployeeDetails} user={user} setOptimisticDeletedIds={setOptimisticDeletedIds} isHQ={isHQ} showToast={showToast} optimisticDeletedIds={optimisticDeletedIds} />}
       
-      {/* Parsing total Pcs dan Porsi untuk Modul Lembur */}
       {activeSubTab === 'lembur' && <LemburModule employees={employeesDiCabangAktif} expenses={expenses} globalCompiled={globalEmployeeCompiled} activeBranch={activeProcessingBranch} todayStr={todayStr} sendToSheet={sendToSheet} onViewDetails={setSelectedEmployeeDetails} user={user} setOptimisticDeletedIds={setOptimisticDeletedIds} isHQ={isHQ} showToast={showToast} optimisticDeletedIds={optimisticDeletedIds} totalPorsiHariIni={totalPorsiHariIni} totalPcsHariIni={totalPcsHariIni} />}
       
       {activeSubTab === 'kasbon' && <KasbonModule employees={employeesDiCabangAktif} expenses={expenses} globalCompiled={globalEmployeeCompiled} activeBranch={activeProcessingBranch} todayStr={todayStr} sendToSheet={sendToSheet} onViewDetails={setSelectedEmployeeDetails} user={user} setOptimisticDeletedIds={setOptimisticDeletedIds} isHQ={isHQ} showToast={showToast} optimisticDeletedIds={optimisticDeletedIds} />}
+      
       {activeSubTab === 'master' && <MasterSDMModule employees={employeesDiCabangAktif} branchListId={daftarCabangId} branchMapName={petaNamaCabang} activeBranch={activeProcessingBranch} isHQ={isHQ} sendToSheet={sendToSheet} showToast={showToast} onViewDetails={setSelectedEmployeeDetails} setOptimisticDeletedIds={setOptimisticDeletedIds} />}
 
       {/* POP-UP SULTAN: ARSIP PROFIL KARYAWAN */}
@@ -366,7 +375,7 @@ export default function TabKaryawan({
 }
 
 // =========================================================================
-// 📇 SUB-COMPONENT 1: PAYROLL (DENGAN OTOMATISASI POTONG KAS DOMPET)
+// 📇 SUB-COMPONENT 1: PAYROLL
 // =========================================================================
 function PayrollModule({ employees, expenses, globalCompiled, activeBranch, todayStr, sendToSheet, onViewDetails, user, setOptimisticDeletedIds, isHQ, showToast, optimisticDeletedIds }) {
   const currentMonthValue = todayStr.substring(0, 7);
@@ -458,7 +467,6 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
           if (isEditing) { success = await sendToSheet('update', payload, 'expenses'); } else { success = await sendToSheet('insert', payload, 'expenses'); }
           
           if (success) {
-            // 🔥 FIX KABEL CRASH (fontMethod TYPO DIHAPUS)
             if (!isEditing) await sendToSheet('insert', { id: generateId('CFO', todayStr), date: form.date, branch_id: form.paymentMethod === 'TF' ? 'TANGERANG_PUSAT' : penempatanTrx, type: 'OUT', category: 'GAJI KARYAWAN', amount: hitungNetto.totalCair, method: form.paymentMethod, reference_id: expenseId, description: `Pencairan Payroll Gaji Bulanan: ${selectedStafData?.name} (${form.periode_bulan})` }, 'cashflow_transactions');
             if (showToast) showToast(`Gaji berhasil dicairkan! Saldo kas/bank otomatis terpotong.`, 'success');
             setForm({ id: '', date: todayStr, periode_bulan: currentMonthValue, employeeId: '', baseSalary: '0', allowance: '0', potKasbonInput: '', otherDeduction: '0', paymentMethod: 'TF', isProrata: false, hariNormal: '26', hariHadir: '26' }); setIsEditing(false);
@@ -573,7 +581,7 @@ function PayrollModule({ employees, expenses, globalCompiled, activeBranch, toda
 }
 
 // =========================================================================
-// 📇 SUB-COMPONENT 2: LEMBUR & BONUS HARIAN (UI MERGER)
+// 📇 SUB-COMPONENT 2: LEMBUR & BONUS HARIAN
 // =========================================================================
 function LemburModule({ employees, expenses, globalCompiled, activeBranch, todayStr, sendToSheet, onViewDetails, user, setOptimisticDeletedIds, isHQ, showToast, optimisticDeletedIds, totalPorsiHariIni, totalPcsHariIni }) {
   const [form, setForm] = useState({ date: todayStr, picId: '', participants: [], isLembur: false, isBonus: false, isJamuan: false });
@@ -602,7 +610,6 @@ function LemburModule({ employees, expenses, globalCompiled, activeBranch, today
     }
   };
 
-  // 🔥 TARGET BONUS PRODUKSI MENGUNCI KE 10.000 PCS = 2.500 PORSI (SINKRON DOKTRIN PABRIK)
   const isTargetTembus = totalPorsiHariIni >= 2500;
   const qtyPeserta = form.participants.length;
 
@@ -745,7 +752,7 @@ function LemburModule({ employees, expenses, globalCompiled, activeBranch, today
 }
 
 // =========================================================================
-// 📇 SUB-COMPONENT 3: KREDIT BARANG & KASBON (UI MERGER)
+// 📇 SUB-COMPONENT 3: KREDIT BARANG & KASBON
 // =========================================================================
 function KasbonModule({ employees, expenses, globalCompiled, activeBranch, todayStr, sendToSheet, onViewDetails, user, setOptimisticDeletedIds, isHQ, showToast, optimisticDeletedIds }) {
   const [activeTabKasbon, setActiveTabKasbon] = useState('KREDIT'); 
@@ -866,7 +873,7 @@ function KasbonModule({ employees, expenses, globalCompiled, activeBranch, today
 }
 
 // =========================================================================
-// 📇 SUB-COMPONENT 4: MASTER DATA SDM (UI MERGER)
+// 📇 SUB-COMPONENT 4: MASTER DATA SDM
 // =========================================================================
 function MasterSDMModule({ employees, branchListId, branchMapName, activeBranch, isHQ, sendToSheet, showToast, onViewDetails, setOptimisticDeletedIds }) {
   const [form, setForm] = useState({ id: '', name: '', position: 'KASIR', baseSalary: '0', targetBranch: 'TANGERANG_PUSAT', phone: '', address: '', photo_url: '', ktp_url: '' });
