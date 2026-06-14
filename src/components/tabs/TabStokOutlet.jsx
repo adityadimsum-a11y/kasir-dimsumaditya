@@ -67,25 +67,21 @@ export default function TabLogistikFreezer({
       const itemsArr = safeJsonParse(o.items, []);
       
       if (itemsArr.length > 0) {
-        // Jika nota menggunakan format item array baru (Dinamis)
         itemsArr.forEach(item => {
-          // Cari apakah item ini punya database master produk untuk cek konversi porsi
           const masterP = realProducts.find(p => p.id === item.id || p.product_name === item.name);
           let itemKey = masterP ? masterP.id : 'DIMSUM_FROZEN';
           let itemName = item.name;
           let itemCat = masterP ? masterP.category : 'PRODUK_JADI';
           
-          // Pengali Porsi ke Pcs: Jika di menu mengandung kata 'PORSI' atau terdeteksi porsi, kalikan 4 Pcs
           const isPorsi = String(item.name).toUpperCase().includes('PORSI');
           const multiplier = isPorsi ? 4 : 1;
           const totalPcsDeducted = Number(item.qty || 0) * multiplier;
 
-          initItem(itemKey, itemName, itemCat, isPorsi ? 'Pcs' : 'Pcs');
+          initItem(itemKey, itemName, itemCat, 'Pcs');
           inventoryMap[itemKey].totalOut += totalPcsDeducted;
           inventoryMap[itemKey].balance -= totalPcsDeducted;
         });
       } else {
-        // Fallback untuk Nota Lama (Mencegah data hancur)
         const soldQty = Number(o.qty || 0);
         initItem('DIMSUM_FROZEN', 'Dimsum Frozen Core', 'PRODUK_JADI', 'Pcs');
         inventoryMap['DIMSUM_FROZEN'].totalOut += soldQty;
@@ -93,8 +89,6 @@ export default function TabLogistikFreezer({
       }
     });
 
-    // C. KURANGI STOK: Dari pengeluaran operasional mandiri (Opname Lokal Cabang)
-    // Diambil dari expenses cabang ber-kategori 'PENGURANGAN_STOK_MANDIRI'
     return Object.values(inventoryMap);
   }, [realDistOrders, realOrders, activeBranch, realProducts]);
 
@@ -112,7 +106,7 @@ export default function TabLogistikFreezer({
   // --- ACTIONS: RETUR / TOLAK BARANG RUSAK ---
   const handleTolakBarang = async (item) => {
     const alasan = window.prompt(`Alasan Retur / Tolak Kiriman Surat Jalan ${item.id}:`, "Barang basi / rusak di jalan");
-    if (alasan === null) return; // Batal
+    if (alasan === null) return; 
 
     if (!window.confirm(`Konfirmasi Tolak Kiriman:\n\nBarang "${item.item_name}" (${item.qty} ${item.unit}) akan di-retur kembali ke Pusat Tangerang.\n\nLanjutkan?`)) return;
 
@@ -142,14 +136,14 @@ export default function TabLogistikFreezer({
       return;
     }
 
-    // Tembak dummy nota minus ke tabel orders dengan status 'PEMAKAIAN_INTERNAL' agar stok terpotong dinamis oleh engine
+    // 🔥 FIX TYPO DI SINI: Kurung kurawal penutup objek ditambahkan sebelum kurung siku!
     const dummyOrderPayload = {
       id: generateId('OPN', todayStr),
       date: todayStr,
       branch_id: activeBranch,
       customer_name: 'INTERNAL OUTLET / OPNAME',
       sales_channel: 'OFFLINE',
-      items: JSON.stringify([{ id: selectedItem.id, name: selectedItem.name, qty: qtyPakai, price: 0, hpp: 0 ]}),
+      items: JSON.stringify([{ id: selectedItem.id, name: selectedItem.name, qty: qtyPakai, price: 0, hpp: 0 }]),
       qty: qtyPakai,
       total_amount: 0,
       amount_paid: 0,
@@ -203,7 +197,7 @@ export default function TabLogistikFreezer({
         </div>
       </div>
 
-      {/* MODAL / FORM EMERGENCY OPNAME MANDIRI */}
+      {/* FORM OPNAME */}
       {showOpnameForm && (
         <div className="card-holo p-5 border-t-4 border-t-amber-500 bg-amber-50/20 animate-in slide-in-from-top-4 duration-200">
           <h3 className="font-extrabold text-xs text-slate-800 normal-case mb-3 flex items-center gap-1.5"><ClipboardEdit size={14} className="text-amber-600" /> Form pemakaian internal / Penyesuaian mika saus</h3>
@@ -212,7 +206,7 @@ export default function TabLogistikFreezer({
               <label className="text-[9px] font-bold text-slate-500 block mb-1">Pilih barang di kulkas</label>
               <select required value={opnameForm.item_id} onChange={e=>setFormOpname({...opnameForm, item_id: e.target.value})} className="w-full p-2 bg-white border rounded-lg text-xs font-bold outline-none cursor-pointer">
                 <option value="">-- Pilih Item --</option>
-                {branchInventory.map(i => <option key={i.id} value={i.id}>{i.name} (Sisa: ${i.balance} ${i.unit})</option>)}
+                {branchInventory.map(i => <option key={i.id} value={i.id}>{i.name} (Sisa: {i.balance} {i.unit})</option>)}
               </select>
             </div>
             <div>
@@ -232,8 +226,7 @@ export default function TabLogistikFreezer({
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* PANEL KIRI: VERIFIKASI SURAT JALAN (IN-TRANSIT) */}
+        {/* SURAT JALAN */}
         <div className="card-holo flex flex-col overflow-hidden h-max border-t-4 border-t-amber-500 shadow-xs">
           <div className="p-5 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
             <h3 className="font-extrabold text-xs normal-case text-slate-800 flex items-center gap-2">
@@ -278,7 +271,7 @@ export default function TabLogistikFreezer({
           </div>
         </div>
 
-        {/* PANEL KANAN: RADAR TABEL STOK OUTLET GABUNGAN */}
+        {/* NERACA STOK */}
         <div className="lg:col-span-2 card-holo flex flex-col overflow-hidden">
           <div className="p-5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
             <h4 className="font-extrabold text-xs normal-case text-slate-800 flex items-center gap-2">
@@ -310,7 +303,7 @@ export default function TabLogistikFreezer({
                     <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-5 py-4 whitespace-nowrap">
                         <div className="font-extrabold text-slate-800 normal-case text-xs mb-1">{item.name}</div>
-                        <span className={`text-[9px] font-bold normal-case px-2 py-0.5 rounded-md border ${item.category === 'PRODUK_JADI' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                        <span className={`text-[9px] font-bold normal-case px-2 py-0.5 rounded-md border ${item.category === 'PRODUK_JADI' ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
                           {item.category.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase())}
                         </span>
                       </td>
