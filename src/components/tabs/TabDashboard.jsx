@@ -1,353 +1,348 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
-  TrendingUp, Wallet, ArrowUpRight, ArrowDownRight, 
-  AlertOctagon, ShieldCheck, Database, Layers, Package,
-  ArrowRight, Clock, UserCheck, X, CheckCircle2, DollarSign
+  TrendingUp, ShoppingCart, Wallet, Package, 
+  Users, Layers, Award, AlertCircle, ArrowUpRight, 
+  ArrowDownRight, CheckCircle2, DollarSign, Activity, Filter, Clock
 } from 'lucide-react';
-import { safeJsonParse, generateId, getTodayStr } from '../../utils/helpers';
+import { getTodayStr, formatDate, safeJsonParse } from '../../utils/helpers';
 
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
 export default function TabDashboard({ 
   orders = [], orders_data,
-  purchases = [], purchases_data,
   expenses = [], expenses_data,
-  inventoryCostLayers = [], inventory_cost_layers,
-  productionBatches = [], production_batches,
-  cashflowTransactions = [], cashflow_transactions,
-  supplierInvoices = [], supplier_invoices,
-  setActiveTab, showToast, sendToSheet
+  masterCustomers = [], master_customers,
+  masterProducts = [], master_products,
+  masterBranches = [], master_branches,
+  branch_settlements = [],
+  setActiveTab, user 
 }) {
-
   const todayStr = getTodayStr();
+  
+  // --- STATE FILTER RENTANG WAKTU ---
+  const [dateFrom, setDateFrom] = useState(() => {
+    const d = new Date();
+    d.setDate(1); // Default ke awal bulan berjalan
+    return d.toISOString().substring(0, 10);
+  });
+  const [dateTo, setDateTo] = useState(todayStr);
+  const [selectedBranch, setSelectedBranch] = useState('ALL_BRANCH');
 
-  // 🔥 STATE POPUP KEMBALIAN SULTAN
-  const [settleModal, setSettleModal] = useState(null);
-  const [settleForm, setSettleForm] = useState({ actualReturned: '', upahJalan: '', pembulatan: '0' });
-
-  // --- SINKRONISASI DATABASE ---
+  // --- SINKRONISASI DATABASE (SINGLE SOURCE OF TRUTH) ---
   const realOrders = useMemo(() => orders_data || orders || [], [orders, orders_data]);
-  const realPurchases = useMemo(() => purchases_data || purchases || [], [purchases, purchases_data]);
   const realExpenses = useMemo(() => expenses_data || expenses || [], [expenses, expenses_data]);
-  const realInventory = useMemo(() => inventory_cost_layers || inventoryCostLayers || [], [inventory_cost_layers, inventoryCostLayers]);
-  const realProduction = useMemo(() => production_batches || productionBatches || [], [production_batches, production_batches]);
-  const realCashflow = useMemo(() => cashflow_transactions || cashflowTransactions || [], [cashflow_transactions, cashflowTransactions]);
-  const realInvoices = useMemo(() => supplier_invoices || supplierInvoices || [], [supplier_invoices, supplierInvoices]);
+  const realCustomers = useMemo(() => master_customers || masterCustomers || [], [master_customers, masterCustomers]);
+  const realProducts = useMemo(() => master_products || masterProducts || [], [master_products, masterProducts]);
+  const realBranches = useMemo(() => master_branches || masterBranches || [], [master_branches, masterBranches]);
 
-  // --- ENGINE KALKULATOR DASHBOARD ---
-  const ringkasan = useMemo(() => {
-    let totalKas = 0;
-    realCashflow.forEach(c => {
-      if (!c.isDeleted) {
-        if (c.type === 'IN') totalKas += Number(c.amount || 0);
-        if (c.type === 'OUT') totalKas -= Number(c.amount || 0);
-      }
-    });
+  const activeBranches = useMemo(() => realBranches.filter(b => !b.isDeleted), [realBranches]);
 
-    let totalPiutang = 0;
+  // --- CORE ANALYTICS ENGINE ---
+  const analytics = useMemo(() => {
+    const isInPeriod = (dateVal) => {
+      if (!dateVal) return false;
+      const cleanDate = dateVal.substring(0, 10);
+      return cleanDate >= dateFrom && cleanDate <= dateTo;
+    };
+
+    const isInBranch = (bId) => {
+      if (selectedBranch === 'ALL_BRANCH') return true;
+      return String(bId).toUpperCase() === selectedBranch.toUpperCase();
+    };
+
+    // 1. METRIK PENJUALAN & TRANSAKSI
+    let totalSalesPeriod = 0;
+    let totalSalesToday = 0;
+    let transactionCount = 0;
+    let todayTransactionCount = 0;
+
+    // 2. KUE OMSET PLATFORM (CRM CATEGORY)
+    const platformRevenue = {
+      OFFLINE: 0, GOFOOD: 0, GRABFOOD: 0, SHOPEEFOOD: 0, RESELLER_AGEN: 0, MARKETPLACE_LAIN: 0
+    };
+
+    // 3. DETAIL ITEM / MENU LEADERBOARD
+    const itemSalesMap = {};
+
+    // Proses data penjualan (Orders)
     realOrders.forEach(o => {
-      if (!o.isDeleted) {
-        const tagihan = Number(o.total_amount || 0);
-        const masuk = Number(o.amount_paid || 0);
-        if (tagihan > masuk) totalPiutang += (tagihan - masuk);
-      }
-    });
+      if (o.isDeleted) return;
+      const oDate = o.date ? o.date.substring(0, 10) : '';
+      const isToday = oDate === todayStr;
 
-    let totalHutang = 0;
-    realInvoices.forEach(inv => {
-      if (!inv.isDeleted && inv.status_payment === 'BELUM_LUNAS') {
-        totalHutang += Number(inv.remaining_bill || inv.total_bill || 0);
-      }
-    });
+      // Filter global cabang dan periode
+      if (!isInBranch(o.branch_id)) return;
 
-    let nilaiAsetGudang = 0;
-    let sisaAyamKantong = 0;
-    realInventory.forEach(inv => {
-      if (!inv.isDeleted) {
-        nilaiAsetGudang += (Number(inv.qty_remaining || 0) * Number(inv.unit_cost || 0));
-        if (inv.category === 'BAHAN_BAKU') sisaAyamKantong += Number(inv.qty_remaining || 0);
+      if (isToday) {
+        totalSalesToday += Number(o.total_amount || 0);
+        todayTransactionCount++;
       }
-    });
 
-    let sisaDimsumPcs = 0;
-    realProduction.forEach(b => {
-      if (!b.isDeleted) sisaDimsumPcs += Number(b.actual_yield || b.qty || 0);
-    });
-    realOrders.forEach(o => {
-      if (!o.isDeleted) {
+      if (isInPeriod(o.date)) {
+        totalSalesPeriod += Number(o.total_amount || 0);
+        transactionCount++;
+
+        // Rekap Channel Platform
+        const channel = String(o.sales_channel || 'OFFLINE').toUpperCase();
+        if (platformRevenue[channel] !== undefined) {
+          platformRevenue[channel] += Number(o.total_amount || 0);
+        } else {
+          platformRevenue.OFFLINE += Number(o.total_amount || 0);
+        }
+
+        // Pembedahan Isi Keranjang Jualan (Detail Menu Analytics)
         const items = safeJsonParse(o.items, []);
-        items.forEach(i => { sisaDimsumPcs -= Number(i.qty || 0); });
+        items.forEach(item => {
+          const key = item.id || item.name;
+          if (!itemSalesMap[key]) {
+            itemSalesMap[key] = { id: item.id, name: item.name, qty: 0, revenue: 0 };
+          }
+          // Hitung konversi porsi otomatis jika mengandung kata porsi
+          const isPorsi = String(item.name).toUpperCase().includes('PORSI');
+          const multiplier = isPorsi ? 4 : 1;
+          const cleanQty = Number(item.qty || 0) * multiplier;
+
+          itemSalesMap[key].qty += cleanQty;
+          itemSalesMap[key].revenue += Number(item.price || 0) * Number(item.qty || 0);
+        });
       }
     });
 
-    let omzetSeminggu = 0;
-    realOrders.forEach(o => {
-      if (!o.isDeleted) omzetSeminggu += Number(o.total_amount || 0);
+    // Urutkan Menu Terlaris vs Kurang Laku
+    const sortedMenus = Object.values(itemSalesMap).sort((a, b) => b.qty - a.qty);
+    const bestSellers = sortedMenus.slice(0, 5);
+    const slowMoving = [...sortedMenus].reverse().slice(0, 5);
+
+    // 4. RADAR KEUANGAN MAKRO (CASHFLOW & UTANG PIUTANG)
+    let cashIn = 0;
+    let cashOut = 0;
+    let totalPiutang = 0;
+    let totalHutang = 0;
+    let totalKasbonKaryawan = 0;
+
+    // Hitung Kasbon dari expenses kategori KASBON yang belum lunas (dikompilasi dari pengeluaran)
+    realExpenses.forEach(e => {
+      if (e.isDeleted) return;
+      if (!isInBranch(e.branch_id)) return;
+
+      const amt = Number(e.amount || 0);
+      
+      // Klasifikasi Biaya Kas Keluar
+      if (isInPeriod(e.date)) {
+        cashOut += amt;
+      }
+
+      if (e.category === 'KASBON') {
+        totalKasbonKaryawan += amt; // Sisa hutang kasbon dihitung global
+      }
+      if (e.status === 'BELUM_LUNAS' || e.status === 'PENDING') {
+        totalHutang += amt; // Hutang ke supplier luar
+      }
     });
+
+    // Ambil pemasukan tunai/transfer dari sales yang masuk periode
+    realOrders.forEach(o => {
+      if (o.isDeleted || !isInBranch(o.branch_id) || !isInPeriod(o.date)) return;
+      cashIn += Number(o.amount_paid || 0);
+      
+      if (o.status === 'BELUM_LUNAS') {
+        totalPiutang += (Number(o.total_amount || 0) - Number(o.amount_paid || 0));
+      }
+    });
+
+    const cashBalance = cashIn - cashOut;
+    const avgTransaction = transactionCount > 0 ? Math.floor(totalSalesPeriod / transactionCount) : 0;
+
+    // Susun data presentase kue platform online
+    const platformList = Object.keys(platformRevenue).map(key => ({
+      name: key === 'RESELLER_AGEN' ? 'Reseller / Agen' : key === 'MARKETPLACE_LAIN' ? 'Marketplace' : key.toLowerCase().replace(/\b\w/g, l => l.toUpperCase()),
+      value: platformRevenue[key],
+      percentage: totalSalesPeriod > 0 ? ((platformRevenue[key] / totalSalesPeriod) * 100).toFixed(1) : 0
+    })).sort((a,b) => b.value - a.value);
 
     return {
-      totalKas, totalPiutang, totalHutang, nilaiAsetGudang,
-      sisaAyamKantong, sisaAyamKg: sisaAyamKantong * 10,
-      sisaDimsumPcs, sisaDimsumMika: Math.floor(sisaDimsumPcs / 50),
-      omzetSeminggu
+      totalSalesToday, totalSalesPeriod, transactionCount, avgTransaction, todayTransactionCount,
+      platformList, bestSellers, slowMoving, cashIn, cashOut, cashBalance, totalPiutang, totalHutang, totalKasbonKaryawan
     };
-  }, [realOrders, realInventory, realProduction, realCashflow, realInvoices]);
-
-  // ==========================================
-  // 🔥 RADAR DETEKTOR KEMBALIAN KRITIS (IDE BOS SULTAN)
-  // ==========================================
-  const pendingKembalianList = useMemo(() => {
-    const groups = {};
-    
-    // Scan dari Purchases
-    realPurchases.forEach(p => {
-      if (!p.isDeleted && p.change_status === 'PENDING' && p.kasbon_id) {
-        if (!groups[p.kasbon_id]) {
-          groups[p.kasbon_id] = { id: p.kasbon_id, employee: p.employee_name, cash_given: Number(p.cash_given || 0), expected_change: Number(p.expected_change || 0), total_nota: 0, origin: 'purchases' };
-        }
-        groups[p.kasbon_id].total_nota += Number(p.total_amount || p.amount || 0);
-      }
-    });
-
-    // Scan dari Expenses
-    realExpenses.forEach(e => {
-      if (!e.isDeleted && e.change_status === 'PENDING' && e.kasbon_id) {
-        if (!groups[e.kasbon_id]) {
-          groups[e.kasbon_id] = { id: e.kasbon_id, employee: e.employee_name, cash_given: Number(e.cash_given || 0), expected_change: Number(e.expected_change || 0), total_nota: 0, origin: 'expenses' };
-        }
-        groups[e.kasbon_id].total_nota += Number(e.amount || 0);
-      }
-    });
-
-    return Object.values(groups);
-  }, [realPurchases, realExpenses]);
-
-  const isAyamKritis = ringkasan.sisaAyamKantong <= 5;
-
-  // ==========================================
-  // 🔥 SETTLEMENT: SUBMIT KEMBALIAN MASUK (TUTUP BUKU)
-  // ==========================================
-  const handleExecuteSettlement = async () => {
-    if (!settleModal) return;
-    const actualReturned = Number(settleForm.actualReturned || 0);
-    const upahJalan = Number(settleForm.upahJalan || 0);
-    const pembulatan = Number(settleForm.pembulatan || 0);
-    
-    const totalAlokasi = actualReturned + upahJalan + pembulatan;
-    
-    if (totalAlokasi !== settleModal.expected_change) {
-       return alert(`Total pembagian uang (${formatRupiah(totalAlokasi)}) tidak balance dengan sisa kembalian wajib (${formatRupiah(settleModal.expected_change)})!`);
-    }
-
-    // 1. Update status isinya di sheet 'purchases' & 'expenses' pararel
-    const rowsToUpdatePurchases = realPurchases.filter(p => p.kasbon_id === settleModal.id);
-    for (let r of rowsToUpdatePurchases) {
-       await sendToSheet('update', { ...r, change_status: 'SETTLED' }, 'purchases');
-    }
-    const rowsToUpdateExpenses = realExpenses.filter(e => e.kasbon_id === settleModal.id);
-    for (let r of rowsToUpdateExpenses) {
-       await sendToSheet('update', { ...r, change_status: 'SETTLED' }, 'expenses');
-    }
-
-    // 2. Jika ada uang cash kembali masuk laci (IN)
-    if (actualReturned > 0) {
-      await sendToSheet('insert', {
-        id: generateId('CFI', todayStr), date: todayStr, branch_id: 'TANGERANG_PUSAT', type: 'IN',
-        category: 'PENGEMBALIAN KASBON', description: `Kembalian Sisa Belanja dari ${settleModal.employee}`,
-        amount: actualReturned, method: 'CASH', reference_id: settleModal.id
-      }, 'cashflow_transactions');
-    }
-
-    // 3. Jika ada Upah Jalan / Tip Owner yang merelakan kembalian (OUT EXPENSE)
-    if (upahJalan > 0) {
-      await sendToSheet('insert', {
-        id: generateId('EXP', todayStr), date: todayStr, branch_id: 'TANGERANG_PUSAT',
-        category: 'OPERASIONAL', description: `UPAH JALAN / TIP BELANJA: ${settleModal.employee}`,
-        amount: upahJalan, payment_method: 'CASH', isDeleted: false
-      }, 'expenses');
-    }
-
-    // 4. Jika ada Pembulatan Ikhlas Rugi Kas (OUT EXPENSE)
-    if (pembulatan > 0) {
-      await sendToSheet('insert', {
-        id: generateId('EXP', todayStr), date: todayStr, branch_id: 'TANGERANG_PUSAT',
-        category: 'BIAYA UMUM / OPS', description: `PEMBULATAN RUGI RECEH BELANJA: ${settleModal.employee}`,
-        amount: pembulatan, payment_method: 'CASH', isDeleted: false
-      }, 'expenses');
-    }
-
-    showToast(`Buku Kasbon kembalian ${settleModal.employee} resmi ditutup & ditandai Lunas Balance!`);
-    setSettleModal(null);
-    setSettleForm({ actualReturned: '', upahJalan: '', pembulatan: '0' });
-  };
+  }, [realOrders, realExpenses, dateFrom, dateTo, selectedBranch, todayStr]);
 
   return (
-    <div className="space-y-6 pb-10 text-slate-700 animate-in fade-in duration-300">
+    <div className="space-y-6 pb-10 text-slate-700 normal-case animate-in fade-in duration-300">
       
-      {/* 🔥 ADJUST FIX 1: ADJUSTMENT BANNER HEAD (BUANG TONE normal-case & HURUF BESAR BERLEBIHAN) */}
-      <div className="card-holo p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative overflow-hidden">
-        <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-600"></div>
-        <div className="pl-2">
-           <h2 className="text-slate-900 font-extrabold tracking-wide text-base flex items-center gap-2">
-             <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-             Dashboard Utama &amp; Keuangan Pabrik
-           </h2>
-           <p className="text-[10px] text-slate-400 font-semibold normal-case tracking-wider mt-1">Sistem Pemantauan Terpadu Dimsum Aditya Exp — Real-time &amp; Terkunci</p>
+      {/* CONTROL CENTER PANEL - FILTER MULTI OUTLET & PERIODE */}
+      <div className="card-holo p-5 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-white border border-slate-200">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-red-50 text-red-600 rounded-xl"><Activity size={20}/></div>
+          <div>
+            <h2 className="text-sm font-extrabold text-slate-800 normal-case">Pusat kendali operasional finansial (HQ)</h2>
+            <p className="text-[10px] font-medium text-slate-400 normal-case">Konsolidasi data tunggal real-time seluruh laci resto, pabrik, dan logistik nasional.</p>
+          </div>
         </div>
-        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-right min-w-[220px]">
-          <div className="text-[9px] font-bold text-slate-400 normal-case tracking-wider mb-1">Nilai Uang Aset Gudang (HPP)</div>
-          <div className="text-lg font-extrabold text-slate-800 tracking-tight">{formatRupiah(ringkasan.nilaiAsetGudang)}</div>
-        </div>
-      </div>
 
-      {/* 🔥 INDIKATOR ATAS */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        <div className="card-holo p-5 flex flex-col justify-between">
-          <div>
-            <div className="text-[10px] font-bold text-slate-400 normal-case tracking-wider mb-1.5">Uang di Dompet Perusahaan (Kas Kasir)</div>
-            <div className="text-xl font-extrabold text-slate-800 tracking-tight">{formatRupiah(ringkasan.totalKas)}</div>
+        <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
+          {/* Dropdown Multi-Branch */}
+          <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 shadow-xs">
+            <Layers size={14} className="text-slate-400 mr-2"/>
+            <select value={selectedBranch} onChange={e=>setSelectedBranch(e.target.value)} className="bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer">
+              <option value="ALL_BRANCH">🌍 Semua cabang / Jaringan gabungan</option>
+              <option value="TANGERANG_PUSAT">🍊 Tangerang Pusat (HQ Pabrik)</option>
+              {activeBranches.map(b => (
+                <option key={b.branch_id} value={b.branch_id}>
+                  {b.branch_type === 'PRODUCTION_BRANCH' ? '🏭' : '🏪'} {b.branch_name}
+                </option>
+              ))}
+            </select>
           </div>
-        </div>
-        <div className="card-holo p-5 flex flex-col justify-between">
-          <div>
-            <div className="text-[10px] font-bold text-slate-400 normal-case tracking-wider mb-1.5">Total Sisa Bon / Piutang Agen</div>
-            <div className="text-xl font-extrabold text-amber-600 tracking-tight">{formatRupiah(ringkasan.totalPiutang)}</div>
-          </div>
-        </div>
-        <div className="card-holo p-5 flex flex-col justify-between">
-          <div>
-            <div className="text-[10px] font-bold text-slate-400 normal-case tracking-wider mb-1.5">Hutang Belum Bayar ke Supplier</div>
-            <div className="text-xl font-extrabold text-rose-600 tracking-tight">{formatRupiah(ringkasan.totalHutang)}</div>
+
+          {/* Date Range Picker */}
+          <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 shadow-xs">
+            <Filter size={14} className="text-slate-400 mr-2"/>
+            <input type="date" value={dateFrom} onChange={e=>setDateFrom(e.target.value)} className="bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer" />
+            <span className="text-slate-300 mx-2 font-medium">-</span>
+            <input type="date" value={dateTo} onChange={e=>setDateTo(e.target.value)} className="bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer" />
           </div>
         </div>
       </div>
 
-      {/* ========================================== */}
-      {/* 🔥 ADJUST FIX 2: RADAR PANTAU KEMBALIAN (UBAH JUDUL TIDAK KAPITAL TOTAL) */}
-      {/* ========================================== */}
-      {pendingKembalianList.length > 0 && (
-         <div className="card-holo border-l-4 border-l-red-600 p-5 shadow-sm space-y-3">
-            <div className="text-[10px] font-black text-red-600 tracking-wider flex items-center gap-1.5">
-               <AlertOctagon size={14} className="text-red-600"/> Radar Pantau Piutang Kembalian Belanja Karyawan
-            </div>
-            <div className="grid grid-cols-1 gap-3">
-               {pendingKembalianList.map(item => (
-                 <div key={item.id} className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <div className="space-y-1">
-                      <div className="font-extrabold text-xs text-slate-800 normal-case">⚠️ {item.employee} Belum Setor Sisa Kembalian!</div>
-                      <p className="text-[10px] font-medium text-slate-500 normal-case tracking-wide">
-                        Kas Diberikan: <span className="text-slate-800 font-bold">{formatRupiah(item.cash_given)}</span> | 
-                        Total Nota Belanja: <span className="text-slate-800 font-bold">{formatRupiah(item.total_nota)}</span>
-                      </p>
-                      <div className="text-xs text-red-600 font-extrabold normal-case mt-1">Wajib Di-tagih: {formatRupiah(item.expected_change)}</div>
-                    </div>
-                    <button 
-                      type="button" 
-                      onClick={() => setSettleModal(item)}
-                      className="btn-holo text-xs px-4 py-2.5 font-bold cursor-pointer"
-                    >
-                      Terima Sisa Kembalian
-                    </button>
-                 </div>
-               ))}
-            </div>
-         </div>
-      )}
+      {/* RANGKUMAN INDIKATOR FINANSIAL UTAMA */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="card-holo p-5 border-l-4 border-l-blue-500 bg-white">
+          <div className="flex justify-between items-start mb-2">
+            <span className="text-[10px] font-bold text-slate-400">Penjualan hari ini (EOD)</span>
+            <span className="text-[9px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded font-extrabold">{analytics.todayTransactionCount} Nota</span>
+          </div>
+          <div className="text-2xl font-black text-slate-800 tracking-tight">{formatRupiah(analytics.totalSalesToday)}</div>
+        </div>
 
+        <div className="card-holo p-5 border-l-4 border-l-indigo-500 bg-white">
+          <div className="flex justify-between items-start mb-2">
+            <span className="text-[10px] font-bold text-slate-400">Omset penjualan periode</span>
+            <span className="text-[9px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded font-extrabold">{analytics.transactionCount} Transaksi</span>
+          </div>
+          <div className="text-2xl font-black text-slate-800 tracking-tight">{formatRupiah(analytics.totalSalesPeriod)}</div>
+        </div>
+
+        <div className="card-holo p-5 border-l-4 border-l-emerald-500 bg-white">
+          <div className="flex justify-between items-start mb-2">
+            <span className="text-[10px] font-bold text-slate-400">Arus uang masuk (Net cash-in)</span>
+            <span className="text-[9px] text-emerald-600 font-bold flex items-center gap-0.5"><Clock size={10}/> Ter-audit</span>
+          </div>
+          <div className="text-2xl font-black text-emerald-600 tracking-tight">{formatRupiah(analytics.cashIn)}</div>
+        </div>
+
+        <div className="card-holo p-5 border-l-4 border-l-purple-500 bg-white">
+          <div className="flex justify-between items-start mb-2">
+            <span className="text-[10px] font-bold text-slate-400">Rata-rata belanja nota</span>
+            <span className="text-[9px] bg-purple-50 text-purple-600 px-2 py-0.5 rounded font-extrabold">Basket size</span>
+          </div>
+          <div className="text-2xl font-black text-slate-800 tracking-tight">{formatRupiah(analytics.avgTransaction)}</div>
+        </div>
+      </div>
+
+      {/* AREA GRAFIK PLATFORM & LEADERBOARD DETAIL ITEM */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-8 space-y-6">
-          
-          {/* 🔥 ADJUST FIX 3: SISTEM PENGINGAT (UBAH JUDUL BELANJA MANUAL) */}
-          <div className="card-holo p-6 flex flex-col justify-between">
-            <div className="flex justify-between items-center mb-3">
-              <span className="text-[10px] font-bold normal-case tracking-wider text-slate-400 flex items-center gap-1.5"><AlertOctagon size={14} className="text-orange-500"/> Sistem Pengingat Belanja Otomatis</span>
-            </div>
-            {isAyamKritis ? (
-              <div className="bg-rose-50 border border-rose-200 p-4 rounded-xl flex flex-col sm:flex-row justify-between items-center gap-4">
-                 <div className="space-y-0.5">
-                   <h4 className="font-extrabold text-rose-800 text-xs">🚨 Peringatan: Stok Ayam Fillet Menipis!</h4>
-                   <p className="text-[10px] font-medium text-rose-600 normal-case">Sisa daging mentah di freezer tinggal {ringkasan.sisaAyamKantong} Kantong ({ringkasan.sisaAyamKg} Kg).</p>
-                 </div>
-                 <button type="button" onClick={() => { if(setActiveTab) setActiveTab('purchases'); }} className="btn-holo text-xs px-4 py-2 rounded-lg flex items-center gap-1">Buat Nota Belanja <ArrowRight size={12}/></button>
-              </div>
+        
+        {/* KANTONG KIRI (5 KOLOM): KUE OMSET PLATFORM (CRM DATA) */}
+        <div className="lg:col-span-5 card-holo flex flex-col overflow-hidden bg-white">
+          <div className="p-4 bg-slate-50 border-b border-slate-200 font-extrabold text-xs text-slate-800 flex items-center gap-1.5">
+            <TrendingUp size={16} className="text-red-500"/> Kontribusi revenue per platform penjualan
+          </div>
+          <div className="p-4 flex-1 flex flex-col justify-center space-y-3.5">
+            {analytics.platformList.every(p => p.value === 0) ? (
+              <div className="text-center py-10 text-slate-400 text-xs font-medium">Belum ada transaksi di periode ini.</div>
             ) : (
-              <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex items-center gap-3">
-                 <ShieldCheck size={20} className="text-emerald-600"/>
-                 <div><h4 className="font-extrabold text-emerald-800 text-xs normal-case tracking-wide">Kondisi Gudang Aman Terkendali</h4></div>
-              </div>
+              analytics.platformList.map((platform, idx) => (
+                <div key={idx} className="space-y-1">
+                  <div className="flex justify-between text-xs font-bold">
+                    <span className="text-slate-700">{platform.name}</span>
+                    <span className="text-slate-500">{formatRupiah(platform.value)} <span className="text-red-600 font-black ml-1">({platform.percentage}%)</span></span>
+                  </div>
+                  {/* PROGRESS BAR FLAT */}
+                  <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden shadow-inner">
+                    <div 
+                      className={`h-full rounded-full ${idx === 0 ? 'bg-red-500' : idx === 1 ? 'bg-blue-500' : idx === 2 ? 'bg-emerald-500' : idx === 3 ? 'bg-orange-500' : 'bg-slate-400'}`} 
+                      style={{ width: `${platform.percentage}%` }}
+                    ></div>
+                  </div>
+                </div>
+              ))
             )}
           </div>
+        </div>
 
-          <div className="card-holo p-6">
-             <div className="text-[10px] font-bold text-slate-400 normal-case tracking-wider mb-3">Total Omzet Penjualan (7 Hari Terakhir)</div>
-             <div className="bg-slate-50 border border-slate-200 p-8 rounded-xl text-center">
-                <div className="text-3xl font-black text-slate-800 tracking-tight">{formatRupiah(ringkasan.omzetSeminggu)}</div>
-             </div>
+        {/* KANTONG KANAN (7 KOLOM): LEADERBOARD DETAIL MENU TERJUAL */}
+        <div className="lg:col-span-7 card-holo flex flex-col overflow-hidden bg-white">
+          <div className="p-4 bg-slate-50 border-b border-slate-200 font-extrabold text-xs text-slate-800 flex items-center justify-between">
+            <span className="flex items-center gap-1.5"><Award size={16} className="text-amber-500"/> Peringkat detail item / menu paling laku</span>
+            <span className="text-[9px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded border border-amber-200 font-bold">Hitungan Pcs</span>
+          </div>
+          <div className="p-2 flex-1 overflow-y-auto max-h-[300px] custom-scrollbar">
+            <table className="w-full text-sm text-left border-collapse">
+              <thead className="text-[10px] text-slate-400 uppercase border-b bg-white">
+                <tr>
+                  <th className="px-4 py-2 font-bold">Nama menu / Varian</th>
+                  <th className="px-4 py-2 text-center font-bold">Volume terjual</th>
+                  <th className="px-4 py-2 text-right font-bold">Uang dihasilkan</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-xs font-bold bg-white">
+                {analytics.bestSellers.length === 0 ? (
+                  <tr><td colSpan="3" className="text-center py-12 text-slate-400 font-medium">Belum ada rincian produk keluar.</td></tr>
+                ) : (
+                  analytics.bestSellers.map((item, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-4 py-3 text-slate-800 normal-case font-extrabold">{item.name}</td>
+                      <td className="px-4 py-3 text-center whitespace-nowrap"><span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md border border-blue-100">{formatNumber(item.qty)} Pcs</span></td>
+                      <td className="px-4 py-3 text-right text-emerald-600 font-extrabold">{formatRupiah(item.revenue)}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
 
-        {/* 🔥 ADJUST FIX 4: KONDISI FISIK GUDANG PUSAT */}
-        <div className="lg:col-span-4 card-holo p-6 flex flex-col justify-between">
-          <div className="space-y-4">
-            <div className="text-[10px] font-bold text-slate-400 normal-case tracking-wider border-b border-slate-100 pb-2 flex items-center gap-1.5"><Database size={14} className="text-slate-400"/> Kondisi Fisik Gudang Pusat</div>
-            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl">
-              <div className="text-[9px] font-bold text-rose-600 normal-case tracking-wider mb-1">Sisa Daging Ayam Mentah Fillet</div>
-              <div className="text-xl font-extrabold text-slate-800 tracking-tight">{formatNumber(ringkasan.sisaAyamKg)} <span className="text-xs text-slate-400 font-bold">KG</span></div>
-            </div>
-            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl">
-              <div className="text-[9px] font-bold text-blue-600 normal-case tracking-wider mb-1">Sisa Dimsum Frozen Di Freezer</div>
-              <div className="text-xl font-extrabold text-slate-800 tracking-tight">{formatNumber(ringkasan.sisaDimsumPcs)} <span className="text-xs text-slate-400 font-bold">PCS</span></div>
-            </div>
+      </div>
+
+      {/* BRANKAS NERACA KEUANGAN MAKRO UTANG PIUTANG KASBON */}
+      <div className="card-holo overflow-hidden bg-white">
+        <div className="p-4 bg-slate-50 border-b border-slate-200 font-extrabold text-xs text-slate-800 flex items-center gap-1.5">
+          <Wallet size={16} className="text-indigo-600"/> Buku kontrol sisa komitmen keuangan nasional
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 lg:divide-x divide-slate-100 text-center bg-white">
+          <div className="p-5 hover:bg-slate-50/50 transition-colors">
+            <div className="text-[9px] font-bold text-slate-400 mb-1">Total pengeluaran (Cash-out)</div>
+            <div className="text-xl font-extrabold text-red-500 tracking-tight">-{formatRupiah(analytics.cashOut)}</div>
+          </div>
+          <div className="p-5 hover:bg-slate-50/50 transition-colors">
+            <div className="text-[9px] font-bold text-slate-400 mb-1">Total piutang dagang agen</div>
+            <div className="text-xl font-extrabold text-orange-500 tracking-tight">{formatRupiah(analytics.totalPiutang)}</div>
+          </div>
+          <div className="p-5 hover:bg-slate-50/50 transition-colors">
+            <div className="text-[9px] font-bold text-slate-400 mb-1">Total hutang supplier bahan</div>
+            <div className="text-xl font-extrabold text-slate-700 tracking-tight">{formatRupiah(analytics.totalHutang)}</div>
+          </div>
+          <div className="p-5 hover:bg-slate-50/50 transition-colors bg-slate-50/20">
+            <div className="text-[9px] font-bold text-slate-400 mb-1">Total kasbon aktif karyawan</div>
+            <div className="text-xl font-extrabold text-indigo-600 tracking-tight">{formatRupiah(analytics.totalKasbonKaryawan)}</div>
           </div>
         </div>
       </div>
 
-      {/* ========================================== */}
-      {/* 🔥 MODAL POPUP SETTLEMENT KEMBALIAN */}
-      {/* ========================================== */}
-      {settleModal && (
-         <div className="fixed inset-0 bg-slate-900/40 z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-150">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md border border-slate-200 overflow-hidden flex flex-col">
-               
-               <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
-                  <div className="flex items-center gap-2 text-slate-800">
-                     <UserCheck size={16} className="text-red-600"/>
-                     <span className="font-extrabold text-xs normal-case tracking-wide">Tutup Buku Kasbon: {settleModal.employee}</span>
-                  </div>
-                  <button onClick={()=>setSettleModal(null)} className="p-1 text-slate-400 hover:text-slate-600"><X size={16}/></button>
-               </div>
-
-               <div className="p-5 space-y-4 font-bold text-xs text-slate-600">
-                  <div className="bg-red-50 p-4 rounded-xl border border-red-100 flex justify-between items-center">
-                     <span className="normal-case text-[9px] font-bold tracking-wider text-red-800">Sisa Kembalian Wajib Tagih:</span>
-                     <span className="text-base font-extrabold text-red-700">{formatRupiah(settleModal.expected_change)}</span>
-                  </div>
-
-                  <div>
-                     <label className="text-[9px] font-bold text-slate-400 normal-case tracking-wider block mb-1">1. Uang Cash yang Diterima Masuk Laci</label>
-                     <input type="number" value={settleForm.actualReturned} onChange={e=>setSettleForm({...settleForm, actualReturned: e.target.value})} className="w-full p-2.5 border border-slate-200 bg-slate-50 rounded-lg font-bold text-sm outline-none focus:border-red-500 focus:bg-white transition-all" placeholder="Masukkan jumlah cash..." />
-                  </div>
-
-                  <div>
-                     <label className="text-[9px] font-bold text-slate-400 normal-case tracking-wider block mb-1">2. Dijadikan Upah Jalan / Tip Karyawan (Beban Ops)</label>
-                     <input type="number" value={settleForm.upahJalan} onChange={e=>setSettleForm({...settleForm, upahJalan: e.target.value})} className="w-full p-2.5 border border-slate-200 bg-slate-50 rounded-lg font-bold text-sm outline-none focus:border-red-500 focus:bg-white transition-all text-blue-600" placeholder="Rp 0" />
-                  </div>
-
-                  <div>
-                     <label className="text-[9px] font-bold text-slate-400 normal-case tracking-wider block mb-1">3. Pembulatan Ikhlas Kurang Receh (Beban Lainnya)</label>
-                     <input type="number" value={settleForm.pembulatan} onChange={e=>setSettleForm({...settleForm, pembulatan: e.target.value})} className="w-full p-2.5 border border-slate-200 bg-slate-50 rounded-lg font-bold text-sm outline-none focus:border-red-500 focus:bg-white transition-all text-rose-600" placeholder="Rp 0" />
-                  </div>
-
-                  <div className="border-t border-slate-100 pt-4 flex gap-3 mt-2">
-                     <button type="button" onClick={()=>setSettleModal(null)} className="flex-1 py-2.5 bg-slate-100 text-slate-600 rounded-lg font-bold text-xs hover:bg-slate-200 transition-colors normal-case">Batal</button>
-                     <button type="button" onClick={handleExecuteSettlement} className="flex-1 py-2.5 btn-holo rounded-lg text-xs flex items-center justify-center gap-1.5 shadow-sm"><CheckCircle2 size={14}/> Sahkan Buku</button>
-                  </div>
-               </div>
-
-            </div>
-         </div>
-      )}
+      {/* WARNING MONITORING PERSSEDIAAN KRITIS */}
+      <div className="card-holo p-4 border border-slate-200 bg-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-2.5">
+          <AlertCircle className="text-orange-500 shrink-0" size={20}/>
+          <div>
+            <h4 className="text-xs font-extrabold text-slate-800 normal-case">Sistem audit pengawasan terintegrasi aktif</h4>
+            <p className="text-[10px] font-medium text-slate-400 normal-case">Semua grafik di atas terikat otomatis dengan tabel Google Sheets utama tanpa manipulasi.</p>
+          </div>
+        </div>
+        <button type="button" onClick={() => setActiveTab('master_customer')} className="w-full sm:w-auto px-4 py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg text-[10px] font-bold normal-case shadow-xs transition-colors text-center">
+          Buka data master customer →
+        </button>
+      </div>
 
     </div>
   );
