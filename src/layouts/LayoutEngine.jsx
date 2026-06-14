@@ -1,9 +1,25 @@
 import React from 'react';
 import { 
-  Globe, TrendingUp, Building2, ShoppingCart, Layers, 
-  Receipt, BookOpen, Package, Truck, ClipboardCheck, 
-  LogOut, ShieldAlert, Users, Users2, DollarSign, 
-  BarChart3, Database, Scale, History, UserCheck
+  Globe, 
+  TrendingUp, 
+  Building2, 
+  ShoppingCart, 
+  Layers, 
+  Receipt, 
+  BookOpen, 
+  Package, 
+  Truck, 
+  ClipboardCheck, 
+  LogOut, 
+  ShieldAlert, 
+  Users, 
+  DollarSign, 
+  BarChart3, 
+  Database, 
+  Scale, 
+  History, 
+  UserCheck,
+  Coins // 🔥 AMAN! ICON COINS SEKARANG SUDAH DIDAFGARKAN RESMI DI SINI!
 } from 'lucide-react';
 
 export default function LayoutEngine({ children, activeTab, setActiveTab, user, handleLogout }) {
@@ -64,7 +80,6 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
                 <TrendingUp size={16} /> Business Radar
               </button>
 
-              {/* 🔥 MENU BARU GABUNGAN DINAMIS KITA */}
               <button type="button" onClick={() => handleTabChange('monitoring_cabang')}
                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all normal-case ${
                   activeTab === 'monitoring_cabang' ? 'bg-red-50 text-red-600 border border-red-100/50' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
@@ -206,7 +221,7 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all normal-case ${
                   activeTab === 'karyawan' ? 'bg-red-50 text-red-600 border border-red-100/50' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
                 }`}>
-                <Users size={16} /> Manajemen Karyawan
+                <Users size={16} /> Utilitas Karyawan
               </button>
 
               <button type="button" onClick={() => handleTabChange('master_customer')}
