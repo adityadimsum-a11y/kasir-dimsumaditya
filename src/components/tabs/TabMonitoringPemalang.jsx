@@ -129,43 +129,43 @@ export default function TabMonitoringPemalang({ orders = [], orders_data, pemala
           </button>
       </div>
 
-      {/* MONITOR OPERASIONAL LIVE PANTAUAN PEMALANG - DARK GLASSMORPHISM */}
-      <div className="bg-slate-900/80 backdrop-blur-xl rounded-3xl shadow-2xl overflow-hidden border border-white/20 relative text-white">
+      {/* 🔥 REVISI: MONITOR OPERASIONAL LIVE PANTAUAN PEMALANG DIUBAH JADI LIGHT GLASSMORPHISM */}
+      <div className="card-holo rounded-3xl shadow-xl overflow-hidden relative text-slate-800">
           <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-red-500 via-orange-500 to-amber-500"></div>
           
-          <div className="p-5 border-b border-white/10 flex justify-between items-center bg-white/5">
+          <div className="p-5 border-b border-white/50 flex justify-between items-center bg-white/40">
               <div>
-                  <h2 className="text-base font-black text-white flex items-center gap-2 tracking-widest uppercase"><Factory className="text-amber-400"/> PANTAUAN LIVE HASIL DAPUR PRODUKSI (PEMALANG)</h2>
-                  <p className="text-[10px] font-bold text-slate-300 uppercase mt-1">Monitoring otomatis pergerakan adonan dan isi freezer langsung dari server pusat</p>
+                  <h2 className="text-base font-black text-slate-800 flex items-center gap-2 tracking-widest uppercase"><Factory className="text-orange-500"/> PANTAUAN LIVE HASIL DAPUR PRODUKSI (PEMALANG)</h2>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase mt-1">Monitoring otomatis pergerakan adonan dan isi freezer langsung dari server pusat</p>
               </div>
               <div className="text-right hidden sm:block">
-                  <div className="text-xs font-black text-emerald-400 flex items-center justify-end gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span> LIVE DATA SINKRON</div>
+                  <div className="text-xs font-black text-emerald-600 flex items-center justify-end gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span> LIVE DATA SINKRON</div>
               </div>
           </div>
           
-          <div className="grid grid-cols-2 md:grid-cols-5 divide-y md:divide-y-0 md:divide-x divide-white/10 text-center">
-              <div className="p-6 hover:bg-white/5 transition-colors">
-                  <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Adukan Cabang</div>
-                  <div className="text-3xl font-black text-white tracking-tight">{stats.prodPeriode} <span className="text-xs text-amber-400 font-medium">ADK</span></div>
+          <div className="grid grid-cols-2 md:grid-cols-5 divide-y md:divide-y-0 md:divide-x divide-white/50 text-center bg-white/20">
+              <div className="p-6 hover:bg-white/40 transition-colors">
+                  <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Adukan Cabang</div>
+                  <div className="text-3xl font-black text-slate-800 tracking-tight">{stats.prodPeriode} <span className="text-xs text-amber-600 font-bold">ADK</span></div>
               </div>
-              <div className="p-6 hover:bg-white/5 transition-colors">
-                  <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Daging Terpakai</div>
-                  <div className="text-3xl font-black text-white tracking-tight">-{formatNumber(stats.ayamTerpakaiPeriode)} <span className="text-xs text-red-400 font-medium">KG</span></div>
+              <div className="p-6 hover:bg-white/40 transition-colors">
+                  <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Daging Terpakai</div>
+                  <div className="text-3xl font-black text-slate-800 tracking-tight">-{formatNumber(stats.ayamTerpakaiPeriode)} <span className="text-xs text-red-500 font-bold">KG</span></div>
               </div>
-              <div className="p-6 hover:bg-white/5 transition-colors bg-black/20 relative">
-                  <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Sisa Ayam Gudang</div>
-                  <div className="text-3xl font-black text-red-400 tracking-tight">{formatNumber(stats.sisaAyamCabang)} <span className="text-xs text-slate-400 font-medium">KG</span></div>
-                  <div className="text-[8px] font-black text-red-300 bg-red-900/40 px-2 py-0.5 rounded-md border border-red-500/30 mt-2 inline-block uppercase tracking-wider">{formatNumber((stats.sisaAyamCabang / KG_PER_KANTONG).toFixed(0))} Kantong</div>
+              <div className="p-6 hover:bg-white/40 transition-colors bg-white/30 relative">
+                  <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Sisa Ayam Gudang</div>
+                  <div className="text-3xl font-black text-red-600 tracking-tight">{formatNumber(stats.sisaAyamCabang)} <span className="text-xs text-slate-500 font-bold">KG</span></div>
+                  <div className="text-[8px] font-black text-red-700 bg-red-100/80 px-2 py-0.5 rounded-md border border-red-200 mt-2 inline-block uppercase tracking-wider">{formatNumber((stats.sisaAyamCabang / KG_PER_KANTONG).toFixed(0))} Kantong</div>
               </div>
-              <div className="p-6 hover:bg-white/5 transition-colors">
-                  <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Masuk Freezer</div>
-                  <div className="text-3xl font-black text-white tracking-tight">+{formatNumber(stats.dimsumMasukPeriode)} <span className="text-xs text-emerald-400 font-medium">PCS</span></div>
-                  <div className="text-[8px] font-black text-emerald-300 bg-emerald-900/40 px-2 py-0.5 rounded-md border border-emerald-500/30 mt-2 inline-block uppercase tracking-wider">{formatNumber((stats.dimsumMasukPeriode / PCS_PER_MIKA).toFixed(0))} Mika</div>
+              <div className="p-6 hover:bg-white/40 transition-colors">
+                  <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Masuk Freezer</div>
+                  <div className="text-3xl font-black text-slate-800 tracking-tight">+{formatNumber(stats.dimsumMasukPeriode)} <span className="text-xs text-emerald-600 font-bold">PCS</span></div>
+                  <div className="text-[8px] font-black text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-md border border-emerald-200 mt-2 inline-block uppercase tracking-wider">{formatNumber((stats.dimsumMasukPeriode / PCS_PER_MIKA).toFixed(0))} Mika</div>
               </div>
-              <div className="p-6 hover:bg-white/5 transition-colors bg-black/20">
-                  <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Sisa Freezer (Live)</div>
-                  <div className="text-3xl font-black text-emerald-400 tracking-tight">{formatNumber(stats.sisaStokFreezer)} <span className="text-xs text-slate-400 font-medium">PCS</span></div>
-                  <div className="text-[8px] font-black text-emerald-300 bg-emerald-900/40 px-2 py-0.5 rounded-md border border-emerald-500/30 mt-2 inline-block uppercase tracking-wider">{formatNumber((stats.sisaStokFreezer / PCS_PER_MIKA).toFixed(0))} Mika</div>
+              <div className="p-6 hover:bg-white/40 transition-colors bg-white/30">
+                  <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Sisa Freezer (Live)</div>
+                  <div className="text-3xl font-black text-emerald-600 tracking-tight">{formatNumber(stats.sisaStokFreezer)} <span className="text-xs text-slate-500 font-bold">PCS</span></div>
+                  <div className="text-[8px] font-black text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-md border border-emerald-200 mt-2 inline-block uppercase tracking-wider">{formatNumber((stats.sisaStokFreezer / PCS_PER_MIKA).toFixed(0))} Mika</div>
               </div>
           </div>
       </div>
