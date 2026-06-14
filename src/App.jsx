@@ -283,7 +283,8 @@ export default function App() {
   // =====================================
   if (!user) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 relative overflow-hidden">
+      /* 🔥 VAKSIN TRANSPARAN: bg-slate-50 diubah jadi bg-transparent */
+      <div className="min-h-screen bg-transparent flex items-center justify-center p-4 relative overflow-hidden">
         <div className="absolute top-[-10%] left-[-10%] w-[30rem] md:w-[40rem] h-[30rem] md:h-[40rem] bg-red-500 rounded-full mix-blend-multiply filter blur-[100px] opacity-40 animate-pulse"></div>
         <div className="absolute top-[20%] right-[-10%] w-[25rem] md:w-[35rem] h-[25rem] md:h-[35rem] bg-orange-400 rounded-full mix-blend-multiply filter blur-[100px] opacity-40 animate-pulse" style={{ animationDelay: '2s' }}></div>
         <div className="absolute bottom-[-20%] left-[20%] w-[35rem] md:w-[45rem] h-[35rem] md:h-[45rem] bg-yellow-400 rounded-full mix-blend-multiply filter blur-[100px] opacity-30 animate-pulse" style={{ animationDelay: '4s' }}></div>
@@ -336,7 +337,8 @@ export default function App() {
   // UI 2: RENDER APLIKASI
   // =====================================
   return (
-    <div className="fixed inset-0 w-full h-screen overflow-hidden bg-slate-50">
+    /* 🔥 VAKSIN TRANSPARAN: bg-slate-50 diubah jadi bg-transparent */
+    <div className="fixed inset-0 w-full h-screen overflow-hidden bg-transparent">
       <LayoutEngine 
         user={user} 
         activeTab={activeTab} 
