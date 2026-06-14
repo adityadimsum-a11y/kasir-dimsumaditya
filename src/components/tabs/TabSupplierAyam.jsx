@@ -151,7 +151,7 @@ export default function TabSupplierAyam({
         <div className="relative z-10 w-full pl-2">
           <h2 className="text-slate-800 text-lg md:text-xl font-extrabold normal-case flex items-center gap-2">
             <ShieldAlert className="text-red-600" size={20}/> 
-            Buku jantung pabrik: Supplier {CORE_SUPPLIER.toLowerCase()}
+            Supplier Ayam {CORE_SUPPLIER.toLowerCase()}
           </h2>
           <p className="text-[10px] font-semibold text-slate-400 mt-1 normal-case">
             Rekening koran akumulasi hutang daging ayam &amp; histori pembayaran cicilan lintas waktu.
