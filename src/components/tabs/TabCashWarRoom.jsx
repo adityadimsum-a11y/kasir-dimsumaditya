@@ -142,21 +142,22 @@ export default function TabCashWarRoom({
   }, [realOrders, activeBranch]);
 
   return (
-    <div className="space-y-6 pb-10 text-slate-800 animate-in fade-in duration-300">
+    <div className="space-y-6 pb-10 text-slate-700 normal-case">
       
-      {/* PANEL UTAMA SMART WALLET */}
-      <div className="bg-slate-900 rounded-3xl border border-slate-800 shadow-md overflow-hidden">
-        <div className="p-6 md:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-800 bg-slate-950">
-          <div>
-            <h2 className="text-xl font-black text-white tracking-widest uppercase flex items-center gap-2">
-              <Wallet size={24} className="text-emerald-400" /> Dompet &amp; Kas Perusahaan
+      {/* PANEL UTAMA SMART WALLET - FLAT ENTERPRISE STYLE */}
+      <div className="card-holo overflow-hidden flex flex-col">
+        <div className="p-6 md:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-200 bg-slate-50/50 relative">
+          <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-600"></div>
+          <div className="pl-2">
+            <h2 className="text-lg md:text-xl font-extrabold text-slate-800 normal-case flex items-center gap-2">
+              <Wallet size={20} className="text-red-600" /> Dompet &amp; kas perusahaan
             </h2>
-            <p className="text-[11px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Pusat Transparansi Saldo Fisik &amp; Mutasi Rekening</p>
+            <p className="text-[10px] text-slate-500 font-bold normal-case mt-0.5">Pusat transparansi saldo fisik &amp; mutasi rekening</p>
           </div>
 
-          <div className="flex bg-slate-800 p-1 rounded-xl border border-slate-700 w-full md:w-auto overflow-x-auto">
-            {[{ id: 'TODAY', label: 'HARI INI' }, { id: '7_DAYS', label: '7 HARI' }, { id: 'THIS_MONTH', label: 'BULAN INI' }, { id: 'CUSTOM', label: 'KUSTOM' }].map(f => (
-              <button key={f.id} type="button" onClick={() => setDateFilter(f.id)} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap ${dateFilter === f.id ? 'bg-emerald-500 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}>
+          <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-xs w-full md:w-auto overflow-x-auto">
+            {[{ id: 'TODAY', label: 'Hari ini' }, { id: '7_DAYS', label: '7 Hari' }, { id: 'THIS_MONTH', label: 'Bulan ini' }, { id: 'CUSTOM', label: 'Kustom' }].map(f => (
+              <button key={f.id} type="button" onClick={() => setDateFilter(f.id)} className={`px-4 py-2 rounded-lg text-[10px] font-bold normal-case transition-all whitespace-nowrap ${dateFilter === f.id ? 'btn-holo shadow-xs' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}>
                 {f.label}
               </button>
             ))}
@@ -164,88 +165,101 @@ export default function TabCashWarRoom({
         </div>
 
         {dateFilter === 'CUSTOM' && (
-          <div className="bg-slate-800 p-4 border-b border-slate-700 flex flex-wrap gap-4 items-end animate-in fade-in">
+          <div className="bg-white p-4 border-b border-slate-200 flex flex-wrap gap-4 items-end animate-in fade-in">
             <div>
-              <label className="text-[9px] font-black text-slate-400 uppercase block mb-1">Dari Tanggal</label>
-              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-slate-900 border border-slate-700 text-white px-3 py-2 rounded-lg text-xs font-black outline-none" />
+              <label className="text-[9px] font-bold text-slate-500 normal-case block mb-1">Dari tanggal</label>
+              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg text-xs font-bold outline-none focus:border-red-500" />
             </div>
             <div>
-              <label className="text-[9px] font-black text-slate-400 uppercase block mb-1">Sampai Tanggal</label>
-              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-slate-900 border border-slate-700 text-white px-3 py-2 rounded-lg text-xs font-black outline-none" />
+              <label className="text-[9px] font-bold text-slate-500 normal-case block mb-1">Sampai tanggal</label>
+              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-slate-50 border border-slate-200 text-slate-800 px-3 py-2 rounded-lg text-xs font-bold outline-none focus:border-red-500" />
             </div>
           </div>
         )}
 
-        <div className="p-6 md:p-8 grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-900">
-          <div className="bg-slate-800/60 p-5 rounded-2xl border border-slate-700 shadow-sm relative overflow-hidden">
-            <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest flex items-center gap-1.5 mb-1"><Banknote size={12}/> Uang Tunai / Laci Kasir</div>
-            <div className="text-2xl font-black text-white tracking-tight">{formatRupiah(walletBalance.saldoCash)}</div>
-            <div className="mt-4 flex gap-3 text-[9px] font-bold text-slate-400 uppercase">
-              <span className="text-emerald-400">Total Arus Masuk: {formatRupiah(walletBalance.totalMasuk)}</span>
+        <div className="p-6 md:p-8 grid grid-cols-1 md:grid-cols-3 gap-6 bg-white">
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden flex flex-col justify-between hover:border-emerald-300 transition-colors">
+            <div>
+              <div className="text-[10px] font-bold text-slate-500 normal-case flex items-center gap-1.5 mb-1"><Banknote size={14} className="text-emerald-500"/> Uang tunai / Laci kasir</div>
+              <div className="text-2xl font-black text-slate-800 tracking-tight">{formatRupiah(walletBalance.saldoCash)}</div>
+            </div>
+            <div className="mt-4 text-[9px] font-bold text-slate-400 normal-case pt-3 border-t border-slate-100">
+              <span className="text-emerald-600">Total arus masuk: {formatRupiah(walletBalance.totalMasuk)}</span>
             </div>
           </div>
 
-          <div className="bg-slate-800/60 p-5 rounded-2xl border border-slate-700 shadow-sm relative overflow-hidden">
-            <div className="text-[10px] font-black text-blue-400 uppercase tracking-widest flex items-center gap-1.5 mb-1"><CreditCard size={12}/> Saldo Rekening Bank</div>
-            <div className="text-2xl font-black text-white tracking-tight">{formatRupiah(walletBalance.saldoBank)}</div>
-            <div className="text-[9px] text-slate-500 font-black mt-4 uppercase tracking-wider">*Uang digital masuk via Transfer Bank / QRIS</div>
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden flex flex-col justify-between hover:border-blue-300 transition-colors">
+            <div>
+              <div className="text-[10px] font-bold text-slate-500 normal-case flex items-center gap-1.5 mb-1"><CreditCard size={14} className="text-blue-500"/> Saldo rekening bank</div>
+              <div className="text-2xl font-black text-slate-800 tracking-tight">{formatRupiah(walletBalance.saldoBank)}</div>
+            </div>
+            <div className="text-[9px] text-slate-400 font-medium mt-4 normal-case pt-3 border-t border-slate-100">
+              *Uang digital masuk via transfer bank / QRIS
+            </div>
           </div>
 
-          <div className="bg-gradient-to-br from-emerald-600 to-teal-800 p-5 rounded-2xl border border-emerald-500 shadow-md">
-            <div className="text-[10px] font-black text-emerald-100 uppercase tracking-widest mb-1">Total Likuiditas Tunai Siap Cair</div>
-            <div className="text-3xl font-black text-white tracking-tight">{formatRupiah(walletBalance.totalNet)}</div>
-            <div className="mt-4 text-[9px] font-black uppercase text-emerald-100 bg-black/20 px-2.5 py-1 rounded-md w-max">Kas Konsolidasi</div>
+          <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between relative overflow-hidden">
+            <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-emerald-500 to-teal-500"></div>
+            <div className="pl-2">
+              <div className="text-[10px] font-bold text-slate-500 normal-case mb-1">Total likuiditas tunai siap cair</div>
+              <div className="text-3xl font-black text-slate-900 tracking-tight">{formatRupiah(walletBalance.totalNet)}</div>
+            </div>
+            <div className="mt-4 pl-2 text-[9px] font-extrabold normal-case text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md w-max border border-emerald-100">
+              Kas konsolidasi
+            </div>
           </div>
         </div>
       </div>
 
       {/* 💼 ALOKASI REKENING 4 AMPLOP VIRTUAL */}
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
+      <div className="card-holo p-6 md:p-8">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6 border-b border-slate-100 pb-4">
           <div>
-            <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2">
-              <Wallet size={16} className="text-indigo-600"/> Alokasi Brankas 4 Amplop Virtual (Siklus 2 Minggu)
+            <h3 className="text-xs font-extrabold text-slate-800 normal-case flex items-center gap-2">
+              <Wallet size={16} className="text-red-600"/> Alokasi brankas 4 amplop virtual (Siklus 2 minggu)
             </h3>
-            <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">Membelah omset kasir riil nasional mengikuti maklumat core nyawa</p>
+            <p className="text-[10px] text-slate-500 font-medium normal-case mt-1">Membelah omset kasir riil nasional mengikuti maklumat core nyawa</p>
           </div>
-          <span className="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-100 px-3 py-1.5 rounded-xl font-black uppercase">Omzet Berjalan: {formatRupiah(envelopeMetrics.total)}[cite: 1]</span>
+          <span className="text-[10px] bg-red-50 text-red-700 border border-red-100 px-3 py-1.5 rounded-lg font-bold normal-case shadow-xs">
+            Omzet berjalan: {formatRupiah(envelopeMetrics.total)}
+          </span>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {/* AMPLOP 1 */}
-          <div className="bg-rose-50/50 border border-rose-200 p-5 rounded-2xl border-t-4 border-t-rose-500">
-            <div className="text-[10px] font-black text-rose-500 uppercase tracking-widest mb-1">1. Jatah Kas Ayam (55%)[cite: 1]</div>
-            <div className="text-xl font-black text-rose-700 tracking-tight">{formatRupiah(envelopeMetrics.amp1)}[cite: 1]</div>
-            <div className="text-[8px] font-bold text-slate-400 uppercase mt-2">🔒 Rekening Khususs Supplier Nana Ayam[cite: 1]</div>
+          <div className="bg-slate-50 border border-slate-200 p-5 rounded-2xl border-t-4 border-t-red-500 shadow-xs">
+            <div className="text-[10px] font-bold text-slate-500 normal-case mb-1">1. Jatah kas ayam (55%)</div>
+            <div className="text-xl font-black text-red-600 tracking-tight">{formatRupiah(envelopeMetrics.amp1)}</div>
+            <div className="text-[8px] font-semibold text-slate-400 normal-case mt-2 pt-2 border-t border-slate-200">🔒 Rekening khusus supplier Nana Ayam</div>
           </div>
           
           {/* AMPLOP 2 */}
-          <div className="bg-blue-50/50 border border-blue-200 p-5 rounded-2xl space-y-2 border-t-4 border-t-blue-500">
+          <div className="bg-slate-50 border border-slate-200 p-5 rounded-2xl space-y-2 border-t-4 border-t-blue-500 shadow-xs flex flex-col justify-between">
             <div className="flex justify-between items-center">
-              <div className="text-[10px] font-black text-blue-500 uppercase tracking-widest">2. Ops &amp; Gaji (20%)[cite: 1]</div>
-              <div className="text-[8px] font-black px-1.5 py-0.5 rounded bg-white border border-blue-100 uppercase text-blue-700">
-                {envelopeMetrics.statusGaji === 'AMAN_RESERVE' ? '🟢 AMAN +1 BULAN' : '🟡 CUKUP BULAN INI'}[cite: 1]
+              <div className="text-[10px] font-bold text-slate-500 normal-case">2. Ops &amp; Gaji (20%)</div>
+              <div className="text-[8px] font-bold px-1.5 py-0.5 rounded-md bg-white border border-slate-200 normal-case text-slate-600 shadow-xs">
+                {envelopeMetrics.statusGaji === 'AMAN_RESERVE' ? '🟢 Aman +1 bulan' : '🟡 Cukup bulan ini'}
               </div>
             </div>
-            <div className="text-xl font-black text-blue-700 tracking-tight">{formatRupiah(envelopeMetrics.amp2)}[cite: 1]</div>
-            <div className="w-full bg-slate-200 h-1 rounded-full overflow-hidden">
+            <div className="text-xl font-black text-blue-600 tracking-tight">{formatRupiah(envelopeMetrics.amp2)}</div>
+            <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden mt-2">
               <div className="h-full bg-blue-500 transition-all" style={{ width: `${Math.min(100, (envelopeMetrics.amp2 / envelopeMetrics.target) * 100)}%` }}></div>
             </div>
           </div>
 
           {/* AMPLOP 3 */}
-          <div className="bg-amber-50/50 border border-amber-200 p-5 rounded-2xl border-t-4 border-t-amber-500">
-            <div className="text-[10px] font-black text-amber-500 uppercase tracking-widest mb-1">3. Jaga-jaga Pabrik (10%)[cite: 1]</div>
-            <div className="text-xl font-black text-amber-700 tracking-tight">{formatRupiah(envelopeMetrics.amp3)}[cite: 1]</div>
-            <div className="text-[8px] font-bold text-slate-400 uppercase mt-2">🚨 Servis Kompresor &amp; Freezer[cite: 1]</div>
+          <div className="bg-slate-50 border border-slate-200 p-5 rounded-2xl border-t-4 border-t-amber-500 shadow-xs">
+            <div className="text-[10px] font-bold text-slate-500 normal-case mb-1">3. Jaga-jaga pabrik (10%)</div>
+            <div className="text-xl font-black text-amber-600 tracking-tight">{formatRupiah(envelopeMetrics.amp3)}</div>
+            <div className="text-[8px] font-semibold text-slate-400 normal-case mt-2 pt-2 border-t border-slate-200">🚨 Servis kompresor &amp; freezer</div>
           </div>
 
           {/* AMPLOP 4 */}
-          <div className="bg-emerald-50 border border-emerald-200 p-5 rounded-2xl border-t-4 border-t-emerald-500">
-            <div className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">4. Profit Bersih Owner (15%)[cite: 1]</div>
-            <div className="text-xl font-black text-emerald-700 tracking-tight">{formatRupiah(envelopeMetrics.amp4)}[cite: 1]</div>
-            <div className="text-[8px] font-black text-emerald-600 bg-white px-1.5 py-0.5 rounded border border-emerald-100 mt-2 uppercase tracking-wide">
-               👉 Aman Masuk Rekening Pribadi[cite: 1]
+          <div className="bg-slate-50 border border-slate-200 p-5 rounded-2xl border-t-4 border-t-emerald-500 shadow-xs">
+            <div className="text-[10px] font-bold text-slate-500 normal-case mb-1">4. Profit bersih owner (15%)</div>
+            <div className="text-xl font-black text-emerald-600 tracking-tight">{formatRupiah(envelopeMetrics.amp4)}</div>
+            <div className="text-[8px] font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded border border-emerald-100 mt-2 normal-case flex items-center gap-1 w-max">
+                <CheckCircle2 size={10}/> Aman masuk rekening pribadi
             </div>
           </div>
         </div>
@@ -255,17 +269,17 @@ export default function TabCashWarRoom({
       <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
         <div className="relative w-full md:w-80">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-          <input type="text" placeholder="Cari bukti mutasi kas..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-3 rounded-2xl border border-slate-200 text-xs font-bold uppercase outline-none bg-white focus:border-emerald-400 shadow-sm" />
+          <input type="text" placeholder="Cari bukti mutasi kas..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold normal-case outline-none bg-white focus:border-red-500 shadow-sm transition-colors" />
         </div>
         
-        <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-2xl border border-slate-200 shadow-sm w-full md:w-auto">
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Pilih Cabang / Node:</span>
-          <select value={activeBranch} onChange={e => setActiveBranch(e.target.value)} className="bg-slate-50 text-xs font-black uppercase text-slate-700 py-2 px-3 outline-none cursor-pointer rounded-xl border border-slate-200/50">
-            <option value="ALL_BRANCHES">🌍 NASIONAL (GABUNGAN SELURUH CABANG)</option>
-            <option value="TANGERANG_PUSAT">🏢 TANGERANG PUSAT</option>
+        <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm w-full md:w-auto">
+          <span className="text-[10px] font-bold text-slate-500 normal-case">Pilih cabang / node:</span>
+          <select value={activeBranch} onChange={e => setActiveBranch(e.target.value)} className="bg-slate-50 text-xs font-bold normal-case text-slate-800 py-1.5 px-3 outline-none cursor-pointer rounded-lg border border-slate-200">
+            <option value="ALL_BRANCHES">🌍 Nasional (Gabungan seluruh cabang)</option>
+            <option value="TANGERANG_PUSAT">🏢 Tangerang Pusat</option>
             {dynamicBranchOptions.filter(b => b.id !== 'TANGERANG_PUSAT' && b.id !== 'PUSAT').map(b => (
               <option key={b.id} value={b.id}>
-                {b.type === 'PRODUCTION_BRANCH' ? '🏭' : '🏪'} {b.name.toUpperCase()}
+                {b.type === 'PRODUCTION_BRANCH' ? '🏭' : '🏪'} {b.name}
               </option>
             ))}
           </select>
@@ -273,63 +287,63 @@ export default function TabCashWarRoom({
       </div>
 
       {/* TABEL REKENING KORAN MUTASI KONSOLIDASI */}
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-        <div className="p-5 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-          <h4 className="font-black text-xs uppercase text-slate-800 tracking-widest flex items-center gap-2"><ArrowRightLeft size={14} className="text-blue-500"/> Jurnal Catatan Koran Mutasi Kas</h4>
-          <span className="text-[9px] font-black text-slate-500 bg-white px-2.5 py-1 rounded-md border border-slate-200 shadow-sm uppercase tracking-wider">VOLUME: {filteredMutasi.length} BARIS MUTASI</span>
+      <div className="card-holo flex flex-col overflow-hidden">
+        <div className="p-5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+          <h4 className="font-extrabold text-xs normal-case text-slate-800 flex items-center gap-2"><ArrowRightLeft size={16} className="text-red-600"/> Jurnal catatan koran mutasi kas</h4>
+          <span className="text-[9px] font-bold text-slate-500 bg-white px-2.5 py-1 rounded-md border border-slate-200 shadow-xs normal-case">Volume: {filteredMutasi.length} baris mutasi</span>
         </div>
         
-        <div className="overflow-x-auto flex-1 custom-scrollbar">
+        <div className="overflow-x-auto flex-1 custom-scrollbar min-h-[50vh]">
           <table className="w-full text-sm text-left border-collapse">
-            <thead className="text-[10px] uppercase text-slate-400 bg-white border-b border-slate-200">
+            <thead className="text-[10px] normal-case text-slate-500 bg-slate-50/50 border-b border-slate-200 sticky top-0 shadow-xs">
               <tr>
-                <th className="px-5 py-3 font-black">Nota &amp; Waktu</th>
-                <th className="px-5 py-3 font-black">Kategori Buku</th>
-                <th className="px-5 py-3 font-black">Deskripsi Aliran Kas</th>
-                <th className="px-5 py-4 font-black text-center">Metode</th>
-                <th className="px-5 py-3 font-black text-right">Uang Masuk</th>
-                <th className="px-5 py-3 font-black text-right">Uang Keluar</th>
+                <th className="px-5 py-4 font-bold">Nota &amp; waktu</th>
+                <th className="px-5 py-4 font-bold">Kategori buku</th>
+                <th className="px-5 py-4 font-bold min-w-[250px]">Deskripsi aliran kas</th>
+                <th className="px-5 py-4 font-bold text-center">Metode</th>
+                <th className="px-5 py-4 font-bold text-right">Uang masuk</th>
+                <th className="px-5 py-4 font-bold text-right">Uang keluar</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-xs font-bold">
+            <tbody className="divide-y divide-slate-100 text-xs font-bold bg-white">
               {filteredMutasi.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="text-center py-20 text-slate-400 bg-slate-50">
+                  <td colSpan="6" className="text-center py-24 text-slate-400 bg-white">
                     <div className="flex flex-col items-center justify-center">
-                      <ArrowRightLeft size={36} className="mb-2 opacity-20"/>
-                      <span className="font-black uppercase tracking-widest text-xs">Tidak ada pergerakan kas pada filter periode ini.</span>
+                      <ArrowRightLeft size={40} className="mb-3 opacity-20"/>
+                      <span className="font-bold normal-case text-sm">Tidak ada pergerakan kas pada filter periode ini.</span>
                     </div>
                   </td>
                 </tr>
               ) : (
                 filteredMutasi.map((trx, idx) => (
-                  <tr key={`${trx.id}-${idx}`} className="hover:bg-blue-50/40 transition-colors group">
+                  <tr key={`${trx.id}-${idx}`} className="hover:bg-slate-50 transition-colors group">
                     <td className="px-5 py-4 whitespace-nowrap">
-                      <div className="text-slate-800 font-black">{formatDate(trx.date)}</div>
+                      <div className="text-slate-800 font-bold">{formatDate(trx.date)}</div>
                       <div className="text-[9px] font-mono text-slate-400 mt-1">{trx.id}</div>
                     </td>
                     <td className="px-5 py-4 whitespace-nowrap">
-                      <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase ${trx.type === 'IN' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm' : 'bg-rose-50 text-rose-700 border border-rose-200 shadow-sm'}`}>
-                        {trx.category}
+                      <span className={`px-2.5 py-1 rounded-md text-[9px] font-bold normal-case border shadow-xs ${trx.type === 'IN' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+                        {trx.category.replace(/_/g, ' ').toLowerCase()}
                       </span>
                     </td>
                     <td className="px-5 py-4">
-                      <div className="text-slate-700 uppercase font-black text-xs line-clamp-1 group-hover:text-blue-700 transition-colors">{trx.description}</div>
-                      <div className="text-[8px] text-slate-400 font-black mt-1 uppercase tracking-wider">CABANG: {trx.branch_id?.replace('_', ' ')}</div>
+                      <div className="text-slate-800 normal-case font-bold text-xs line-clamp-2 group-hover:text-red-600 transition-colors leading-relaxed">{trx.description}</div>
+                      <div className="text-[9px] text-slate-400 font-medium mt-1 normal-case">Cabang: {trx.branch_id?.replace('_', ' ')}</div>
                     </td>
                     <td className="px-5 py-4 text-center whitespace-nowrap">
-                      <span className="text-[9px] font-black uppercase text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded shadow-sm">
-                        {trx.method}
+                      <span className="text-[9px] font-bold normal-case text-slate-600 bg-slate-100 border border-slate-200 px-2 py-1 rounded-md shadow-xs">
+                        {trx.method.replace(/_/g, ' ')}
                       </span>
                     </td>
                     <td className="px-5 py-4 text-right whitespace-nowrap">
                       {trx.type === 'IN' ? (
-                        <span className="text-emerald-600 font-black text-sm flex items-center justify-end gap-1"><ArrowDownToLine size={12}/> {formatRupiah(trx.amount)}</span>
+                        <span className="text-emerald-600 font-extrabold text-sm flex items-center justify-end gap-1"><ArrowDownToLine size={12}/> {formatRupiah(trx.amount)}</span>
                       ) : <span className="text-slate-300">-</span>}
                     </td>
                     <td className="px-5 py-4 text-right whitespace-nowrap">
                        {trx.type === 'OUT' ? (
-                        <span className="text-rose-600 font-black text-sm flex items-center justify-end gap-1"><ArrowUpRight size={12}/> {formatRupiah(trx.amount)}</span>
+                        <span className="text-red-600 font-extrabold text-sm flex items-center justify-end gap-1"><ArrowUpRight size={12}/> {formatRupiah(trx.amount)}</span>
                       ) : <span className="text-slate-300">-</span>}
                     </td>
                   </tr>
