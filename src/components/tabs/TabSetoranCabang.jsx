@@ -16,21 +16,21 @@ export default function TabSetoranCabang({
   const todayStr = getTodayStr();
   const currentBranch = (user?.branch_id === 'PUSAT' || !user?.branch_id) ? 'TANGERANG_PUSAT' : user?.branch_id;
   
-  // 🔥 GEMBOK UTAMA PUSAT vs CABANG
+  // 🔥 GEMBOK UTAMA ROLE: Cek apakah yang login adalah Admin Pusat/HQ
   const isHQ = user?.branch_type === 'HQ_FACTORY' || user?.branch_id === 'PUSAT' || currentBranch === 'TANGERANG_PUSAT';
 
-  // SINKRONISASI DATABASE
+  // SINKRONISASI DATABASE 100% SINGLE SOURCE OF TRUTH
   const realOrders = useMemo(() => orders_data || orders || [], [orders, orders_data]);
   const realExpenses = useMemo(() => expenses_data || expenses || [], [expenses, expenses_data]);
   const realSettlements = useMemo(() => branch_settlements_data || branch_settlements || [], [branch_settlements, branch_settlements_data]);
 
-  // STATE FORM INPUT UNTUK CABANG
+  // STATE FORM INPUT KHUSUS CABANG
   const [cashInHand, setCashInHand] = useState('');
   const [amountSent, setAmountSent] = useState('');
   const [method, setMethod] = useState('TRANSFER_BCA_PUSAT');
   const [notes, setNotes] = useState('');
 
-  // --- ENGINE HITUNG KAS EOD INTERNAL ---
+  // --- ENGINE HITUNG KAS EOD INTERNAL CABANG ---
   const eodCalculation = useMemo(() => {
     let tunaiLunas = 0;
     let bebanKeluar = 0;
@@ -51,11 +51,11 @@ export default function TabSetoranCabang({
       }
     });
 
-    const ekspektasiLaci = Math.max(0, tunaiLunas - borderKeluar);
+    const ekspektasiLaci = Math.max(0, tunaiLunas - bebanKeluar);
     return { tunaiLunas, bebanKeluar, ekspektasiLaci };
   }, [realOrders, realExpenses, currentBranch, todayStr]);
 
-  // --- ACTIONS: SUBMIT SETORAN (Hanya Bisa Diisi Cabang) ---
+  // --- ACTIONS: SUBMIT BERKAS (Hanya Bisa Diisi Oleh Cabang) ---
   const handleKirimSetoran = async (e) => {
     e.preventDefault();
     if (!amountSent || Number(amountSent) <= 0) return alert("Nominal uang disetor harus valid!");
@@ -75,7 +75,7 @@ export default function TabSetoranCabang({
     };
 
     if (await sendToSheet('insert', payload, 'branch_settlements')) {
-      showToast("Berkas setoran berhasil dikirim! Menunggu verifikasi bos pusat.", "success");
+      showToast("Berkas laporan setoran berhasil dikirim ke Pusat!", "success");
       setCashInHand(''); setAmountSent(''); setNotes('');
     }
   };
@@ -92,11 +92,11 @@ export default function TabSetoranCabang({
     };
 
     if (await sendToSheet('update', payload, 'branch_settlements')) {
-      showToast(`Setoran cabang berhasil ${statusBaru === 'DI_SETUJUI' ? 'disahkan masuk brankas!' : 'ditolak!'}`, 'success');
+      showToast(`Setoran cabang resmi ${statusBaru === 'DI_SETUJUI' ? 'disahkan masuk pembukuan!' : 'ditolak balik!'}`, 'success');
     }
   };
 
-  // Filter List Riwayat Tampilan
+  // Filter Tampilan Berkas Sesuai Hak Akses Radar
   const displayedSettlements = useMemo(() => {
     if (isHQ) {
       return realSettlements.filter(s => !s.isDeleted).reverse();
@@ -107,14 +107,14 @@ export default function TabSetoranCabang({
   return (
     <div className="space-y-6 pb-10 text-slate-700 normal-case animate-in fade-in duration-200">
       
-      {/* HEADER TAB */}
-      <div className="card-holo p-5 bg-white border border-slate-200 flex justify-between items-center">
+      {/* HEADER BAR STATUS */}
+      <div className="card-holo p-5 bg-white border border-slate-200 flex justify-between items-center shadow-2xs">
         <div>
           <h2 className="text-sm font-extrabold text-slate-800 normal-case flex items-center gap-2">
             <Coins className="text-blue-600" size={18}/> Closing &amp; settlement node harian
           </h2>
           <p className="text-[10px] font-bold text-slate-400 normal-case mt-0.5">
-            {isHQ ? 'Otoritas Validasi Pusat: Rekapitulasi berkas setoran masuk dari seluruh outlet cabang nasional.' : `Mengunci pembukuan harian laci kasir cabang ${currentBranch}.`}
+            {isHQ ? 'Otoritas Komando Pusat: Pemeriksaan lembar fisik kliring setoran dari kulkas laci cabang.' : `Rekapitulasi berkas laci kasir harian cabang ${currentBranch}.`}
           </p>
         </div>
       </div>
@@ -122,49 +122,52 @@ export default function TabSetoranCabang({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
         {/* KIRI (5 KOLOM): KALKULASI SISTEM AUTOMATIS (Hanya Relevan buat Cabang) */}
-        <div className="lg:col-span-5 card-holo p-5 bg-white border border-slate-200">
-          <h3 className="text-xs font-black text-slate-800 normal-case mb-4 flex items-center gap-1.5"><FileText size={14}/> Kalkulasi sistem EOD (Hari ini)</h3>
-          <div className="space-y-4">
-            <div className="border-b pb-3">
-              <span className="text-[10px] font-bold text-slate-400 block normal-case">Penjualan tunai bersih laci</span>
-              <span className="text-lg font-extrabold text-slate-800">{formatRupiah(eodCalculation.tunaiLunas)}</span>
+        <div className="lg:col-span-5 card-holo p-5 bg-white border border-slate-200 shadow-2xs flex flex-col justify-between">
+          <div>
+            <h3 className="text-xs font-black text-slate-800 normal-case mb-4 flex items-center gap-1.5"><FileText size={14}/> Kalkulasi sistem EOD (Hari ini)</h3>
+            <div className="space-y-4">
+              <div className="border-b pb-3">
+                <span className="text-[10px] font-bold text-slate-400 block normal-case">Penjualan tunai bersih laci</span>
+                <span className="text-lg font-extrabold text-slate-800">{formatRupiah(eodCalculation.tunaiLunas)}</span>
+              </div>
+              <div className="border-b pb-3">
+                <span className="text-[10px] font-bold text-slate-400 block normal-case">Total beban keluar cabang</span>
+                <span className="text-lg font-extrabold text-red-500">-{formatRupiah(eodCalculation.bebanKeluar)}</span>
+              </div>
             </div>
-            <div className="border-b pb-3">
-              <span className="text-[10px] font-bold text-slate-400 block normal-case">Total beban keluar cabang</span>
-              <span className="text-lg font-extrabold text-red-500">-{formatRupiah(eodCalculation.bebanKeluar)}</span>
-            </div>
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-              <span className="text-[10px] font-bold text-slate-500 block normal-case">Ekspektasi uang fisik wajib ada</span>
-              <span className="text-xl font-black text-blue-600">{formatRupiah(eodCalculation.ekspektasiLaci)}</span>
-            </div>
+          </div>
+          
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 mt-4">
+            <span className="text-[10px] font-bold text-slate-500 block normal-case">Ekspektasi uang fisik wajib ada</span>
+            <span className="text-xl font-black text-blue-600">{formatRupiah(eodCalculation.ekspektasiLaci)}</span>
           </div>
         </div>
 
-        {/* KANAN (7 KOLOM): DYNAMIC HUB (IF HQ -> APPROVAL PANEL, IF OUTLET -> FORM INPUT) */}
+        {/* KANAN (7 KOLOM): SMART SWITCH (IF HQ -> ANTRIAN APPROVAL, IF BRANCH -> FORM INPUT) */}
         <div className="lg:col-span-7">
           {isHQ ? (
-            /* 🔥 PANEL UTAMA PUSAT: RIWAYAT & APPROVAL SETORAN CABANG YANG PENDING */
-            <div className="card-holo p-5 bg-white border border-slate-200 h-full overflow-hidden flex flex-col">
+            /* 🔥 DISPLAY PUSAT: DAFTAR ANTREAN VALIDASI BERKAS MASUK */
+            <div className="card-holo p-5 bg-white border border-slate-200 h-full overflow-hidden flex flex-col shadow-2xs">
               <h3 className="text-xs font-black text-slate-800 normal-case mb-3 flex items-center gap-1.5"><Landmark size={14} className="text-blue-600"/> Meja antrean validasi setoran cabang masuk</h3>
               <div className="flex-1 overflow-y-auto space-y-3 custom-scrollbar max-h-[350px] pr-1">
                 {displayedSettlements.filter(s => s.status === 'PENDING_VALIDASI').length === 0 ? (
-                  <div className="text-center py-12 text-slate-400 text-xs font-bold normal-case flex flex-col items-center justify-center">
-                    <CheckCircle2 size={32} className="text-emerald-500 mb-2 opacity-40"/>
-                    Semua setoran cabang sudah rapi divalidasi!
+                  <div className="text-center py-16 text-slate-400 text-xs font-bold normal-case flex flex-col items-center justify-center h-full">
+                    <CheckCircle2 size={36} className="text-emerald-500 mb-2 opacity-30"/>
+                    Semua laporan kliring setoran cabang sudah rapi divalidasi, Bos!
                   </div>
                 ) : (
                   displayedSettlements.filter(s => s.status === 'PENDING_VALIDASI').map(item => (
-                    <div key={item.id} className="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:border-blue-300 transition-all">
+                    <div key={item.id} className="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:border-blue-300 transition-all shadow-2xs">
                       <div>
                         <div className="text-[9px] font-bold text-slate-400">{formatDate(item.date)} • ID: {item.id}</div>
-                        <div className="text-xs font-black text-slate-800 uppercase mt-0.5">Cabang: {item.branch_id.replace(/_/g, ' ')}</div>
+                        <div className="text-xs font-black text-slate-800 uppercase mt-0.5">Asal: {item.branch_id.replace(/_/g, ' ')}</div>
                         <div className="text-lg font-black text-blue-600 my-1">{formatRupiah(item.nominal)}</div>
-                        <div className="text-[10px] font-bold text-slate-500 normal-case">Metode: <span className="text-slate-800 font-extrabold">{item.method.replace(/_/g, ' ')}</span></div>
-                        <div className="text-[10px] font-medium text-slate-400 normal-case mt-1 italic">Memo cabang: "{item.notes}"</div>
+                        <div className="text-[10px] font-bold text-slate-500 normal-case">Jalur: <span className="text-slate-800 font-extrabold">{item.method.replace(/_/g, ' ')}</span></div>
+                        <div className="text-[10px] font-medium text-slate-400 normal-case mt-1 italic">Catatan toko: "{item.notes}"</div>
                       </div>
                       <div className="flex gap-2 w-full sm:w-auto shrink-0">
-                        <button type="button" onClick={() => handleValidasiPusat(item, 'DI_TOLAK')} className="p-2.5 bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-600 hover:text-white transition-colors" title="Tolak Berkas"><XCircle size={16}/></button>
-                        <button type="button" onClick={() => handleValidasiPusat(item, 'DI_SETUJUI')} className="flex-1 sm:flex-none bg-emerald-600 text-white font-bold text-xs px-4 py-2.5 rounded-lg hover:bg-emerald-700 shadow-xs transition-colors normal-case">Sahkan Setoran</button>
+                        <button type="button" onClick={() => handleValidasiPusat(item, 'DI_TOLAK')} className="p-2.5 bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-600 hover:text-white transition-colors cursor-pointer" title="Tolak Berkas"><XCircle size={16}/></button>
+                        <button type="button" onClick={() => handleValidasiPusat(item, 'DI_SETUJUI')} className="flex-1 sm:flex-none bg-emerald-600 text-white font-black text-xs px-4 py-2.5 rounded-lg hover:bg-emerald-700 shadow-xs transition-colors normal-case cursor-pointer">Sahkan Setoran</button>
                       </div>
                     </div>
                   ))
@@ -172,18 +175,18 @@ export default function TabSetoranCabang({
               </div>
             </div>
           ) : (
-            /* 🏪 PANEL OUTLET: FORM LEMBAR INPUT SETORAN KASIR */
-            <div className="card-holo p-5 bg-white border border-slate-200 shadow-xs">
+            /* 🏪 DISPLAY OUTLET: FORM INPUT SETORAN KASIR TOKO */
+            <div className="card-holo p-5 bg-white border border-slate-200 shadow-2xs">
               <h3 className="text-xs font-black text-slate-800 normal-case mb-4 flex items-center gap-1.5"><ArrowDownRight size={16} className="text-blue-600"/> Lembar setoran cabang (Menunggu validasi pusat)</h3>
               <form onSubmit={handleKirimSetoran} className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-[9px] font-bold text-slate-500 block mb-1">1. Hitung uang fisik riil di laci</label>
-                    <input type="text" value={cashInHand ? Number(cashInHand).toLocaleString('id-ID') : ''} onChange={e=>setCashInHand(e.target.value.replace(/\D/g, ''))} className="w-full p-2.5 bg-slate-50 border rounded-lg font-bold text-xs" placeholder="Rp 0" />
+                    <input type="text" value={cashInHand ? Number(cashInHand).toLocaleString('id-ID') : ''} onChange={e=>setCashInHand(e.target.value.replace(/\D/g, ''))} className="w-full p-2.5 bg-slate-50 border rounded-lg font-bold text-xs shadow-inner" placeholder="Rp 0" />
                   </div>
                   <div>
                     <label className="text-[9px] font-bold text-slate-500 block mb-1">2. Nominal uang disetor/transfer</label>
-                    <input type="text" required value={amountSent ? Number(amountSent).toLocaleString('id-ID') : ''} onChange={e=>setAmountSent(e.target.value.replace(/\D/g, ''))} className="w-full p-2.5 bg-slate-50 border border-blue-200 rounded-lg font-black text-xs text-blue-700 focus:bg-white" placeholder="Rp 0" />
+                    <input type="text" required value={amountSent ? Number(amountSent).toLocaleString('id-ID') : ''} onChange={e=>setAmountSent(e.target.value.replace(/\D/g, ''))} className="w-full p-2.5 bg-slate-50 border border-blue-200 rounded-lg font-black text-xs text-blue-700 focus:bg-white shadow-inner" placeholder="Rp 0" />
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -197,10 +200,10 @@ export default function TabSetoranCabang({
                   </div>
                   <div>
                     <label className="text-[9px] font-bold text-slate-500 block mb-1">Catatan tambahan transaksi</label>
-                    <input type="text" value={notes} onChange={e=>setNotes(e.target.value)} className="w-full p-2.5 bg-slate-50 border rounded-lg text-xs" placeholder="Contoh: Titip lewat supir DO, dll..." />
+                    <input type="text" value={notes} onChange={e=>setNotes(e.target.value)} className="w-full p-2.5 bg-slate-50 border rounded-lg text-xs" placeholder="Contoh: Titip lewat supir DO, transfer lunas..." />
                   </div>
                 </div>
-                <button type="submit" className="w-full bg-red-600 text-white font-bold py-3 rounded-lg text-xs hover:bg-red-700 shadow-md transition-colors normal-case">
+                <button type="submit" className="w-full bg-red-600 text-white font-bold py-3 rounded-lg text-xs hover:bg-red-700 shadow-md transition-colors normal-case cursor-pointer">
                   Kirim setoran &amp; tunggu validasi pusat
                 </button>
               </form>
@@ -210,8 +213,8 @@ export default function TabSetoranCabang({
 
       </div>
 
-      {/* MONITORING LIST GLOBAL (BISA DILIHAT KEDUA PIHAK) */}
-      <div className="card-holo overflow-hidden bg-white border border-slate-200">
+      {/* HISTORI TRACKING KEUANGAN GLOBAL */}
+      <div className="card-holo overflow-hidden bg-white border border-slate-200 shadow-2xs">
         <div className="p-4 bg-slate-50 border-b border-slate-200 font-extrabold text-xs text-slate-800">
           Histori catatan kliring berkas setoran harian
         </div>
