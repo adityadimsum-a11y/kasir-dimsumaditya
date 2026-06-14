@@ -1,26 +1,33 @@
 import React, { useState, useMemo } from 'react';
-import { Calendar, Store, Factory, Wallet, Coins, AlertCircle, ShoppingCart, Users, CheckCircle, Percent, Building, Award, ShieldAlert, Undo } from 'lucide-react';
-import { getTodayStr, formatDate, safeSort, safeJsonParse } from '../../utils/helpers';
+import { Calendar, Store, Factory, Wallet, Coins, AlertCircle, ShoppingCart, Users, CheckCircle, Percent, Building, Award, ShieldAlert, Undo, ArrowRight, ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react';
+import { getTodayStr, formatDate, safeJsonParse } from '../../utils/helpers';
 
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
 // --- KARTU STATISTIK FINANSIAL FLAT ENTERPRISE ---
 const StatCard = ({ title, amount, icon, colorClass, textClass, iconColor }) => (
-  <div className={`p-5 rounded-2xl border shadow-xs flex flex-col justify-between transition-all hover:border-blue-300 bg-white border-slate-200`}>
+  <div className="p-5 rounded-2xl border shadow-xs flex flex-col justify-between transition-all hover:border-blue-300 bg-white border-slate-200">
     <div className="flex justify-between items-start mb-3">
-      <h3 className={`font-bold text-xs normal-case text-slate-500 leading-tight`}>{title}</h3>
+      <h3 className="font-bold text-xs normal-case text-slate-500 leading-tight">{title}</h3>
       <div className={`p-2 rounded-lg shadow-xs ${colorClass} ${iconColor}`}>{icon}</div>
     </div>
     <div className={`text-2xl font-extrabold tracking-tight mt-1 ${textClass}`}>{amount}</div>
   </div>
 );
 
-export default function TabDashboardBranch({ orders = [], orders_data, pemalangReports = [], purchases_data, purchases = [], stokData, user }) {
+export default function TabDashboardBranch({ 
+  orders = [], orders_data, 
+  pemalangReports = [], 
+  purchases_data, purchases = [], 
+  stokData, user,
+  forcedBranchId // 🔥 SUNTIKAN KABEL PINTAR UNTUK AKSES MONITORING HQ PUSAT
+}) {
   const todayStr = getTodayStr();
   
-  // 🔥 KUNCI SIMPUL KENDALI PRODUKSI PEMALANG
-  const currentBranch = 'PRODUKSI_PEMALANG';
+  // 🔥 RADAR AMAN MULTI-BRANCH: Jika HQ yang buka, paksa ke branch tujuan (Cibinong), jika tidak, kunci ke branch user yang login
+  const currentBranch = forcedBranchId || user?.branch_id || 'CIBINONG';
+  
   const [dateFrom, setDateFrom] = useState(todayStr); 
   const [dateTo, setDateTo] = useState(todayStr);
   
@@ -41,16 +48,16 @@ export default function TabDashboardBranch({ orders = [], orders_data, pemalangR
       return cleanDate >= dateFrom && cleanDate <= dateTo;
     };
 
-    // --- 1. DATA AYAM MENTAH PEMALANG ---
+    // --- 1. DATA LOGISTIK SUPPLY UTAMA ---
     let mutasiAyamPemalang = 0;
     realPurchases.filter(p => !p.isDeleted && p.category === 'BAHAN_BAKU' && String(p.branch_id).toUpperCase() === currentBranch.toUpperCase()).forEach(p => {
        mutasiAyamPemalang += Number(p.qty_kg || p.qty || 0);
     });
 
-    const prodPemalangAll = (stokData || []).filter(s => !s.isDeleted && s.type === 'PRODUKSI_PEMALANG').reduce((sum, s) => sum + Number(s.qty || s.jumlah_adukan || 0), 0);
+    const prodPemalangAll = (stokData || []).filter(s => !s.isDeleted && s.type === currentBranch).reduce((sum, s) => sum + Number(s.qty || s.jumlah_adukan || 0), 0);
     const sisaAyamCabang = Math.max(0, mutasiAyamPemalang - (prodPemalangAll * MASTER_AYAM_KG));
 
-    // --- 2. DATA STOK JADI FREEZER PEMALANG ---
+    // --- 2. DATA STOK JADI FREEZER OUTLET ---
     const branchOrdersAll = realOrders.filter(o => !o.isDeleted && String(o.branch_id).toUpperCase() === currentBranch.toUpperCase());
     
     let terjualPcsAll = 0;
@@ -69,7 +76,7 @@ export default function TabDashboardBranch({ orders = [], orders_data, pemalangR
     const branchOrdersPeriod = branchOrdersAll.filter(o => isPeriod(o.date));
     const branchReportsPeriod = (pemalangReports || []).filter(r => !r.isDeleted && isPeriod(r.date));
     
-    const prodPeriode = (stokData || []).filter(s => !s.isDeleted && s.type === 'PRODUKSI_PEMALANG' && isPeriod(s.date)).reduce((sum, s) => sum + Number(s.qty || s.jumlah_adukan || 0), 0);
+    const prodPeriode = (stokData || []).filter(s => !s.isDeleted && s.type === currentBranch && isPeriod(s.date)).reduce((sum, s) => sum + Number(s.qty || s.jumlah_adukan || 0), 0);
     
     const omsetPeriode = branchOrdersPeriod.reduce((sum, o) => sum + Number(o.total_amount || 0), 0);
     const setoranPeriode = branchReportsPeriod.reduce((sum, r) => sum + Number(r.nominal || r.amount || 0), 0);
@@ -79,6 +86,7 @@ export default function TabDashboardBranch({ orders = [], orders_data, pemalangR
     const jatahCadangan10 = omsetPeriode * 0.10;
     const jatahCuan15 = omsetPeriode * 0.15;
 
+    // LEADERBOARD CUSTOMER PLATFORM INTEGRASI CRM
     const customerMap = {};
     branchOrdersPeriod.forEach(o => {
         const cName = String(o.customer_name || 'Umum / Cash').toUpperCase();
@@ -105,15 +113,15 @@ export default function TabDashboardBranch({ orders = [], orders_data, pemalangR
         dimsumMasukPeriode: prodPeriode * MASTER_PCS,
         laporanUrut, branchOrdersPeriod, topCustomersList 
     };
-  }, [realOrders, realPurchases, pemalangReports, stokData, dateFrom, dateTo]);
+  }, [realOrders, realPurchases, pemalangReports, stokData, dateFrom, dateTo, currentBranch]);
 
   return (
-    <div className="space-y-6 animate-in fade-in pb-10 text-slate-700 normal-case">
+    <div className="space-y-6 pb-10 text-slate-700 normal-case animate-in fade-in duration-300">
       
       {/* FILTER CONTROL KALENDER - FLAT ENTERPRISE */}
-      <div className="card-holo p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="card-holo p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white border border-slate-200 shadow-xs">
           <div>
-            <h3 className="text-xs font-extrabold text-slate-800 normal-case mb-2 flex items-center gap-1.5"><Calendar size={16} className="text-blue-600"/> Filter rentang pemantauan cabang</h3>
+            <h3 className="text-xs font-extrabold text-slate-800 normal-case mb-2 flex items-center gap-1.5"><Calendar size={16} className="text-blue-600"/> Filter rentang pemantauan area cabang</h3>
             <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl shadow-xs">
               <span className="text-[9px] font-bold text-slate-400 normal-case">Dari</span>
               <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="text-xs font-bold text-slate-700 outline-none bg-transparent cursor-pointer" />
@@ -121,65 +129,62 @@ export default function TabDashboardBranch({ orders = [], orders_data, pemalangR
               <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="text-xs font-bold text-slate-700 outline-none bg-transparent cursor-pointer" />
             </div>
           </div>
-          <div className="bg-emerald-50 text-emerald-700 px-4 py-2 rounded-lg text-xs font-bold normal-case border border-emerald-200 shadow-xs flex items-center gap-1.5"><CheckCircle size={14}/> Mode audit sinkron HQ</div>
+          <div className="bg-emerald-50 text-emerald-700 px-4 py-2 rounded-lg text-xs font-bold normal-case border border-emerald-200 shadow-xs flex items-center gap-1.5">
+            <CheckCircle size={14}/> Radar aktif: {currentBranch.replace(/_/g, ' ')}
+          </div>
       </div>
 
-      {/* MONITOR OPERASIONAL LIVE PANTAUAN PEMALANG - FLAT SOLID WHITE */}
-      <div className="card-holo overflow-hidden relative text-slate-800 border-t-4 border-t-blue-600 shadow-sm">
+      {/* MONITOR OPERASIONAL LIVE PANTAUAN FREEZER */}
+      <div className="card-holo overflow-hidden relative text-slate-800 border-t-4 border-t-blue-600 shadow-sm bg-white">
           <div className="p-5 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
               <div>
-                  <h2 className="text-sm font-extrabold text-slate-800 flex items-center gap-2 normal-case"><Factory className="text-blue-600"/> Pantauan live hasil dapur produksi (Pemalang)</h2>
-                  <p className="text-[10px] font-medium text-slate-500 normal-case mt-0.5">Monitoring otomatis pergerakan adonan dan isi freezer langsung dari server pusat</p>
+                  <h2 className="text-sm font-extrabold text-slate-800 flex items-center gap-2 normal-case"><Factory className="text-blue-600"/> Pantauan live sisa fisik freezer area cabang</h2>
+                  <p className="text-[10px] font-medium text-slate-500 normal-case mt-0.5">Sinkronisasi otomatis pergerakan stok jualan laci POS kasir langsung ke server pusat</p>
               </div>
               <div className="text-right hidden sm:block">
-                  <div className="text-xs font-bold text-emerald-600 flex items-center justify-end gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-xs"></span> Live data sinkron</div>
+                  <div className="text-xs font-bold text-emerald-600 flex items-center justify-end gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-xs"></span> Jaringan terhubung</div>
               </div>
           </div>
           
-          <div className="grid grid-cols-2 md:grid-cols-5 divide-y md:divide-y-0 md:divide-x divide-slate-100 text-center bg-white">
+          <div className="grid grid-cols-2 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-slate-100 text-center bg-white">
               <div className="p-5 hover:bg-slate-50 transition-colors">
-                  <div className="text-[9px] font-bold text-slate-400 normal-case mb-1">Adukan cabang</div>
-                  <div className="text-xl font-extrabold text-slate-800 tracking-tight">{stats.prodPeriode} <span className="text-xs text-blue-500 font-bold">Adk</span></div>
+                  <div className="text-[9px] font-bold text-slate-400 normal-case mb-1">Adukan / batch masuk</div>
+                  <div className="text-xl font-extrabold text-slate-800 tracking-tight">{stats.prodPeriode} <span className="text-xs text-blue-500 font-bold">Batch</span></div>
               </div>
               <div className="p-5 hover:bg-slate-50 transition-colors">
-                  <div className="text-[9px] font-bold text-slate-400 normal-case mb-1">Daging terpakai</div>
+                  <div className="text-[9px] font-bold text-slate-400 normal-case mb-1">Bahan baku terkonversi</div>
                   <div className="text-xl font-extrabold text-slate-800 tracking-tight">-{formatNumber(stats.ayamTerpakaiPeriode)} <span className="text-xs text-red-500 font-bold">Kg</span></div>
               </div>
-              <div className="p-5 hover:bg-slate-50 transition-colors bg-slate-50/50 relative">
-                  <div className="text-[9px] font-bold text-slate-400 normal-case mb-1">Sisa ayam gudang</div>
-                  <div className="text-xl font-extrabold text-red-600 tracking-tight">{formatNumber(stats.sisaAyamCabang)} <span className="text-xs text-slate-500 font-bold">Kg</span></div>
-                  <div className="text-[8px] font-bold text-red-700 bg-red-50 px-1.5 py-0.5 rounded border border-red-200 mt-1 inline-block normal-case">{formatNumber((stats.sisaAyamCabang / KG_PER_KANTONG).toFixed(0))} Kantong</div>
-              </div>
-              <div className="p-5 hover:bg-slate-50 transition-colors">
-                  <div className="text-[9px] font-bold text-slate-400 normal-case mb-1">Masuk freezer</div>
+              <div className="p-5 hover:bg-slate-50 transition-colors bg-slate-50/30">
+                  <div className="text-[9px] font-bold text-slate-400 normal-case mb-1">Penerimaan pasokan dimsum jadi</div>
                   <div className="text-xl font-extrabold text-slate-800 tracking-tight">+{formatNumber(stats.dimsumMasukPeriode)} <span className="text-xs text-emerald-600 font-bold">Pcs</span></div>
                   <div className="text-[8px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 mt-1 inline-block normal-case">{formatNumber((stats.dimsumMasukPeriode / PCS_PER_MIKA).toFixed(0))} Mika</div>
               </div>
               <div className="p-5 hover:bg-slate-50 transition-colors bg-slate-50/50">
-                  <div className="text-[9px] font-bold text-slate-400 normal-case mb-1">Sisa freezer (Live)</div>
-                  <div className="text-xl font-extrabold text-emerald-600 tracking-tight">{formatNumber(stats.sisaStokFreezer)} <span className="text-xs text-slate-500 font-bold">Pcs</span></div>
+                  <div className="text-[9px] font-bold text-slate-400 normal-case mb-1">Sisa dimsum di freezer (Live)</div>
+                  <div className="text-xl font-black text-emerald-600 tracking-tight">{formatNumber(stats.sisaStokFreezer)} <span className="text-xs text-slate-500 font-bold">Pcs</span></div>
                   <div className="text-[8px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 mt-1 inline-block normal-case">{formatNumber((stats.sisaStokFreezer / PCS_PER_MIKA).toFixed(0))} Mika</div>
               </div>
           </div>
       </div>
 
       {/* DASHBOARD PERFORMA FINANSIAL PERIODE */}
-      <div className="card-holo p-6">
+      <div className="card-holo p-6 bg-white">
           <div className="mb-5 border-b border-slate-100 pb-3">
-              <h2 className="text-xs font-extrabold text-slate-800 normal-case flex items-center gap-1.5"><Wallet size={16} className="text-blue-600"/> Analitik keuangan buku cabang Pemalang</h2>
-              <p className="text-[10px] font-medium text-slate-500 mt-0.5 normal-case">Laporan otomatis periode terpilih harian</p>
+              <h2 className="text-xs font-extrabold text-slate-800 normal-case flex items-center gap-1.5"><Wallet size={16} className="text-blue-600"/> Analitik keuangan buku laporan harian cabang</h2>
+              <p className="text-[10px] font-medium text-slate-500 mt-0.5 normal-case">Rekap otomatis pembukuan penjualan di area terpilih</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               <StatCard title="Total omset cabang (All time)" amount={formatRupiah(stats.totalOmsetAll)} icon={<Store size={16}/>} colorClass="bg-blue-50 border-blue-200" textClass="text-blue-700" iconColor="text-blue-600" />
               <StatCard title="Omset cabang (Periode ini)" amount={formatRupiah(stats.omsetPeriode)} icon={<Wallet size={16}/>} colorClass="bg-indigo-50 border-indigo-200" textClass="text-indigo-700" iconColor="text-indigo-600" />
-              <StatCard title="Total setoran kasir masuk" amount={formatRupiah(stats.setoranPeriode)} icon={<Coins size={16}/>} colorClass="bg-emerald-50 border-emerald-200" textClass="text-emerald-700" iconColor="text-emerald-600" />
+              <StatCard title="Total setoran EOD kasir masuk" amount={formatRupiah(stats.setoranPeriode)} icon={<Coins size={16}/>} colorClass="bg-emerald-50 border-emerald-200" textClass="text-emerald-700" iconColor="text-emerald-600" />
           </div>
       </div>
 
-      {/* 🔥 ADJUSTMENT SUNTIKAN: TARGET BRANKAS 4 AMPLOP BERJALAN PEMALANG */}
+      {/* 🔥 TARGET BRANKAS 4 AMPLOP BERJALAN CABANG */}
       {stats.omsetPeriode > 0 && (
-         <div className="card-holo p-5 border-l-4 border-l-orange-500 shadow-sm">
-           <h3 className="font-extrabold text-xs text-slate-800 normal-case mb-4 flex items-center gap-1.5"><Percent size={14} className="text-orange-500"/> Proyeksi kuota jatah 4 amplop (Dari omset periode ini)</h3>
+         <div className="card-holo p-5 border-l-4 border-l-orange-500 shadow-sm bg-white">
+           <h3 className="font-extrabold text-xs text-slate-800 normal-case mb-4 flex items-center gap-1.5"><Percent size={14} className="text-orange-500"/> Proyeksi kuota pembagian jatah 4 amplop (Dari omset area saat ini)</h3>
            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
               <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl"><div className="text-[8px] font-bold text-slate-400 normal-case">Amplop 1: Kas ayam (55%)</div><div className="text-base font-extrabold text-red-600 mt-1">{formatRupiah(stats.jatahAyam55)}</div></div>
               <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-xl"><div className="text-[8px] font-bold text-slate-400 normal-case">Amplop 2: Ops &amp; Gaji (20%)</div><div className="text-base font-extrabold text-blue-600 mt-1">{formatRupiah(stats.jatahOps20)}</div></div>
@@ -190,10 +195,10 @@ export default function TabDashboardBranch({ orders = [], orders_data, pemalangR
       )}
 
       {/* PENGECEKAN SILANG EOD LAPORAN */}
-      <div className="card-holo flex flex-col overflow-hidden">
+      <div className="card-holo flex flex-col overflow-hidden bg-white">
           <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
              <AlertCircle size={16} className="text-orange-500"/>
-             <h4 className="font-extrabold text-slate-800 text-xs normal-case">Jurnal pengecekan silang setoran (EOD cabang)</h4>
+             <h4 className="font-extrabold text-slate-800 text-xs normal-case">Jurnal laporan pengecekan silang akhir hari (EOD Cabang)</h4>
           </div>
           <div className="overflow-x-auto p-1 custom-scrollbar">
               <table className="w-full text-sm text-left border-collapse">
@@ -208,7 +213,7 @@ export default function TabDashboardBranch({ orders = [], orders_data, pemalangR
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-bold text-xs bg-white">
                       {(!stats.laporanUrut || stats.laporanUrut.length === 0) ? (
-                          <tr><td colSpan="5" className="text-center py-10 text-slate-400 normal-case font-medium">Tidak ada setoran EOD tertulis dari cabang di rentang tanggal ini.</td></tr>
+                          <tr><td colSpan="5" className="text-center py-10 text-slate-400 normal-case font-medium">Tidak ada berkas setoran harian dari area cabang pada rentang tanggal ini.</td></tr>
                       ) : (
                           stats.laporanUrut.map((r, i) => (
                               <tr key={i} className="hover:bg-slate-50 transition-colors">
@@ -228,10 +233,10 @@ export default function TabDashboardBranch({ orders = [], orders_data, pemalangR
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
         {/* AKTIVITAS INVOICE JUALAN NOTA */}
-        <div className="lg:col-span-7 card-holo flex flex-col overflow-hidden">
+        <div className="lg:col-span-7 card-holo flex flex-col overflow-hidden bg-white">
             <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
                <ShoppingCart size={16} className="text-blue-500"/>
-               <h3 className="font-extrabold text-slate-800 text-xs normal-case">Buku harian antrean invoice jualan Pemalang</h3>
+               <h3 className="font-extrabold text-slate-800 text-xs normal-case">Buku log harian antrean jualan nota area cabang</h3>
             </div>
             <div className="overflow-x-auto p-1 custom-scrollbar max-h-[350px]">
                 <table className="w-full text-sm text-left border-collapse">
@@ -245,7 +250,7 @@ export default function TabDashboardBranch({ orders = [], orders_data, pemalangR
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-xs font-bold bg-white">
                         {(!stats.branchOrdersPeriod || stats.branchOrdersPeriod.length === 0) ? (
-                            <tr><td colSpan="4" className="text-center py-10 text-slate-400 normal-case font-medium">Tidak ada struk transaksi penjualan pada rentang periode ini.</td></tr>
+                            <tr><td colSpan="4" className="text-center py-10 text-slate-400 normal-case font-medium">Belum terdeteksi struk invoice penjualan pada rentang periode ini.</td></tr>
                         ) : (
                             stats.branchOrdersPeriod.map((o, i) => {
                                 let totalPcsInvoice = 0;
@@ -269,11 +274,11 @@ export default function TabDashboardBranch({ orders = [], orders_data, pemalangR
         </div>
 
         {/* CRM CUSTOMER LEADERBOARD */}
-        <div className="lg:col-span-5 card-holo p-5 flex flex-col max-h-[415px]">
-            <h3 className="font-extrabold text-slate-800 text-xs normal-case flex items-center gap-2 mb-4 border-b border-slate-100 pb-2"><Users size={16} className="text-indigo-600"/> Klasemen pelanggan terloyal (Pemalang Node)</h3>
+        <div className="lg:col-span-5 card-holo p-5 flex flex-col max-h-[415px] bg-white">
+            <h3 className="font-extrabold text-slate-800 text-xs normal-case flex items-center gap-2 mb-4 border-b border-slate-100 pb-2"><Users size={16} className="text-indigo-600"/> Klasemen riwayat pelanggan terloyal area</h3>
             <div className="overflow-y-auto pr-1 flex-1 space-y-2.5 custom-scrollbar">
                {(!stats.topCustomersList || stats.topCustomersList.length === 0) ? (
-                   <div className="text-center text-slate-400 normal-case font-medium text-[10px] py-10 bg-slate-50 rounded-xl border border-dashed border-slate-200">Belum ada pelanggan loyal yang masuk hitungan.</div>
+                   <div className="text-center text-slate-400 normal-case font-medium text-[10px] py-10 bg-slate-50 rounded-xl border border-dashed border-slate-200">Belum ada pelanggan terloyal yang tercatat belanja.</div>
                ) : (
                    stats.topCustomersList.map((cust, i) => (
                        <div key={i} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl hover:border-indigo-300 transition-colors shadow-xs group">
@@ -289,6 +294,14 @@ export default function TabDashboardBranch({ orders = [], orders_data, pemalangR
                    ))
                )}
             </div>
+        </div>
+      </div>
+
+      {/* FOOTER AUDIT */}
+      <div className="card-holo p-4 border border-slate-200 bg-white flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-2">
+          <AlertCircle size={14} className="text-slate-400" />
+          <span className="text-[10px] font-semibold text-slate-400 normal-case">Informasi neraca mutasi dihitung dinamis dari total logistik masuk dan nota kasir terjual.</span>
         </div>
       </div>
 
