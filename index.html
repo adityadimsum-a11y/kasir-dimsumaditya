@@ -12,10 +12,10 @@
          🔥 VAKSIN 2: ANTI GOYANG INUL (SCROLL KANAN-KIRI) & POP-UP LOCK
          ======================================================== */
       html, body {
-        max-width: 100vw; /* Kunci lebar maksimal sejagat layar */
-        overflow-x: hidden; /* Haramkan geser kanan-kiri */
-        -webkit-text-size-adjust: 100%; /* Cegah HP nge-zoom font diam-diam */
-        touch-action: manipulation; /* Bikin tombol di HP makin responsif dipencet */
+        max-width: 100vw;
+        overflow-x: hidden;
+        -webkit-text-size-adjust: 100%;
+        touch-action: manipulation;
       }
 
       /* Kunci layar belakang biar gak ikut jalan pas Pop-up Terbuka */
@@ -24,7 +24,69 @@
       }
 
       /* ========================================================
-         1. GLOBAL UI & ENTERPRISE SCROLLBAR
+         🎨 3. SULTAN HOLOGRAPHIC FLUID DESIGN SYSTEM (WARNA LOGO DIMSUM)
+         ======================================================== */
+      
+      /* Latar Belakang Fluid Hidup & Mengalir Bergerak Halus */
+      @keyframes fluidHolo {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+      }
+
+      body {
+        background-color: #ffffff;
+        /* Kombinasi Persis Warna Logo Bos: Ungu, Pink, Biru, Kuning (Transparansi Sempurna 10%-12% biar teks tetap tajam) */
+        background-image: 
+          radial-gradient(circle at 15% 15%, rgba(99, 102, 241, 0.12) 0%, transparent 50%),    /* 🟪 Ungu / Indigo */
+          radial-gradient(circle at 85% 20%, rgba(236, 72, 153, 0.12) 0%, transparent 50%),    /* 🟪 Pink / Fuchsia */
+          radial-gradient(circle at 85% 85%, rgba(14, 165, 233, 0.12) 0%, transparent 50%),    /* 🟦 Biru / Sky Blue */
+          radial-gradient(circle at 15% 80%, rgba(245, 158, 11, 0.10) 0%, transparent 50%);    /* 🟨 Kuning / Amber */
+        background-attachment: fixed;
+        background-repeat: no-repeat;
+        background-size: 200% 200%;
+        animation: fluidHolo 20s ease infinite; /* Efek background mengalir super smooth */
+        min-height: 100vh;
+      }
+
+      /* ✨ UTILITY 1: Tombol Dewa Holografik (Gradasi Ungu-Pink-Biru menyala premium) */
+      .btn-holo {
+        background: linear-gradient(135deg, #6366f1 0%, #ec4899 50%, #0ea5e9 100%);
+        background-size: 200% auto;
+        color: white !important;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        transition: all 0.3s border-radius, transform 0.1s;
+        box-shadow: 0 4px 15px rgba(99, 102, 241, 0.25);
+      }
+      .btn-holo:hover {
+        background-position: right center;
+        box-shadow: 0 6px 20px rgba(236, 72, 153, 0.35);
+        transform: translateY(-1px);
+      }
+      .btn-holo:active {
+        transform: translateY(1px);
+      }
+
+      /* ✨ UTILITY 2: Teks Gradasi Hologram Warna Logo */
+      .text-holo-gradient {
+        background: linear-gradient(to right, #6366f1, #ec4899, #0ea5e9);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      /* ✨ UTILITY 3: Kartu Premium dengan Border Garis Halus Warna Logo */
+      .card-holo {
+        background: rgba(255, 255, 255, 0.85);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid rgba(99, 102, 241, 0.15);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.02);
+      }
+
+      /* ========================================================
+         4. GLOBAL UI & ENTERPRISE SCROLLBAR
          ======================================================== */
       ::-webkit-scrollbar { width: 6px; height: 6px; }
       ::-webkit-scrollbar-track { background: transparent; }
@@ -37,7 +99,7 @@
       }
 
       /* ========================================================
-         2. SHIMMER / SKELETON LOADING UI (PHASE 11)
+         5. SHIMMER / SKELETON LOADING UI (PHASE 11)
          ======================================================== */
       @keyframes shimmer {
         0% { background-position: -1000px 0; }
@@ -53,7 +115,7 @@
       }
 
       /* ========================================================
-         3. SMART TABLE OPTIMIZATION
+         6. SMART TABLE OPTIMIZATION
          ======================================================== */
       .table-compact th, .table-compact td { 
         padding: 8px 12px !important; 
@@ -67,7 +129,7 @@
       }
 
       /* ========================================================
-         4. PRINT STABILITY ENGINE (A4, THERMAL 58mm, DOT MATRIX)
+         7. PRINT STABILITY ENGINE (A4, THERMAL 58mm, DOT MATRIX)
          ======================================================== */
       @media print {
         body { 
@@ -122,27 +184,6 @@
       }
 
       @media screen { #print-root { display: none !important; } }
-
-      /* ========================================================
-         5. HOLOGRAPHIC WHITE FLUID GRADIENT BACKGROUND
-         ======================================================== */
-      body {
-        /* Dasar Putih Bersih */
-        background-color: #ffffff;
-        
-        /* Colorful tapi super transparan (Aura Apple/macOS) */
-        background-image: 
-          radial-gradient(circle at 10% 10%, rgba(99, 102, 241, 0.12) 0%, transparent 45%),    /* Indigo/Ungu Soft */
-          radial-gradient(circle at 90% 10%, rgba(236, 72, 153, 0.12) 0%, transparent 45%),    /* Pink Soft */
-          radial-gradient(circle at 90% 90%, rgba(14, 165, 233, 0.12) 0%, transparent 45%),    /* Biru Langit Soft */
-          radial-gradient(circle at 10% 90%, rgba(245, 158, 11, 0.12) 0%, transparent 45%);    /* Kuning/Amber Soft */
-          
-        background-attachment: fixed;
-        background-repeat: no-repeat;
-        background-size: cover;
-        min-height: 100vh;
-      }
-
       #root, .app-container { background: transparent !important; }
     </style>
   </head>
