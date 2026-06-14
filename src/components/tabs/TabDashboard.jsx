@@ -185,12 +185,11 @@ export default function TabDashboard({
   return (
     <div className="space-y-6 pb-10 text-slate-700 animate-in fade-in duration-300">
       
-      {/* BANNER HEAD - DI-UPGRADE TOTAL JADI CLEAN FLAT ENTERPRISE STYLE */}
+      {/* 🔥 ADJUST FIX 1: ADJUSTMENT BANNER HEAD (BUANG TONE UPPERCASE & HURUF BESAR BERLEBIHAN) */}
       <div className="card-holo p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative overflow-hidden">
-        {/* Strip Aksen Merah Tipis Di Samping Khas Aplikasi Kasir Profesional */}
         <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-600"></div>
         <div className="pl-2">
-           <h2 className="text-slate-900 font-extrabold uppercase tracking-wide text-base flex items-center gap-2">
+           <h2 className="text-slate-900 font-extrabold tracking-wide text-base flex items-center gap-2">
              <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
              Dashboard Utama &amp; Keuangan Pabrik
            </h2>
@@ -202,7 +201,7 @@ export default function TabDashboard({
         </div>
       </div>
 
-      {/* 🔥 INDIKATOR ATAS - FLAT PETAK BERSIH */}
+      {/* 🔥 INDIKATOR ATAS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         <div className="card-holo p-5 flex flex-col justify-between">
           <div>
@@ -225,25 +224,24 @@ export default function TabDashboard({
       </div>
 
       {/* ========================================== */}
-      {/* 🔥 RADAR DETEKTOR KEMBALIAN KARYAWAN (GRAB ALERT SYSTEM) */}
+      {/* 🔥 ADJUST FIX 2: RADAR PANTAU KEMBALIAN (UBAH JUDUL TIDAK KAPITAL TOTAL) */}
       {/* ========================================== */}
       {pendingKembalianList.length > 0 && (
          <div className="card-holo border-l-4 border-l-red-600 p-5 shadow-sm space-y-3">
-            <div className="text-[10px] font-black uppercase text-red-600 tracking-wider flex items-center gap-1.5">
-               <AlertOctagon size={14} className="text-red-600"/> RADAR PANTAU PIUTANG KEMBALIAN BELANJA KARYAWAN
+            <div className="text-[10px] font-black text-red-600 tracking-wider flex items-center gap-1.5">
+               <AlertOctagon size={14} className="text-red-600"/> Radar Pantau Piutang Kembalian Belanja Karyawan
             </div>
             <div className="grid grid-cols-1 gap-3">
                {pendingKembalianList.map(item => (
                  <div key={item.id} className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div className="space-y-1">
-                      <div className="font-extrabold text-xs text-slate-800 uppercase">⚠️ {item.employee} BELUM SETOR SISA KEMBALIAN!</div>
+                      <div className="font-extrabold text-xs text-slate-800 uppercase">⚠️ {item.employee} Belum Setor Sisa Kembalian!</div>
                       <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">
                         Kas Diberikan: <span className="text-slate-800 font-bold">{formatRupiah(item.cash_given)}</span> | 
                         Total Nota Belanja: <span className="text-slate-800 font-bold">{formatRupiah(item.total_nota)}</span>
                       </p>
                       <div className="text-xs text-red-600 font-extrabold uppercase mt-1">Wajib Di-tagih: {formatRupiah(item.expected_change)}</div>
                     </div>
-                    {/* BUTTON MERAH SOLID ALA GRAB */}
                     <button 
                       type="button" 
                       onClick={() => setSettleModal(item)}
@@ -260,6 +258,7 @@ export default function TabDashboard({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-8 space-y-6">
           
+          {/* 🔥 ADJUST FIX 3: SISTEM PENGINGAT (UBAH JUDUL BELANJA MANUAL) */}
           <div className="card-holo p-6 flex flex-col justify-between">
             <div className="flex justify-between items-center mb-3">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5"><AlertOctagon size={14} className="text-orange-500"/> Sistem Pengingat Belanja Otomatis</span>
@@ -267,7 +266,7 @@ export default function TabDashboard({
             {isAyamKritis ? (
               <div className="bg-rose-50 border border-rose-200 p-4 rounded-xl flex flex-col sm:flex-row justify-between items-center gap-4">
                  <div className="space-y-0.5">
-                   <h4 className="font-extrabold text-rose-800 text-xs">🚨 PERINGATAN: STOK AYAM FILLET MENIPIS!</h4>
+                   <h4 className="font-extrabold text-rose-800 text-xs">🚨 Peringatan: Stok Ayam Fillet Menipis!</h4>
                    <p className="text-[10px] font-medium text-rose-600 uppercase">Sisa daging mentah di freezer tinggal {ringkasan.sisaAyamKantong} Kantong ({ringkasan.sisaAyamKg} Kg).</p>
                  </div>
                  <button type="button" onClick={() => { if(setActiveTab) setActiveTab('purchases'); }} className="btn-holo text-xs px-4 py-2 rounded-lg flex items-center gap-1">Buat Nota Belanja <ArrowRight size={12}/></button>
@@ -275,7 +274,7 @@ export default function TabDashboard({
             ) : (
               <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex items-center gap-3">
                  <ShieldCheck size={20} className="text-emerald-600"/>
-                 <div><h4 className="font-extrabold text-emerald-800 text-xs uppercase tracking-wide">KONDISI GUDANG AMAN TERKENDALI</h4></div>
+                 <div><h4 className="font-extrabold text-emerald-800 text-xs uppercase tracking-wide">Kondisi Gudang Aman Terkendali</h4></div>
               </div>
             )}
           </div>
@@ -288,7 +287,7 @@ export default function TabDashboard({
           </div>
         </div>
 
-        {/* KONDISI FISIK GUDANG - FLAT BOX RE-DESIGN */}
+        {/* 🔥 ADJUST FIX 4: KONDISI FISIK GUDANG PUSAT */}
         <div className="lg:col-span-4 card-holo p-6 flex flex-col justify-between">
           <div className="space-y-4">
             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-2 flex items-center gap-1.5"><Database size={14} className="text-slate-400"/> Kondisi Fisik Gudang Pusat</div>
@@ -305,7 +304,7 @@ export default function TabDashboard({
       </div>
 
       {/* ========================================== */}
-      {/* 🔥 MODAL POPUP SETTLEMENT KEMBALIAN (CLEAN TYPE) */}
+      {/* 🔥 MODAL POPUP SETTLEMENT KEMBALIAN */}
       {/* ========================================== */}
       {settleModal && (
          <div className="fixed inset-0 bg-slate-900/40 z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-150">
