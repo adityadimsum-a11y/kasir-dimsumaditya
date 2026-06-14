@@ -5,18 +5,18 @@ import { getTodayStr, formatDate, safeSort, safeJsonParse } from '../../utils/he
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
-// --- KARTU STATISTIK FINANSIAL MERAKYAT ---
-const StatCard = ({ title, amount, icon, color }) => (
-  <div className={`p-5 rounded-2xl border shadow-sm flex flex-col justify-between transition-all hover:shadow-md ${color}`}>
+// --- KARTU STATISTIK FINANSIAL KACA BURAM ---
+const StatCard = ({ title, amount, icon, colorClass, textClass }) => (
+  <div className={`p-5 rounded-3xl shadow-sm flex flex-col justify-between transition-transform hover:scale-[1.02] duration-300 card-holo ${colorClass}`}>
     <div className="flex justify-between items-start mb-3">
-      <h3 className="font-black text-xs uppercase tracking-wider opacity-80 leading-tight">{title}</h3>
-      <div className="p-2 bg-white/80 rounded-xl shadow-sm border border-inherit shrink-0">{icon}</div>
+      <h3 className={`font-black text-xs uppercase tracking-wider opacity-80 leading-tight ${textClass}`}>{title}</h3>
+      <div className="p-2 bg-white/60 backdrop-blur-sm rounded-xl shadow-sm border border-white/50 shrink-0">{icon}</div>
     </div>
-    <div className="text-2xl font-black tracking-tight mt-1">{amount}</div>
+    <div className={`text-2xl font-black tracking-tight mt-1 ${textClass}`}>{amount}</div>
   </div>
 );
 
-export default function TabDashboardBranch({ orders = [], orders_data, pemalangReports = [], purchases_data, purchases = [], stokData, user }) {
+export default function TabMonitoringPemalang({ orders = [], orders_data, pemalangReports = [], purchases_data, purchases = [], stokData, user }) {
   const todayStr = getTodayStr();
   
   // 🔥 FIX KABEL UTAMA: DINAMIS MENGUNCI SIMPUL KENDALI PRODUKSI PEMALANG
@@ -113,96 +113,98 @@ export default function TabDashboardBranch({ orders = [], orders_data, pemalangR
   return (
     <div className="space-y-6 animate-in fade-in pb-10 text-slate-800">
       
-      {/* FILTER CONTROL KALENDER */}
-      <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      {/* FILTER CONTROL KALENDER - KACA BURAM */}
+      <div className="card-holo p-5 rounded-3xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest mb-2 flex items-center gap-1.5"><Calendar size={16} className="text-blue-500"/> Filter Rentang Pemantauan Cabang</h3>
-            <div className="flex items-center gap-2 bg-slate-50 border border-slate-300 px-3 py-1.5 rounded-xl shadow-inner">
-              <span className="text-[9px] font-black text-slate-400 uppercase">DARI</span>
+            <h3 className="text-xs font-black text-slate-700 uppercase tracking-widest mb-2 flex items-center gap-1.5"><Calendar size={16} className="text-orange-500"/> Filter Rentang Pemantauan Cabang</h3>
+            <div className="flex items-center gap-2 bg-white/50 border border-white/60 px-3 py-1.5 rounded-xl shadow-sm">
+              <span className="text-[9px] font-black text-slate-500 uppercase">DARI</span>
               <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="text-xs font-black text-slate-800 outline-none bg-transparent cursor-pointer" />
-              <span className="text-[9px] font-black text-slate-400 uppercase border-l border-slate-300 pl-2">SAMPAI</span>
+              <span className="text-[9px] font-black text-slate-500 uppercase border-l border-white/60 pl-2">SAMPAI</span>
               <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="text-xs font-black text-slate-800 outline-none bg-transparent cursor-pointer" />
             </div>
           </div>
-          <div className="bg-emerald-50 text-emerald-700 px-4 py-2.5 rounded-xl text-xs font-black uppercase border border-emerald-200 shadow-sm flex items-center gap-1.5"><CheckCircle size={14}/> Mode Audit Sinkron HQ</div>
+          <button className="btn-holo px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 shadow-md">
+            <CheckCircle size={14}/> Mode Audit Sinkron HQ
+          </button>
       </div>
 
-      {/* MONITOR OPERASIONAL LIVE PANTAUAN PEMALANG */}
-      <div className="bg-slate-900 rounded-3xl shadow-xl overflow-hidden border border-slate-800 relative text-white">
-          <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-500 via-emerald-400 to-amber-500"></div>
+      {/* MONITOR OPERASIONAL LIVE PANTAUAN PEMALANG - DARK GLASSMORPHISM */}
+      <div className="bg-slate-900/80 backdrop-blur-xl rounded-3xl shadow-2xl overflow-hidden border border-white/20 relative text-white">
+          <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-red-500 via-orange-500 to-amber-500"></div>
           
-          <div className="p-5 border-b border-slate-800/60 flex justify-between items-center bg-slate-950">
+          <div className="p-5 border-b border-white/10 flex justify-between items-center bg-white/5">
               <div>
-                  <h2 className="text-base font-black text-white flex items-center gap-2 tracking-widest uppercase"><Factory className="text-blue-400"/> PANTAUAN LIVE HASIL DAPUR PRODUKSI (PEMALANG)</h2>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Monitoring otomatis pergerakan adonan dan isi freezer langsung dari server pusat</p>
+                  <h2 className="text-base font-black text-white flex items-center gap-2 tracking-widest uppercase"><Factory className="text-amber-400"/> PANTAUAN LIVE HASIL DAPUR PRODUKSI (PEMALANG)</h2>
+                  <p className="text-[10px] font-bold text-slate-300 uppercase mt-1">Monitoring otomatis pergerakan adonan dan isi freezer langsung dari server pusat</p>
               </div>
               <div className="text-right hidden sm:block">
                   <div className="text-xs font-black text-emerald-400 flex items-center justify-end gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span> LIVE DATA SINKRON</div>
               </div>
           </div>
           
-          <div className="grid grid-cols-2 md:grid-cols-5 divide-y md:divide-y-0 md:divide-x divide-slate-800 bg-slate-900/50 text-center">
-              <div className="p-6 hover:bg-slate-800/40 transition-colors">
+          <div className="grid grid-cols-2 md:grid-cols-5 divide-y md:divide-y-0 md:divide-x divide-white/10 text-center">
+              <div className="p-6 hover:bg-white/5 transition-colors">
                   <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Adukan Cabang</div>
-                  <div className="text-3xl font-black text-white tracking-tight">{stats.prodPeriode} <span className="text-xs text-blue-400 font-medium">ADK</span></div>
+                  <div className="text-3xl font-black text-white tracking-tight">{stats.prodPeriode} <span className="text-xs text-amber-400 font-medium">ADK</span></div>
               </div>
-              <div className="p-6 hover:bg-slate-800/40 transition-colors">
+              <div className="p-6 hover:bg-white/5 transition-colors">
                   <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Daging Terpakai</div>
-                  <div className="text-3xl font-black text-white tracking-tight">-{formatNumber(stats.ayamTerpakaiPeriode)} <span className="text-xs text-rose-400 font-medium">KG</span></div>
+                  <div className="text-3xl font-black text-white tracking-tight">-{formatNumber(stats.ayamTerpakaiPeriode)} <span className="text-xs text-red-400 font-medium">KG</span></div>
               </div>
-              <div className="p-6 hover:bg-slate-800/40 transition-colors bg-slate-950/20 relative">
+              <div className="p-6 hover:bg-white/5 transition-colors bg-black/20 relative">
                   <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Sisa Ayam Gudang</div>
-                  <div className="text-3xl font-black text-rose-400 tracking-tight">{formatNumber(stats.sisaAyamCabang)} <span className="text-xs text-slate-400 font-medium">KG</span></div>
-                  <div className="text-[8px] font-black text-rose-400 bg-rose-950/80 px-2 py-0.5 rounded-md border border-rose-900/50 mt-2 inline-block uppercase tracking-wider">{formatNumber((stats.sisaAyamCabang / KG_PER_KANTONG).toFixed(0))} Kantong</div>
+                  <div className="text-3xl font-black text-red-400 tracking-tight">{formatNumber(stats.sisaAyamCabang)} <span className="text-xs text-slate-400 font-medium">KG</span></div>
+                  <div className="text-[8px] font-black text-red-300 bg-red-900/40 px-2 py-0.5 rounded-md border border-red-500/30 mt-2 inline-block uppercase tracking-wider">{formatNumber((stats.sisaAyamCabang / KG_PER_KANTONG).toFixed(0))} Kantong</div>
               </div>
-              <div className="p-6 hover:bg-slate-800/40 transition-colors">
+              <div className="p-6 hover:bg-white/5 transition-colors">
                   <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Masuk Freezer</div>
-                  <div className="text-3xl font-black text-white tracking-tight">+{formatNumber(stats.dimsumMasukPeriode)} <span className="text-xs text-blue-400 font-medium">PCS</span></div>
-                  <div className="text-[8px] font-black text-blue-400 bg-blue-950/80 px-2 py-0.5 rounded-md border border-blue-900/50 mt-2 inline-block uppercase tracking-wider">{formatNumber((stats.dimsumMasukPeriode / PCS_PER_MIKA).toFixed(0))} Mika</div>
+                  <div className="text-3xl font-black text-white tracking-tight">+{formatNumber(stats.dimsumMasukPeriode)} <span className="text-xs text-emerald-400 font-medium">PCS</span></div>
+                  <div className="text-[8px] font-black text-emerald-300 bg-emerald-900/40 px-2 py-0.5 rounded-md border border-emerald-500/30 mt-2 inline-block uppercase tracking-wider">{formatNumber((stats.dimsumMasukPeriode / PCS_PER_MIKA).toFixed(0))} Mika</div>
               </div>
-              <div className="p-6 hover:bg-slate-800/40 transition-colors bg-slate-950/20">
+              <div className="p-6 hover:bg-white/5 transition-colors bg-black/20">
                   <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Sisa Freezer (Live)</div>
                   <div className="text-3xl font-black text-emerald-400 tracking-tight">{formatNumber(stats.sisaStokFreezer)} <span className="text-xs text-slate-400 font-medium">PCS</span></div>
-                  <div className="text-[8px] font-black text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded-md border border-emerald-900/50 mt-2 inline-block uppercase tracking-wider">{formatNumber((stats.sisaStokFreezer / PCS_PER_MIKA).toFixed(0))} Mika</div>
+                  <div className="text-[8px] font-black text-emerald-300 bg-emerald-900/40 px-2 py-0.5 rounded-md border border-emerald-500/30 mt-2 inline-block uppercase tracking-wider">{formatNumber((stats.sisaStokFreezer / PCS_PER_MIKA).toFixed(0))} Mika</div>
               </div>
           </div>
       </div>
 
-      {/* DASHBOARD PERFORMA FINANSIAL PERIODE */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-          <div className="mb-5 border-b pb-3">
-              <h2 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-1.5"><Wallet size={16} className="text-indigo-600"/> Analitik Keuangan Buku Cabang Pemalang</h2>
-              <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Laporan otomatis periode terpilih harian</p>
+      {/* DASHBOARD PERFORMA FINANSIAL PERIODE - GLASSMORPHISM */}
+      <div className="card-holo p-6 rounded-3xl">
+          <div className="mb-5 border-b border-white/50 pb-3">
+              <h2 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-1.5"><Wallet size={16} className="text-red-500"/> Analitik Keuangan Buku Cabang Pemalang</h2>
+              <p className="text-[10px] font-bold text-slate-500 mt-1 uppercase">Laporan otomatis periode terpilih harian</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              <StatCard title="Total Omset Cabang (All Time)" amount={formatRupiah(stats.totalOmsetAll)} icon={<Store size={16} className="text-blue-600"/>} color="bg-blue-50/50 text-blue-700 border-blue-200" />
-              <StatCard title="Omset Cabang (Periode Ini)" amount={formatRupiah(stats.omsetPeriode)} icon={<Wallet size={16} className="text-indigo-600"/>} color="bg-indigo-50/50 text-indigo-700 border-indigo-200" />
-              <StatCard title="Total Setoran Kasir Masuk" amount={formatRupiah(stats.setoranPeriode)} icon={<Coins size={16} className="text-emerald-600"/>} color="bg-emerald-50/50 text-emerald-700 border-emerald-200" />
+              <StatCard title="Total Omset Cabang (All Time)" amount={formatRupiah(stats.totalOmsetAll)} icon={<Store size={16} className="text-blue-600"/>} textClass="text-blue-900" />
+              <StatCard title="Omset Cabang (Periode Ini)" amount={formatRupiah(stats.omsetPeriode)} icon={<Wallet size={16} className="text-orange-600"/>} textClass="text-orange-900" />
+              <StatCard title="Total Setoran Kasir Masuk" amount={formatRupiah(stats.setoranPeriode)} icon={<Coins size={16} className="text-emerald-600"/>} textClass="text-emerald-900" />
           </div>
       </div>
 
-      {/* 🔥 TARGET BRANKAS 4 AMPLOP BERJALAN PEMALANG */}
+      {/* 🔥 TARGET BRANKAS 4 AMPLOP BERJALAN PEMALANG - KACA KILAP */}
       {stats.omsetPeriode > 0 && (
-         <div className="bg-slate-900 text-white p-5 rounded-3xl border border-slate-800 shadow-xl">
-           <h3 className="font-black text-xs uppercase tracking-widest text-amber-400 mb-4 flex items-center gap-1.5"><Percent size={14}/> Proyeksi Kuota Jatah 4 Amplop (Dari Omset Periode Ini)</h3>
+         <div className="card-holo p-6 rounded-3xl shadow-lg border-2 border-orange-200/50">
+           <h3 className="text-holo-gradient font-black text-xs uppercase tracking-widest mb-4 flex items-center gap-1.5"><Percent size={14} className="text-orange-500"/> Proyeksi Kuota Jatah 4 Amplop (Dari Omset Periode Ini)</h3>
            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800"><div className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Amplop 1: Kas Ayam (55%)[cite: 1]</div><div className="text-base font-black text-rose-400 mt-1">{formatRupiah(stats.jatahAyam55)}</div></div>
-              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800"><div className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Amplop 2: Ops &amp; Gaji (20%)[cite: 1]</div><div className="text-base font-black text-blue-400 mt-1">{formatRupiah(stats.jatahOps20)}</div></div>
-              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800"><div className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Amplop 3: Cadangan (10%)[cite: 1]</div><div className="text-base font-black text-amber-400 mt-1">{formatRupiah(stats.jatahCadangan10)}</div></div>
-              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800"><div className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Amplop 4: Profit Bersih (15%)[cite: 1]</div><div className="text-base font-black text-emerald-400 mt-1">{formatRupiah(stats.jatahCuan15)}</div></div>
+              <div className="bg-white/50 backdrop-blur-sm p-4 rounded-2xl border border-white/60 shadow-sm"><div className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Amplop 1: Kas Ayam (55%)</div><div className="text-lg font-black text-red-600 mt-1">{formatRupiah(stats.jatahAyam55)}</div></div>
+              <div className="bg-white/50 backdrop-blur-sm p-4 rounded-2xl border border-white/60 shadow-sm"><div className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Amplop 2: Ops &amp; Gaji (20%)</div><div className="text-lg font-black text-blue-600 mt-1">{formatRupiah(stats.jatahOps20)}</div></div>
+              <div className="bg-white/50 backdrop-blur-sm p-4 rounded-2xl border border-white/60 shadow-sm"><div className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Amplop 3: Cadangan (10%)</div><div className="text-lg font-black text-amber-600 mt-1">{formatRupiah(stats.jatahCadangan10)}</div></div>
+              <div className="bg-white/50 backdrop-blur-sm p-4 rounded-2xl border border-white/60 shadow-sm"><div className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Amplop 4: Profit Bersih (15%)</div><div className="text-lg font-black text-emerald-600 mt-1">{formatRupiah(stats.jatahCuan15)}</div></div>
            </div>
          </div>
       )}
 
       {/* PENGECEKAN SILANG EOD LAPORAN */}
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
-          <div className="p-5 bg-slate-50 border-b flex items-center gap-2">
-             <AlertCircle size={18} className="text-orange-500 animate-pulse"/>
+      <div className="card-holo rounded-3xl flex flex-col overflow-hidden">
+          <div className="p-5 bg-white/40 border-b border-white/50 flex items-center gap-2">
+             <AlertCircle size={18} className="text-red-500 animate-pulse"/>
              <h4 className="font-black text-slate-800 text-xs uppercase tracking-widest">Jurnal Pengecekan Silang Setoran (EOD Cabang)</h4>
           </div>
           <div className="overflow-x-auto p-2 custom-scrollbar">
               <table className="w-full text-sm text-left border-collapse">
-                  <thead className="bg-white border-b text-[10px] text-slate-400 uppercase">
+                  <thead className="bg-white/50 border-b border-white/60 text-[10px] text-slate-500 uppercase">
                       <tr>
                         <th className="px-5 py-3 font-black">Tanggal Lapor</th>
                         <th className="px-5 py-3 text-center font-black">Klaim Adukan Dapur</th>
@@ -211,14 +213,14 @@ export default function TabDashboardBranch({ orders = [], orders_data, pemalangR
                         <th className="px-5 py-3 text-right font-black">Uang Setoran Masuk</th>
                       </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 font-bold text-xs">
+                  <tbody className="divide-y divide-white/40 font-bold text-xs">
                       {(!stats.laporanUrut || stats.laporanUrut.length === 0) ? (
-                          <tr><td colSpan="5" className="text-center py-12 text-slate-400 uppercase font-black tracking-widest bg-slate-50/50">Tidak ada setoran EOD tertulis dari cabang di rentang tanggal ini.</td></tr>
+                          <tr><td colSpan="5" className="text-center py-12 text-slate-500 uppercase font-black tracking-widest bg-white/20">Tidak ada setoran EOD tertulis dari cabang di rentang tanggal ini.</td></tr>
                       ) : (
                           stats.laporanUrut.map((r, i) => (
-                              <tr key={i} className="hover:bg-blue-50/30 transition-colors">
+                              <tr key={i} className="hover:bg-white/40 transition-colors">
                                   <td className="px-5 py-4 whitespace-nowrap"><div className="font-black text-slate-800">{formatDate(r.date)}</div></td>
-                                  <td className="px-5 py-4 text-center whitespace-nowrap font-black text-blue-600 bg-blue-50/30 rounded-lg">{r.produksiMika || '0'} Batch / {r.pesananMika || '0'} Order</td>
+                                  <td className="px-5 py-4 text-center whitespace-nowrap font-black text-blue-700 bg-blue-50/50 rounded-lg">{r.produksiMika || '0'} Batch / {r.pesananMika || '0'} Order</td>
                                   <td className="px-5 py-4 font-black uppercase text-indigo-700">{formatNumber(r.stokFreezer)} PCS</td>
                                   <td className="px-5 py-4 font-black uppercase text-orange-700">{formatNumber(r.stokAyam)} KG</td>
                                   <td className="px-5 py-4 text-right font-black text-emerald-600 text-sm">{formatRupiah(r.nominal)}</td>
@@ -233,24 +235,24 @@ export default function TabDashboardBranch({ orders = [], orders_data, pemalangR
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
         {/* AKTIVITAS INVOICE JUALAN NOTA */}
-        <div className="lg:col-span-7 bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
-            <div className="p-5 bg-slate-50 border-b flex items-center gap-2">
-               <ShoppingCart size={16} className="text-blue-500"/>
+        <div className="lg:col-span-7 card-holo rounded-3xl flex flex-col overflow-hidden">
+            <div className="p-5 bg-white/40 border-b border-white/50 flex items-center gap-2">
+               <ShoppingCart size={16} className="text-orange-500"/>
                <h3 className="font-black text-slate-800 text-xs tracking-widest uppercase">Buku Harian Antrean Invoice Jualan Pemalang</h3>
             </div>
             <div className="overflow-x-auto p-2 custom-scrollbar max-h-[350px]">
                 <table className="w-full text-sm text-left border-collapse">
-                    <thead className="bg-white border-b text-[10px] uppercase text-slate-400 sticky top-0 z-10 shadow-sm">
+                    <thead className="bg-white/60 border-b border-white/70 text-[10px] uppercase text-slate-500 sticky top-0 z-10 shadow-sm backdrop-blur-md">
                         <tr>
-                          <th className="px-4 py-3 font-black bg-white">Tanggal &amp; ID</th>
-                          <th className="px-4 py-3 font-black bg-white">Nama Pelanggan</th>
-                          <th className="px-4 py-3 text-center font-black bg-white">Volume</th>
-                          <th className="px-4 py-3 text-right font-black bg-white">Total Tagihan</th>
+                          <th className="px-4 py-3 font-black">Tanggal &amp; ID</th>
+                          <th className="px-4 py-3 font-black">Nama Pelanggan</th>
+                          <th className="px-4 py-3 text-center font-black">Volume</th>
+                          <th className="px-4 py-3 text-right font-black">Total Tagihan</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 text-xs font-bold">
+                    <tbody className="divide-y divide-white/40 text-xs font-bold">
                         {(!stats.branchOrdersPeriod || stats.branchOrdersPeriod.length === 0) ? (
-                            <tr><td colSpan="4" className="text-center py-12 text-slate-400 uppercase font-black tracking-widest bg-slate-50/50">Tidak ada struk transaksi penjualan pada rentang periode ini.</td></tr>
+                            <tr><td colSpan="4" className="text-center py-12 text-slate-500 uppercase font-black tracking-widest bg-white/20">Tidak ada struk transaksi penjualan pada rentang periode ini.</td></tr>
                         ) : (
                             stats.branchOrdersPeriod.map((o, i) => {
                                 let totalPcsInvoice = 0;
@@ -259,10 +261,10 @@ export default function TabDashboardBranch({ orders = [], orders_data, pemalangR
                                 if (totalPcsInvoice === 0) totalPcsInvoice = Number(o.qty || 0);
 
                                 return (
-                                    <tr key={i} className="hover:bg-blue-50/30 transition-colors">
-                                        <td className="px-4 py-4 whitespace-nowrap"><div className="font-black text-slate-800">{formatDate(o?.date)}</div><div className="text-[9px] text-slate-400 font-mono mt-0.5">{o?.id || '-'}</div></td>
+                                    <tr key={i} className="hover:bg-white/50 transition-colors">
+                                        <td className="px-4 py-4 whitespace-nowrap"><div className="font-black text-slate-800">{formatDate(o?.date)}</div><div className="text-[9px] text-slate-500 font-mono mt-0.5">{o?.id || '-'}</div></td>
                                         <td className="px-4 py-4 uppercase font-black text-xs text-slate-700 whitespace-nowrap">{o?.customer_name || '-'}</td>
-                                        <td className="px-4 py-4 text-center font-black text-blue-600 bg-blue-50/30 rounded-lg whitespace-nowrap">{formatNumber(totalPcsInvoice)} Pcs</td>
+                                        <td className="px-4 py-4 text-center font-black text-blue-700 bg-blue-50/50 rounded-lg whitespace-nowrap">{formatNumber(totalPcsInvoice)} Pcs</td>
                                         <td className="px-4 py-4 text-right font-black text-emerald-600 whitespace-nowrap">{formatRupiah(o?.total_amount)}</td>
                                     </tr>
                                 )
@@ -274,19 +276,19 @@ export default function TabDashboardBranch({ orders = [], orders_data, pemalangR
         </div>
 
         {/* CRM CUSTOMER LEADERBOARD */}
-        <div className="lg:col-span-5 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col max-h-[415px]">
-            <h3 className="font-black text-slate-800 text-xs tracking-widest uppercase flex items-center gap-2 mb-4 border-b pb-3"><Users size={16} className="text-indigo-600"/> Klasemen Pelanggan Terloyal (Pemalang Node)</h3>
+        <div className="lg:col-span-5 card-holo p-6 rounded-3xl flex flex-col max-h-[415px]">
+            <h3 className="font-black text-slate-800 text-xs tracking-widest uppercase flex items-center gap-2 mb-4 border-b border-white/50 pb-3"><Users size={16} className="text-red-500"/> Klasemen Pelanggan Terloyal</h3>
             <div className="overflow-y-auto pr-1 flex-1 space-y-3 custom-scrollbar">
                {(!stats.topCustomersList || stats.topCustomersList.length === 0) ? (
-                   <div className="text-center text-slate-400 uppercase font-black text-[10px] tracking-widest py-12 bg-slate-50 rounded-2xl border border-dashed">Belum ada pelanggan loyal yang masuk hitungan.</div>
+                   <div className="text-center text-slate-500 uppercase font-black text-[10px] tracking-widest py-12 bg-white/40 rounded-2xl border border-dashed border-white/60">Belum ada pelanggan loyal yang masuk hitungan.</div>
                ) : (
                    stats.topCustomersList.map((cust, i) => (
-                       <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-200/60 hover:border-indigo-300 transition-colors shadow-sm group">
+                       <div key={i} className="flex items-center justify-between p-3 bg-white/50 backdrop-blur-sm rounded-2xl border border-white/60 hover:border-orange-300 hover:bg-orange-50/30 transition-colors shadow-sm group">
                            <div className="flex items-center gap-3">
-                               <div className={`w-7 h-7 rounded-xl flex items-center justify-center font-black text-xs shadow-md shrink-0 border ${i === 0 ? 'bg-amber-400 text-white border-amber-500' : i === 1 ? 'bg-slate-200 text-slate-700' : i === 2 ? 'bg-orange-300 text-white' : 'bg-white text-slate-400'}`}>#{i+1}</div>
+                               <div className={`w-7 h-7 rounded-xl flex items-center justify-center font-black text-xs shadow-md shrink-0 border border-white/50 ${i === 0 ? 'bg-amber-400 text-white' : i === 1 ? 'bg-slate-300 text-slate-700' : i === 2 ? 'bg-orange-400 text-white' : 'bg-white/60 text-slate-500'}`}>#{i+1}</div>
                                <div>
-                                 <div className="font-black text-slate-800 text-xs uppercase line-clamp-1 group-hover:text-indigo-600 transition-colors">{cust.name}</div>
-                                 <div className="text-[9px] font-bold text-slate-400 uppercase mt-0.5">{cust.frequency}x Belanja • {formatNumber(cust.qty)} Pcs ({formatNumber(cust.porsi.toFixed(0))} Porsi)</div>
+                                 <div className="font-black text-slate-800 text-xs uppercase line-clamp-1 group-hover:text-red-600 transition-colors">{cust.name}</div>
+                                 <div className="text-[9px] font-bold text-slate-500 uppercase mt-0.5">{cust.frequency}x Belanja • {formatNumber(cust.qty)} Pcs ({formatNumber(cust.porsi.toFixed(0))} Porsi)</div>
                                </div>
                            </div>
                            <div className="font-black text-emerald-600 text-xs shrink-0 pl-2">{formatRupiah(cust.total)}</div>
