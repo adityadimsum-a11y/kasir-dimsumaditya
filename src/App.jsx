@@ -19,7 +19,6 @@ import TabPemalang from './components/tabs/TabPemalang';
 import TabStok from './components/tabs/TabStok';
 import TabDistribusi from './components/tabs/TabDistribusi';
 import TabKaryawan from './components/tabs/TabKaryawan';
-import TabMonitoringPemalang from './components/tabs/TabMonitoringPemalang';
 import TabDashboardBranch from './components/tabs/TabDashboardBranch';
 import TabCashWarRoom from './components/tabs/TabCashWarRoom';
 import TabSCMWarRoom from './components/tabs/TabSCMWarRoom';
@@ -32,8 +31,10 @@ import TabStokOutlet from './components/tabs/TabStokOutlet';
 import TabSetoranCabang from './components/tabs/TabSetoranCabang';
 import TabDiscrepancy from './components/tabs/TabDiscrepancy';
 import TabKartuStok from './components/tabs/TabKartuStok';
-// 🔥 IMPOR MODUL CRM BARU KITA
 import TabMasterCustomer from './components/tabs/TabMasterCustomer';
+
+// 🔥 IMPOR KOMPONEN JEMBATAN MONITORING UNIVERSAL BARU KITA
+import TabMonitoringCabangUniversal from './components/tabs/TabMonitoringCabangUniversal';
 
 // =====================================
 // IMPOR KOMPONEN CETAK
@@ -194,7 +195,7 @@ export default function App() {
     } catch (err) {
       setLoginError('Server offline / Tidak ada koneksi internet.');
     } finally {
-      setUser(null);
+      setLoginForm({ username: '', password: '' });
       setIsLoading(false);
     }
   };
@@ -239,17 +240,17 @@ export default function App() {
           />
         );
       
-      // 🔥 SUNTIKAN KUNCI PINTAR: Jika HQ yang membuka tab ini (Monitor Cibinong), paksa kunci ke branch 'CIBINONG'
-      case 'dashboard_branch': 
+      // 🔥 RUTE BARU GABUNGAN: Monitor Cabang Universal ( Switch Pemalang / Cibinong )
+      case 'monitoring_cabang':
         return (
-          <TabDashboardBranch 
-            user={user} 
-            setPrintData={setPrintData} 
-            forcedBranchId={user?.branch_type === 'HQ_FACTORY' ? 'CIBINONG' : undefined}
-            {...dbData} 
+          <TabMonitoringCabangUniversal
+            user={user}
+            setPrintData={setPrintData}
+            {...dbData}
           />
         );
 
+      case 'dashboard_branch': return <TabDashboardBranch user={user} setPrintData={setPrintData} {...dbData} />;
       case 'pemalang': return <TabPemalang user={user} sendToSheet={sendToSheet} {...dbData} />;
       case 'cash_war_room': return <TabCashWarRoom user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
       case 'setoran_cabang': return <TabSetoranCabang user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />; 
@@ -282,7 +283,6 @@ export default function App() {
       case 'piutang': return <TabPiutang user={user} role={user?.role} sendToSheet={sendToSheet} setPrintData={setPrintData} showToast={showToast} {...dbData} />;
       case 'karyawan': return <TabKaryawan user={user} sendToSheet={sendToSheet} setPrintData={setPrintData} showToast={showToast} {...dbData} />;
       case 'master_data': return <TabMasterData user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
-      case 'monitoring_pemalang': return <TabMonitoringPemalang user={user} {...dbData} />;
       case 'kartu_stok': return <TabKartuStok user={user} {...dbData} />;
       case 'master_customer': return <TabMasterCustomer user={user} sendToSheet={sendToSheet} showToast={showToast} requestDelete={requestDelete} {...dbData} />;
       default: return <TabDashboardBranch user={user} {...dbData} />;
