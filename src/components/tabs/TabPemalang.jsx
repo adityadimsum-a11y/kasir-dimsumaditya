@@ -32,7 +32,6 @@ export default function TabPemalang({
       const orderDate = o.date ? o.date.substring(0, 10) : '';
       if (orderDate !== todayStr || String(o.branch_id).toUpperCase() !== currentBranch.toUpperCase()) return;
       
-      // 🔥 FIX KABEL PROPERTI: total_amount dan payment_method
       const netSales = Number(o.total_amount || o.total || 0) - Number(o.fee_amount || 0) - Number(o.marketplace_promo || 0);
       const method = String(o.payment_method || '').toUpperCase();
       
@@ -110,25 +109,25 @@ export default function TabPemalang({
     .sort((a, b) => new Date(b.transfer_date) - new Date(a.period || todayStr));
 
   return (
-    <div className="space-y-6 animate-in fade-in pb-10 text-slate-800">
+    <div className="space-y-6 animate-in fade-in pb-10 text-slate-700 normal-case">
       
-      {/* HEADER HERO CLOSING NODE */}
-      <div className="bg-slate-900 rounded-3xl p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xl border border-slate-800 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
-        <div className="relative z-10 text-left w-full">
-          <h2 className="text-xl md:text-2xl font-black text-white uppercase flex items-center gap-3 tracking-widest">
-            <Lock className="text-blue-400" /> Closing &amp; Settlement Node
+      {/* HEADER HERO CLOSING NODE - FLAT ENTERPRISE STYLE */}
+      <div className="card-holo p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 relative overflow-hidden bg-white">
+        <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-600"></div>
+        <div className="relative z-10 text-left w-full pl-2">
+          <h2 className="text-lg md:text-xl font-extrabold text-slate-800 normal-case flex items-center gap-2">
+            <Lock className="text-blue-600" size={20}/> Closing &amp; settlement node
           </h2>
-          <p className="text-xs font-bold text-slate-400 mt-2 uppercase tracking-widest">
-            Rekapitulasi Setoran Kasir Harian ke Pusat — Cabang: <span className="text-blue-400">{currentBranch.replace('_', ' ')}</span>
+          <p className="text-[10px] font-semibold text-slate-400 mt-1 normal-case">
+            Rekapitulasi setoran kasir harian ke pusat — Cabang: <span className="text-blue-600 font-extrabold">{currentBranch.replace(/_/g, ' ')}</span>
           </p>
         </div>
         {dailyMetrics.isClosed && (
-          <div className="relative z-10 bg-emerald-500/20 border border-emerald-500/50 px-6 py-3.5 rounded-2xl flex items-center gap-3 shadow-lg">
-            <CheckCircle className="text-emerald-400" size={24} />
+          <div className="relative z-10 bg-emerald-50 border border-emerald-200 px-5 py-3 rounded-xl flex items-center gap-3 shadow-xs shrink-0">
+            <CheckCircle className="text-emerald-500" size={20} />
             <div className="text-left">
-              <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Status Jaringan</div>
-              <div className="text-sm font-black text-white uppercase tracking-wider">Terkunci (Closed)</div>
+              <div className="text-[9px] font-bold text-slate-500 normal-case">Status jaringan</div>
+              <div className="text-xs font-extrabold text-emerald-700 normal-case">Terkunci (Closed)</div>
             </div>
           </div>
         )}
@@ -138,25 +137,25 @@ export default function TabPemalang({
         
         {/* KANTONG KIRI: KALKULATOR SISTEM */}
         <div className="lg:col-span-1 space-y-4">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 h-max">
-            <h3 className="font-black text-slate-800 text-xs uppercase tracking-widest flex items-center gap-2 border-b border-slate-100 pb-3 mb-4">
-              <Calculator size={16} className="text-slate-500"/> Kalkulasi Sistem EOD (Hari Ini)
+          <div className="card-holo p-6 h-max">
+            <h3 className="font-extrabold text-slate-800 text-xs normal-case flex items-center gap-2 border-b border-slate-100 pb-3 mb-4">
+              <Calculator size={16} className="text-blue-600"/> Kalkulasi sistem EOD (Hari ini)
             </h3>
             <div className="space-y-4">
               <div>
-                 <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Penjualan Tunai / Lunas</div>
-                 <div className="text-xl font-black text-emerald-600 mt-0.5">{formatRupiah(dailyMetrics.cashSales)}</div>
+                 <div className="text-[9px] font-bold text-slate-400 normal-case">Penjualan tunai / lunas</div>
+                 <div className="text-xl font-extrabold text-emerald-600 mt-0.5">{formatRupiah(dailyMetrics.cashSales)}</div>
               </div>
               <div>
-                 <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Piutang Mengambang / Marketplace</div>
-                 <div className="text-xl font-black text-orange-500 mt-0.5">{formatRupiah(dailyMetrics.marketplaceAR)}</div>
+                 <div className="text-[9px] font-bold text-slate-400 normal-case">Piutang mengambang / marketplace</div>
+                 <div className="text-xl font-extrabold text-orange-500 mt-0.5">{formatRupiah(dailyMetrics.marketplaceAR)}</div>
               </div>
               <div className="border-b border-dashed border-slate-200 pb-5">
-                 <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Beban Keluar Cabang</div>
-                 <div className="text-xl font-black text-rose-500 mt-0.5">- {formatRupiah(dailyMetrics.totalExpenses)}</div>
+                 <div className="text-[9px] font-bold text-slate-400 normal-case">Total beban keluar cabang</div>
+                 <div className="text-xl font-extrabold text-red-500 mt-0.5">- {formatRupiah(dailyMetrics.totalExpenses)}</div>
               </div>
-              <div className="pt-2 bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-inner">
-                 <div className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">Ekspektasi Uang Fisik Di Laci</div>
+              <div className="pt-2 bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-inner">
+                 <div className="text-[9px] font-bold text-blue-600 normal-case mb-1">Ekspektasi uang fisik di laci</div>
                  <div className="text-2xl font-black text-slate-800 tracking-tight">{formatRupiah(dailyMetrics.expectedCash)}</div>
               </div>
             </div>
@@ -165,55 +164,55 @@ export default function TabPemalang({
 
         {/* KANTONG KANAN: FORM SETORAN KE PUSAT */}
         <div className="lg:col-span-2">
-          <div className={`bg-white rounded-3xl border shadow-sm overflow-hidden transition-all ${dailyMetrics.isClosed ? 'opacity-70 pointer-events-none border-slate-200' : 'border-blue-300 shadow-blue-500/10'}`}>
-            <div className={`p-5 border-b ${dailyMetrics.isClosed ? 'bg-slate-50' : 'bg-blue-50/50'} flex items-center justify-between`}>
-               <h4 className="font-black text-slate-800 tracking-widest uppercase text-xs flex items-center gap-2">
-                 <Send size={16} className={dailyMetrics.isClosed ? 'text-slate-400' : 'text-blue-600'}/> Lembar Setoran Cabang (Menunggu Validasi Pusat)
+          <div className={`card-holo overflow-hidden transition-all ${dailyMetrics.isClosed ? 'opacity-70 pointer-events-none' : 'border-t-4 border-t-blue-500'}`}>
+            <div className="p-5 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+               <h4 className="font-extrabold text-slate-800 normal-case text-xs flex items-center gap-2">
+                 <Send size={16} className={dailyMetrics.isClosed ? 'text-slate-400' : 'text-blue-600'}/> Lembar setoran cabang (Menunggu validasi pusat)
                </h4>
             </div>
             
-            <form onSubmit={handleClosingSubmit} className="p-6 md:p-8 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">1. Hitung Uang Fisik Riil di Laci</label>
+            <form onSubmit={handleClosingSubmit} className="p-6 md:p-8 space-y-5 bg-white">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <label className="text-[9px] font-bold text-slate-500 normal-case block mb-1">1. Hitung uang fisik riil di laci</label>
                   <div className="relative">
-                     <span className="absolute left-4 top-3.5 font-black text-slate-400">Rp</span>
-                     <input type="text" required value={form.actual_cash ? Number(form.actual_cash).toLocaleString('id-ID') : ''} onChange={e => setForm({...form, actual_cash: e.target.value.replace(/\D/g, '')})} className="w-full pl-11 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl font-black text-slate-800 outline-none focus:border-blue-400 focus:bg-white transition-colors" placeholder="0" />
+                     <span className="absolute left-3 top-2.5 font-bold text-slate-400 text-xs">Rp</span>
+                     <input type="text" required value={form.actual_cash ? Number(form.actual_cash).toLocaleString('id-ID') : ''} onChange={e => setForm({...form, actual_cash: e.target.value.replace(/\D/g, '')})} className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-lg font-extrabold text-slate-800 outline-none focus:border-blue-500 transition-colors" placeholder="0" />
                   </div>
                   {form.actual_cash && (
-                    <div className={`text-[10px] font-bold mt-2 px-3 py-2.5 rounded-xl flex items-center gap-1.5 uppercase tracking-wide border shadow-sm ${discrepancy === 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : discrepancy > 0 ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
-                      {discrepancy === 0 ? <CheckCircle size={14}/> : <AlertTriangle size={14}/>}
-                      {discrepancy === 0 ? 'Balance / Seimbang (Aman)' : discrepancy > 0 ? `Lebih Kas: ${formatRupiah(discrepancy)}` : `Minus/Selisih: ${formatRupiah(discrepancy)}`}
+                    <div className={`text-[9px] font-bold mt-2 px-2.5 py-1.5 rounded-md flex items-center gap-1.5 normal-case border shadow-xs ${discrepancy === 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : discrepancy > 0 ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+                      {discrepancy === 0 ? <CheckCircle size={12}/> : <AlertTriangle size={12}/>}
+                      {discrepancy === 0 ? 'Balance / Seimbang (Aman)' : discrepancy > 0 ? `Lebih kas: ${formatRupiah(discrepancy)}` : `Minus/Selisih: ${formatRupiah(discrepancy)}`}
                     </div>
                   )}
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest">2. Nominal Uang Disetor/Transfer</label>
+                <div>
+                  <label className="text-[9px] font-bold text-blue-600 normal-case block mb-1">2. Nominal uang disetor/transfer</label>
                   <div className="relative">
-                     <span className="absolute left-4 top-3.5 font-black text-blue-500">Rp</span>
-                     <input type="text" required value={form.transfer_amount ? Number(form.transfer_amount).toLocaleString('id-ID') : ''} onChange={e => setForm({...form, transfer_amount: e.target.value.replace(/\D/g, '')})} className="w-full pl-11 pr-4 py-3.5 bg-blue-50 border-2 border-blue-200 rounded-2xl font-black text-blue-700 outline-none focus:bg-white focus:border-blue-500 transition-colors" placeholder="0" />
+                     <span className="absolute left-3 top-2.5 font-bold text-blue-500 text-xs">Rp</span>
+                     <input type="text" required value={form.transfer_amount ? Number(form.transfer_amount).toLocaleString('id-ID') : ''} onChange={e => setForm({...form, transfer_amount: e.target.value.replace(/\D/g, '')})} className="w-full pl-9 pr-3 py-2 bg-blue-50 border border-blue-200 rounded-lg font-extrabold text-blue-700 outline-none focus:bg-white focus:border-blue-500 transition-colors" placeholder="0" />
                   </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-5 border-t border-slate-100">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Metode Serah Terima Setoran</label>
-                  <select value={form.transfer_method} onChange={e => setForm({...form, transfer_method: e.target.value})} className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-black uppercase text-slate-700 outline-none cursor-pointer focus:bg-white focus:border-blue-400">
-                    <option value="BCA_PUSAT">Transfer Bank (BCA PUSAT)</option>
-                    <option value="MANDIRI_PUSAT">Transfer Bank (MANDIRI PUSAT)</option>
-                    <option value="KAS_TUNAI_PUSAT">Disetor Tunai Fisik (Pusat/Kurir)</option>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-4 border-t border-slate-100">
+                <div>
+                  <label className="text-[9px] font-bold text-slate-500 normal-case block mb-1">Metode serah terima setoran</label>
+                  <select value={form.transfer_method} onChange={e => setForm({...form, transfer_method: e.target.value})} className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold normal-case text-slate-800 outline-none cursor-pointer focus:border-blue-500">
+                    <option value="BCA_PUSAT">Transfer bank (BCA Pusat)</option>
+                    <option value="MANDIRI_PUSAT">Transfer bank (Mandiri Pusat)</option>
+                    <option value="KAS_TUNAI_PUSAT">Disetor tunai fisik (Pusat/Kurir)</option>
                   </select>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Catatan Tambahan Transaksi</label>
-                  <input type="text" value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold uppercase outline-none focus:bg-white focus:border-blue-400" placeholder="Contoh: Titip lewat supir DO" />
+                <div>
+                  <label className="text-[9px] font-bold text-slate-500 normal-case block mb-1">Catatan tambahan transaksi</label>
+                  <input type="text" value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-xs font-medium normal-case outline-none focus:border-blue-500" placeholder="Contoh: Titip lewat supir DO" />
                 </div>
               </div>
 
-              <button type="submit" disabled={dailyMetrics.isClosed} className="w-full bg-slate-900 hover:bg-slate-800 text-white font-black py-4.5 rounded-2xl uppercase tracking-widest text-xs flex justify-center items-center gap-2 mt-4 shadow-xl disabled:opacity-50 transition-transform active:scale-95">
-                {dailyMetrics.isClosed ? <><Lock size={16}/> Buku Kasir Cabang Sudah Terkunci</> : <><Send size={16}/> Kirim Setoran &amp; Tunggu Validasi Pusat</>}
+              <button type="submit" disabled={dailyMetrics.isClosed} className="w-full btn-holo py-3.5 rounded-lg normal-case font-bold text-xs flex justify-center items-center gap-2 mt-4 shadow-sm disabled:opacity-50">
+                {dailyMetrics.isClosed ? <><Lock size={14}/> Buku kasir cabang sudah terkunci</> : <><Send size={14}/> Kirim setoran &amp; tunggu validasi pusat</>}
               </button>
             </form>
           </div>
@@ -221,48 +220,48 @@ export default function TabPemalang({
       </div>
 
       {/* HISTORI JURNAL SETORAN CABANG EOD */}
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col mt-2">
-         <div className="p-5 border-b bg-slate-50 flex items-center justify-between">
-            <h4 className="font-black text-slate-800 tracking-widest uppercase text-xs flex items-center gap-2"><Landmark size={16} className="text-blue-500"/> Histori Catatan Setoran Cabang Ini</h4>
-            <span className="text-[9px] font-black text-slate-500 bg-white px-2.5 py-1 rounded-md border shadow-sm uppercase tracking-wider">Maksimal 10 Hari Terakhir</span>
+      <div className="card-holo flex flex-col overflow-hidden mt-2">
+         <div className="p-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+            <h4 className="font-extrabold text-slate-800 normal-case text-xs flex items-center gap-2"><Landmark size={16} className="text-blue-500"/> Histori catatan setoran cabang ini</h4>
+            <span className="text-[9px] font-bold text-slate-500 bg-white px-2.5 py-1 rounded-md border border-slate-200 shadow-xs normal-case">Maksimal 10 hari terakhir</span>
          </div>
-         <div className="overflow-x-auto flex-1 p-2 custom-scrollbar">
+         <div className="overflow-x-auto flex-1 p-1 custom-scrollbar">
             <table className="w-full text-sm text-left border-collapse">
-               <thead className="text-[10px] text-slate-400 uppercase tracking-widest border-b border-slate-100 bg-white">
+               <thead className="text-[10px] text-slate-400 normal-case border-b border-slate-200 bg-slate-50/50">
                   <tr>
-                    <th className="px-5 py-3 font-black">Tgl Settlement / EOD</th>
-                    <th className="px-5 py-3 font-black">Metode Transfer</th>
-                    <th className="px-5 py-3 text-right font-black">Nominal Disetor</th>
-                    <th className="px-5 py-3 text-center font-black">Status Validasi Pusat</th>
+                    <th className="px-5 py-3 font-bold">Tgl settlement / EOD</th>
+                    <th className="px-5 py-3 font-bold">Metode transfer</th>
+                    <th className="px-5 py-3 text-right font-bold">Nominal disetor</th>
+                    <th className="px-5 py-3 text-center font-bold">Status validasi pusat</th>
                   </tr>
                </thead>
-               <tbody className="divide-y divide-slate-50 text-xs font-bold">
+               <tbody className="divide-y divide-slate-100 text-xs font-bold bg-white">
                   {mySettlements.length === 0 ? (
                       <tr>
-                        <td colSpan="4" className="text-center py-16 text-slate-400 bg-slate-50/50">
-                          <div className="flex justify-center mb-2 opacity-20"><FileText size={36}/></div>
-                          <span className="font-black uppercase tracking-widest text-xs">Belum ada histori setoran (Closing) ke markas pusat.</span>
+                        <td colSpan="4" className="text-center py-16 text-slate-400 bg-white">
+                          <div className="flex justify-center mb-2 opacity-30"><FileText size={36}/></div>
+                          <span className="font-bold normal-case text-sm">Belum ada histori setoran (Closing) ke markas pusat.</span>
                         </td>
                       </tr>
                   ) : (
                       mySettlements.slice(0, 10).map((s, idx) => (
-                         <tr key={s.settlement_id || idx} className="hover:bg-blue-50/30 transition-colors group">
+                         <tr key={s.settlement_id || idx} className="hover:bg-slate-50 transition-colors group">
                             <td className="px-5 py-4 whitespace-nowrap">
-                              <div className="text-slate-800 font-black">{formatDate(s.transfer_date || s.period)}</div>
+                              <div className="text-slate-800 font-extrabold">{formatDate(s.transfer_date || s.period)}</div>
                               <div className="text-[9px] text-slate-400 font-mono mt-0.5">{s.settlement_id}</div>
                             </td>
                             <td className="px-5 py-4 whitespace-nowrap">
-                              <span className="px-2.5 py-1 rounded-md border border-slate-200 shadow-sm bg-slate-50 text-slate-600 text-[9px] font-black uppercase tracking-widest">{s.transfer_method.replace('_', ' ')}</span>
+                              <span className="px-2.5 py-1 rounded-md border border-slate-200 shadow-xs bg-slate-50 text-slate-600 text-[9px] font-bold normal-case">{s.transfer_method.replace(/_/g, ' ')}</span>
                             </td>
-                            <td className="px-5 py-4 text-right text-blue-600 font-black text-sm whitespace-nowrap">{formatRupiah(s.amount_transferred)}</td>
+                            <td className="px-5 py-4 text-right text-blue-600 font-extrabold text-sm whitespace-nowrap">{formatRupiah(s.amount_transferred)}</td>
                             <td className="px-5 py-4 text-center whitespace-nowrap">
                                 {s.transfer_status === 'PENDING_APPROVAL' ? (
-                                    <span className="flex items-center justify-center gap-1.5 text-orange-700 text-[9px] font-black uppercase tracking-widest bg-orange-50 border border-orange-200 px-3 py-1.5 rounded-lg w-max mx-auto shadow-sm animate-pulse">
-                                      <Clock size={12} /> Menunggu Validasi HQ
+                                    <span className="flex items-center justify-center gap-1.5 text-orange-700 text-[9px] font-bold normal-case bg-orange-50 border border-orange-200 px-3 py-1.5 rounded-lg w-max mx-auto shadow-xs animate-pulse">
+                                      <Clock size={12} /> Menunggu validasi HQ
                                     </span>
                                 ) : (
-                                    <span className="flex items-center justify-center gap-1.5 text-emerald-700 text-[9px] font-black uppercase tracking-widest bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg w-max mx-auto shadow-sm">
-                                      <CheckCircle size={12} /> Diterima Pusat
+                                    <span className="flex items-center justify-center gap-1.5 text-emerald-700 text-[9px] font-bold normal-case bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg w-max mx-auto shadow-xs">
+                                      <CheckCircle size={12} /> Diterima pusat
                                     </span>
                                 )}
                             </td>
