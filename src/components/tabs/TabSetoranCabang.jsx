@@ -1,282 +1,248 @@
 import React, { useState, useMemo } from 'react';
-import { Lock, Send, Calculator as CalcIcon, History, AlertTriangle, CheckCircle2, Wallet, FileText, ArrowRightLeft, Clock, Building2, Search, Landmark, Link, Image } from 'lucide-react';
+import { 
+  Coins, Wallet, ArrowDownRight, CheckCircle2, 
+  XCircle, Clock, FileText, Landmark, AlertCircle 
+} from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
-import { triggerPrint } from '../../utils/PrintUtility';
 
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 
 export default function TabSetoranCabang({ 
-  orders = [], orders_data, 
-  expenses = [], expenses_data, 
-  cashflow_transactions = [], cashflow_transactions_data,
-  interbranch_treasury = [], interbranch_treasury_data,
-  user, sendToSheet, showToast 
+  orders = [], orders_data,
+  expenses = [], expenses_data,
+  branch_settlements = [], branch_settlements_data,
+  sendToSheet, showToast, user 
 }) {
   const todayStr = getTodayStr();
-  const currentBranch = user?.branch_id || 'PUSAT';
-  // Deteksi mutlak: Apakah ini akun tertinggi (Pemilik/Pusat)?
-  const isHQ = user?.branch_type === 'HQ_FACTORY' || user?.branch_id === 'PUSAT' || currentBranch === 'TANGERANG_PUSAT';
+  const currentBranch = (user?.branch_id === 'PUSAT' || !user?.branch_id) ? 'TANGERANG_PUSAT' : user?.branch_id;
   
-  // 🔥 TAMBAHAN: State foto_url untuk link struk transfer
-  const [form, setForm] = useState({ uangFisik: '', nominalSetor: '', metode: 'Transfer BCA Pusat', catatan: '', foto_url: '' });
-  const [searchTerm, setSearchTerm] = useState('');
+  // 🔥 GEMBOK UTAMA PUSAT vs CABANG
+  const isHQ = user?.branch_type === 'HQ_FACTORY' || user?.branch_id === 'PUSAT' || currentBranch === 'TANGERANG_PUSAT';
 
+  // SINKRONISASI DATABASE
   const realOrders = useMemo(() => orders_data || orders || [], [orders, orders_data]);
   const realExpenses = useMemo(() => expenses_data || expenses || [], [expenses, expenses_data]);
-  const realCashflow = useMemo(() => cashflow_transactions_data || cashflow_transactions || [], [cashflow_transactions, cashflow_transactions_data]);
-  const realTreasury = useMemo(() => interbranch_treasury_data || interbranch_treasury || [], [interbranch_treasury, interbranch_treasury_data]);
+  const realSettlements = useMemo(() => branch_settlements_data || branch_settlements || [], [branch_settlements, branch_settlements_data]);
 
-  // KALKULASI KAS LACI (Ditambah Logika Auto-Nol Pending)
-  const calcMetrics = useMemo(() => {
-    let penjualanTunai = 0; let piutangMarketplace = 0; let pengeluaranCabang = 0; let setoranPending = 0;
+  // STATE FORM INPUT UNTUK CABANG
+  const [cashInHand, setCashInHand] = useState('');
+  const [amountSent, setAmountSent] = useState('');
+  const [method, setMethod] = useState('TRANSFER_BCA_PUSAT');
+  const [notes, setNotes] = useState('');
 
-    realOrders.filter(o => !o.isDeleted && o.date?.startsWith(todayStr) && o.branch_id === currentBranch).forEach(o => {
-      const channel = o.sales_channel?.toUpperCase() || '';
-      const method = o.payment_method?.toUpperCase() || '';
-      const amount = Number(o.amount_paid || o.total_amount || 0);
+  // --- ENGINE HITUNG KAS EOD INTERNAL ---
+  const eodCalculation = useMemo(() => {
+    let tunaiLunas = 0;
+    let bebanKeluar = 0;
 
-      if (['GOFOOD', 'GRABFOOD', 'SHOPEEFOOD', 'TOKOPEDIA', 'SHOPEE', 'TIKTOK_SHOP'].includes(channel) || method === 'HUTANG' || method === 'DP') {
-        piutangMarketplace += amount;
-      } else { penjualanTunai += amount; }
+    realOrders.forEach(o => {
+      if (!o.isDeleted && o.branch_id === currentBranch && o.date === todayStr) {
+        if (o.payment_method === 'CASH') {
+          tunaiLunas += Number(o.amount_paid || 0);
+        }
+      }
     });
 
-    realCashflow.filter(c => !c.isDeleted && c.date?.startsWith(todayStr) && c.branch_id === currentBranch && c.type === 'IN' && c.reference_id && !c.reference_id.startsWith('ORD')).forEach(c => {
-      penjualanTunai += Number(c.amount || 0);
+    realExpenses.forEach(e => {
+      if (!e.isDeleted && e.branch_id === currentBranch && e.date === todayStr) {
+        if (e.payment_method === 'CASH') {
+          bebanKeluar += Number(e.amount || 0);
+        }
+      }
     });
 
-    realExpenses.filter(e => !e.isDeleted && e.date?.startsWith(todayStr) && e.branch_id === currentBranch).forEach(e => {
-      pengeluaranCabang += Number(e.amount || 0);
-    });
-    realCashflow.filter(c => !c.isDeleted && c.date?.startsWith(todayStr) && c.branch_id === currentBranch && c.type === 'OUT').forEach(c => {
-      pengeluaranCabang += Number(c.amount || 0);
-    });
+    const ekspektasiLaci = Math.max(0, tunaiLunas - borderKeluar);
+    return { tunaiLunas, bebanKeluar, ekspektasiLaci };
+  }, [realOrders, realExpenses, currentBranch, todayStr]);
 
-    // 🔥 FITUR AUTO-NOL: Kurangi laci dengan nominal setoran yang masih PENDING hari ini
-    realTreasury.filter(t => !t.isDeleted && t.date === todayStr && t.from_branch === currentBranch && t.status === 'PENDING').forEach(t => {
-      setoranPending += Number(t.amount || 0);
-    });
-
-    const ekspektasiKas = Math.max(0, penjualanTunai - pengeluaranCabang - setoranPending);
-    return { penjualanTunai, piutangMarketplace, pengeluaranCabang, ekspektasiKas, setoranPending };
-  }, [realOrders, realExpenses, realCashflow, realTreasury, todayStr, currentBranch]);
-
-  const uangFisikNum = Number(form.uangFisik || 0);
-  const selisih = uangFisikNum - calcMetrics.ekspektasiKas;
-
-  // HISTORI / ANTREAN SETORAN
-  const historiSetoran = useMemo(() => {
-    let baseData = realTreasury.filter(t => !t.isDeleted);
-    if (!isHQ) baseData = baseData.filter(t => t.from_branch === currentBranch); // Cabang cuma lihat miliknya
-    if (searchTerm) {
-      const s = searchTerm.toLowerCase();
-      baseData = baseData.filter(t => t.id.toLowerCase().includes(s) || t.from_branch?.toLowerCase().includes(s) || (t.notes && t.notes.toLowerCase().includes(s)));
-    }
-    return baseData.sort((a, b) => new Date(b.date) - new Date(a.date));
-  }, [realTreasury, currentBranch, isHQ, searchTerm]);
-
-  // ACTION: CABANG SUBMIT SETORAN
-  const handleSubmit = async (e) => {
+  // --- ACTIONS: SUBMIT SETORAN (Hanya Bisa Diisi Cabang) ---
+  const handleKirimSetoran = async (e) => {
     e.preventDefault();
-    if (uangFisikNum <= 0) return alert("Uang fisik belum dihitung!");
-    const setorNum = Number(form.nominalSetor || 0);
-    if (setorNum <= 0) return alert("Nominal setoran tidak boleh nol!");
-    if (setorNum > uangFisikNum) return alert("Nominal disetor tidak boleh lebih besar dari uang fisik riil di laci!");
+    if (!amountSent || Number(amountSent) <= 0) return alert("Nominal uang disetor harus valid!");
 
-    if (selisih < 0) {
-      const konfirmasiMinus = window.confirm(`PERINGATAN! Ada selisih MINUS (Nombok) sebesar ${formatRupiah(Math.abs(selisih))}.\n\nTetap lanjutkan proses closing?`);
-      if (!konfirmasiMinus) return;
-    }
+    if (!window.confirm(`Konfirmasi Kirim Berkas EOD:\n\nNominal: ${formatRupiah(amountSent)}\nMetode: ${method.replace(/_/g, ' ')}\n\nKirim ke pusat untuk divalidasi?`)) return;
 
-    const treasuryId = generateId('SETOR', todayStr);
     const payload = {
-      id: treasuryId, date: todayStr, from_branch: currentBranch, to_branch: 'PUSAT', amount: setorNum,
-      method: form.metode, status: 'PENDING', 
-      notes: `Uang Fisik: ${formatRupiah(uangFisikNum)} | Selisih Laci: ${formatRupiah(selisih)} | Catatan: ${form.catatan}`,
-      foto_url: form.foto_url || '' // 🔥 Tambahan Data Struk Transfer
+      id: generateId('SET', todayStr),
+      date: todayStr,
+      branch_id: currentBranch,
+      cash_in_laci: Number(cashInHand || 0),
+      nominal: Number(amountSent),
+      method: method,
+      status: 'PENDING_VALIDASI',
+      notes: notes || '-',
+      isDeleted: false
     };
 
-    const success = await sendToSheet('insert', payload, 'interbranch_treasury');
-    if (success) {
-      showToast('Setoran berhasil dikirim ke Pusat! Ekspektasi kas Anda telah disesuaikan menjadi Rp 0 (Jika disetor semua).', 'success');
-      setForm({ uangFisik: '', nominalSetor: '', metode: 'Transfer BCA Pusat', catatan: '', foto_url: '' });
+    if (await sendToSheet('insert', payload, 'branch_settlements')) {
+      showToast("Berkas setoran berhasil dikirim! Menunggu verifikasi bos pusat.", "success");
+      setCashInHand(''); setAmountSent(''); setNotes('');
     }
   };
 
-  // ACTION: PUSAT MENGESAHKAN SETORAN
-  const handleVerifikasiPusat = async (item) => {
-    if (!window.confirm(`PENTING: Pastikan Anda sudah mengecek mutasi masuk di Rekening Bank Pusat!\n\nSahkan dana sebesar ${formatRupiah(item.amount)} dari Cabang ${item.from_branch.replace('_', ' ')} ke Dompet Pusat?`)) return;
+  // --- ACTIONS: VALIDASI ACC BOS PUSAT (Hanya Muncul di Akun Pusat Ente) ---
+  const handleValidasiPusat = async (settlementItem, statusBaru) => {
+    const aksiTxt = statusBaru === 'DI_SETUJUI' ? 'MENYETUJUI & SAHKAN' : 'MENOLAK';
+    if (!window.confirm(`Apakah Ente yakin ingin ${aksiTxt} setoran dari ${settlementItem.branch_id} sebesar ${formatRupiah(settlementItem.nominal)}?`)) return;
 
-    const updatePayload = { ...item, status: 'VERIFIED', verified_date: new Date().toISOString() };
-    const successUpdate = await sendToSheet('update', updatePayload, 'interbranch_treasury');
+    const payload = {
+      ...settlementItem,
+      status: statusBaru,
+      verified_date: new Date().toISOString()
+    };
 
-    if (successUpdate) {
-      await sendToSheet('insert', { id: generateId('CSH', todayStr), date: todayStr, branch_id: 'TANGERANG_PUSAT', type: 'IN', category: 'SETORAN CABANG MASUK', description: `TERIMA SETORAN CLOSING DARI: ${item.from_branch}`, amount: Number(item.amount), method: 'TF', reference_id: item.id }, 'cashflow_transactions');
-      await sendToSheet('insert', { id: generateId('CSH', todayStr) + 'X', date: todayStr, branch_id: item.from_branch, type: 'OUT', category: 'SETOR CLOSING KE PUSAT', description: `Disahkan Pusat (Setoran ID: ${item.id})`, amount: Number(item.amount), method: 'CASH', reference_id: item.id }, 'cashflow_transactions');
-      showToast('Setoran disahkan! Dana sudah masuk mutasi Dompet Perusahaan.', 'success');
+    if (await sendToSheet('update', payload, 'branch_settlements')) {
+      showToast(`Setoran cabang berhasil ${statusBaru === 'DI_SETUJUI' ? 'disahkan masuk brankas!' : 'ditolak!'}`, 'success');
     }
   };
+
+  // Filter List Riwayat Tampilan
+  const displayedSettlements = useMemo(() => {
+    if (isHQ) {
+      return realSettlements.filter(s => !s.isDeleted).reverse();
+    }
+    return realSettlements.filter(s => !s.isDeleted && s.branch_id === currentBranch).reverse();
+  }, [realSettlements, isHQ, currentBranch]);
 
   return (
-    <div className="space-y-6 pb-10 text-slate-800 animate-in fade-in duration-300">
+    <div className="space-y-6 pb-10 text-slate-700 normal-case animate-in fade-in duration-200">
       
-      {/* HEADER BANNER - DINAMIS TERGANTUNG ROLE */}
-      <div className={`p-6 rounded-3xl border shadow-md text-white flex justify-between items-center ${isHQ ? 'bg-indigo-900 border-indigo-800' : 'bg-slate-900 border-slate-800'}`}>
+      {/* HEADER TAB */}
+      <div className="card-holo p-5 bg-white border border-slate-200 flex justify-between items-center">
         <div>
-          <h2 className="text-xl font-black uppercase tracking-widest flex items-center gap-2">
-            {isHQ ? <Landmark className="text-amber-400" /> : <Lock className="text-emerald-400" />} 
-            {isHQ ? 'Pusat Konsolidasi Cabang' : 'Closing & Settlement Node'}
+          <h2 className="text-sm font-extrabold text-slate-800 normal-case flex items-center gap-2">
+            <Coins className="text-blue-600" size={18}/> Closing &amp; settlement node harian
           </h2>
-          <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-wider">
-            {isHQ ? 'Verifikasi aliran dana masuk dari seluruh cabang operasional.' : `Rekapitulasi harian & setoran kas ke Pusat — Cabang: ${currentBranch}`}
+          <p className="text-[10px] font-bold text-slate-400 normal-case mt-0.5">
+            {isHQ ? 'Otoritas Validasi Pusat: Rekapitulasi berkas setoran masuk dari seluruh outlet cabang nasional.' : `Mengunci pembukuan harian laci kasir cabang ${currentBranch}.`}
           </p>
         </div>
       </div>
 
-      {/* JIKA CABANG: TAMPILKAN FORM SETORAN */}
-      {!isHQ && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="lg:col-span-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col">
-            <h3 className="text-xs font-black uppercase tracking-widest text-slate-800 border-b pb-3 flex items-center gap-2 mb-4">
-              <CalcIcon size={16} className="text-blue-600"/> Kalkulasi Sistem (Hari Ini)
-            </h3>
-            
-            <div className="space-y-4 flex-1">
-              <div><div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Penjualan Tunai / QRIS</div><div className="text-xl font-black text-emerald-600">{formatRupiah(calcMetrics.penjualanTunai)}</div></div>
-              <div><div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Piutang Marketplace &amp; Agen</div><div className="text-xl font-black text-orange-500">{formatRupiah(calcMetrics.piutangMarketplace)}</div></div>
-              <div><div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Pengeluaran Laci Cabang</div><div className="text-xl font-black text-rose-500">- {formatRupiah(calcMetrics.pengeluaranCabang)}</div></div>
-              {calcMetrics.setoranPending > 0 && (
-                <div className="pt-2 border-t"><div className="text-[9px] font-black text-amber-500 uppercase tracking-widest">Setoran Dalam Perjalanan (Pending Pusat)</div><div className="text-lg font-black text-amber-600">- {formatRupiah(calcMetrics.setoranPending)}</div></div>
-              )}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        {/* KIRI (5 KOLOM): KALKULASI SISTEM AUTOMATIS (Hanya Relevan buat Cabang) */}
+        <div className="lg:col-span-5 card-holo p-5 bg-white border border-slate-200">
+          <h3 className="text-xs font-black text-slate-800 normal-case mb-4 flex items-center gap-1.5"><FileText size={14}/> Kalkulasi sistem EOD (Hari ini)</h3>
+          <div className="space-y-4">
+            <div className="border-b pb-3">
+              <span className="text-[10px] font-bold text-slate-400 block normal-case">Penjualan tunai bersih laci</span>
+              <span className="text-lg font-extrabold text-slate-800">{formatRupiah(eodCalculation.tunaiLunas)}</span>
             </div>
-
-            <div className="mt-6 pt-4 border-t border-dashed border-slate-300 bg-slate-50 p-4 rounded-2xl shadow-inner relative overflow-hidden">
-              <div className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">Ekspektasi Kas Laci (Aktif)</div>
-              <div className="text-3xl font-black tracking-tight text-slate-800 relative z-10">{formatRupiah(calcMetrics.ekspektasiKas)}</div>
-              {calcMetrics.ekspektasiKas === 0 && <CheckCircle2 size={80} className="absolute -right-4 -bottom-4 text-emerald-500/10 pointer-events-none" />}
+            <div className="border-b pb-3">
+              <span className="text-[10px] font-bold text-slate-400 block normal-case">Total beban keluar cabang</span>
+              <span className="text-lg font-extrabold text-red-500">-{formatRupiah(eodCalculation.bebanKeluar)}</span>
+            </div>
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+              <span className="text-[10px] font-bold text-slate-500 block normal-case">Ekspektasi uang fisik wajib ada</span>
+              <span className="text-xl font-black text-blue-600">{formatRupiah(eodCalculation.ekspektasiLaci)}</span>
             </div>
           </div>
+        </div>
 
-          <div className="lg:col-span-8 bg-blue-50/30 p-6 rounded-3xl border border-blue-100 shadow-sm">
-            <h3 className="text-xs font-black uppercase tracking-widest text-blue-800 border-b border-blue-200 pb-3 flex items-center gap-2 mb-5"><Send size={16} className="text-blue-600"/> Form Setoran (Menunggu Validasi Pusat)</h3>
-            <form onSubmit={handleSubmit} className="space-y-5">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
-                  <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest block mb-2">1. Hitung Uang Fisik Riil di Laci</label>
-                  <input type="text" required value={formatRupiah(form.uangFisik)} onChange={e=>setForm({...form, uangFisik: e.target.value.replace(/\D/g, '')})} className="w-full text-2xl font-black text-slate-800 outline-none placeholder:text-slate-300 bg-transparent" placeholder="Rp 0" />
-                  {form.uangFisik && (
-                    <div className={`mt-3 pt-2 border-t flex items-center gap-2 text-[10px] font-black uppercase tracking-widest ${selisih === 0 ? 'text-emerald-600' : (selisih < 0 ? 'text-rose-600' : 'text-blue-600')}`}>
-                      {selisih === 0 ? <><CheckCircle2 size={14}/> Laci Balance (Aman)</> : (selisih < 0 ? <><AlertTriangle size={14}/> Selisih Nombok: {formatRupiah(Math.abs(selisih))}</> : <><Wallet size={14}/> Selisih Lebih: {formatRupiah(selisih)}</>)}
+        {/* KANAN (7 KOLOM): DYNAMIC HUB (IF HQ -> APPROVAL PANEL, IF OUTLET -> FORM INPUT) */}
+        <div className="lg:col-span-7">
+          {isHQ ? (
+            /* 🔥 PANEL UTAMA PUSAT: RIWAYAT & APPROVAL SETORAN CABANG YANG PENDING */
+            <div className="card-holo p-5 bg-white border border-slate-200 h-full overflow-hidden flex flex-col">
+              <h3 className="text-xs font-black text-slate-800 normal-case mb-3 flex items-center gap-1.5"><Landmark size={14} className="text-blue-600"/> Meja antrean validasi setoran cabang masuk</h3>
+              <div className="flex-1 overflow-y-auto space-y-3 custom-scrollbar max-h-[350px] pr-1">
+                {displayedSettlements.filter(s => s.status === 'PENDING_VALIDASI').length === 0 ? (
+                  <div className="text-center py-12 text-slate-400 text-xs font-bold normal-case flex flex-col items-center justify-center">
+                    <CheckCircle2 size={32} className="text-emerald-500 mb-2 opacity-40"/>
+                    Semua setoran cabang sudah rapi divalidasi!
+                  </div>
+                ) : (
+                  displayedSettlements.filter(s => s.status === 'PENDING_VALIDASI').map(item => (
+                    <div key={item.id} className="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:border-blue-300 transition-all">
+                      <div>
+                        <div className="text-[9px] font-bold text-slate-400">{formatDate(item.date)} • ID: {item.id}</div>
+                        <div className="text-xs font-black text-slate-800 uppercase mt-0.5">Cabang: {item.branch_id.replace(/_/g, ' ')}</div>
+                        <div className="text-lg font-black text-blue-600 my-1">{formatRupiah(item.nominal)}</div>
+                        <div className="text-[10px] font-bold text-slate-500 normal-case">Metode: <span className="text-slate-800 font-extrabold">{item.method.replace(/_/g, ' ')}</span></div>
+                        <div className="text-[10px] font-medium text-slate-400 normal-case mt-1 italic">Memo cabang: "{item.notes}"</div>
+                      </div>
+                      <div className="flex gap-2 w-full sm:w-auto shrink-0">
+                        <button type="button" onClick={() => handleValidasiPusat(item, 'DI_TOLAK')} className="p-2.5 bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-600 hover:text-white transition-colors" title="Tolak Berkas"><XCircle size={16}/></button>
+                        <button type="button" onClick={() => handleValidasiPusat(item, 'DI_SETUJUI')} className="flex-1 sm:flex-none bg-emerald-600 text-white font-bold text-xs px-4 py-2.5 rounded-lg hover:bg-emerald-700 shadow-xs transition-colors normal-case">Sahkan Setoran</button>
+                      </div>
                     </div>
-                  )}
-                </div>
-                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-                  <label className="text-[10px] font-black text-emerald-600 uppercase tracking-widest block mb-2">2. Nominal Disetor/Transfer</label>
-                  <input type="text" required value={formatRupiah(form.nominalSetor)} onChange={e=>setForm({...form, nominalSetor: e.target.value.replace(/\D/g, '')})} className="w-full text-2xl font-black text-slate-800 outline-none placeholder:text-slate-300 bg-transparent" placeholder="Rp 0" />
-                  <div className="mt-3 pt-2 border-t flex items-center justify-between text-[9px] font-bold text-slate-400">
-                    <span>Isi jumlah yang dikirim ke pusat.</span>
-                    {uangFisikNum > 0 && <button type="button" onClick={() => setForm({...form, nominalSetor: String(uangFisikNum)})} className="text-blue-600 font-black hover:underline uppercase">Setor Semua</button>}
+                  ))
+                )}
+              </div>
+            </div>
+          ) : (
+            /* 🏪 PANEL OUTLET: FORM LEMBAR INPUT SETORAN KASIR */
+            <div className="card-holo p-5 bg-white border border-slate-200 shadow-xs">
+              <h3 className="text-xs font-black text-slate-800 normal-case mb-4 flex items-center gap-1.5"><ArrowDownRight size={16} className="text-blue-600"/> Lembar setoran cabang (Menunggu validasi pusat)</h3>
+              <form onSubmit={handleKirimSetoran} className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[9px] font-bold text-slate-500 block mb-1">1. Hitung uang fisik riil di laci</label>
+                    <input type="text" value={cashInHand ? Number(cashInHand).toLocaleString('id-ID') : ''} onChange={e=>setCashInHand(e.target.value.replace(/\D/g, ''))} className="w-full p-2.5 bg-slate-50 border rounded-lg font-bold text-xs" placeholder="Rp 0" />
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-bold text-slate-500 block mb-1">2. Nominal uang disetor/transfer</label>
+                    <input type="text" required value={amountSent ? Number(amountSent).toLocaleString('id-ID') : ''} onChange={e=>setAmountSent(e.target.value.replace(/\D/g, ''))} className="w-full p-2.5 bg-slate-50 border border-blue-200 rounded-lg font-black text-xs text-blue-700 focus:bg-white" placeholder="Rp 0" />
                   </div>
                 </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div>
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Metode Serah Terima</label>
-                  <select value={form.metode} onChange={e=>setForm({...form, metode: e.target.value})} className="w-full p-3 border border-slate-200 bg-white rounded-xl text-xs font-black uppercase outline-none cursor-pointer">
-                    <option value="Transfer BCA Pusat">Transfer BCA Pusat</option><option value="Transfer Mandiri Pusat">Transfer Mandiri Pusat</option><option value="Titip Driver Logistik">Titip Tunai (Driver Logistik)</option><option value="Setor Tunai Langsung">Setor Tunai Langsung ke HQ</option>
-                  </select>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[9px] font-bold text-slate-500 block mb-1">Metode serah terima setoran</label>
+                    <select value={method} onChange={e=>setMethod(e.target.value)} className="w-full p-2.5 bg-slate-50 border rounded-lg font-bold text-xs cursor-pointer">
+                      <option value="TRANSFER_BCA_PUSAT">Transfer Bank (BCA Pusat)</option>
+                      <option value="TRANSFER_BRI_PUSAT">Transfer Bank (BRI Pusat)</option>
+                      <option value="CASH_SETOR_LANGSUNG">Serah Fisik Tunai (Cash ke Bos)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-bold text-slate-500 block mb-1">Catatan tambahan transaksi</label>
+                    <input type="text" value={notes} onChange={e=>setNotes(e.target.value)} className="w-full p-2.5 bg-slate-50 border rounded-lg text-xs" placeholder="Contoh: Titip lewat supir DO, dll..." />
+                  </div>
                 </div>
-                <div>
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Catatan Tambahan</label>
-                  <input type="text" value={form.catatan} onChange={e=>setForm({...form, catatan: e.target.value})} className="w-full p-3 border border-slate-200 bg-white rounded-xl text-xs font-bold outline-none" placeholder="Titip lewat supir DO..." />
-                </div>
-                
-                {/* 🔥 INPUT BUKTI TRANSFER (FULL WIDTH) */}
-                <div className="md:col-span-2">
-                  <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-1.5 mb-1.5"><Link size={12}/> Link Bukti Transfer / Foto Uang (Google Drive)</label>
-                  <input type="text" value={form.foto_url} onChange={e=>setForm({...form, foto_url: e.target.value})} className="w-full p-3 border border-blue-200 bg-white rounded-xl text-xs font-bold outline-none focus:border-blue-500 transition-colors" placeholder="Paste link URL bukti mutasi/struk di sini (opsional)..." />
-                </div>
-
-              </div>
-              <button type="submit" disabled={!form.uangFisik || !form.nominalSetor} className="w-full bg-slate-900 text-white font-black py-4 rounded-xl text-xs uppercase disabled:opacity-40 shadow-xl hover:bg-slate-800 transition-colors mt-2 tracking-widest flex items-center justify-center gap-2"><Send size={16}/> Kirim Setoran &amp; Tunggu Approval Pusat</button>
-            </form>
-          </div>
+                <button type="submit" className="w-full bg-red-600 text-white font-bold py-3 rounded-lg text-xs hover:bg-red-700 shadow-md transition-colors normal-case">
+                  Kirim setoran &amp; tunggu validasi pusat
+                </button>
+              </form>
+            </div>
+          )}
         </div>
-      )}
 
-      {/* JIKA HQ: TAMPILKAN RADAR KPI PUSAT */}
-      {isHQ && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-amber-50/80 p-6 rounded-3xl border border-amber-200 shadow-sm relative overflow-hidden">
-            <Clock className="absolute -right-4 -bottom-4 text-amber-500/10" size={120} />
-            <div className="text-[10px] font-black text-amber-600 uppercase tracking-widest flex items-center gap-2 mb-2"><Clock size={14}/> Menunggu Validasi Pusat</div>
-            <div className="text-3xl font-black text-amber-700 tracking-tight">{formatRupiah(historiSetoran.filter(h => h.status === 'PENDING').reduce((a,b)=>a+Number(b.amount),0))}</div>
-            <div className="mt-3 text-[10px] font-bold text-amber-700/60 uppercase">Terdapat {historiSetoran.filter(h => h.status === 'PENDING').length} antrean setoran gantung.</div>
-          </div>
-          <div className="bg-emerald-50/80 p-6 rounded-3xl border border-emerald-200 shadow-sm relative overflow-hidden">
-            <CheckCircle2 className="absolute -right-4 -bottom-4 text-emerald-500/10" size={120} />
-            <div className="text-[10px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-2 mb-2"><CheckCircle2 size={14}/> Total Disahkan (Bulan Ini)</div>
-            <div className="text-3xl font-black text-emerald-700 tracking-tight">{formatRupiah(historiSetoran.filter(h => h.status === 'VERIFIED' && h.date.startsWith(todayStr.substring(0,7))).reduce((a,b)=>a+Number(b.amount),0))}</div>
-            <div className="mt-3 text-[10px] font-bold text-emerald-700/60 uppercase">Dana sudah masuk ke mutasi Dompet Pusat.</div>
-          </div>
-        </div>
-      )}
+      </div>
 
-      {/* TABEL HISTORI SETORAN (DILIHAT OLEH HQ DAN CABANG) */}
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col overflow-hidden mt-2">
-        <div className="p-5 bg-slate-50 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-          <h3 className="text-xs font-black uppercase text-slate-700 tracking-widest flex items-center gap-2">
-            <History size={16} className="text-slate-500"/> {isHQ ? 'Antrean & Histori Konsolidasi Dana' : 'Histori Setoran Cabang Ini'}
-          </h3>
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-            <input type="text" placeholder="Cari ID / Cabang..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs font-bold outline-none bg-white focus:border-blue-400 shadow-sm" />
-          </div>
+      {/* MONITORING LIST GLOBAL (BISA DILIHAT KEDUA PIHAK) */}
+      <div className="card-holo overflow-hidden bg-white border border-slate-200">
+        <div className="p-4 bg-slate-50 border-b border-slate-200 font-extrabold text-xs text-slate-800">
+          Histori catatan kliring berkas setoran harian
         </div>
-        <div className="overflow-x-auto p-2 custom-scrollbar min-h-[40vh]">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-white text-[10px] uppercase text-slate-400 border-b border-slate-100">
+        <div className="overflow-x-auto p-1 custom-scrollbar">
+          <table className="w-full text-sm text-left border-collapse">
+            <thead className="bg-slate-50/50 border-b text-[10px] text-slate-400 normal-case">
               <tr>
-                <th className="px-5 py-4 font-black">Tgl Settlement</th>
-                <th className="px-5 py-4 font-black">Asal Cabang &amp; Metode</th>
-                <th className="px-5 py-4 font-black text-right">Nominal Disetor</th>
-                <th className="px-5 py-4 font-black text-center">Status / Aksi Pusat</th>
+                <th className="px-5 py-3 font-bold">Tanggal &amp; ID</th>
+                <th className="px-5 py-3 font-bold">Asal Cabang</th>
+                <th className="px-5 py-3 font-bold">Metode Kirim</th>
+                <th className="px-5 py-3 text-center font-bold">Nominal Disetor</th>
+                <th className="px-5 py-3 text-right font-bold">Status Validasi Pusat</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50 text-xs font-bold">
-              {historiSetoran.length === 0 ? (
-                <tr><td colSpan="4" className="text-center py-16 text-slate-400 font-bold uppercase tracking-widest">Belum ada riwayat setoran.</td></tr>
+            <tbody className="divide-y divide-slate-100 text-xs font-bold bg-white">
+              {displayedSettlements.length === 0 ? (
+                <tr><td colSpan="5" className="text-center py-10 text-slate-400 font-medium normal-case">Belum ada riwayat mutasi berkas keuangan EOD.</td></tr>
               ) : (
-                historiSetoran.map(setoran => (
-                  <tr key={setoran.id} className={`hover:bg-slate-50/70 transition-colors ${setoran.status === 'PENDING' ? 'bg-amber-50/20' : ''}`}>
-                    <td className="px-5 py-4 whitespace-nowrap">
-                      <div className="text-slate-800 font-black">{formatDate(setoran.date)}</div>
-                      <div className="text-[9px] font-mono text-slate-400 mt-1">{setoran.id}</div>
-                    </td>
-                    <td className="px-5 py-4">
-                      <div className="font-black text-blue-700 uppercase flex items-center gap-1.5"><Building2 size={12} className="text-slate-400"/> {setoran.from_branch.replace('_', ' ')}</div>
-                      <div className="text-[9px] text-slate-500 mt-1.5 font-bold uppercase border bg-slate-50 px-2 py-0.5 rounded inline-block">VIA: {setoran.method}</div>
-                      {setoran.notes && <div className="text-[10px] text-slate-400 italic mt-1 max-w-xs line-clamp-1">"{setoran.notes}"</div>}
-                      
-                      {/* 🔥 TOMBOL LIHAT BUKTI TRANSFER (JIKA ADA) */}
-                      {setoran.foto_url && (
-                        <a href={setoran.foto_url} target="_blank" rel="noreferrer" className="mt-2 text-[9px] font-black uppercase text-blue-600 flex items-center gap-1 hover:underline w-max bg-blue-50 px-2 py-1 rounded border border-blue-100">
-                          <Image size={10}/> Lihat Bukti
-                        </a>
-                      )}
-                    </td>
-                    <td className="px-5 py-4 text-right font-black text-slate-800 text-sm whitespace-nowrap">{formatRupiah(setoran.amount)}</td>
-                    <td className="px-5 py-4 text-center whitespace-nowrap">
-                      {setoran.status === 'PENDING' ? (
-                        isHQ ? (
-                          <button onClick={() => handleVerifikasiPusat(setoran)} className="bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-black uppercase px-4 py-2 rounded-xl shadow-md transition-colors flex items-center justify-center gap-1.5 w-max mx-auto active:scale-95">
-                            <CheckCircle2 size={12}/> Sahkan &amp; Tarik Kas
-                          </button>
-                        ) : (
-                          <span className="bg-amber-50 text-amber-600 border border-amber-200 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase flex items-center justify-center gap-1 w-max mx-auto animate-pulse"><Clock size={12}/> Menunggu Pusat</span>
-                        )
-                      ) : (
-                        <span className="bg-emerald-50 text-emerald-600 border border-emerald-200 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase flex items-center justify-center gap-1 w-max mx-auto"><CheckCircle2 size={12}/> Disahkan Pusat</span>
-                      )}
+                displayedSettlements.map((item, i) => (
+                  <tr key={i} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-5 py-4 whitespace-nowrap"><div>{formatDate(item.date)}</div><div className="text-[9px] text-slate-400 font-mono mt-0.5">{item.id}</div></td>
+                    <td className="px-5 py-4 uppercase text-slate-700 whitespace-nowrap">{item.branch_id.replace(/_/g, ' ')}</td>
+                    <td className="px-5 py-4 text-slate-500 normal-case whitespace-nowrap">{item.method.replace(/_/g, ' ')}</td>
+                    <td className="px-5 py-4 text-center text-blue-600 font-extrabold whitespace-nowrap">{formatRupiah(item.nominal)}</td>
+                    <td className="px-5 py-4 text-right whitespace-nowrap">
+                      <span className={`px-2.5 py-1 rounded-md text-[10px] font-black normal-case border ${
+                        item.status === 'DI_SETUJUI' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                        item.status === 'DI_TOLAK' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-amber-50 text-amber-700 border-amber-200 animate-pulse'
+                      }`}>
+                        {item.status.replace(/_/g, ' ')}
+                      </span>
                     </td>
                   </tr>
                 ))
