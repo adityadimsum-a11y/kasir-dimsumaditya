@@ -18,16 +18,14 @@
         touch-action: manipulation;
       }
 
-      /* Kunci layar belakang biar gak ikut jalan pas Pop-up Terbuka */
       body:has(.fixed.inset-0) {
         overflow: hidden !important;
       }
 
       /* ========================================================
-         🎨 3. SULTAN HOLOGRAPHIC FLUID DESIGN SYSTEM (WARNA LOGO DIMSUM)
+         🎨 3. SULTAN HOLOGRAPHIC FLUID (DIMSUM ADITYA PALETTE)
          ======================================================== */
       
-      /* Latar Belakang Fluid Hidup & Mengalir Bergerak Halus */
       @keyframes fluidHolo {
         0% { background-position: 0% 50%; }
         50% { background-position: 100% 50%; }
@@ -35,54 +33,55 @@
       }
 
       body {
-        background-color: #ffffff;
-        /* Kombinasi Persis Warna Logo Bos: Ungu, Pink, Biru, Kuning (Transparansi Sempurna 10%-12% biar teks tetap tajam) */
+        /* Warna Dasar Off-White biar bersih */
+        background-color: #f8fafc;
+        /* Gradasi Persis Seperti Halaman Login Bos (Merah, Orange, Kuning) */
         background-image: 
-          radial-gradient(circle at 15% 15%, rgba(99, 102, 241, 0.12) 0%, transparent 50%),    /* 🟪 Ungu / Indigo */
-          radial-gradient(circle at 85% 20%, rgba(236, 72, 153, 0.12) 0%, transparent 50%),    /* 🟪 Pink / Fuchsia */
-          radial-gradient(circle at 85% 85%, rgba(14, 165, 233, 0.12) 0%, transparent 50%),    /* 🟦 Biru / Sky Blue */
-          radial-gradient(circle at 15% 80%, rgba(245, 158, 11, 0.10) 0%, transparent 50%);    /* 🟨 Kuning / Amber */
+          radial-gradient(circle at 10% 20%, rgba(239, 68, 68, 0.18) 0%, transparent 50%),    /* Merah Dimsum */
+          radial-gradient(circle at 90% 30%, rgba(249, 115, 22, 0.15) 0%, transparent 50%),   /* Orange */
+          radial-gradient(circle at 50% 90%, rgba(234, 179, 8, 0.15) 0%, transparent 50%);    /* Kuning Kukusan */
         background-attachment: fixed;
         background-repeat: no-repeat;
-        background-size: 200% 200%;
-        animation: fluidHolo 20s ease infinite; /* Efek background mengalir super smooth */
+        background-size: 150% 150%;
+        animation: fluidHolo 15s ease-in-out infinite; 
         min-height: 100vh;
       }
 
-      /* ✨ UTILITY 1: Tombol Dewa Holografik (Gradasi Ungu-Pink-Biru menyala premium) */
+      /* ✨ THE TRUE FROSTED GLASS (KACA BURAM ASLI) */
+      .card-holo {
+        background: rgba(255, 255, 255, 0.45); /* Putih transparan 45% (Rahasia nembus kaca) */
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 255, 255, 0.8); /* Pantulan garis kaca putih terang */
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05); /* Bayangan super soft */
+      }
+
+      /* ✨ TOMBOL DIMSUM ADITYA (Gradasi Merah ke Amber) */
       .btn-holo {
-        background: linear-gradient(135deg, #6366f1 0%, #ec4899 50%, #0ea5e9 100%);
+        background: linear-gradient(135deg, #ef4444 0%, #f59e0b 100%);
         background-size: 200% auto;
         color: white !important;
         font-weight: 900;
         text-transform: uppercase;
         letter-spacing: 0.1em;
-        transition: all 0.3s border-radius, transform 0.1s;
-        box-shadow: 0 4px 15px rgba(99, 102, 241, 0.25);
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(239, 68, 68, 0.25);
+        border: 1px solid rgba(255, 255, 255, 0.2);
       }
       .btn-holo:hover {
         background-position: right center;
-        box-shadow: 0 6px 20px rgba(236, 72, 153, 0.35);
+        box-shadow: 0 6px 20px rgba(245, 158, 11, 0.35);
         transform: translateY(-1px);
       }
       .btn-holo:active {
         transform: translateY(1px);
       }
 
-      /* ✨ UTILITY 2: Teks Gradasi Hologram Warna Logo */
+      /* ✨ TEKS GRADASI DIMSUM ADITYA */
       .text-holo-gradient {
-        background: linear-gradient(to right, #6366f1, #ec4899, #0ea5e9);
+        background: linear-gradient(to right, #ef4444, #f59e0b);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-      }
-
-      /* ✨ UTILITY 3: Kartu Premium dengan Border Garis Halus Warna Logo */
-      .card-holo {
-        background: rgba(255, 255, 255, 0.85);
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
-        border: 1px solid rgba(99, 102, 241, 0.15);
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.02);
       }
 
       /* ========================================================
@@ -92,97 +91,36 @@
       ::-webkit-scrollbar-track { background: transparent; }
       ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
       ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-      
-      .custom-scrollbar { 
-        -webkit-overflow-scrolling: touch; 
-        will-change: transform; 
-      }
+      .custom-scrollbar { -webkit-overflow-scrolling: touch; will-change: transform; }
 
       /* ========================================================
-         5. SHIMMER / SKELETON LOADING UI (PHASE 11)
+         5. SHIMMER & TABLE OPTIMIZATION
          ======================================================== */
-      @keyframes shimmer {
-        0% { background-position: -1000px 0; }
-        100% { background-position: 1000px 0; }
-      }
+      @keyframes shimmer { 0% { background-position: -1000px 0; } 100% { background-position: 1000px 0; } }
       .skeleton {
         background: #f1f5f9;
         background-image: linear-gradient(to right, #f1f5f9 0%, #e2e8f0 20%, #f1f5f9 40%, #f1f5f9 100%);
-        background-repeat: no-repeat;
-        background-size: 1000px 100%;
-        animation: shimmer 1.5s infinite linear forwards;
-        border-radius: 12px;
+        background-repeat: no-repeat; background-size: 1000px 100%;
+        animation: shimmer 1.5s infinite linear forwards; border-radius: 12px;
       }
+      .table-compact th, .table-compact td { padding: 8px 12px !important; font-size: 0.75rem !important; }
+      .table-sticky-header th { position: sticky; top: 0; background-color: rgba(248, 250, 252, 0.9); backdrop-filter: blur(4px); z-index: 10; }
 
       /* ========================================================
-         6. SMART TABLE OPTIMIZATION
-         ======================================================== */
-      .table-compact th, .table-compact td { 
-        padding: 8px 12px !important; 
-        font-size: 0.75rem !important; 
-      }
-      .table-sticky-header th { 
-        position: sticky; 
-        top: 0; 
-        background-color: #f8fafc; 
-        z-index: 10; 
-      }
-
-      /* ========================================================
-         7. PRINT STABILITY ENGINE (A4, THERMAL 58mm, DOT MATRIX)
+         6. PRINT STABILITY ENGINE (A4, THERMAL 58mm, DOT MATRIX)
          ======================================================== */
       @media print {
-        body { 
-          -webkit-print-color-adjust: exact !important; 
-          print-color-adjust: exact !important; 
-          background-color: white !important; 
-          color: black !important;
-        }
-        
-        body > #root { display: none !important; }
-        #print-root { display: block !important; }
-        aside, header, .no-print, button { display: none !important; }
-        a[href]:after { content: none !important; }
-        
-        main { 
-          width: 100% !important; 
-          margin: 0 !important; 
-          padding: 0 !important; 
-          overflow: visible !important; 
-          position: static !important;
-        }
-        
+        body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; background-color: white !important; background-image: none !important; color: black !important; }
+        body > #root { display: none !important; } #print-root { display: block !important; }
+        aside, header, .no-print, button { display: none !important; } a[href]:after { content: none !important; }
+        main { width: 100% !important; margin: 0 !important; padding: 0 !important; overflow: visible !important; position: static !important; }
         @page { size: A4 landscape; margin: 10mm; }
-
-        .print-a4-recap {
-          font-family: Arial, sans-serif !important;
-          font-size: 11pt !important;
-          color: black !important;
-          background: white !important;
-          width: 210mm;
-          min-height: 297mm;
-          padding: 15mm;
-          margin: 0 auto;
-        }
-
+        .print-a4-recap { font-family: Arial, sans-serif !important; font-size: 11pt !important; color: black !important; background: white !important; width: 210mm; min-height: 297mm; padding: 15mm; margin: 0 auto; }
         .thermal-58 @page { size: 58mm auto; margin: 2mm 0mm; }
-        .thermal-58 { 
-          width: 54mm !important; margin: 0 auto !important; 
-          font-family: 'Courier New', Courier, monospace !important; 
-          font-size: 11px !important; line-height: 1.3 !important; 
-          page-break-after: auto; overflow: hidden;
-        }
-        .thermal-58 th, .thermal-58 td { padding: 3px 0 !important; }
-        .thermal-58 .dashed-line { border-top: 1px dashed black !important; margin: 6px 0 !important; }
-
-        .print-dot-matrix {
-          font-family: 'Courier New', Courier, monospace !important;
-          font-size: 13pt !important; line-height: 1.4 !important;
-          color: black !important; background: white !important;
-          width: 100%; margin: 0; padding: 15px; box-sizing: border-box; overflow: hidden;
-        }
+        .thermal-58 { width: 54mm !important; margin: 0 auto !important; font-family: 'Courier New', Courier, monospace !important; font-size: 11px !important; line-height: 1.3 !important; page-break-after: auto; overflow: hidden; }
+        .thermal-58 th, .thermal-58 td { padding: 3px 0 !important; } .thermal-58 .dashed-line { border-top: 1px dashed black !important; margin: 6px 0 !important; }
+        .print-dot-matrix { font-family: 'Courier New', Courier, monospace !important; font-size: 13pt !important; line-height: 1.4 !important; color: black !important; background: white !important; width: 100%; margin: 0; padding: 15px; box-sizing: border-box; overflow: hidden; }
       }
-
       @media screen { #print-root { display: none !important; } }
       #root, .app-container { background: transparent !important; }
     </style>
