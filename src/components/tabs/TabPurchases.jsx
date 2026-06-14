@@ -26,7 +26,7 @@ export default function TabPurchases({
   expenses = [], expenses_data, 
   masterSuppliers = [], master_suppliers, 
   masterRawMaterials = [], master_raw_materials, 
-  karyawan = [], master_karyawan, // 🔥 AMBIL DARI MASTER SDM
+  karyawan = [], master_karyawan, 
   sendToSheet, showToast, user, requestDelete 
 }) {
   const todayStr = getTodayStr();
@@ -47,7 +47,7 @@ export default function TabPurchases({
   });
 
   // ==========================================
-  // STATE MULTI-ITEM KAS & OPS MANUAL (SULTAN ENGINE)
+  // STATE MULTI-ITEM KAS & OPS MANUAL
   // ==========================================
   const [selectedEmployee, setSelectedEmployee] = useState('');
   const [storeName, setStoreName] = useState('');
@@ -59,7 +59,7 @@ export default function TabPurchases({
   
   // Input selector item kas manual
   const [itemSelector, setItemSelector] = useState({
-    category: 'BAHAN BAKU', itemName: '', unit: '', qty: '1', price: ''
+    category: 'Bahan Baku', itemName: '', unit: '', qty: '1', price: ''
   });
 
   const supplierOptions = useMemo(() => realSuppliers.filter(s => !s.isDeleted && String(s.isDeleted).toUpperCase() !== 'TRUE'), [realSuppliers]);
@@ -68,7 +68,7 @@ export default function TabPurchases({
   const opsCategories = useMemo(() => {
     const validItems = realRawMaterials.filter(m => !m.isDeleted && String(m.isDeleted).toUpperCase() !== 'TRUE');
     const cats = [...new Set(validItems.map(m => m.category))];
-    if (cats.length === 0) return ['BAHAN BAKU', 'KEMASAN', 'OPERASIONAL KENDARAAN', 'ATK & PERLENGKAPAN', 'AIR & KEBERSIHAN'];
+    if (cats.length === 0) return ['Bahan Baku', 'Kemasan', 'Operasional Kendaraan', 'ATK & Perlengkapan', 'Air & Kebersihan'];
     return cats;
   }, [realRawMaterials]);
 
@@ -92,12 +92,12 @@ export default function TabPurchases({
     const all = [];
     realPurchases.forEach(p => {
       if (!p.isDeleted && String(p.isDeleted).toUpperCase() !== 'TRUE') {
-        all.push({ doc_type: 'PURCHASE', id: p.id, date: p.date, branch_id: p.branch_id, title: p.supplier_name || p.supplierName || 'BELANJA KAS / SUPPLIER', subtitle: p.item_name || p.itemName, qty: p.qty, unit: p.unit, total_amount: Number(p.total_amount || p.amount || 0), paid_amount: Number(p.paid_amount || 0), payment_status: p.payment_status, payment_method: p.payment_method, employee_name: p.employee_name, change_status: p.change_status });
+        all.push({ doc_type: 'PURCHASE', id: p.id, date: p.date, branch_id: p.branch_id, title: p.supplier_name || p.supplierName || 'Belanja kas / supplier', subtitle: p.item_name || p.itemName, qty: p.qty, unit: p.unit, total_amount: Number(p.total_amount || p.amount || 0), paid_amount: Number(p.paid_amount || 0), payment_status: p.payment_status, payment_method: p.payment_method, employee_name: p.employee_name, change_status: p.change_status });
       }
     });
     realExpenses.forEach(e => {
       if (!e.isDeleted && String(e.isDeleted).toUpperCase() !== 'TRUE') {
-        all.push({ doc_type: 'EXPENSE', id: e.id, date: e.date, branch_id: e.branch_id, title: e.category || 'BIAYA OPERASIONAL', subtitle: e.description || e.item_name || 'Beban Kas', qty: 1, unit: 'LOT', total_amount: Number(e.amount || 0), paid_amount: Number(e.amount || 0), payment_status: 'LUNAS', payment_method: e.payment_method || 'CASH', employee_name: e.employee_name, change_status: e.change_status });
+        all.push({ doc_type: 'EXPENSE', id: e.id, date: e.date, branch_id: e.branch_id, title: e.category || 'Biaya operasional', subtitle: e.description || e.item_name || 'Beban kas', qty: 1, unit: 'Lot', total_amount: Number(e.amount || 0), paid_amount: Number(e.amount || 0), payment_status: 'LUNAS', payment_method: e.payment_method || 'CASH', employee_name: e.employee_name, change_status: e.change_status });
       }
     });
     return all.filter(x => normalizeDateStr(x.date) === tableDateFilter && (currentBranch === 'TANGERANG_PUSAT' ? String(x.branch_id || '').toUpperCase().includes('TANGERANG') : String(x.branch_id || '').toUpperCase() === currentBranch.toUpperCase())).sort((a, b) => new Date(normalizeDateStr(b.date)) - new Date(normalizeDateStr(a.date)));
@@ -112,7 +112,7 @@ export default function TabPurchases({
       cart_id: 'CART-' + new Date().getTime(),
       category: itemSelector.category,
       itemName: itemSelector.itemName,
-      unit: itemSelector.unit || 'PCS',
+      unit: itemSelector.unit || 'Pcs',
       qty: Number(itemSelector.qty),
       price: Number(itemSelector.price),
       total: Number(itemSelector.qty) * Number(itemSelector.price)
@@ -130,7 +130,7 @@ export default function TabPurchases({
     const selectedName = e.target.value;
     const itemDef = realRawMaterials.find(i => !i.isDeleted && i.category === itemSelector.category && i.item_name === selectedName);
     if (itemDef) {
-      setItemSelector(prev => ({ ...prev, itemName: selectedName, unit: itemDef.unit || 'PCS', price: itemDef.default_price > 0 ? String(itemDef.default_price) : '' }));
+      setItemSelector(prev => ({ ...prev, itemName: selectedName, unit: itemDef.unit || 'Pcs', price: itemDef.default_price > 0 ? String(itemDef.default_price) : '' }));
     } else {
       setItemSelector(prev => ({ ...prev, itemName: selectedName }));
     }
@@ -148,7 +148,7 @@ export default function TabPurchases({
     const payloadPurchase = {
       id: generateId('PO-DMA', todayStr), date: todayStr, branch_id: currentBranch,
       supplier_name: formSupplier.supplierName.toUpperCase(), item_name: formSupplier.itemName.toUpperCase(), 
-      qty: finalQty, unit: formSupplier.category === 'BAHAN_BAKU' ? 'KANTONG' : 'PCS', price: finalPrice, 
+      qty: finalQty, unit: formSupplier.category === 'BAHAN_BAKU' ? 'Kantong' : 'Pcs', price: finalPrice, 
       total_amount: calculatedTotal, paid_amount: paidAmount, payment_status: paidAmount >= calculatedTotal ? 'LUNAS' : 'BELUM_LUNAS',
       payment_method: formSupplier.paymentType === 'TEMPO' ? 'HUTANG' : formSupplier.paymentMethod, isDeleted: false
     };
@@ -163,7 +163,7 @@ export default function TabPurchases({
   };
 
   // ==========================================
-  // ACTIONS: SUBMIT MULTI-ITEM KASBON ENGINE (EXECUTE)
+  // ACTIONS: SUBMIT MULTI-ITEM KASBON ENGINE
   // ==========================================
   const handleSubmitMultiOps = async (e) => {
     e.preventDefault();
@@ -178,23 +178,22 @@ export default function TabPurchases({
     const kasbonId = generateId('KSB', todayStr);
     const hasKembalian = estimasiKembalian > 0;
     
-    // Kirim item keranjang satu per satu secara pararel cerdas
     for (let item of cart) {
-      const isBarangFisik = (item.category === 'BAHAN BAKU' || item.category === 'KEMASAN');
+      const isBarangFisik = (item.category === 'Bahan Baku' || item.category === 'Kemasan' || item.category === 'BAHAN BAKU' || item.category === 'KEMASAN');
       const itemTrxId = generateId(isBarangFisik ? 'PO-KAS' : 'EXP', todayStr);
 
       if (isBarangFisik) {
         await sendToSheet('insert', {
           id: itemTrxId, date: todayStr, branch_id: currentBranch,
-          supplier_name: storeName ? `TOKO ${storeName.toUpperCase()}` : 'BELANJA KAS MANUAL',
-          item_name: item.itemName.toUpperCase(), qty: item.qty, unit: item.unit.toUpperCase(), price: item.price,
+          supplier_name: storeName ? `Toko ${storeName.toUpperCase()}` : 'Belanja kas manual',
+          item_name: item.itemName.toUpperCase(), qty: item.qty, unit: item.unit, price: item.price,
           total_amount: item.total, paid_amount: item.total, payment_status: 'LUNAS', payment_method: paymentMethod,
           employee_name: selectedEmployee.toUpperCase(), cash_given: cashGivenNum, expected_change: estimasiKembalian,
           change_status: hasKembalian ? 'PENDING' : 'SETTLED', kasbon_id: kasbonId, isDeleted: false
         }, 'purchases');
 
         await sendToSheet('insert', { 
-          id: generateId('LAY', todayStr), date: todayStr, branch_id: currentBranch, category: item.category.replace(' ', '_'), 
+          id: generateId('LAY', todayStr), date: todayStr, branch_id: currentBranch, category: item.category.toUpperCase().replace(' ', '_'), 
           item_name: item.itemName.toUpperCase(), qty_received: item.qty, qty_remaining: item.qty, unit_cost: item.price, 
           reference_id: itemTrxId, isDeleted: false 
         }, 'inventory_cost_layers');
@@ -208,11 +207,10 @@ export default function TabPurchases({
       }
     }
 
-    // POTONG DANA TUNAI SEBESAR UANG YANG DIKASIH OWNER (Rp 700.000)
     await sendToSheet('insert', {
       id: generateId('CFO', todayStr), date: todayStr, branch_id: currentBranch, type: 'OUT',
       category: 'KASBON BELANJA KARYAWAN', 
-      description: `Kasbon Keluar ke ${selectedEmployee.toUpperCase()} (Nota: ${formatRupiah(totalTagihanCart)}, Titipan: ${formatRupiah(cashGivenNum)})`,
+      description: `Kasbon keluar ke ${selectedEmployee.toUpperCase()} (Nota: ${formatRupiah(totalTagihanCart)}, Titipan: ${formatRupiah(cashGivenNum)})`,
       amount: cashGivenNum, method: paymentMethod, reference_id: kasbonId
     }, 'cashflow_transactions');
 
@@ -224,21 +222,22 @@ export default function TabPurchases({
   };
 
   return (
-    <div className="space-y-6 pb-10 text-slate-800 animate-in fade-in duration-300">
+    <div className="space-y-6 pb-10 text-slate-700 normal-case">
       
-      {/* BANNER HEAD */}
-      <div className="bg-[#151a25] rounded-3xl p-6 shadow-xl border border-slate-800 flex items-center gap-3 relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500 to-rose-500"></div>
-        <div className="w-10 h-10 rounded-2xl bg-amber-500/10 flex items-center justify-center border border-amber-500/20"><Wallet size={20} className="text-amber-400"/></div>
+      {/* BANNER HEAD - FLAT WORKSPACE STYLE */}
+      <div className="card-holo p-6 shadow-xs flex items-center gap-3 relative overflow-hidden">
+        <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-600"></div>
+        <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center border border-red-100 shrink-0"><Wallet size={18} className="text-red-600"/></div>
         <div>
-          <h2 className="text-white font-black uppercase tracking-widest text-base">Kas Keluar &amp; Belanja</h2>
-          <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">Satu pintu utama pengeluaran kas internal dan pembayaran nota supplier pabrik.</p>
+          <h2 className="text-slate-800 font-extrabold normal-case text-base">Kas keluar &amp; belanja</h2>
+          <p className="text-[10px] text-slate-400 font-semibold normal-case mt-0.5">Satu pintu utama pengeluaran kas internal dan pembayaran nota supplier pabrik.</p>
         </div>
       </div>
 
-      <div className="flex gap-2 bg-slate-100 p-1.5 rounded-2xl border w-fit">
-        <button onClick={() => setActiveTab('MANUAL')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-2 ${activeSubTab === 'MANUAL' ? 'bg-white text-rose-600 shadow-sm border' : 'text-slate-500 hover:text-slate-800'}`}><Wallet size={14}/> Kas &amp; Ops Manual (Multi-Item)</button>
-        <button onClick={() => setActiveTab('SUPPLIER')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-2 ${activeSubTab === 'SUPPLIER' ? 'bg-white text-blue-600 shadow-sm border' : 'text-slate-500 hover:text-slate-800'}`}><Truck size={14}/> Nota Supplier Besar</button>
+      {/* SUB TAB SELECTOR */}
+      <div className="flex gap-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200 w-fit shadow-inner">
+        <button onClick={() => setActiveTab('MANUAL')} className={`px-4 py-2 rounded-xl text-[10px] font-bold transition-all flex items-center gap-2 ${activeSubTab === 'MANUAL' ? 'bg-white text-red-600 shadow-xs border border-slate-200/50' : 'text-slate-500 hover:text-slate-800'}`}><Wallet size={12}/> Kas &amp; ops manual</button>
+        <button onClick={() => setActiveTab('SUPPLIER')} className={`px-4 py-2 rounded-xl text-[10px] font-bold transition-all flex items-center gap-2 ${activeSubTab === 'SUPPLIER' ? 'bg-white text-red-600 shadow-xs border border-slate-200/50' : 'text-slate-500 hover:text-slate-800'}`}><Truck size={12}/> Nota supplier besar</button>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
@@ -246,48 +245,47 @@ export default function TabPurchases({
         {/* KANTONG KIRI: FORM INPUT */}
         <div className="xl:col-span-5 flex flex-col gap-6">
 
-          {/* 🔥 FORM KAS & OPS MANUAL: UPGRADE MULTI-ITEM KERANJANG SULTAN */}
+          {/* FORM KAS & OPS MANUAL */}
           {activeSubTab === 'MANUAL' && (
-            <div className="bg-white rounded-3xl border border-rose-200 shadow-sm overflow-hidden animate-in slide-in-from-left-4 duration-300">
-              <div className="p-5 border-b bg-rose-50 font-black text-xs uppercase tracking-widest flex items-center gap-2 text-rose-700">
-                <ShoppingCart size={16} className="text-rose-600"/> Formulir Pengeluaran Kas (Multi-Item)
+            <div className="card-holo overflow-hidden border-t-4 border-t-red-500 shadow-sm">
+              <div className="p-5 border-b border-slate-100 bg-slate-50 font-bold text-xs flex items-center gap-2 text-slate-800 normal-case">
+                <ShoppingCart size={16} className="text-red-600"/> Formulir pengeluaran kas (Multi-item)
               </div>
               <div className="p-5 space-y-4">
                 
-                {/* PILIHAN KARYAWAN PENERIMA UANG */}
-                <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                {/* PIC KARYAWAN & WARUNG */}
+                <div className="grid grid-cols-2 gap-3 bg-slate-50 border border-slate-200 p-3 rounded-2xl shadow-inner">
                   <div>
-                    <label className="text-[9px] font-black text-slate-500 uppercase block mb-1 flex items-center gap-1"><User size={10}/> Karyawan Pembawa Uang</label>
+                    <label className="text-[9px] font-bold text-slate-500 block mb-1 normal-case flex items-center gap-1"><User size={10}/> Karyawan pembawa uang</label>
                     <select 
                       required 
                       value={selectedEmployee} 
                       onChange={e=>setSelectedEmployee(e.target.value)}
-                      className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-black text-[10px] outline-none cursor-pointer uppercase"
+                      className="w-full p-2 bg-white border border-slate-200 rounded-xl font-bold text-[10px] outline-none cursor-pointer"
                     >
-                      <option value="">-- PILIH KARYAWAN --</option>
-                      {/* 🔥 FIX ERROR: Key diubah dari hist.id menjadi emp.id */}
+                      <option value="">-- Pilih karyawan --</option>
                       {employeeOptions.map(emp => <option key={emp.id} value={emp.name}>{emp.name}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="text-[9px] font-black text-slate-500 uppercase block mb-1">Nama Toko / Warung</label>
-                    <input type="text" value={storeName} onChange={e=>setStoreName(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-xl font-bold uppercase text-[10px] outline-none" placeholder="WARUNG MADURA, ACENG, DLL" />
+                    <label className="text-[9px] font-bold text-slate-500 block mb-1 normal-case">Nama toko / Warung</label>
+                    <input type="text" value={storeName} onChange={e=>setStoreName(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-xl font-bold text-[10px] outline-none" placeholder="Cth: Warung Madura, Toko Aceng" />
                   </div>
                 </div>
 
-                {/* AREA PEMILIHAN BARANG KE KERANJANG */}
-                <div className="border border-rose-100 p-3.5 rounded-2xl bg-rose-50/20 space-y-3">
-                  <div className="text-[9px] font-black text-rose-700 uppercase tracking-widest border-b border-rose-100 pb-1.5 flex items-center gap-1">➕ Selector Input Item Belanja</div>
+                {/* 🔥 RE-DESIGN STABIL GRID: AREA SELEKTOR ITEM KERANJANG ANTI KEPOTONG */}
+                <div className="border border-slate-200 p-4 rounded-2xl bg-slate-50/50 space-y-3 shadow-xs">
+                  <div className="text-[9px] font-bold text-slate-500 normal-case border-b border-slate-200 pb-1.5 flex items-center gap-1">Selector input item belanja</div>
                   
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <select value={itemSelector.category} onChange={e=>setItemSelector({...itemSelector, category: e.target.value, itemName: '', unit: '', price: ''})} className="w-full p-2 bg-white border rounded-xl font-black text-[10px] outline-none uppercase">
+                  <div className="grid grid-cols-12 gap-2">
+                    <div className="col-span-5">
+                      <select value={itemSelector.category} onChange={e=>setItemSelector({...itemSelector, category: e.target.value, itemName: '', unit: '', price: ''})} className="w-full p-2 bg-white border border-slate-200 rounded-lg font-bold text-[10px] outline-none cursor-pointer">
                         {opsCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                       </select>
                     </div>
-                    <div>
-                       <select value={itemSelector.itemName} onChange={handleOpsItemSelect} className="w-full p-2 bg-white border border-rose-200 rounded-xl font-black text-[10px] text-rose-700 outline-none uppercase">
-                          <option value="">-- PILIH ITEM --</option>
+                    <div className="col-span-7">
+                       <select value={itemSelector.itemName} onChange={handleOpsItemSelect} className="w-full p-2 bg-white border border-slate-200 rounded-lg font-bold text-[10px] text-red-600 outline-none cursor-pointer">
+                          <option value="">-- Pilih variant item --</option>
                           {realRawMaterials.filter(m => !m.isDeleted && m.category === itemSelector.category).map(item => (
                             <option key={item.id} value={item.item_name}>{item.item_name}</option>
                           ))}
@@ -297,164 +295,164 @@ export default function TabPurchases({
 
                   <div className="grid grid-cols-3 gap-2">
                     <div>
-                      <label className="text-[8px] font-black text-slate-400 uppercase block mb-0.5">Jumlah</label>
-                      <input type="number" min="0.1" step="0.1" value={itemSelector.qty} onChange={e=>setItemSelector({...itemSelector, qty: e.target.value})} className="w-full p-2 bg-white border rounded-xl text-center font-black text-xs outline-none" />
+                      <label className="text-[8px] font-bold text-slate-400 normal-case block mb-0.5">Jumlah</label>
+                      <input type="number" min="0.1" step="0.1" value={itemSelector.qty} onChange={e=>setItemSelector({...itemSelector, qty: e.target.value})} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-center font-bold text-xs outline-none" />
                     </div>
                     <div>
-                      <label className="text-[8px] font-black text-slate-400 uppercase block mb-0.5">Satuan</label>
-                      <input type="text" value={itemSelector.unit} onChange={e=>setItemSelector({...itemSelector, unit: e.target.value})} className="w-full p-2 bg-slate-50 border text-center font-black text-xs text-slate-500 rounded-xl uppercase" placeholder="Auto" />
+                      <label className="text-[8px] font-bold text-slate-400 normal-case block mb-0.5">Satuan</label>
+                      <input type="text" value={itemSelector.unit} onChange={e=>setItemSelector({...itemSelector, unit: e.target.value})} className="w-full p-2 bg-white/40 border border-slate-200 text-center font-bold text-xs text-slate-500 rounded-lg" placeholder="Pcs" />
                     </div>
                     <div>
-                      <label className="text-[8px] font-black text-slate-400 uppercase block mb-0.5">Harga/Satuan</label>
-                      <input type="number" value={itemSelector.price} onChange={e=>setItemSelector({...itemSelector, price: e.target.value})} className="w-full p-2 bg-white border rounded-xl text-right font-black text-xs outline-none" placeholder="0" />
+                      <label className="text-[8px] font-bold text-slate-400 normal-case block mb-0.5">Harga satuan</label>
+                      <input type="number" value={itemSelector.price} onChange={e=>setItemSelector({...itemSelector, price: e.target.value})} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-right font-bold text-xs outline-none" placeholder="0" />
                     </div>
                   </div>
 
-                  <button type="button" onClick={handleAddItemToCart} className="w-full bg-rose-700 text-white text-[9px] font-black uppercase tracking-widest py-2 rounded-xl hover:bg-rose-800 transition shadow-sm">
-                      + Masukkan Keranjang
+                  <button type="button" onClick={handleAddItemToCart} className="w-full bg-slate-800 text-white text-[9px] font-bold py-2 rounded-lg hover:bg-slate-900 transition-colors shadow-xs">
+                     + Masukkan ke keranjang
                   </button>
                 </div>
 
-                {/* LIST TAMPILAN KERANJANG BELANJA AKTUAL */}
+                {/* TAMPILAN KERANJANG BELANJA */}
                 <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-inner bg-slate-50">
-                  <div className="bg-slate-200/60 p-2 text-[9px] font-black uppercase text-slate-600 tracking-wider flex justify-between">
-                     <span>🛒 Keranjang Belanja Karyawan</span>
+                  <div className="bg-slate-100 p-2.5 text-[9px] font-bold text-slate-500 normal-case flex justify-between border-b">
+                     <span>Keranjang belanja kas harian</span>
                      <span>{cart.length} Item</span>
                   </div>
-                  <div className="max-h-[18vh] overflow-y-auto divide-y divide-slate-200 font-bold text-[11px]">
+                  <div className="max-h-[18vh] overflow-y-auto divide-y divide-slate-100 font-semibold text-[11px] bg-white">
                      {cart.length === 0 ? (
-                       <div className="p-6 text-center text-slate-400 uppercase text-[9px] font-black tracking-widest">Keranjang masih kosong</div>
+                       <div className="p-6 text-center text-slate-400 normal-case text-[9px] font-bold">Keranjang belanja kosong.</div>
                      ) : (
                        cart.map(item => (
-                         <div key={item.cart_id} className="p-2.5 flex justify-between items-center bg-white hover:bg-slate-50">
+                         <div key={item.cart_id} className="p-2.5 flex justify-between items-center hover:bg-slate-50/50">
                             <div>
-                              <div className="uppercase text-slate-800 font-black">{item.itemName}</div>
-                              <div className="text-[9px] text-slate-400">{item.qty} {item.unit} x {formatRupiah(item.price)}</div>
+                              <div className="text-slate-800 font-bold">{item.itemName}</div>
+                              <div className="text-[9px] text-slate-400 font-medium">{item.qty} {item.unit} x {formatRupiah(item.price)}</div>
                             </div>
                             <div className="flex items-center gap-3">
-                               <span className="text-slate-900 font-black">{formatRupiah(item.total)}</span>
-                               <button type="button" onClick={()=>handleRemoveFromCart(item.cart_id)} className="text-rose-500 hover:text-rose-700"><Trash2 size={12}/></button>
+                               <span className="text-slate-800 font-extrabold">{formatRupiah(item.total)}</span>
+                               <button type="button" onClick={()=>handleRemoveFromCart(item.cart_id)} className="text-slate-400 hover:text-red-600 transition-colors"><Trash2 size={12}/></button>
                             </div>
                          </div>
                        ))
                      )}
                   </div>
-                  <div className="bg-slate-900 text-white p-3.5 flex justify-between items-center font-black">
-                     <span className="text-[10px] text-emerald-400 uppercase">TOTAL NOTA AKTUAL:</span>
-                     <span className="text-lg text-emerald-400">{formatRupiah(totalTagihanCart)}</span>
+                  <div className="bg-slate-900 text-white p-3 flex justify-between items-center font-bold">
+                     <span className="text-[9px] text-slate-400 normal-case">Total nota aktual:</span>
+                     <span className="text-base text-emerald-400 font-black">{formatRupiah(totalTagihanCart)}</span>
                   </div>
                 </div>
 
-                {/* SINKRONISASI KAS KELUAR & ESTIMASI KEMBALIAN */}
-                <div className="bg-slate-100 border p-3.5 rounded-2xl grid grid-cols-2 gap-3 shadow-inner">
+                {/* SINKRONISASI KAS KELUAR */}
+                <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-2xl grid grid-cols-2 gap-3 shadow-inner">
                    <div>
-                     <label className="text-[9px] font-black text-slate-600 uppercase block mb-1">Uang Kas Diberikan Owner</label>
+                     <label className="text-[9px] font-bold text-slate-500 block mb-1 normal-case">Uang kas diberikan owner</label>
                      <div className="relative">
-                       <span className="absolute left-3 top-2.5 font-black text-slate-400 text-xs">Rp</span>
-                       <input type="text" required value={cashGiven ? Number(cashGiven).toLocaleString('id-ID') : ''} onChange={e=>setCashGiven(e.target.value.replace(/\D/g, ''))} className="w-full pl-8 pr-2 py-2 border rounded-xl font-black text-sm bg-white outline-none focus:border-rose-400 text-slate-800" placeholder="Cth: 700.000" />
+                       <span className="absolute left-3 top-2.5 font-bold text-slate-400 text-xs">Rp</span>
+                       <input type="text" required value={cashGiven ? Number(cashGiven).toLocaleString('id-ID') : ''} onChange={e=>setCashGiven(e.target.value.replace(/\D/g, ''))} className="w-full pl-8 pr-2 py-1.5 border border-slate-200 rounded-lg font-bold text-xs bg-white outline-none focus:border-red-500 text-slate-700" placeholder="0" />
                      </div>
                    </div>
                    <div>
-                     <label className="text-[9px] font-black text-blue-600 uppercase block mb-1">Estimasi Kembalian Wajib</label>
-                     <div className="w-full p-2.5 bg-blue-50 border border-blue-200 rounded-xl font-black text-sm text-center text-blue-700">
+                     <label className="text-[9px] font-bold text-slate-500 block mb-1 normal-case">Sisa kembalian wajib</label>
+                     <div className="w-full p-2 bg-blue-50 border border-blue-200 rounded-xl font-extrabold text-xs text-center text-blue-700">
                         {formatRupiah(estimasiKembalian)}
                      </div>
                    </div>
                 </div>
 
-                <div className="p-3 border rounded-xl bg-white flex justify-between items-center text-[9px] font-black uppercase text-slate-500">
-                   <span>Jalur Uang Laci</span>
-                   <select value={paymentMethod} onChange={e=>setPaymentMethod(e.target.value)} className="p-1 bg-transparent border-none outline-none cursor-pointer text-slate-800 font-black">
-                     <option value="CASH">CASH / TUNAI LACI</option>
-                     <option value="TF_BCA">TF REK BCA PUSAT</option>
-                     <option value="TF_BRI">TF REK BRI PUSAT</option>
+                <div className="p-2.5 border border-slate-200 rounded-xl bg-white flex justify-between items-center text-[9px] font-bold text-slate-400 normal-case">
+                   <span>Jalur uang laci</span>
+                   <select value={paymentMethod} onChange={e=>setPaymentMethod(e.target.value)} className="bg-transparent border-none outline-none cursor-pointer text-slate-700 font-bold">
+                     <option value="CASH">Cash / Tunai laci</option>
+                     <option value="TF_BCA">TF Rek BCA pusat</option>
+                     <option value="TF_BRI">TF Rek BRI pusat</option>
                    </select>
                 </div>
 
-                <button type="button" onClick={handleSubmitMultiOps} className="w-full bg-rose-600 text-white font-black py-3.5 rounded-xl text-xs uppercase tracking-widest shadow-lg hover:bg-rose-700 transition active:scale-95 flex items-center justify-center gap-2">
-                  <CheckCircle2 size={16}/> Potong Kas &amp; Simpan Biaya
+                <button type="button" onClick={handleSubmitMultiOps} className="w-full btn-holo py-3.5 rounded-xl text-xs font-bold shadow-xs flex items-center justify-center gap-2">
+                  <CheckCircle2 size={14}/> Potong kas &amp; simpan biaya
                 </button>
               </div>
             </div>
           )}
 
-          {/* FORM NOTA SUPPLIER BESAR (AYAM BESAR) */}
+          {/* FORM NOTA SUPPLIER BESAR */}
           {activeSubTab === 'SUPPLIER' && (
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden animate-in slide-in-from-right-4 duration-300">
-              <div className="p-5 border-b bg-slate-50 font-black text-xs uppercase tracking-widest flex items-center gap-2 text-slate-700">
-                <FileText size={16} className="text-blue-600"/> Formulir Nota Supplier (Gudang)
+            <div className="card-holo overflow-hidden border-t-4 border-t-red-500 shadow-sm">
+              <div className="p-5 border-b border-slate-100 bg-slate-50 font-bold text-xs flex items-center gap-2 text-slate-800 normal-case">
+                <FileText size={16} className="text-red-600"/> Formulir nota supplier (Gudang pusat)
               </div>
               <form onSubmit={handleSubmitSupplier} className="p-5 space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[9px] font-black text-emerald-700 uppercase block mb-1">Pilih Rekanan Supplier</label>
-                    <select required value={formSupplier.supplierName} onChange={e=>setFormSupplier({...formSupplier, supplierName: e.target.value})} className="w-full p-3 bg-emerald-50/50 border border-emerald-300 rounded-xl font-black text-xs cursor-pointer outline-none focus:bg-white focus:border-emerald-500 shadow-sm">
-                      <option value="">-- PILIH SUPPLIER --</option>
+                    <label className="text-[9px] font-bold text-slate-500 block mb-1 normal-case">Pilih rekanan supplier</label>
+                    <select required value={formSupplier.supplierName} onChange={e=>setFormSupplier({...formSupplier, supplierName: e.target.value})} className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold text-xs cursor-pointer outline-none focus:border-red-500">
+                      <option value="">-- Pilih supplier --</option>
                       {supplierOptions.map(s => <option key={s.id} value={s.supplier_name}>{s.supplier_name}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="text-[9px] font-black text-slate-500 uppercase block mb-1">Kategori Barang</label>
-                    <select value={formSupplier.category} onChange={e=>setFormSupplier({...formSupplier, category: e.target.value, qty: '', price: ''})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-black text-xs cursor-pointer outline-none">
-                      <option value="BAHAN_BAKU">BAHAN BAKU (AYAM)</option>
-                      <option value="PACKAGING">PACKAGING / MIKA</option>
+                    <label className="text-[9px] font-bold text-slate-500 block mb-1 normal-case">Kategori barang</label>
+                    <select value={formSupplier.category} onChange={e=>setFormSupplier({...formSupplier, category: e.target.value, qty: '', price: ''})} className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-bold text-xs cursor-pointer outline-none focus:border-red-500">
+                      <option value="BAHAN_BAKU">Bahan baku (Ayam)</option>
+                      <option value="PACKAGING">Packaging / Mika</option>
                     </select>
                   </div>
                 </div>
                 <div>
-                  <label className="text-[9px] font-black text-slate-500 uppercase block mb-1">Nama Item / Deskripsi</label>
-                  <input type="text" required value={formSupplier.itemName} onChange={e=>setFormSupplier({...formSupplier, itemName: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold uppercase text-xs outline-none focus:bg-white" placeholder="Cth: DAGING FILLET DADA" />
+                  <label className="text-[9px] font-bold text-slate-500 block mb-1 normal-case">Nama item / Deskripsi</label>
+                  <input type="text" required value={formSupplier.itemName} onChange={e=>setFormSupplier({...formSupplier, itemName: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:border-red-500" placeholder="Cth: Daging fillet dada mentah" />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[9px] font-black text-slate-500 uppercase block mb-1">Volume Beli (KG)</label>
-                    <input type="number" min="1" step="0.1" required value={formSupplier.qty} onChange={e=>setFormSupplier({...formSupplier, qty: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-black text-sm text-center outline-none focus:bg-white" placeholder="0" />
+                    <label className="text-[9px] font-bold text-slate-500 block mb-1 normal-case">Volume beli (Kg)</label>
+                    <input type="number" min="1" step="0.1" required value={formSupplier.qty} onChange={e=>setFormSupplier({...formSupplier, qty: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-xl font-bold text-sm text-center outline-none focus:border-red-500" placeholder="0" />
                   </div>
                   <div>
-                    <label className="text-[9px] font-black text-blue-600 uppercase block mb-1">Setara (Kantong)</label>
-                    <div className="w-full p-3 bg-blue-50 border border-blue-200 rounded-xl font-black text-sm text-center text-blue-700">
-                      {formSupplier.category === 'BAHAN_BAKU' ? `${formatNumber(hitungKantongSupplier)} KTG` : 'PCS'}
+                    <label className="text-[9px] font-bold text-slate-500 block mb-1 normal-case">Setara volume</label>
+                    <div className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-center text-slate-600">
+                      {formSupplier.category === 'BAHAN_BAKU' ? `${formatNumber(hitungKantongSupplier)} Kantong` : 'Pcs'}
                     </div>
                   </div>
                 </div>
                 <div>
-                  <label className="text-[9px] font-black text-slate-500 uppercase block mb-1">Harga Per Satuan (Per KG)</label>
+                  <label className="text-[9px] font-bold text-slate-500 block mb-1 normal-case">Harga satuan (Per Kg)</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-3 font-black text-slate-400 text-sm">Rp</span>
-                    <input type="text" required value={formSupplier.price ? Number(formSupplier.price).toLocaleString('id-ID') : ''} onChange={e=>setFormSupplier({...formSupplier, price: e.target.value.replace(/\D/g, '')})} className="w-full pl-9 pr-3 py-3 bg-slate-50 border border-slate-200 rounded-xl font-black text-sm outline-none focus:bg-white" placeholder="0" />
+                    <span className="absolute left-3 top-2.5 font-bold text-slate-400 text-xs">Rp</span>
+                    <input type="text" required value={formSupplier.price ? Number(formSupplier.price).toLocaleString('id-ID') : ''} onChange={e=>setFormSupplier({...formSupplier, price: e.target.value.replace(/\D/g, '')})} className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-xl font-bold text-sm outline-none focus:border-red-500" placeholder="0" />
                   </div>
                 </div>
-                <div className="bg-slate-900 text-white p-4 rounded-xl flex justify-between items-center shadow-inner">
-                  <span className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Total Tagihan Nota:</span>
-                  <span className="text-xl font-black text-emerald-400">{formatRupiah(totalTagihanSupplier)}</span>
+                <div className="bg-white border border-slate-200 p-4 rounded-xl flex justify-between items-center shadow-xs">
+                  <span className="text-[9px] font-bold text-slate-400 normal-case">Total tagihan nota:</span>
+                  <span className="text-xl font-black text-slate-800">{formatRupiah(totalTagihanSupplier)}</span>
                 </div>
-                <div className="p-4 border border-slate-200 rounded-2xl bg-slate-50 shadow-inner">
+                <div className="p-4 border border-slate-200 rounded-2xl bg-white shadow-xs">
                   <div className="flex justify-between items-center mb-3">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Metode / Jalur Bayar</label>
-                    <div className="flex gap-1 bg-slate-200/60 p-1 rounded-lg">
-                      <button type="button" onClick={() => setFormSupplier({...formSupplier, paymentType: 'TEMPO', dpAmount: ''})} className={`px-2 py-1.5 rounded-md text-[9px] font-black uppercase tracking-widest ${formSupplier.paymentType === 'TEMPO' ? 'bg-white shadow-sm text-rose-600' : 'text-slate-500'}`}>TEMPO FULL</button>
-                      <button type="button" onClick={() => setFormSupplier({...formSupplier, paymentType: 'DP'})} className={`px-2 py-1.5 rounded-md text-[9px] font-black uppercase tracking-widest ${formSupplier.paymentType === 'DP' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}>BAYAR DP</button>
-                      <button type="button" onClick={() => setFormSupplier({...formSupplier, paymentType: 'LUNAS', dpAmount: ''})} className={`px-2 py-1.5 rounded-md text-[9px] font-black uppercase tracking-widest ${formSupplier.paymentType === 'LUNAS' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-500'}`}>LUNAS FULL</button>
+                    <label className="text-[9px] font-bold text-slate-500 normal-case">Metode / Jalur bayar</label>
+                    <div className="flex gap-1 bg-slate-100 border p-1 rounded-md">
+                      <button type="button" onClick={() => setFormSupplier({...formSupplier, paymentType: 'TEMPO', dpAmount: ''})} className={`px-2 py-1.5 rounded-md text-[9px] font-bold ${formSupplier.paymentType === 'TEMPO' ? 'bg-white shadow-xs text-red-600' : 'text-slate-500'}`}>Tempo full</button>
+                      <button type="button" onClick={() => setFormSupplier({...formSupplier, paymentType: 'DP'})} className={`px-2 py-1.5 rounded-md text-[9px] font-bold ${formSupplier.paymentType === 'DP' ? 'bg-white shadow-xs text-blue-600' : 'text-slate-500'}`}>Bayar DP</button>
+                      <button type="button" onClick={() => setFormSupplier({...formSupplier, paymentType: 'LUNAS', dpAmount: ''})} className={`px-2 py-1.5 rounded-md text-[9px] font-bold ${formSupplier.paymentType === 'LUNAS' ? 'bg-white shadow-xs text-emerald-600' : 'text-slate-500'}`}>Lunas full</button>
                     </div>
                   </div>
                   {formSupplier.paymentType !== 'TEMPO' && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3 border-t border-slate-200 pt-3">
-                      <select value={formSupplier.paymentMethod} onChange={e=>setFormSupplier({...formSupplier, paymentMethod: e.target.value})} className="w-full p-3 border border-slate-300 rounded-xl text-[10px] font-black uppercase outline-none cursor-pointer bg-white">
-                        <option value="CASH">LACI KASIR / TUNAI</option>
-                        <option value="TF_BCA">TRANSFER BCA PUSAT</option>
-                        <option value="TF_BRI">TRANSFER BRI PUSAT</option>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3 border-t border-slate-100 pt-3">
+                      <select value={formSupplier.paymentMethod} onChange={e=>setFormSupplier({...formSupplier, paymentMethod: e.target.value})} className="w-full p-2 bg-white border border-slate-200 rounded-xl text-[10px] font-bold outline-none cursor-pointer">
+                        <option value="CASH">Laci kasir / Tunai</option>
+                        <option value="TF_BCA">Transfer BCA pusat</option>
+                        <option value="TF_BRI">Transfer BRI pusat</option>
                       </select>
                       {formSupplier.paymentType === 'DP' && (
                         <div className="relative">
-                          <span className="absolute left-3 top-3.5 font-black text-blue-500 text-xs">Rp</span>
-                          <input type="text" required value={formSupplier.dpAmount ? Number(formSupplier.dpAmount).toLocaleString('id-ID') : ''} onChange={e=>setFormSupplier({...formSupplier, dpAmount: e.target.value.replace(/\D/g, '')})} className="w-full pl-9 pr-3 py-3 border-2 border-blue-200 rounded-xl font-black text-sm text-blue-700 bg-white outline-none" placeholder="Nominal DP..." />
+                          <span className="absolute left-3 top-2 font-bold text-blue-600 text-xs">Rp</span>
+                          <input type="text" required value={formSupplier.dpAmount ? Number(formSupplier.dpAmount).toLocaleString('id-ID') : ''} onChange={e=>setFormSupplier({...formSupplier, dpAmount: e.target.value.replace(/\D/g, '')})} className="w-full pl-8 pr-2 py-1.5 border border-slate-200 rounded-xl font-bold text-xs text-blue-700 outline-none focus:border-red-500" placeholder="Nominal DP..." />
                         </div>
                       )}
                     </div>
                   )}
                 </div>
-                <button type="submit" className="w-full bg-slate-900 text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest shadow-lg hover:bg-slate-800 flex items-center justify-center gap-2 mt-2">
-                  <CheckCircle2 size={16}/> Simpan Nota Belanja Supplier
+                <button type="submit" className="w-full btn-holo py-3 rounded-xl text-xs font-bold shadow-xs flex items-center justify-center gap-1.5">
+                  <CheckCircle2 size={14}/> Simpan nota belanja supplier
                 </button>
               </form>
             </div>
@@ -464,17 +462,17 @@ export default function TabPurchases({
         {/* JURNAL BUKU KAS GABUNGAN */}
         <div className="xl:col-span-7 bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
           <div className="p-5 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
-            <div><h4 className="font-black text-xs uppercase text-slate-800 tracking-widest flex items-center gap-2"><FileText size={16} className="text-blue-600"/> Jurnal Buku Kas &amp; Belanja</h4></div>
-            <div className="flex items-center gap-2 bg-white border px-3 py-2 rounded-xl shadow-sm"><Calendar size={14} className="text-blue-500"/><input type="date" value={tableDateFilter} onChange={e => setTableDateFilter(e.target.value || todayStr)} className="text-xs font-black text-slate-800 outline-none cursor-pointer" /></div>
+            <div><h4 className="font-bold text-xs normal-case text-slate-800 flex items-center gap-2"><FileText size={16} className="text-red-600"/> Jurnal buku kas &amp; belanja</h4></div>
+            <div className="flex items-center gap-2 bg-white border border-slate-200 px-3 py-1.5 rounded-xl shadow-xs"><Calendar size={14} className="text-red-500"/><input type="date" value={tableDateFilter} onChange={e => setTableDateFilter(e.target.value || todayStr)} className="text-xs font-bold text-slate-700 outline-none cursor-pointer" /></div>
           </div>
-          <div className="overflow-x-auto flex-1 p-2 custom-scrollbar min-h-[50vh]">
+          <div className="overflow-x-auto flex-1 p-1 custom-scrollbar min-h-[50vh]">
             <table className="w-full text-sm text-left border-collapse">
-              <thead className="bg-white text-[10px] uppercase text-slate-400 border-b sticky top-0 shadow-sm">
-                <tr><th className="px-5 py-4">Bukti &amp; Ref</th><th className="px-5 py-4 min-w-[200px]">Detail Transaksi</th><th className="px-5 py-4 text-right min-w-[180px]">Rincian Nominal</th><th className="px-5 py-4 text-center">Jalur</th><th className="px-5 py-4 text-center">Tindakan</th></tr>
+              <thead className="bg-slate-50/50 text-[10px] normal-case text-slate-400 border-b border-slate-200 sticky top-0 shadow-xs bg-white">
+                <tr><th className="px-5 py-4">Bukti &amp; Ref</th><th className="px-5 py-4 min-w-[200px]">Detail transaksi</th><th className="px-5 py-4 text-right min-w-[180px]">Rincian nominal</th><th className="px-5 py-4 text-center">Jalur</th><th className="px-5 py-4 text-center">Tindakan</th></tr>
               </thead>
-              <tbody className="text-xs font-bold divide-y divide-slate-50">
+              <tbody className="text-xs font-bold divide-y divide-slate-100 bg-white">
                 {historyCombined.length === 0 ? (
-                  <tr><td colSpan="5" className="text-center py-20 text-slate-400 font-black uppercase"><Wallet size={40} className="mx-auto mb-2 opacity-20"/>Tidak ada catatan kas keluar.</td></tr>
+                  <tr><td colSpan="5" className="text-center py-20 text-slate-400 normal-case font-bold"><Wallet size={36} className="mx-auto mb-2 opacity-20"/>Tidak ada catatan kas keluar.</td></tr>
                 ) : (
                   historyCombined.map(p => {
                     const isPurchase = p.doc_type === 'PURCHASE';
@@ -482,27 +480,27 @@ export default function TabPurchases({
                     const paidAmt = Number(p.paid_amount || 0);
                     const isLunas = String(p.payment_status).toUpperCase() === 'LUNAS' || (totalBill - paidAmt) <= 0;
                     const pMethod = String(p.payment_method || 'CASH').replace('_', ' ');
-                    const isAyam = String(p.unit).toUpperCase() === 'KANTONG';
+                    const isAyam = String(p.unit).toLowerCase() === 'kantong';
 
                     return (
-                      <tr key={p.id} className={`transition-colors ${isPurchase ? 'hover:bg-amber-50/20' : 'hover:bg-rose-50/20'}`}>
-                        <td className="px-5 py-4">
-                          <div className="text-slate-800 font-black text-sm">{formatDate(p.date)}</div>
-                          <div className="text-[9px] font-mono text-slate-400 mt-1">{p.id}</div>
-                          <span className={`text-[7px] font-black uppercase mt-1 px-1.5 py-0.5 rounded border inline-block ${isPurchase ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-rose-50 text-rose-600 border-rose-200'}`}>{isPurchase ? 'ASET / BARANG' : 'BEBAN OPS'}</span>
+                      <tr key={p.id} className="hover:bg-slate-50 transition-colors bg-white">
+                        <td className="px-5 py-4 whitespace-nowrap">
+                          <div className="text-slate-800 font-bold text-sm">{formatDate(p.date)}</div>
+                          <div className="text-[9px] font-mono text-slate-400 mt-0.5">{p.id}</div>
+                          <span className={`text-[8px] font-bold normal-case mt-1 px-1.5 py-0.5 rounded border inline-block ${isPurchase ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-red-50 text-red-700 border-red-200'}`}>{isPurchase ? 'Barang gudang' : 'Biaya ops'}</span>
                         </td>
                         <td className="px-5 py-4">
-                          <div className="font-black text-blue-700 text-xs uppercase mb-0.5">{p.title}</div>
-                          <div className="text-[10px] text-slate-700 uppercase font-black">{p.subtitle}</div>
-                          {p.employee_name && <div className="text-[9px] font-black text-indigo-600 mt-1">PIC JALAN: {p.employee_name} {p.change_status === 'PENDING' ? '(⏳ KEMBALIAN BELUM DISETOR)' : '(✅ SETTLED)'}</div>}
-                          <div className="text-[9px] text-slate-400 mt-0.5">Volume: {formatNumber(p.qty)} {p.unit} {isAyam && `(≈ ${formatNumber(p.qty * 10)} KG)`}</div>
+                          <div className="font-bold text-slate-800 text-xs normal-case mb-0.5">{p.title}</div>
+                          <div className="text-[10px] text-slate-500 normal-case font-medium">{p.subtitle}</div>
+                          {p.employee_name && <div className="text-[9px] font-bold text-slate-600 mt-1">PIC: {p.employee_name} <span className={p.change_status === 'PENDING' ? 'text-amber-600' : 'text-emerald-600'}>{p.change_status === 'PENDING' ? '(⏳ sisa kembalian gantung)' : '(✅ lunas balance)'}</span></div>}
+                          <div className="text-[9px] text-slate-400 font-medium mt-0.5">Volume: {formatNumber(p.qty)} {p.unit} {isAyam && `(≈ ${formatNumber(p.qty * 10)} Kg ayam)`}</div>
                         </td>
-                        <td className="px-5 py-4 text-right">
-                          <div className="text-slate-500">Total: {formatRupiah(totalBill)}</div>
-                          <div className="text-rose-600 text-[10px]">Bayar: {formatRupiah(paidAmt)}</div>
+                        <td className="px-5 py-4 text-right whitespace-nowrap">
+                          <div className="text-slate-400 text-[10px] font-medium">Nota: {formatRupiah(totalBill)}</div>
+                          <div className="text-slate-800 font-extrabold">Bayar: {formatRupiah(paidAmt)}</div>
                         </td>
-                        <td className="px-5 py-4 text-center"><span className={`px-2 py-0.5 rounded text-[8px] font-black border ${isLunas ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>{isLunas ? `LUNAS (${pMethod})` : 'TEMPO/DP'}</span></td>
-                        <td className="px-5 py-4 text-center opacity-40 hover:opacity-100"><button type="button" onClick={() => { if(window.confirm("Void data belanja?")) requestDelete(p.id); }} className="p-2 text-slate-500 hover:text-rose-600"><Trash2 size={14}/></button></td>
+                        <td className="px-5 py-4 text-center whitespace-nowrap"><span className={`px-2 py-0.5 rounded text-[8px] font-bold border ${isLunas ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>{isLunas ? `Lunas (${pMethod.toLowerCase()})` : 'Tempo / DP'}</span></td>
+                        <td className="px-5 py-4 text-center whitespace-nowrap opacity-50 hover:opacity-100"><button type="button" onClick={() => { if(window.confirm("Yakin void pembatalan data pengeluaran belanja ini?")) requestDelete(p.id); }} className="p-2 text-slate-400 hover:text-red-600 transition-colors"><Trash2 size={14}/></button></td>
                       </tr>
                     );
                   })
