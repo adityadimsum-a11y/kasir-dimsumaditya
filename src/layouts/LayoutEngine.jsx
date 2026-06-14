@@ -46,7 +46,7 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
         coreItems.push({ id: 'stok', label: 'Laporan Produksi', icon: Factory });
     }
     if (nodeCapability.can_purchase === true || nodeCapability.can_purchase === 'true') {
-        coreItems.push({ id: 'purchases', label: 'Belanja Logistik', icon: Truck });
+        coreItems.push({ id: 'purchases', label: 'Belanja & Kas Keluar', icon: Truck });
         // 🔥 KABEL MENU BARU: BUKU JANTUNG PABRIK SUPPLIER AYAM
         coreItems.push({ id: 'supplier_ayam', label: 'Buku Nana Ayam', icon: BookOpen });
     }
