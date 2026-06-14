@@ -183,61 +183,71 @@ export default function TabDashboard({
   };
 
   return (
-    <div className="space-y-6 pb-10 text-slate-800 animate-in fade-in duration-300">
+    <div className="space-y-6 pb-10 text-slate-700 animate-in fade-in duration-300">
       
-      {/* BANNER HEAD - DI-UPGRADE JADI HOLOGRAPHIC GLASS MERAH-KUNING */}
-      <div className="card-holo rounded-3xl p-6 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-red-500 via-orange-500 to-amber-500"></div>
-        <div>
-           <h2 className="text-holo-gradient font-black uppercase tracking-widest text-xl flex items-center gap-2">
-             <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></div>
+      {/* BANNER HEAD - DI-UPGRADE TOTAL JADI CLEAN FLAT ENTERPRISE STYLE */}
+      <div className="card-holo p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative overflow-hidden">
+        {/* Strip Aksen Merah Tipis Di Samping Khas Aplikasi Kasir Profesional */}
+        <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-600"></div>
+        <div className="pl-2">
+           <h2 className="text-slate-900 font-extrabold uppercase tracking-wide text-base flex items-center gap-2">
+             <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
              Dashboard Utama &amp; Keuangan Pabrik
            </h2>
-           <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-1">Sistem Pemantauan Terpadu Dimsum Aditya Exp — Real-time &amp; Terkunci</p>
+           <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mt-1">Sistem Pemantauan Terpadu Dimsum Aditya Exp — Real-time &amp; Terkunci</p>
         </div>
-        <div className="bg-white/50 backdrop-blur-sm border border-white/60 rounded-2xl p-4 text-right min-w-[200px] shadow-sm">
-          <div className="text-[9px] font-black text-slate-600 uppercase tracking-widest mb-1">Nilai Uang Aset Gudang (HPP)</div>
-          <div className="text-xl font-black text-slate-800 tracking-tight">{formatRupiah(ringkasan.nilaiAsetGudang)}</div>
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-right min-w-[220px]">
+          <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Nilai Uang Aset Gudang (HPP)</div>
+          <div className="text-lg font-extrabold text-slate-800 tracking-tight">{formatRupiah(ringkasan.nilaiAsetGudang)}</div>
         </div>
       </div>
 
-      {/* 🔥 INDIKATOR ATAS - KACA BURAM ELEGAN */}
+      {/* 🔥 INDIKATOR ATAS - FLAT PETAK BERSIH */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        <div className="card-holo rounded-2xl p-5 flex flex-col justify-between hover:scale-[1.02] transition-transform duration-300">
-          <div><div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 flex items-center justify-between"><span>Uang di Dompet Perusahaan (Kas Kasir)</span></div><div className="text-2xl font-black text-slate-900 tracking-tight">{formatRupiah(ringkasan.totalKas)}</div></div>
+        <div className="card-holo p-5 flex flex-col justify-between">
+          <div>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Uang di Dompet Perusahaan (Kas Kasir)</div>
+            <div className="text-xl font-extrabold text-slate-800 tracking-tight">{formatRupiah(ringkasan.totalKas)}</div>
+          </div>
         </div>
-        <div className="card-holo rounded-2xl p-5 flex flex-col justify-between hover:scale-[1.02] transition-transform duration-300">
-          <div><div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 flex items-center justify-between"><span>Total Sisa Bon / Piutang Agen</span></div><div className="text-2xl font-black text-amber-600 tracking-tight">{formatRupiah(ringkasan.totalPiutang)}</div></div>
+        <div className="card-holo p-5 flex flex-col justify-between">
+          <div>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Total Sisa Bon / Piutang Agen</div>
+            <div className="text-xl font-extrabold text-amber-600 tracking-tight">{formatRupiah(ringkasan.totalPiutang)}</div>
+          </div>
         </div>
-        <div className="card-holo rounded-2xl p-5 flex flex-col justify-between hover:scale-[1.02] transition-transform duration-300">
-          <div><div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 flex items-center justify-between"><span>Hutang Belum Bayar ke Supplier</span></div><div className="text-2xl font-black text-rose-600 tracking-tight">{formatRupiah(ringkasan.totalHutang)}</div></div>
+        <div className="card-holo p-5 flex flex-col justify-between">
+          <div>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Hutang Belum Bayar ke Supplier</div>
+            <div className="text-xl font-extrabold text-rose-600 tracking-tight">{formatRupiah(ringkasan.totalHutang)}</div>
+          </div>
         </div>
       </div>
 
       {/* ========================================== */}
-      {/* 🔥 RADAR DETEKTOR KEMBALIAN KARYAWAN (GLASSMORPHISM) */}
+      {/* 🔥 RADAR DETEKTOR KEMBALIAN KARYAWAN (GRAB ALERT SYSTEM) */}
       {/* ========================================== */}
       {pendingKembalianList.length > 0 && (
-         <div className="card-holo border-2 border-red-400 p-5 shadow-lg space-y-3 animate-in shake duration-300">
-            <div className="text-[10px] font-black uppercase text-red-600 tracking-widest flex items-center gap-1.5">
-               <AlertOctagon size={14} className="text-red-500 animate-bounce"/> RADAR PANTAU PIUTANG KEMBALIAN BELANJA KARYAWAN
+         <div className="card-holo border-l-4 border-l-red-600 p-5 shadow-sm space-y-3">
+            <div className="text-[10px] font-black uppercase text-red-600 tracking-wider flex items-center gap-1.5">
+               <AlertOctagon size={14} className="text-red-600"/> RADAR PANTAU PIUTANG KEMBALIAN BELANJA KARYAWAN
             </div>
             <div className="grid grid-cols-1 gap-3">
                {pendingKembalianList.map(item => (
-                 <div key={item.id} className="bg-red-50/50 border border-red-200 rounded-2xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:shadow-md transition-shadow">
+                 <div key={item.id} className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div className="space-y-1">
-                      <div className="font-black text-xs text-red-800 uppercase">⚠️ {item.employee} BELUM SETOR SISA KEMBALIAN!</div>
-                      <p className="text-[10px] font-bold text-red-700 uppercase tracking-wide">
-                        Kas Diberikan: <span className="text-slate-900 font-black">{formatRupiah(item.cash_given)}</span> | 
-                        Total Nota Belanja: <span className="text-slate-900 font-black">{formatRupiah(item.total_nota)}</span>
+                      <div className="font-extrabold text-xs text-slate-800 uppercase">⚠️ {item.employee} BELUM SETOR SISA KEMBALIAN!</div>
+                      <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">
+                        Kas Diberikan: <span className="text-slate-800 font-bold">{formatRupiah(item.cash_given)}</span> | 
+                        Total Nota Belanja: <span className="text-slate-800 font-bold">{formatRupiah(item.total_nota)}</span>
                       </p>
-                      <div className="text-[11px] text-rose-600 font-black uppercase">Wajib Di-tagih: {formatRupiah(item.expected_change)}</div>
+                      <div className="text-xs text-red-600 font-extrabold uppercase mt-1">Wajib Di-tagih: {formatRupiah(item.expected_change)}</div>
                     </div>
-                    {/* KLIK UNTUK SETTLEMENT TUTUP BUKU - PAKAI BTN HOLO SULTAN */}
+                    {/* BUTTON MERAH SOLID ALA GRAB */}
                     <button 
                       type="button" 
                       onClick={() => setSettleModal(item)}
-                      className="btn-holo text-[10px] px-5 py-3.5 rounded-xl cursor-pointer"
+                      className="btn-holo text-xs px-4 py-2.5 font-bold cursor-pointer"
                     >
                       Terima Sisa Kembalian
                     </button>
@@ -250,89 +260,89 @@ export default function TabDashboard({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-8 space-y-6">
           
-          <div className="card-holo rounded-3xl p-6 flex flex-col justify-between">
-            <div className="flex justify-between items-center mb-4">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-1.5"><AlertOctagon size={14} className="text-orange-500"/> Sistem Pengingat Belanja Otomatis</span>
+          <div className="card-holo p-6 flex flex-col justify-between">
+            <div className="flex justify-between items-center mb-3">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5"><AlertOctagon size={14} className="text-orange-500"/> Sistem Pengingat Belanja Otomatis</span>
             </div>
             {isAyamKritis ? (
-              <div className="bg-rose-50/80 backdrop-blur-sm border border-rose-200 p-5 rounded-2xl flex flex-col sm:flex-row justify-between items-center gap-4">
-                 <div className="space-y-1">
-                   <h4 className="font-black text-rose-800 text-xs">🚨 PERINGATAN: STOK AYAM FILLET MENIPIS!</h4>
-                   <p className="text-[10px] font-bold text-rose-600/90 uppercase">Sisa daging mentah di freezer tinggal {ringkasan.sisaAyamKantong} Kantong ({ringkasan.sisaAyamKg} Kg).</p>
+              <div className="bg-rose-50 border border-rose-200 p-4 rounded-xl flex flex-col sm:flex-row justify-between items-center gap-4">
+                 <div className="space-y-0.5">
+                   <h4 className="font-extrabold text-rose-800 text-xs">🚨 PERINGATAN: STOK AYAM FILLET MENIPIS!</h4>
+                   <p className="text-[10px] font-medium text-rose-600 uppercase">Sisa daging mentah di freezer tinggal {ringkasan.sisaAyamKantong} Kantong ({ringkasan.sisaAyamKg} Kg).</p>
                  </div>
-                 <button type="button" onClick={() => { if(setActiveTab) setActiveTab('purchases'); }} className="btn-holo text-[10px] uppercase px-4 py-3 rounded-xl shadow-md flex items-center gap-1">Buat Nota Belanja <ArrowRight size={14}/></button>
+                 <button type="button" onClick={() => { if(setActiveTab) setActiveTab('purchases'); }} className="btn-holo text-xs px-4 py-2 rounded-lg flex items-center gap-1">Buat Nota Belanja <ArrowRight size={12}/></button>
               </div>
             ) : (
-              <div className="bg-emerald-50/80 backdrop-blur-sm border border-emerald-200 p-5 rounded-2xl flex items-center gap-3">
-                 <ShieldCheck size={24} className="text-emerald-600"/>
-                 <div><h4 className="font-black text-emerald-800 text-xs">KONDISI GUDANG AMAN TERKENDALI</h4></div>
+              <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex items-center gap-3">
+                 <ShieldCheck size={20} className="text-emerald-600"/>
+                 <div><h4 className="font-extrabold text-emerald-800 text-xs uppercase tracking-wide">KONDISI GUDANG AMAN TERKENDALI</h4></div>
               </div>
             )}
           </div>
 
-          <div className="card-holo rounded-3xl p-6">
-             <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Total Omzet Penjualan (7 Hari Terakhir)</div>
-             <div className="bg-white/60 border border-white p-10 rounded-2xl text-center shadow-inner">
-                <div className="text-4xl font-black text-holo-gradient tracking-tight mb-2">{formatRupiah(ringkasan.omzetSeminggu)}</div>
+          <div className="card-holo p-6">
+             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Total Omzet Penjualan (7 Hari Terakhir)</div>
+             <div className="bg-slate-50 border border-slate-200 p-8 rounded-xl text-center">
+                <div className="text-3xl font-black text-slate-800 tracking-tight">{formatRupiah(ringkasan.omzetSeminggu)}</div>
              </div>
           </div>
         </div>
 
-        {/* KONDISI FISIK GUDANG - KACA TRANSPARAN */}
-        <div className="lg:col-span-4 card-holo rounded-3xl p-6 shadow-xl flex flex-col justify-between">
-          <div className="space-y-5">
-            <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-200 pb-3"><Database size={14} className="text-orange-500"/> Kondisi Fisik Gudang Pusat</div>
-            <div className="bg-white/60 border border-white/50 shadow-sm p-4 rounded-xl">
-              <div className="text-[9px] font-black text-rose-600 uppercase tracking-widest mb-1.5">Sisa Daging Ayam Mentah Fillet</div>
-              <div className="text-2xl font-black text-slate-800 tracking-tight">{formatNumber(ringkasan.sisaAyamKg)} <span className="text-xs text-slate-500 font-bold">KG</span></div>
+        {/* KONDISI FISIK GUDANG - FLAT BOX RE-DESIGN */}
+        <div className="lg:col-span-4 card-holo p-6 flex flex-col justify-between">
+          <div className="space-y-4">
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 pb-2 flex items-center gap-1.5"><Database size={14} className="text-slate-400"/> Kondisi Fisik Gudang Pusat</div>
+            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl">
+              <div className="text-[9px] font-bold text-rose-600 uppercase tracking-wider mb-1">Sisa Daging Ayam Mentah Fillet</div>
+              <div className="text-xl font-extrabold text-slate-800 tracking-tight">{formatNumber(ringkasan.sisaAyamKg)} <span className="text-xs text-slate-400 font-bold">KG</span></div>
             </div>
-            <div className="bg-white/60 border border-white/50 shadow-sm p-4 rounded-xl">
-              <div className="text-[9px] font-black text-amber-600 uppercase tracking-widest mb-1.5">Sisa Dimsum Frozen Di Freezer</div>
-              <div className="text-2xl font-black text-slate-800 tracking-tight">{formatNumber(ringkasan.sisaDimsumPcs)} <span className="text-xs text-slate-500 font-bold">PCS</span></div>
+            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl">
+              <div className="text-[9px] font-bold text-blue-600 uppercase tracking-wider mb-1">Sisa Dimsum Frozen Di Freezer</div>
+              <div className="text-xl font-extrabold text-slate-800 tracking-tight">{formatNumber(ringkasan.sisaDimsumPcs)} <span className="text-xs text-slate-400 font-bold">PCS</span></div>
             </div>
           </div>
         </div>
       </div>
 
       {/* ========================================== */}
-      {/* 🔥 MODAL POPUP SETTLEMENT KEMBALIAN (GLASSMORPHISM) */}
+      {/* 🔥 MODAL POPUP SETTLEMENT KEMBALIAN (CLEAN TYPE) */}
       {/* ========================================== */}
       {settleModal && (
-         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 animate-in fade-in zoom-in-95 duration-150">
-            <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl w-full max-w-md border border-white/50 overflow-hidden flex flex-col">
+         <div className="fixed inset-0 bg-slate-900/40 z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-150">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md border border-slate-200 overflow-hidden flex flex-col">
                
-               <div className="p-4 bg-slate-50/50 border-b flex justify-between items-center">
-                  <div className="flex items-center gap-2 text-red-600">
-                     <UserCheck size={18}/>
-                     <span className="font-black text-xs uppercase tracking-widest">Tutup Buku Kasbon: {settleModal.employee}</span>
+               <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                  <div className="flex items-center gap-2 text-slate-800">
+                     <UserCheck size={16} className="text-red-600"/>
+                     <span className="font-extrabold text-xs uppercase tracking-wide">Tutup Buku Kasbon: {settleModal.employee}</span>
                   </div>
-                  <button onClick={()=>setSettleModal(null)} className="p-1 text-slate-400 hover:text-rose-600"><X size={16}/></button>
+                  <button onClick={()=>setSettleModal(null)} className="p-1 text-slate-400 hover:text-slate-600"><X size={16}/></button>
                </div>
 
-               <div className="p-5 space-y-4 font-bold text-xs text-slate-700">
-                  <div className="bg-orange-50/80 backdrop-blur-sm p-4 rounded-2xl border border-orange-100 flex justify-between items-center">
-                     <span className="uppercase text-[10px] font-black tracking-wider text-orange-800">Sisa Kembalian Wajib Tagih:</span>
-                     <span className="text-lg font-black text-holo-gradient">{formatRupiah(settleModal.expected_change)}</span>
+               <div className="p-5 space-y-4 font-bold text-xs text-slate-600">
+                  <div className="bg-red-50 p-4 rounded-xl border border-red-100 flex justify-between items-center">
+                     <span className="uppercase text-[9px] font-bold tracking-wider text-red-800">Sisa Kembalian Wajib Tagih:</span>
+                     <span className="text-base font-extrabold text-red-700">{formatRupiah(settleModal.expected_change)}</span>
                   </div>
 
                   <div>
-                     <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-1">1. Uang Cash yang Diterima Masuk Laci</label>
-                     <input type="number" value={settleForm.actualReturned} onChange={e=>setSettleForm({...settleForm, actualReturned: e.target.value})} className="w-full p-3 border border-slate-200 bg-white/50 rounded-xl font-black text-sm outline-none focus:border-red-400" placeholder="Masukkan jumlah cash..." />
+                     <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">1. Uang Cash yang Diterima Masuk Laci</label>
+                     <input type="number" value={settleForm.actualReturned} onChange={e=>setSettleForm({...settleForm, actualReturned: e.target.value})} className="w-full p-2.5 border border-slate-200 bg-slate-50 rounded-lg font-bold text-sm outline-none focus:border-red-500 focus:bg-white transition-all" placeholder="Masukkan jumlah cash..." />
                   </div>
 
                   <div>
-                     <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-1">2. Dijadikan Upah Jalan / Tip Karyawan (Beban Ops)</label>
-                     <input type="number" value={settleForm.upahJalan} onChange={e=>setSettleForm({...settleForm, upahJalan: e.target.value})} className="w-full p-3 border border-slate-200 bg-white/50 rounded-xl font-black text-sm text-blue-600 outline-none focus:border-red-400" placeholder="Rp 0" />
+                     <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">2. Dijadikan Upah Jalan / Tip Karyawan (Beban Ops)</label>
+                     <input type="number" value={settleForm.upahJalan} onChange={e=>setSettleForm({...settleForm, upahJalan: e.target.value})} className="w-full p-2.5 border border-slate-200 bg-slate-50 rounded-lg font-bold text-sm outline-none focus:border-red-500 focus:bg-white transition-all text-blue-600" placeholder="Rp 0" />
                   </div>
 
                   <div>
-                     <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-1">3. Pembulatan Ikhlas Kurang Receh (Beban Lainnya)</label>
-                     <input type="number" value={settleForm.pembulatan} onChange={e=>setSettleForm({...settleForm, pembulatan: e.target.value})} className="w-full p-3 border border-slate-200 bg-white/50 rounded-xl font-black text-sm text-rose-600 outline-none focus:border-red-400" placeholder="Rp 0" />
+                     <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">3. Pembulatan Ikhlas Kurang Receh (Beban Lainnya)</label>
+                     <input type="number" value={settleForm.pembulatan} onChange={e=>setSettleForm({...settleForm, pembulatan: e.target.value})} className="w-full p-2.5 border border-slate-200 bg-slate-50 rounded-lg font-bold text-sm outline-none focus:border-red-500 focus:bg-white transition-all text-rose-600" placeholder="Rp 0" />
                   </div>
 
-                  <div className="border-t pt-4 flex gap-3 mt-2">
-                     <button type="button" onClick={()=>setSettleModal(null)} className="flex-1 py-3 bg-slate-100/80 rounded-xl font-black uppercase text-[10px] hover:bg-slate-200 transition">Batal</button>
-                     <button type="button" onClick={handleExecuteSettlement} className="flex-1 py-3 btn-holo rounded-xl shadow-md flex items-center justify-center gap-1.5"><CheckCircle2 size={14}/> Sahkan Buku</button>
+                  <div className="border-t border-slate-100 pt-4 flex gap-3 mt-2">
+                     <button type="button" onClick={()=>setSettleModal(null)} className="flex-1 py-2.5 bg-slate-100 text-slate-600 rounded-lg font-bold text-xs hover:bg-slate-200 transition-colors uppercase">Batal</button>
+                     <button type="button" onClick={handleExecuteSettlement} className="flex-1 py-2.5 btn-holo rounded-lg text-xs flex items-center justify-center gap-1.5 shadow-sm"><CheckCircle2 size={14}/> Sahkan Buku</button>
                   </div>
                </div>
 
