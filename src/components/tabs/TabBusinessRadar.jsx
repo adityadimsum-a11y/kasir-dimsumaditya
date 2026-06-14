@@ -132,7 +132,7 @@ export default function TabBusinessRadar({
       realCashflow.filter(c => !c.isDeleted && c.type === 'IN' && c.reference_id === o.id).forEach(c => paid += Number(c.amount || 0));
       const sisa = Number(o.total_amount || 0) - paid;
       if (sisa > 0) {
-        outstandingDebtsAndReceivables.push({ id: o.id, name: o.customer_name, type: 'PIUTANG AGEN', amount: sisa, date: o.date, labelClass: 'bg-orange-50 text-orange-700 border-orange-200' });
+        outstandingDebtsAndReceivables.push({ id: o.id, name: o.customer_name, type: 'Piutang Agen', amount: sisa, date: o.date, labelClass: 'bg-orange-50 text-orange-700 border-orange-200' });
       }
     });
 
@@ -142,7 +142,7 @@ export default function TabBusinessRadar({
       realCashflow.filter(c => !c.isDeleted && c.type === 'OUT' && c.reference_id === p.id).forEach(c => paid += Number(c.amount || 0));
       const sisa = Number(p.total_amount || p.amount || 0) - paid;
       if (sisa > 0) {
-        outstandingDebtsAndReceivables.push({ id: p.id, name: p.supplier_name || 'SUPPLIER AYAM', type: 'HUTANG BON GANTUNG', amount: sisa, date: p.date, labelClass: 'bg-rose-50 text-rose-700 border-rose-200' });
+        outstandingDebtsAndReceivables.push({ id: p.id, name: p.supplier_name || 'Supplier Ayam', type: 'Hutang Bon Gantung', amount: sisa, date: p.date, labelClass: 'bg-rose-50 text-rose-700 border-rose-200' });
       }
     });
 
@@ -188,106 +188,107 @@ export default function TabBusinessRadar({
   }, [radarMetrics]);
 
   const renderRankMedal = (index) => {
-    if (index === 0) return <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-300 to-amber-500 border border-white/50 shadow-md flex items-center justify-center text-amber-900 shrink-0"><Crown size={15}/></div>;
-    if (index === 1) return <div className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-300 to-slate-400 border border-white/50 shadow-md flex items-center justify-center text-slate-800 shrink-0"><Medal size={15}/></div>;
-    if (index === 2) return <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-300 to-orange-500 border border-white/50 shadow-md flex items-center justify-center text-orange-900 shrink-0"><Medal size={15}/></div>;
-    return <div className="w-8 h-8 rounded-full bg-white/50 border border-white/60 flex items-center justify-center text-slate-500 font-black text-[9px] shrink-0">#{index + 1}</div>;
+    if (index === 0) return <div className="w-7 h-7 rounded-lg bg-amber-100 border border-amber-200 shadow-xs flex items-center justify-center text-amber-700 shrink-0"><Crown size={14}/></div>;
+    if (index === 1) return <div className="w-7 h-7 rounded-lg bg-slate-100 border border-slate-200 shadow-xs flex items-center justify-center text-slate-700 shrink-0"><Medal size={14}/></div>;
+    if (index === 2) return <div className="w-7 h-7 rounded-lg bg-orange-100 border border-orange-200 shadow-xs flex items-center justify-center text-orange-700 shrink-0"><Medal size={14}/></div>;
+    return <div className="w-7 h-7 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-400 font-bold text-[10px] shrink-0">#{index + 1}</div>;
   };
 
   return (
-    <div className="space-y-6 pb-10 text-slate-800 animate-in fade-in duration-300">
+    <div className="space-y-6 pb-10 text-slate-700 animate-in fade-in duration-300 normal-case">
       
-      {/* HEADER RADAR - HOLOGRAPHIC GLASS */}
-      <div className="card-holo rounded-3xl p-6 shadow-xl flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-red-500 via-orange-500 to-amber-500"></div>
-        <div>
-          <h2 className="text-holo-gradient text-xl font-black uppercase tracking-widest flex items-center gap-2">
-            <Activity className="text-red-500 animate-pulse"/> Radar Bisnis &amp; Analitik Sultan
+      {/* HEADER RADAR - FLAT BOX (GRAB STYLE) */}
+      <div className="card-holo p-6 shadow-xs flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 relative overflow-hidden">
+        <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-600"></div>
+        <div className="pl-2">
+          <h2 className="text-slate-900 text-base font-extrabold flex items-center gap-2">
+            <Activity className="text-red-600"/> Radar Bisnis &amp; Analitik Sultan
           </h2>
-          <p className="text-[10px] font-bold text-slate-500 mt-1 uppercase tracking-wider">Pemantauan otomatis 4 Amplop Kas, Monitor HPP, serta radar piutang jatuh tempo.</p>
+          <p className="text-[10px] font-semibold text-slate-400 mt-1">Pemantauan otomatis 4 Amplop Kas, Monitor HPP, serta radar piutang jatuh tempo.</p>
         </div>
 
-        <div className="flex bg-white/40 backdrop-blur-sm p-1.5 rounded-2xl border border-white/60 shadow-sm">
-          <button type="button" onClick={() => setTimeRange('TODAY')} className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${timeRange === 'TODAY' ? 'btn-holo shadow-md scale-105' : 'text-slate-500 hover:text-slate-800'}`}><CalendarClock size={12}/> Hari Ini</button>
-          <button type="button" onClick={() => setTimeRange('7_DAYS')} className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${timeRange === '7_DAYS' ? 'btn-holo shadow-md scale-105' : 'text-slate-500 hover:text-slate-800'}`}><TrendingUp size={12}/> 7 Hari</button>
-          <button type="button" onClick={() => setTimeRange('30_DAYS')} className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${timeRange === '30_DAYS' ? 'btn-holo shadow-md scale-105' : 'text-slate-500 hover:text-slate-800'}`}><BarChart3 size={12}/> 30 Hari</button>
+        {/* TIME CONTROLLER BUTTON GROUP */}
+        <div className="flex bg-slate-100 border border-slate-200 p-1 rounded-xl shadow-xs">
+          <button type="button" onClick={() => setTimeRange('TODAY')} className={`px-4 py-2 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1.5 ${timeRange === 'TODAY' ? 'bg-white shadow-xs text-red-600 border border-slate-200/50' : 'text-slate-500 hover:text-slate-800'}`}><CalendarClock size={12}/> Hari Ini</button>
+          <button type="button" onClick={() => setTimeRange('7_DAYS')} className={`px-4 py-2 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1.5 ${timeRange === '7_DAYS' ? 'bg-white shadow-xs text-red-600 border border-slate-200/50' : 'text-slate-500 hover:text-slate-800'}`}><TrendingUp size={12}/> 7 Hari</button>
+          <button type="button" onClick={() => setTimeRange('30_DAYS')} className={`px-4 py-2 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1.5 ${timeRange === '30_DAYS' ? 'bg-white shadow-xs text-red-600 border border-slate-200/50' : 'text-slate-500 hover:text-slate-800'}`}><BarChart3 size={12}/> 30 Hari</button>
         </div>
       </div>
 
-      {/* METRIK KARTU REKAP - KACA BURAM */}
+      {/* METRIK KARTU REKAP - FLAT CARD */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="card-holo p-6 rounded-3xl flex items-center justify-between hover:scale-[1.02] transition-transform duration-300">
+        <div className="card-holo p-5 flex items-center justify-between">
           <div>
-            <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5"><ArrowDownToLine size={12} className="text-emerald-500"/> Aliran Omzet Masuk</div>
-            <div className="text-2xl font-black text-slate-800 tracking-tight mt-1">{formatRupiah(radarMetrics.totalOmzet)}</div>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5"><ArrowDownToLine size={12} className="text-emerald-600"/> Aliran Omzet Masuk</div>
+            <div className="text-xl font-extrabold text-slate-800 tracking-tight mt-1">{formatRupiah(radarMetrics.totalOmzet)}</div>
           </div>
-          <div className="bg-emerald-50/80 text-emerald-600 p-3.5 rounded-2xl border border-emerald-200/50 shadow-sm"><TrendingUp size={24}/></div>
+          <div className="bg-emerald-50 text-emerald-600 p-3 rounded-xl border border-emerald-100/50 shadow-xs"><TrendingUp size={20}/></div>
         </div>
 
-        <div className="card-holo p-6 rounded-3xl flex items-center justify-between hover:scale-[1.02] transition-transform duration-300">
+        <div className="card-holo p-5 flex items-center justify-between">
           <div>
-            <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5"><ArrowUpRight size={12} className="text-red-500"/> Total Pengeluaran Riil</div>
-            <div className="text-2xl font-black text-slate-800 tracking-tight mt-1">{formatRupiah(radarMetrics.totalBeban)}</div>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5"><ArrowUpRight size={12} className="text-red-600"/> Total Pengeluaran Riil</div>
+            <div className="text-xl font-extrabold text-slate-800 tracking-tight mt-1">{formatRupiah(radarMetrics.totalBeban)}</div>
           </div>
-          <div className="bg-red-50/80 text-red-600 p-3.5 rounded-2xl border border-red-200/50 shadow-sm"><ArrowUpRight size={24}/></div>
+          <div className="bg-red-50 text-red-600 p-3 rounded-xl border border-red-100/50 shadow-xs"><ArrowUpRight size={20}/></div>
         </div>
 
-        <div className="card-holo p-6 rounded-3xl flex items-center justify-between hover:scale-[1.02] transition-transform duration-300 relative overflow-hidden">
-          <div className="z-10">
-            <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5"><Award size={12} className="text-amber-500"/> Estimasi Sisa Selisih Laba</div>
-            <div className="text-holo-gradient text-3xl font-black tracking-tight mt-1">{formatRupiah(radarMetrics.netProfit)}</div>
+        <div className="card-holo p-5 flex items-center justify-between relative overflow-hidden">
+          <div>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5"><Award size={12} className="text-amber-600"/> Estimasi Sisa Selisih Laba</div>
+            <div className="text-xl font-extrabold text-slate-900 tracking-tight mt-1">{formatRupiah(radarMetrics.netProfit)}</div>
           </div>
-          <div className="bg-amber-50/80 text-amber-500 p-3.5 rounded-2xl border border-amber-200/50 shadow-sm z-10"><Award size={24}/></div>
+          <div className="bg-amber-50 text-amber-600 p-3 rounded-xl border border-amber-100/50 shadow-xs"><Award size={20}/></div>
         </div>
       </div>
 
-      {/* MONITOR BANNER 4 AMPLOP LIVE */}
-      <div className="card-holo p-6 rounded-3xl grid grid-cols-2 md:grid-cols-5 gap-4">
-        <div className="p-3 bg-white/60 border border-white/50 rounded-2xl shadow-sm text-center">
-          <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest">HPP Realtime Hari Ini</div>
-          <div className="text-base font-black text-slate-800 mt-1">{formatRupiah(radarMetrics.hppHariIni)}</div>
-          <div className="text-[8px] font-bold text-slate-500 mt-1 uppercase">Vol: {formatNumber(radarMetrics.totalPcsHariIni)} Pcs</div>
+      {/* MONITOR BANNER 4 AMPLOP LIVE - FLAT BOX STYLE */}
+      <div className="card-holo p-5 grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-xs text-center">
+          <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">HPP Realtime Hari Ini</div>
+          <div className="text-sm font-extrabold text-slate-800 mt-1">{formatRupiah(radarMetrics.hppHariIni)}</div>
+          <div className="text-[8px] font-bold text-slate-400 mt-0.5 uppercase">Vol: {formatNumber(radarMetrics.totalPcsHariIni)} Pcs</div>
         </div>
-        <div className="p-3 bg-red-50/60 border border-white/50 rounded-2xl shadow-sm text-center">
-          <div className="text-[9px] font-black text-red-600 uppercase tracking-widest flex items-center justify-center gap-1"><Package size={10}/> Amplop 1 (Bahan 55%)</div>
-          <div className="text-base font-black text-red-800 mt-1">{formatRupiah(radarMetrics.sisaBahanBaku55)}</div>
+        <div className="p-3 bg-red-50/50 border border-red-100 rounded-xl text-center">
+          <div className="text-[9px] font-bold text-red-600 uppercase tracking-wide flex items-center justify-center gap-1"><Package size={10}/> Amplop 1 (Bahan 55%)</div>
+          <div className="text-sm font-extrabold text-red-800 mt-1">{formatRupiah(radarMetrics.sisaBahanBaku55)}</div>
         </div>
-        <div className="p-3 bg-blue-50/60 border border-white/50 rounded-2xl shadow-sm text-center">
-          <div className="text-[9px] font-black text-blue-600 uppercase tracking-widest flex items-center justify-center gap-1"><Percent size={10}/> Amplop 2 (Ops 20%)</div>
-          <div className="text-base font-black text-blue-800 mt-1">{formatRupiah(radarMetrics.opsGaji20)}</div>
+        <div className="p-3 bg-blue-50/50 border border-blue-100 rounded-xl text-center">
+          <div className="text-[9px] font-bold text-blue-600 uppercase tracking-wide flex items-center justify-center gap-1"><Percent size={10}/> Amplop 2 (Ops 20%)</div>
+          <div className="text-sm font-extrabold text-blue-800 mt-1">{formatRupiah(radarMetrics.opsGaji20)}</div>
         </div>
-        <div className="p-3 bg-amber-50/60 border border-white/50 rounded-2xl shadow-sm text-center">
-          <div className="text-[9px] font-black text-amber-600 uppercase tracking-widest flex items-center justify-center gap-1"><Activity size={10}/> Amplop 3 (Jaga 10%)</div>
-          <div className="text-base font-black text-amber-800 mt-1">{formatRupiah(radarMetrics.cadangan10)}</div>
+        <div className="p-3 bg-amber-50/50 border border-amber-100 rounded-xl text-center">
+          <div className="text-[9px] font-bold text-amber-600 uppercase tracking-wide flex items-center justify-center gap-1"><Activity size={10}/> Amplop 3 (Jaga 10%)</div>
+          <div className="text-sm font-extrabold text-amber-800 mt-1">{formatRupiah(radarMetrics.cadangan10)}</div>
         </div>
-        <div className="p-3 bg-emerald-50/60 border border-white/50 rounded-2xl shadow-sm text-center col-span-2 md:col-span-1">
-          <div className="text-[9px] font-black text-emerald-600 uppercase tracking-widest flex items-center justify-center gap-1"><Award size={10}/> Amplop 4 (Profit 15%)</div>
-          <div className="text-base font-black text-emerald-800 mt-1">{formatRupiah(radarMetrics.profitBersih15)}</div>
+        <div className="p-3 bg-emerald-50/50 border border-emerald-100 rounded-xl text-center col-span-2 md:col-span-1">
+          <div className="text-[9px] font-bold text-emerald-600 uppercase tracking-wide flex items-center justify-center gap-1"><Award size={10}/> Amplop 4 (Profit 15%)</div>
+          <div className="text-sm font-extrabold text-emerald-800 mt-1">{formatRupiah(radarMetrics.profitBarsih15 || radarMetrics.profitBersih15)}</div>
         </div>
       </div>
 
       {/* WATCHLIST UTANG PIUTANG */}
-      <div className="card-holo p-6 rounded-3xl">
-        <h3 className="text-xs font-black uppercase text-slate-700 tracking-widest flex items-center gap-2 mb-4">
-          <ShieldAlert size={16} className="text-red-500 animate-bounce"/> 🚨 Radar Pengawasan Tagihan Macet &amp; Hutang Gantung
+      <div className="card-holo p-5">
+        <h3 className="text-xs font-extrabold text-slate-800 flex items-center gap-2 mb-4">
+          <ShieldAlert size={16} className="text-red-500"/> Radar Pengawasan Tagihan Macet &amp; Hutang Gantung
         </h3>
         
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {radarMetrics.watchList.length === 0 ? (
-            <div className="col-span-full py-6 text-center text-xs font-bold text-slate-500 bg-white/40 border border-dashed border-white/60 rounded-2xl uppercase tracking-widest">Bersih Total! Tidak ada tagihan gantung yang menunggak.</div>
+            <div className="col-span-full py-6 text-center text-xs font-bold text-slate-400 bg-slate-50 border border-dashed border-slate-200 rounded-xl uppercase">Bersih Total! Tidak ada tagihan gantung yang menunggak.</div>
           ) : (
             radarMetrics.watchList.map((bill, index) => (
-              <div key={index} className="p-3.5 bg-white/50 backdrop-blur-sm border border-white/60 rounded-2xl shadow-sm flex items-center justify-between group hover:border-red-300 transition-colors">
+              <div key={index} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between group hover:border-red-300 transition-colors">
                 <div className="space-y-1">
-                  <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border ${bill.labelClass}`}>
+                  <span className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase border ${bill.labelClass}`}>
                     {bill.type}
                   </span>
-                  <div className="text-xs font-black text-slate-800 uppercase line-clamp-1 mt-1">{bill.name}</div>
-                  <div className="text-[9px] font-mono text-slate-500">ID: {bill.id} | Tgl: {formatDate(bill.date)}</div>
+                  <div className="text-xs font-bold text-slate-800 mt-1">{bill.name}</div>
+                  <div className="text-[9px] font-mono text-slate-400">ID: {bill.id} | Tgl: {formatDate(bill.date)}</div>
                 </div>
                 <div className="text-right shrink-0">
-                  <div className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Sisa Bon</div>
-                  <div className="text-sm font-black text-red-600 mt-0.5">{formatRupiah(bill.amount)}</div>
+                  <div className="text-[8px] font-bold text-slate-400 uppercase tracking-wider">Sisa Bon</div>
+                  <div className="text-sm font-extrabold text-red-600 mt-0.5">{formatRupiah(bill.amount)}</div>
                 </div>
               </div>
             ))
@@ -297,22 +298,22 @@ export default function TabBusinessRadar({
 
       {/* TREND GRAPH */}
       {timeRange !== 'TODAY' && radarMetrics.trendArray.length > 1 && (
-        <div className="card-holo p-6 rounded-3xl animate-in fade-in">
-          <h3 className="text-xs font-black uppercase text-slate-700 tracking-widest flex items-center gap-2 mb-4"><BarChart3 size={16} className="text-orange-500"/> Tren Fluktuasi Keuangan Pabrik</h3>
-          <div className="w-full h-44 bg-white/50 border border-white/60 rounded-2xl relative p-2 overflow-hidden shadow-inner">
+        <div className="card-holo p-5 animate-in fade-in">
+          <h3 className="text-xs font-extrabold text-slate-800 flex items-center gap-2 mb-4"><BarChart3 size={16} className="text-red-600"/> Tren Fluktuasi Keuangan Pabrik</h3>
+          <div className="w-full h-44 bg-slate-50 border border-slate-200 rounded-xl relative p-2 overflow-hidden">
             <svg className="w-full h-full" viewBox="0 0 500 180" preserveAspectRatio="none">
-              <line x1="0" y1="45" x2="500" y2="45" stroke="#cbd5e1" strokeWidth="1" strokeDasharray="4"/>
-              <line x1="0" y1="90" x2="500" y2="90" stroke="#cbd5e1" strokeWidth="1" strokeDasharray="4"/>
-              <line x1="0" y1="135" x2="500" y2="135" stroke="#cbd5e1" strokeWidth="1" strokeDasharray="4"/>
-              <path d={svgCoordinates.omzetPath} fill="none" stroke="#10b981" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d={svgCoordinates.bebanPath} fill="none" stroke="#ef4444" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+              <line x1="0" y1="45" x2="500" y2="45" stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4"/>
+              <line x1="0" y1="90" x2="500" y2="90" stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4"/>
+              <line x1="0" y1="135" x2="500" y2="135" stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4"/>
+              <path d={svgCoordinates.omzetPath} fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d={svgCoordinates.bebanPath} fill="none" stroke="#dc2626" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
-            <div className="absolute top-3 right-3 bg-white/80 backdrop-blur border border-white/50 px-2.5 py-1 rounded-xl text-[8px] font-black uppercase tracking-wider flex items-center gap-3 shadow-sm z-10">
-              <div className="flex items-center gap-1"><span className="w-2.5 h-1 bg-emerald-500 rounded-full"></span> Masuk</div>
-              <div className="flex items-center gap-1"><span className="w-2.5 h-1 bg-red-500 rounded-full"></span> Keluar</div>
+            <div className="absolute top-3 right-3 bg-white border border-slate-200 px-2 py-1 rounded-lg text-[8px] font-bold flex items-center gap-3 shadow-xs">
+              <div className="flex items-center gap-1"><span className="w-2 h-2 bg-emerald-500 rounded-full"></span> Masuk</div>
+              <div className="flex items-center gap-1"><span className="w-2 h-2 bg-red-500 rounded-full"></span> Keluar</div>
             </div>
           </div>
-          <div className="flex justify-between items-center text-[9px] font-black text-slate-500 mt-2 px-1 uppercase tracking-widest">
+          <div className="flex justify-between items-center text-[9px] font-bold text-slate-400 mt-2 px-1">
             <span>{radarMetrics.trendArray[0]?.label || 'Awal'}</span>
             <span>{radarMetrics.trendArray[Math.floor(radarMetrics.trendArray.length / 2)]?.label || 'Tengah'}</span>
             <span>{radarMetrics.trendArray[radarMetrics.trendArray.length - 1]?.label || 'Hari Ini'}</span>
@@ -321,38 +322,38 @@ export default function TabBusinessRadar({
       )}
 
       {/* CLASSIFICATIONS KLASEMEN */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-        <div className="card-holo rounded-3xl flex flex-col overflow-hidden">
-          <div className="p-5 bg-white/40 border-b border-white/50 flex items-center justify-between">
-            <h3 className="text-xs font-black uppercase text-slate-800 tracking-widest flex items-center gap-2">
-              <ShoppingBag size={16} className="text-orange-500"/> Klasemen Jalur Penjualan Agen
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div className="card-holo flex flex-col overflow-hidden">
+          <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+            <h3 className="text-xs font-extrabold text-slate-800 flex items-center gap-2">
+              <ShoppingBag size={16} className="text-red-600"/> Klasemen Jalur Penjualan Agen
             </h3>
-            <span className="text-[8px] font-black text-slate-500 bg-white/60 border border-white/50 px-2 py-1 rounded-md uppercase shadow-sm">Realtime</span>
+            <span className="text-[8px] font-bold text-slate-400 bg-white border border-slate-200 px-2 py-0.5 rounded-md uppercase">Realtime</span>
           </div>
           
-          <div className="p-4 flex-1 flex flex-col gap-2.5">
+          <div className="p-4 flex-1 flex flex-col gap-2">
             {radarMetrics.topChannels.length === 0 ? (
-              <div className="text-center py-10 text-xs font-bold text-slate-500 uppercase">Tidak ada jualan terdeteksi.</div>
+              <div className="text-center py-8 text-xs font-bold text-slate-400">Tidak ada jualan terdeteksi.</div>
             ) : (
               radarMetrics.topChannels.map(([name, stats], idx) => {
                 const ratio = radarMetrics.totalGlobalProfit > 0 ? (stats.profit / radarMetrics.totalGlobalProfit) * 100 : 0;
                 return (
-                  <div key={idx} className="flex items-center gap-3 p-3.5 border border-white/50 bg-white/40 rounded-2xl hover:bg-orange-50/40 transition-all hover:border-orange-300 group shadow-sm">
+                  <div key={idx} className="flex items-center gap-3 p-3 border border-slate-100 bg-white rounded-xl hover:bg-slate-50 transition-all shadow-xs">
                     {renderRankMedal(idx)}
                     <div className="flex-1 min-w-0">
-                      <div className="font-black text-xs text-slate-800 uppercase group-hover:text-orange-600 transition-colors flex justify-between items-center">
+                      <div className="font-bold text-xs text-slate-800 group-hover:text-red-600 flex justify-between items-center">
                         <span className="truncate">{name.replace('_', ' ')}</span>
-                        <span className="text-xs shrink-0 ml-2">{formatRupiah(stats.omzet)}</span>
+                        <span className="text-xs shrink-0 ml-2 font-extrabold">{formatRupiah(stats.omzet)}</span>
                       </div>
-                      <div className="flex items-center gap-3 mt-1.5 text-[9px] font-black uppercase tracking-wider">
-                        <span className="text-blue-600 bg-blue-50/80 px-1.5 py-0.5 rounded border border-blue-100"><Package size={10} className="inline mr-0.5"/> {formatNumber(stats.qty)} Pcs</span>
-                        <span className="text-slate-500">HPP: {formatRupiah(stats.hpp)}</span>
+                      <div className="flex items-center gap-3 mt-1 text-[9px] font-semibold text-slate-400">
+                        <span className="text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 font-bold"><Package size={10} className="inline mr-0.5"/> {formatNumber(stats.qty)} Pcs</span>
+                        <span>HPP: {formatRupiah(stats.hpp)}</span>
                       </div>
                     </div>
-                    <div className="text-right bg-white/50 p-2 rounded-xl border border-white/60 shrink-0">
-                      <div className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Laba Bersih</div>
-                      <div className="font-black text-xs text-emerald-600">+{formatRupiah(stats.profit)}</div>
-                      {ratio > 0 && <div className="text-[7px] font-black text-orange-500 text-right mt-0.5">Share {ratio.toFixed(1)}%</div>}
+                    <div className="text-right bg-slate-50 border border-slate-100 p-2 rounded-lg shrink-0">
+                      <div className="text-[8px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Laba Bersih</div>
+                      <div className="font-extrabold text-xs text-emerald-600">+{formatRupiah(stats.profit)}</div>
+                      {ratio > 0 && <div className="text-[7px] font-bold text-red-500 text-right mt-0.5">Share {ratio.toFixed(1)}%</div>}
                     </div>
                   </div>
                 )
@@ -361,34 +362,34 @@ export default function TabBusinessRadar({
           </div>
         </div>
 
-        <div className="card-holo rounded-3xl flex flex-col overflow-hidden">
-          <div className="p-5 bg-white/40 border-b border-white/50 flex items-center justify-between">
-            <h3 className="text-xs font-black uppercase text-slate-800 tracking-widest flex items-center gap-2">
-              <Users size={16} className="text-red-500"/> Klasemen Klien VIP &amp; Mitra Loyal
+        <div className="card-holo flex flex-col overflow-hidden">
+          <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+            <h3 className="text-xs font-extrabold text-slate-800 flex items-center gap-2">
+              <Users size={16} className="text-red-600"/> Klasemen Klien VIP &amp; Mitra Loyal
             </h3>
-            <span className="text-[8px] font-black text-slate-500 bg-white/60 border border-white/50 px-2 py-1 rounded-md uppercase shadow-sm">CRM</span>
+            <span className="text-[8px] font-bold text-slate-400 bg-white border border-slate-200 px-2 py-0.5 rounded-md uppercase">CRM</span>
           </div>
           
-          <div className="p-4 flex-1 flex flex-col gap-2.5">
+          <div className="p-4 flex-1 flex flex-col gap-2">
             {radarMetrics.topClients.length === 0 ? (
-              <div className="text-center py-10 text-xs font-bold text-slate-500 uppercase">Tidak ada transaksi terdeteksi.</div>
+              <div className="text-center py-8 text-xs font-bold text-slate-400">Tidak ada transaksi terdeteksi.</div>
             ) : (
               radarMetrics.topClients.map(([name, stats], idx) => (
-                <div key={idx} className="flex items-center gap-3 p-3.5 border border-white/50 bg-white/40 rounded-2xl hover:bg-red-50/40 transition-all hover:border-red-300 group shadow-sm">
+                <div key={idx} className="flex items-center gap-3 p-3 border border-slate-100 bg-white rounded-xl hover:bg-slate-50 transition-all shadow-xs">
                   {renderRankMedal(idx)}
                   <div className="flex-1 min-w-0">
-                    <div className="font-black text-xs text-slate-800 uppercase group-hover:text-red-600 transition-colors flex justify-between items-center">
+                    <div className="font-bold text-xs text-slate-800 group-hover:text-red-600 flex justify-between items-center">
                       <span className="truncate">{name}</span>
-                      <span className="text-xs shrink-0 ml-2">{formatRupiah(stats.omzet)}</span>
+                      <span className="text-xs shrink-0 ml-2 font-extrabold">{formatRupiah(stats.omzet)}</span>
                     </div>
-                    <div className="flex items-center gap-3 mt-1.5 text-[9px] font-black uppercase tracking-wider">
-                      <span className="text-emerald-600 bg-emerald-50/80 px-1.5 py-0.5 rounded border border-emerald-100"><Package size={10} className="inline mr-0.5"/> {formatNumber(stats.qty)} Pcs</span>
-                      <span className="text-slate-500">HPP: {formatRupiah(stats.hpp)}</span>
+                    <div className="flex items-center gap-3 mt-1 text-[9px] font-semibold text-slate-400">
+                      <span className="text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100 font-bold"><Package size={10} className="inline mr-0.5"/> {formatNumber(stats.qty)} Pcs</span>
+                      <span>HPP: {formatRupiah(stats.hpp)}</span>
                     </div>
                   </div>
-                  <div className="text-right bg-white/50 p-2 rounded-xl border border-white/60 shrink-0">
-                    <div className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Kontribusi Laba</div>
-                    <div className="font-black text-xs text-emerald-600">+{formatRupiah(stats.profit)}</div>
+                  <div className="text-right bg-slate-50 border border-slate-100 p-2 rounded-lg shrink-0">
+                    <div className="text-[8px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Kontribusi Laba</div>
+                    <div className="font-extrabold text-xs text-emerald-600">+{formatRupiah(stats.profit)}</div>
                   </div>
                 </div>
               ))
