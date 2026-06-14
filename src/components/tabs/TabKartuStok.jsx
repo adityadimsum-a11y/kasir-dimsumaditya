@@ -109,8 +109,8 @@ export default function TabKartuStok({
         const items = safeJsonParse(o.items, []);
         items.forEach(item => {
           timeline.push({
-            id: o.id, date: o.date, type: 'OUT', category: 'PENJUALAN KASIR',
-            itemName: item.name || item.product_name || 'ITEM TIDAK DIKETAHUI', 
+            id: o.id, date: o.date, type: 'OUT', category: 'Penjualan Kasir',
+            itemName: item.name || item.product_name || 'Item Tidak Diketahui', 
             qty: item.qty || 0, reference: o.customer_name || 'Pelanggan Umum'
           });
         });
@@ -123,14 +123,14 @@ export default function TabKartuStok({
         if(items.length > 0) {
           items.forEach(item => {
             timeline.push({
-              id: p.id, date: p.date, type: 'IN', category: 'BELANJA LOGISTIK',
-              itemName: item.name || item.raw_name || 'ITEM TIDAK DIKETAHUI', 
+              id: p.id, date: p.date, type: 'IN', category: 'Belanja Logistik',
+              itemName: item.name || item.raw_name || 'Item Tidak Diketahui', 
               qty: item.qty || 0, reference: p.supplier_name || 'Supplier'
             });
           });
         } else if (p.raw_name) {
           timeline.push({
-            id: p.id, date: p.date, type: 'IN', category: 'BELANJA LOGISTIK',
+            id: p.id, date: p.date, type: 'IN', category: 'Belanja Logistik',
             itemName: p.raw_name, qty: p.qty || 1, reference: p.supplier_name || 'Supplier'
           });
         }
@@ -140,15 +140,15 @@ export default function TabKartuStok({
     (productionBatches || []).forEach(batch => {
       if (!batch.isDeleted && batch.status === 'COMPLETED') {
         timeline.push({
-          id: batch.id, date: batch.date, type: 'IN', category: 'HASIL PRODUKSI PABRIK',
-          itemName: batch.product_name || 'DIMSUM FROZEN CORE', 
+          id: batch.id, date: batch.date, type: 'IN', category: 'Hasil Produksi Pabrik',
+          itemName: batch.product_name || 'Dimsum Frozen Core', 
           qty: batch.total_yield_pcs || batch.actual_yield || batch.qty || 0, 
-          reference: `Batch Porsi: ${batch.id}`
+          reference: `Batch Produksi: ${batch.id}`
         });
 
         if (batch.total_ayam_kg) {
             timeline.push({
-              id: batch.id + '-AYM', date: batch.date, type: 'OUT', category: 'PEMAKAIAN PRODUKSI',
+              id: batch.id + '-AYM', date: batch.date, type: 'OUT', category: 'Pemakaian Produksi',
               itemName: 'AYAM FILLET PAHA', qty: batch.total_ayam_kg, reference: `Untuk Batch: ${batch.id}`
             });
         }
@@ -156,8 +156,8 @@ export default function TabKartuStok({
         const ingredients = safeJsonParse(batch.ingredients_used, []);
         ingredients.forEach(ing => {
           timeline.push({
-            id: batch.id + '-ING', date: batch.date, type: 'OUT', category: 'PEMAKAIAN PRODUKSI',
-            itemName: ing.name || ing.raw_name || 'ITEM TIDAK DIKETAHUI', 
+            id: batch.id + '-ING', date: batch.date, type: 'OUT', category: 'Pemakaian Produksi',
+            itemName: ing.name || ing.raw_name || 'Item Tidak Diketahui', 
             qty: ing.qty || 0, reference: `Untuk Batch: ${batch.id}`
           });
         });
@@ -171,59 +171,69 @@ export default function TabKartuStok({
   }, [orders, purchases, productionBatches, searchTerm]);
 
   return (
-    <div className="space-y-6 pb-10 text-slate-800 animate-in fade-in duration-300">
-      <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-md text-white flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h2 className="text-xl font-black uppercase tracking-widest flex items-center gap-2">
-            <Archive className="text-emerald-400" /> Pusat Komando Gudang &amp; Stok
+    <div className="space-y-6 pb-10 text-slate-700 normal-case">
+      {/* HEADER GUDANG - FLAT STYLE */}
+      <div className="card-holo p-6 shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative overflow-hidden">
+        <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-600"></div>
+        <div className="pl-2">
+          <h2 className="text-base font-extrabold normal-case flex items-center gap-2 text-slate-900">
+            <Archive className="text-red-600" size={20} /> Pusat komando gudang &amp; stok
           </h2>
-          <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-wider">
+          <p className="text-[10px] font-semibold text-slate-400 mt-1 normal-case tracking-wide">
             Pantau arus keluar-masuk barang dan bahan baku secara real-time.
           </p>
         </div>
-        <div className="relative w-full md:w-64 text-slate-800">
+        <div className="relative w-full md:w-64 text-slate-700">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-          <input type="text" placeholder="Cari nama barang / aktivitas..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-9 pr-4 py-2.5 rounded-xl border-none font-bold outline-none bg-white shadow-inner text-xs focus:ring-2 focus:ring-emerald-500" />
+          <input 
+            type="text" 
+            placeholder="Cari nama barang / aktivitas..." 
+            value={searchTerm} 
+            onChange={(e) => setSearchTerm(e.target.value)} 
+            className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 font-bold outline-none bg-slate-50 text-xs focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all shadow-inner" 
+          />
         </div>
       </div>
 
+      {/* FILTER TAB BAR - CLEAN ENTERPRISE TABS */}
       <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-4">
-        <button onClick={() => setActiveTab('FREEZER')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase transition-colors flex items-center gap-2 ${activeTab === 'FREEZER' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-slate-500 border hover:bg-slate-50'}`}><Package size={14}/> Gudang Freezer (Produk Akhir)</button>
-        <button onClick={() => setActiveTab('BAHAN_BAKU')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase transition-colors flex items-center gap-2 ${activeTab === 'BAHAN_BAKU' ? 'bg-orange-600 text-white shadow-md' : 'bg-white text-slate-500 border hover:bg-slate-50'}`}><Box size={14}/> Gudang Mentah &amp; Packaging</button>
-        <button onClick={() => setActiveTab('MUTASI')} className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase transition-colors flex items-center gap-2 ${activeTab === 'MUTASI' ? 'bg-slate-900 text-white shadow-md' : 'bg-white text-slate-500 border hover:bg-slate-50'}`}><ArrowRightLeft size={14}/> Buku Mutasi Kartu Stok</button>
+        <button onClick={() => setActiveTab('FREEZER')} className={`px-5 py-2.5 rounded-lg font-bold text-xs normal-case transition-all flex items-center gap-2 ${activeTab === 'FREEZER' ? 'bg-white shadow-xs text-red-600 border border-slate-200/50' : 'bg-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-700 border border-transparent'}`}><Package size={14}/> Gudang freezer (Produk akhir)</button>
+        <button onClick={() => setActiveTab('BAHAN_BAKU')} className={`px-5 py-2.5 rounded-lg font-bold text-xs normal-case transition-all flex items-center gap-2 ${activeTab === 'BAHAN_BAKU' ? 'bg-white shadow-xs text-red-600 border border-slate-200/50' : 'bg-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-700 border border-transparent'}`}><Box size={14}/> Gudang mentah &amp; packaging</button>
+        <button onClick={() => setActiveTab('MUTASI')} className={`px-5 py-2.5 rounded-lg font-bold text-xs normal-case transition-all flex items-center gap-2 ${activeTab === 'MUTASI' ? 'bg-white shadow-xs text-red-600 border border-slate-200/50' : 'bg-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-700 border border-transparent'}`}><ArrowRightLeft size={14}/> Buku mutasi kartu stok</button>
       </div>
 
+      {/* TAB FREEZER */}
       {activeTab === 'FREEZER' && (
-        <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm flex flex-col">
-          <div className="p-5 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
-            <Database size={16} className="text-blue-500"/>
-            <h3 className="text-xs font-black uppercase text-slate-700 tracking-widest">Kondisi Stok Produk Jualan Terkini</h3>
+        <div className="card-holo flex flex-col overflow-hidden">
+          <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
+            <Database size={16} className="text-red-600"/>
+            <h3 className="text-xs font-extrabold normal-case text-slate-800">Kondisi stok produk jualan terkini</h3>
           </div>
-          <div className="overflow-x-auto p-2 custom-scrollbar">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-white text-[10px] uppercase text-slate-400 border-b border-slate-100">
+          <div className="overflow-x-auto p-1 custom-scrollbar">
+            <table className="w-full text-sm text-left border-collapse">
+              <thead className="bg-white border-b border-slate-200 text-[10px] normal-case text-slate-500">
                 <tr>
-                  <th className="px-5 py-4 font-black">SKU / Nama Produk</th>
-                  <th className="px-5 py-4 font-black text-center text-emerald-600">Total Masuk (Produksi)</th>
-                  <th className="px-5 py-4 font-black text-center text-rose-600">Total Keluar (Terjual)</th>
-                  <th className="px-5 py-4 font-black text-right text-blue-600">SISA STOK (SALDO)</th>
+                  <th className="px-5 py-3 font-bold">SKU / Nama produk</th>
+                  <th className="px-5 py-3 font-bold text-center">Total masuk (Produksi)</th>
+                  <th className="px-5 py-3 font-bold text-center">Total keluar (Terjual)</th>
+                  <th className="px-5 py-3 font-bold text-right">Sisa stok (Saldo)</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50 text-xs font-bold">
+              <tbody className="divide-y divide-slate-100 text-xs font-bold bg-white">
                 {freezerStock.length === 0 ? (
-                  <tr><td colSpan="4" className="text-center py-10 text-slate-400 uppercase">Data produk belum tersedia.</td></tr>
+                  <tr><td colSpan="4" className="text-center py-10 text-slate-400 normal-case font-medium">Data produk belum tersedia.</td></tr>
                 ) : (
                   freezerStock.map((item, idx) => (
                     <tr key={idx} className="hover:bg-slate-50 transition-colors">
                       <td className="px-5 py-4 whitespace-nowrap">
-                        <div className="text-slate-800 font-black uppercase">{item.name || 'UMUM'}</div>
-                        <div className="text-[9px] font-mono text-slate-400 mt-1">{item.sku || 'NO-SKU'} | {item.category ? item.category.replace(/_/g, ' ') : 'UMUM'}</div>
+                        <div className="text-slate-800 font-extrabold normal-case">{item.name || 'Umum'}</div>
+                        <div className="text-[9px] font-medium text-slate-400 mt-1 normal-case">{item.sku || 'Tanpa SKU'} • {item.category ? item.category.replace(/_/g, ' ') : 'Umum'}</div>
                       </td>
-                      <td className="px-5 py-4 text-center font-black text-emerald-600 bg-emerald-50/30">+{formatNumber(item.stockIn)}</td>
-                      <td className="px-5 py-4 text-center font-black text-rose-600 bg-rose-50/30">-{formatNumber(item.stockOut)}</td>
+                      <td className="px-5 py-4 text-center font-extrabold text-emerald-600">+{formatNumber(item.stockIn)}</td>
+                      <td className="px-5 py-4 text-center font-extrabold text-red-500">-{formatNumber(item.stockOut)}</td>
                       <td className="px-5 py-4 text-right">
-                        <div className={`text-lg font-black ${item.currentStock <= 10 ? 'text-rose-600' : 'text-blue-700'}`}>{formatNumber(item.currentStock)}</div>
-                        {item.currentStock <= 10 && <div className="text-[8px] text-rose-500 uppercase tracking-widest mt-1 animate-pulse">⚠️ Stok Kritis</div>}
+                        <div className={`text-lg font-black ${item.currentStock <= 10 ? 'text-red-600' : 'text-slate-800'}`}>{formatNumber(item.currentStock)}</div>
+                        {item.currentStock <= 10 && <div className="text-[8px] text-red-500 font-bold normal-case mt-1 animate-pulse">⚠️ Stok Kritis</div>}
                       </td>
                     </tr>
                   ))
@@ -234,38 +244,39 @@ export default function TabKartuStok({
         </div>
       )}
 
+      {/* TAB BAHAN BAKU */}
       {activeTab === 'BAHAN_BAKU' && (
-        <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm flex flex-col">
-          <div className="p-5 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
-            <Database size={16} className="text-orange-500"/>
-            <h3 className="text-xs font-black uppercase text-slate-700 tracking-widest">Kondisi Stok Bahan Baku &amp; Kemasan</h3>
+        <div className="card-holo flex flex-col overflow-hidden">
+          <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
+            <Database size={16} className="text-red-600"/>
+            <h3 className="text-xs font-extrabold normal-case text-slate-800">Kondisi stok bahan baku &amp; kemasan</h3>
           </div>
-          <div className="overflow-x-auto p-2 custom-scrollbar">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-white text-[10px] uppercase text-slate-400 border-b border-slate-100">
+          <div className="overflow-x-auto p-1 custom-scrollbar">
+            <table className="w-full text-sm text-left border-collapse">
+              <thead className="bg-white border-b border-slate-200 text-[10px] normal-case text-slate-500">
                 <tr>
-                  <th className="px-5 py-4 font-black">Item Logistik</th>
-                  <th className="px-5 py-4 font-black text-center">Kategori &amp; Satuan</th>
-                  <th className="px-5 py-4 font-black text-center text-emerald-600">Total Beli Masuk</th>
-                  <th className="px-5 py-4 font-black text-center text-rose-600">Pemakaian Dapur</th>
-                  <th className="px-5 py-4 font-black text-right text-orange-600">SISA GUDANG</th>
+                  <th className="px-5 py-3 font-bold">Item logistik</th>
+                  <th className="px-5 py-3 font-bold text-center">Kategori &amp; satuan</th>
+                  <th className="px-5 py-3 font-bold text-center">Total beli masuk</th>
+                  <th className="px-5 py-3 font-bold text-center">Pemakaian dapur</th>
+                  <th className="px-5 py-3 font-bold text-right">Sisa gudang</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50 text-xs font-bold">
+              <tbody className="divide-y divide-slate-100 text-xs font-bold bg-white">
                 {rawStock.length === 0 ? (
-                  <tr><td colSpan="5" className="text-center py-10 text-slate-400 uppercase">Data logistik belum tersedia.</td></tr>
+                  <tr><td colSpan="5" className="text-center py-10 text-slate-400 normal-case font-medium">Data logistik belum tersedia.</td></tr>
                 ) : (
                   rawStock.map((item, idx) => (
                     <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-5 py-4 whitespace-nowrap font-black text-slate-800 uppercase">{item.name || 'UMUM'}</td>
+                      <td className="px-5 py-4 whitespace-nowrap font-extrabold text-slate-800 normal-case">{item.name || 'Umum'}</td>
                       <td className="px-5 py-4 text-center">
-                        <span className={`px-2.5 py-1 text-[9px] font-black uppercase rounded border ${item.category === 'PACKAGING' ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>{item.category ? item.category.replace(/_/g, ' ') : 'UMUM'}</span>
-                        <div className="text-[10px] text-slate-500 mt-2 uppercase tracking-widest">Sistem: {item.unit || 'PCS'}</div>
+                        <span className={`px-2 py-1 text-[9px] font-bold normal-case rounded-md border ${item.category === 'PACKAGING' || item.category === 'KEMASAN' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>{item.category ? item.category.replace(/_/g, ' ') : 'Umum'}</span>
+                        <div className="text-[9px] text-slate-400 mt-2 font-medium normal-case">Satuan: {item.unit || 'Pcs'}</div>
                       </td>
-                      <td className="px-5 py-4 text-center font-black text-emerald-600 bg-emerald-50/30">+{formatNumber(item.stockIn)}</td>
-                      <td className="px-5 py-4 text-center font-black text-rose-600 bg-rose-50/30">-{formatNumber(item.stockOut)}</td>
+                      <td className="px-5 py-4 text-center font-extrabold text-emerald-600">+{formatNumber(item.stockIn)}</td>
+                      <td className="px-5 py-4 text-center font-extrabold text-red-500">-{formatNumber(item.stockOut)}</td>
                       <td className="px-5 py-4 text-right">
-                        <div className={`text-lg font-black ${item.currentStock <= 5 ? 'text-rose-600' : 'text-orange-700'}`}>{formatNumber(item.currentStock)} <span className="text-[10px] text-slate-400 ml-1">{item.unit || ''}</span></div>
+                        <div className={`text-lg font-black ${item.currentStock <= 5 ? 'text-red-600' : 'text-slate-800'}`}>{formatNumber(item.currentStock)} <span className="text-[10px] text-slate-400 font-semibold ml-0.5 normal-case">{item.unit || ''}</span></div>
                       </td>
                     </tr>
                   ))
@@ -276,50 +287,53 @@ export default function TabKartuStok({
         </div>
       )}
 
+      {/* TAB BUKU MUTASI */}
       {activeTab === 'MUTASI' && (
-        <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm flex flex-col">
-          <div className="p-5 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
-            <History size={16} className="text-slate-500"/>
-            <h3 className="text-xs font-black uppercase text-slate-700 tracking-widest">Catatan Buku Mutasi Keluar-Masuk Gudang</h3>
+        <div className="card-holo flex flex-col overflow-hidden">
+          <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
+            <History size={16} className="text-red-600"/>
+            <h3 className="text-xs font-extrabold normal-case text-slate-800">Catatan buku mutasi keluar-masuk gudang</h3>
           </div>
-          <div className="overflow-x-auto p-2 custom-scrollbar min-h-[50vh]">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-white text-[10px] uppercase text-slate-400 border-b border-slate-100">
+          <div className="overflow-x-auto p-1 custom-scrollbar min-h-[50vh]">
+            <table className="w-full text-sm text-left border-collapse">
+              <thead className="bg-white border-b border-slate-200 text-[10px] normal-case text-slate-500">
                 <tr>
-                  <th className="px-5 py-4 font-black">Tanggal &amp; Waktu</th>
-                  <th className="px-5 py-4 font-black">Aktivitas Sistem</th>
-                  <th className="px-5 py-4 font-black">Nama Barang / Item</th>
-                  <th className="px-5 py-4 font-black text-center">Status</th>
-                  <th className="px-5 py-4 font-black text-right">Mutasi Volume</th>
+                  <th className="px-5 py-3 font-bold">Tanggal &amp; Waktu</th>
+                  <th className="px-5 py-3 font-bold">Aktivitas sistem</th>
+                  <th className="px-5 py-3 font-bold">Nama barang / Item</th>
+                  <th className="px-5 py-3 font-bold text-center">Status</th>
+                  <th className="px-5 py-3 font-bold text-right">Mutasi volume</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50 text-xs font-bold">
+              <tbody className="divide-y divide-slate-100 text-xs font-bold bg-white">
                 {kartuMutasi.length === 0 ? (
-                  <tr><td colSpan="5" className="text-center py-24 text-slate-400 uppercase tracking-widest">
-                    <div className="flex justify-center mb-3 opacity-30"><ShieldAlert size={40}/></div>
-                    Belum ada aktivitas mutasi barang yang tercatat.
-                  </td></tr>
+                  <tr>
+                    <td colSpan="5" className="text-center py-20 text-slate-400 normal-case font-medium">
+                      <div className="flex justify-center mb-3 opacity-20"><ShieldAlert size={36}/></div>
+                      Belum ada aktivitas mutasi barang yang tercatat.
+                    </td>
+                  </tr>
                 ) : (
                   kartuMutasi.map((log, idx) => (
                     <tr key={idx} className="hover:bg-slate-50 transition-colors">
                       <td className="px-5 py-4 whitespace-nowrap">
-                        <div className="text-slate-800 font-black">{formatDate(log.date)}</div>
-                        <div className="text-[9px] font-mono text-slate-400 mt-1">REF ID: {log.id}</div>
+                        <div className="text-slate-800 font-bold">{formatDate(log.date)}</div>
+                        <div className="text-[9px] font-medium text-slate-400 mt-1">Ref: {log.id}</div>
                       </td>
                       <td className="px-5 py-4 whitespace-nowrap">
-                        <div className="font-black text-slate-700 uppercase">{log.category}</div>
-                        <div className="text-[9px] text-slate-500 mt-1 uppercase tracking-widest truncate max-w-[200px]">OLEH: {log.reference}</div>
+                        <div className="font-bold text-slate-700 normal-case">{log.category}</div>
+                        <div className="text-[9px] text-slate-500 mt-1 normal-case truncate max-w-[200px]">Oleh: {log.reference}</div>
                       </td>
-                      <td className="px-5 py-4 font-black text-blue-700 uppercase">{log.itemName || 'ITEM TIDAK DIKETAHUI'}</td>
+                      <td className="px-5 py-4 font-extrabold text-slate-800 normal-case">{log.itemName || 'Item tidak diketahui'}</td>
                       <td className="px-5 py-4 text-center whitespace-nowrap">
                         {log.type === 'IN' ? (
-                          <span className="bg-emerald-100 text-emerald-700 border border-emerald-200 px-3 py-1 rounded text-[9px] font-black uppercase flex items-center justify-center gap-1 w-max mx-auto"><ArrowDownRight size={12}/> Barang Masuk</span>
+                          <span className="bg-emerald-50 text-emerald-700 border border-emerald-100 px-2.5 py-1 rounded-md text-[9px] font-bold normal-case flex items-center justify-center gap-1 w-max mx-auto shadow-xs"><ArrowDownRight size={12}/> Barang masuk</span>
                         ) : (
-                          <span className="bg-rose-100 text-rose-700 border border-rose-200 px-3 py-1 rounded text-[9px] font-black uppercase flex items-center justify-center gap-1 w-max mx-auto"><ArrowUpRight size={12}/> Barang Keluar</span>
+                          <span className="bg-red-50 text-red-700 border border-red-100 px-2.5 py-1 rounded-md text-[9px] font-bold normal-case flex items-center justify-center gap-1 w-max mx-auto shadow-xs"><ArrowUpRight size={12}/> Barang keluar</span>
                         )}
                       </td>
                       <td className="px-5 py-4 text-right">
-                        <div className={`text-lg font-black ${log.type === 'IN' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        <div className={`text-lg font-black ${log.type === 'IN' ? 'text-emerald-600' : 'text-red-600'}`}>
                           {log.type === 'IN' ? '+' : '-'}{formatNumber(log.qty)}
                         </div>
                       </td>
