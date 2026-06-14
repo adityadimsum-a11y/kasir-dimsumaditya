@@ -220,30 +220,35 @@ export default function TabStok({
               <input type="number" min="1" required value={form.adukanQty} onChange={e=>handleAdukanChange(e.target.value)} className="w-full py-3 border-2 border-slate-300 rounded-xl text-3xl font-black text-slate-800 bg-white outline-none text-center focus:border-red-500 transition-colors" placeholder="0" />
             </div>
 
-            {/* LANGKAH 2 */}
+            {/* 🔥 LANGKAH 2: RE-DESIGN TOTAL DENGAN GRID SYSTEM ANTI KEPOTONG */}
             <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 shadow-inner relative">
               <div className="absolute -top-3 left-4 bg-red-600 text-white text-[8px] font-bold px-2 py-0.5 rounded normal-case flex items-center gap-1 shadow-xs"><PackageCheck size={10}/> Langkah 2</div>
               <label className="text-[10px] font-bold text-slate-600 normal-case block mb-3 text-center mt-1">Hasil kemasan fisik nyata</label>
               
-              <div className="flex items-stretch gap-2">
-                <input 
-                  type="number" 
-                  min="0" 
-                  required 
-                  value={form.actualInput} 
-                  onChange={e=>setForm({...form, actualInput: e.target.value})} 
-                  className="flex-1 p-3 border-2 border-slate-300 rounded-xl text-2xl font-black text-slate-800 bg-white outline-none text-center focus:border-red-500" 
-                  placeholder="0" 
-                />
-                <select 
-                  value={form.actualUnit} 
-                  onChange={e=>setForm({...form, actualUnit: e.target.value})} 
-                  className="w-32 px-2 bg-slate-800 text-white rounded-xl text-xs font-bold outline-none cursor-pointer border border-slate-700 shadow-sm text-center hover:bg-slate-900 transition-colors"
-                >
-                  <option value="MIKA">Mika (50)</option>
-                  <option value="PORSI">Porsi (4)</option>
-                  <option value="PCS">Pcs (1)</option>
-                </select>
+              {/* Pembagian Grid 12 Kolom Stabil: Input angka dapet 8 baris, Dropdown dapet 4 baris */}
+              <div className="grid grid-cols-12 gap-2 items-stretch">
+                <div className="col-span-8">
+                  <input 
+                    type="number" 
+                    min="0" 
+                    required 
+                    value={form.actualInput} 
+                    onChange={e=>setForm({...form, actualInput: e.target.value})} 
+                    className="w-full p-3 border-2 border-slate-300 rounded-xl text-2xl font-black text-slate-800 bg-white outline-none text-center focus:border-red-500 shadow-inner h-full" 
+                    placeholder="0" 
+                  />
+                </div>
+                <div className="col-span-4">
+                  <select 
+                    value={form.actualUnit} 
+                    onChange={e=>setForm({...form, actualUnit: e.target.value})} 
+                    className="w-full px-1 bg-slate-800 text-white rounded-xl text-xs font-bold outline-none cursor-pointer border border-slate-700 shadow-sm text-center hover:bg-slate-900 transition-colors h-full flex items-center justify-center"
+                  >
+                    <option value="MIKA">Mika (50)</option>
+                    <option value="PORSI">Porsi (4)</option>
+                    <option value="PCS">Pcs (1)</option>
+                  </select>
+                </div>
               </div>
 
               {/* Live Preview Ringkas */}
@@ -344,7 +349,7 @@ export default function TabStok({
                               amount: p.actual_yield || p.qty, paymentMethod: 'TERCATAT DI KASIR POS',
                               history: { labelLama: 'Ayam Mentah Dipakai', nominalLama: potongAyam ? Math.abs(potongAyam.qty_remaining) : 0, labelAksi: 'Status Bahan Baku', nominalAksi: 'TERPOTONG OTOMATIS', labelBaru: 'Konversi Setara', nominalBaru: `${formatNumber(Math.floor((p.actual_yield || p.qty)/50))} Mika` }
                             })} className="p-2 text-slate-400 bg-white border border-slate-200 shadow-xs hover:text-emerald-600 hover:bg-slate-50 rounded-lg transition-colors" title="Cetak bukti adukan"><Printer size={14}/></button>
-                            <button type="button" onClick={() => { if(window.confirm("Yakin void transaksi adukan ini? Stok kasir dan ayam gudang akan ditarik mundur!")) requestDelete(p.id); }} className="p-2 text-slate-400 bg-white border border-slate-200 shadow-xs hover:text-red-600 hover:bg-slate-50 rounded-lg transition-colors" title="Hapus laporan adukan"><Trash2 size={14}/></button>
+                            <button type="button" onClick={() => { if(window.confirm("Yakin void transaksi adukan ini? Stok kasir and ayam gudang akan ditarik mundur!")) requestDelete(p.id); }} className="p-2 text-slate-400 bg-white border border-slate-200 shadow-xs hover:text-red-600 hover:bg-slate-50 rounded-lg transition-colors" title="Hapus laporan adukan"><Trash2 size={14}/></button>
                           </div>
                         </td>
                       </tr>
