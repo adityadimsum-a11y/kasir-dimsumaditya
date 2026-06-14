@@ -4,7 +4,7 @@ import {
   X, Phone, Image, Eye, ShoppingCart, CheckCircle2, History, CalendarDays 
 } from 'lucide-react';
 
-// 🔥 KABEL IMPOR SUDAH DISESUAIKAN DENGAN POSISI FILE BOS DI GITHUB! (TANPA FOLDER)
+// 🔥 SAMBUNG KABEL IMPOR: SEJAJAR DI DALAM FOLDER TABS (VERSI AMAN ANTI-ERROR VERCEL)
 import PayrollModule from './PayrollModule.jsx';
 import LemburModule from './LemburModule.jsx';
 import KasbonModule from './KasbonModule.jsx';
@@ -53,6 +53,7 @@ export default function TabKaryawan({
 
   // --- PEMETAAN CABANG DINAMIS ---
   const petaNamaCabang = useMemo(() => {
+    // 🔥 MUTLAK DEDUPLIKASI: Kunci 'PUSAT' di-kick dari awal agar Tombol Tangerang Pusat tidak double!
     const mapping = { TANGERANG_PUSAT: '🍊 TANGERANG PUSAT' };
     (realMasterBranches || []).forEach(b => {
       if (b && !b.isDeleted && b.branch_id && b.branch_id !== 'PUSAT' && b.branch_id !== 'TANGERANG_PUSAT') { 
@@ -80,11 +81,12 @@ export default function TabKaryawan({
     (karyawan || []).forEach(k => {
       if (!k || k.isDeleted) return;
       
+      // 🔥 LEBUR DATA NODE: Apabila ada data karyawan tertulis cabang 'PUSAT', paksa lebur jadi 'TANGERANG_PUSAT'
       let bId = String(k.branch_id || 'TANGERANG_PUSAT').trim().toUpperCase();
       if (bId === 'PUSAT') bId = 'TANGERANG_PUSAT';
 
       dataStaf[k.id] = {
-        id: k.id, name: k.name || 'TANPA NAMA', position: k.position || 'STAF', baseSalary: Number(k.baseSalary || 0), branch_id: bId, status: k.status || 'AKTIF',
+        id: k.id, name: k.name || 'TANPA NAMA', position: k.position || 'KASIR', baseSalary: Number(k.baseSalary || 0), branch_id: bId, status: k.status || 'AKTIF',
         phone: k.phone || '-', address: k.address || 'ALAMAT BELUM DIISI',
         photo_url: parseDriveLink(k.photo_url) || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150', ktp_url: parseDriveLink(k.ktp_url) || '', raw_photo_link: k.photo_url || '', raw_ktp_link: k.ktp_url || '',
         totalKasbon: 0, totalDibayar: 0, sisaHutang: 0, 
@@ -236,7 +238,7 @@ export default function TabKaryawan({
       {activeSubTab === 'master' && <MasterSDMModule employees={employeesDiCabangAktif} branchListId={daftarCabangId} branchMapName={petaNamaCabang} activeBranch={activeProcessingBranch} isHQ={isHQ} sendToSheet={sendToSheet} showToast={showToast} onViewDetails={setSelectedEmployeeDetails} setOptimisticDeletedIds={setOptimisticDeletedIds} />}
 
       {/* ========================================================================= */}
-      {/* 🔥 POP-UP SULTAN: ARSIP PROFIL KARYAWAN (DIKEMBALIKAN KE TEMPATNYA!) */}
+      {/* 🔥 POP-UP SULTAN: ARSIP PROFIL KARYAWAN (MUTLAK BERSIH AMAN!) */}
       {/* ========================================================================= */}
       {selectedEmployeeDetails && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[9999] flex justify-center items-start pt-12 md:pt-16 p-4 overflow-y-auto animate-in fade-in duration-200">
@@ -260,7 +262,7 @@ export default function TabKaryawan({
                     </div>
                     <div className="text-xs font-bold text-slate-600 space-y-2">
                       <div className="flex items-center gap-2"><Phone size={14} className="text-slate-400 font-mono"/> {selectedEmployeeDetails.phone}</div>
-                      <div className="flex items-center gap-2"><Banknote size={14} className="text-slate-400"/> Gaji Standar Master: <span className="text-slate-900 font-black">{formatRupiah(selectedEmployeeDetails.baseSalary)}</span></div>
+                      <div className="flex items-center gap-2"><CalendarDays size={14} className="text-slate-400"/> Gaji Standar Master: <span className="text-slate-900 font-black">{formatRupiah(selectedEmployeeDetails.baseSalary)}</span></div>
                       <div className="flex items-center gap-2 text-rose-600"><Wallet size={14}/> Total Sisa Piutang: <span className="font-black">{formatRupiah(selectedEmployeeDetails.sisaHutang)}</span></div>
                     </div>
                   </div>
