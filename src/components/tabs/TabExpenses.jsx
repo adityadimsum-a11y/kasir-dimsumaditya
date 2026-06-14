@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
-import { Wallet, CheckCircle, Clock } from 'lucide-react';
-import { formatRp, getTodayStr, generateId, formatDate } from '../../utils/helpers';
+import { Wallet, Clock } from 'lucide-react';
+import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
+
+// 🔥 HELPER LOKAL ANTI-CRASH (Biar mandiri dan gak error nyari file luar)
+const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 
 export default function TabExpenses({ expenses, sendToSheet, user }) {
   const todayStr = getTodayStr();
@@ -73,7 +76,6 @@ export default function TabExpenses({ expenses, sendToSheet, user }) {
                   </div>
                   <div>
                       <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block mb-1">Kategori Alokasi Anggaran</label>
-                      {/* 🔥 REVISI KATEGORI: MENYESUAIKAN REKENING DOKTRIN CORE NYAWA (ANTI-BOCOR) */}
                       <select value={form.category} onChange={e=>setForm({...form, category: e.target.value})} className="w-full p-2.5 border border-indigo-200 rounded-xl text-xs font-black uppercase bg-indigo-50 outline-none cursor-pointer focus:bg-white focus:border-indigo-500">
                           <option value="OPERASIONAL">AMPLOP 2: Operasional Pabrik / Bahan Pendukung</option>
                           <option value="GAJI">AMPLOP 2: Gaji Karyawan / Bonus Tim</option>
@@ -101,7 +103,7 @@ export default function TabExpenses({ expenses, sendToSheet, user }) {
                       </select>
                   </div>
               </div>
-              <button type="submit" className="w-full bg-slate-900 text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest hover:bg-slate-800 transition shadow-md active:scale-95 transition-transform">Catat &amp; Potong Saldo Kas</button>
+              <button type="submit" className="w-full bg-slate-900 text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest hover:bg-slate-800 shadow-md active:scale-95 transition-transform">Catat &amp; Potong Saldo Kas</button>
           </form>
       </div>
 
@@ -133,7 +135,7 @@ export default function TabExpenses({ expenses, sendToSheet, user }) {
                             <td className="px-5 py-4 whitespace-nowrap"><span className="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-md text-[9px] font-black uppercase border border-slate-200">{e.category.replace('_', ' ')}</span></td>
                             <td className="px-5 py-4 text-slate-800 uppercase text-xs">{e.description}</td>
                             <td className="px-5 py-4 text-center text-xs uppercase text-slate-500">{e.payment_method}</td>
-                            <td className="px-5 py-4 text-right font-black text-rose-600 text-sm">{formatRp(e.amount)}</td>
+                            <td className="px-5 py-4 text-right font-black text-rose-600 text-sm">{formatRupiah(e.amount)}</td>
                         </tr>
                       ))
                     )}
