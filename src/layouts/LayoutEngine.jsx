@@ -9,7 +9,8 @@ import {
 import { getTodayStr, formatDate } from '../utils/helpers';
 
 export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogout, masterCapabilities, children }) {
-  const [isMobileMenuOpen, useState] = React.useState(false);
+  // 🔥 FIX BUG SILUMAN: Penamaan state yang benar agar tombol menu mobile tidak crash
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const todayStr = getTodayStr();
 
   const nodeCapability = useMemo(() => {
@@ -108,7 +109,7 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
   return (
     <div className="h-full w-full bg-transparent flex overflow-hidden font-sans">
       {isMobileMenuOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 lg:hidden" onClick={() => React.useState(false)[1](false)} />
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 lg:hidden" onClick={() => setIsMobileMenuOpen(false)} />
       )}
 
       {/* SIDEBAR MIDNIGHT SOLID */}
@@ -126,7 +127,7 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
               <span className={`text-[9px] font-bold ${themeConfig.text} brightness-150 uppercase tracking-widest block mt-1 transition-colors`}>Dimsum Aditya ERP</span>
             </div>
           </div>
-          <button onClick={() => React.useState(false)[1](false)} className="ml-auto lg:hidden text-slate-400 hover:text-white"><X size={24} /></button>
+          <button onClick={() => setIsMobileMenuOpen(false)} className="ml-auto lg:hidden text-slate-400 hover:text-white"><X size={24} /></button>
         </div>
 
         <nav className="flex-1 overflow-y-auto p-4 space-y-6 mt-2 custom-scrollbar">
@@ -140,7 +141,7 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
                   return (
                     <button 
                       key={item.id} 
-                      onClick={() => { setActiveTab(item.id); React.useState(false)[1](false); }} 
+                      onClick={() => { setActiveTab(item.id); setIsMobileMenuOpen(false); }} 
                       className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${isActive ? `${themeConfig.bg} text-white shadow-md` : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
                       style={!isActive ? { backgroundColor: 'transparent' } : {}}
                     >
@@ -171,12 +172,15 @@ export default function LayoutEngine({ user, activeTab, setActiveTab, handleLogo
       </aside>
 
       {/* RIGHT CONTAINER */}
-      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden relative">
-        <div className="absolute inset-0 bg-white/50 backdrop-blur-xl z-0 pointer-events-none"></div>
+      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden relative bg-transparent">
+        
+        {/* 🔥 VAKSIN GLASSMORPHISM: Ditipiskan jadi 30% dan blur-md agar aura Holographic dari index.html nembus dengan indah! */}
+        <div className="absolute inset-0 bg-white/30 backdrop-blur-md z-0 pointer-events-none"></div>
 
-        <header className="h-20 border-b border-slate-200/50 flex items-center justify-between px-6 shrink-0 relative z-20 shadow-sm bg-white/70 backdrop-blur-md">
+        {/* 🔥 Header juga dibuat semi-transparan */}
+        <header className="h-20 border-b border-white/40 flex items-center justify-between px-6 shrink-0 relative z-20 shadow-sm bg-white/40 backdrop-blur-lg">
           <div className="flex items-center gap-4">
-            <button onClick={() => React.useState(false)[1](true)} className="lg:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-lg"><Menu size={24} /></button>
+            <button onClick={() => setIsMobileMenuOpen(true)} className="lg:hidden p-2 text-slate-600 hover:bg-white/50 transition-colors rounded-lg"><Menu size={24} /></button>
             <div>
               <div className="font-black text-slate-800 text-lg uppercase tracking-wide">
                 Terminal Operasional <span className={themeConfig.text}>/ {user?.branch_id.replace('_', ' ') || 'NODE'}</span>
