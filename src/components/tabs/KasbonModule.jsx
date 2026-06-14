@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { ShoppingCart, Banknote, Link, History, Printer, Edit2, Trash2 } from 'lucide-react';
-// 🔥 KABEL PRINTER SUDAH DIBENARKAN JALURNYA (CUMA MUNDUR 2 LANGKAH: ../../)
+
+// 🔥 FIX JALUR KABEL PRINTER: Cukup mundur 2 langkah (../../)
 import { triggerPrint } from '../../utils/PrintUtility';
 
 // --- HELPER LOKAL ANTI-CRASH ---
