@@ -17,7 +17,7 @@ export default function TabOrders({
   const currentBranch = (user?.branch_id === 'PUSAT' || !user?.branch_id) ? 'TANGERANG_PUSAT' : user?.branch_id;
   const isHQ = user?.branch_type === 'HQ_FACTORY' || user?.branch_id === 'PUSAT' || currentBranch === 'TANGERANG_PUSAT';
   
-  // 🔥 KUNCI PINTAR: Pemalang & Pusat punya akses ke Rekening Utama
+  // 🔥 GEMBOK LOGIKA: Pemalang & Pusat punya akses ke Rekening Utama
   const isPemalang = currentBranch === 'PRODUKSI_PEMALANG';
   const hasHQPaymentAccess = isHQ || isPemalang;
 
