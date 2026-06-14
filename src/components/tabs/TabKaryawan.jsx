@@ -1,14 +1,14 @@
 import React, { useState, useMemo } from 'react';
 import { 
   Users, Wallet, Layers, ArrowRightLeft, Banknote, DollarSign, Clock, 
-  X, Phone, Image, Eye, ShoppingCart, CheckCircle2, History, CalendarDays // 🔥 IKON MODAL DIKEMBALIKAN
+  X, Phone, Image, Eye, ShoppingCart, CheckCircle2, History, CalendarDays 
 } from 'lucide-react';
 
-// 🔥 SAMBUNG KABEL LOGIKA KANTONG ANAK (DENGAN EKSTENSI .jsx AGAR VERCEL TIDAK BINGUNG)
-import PayrollModule from './KaryawanModules/PayrollModule.jsx';
-import LemburModule from './KaryawanModules/LemburModule.jsx';
-import KasbonModule from './KaryawanModules/KasbonModule.jsx';
-import MasterSDMModule from './KaryawanModules/MasterSDMModule.jsx';
+// 🔥 KABEL IMPOR SUDAH DISESUAIKAN DENGAN POSISI FILE BOS DI GITHUB! (TANPA FOLDER)
+import PayrollModule from './PayrollModule.jsx';
+import LemburModule from './LemburModule.jsx';
+import KasbonModule from './KasbonModule.jsx';
+import MasterSDMModule from './MasterSDMModule.jsx';
 
 // --- HELPER CENTRAL LOKAL (ANTI CRASH) ---
 const formatRupiah = (angka) => "Rp. " + Number(angka || 0).toLocaleString('id-ID');
@@ -53,7 +53,6 @@ export default function TabKaryawan({
 
   // --- PEMETAAN CABANG DINAMIS ---
   const petaNamaCabang = useMemo(() => {
-    // 🔥 SOLUSI MUTLAK DOUBLE TAB: 'PUSAT' di-kick dari awal agar tombol Tangerang Pusat tidak ganda!
     const mapping = { TANGERANG_PUSAT: '🍊 TANGERANG PUSAT' };
     (realMasterBranches || []).forEach(b => {
       if (b && !b.isDeleted && b.branch_id && b.branch_id !== 'PUSAT' && b.branch_id !== 'TANGERANG_PUSAT') { 
@@ -81,7 +80,6 @@ export default function TabKaryawan({
     (karyawan || []).forEach(k => {
       if (!k || k.isDeleted) return;
       
-      // 🔥 LEBUR DATA: Siapapun yang terdata di cabang 'PUSAT' otomatis dilebur ke 'TANGERANG_PUSAT'
       let bId = String(k.branch_id || 'TANGERANG_PUSAT').trim().toUpperCase();
       if (bId === 'PUSAT') bId = 'TANGERANG_PUSAT';
 
