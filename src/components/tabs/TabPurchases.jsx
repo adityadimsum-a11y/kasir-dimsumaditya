@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { 
   ShoppingBag, Calendar, FileText, Trash2, Printer, 
-  Wallet, Truck, CheckCircle2 
+  Wallet, Truck, CheckCircle2, Plus, ShoppingCart, User
 } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 import { triggerPrint } from '../../utils/PrintUtility';
@@ -24,9 +24,9 @@ const normalizeDateStr = (dateVal) => {
 export default function TabPurchases({ 
   purchases = [], purchases_data,
   expenses = [], expenses_data, 
-  supplierInvoices = [], supplier_invoices,
   masterSuppliers = [], master_suppliers, 
-  masterRawMaterials = [], master_raw_materials, // 🔥 MENYEDOT KAMUS PINTAR DARI MASTER
+  masterRawMaterials = [], master_raw_materials, 
+  karyawan = [], master_karyawan, // 🔥 AMBIL DARI MASTER SDM
   sendToSheet, showToast, user, requestDelete 
 }) {
   const todayStr = getTodayStr();
@@ -36,49 +36,107 @@ export default function TabPurchases({
   const realExpenses = useMemo(() => expenses_data || expenses || [], [expenses, expenses_data]);
   const realSuppliers = useMemo(() => master_suppliers || masterSuppliers || [], [master_suppliers, masterSuppliers]);
   const realRawMaterials = useMemo(() => master_raw_materials || masterRawMaterials || [], [master_raw_materials, masterRawMaterials]);
+  const realKaryawan = useMemo(() => master_karyawan || karyawan || [], [karyawan, master_karyawan]);
 
-  const [activeSubTab, setActiveTab] = useState('MANUAL'); // Jadikan Kas Keluar tab default yang melek
+  const [activeSubTab, setActiveTab] = useState('MANUAL'); 
   const [tableDateFilter, setTableDateFilter] = useState(todayStr);
 
+  // FORM SUPPLIER AYAM BESAR
   const [formSupplier, setFormSupplier] = useState({
     supplierName: '', category: 'BAHAN_BAKU', itemName: '', qty: '', price: '', paymentType: 'TEMPO', paymentMethod: 'CASH', dpAmount: ''           
   });
 
-  const [formOps, setFormOps] = useState({
-    category: 'BAHAN BAKU', itemName: '', unit: '', qty: '1', price: '', storeName: '', paymentMethod: 'CASH'
+  // ==========================================
+  // STATE MULTI-ITEM KAS & OPS MANUAL (SULTAN ENGINE)
+  // ==========================================
+  const [selectedEmployee, setSelectedEmployee] = useState('');
+  const [storeName, setStoreName] = useState('');
+  const [cashGiven, setCashGiven] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('CASH');
+  
+  // Keranjang belanja sementara (Cart)
+  const [cart, setCart] = useState([]);
+  
+  // Input selector item kas manual
+  const [itemSelector, setItemSelector] = useState({
+    category: 'BAHAN BAKU', itemName: '', unit: '', qty: '1', price: ''
   });
 
   const supplierOptions = useMemo(() => realSuppliers.filter(s => !s.isDeleted && String(s.isDeleted).toUpperCase() !== 'TRUE'), [realSuppliers]);
+  const employeeOptions = useMemo(() => realKaryawan.filter(k => !k.isDeleted && String(k.isDeleted).toUpperCase() !== 'TRUE'), [realKaryawan]);
 
-  // 🔥 MENGGALI KATEGORI UNIK DARI DATABASE MASTER
   const opsCategories = useMemo(() => {
     const validItems = realRawMaterials.filter(m => !m.isDeleted && String(m.isDeleted).toUpperCase() !== 'TRUE');
     const cats = [...new Set(validItems.map(m => m.category))];
-    // Fallback standard pabrik kalau database kosong melompong
     if (cats.length === 0) return ['BAHAN BAKU', 'KEMASAN', 'OPERASIONAL KENDARAAN', 'ATK & PERLENGKAPAN', 'AIR & KEBERSIHAN'];
     return cats;
   }, [realRawMaterials]);
 
   const hitungKantongSupplier = useMemo(() => formSupplier.category === 'BAHAN_BAKU' ? Number(formSupplier.qty || 0) / 10 : 0, [formSupplier.qty, formSupplier.category]);
   const totalTagihanSupplier = useMemo(() => Number(formSupplier.qty || 0) * Number(formSupplier.price || 0), [formSupplier.qty, formSupplier.price]);
-  const totalTagihanOps = useMemo(() => Number(formOps.qty || 0) * Number(formOps.price || 0), [formOps.qty, formOps.price]);
+  
+  // Total akumulasi belanjaan di keranjang
+  const totalTagihanCart = useMemo(() => {
+    return cart.reduce((sum, item) => sum + item.total, 0);
+  }, [cart]);
 
+  // Estimasi kembalian kasbon karyawan
+  const estimasiKembalian = useMemo(() => {
+    const cash = Number(cashGiven || 0);
+    if (cash === 0 || cash < totalTagihanCart) return 0;
+    return cash - totalTagihanCart;
+  }, [cashGiven, totalTagihanCart]);
+
+  // JURNAL BUKU KAS GABUNGAN
   const historyCombined = useMemo(() => {
     const all = [];
     realPurchases.forEach(p => {
       if (!p.isDeleted && String(p.isDeleted).toUpperCase() !== 'TRUE') {
-        all.push({ doc_type: 'PURCHASE', id: p.id, date: p.date, branch_id: p.branch_id, title: p.supplier_name || p.supplierName || 'SUPPLIER BESAR', subtitle: p.item_name || p.itemName, qty: p.qty, unit: p.unit, total_amount: Number(p.total_amount || p.amount || 0), paid_amount: Number(p.paid_amount || 0), payment_status: p.payment_status, payment_method: p.payment_method });
+        all.push({ doc_type: 'PURCHASE', id: p.id, date: p.date, branch_id: p.branch_id, title: p.supplier_name || p.supplierName || 'BELANJA KAS / SUPPLIER', subtitle: p.item_name || p.itemName, qty: p.qty, unit: p.unit, total_amount: Number(p.total_amount || p.amount || 0), paid_amount: Number(p.paid_amount || 0), payment_status: p.payment_status, payment_method: p.payment_method, employee_name: p.employee_name, change_status: p.change_status });
       }
     });
     realExpenses.forEach(e => {
       if (!e.isDeleted && String(e.isDeleted).toUpperCase() !== 'TRUE') {
-        all.push({ doc_type: 'EXPENSE', id: e.id, date: e.date, branch_id: e.branch_id, title: e.category || 'BIAYA OPERASIONAL', subtitle: e.description || e.item_name || 'Beban Kas', qty: 1, unit: 'LOT', total_amount: Number(e.amount || 0), paid_amount: Number(e.amount || 0), payment_status: 'LUNAS', payment_method: e.payment_method || 'CASH' });
+        all.push({ doc_type: 'EXPENSE', id: e.id, date: e.date, branch_id: e.branch_id, title: e.category || 'BIAYA OPERASIONAL', subtitle: e.description || e.item_name || 'Beban Kas', qty: 1, unit: 'LOT', total_amount: Number(e.amount || 0), paid_amount: Number(e.amount || 0), payment_status: 'LUNAS', payment_method: e.payment_method || 'CASH', employee_name: e.employee_name, change_status: e.change_status });
       }
     });
     return all.filter(x => normalizeDateStr(x.date) === tableDateFilter && (currentBranch === 'TANGERANG_PUSAT' ? String(x.branch_id || '').toUpperCase().includes('TANGERANG') : String(x.branch_id || '').toUpperCase() === currentBranch.toUpperCase())).sort((a, b) => new Date(normalizeDateStr(b.date)) - new Date(normalizeDateStr(a.date)));
   }, [realPurchases, realExpenses, tableDateFilter, currentBranch]);
 
+  // ACTION TAMBAH BARANG KE KERANJANG
+  const handleAddItemToCart = () => {
+    if (!itemSelector.itemName) return alert("Pilih item terlebih dahulu!");
+    if (Number(itemSelector.qty) <= 0 || Number(itemSelector.price) <= 0) return alert("Jumlah dan harga harus lebih dari 0!");
 
+    const newItem = {
+      cart_id: 'CART-' + new Date().getTime(),
+      category: itemSelector.category,
+      itemName: itemSelector.itemName,
+      unit: itemSelector.unit || 'PCS',
+      qty: Number(itemSelector.qty),
+      price: Number(itemSelector.price),
+      total: Number(itemSelector.qty) * Number(itemSelector.price)
+    };
+
+    setCart(prev => [...prev, newItem]);
+    setItemSelector(prev => ({ ...prev, itemName: '', qty: '1', price: '', unit: '' }));
+  };
+
+  const handleRemoveFromCart = (cartId) => {
+    setCart(prev => prev.filter(item => item.cart_id !== cartId));
+  };
+
+  const handleOpsItemSelect = (e) => {
+    const selectedName = e.target.value;
+    const itemDef = realRawMaterials.find(i => !i.isDeleted && i.category === itemSelector.category && i.item_name === selectedName);
+    if (itemDef) {
+      setItemSelector(prev => ({ ...prev, itemName: selectedName, unit: itemDef.unit || 'PCS', price: itemDef.default_price > 0 ? String(itemDef.default_price) : '' }));
+    } else {
+      setItemSelector(prev => ({ ...prev, itemName: selectedName }));
+    }
+  };
+
+  // SUBMIT FORM SUPPLIER BESAR (AYAM)
   const handleSubmitSupplier = async (e) => {
     e.preventDefault();
     if (!formSupplier.supplierName) return alert("Pilih nama Supplier rekanan resmi terlebih dahulu!");
@@ -104,58 +162,71 @@ export default function TabPurchases({
     }
   };
 
-  // 🔥 ENGINE AUTO-FILL INTERAKTIF SULTAN DARI MASTER
-  const handleOpsItemSelect = (e) => {
-    const selectedName = e.target.value;
-    const itemDef = realRawMaterials.find(i => !i.isDeleted && i.category === formOps.category && i.item_name === selectedName);
-    
-    if (itemDef) {
-      setFormOps(prev => ({ ...prev, itemName: selectedName, unit: itemDef.unit || 'PCS', price: itemDef.default_price > 0 ? String(itemDef.default_price) : '' }));
-    } else {
-      setFormOps(prev => ({...prev, itemName: selectedName}));
-    }
-  };
-
-  const handleSubmitOps = async (e) => {
+  // ==========================================
+  // ACTIONS: SUBMIT MULTI-ITEM KASBON ENGINE (EXECUTE)
+  // ==========================================
+  const handleSubmitMultiOps = async (e) => {
     e.preventDefault();
-    if (!formOps.itemName) return alert("Pilih / isi nama item!");
-    const calculatedTotal = totalTagihanOps;
-    const isBarangFisik = (formOps.category === 'BAHAN BAKU' || formOps.category === 'KEMASAN');
-    const trxId = generateId(isBarangFisik ? 'PO-KAS' : 'EXP', todayStr);
-    let isSuccess = false;
-
-    if (isBarangFisik) {
-      isSuccess = await sendToSheet('insert', {
-        id: trxId, date: todayStr, branch_id: currentBranch,
-        supplier_name: formOps.storeName ? `TOKO ${formOps.storeName.toUpperCase()}` : 'BELANJA KAS MANUAL',
-        item_name: formOps.itemName.toUpperCase(), qty: Number(formOps.qty), unit: formOps.unit.toUpperCase(), price: Number(formOps.price), 
-        total_amount: calculatedTotal, paid_amount: calculatedTotal, payment_status: 'LUNAS', payment_method: formOps.paymentMethod, isDeleted: false
-      }, 'purchases');
-      
-      if (isSuccess) await sendToSheet('insert', { id: generateId('LAY', todayStr), date: todayStr, branch_id: currentBranch, category: formOps.category.replace(' ', '_'), item_name: formOps.itemName.toUpperCase(), qty_received: Number(formOps.qty), qty_remaining: Number(formOps.qty), unit_cost: Number(formOps.price), reference_id: trxId, isDeleted: false }, 'inventory_cost_layers');
-    } else {
-      isSuccess = await sendToSheet('insert', {
-        id: trxId, date: todayStr, branch_id: currentBranch, category: formOps.category.toUpperCase(),
-        description: `${formOps.itemName.toUpperCase()} (${formOps.qty} ${formOps.unit}) ${formOps.storeName ? `- ${formOps.storeName.toUpperCase()}` : ''}`,
-        amount: calculatedTotal, payment_method: formOps.paymentMethod, isDeleted: false
-      }, 'expenses');
+    if (!selectedEmployee) return alert("Wajib memilih nama Karyawan Penerima Uang / Kasbon!");
+    if (cart.length === 0) return alert("Keranjang belanja masih kosong! Tambahkan item belanja terlebih dahulu.");
+    
+    const cashGivenNum = Number(cashGiven || 0);
+    if (cashGivenNum < totalTagihanCart) {
+      return alert(`Uang yang diberikan (${formatRupiah(cashGivenNum)}) kurang dari total nota aktual (${formatRupiah(totalTagihanCart)})!`);
     }
 
-    if (isSuccess) {
-      await sendToSheet('insert', {
-        id: generateId('CFO', todayStr), date: todayStr, branch_id: currentBranch, type: 'OUT',
-        category: isBarangFisik ? 'BELANJA KAS MANUAL' : 'BIAYA OPERASIONAL', 
-        description: `Kas Keluar: ${formOps.itemName.toUpperCase()} (${formOps.paymentMethod})`,
-        amount: calculatedTotal, method: formOps.paymentMethod, reference_id: trxId
-      }, 'cashflow_transactions');
-      showToast("Data Kas & Ops Manual Berhasil Disimpan!", "success");
-      setFormOps({ ...formOps, itemName: '', qty: '1', price: '', storeName: '', unit: '' });
+    const kasbonId = generateId('KSB', todayStr);
+    const hasKembalian = estimasiKembalian > 0;
+    
+    // Kirim item keranjang satu per satu secara pararel cerdas
+    for (let item of cart) {
+      const isBarangFisik = (item.category === 'BAHAN BAKU' || item.category === 'KEMASAN');
+      const itemTrxId = generateId(isBarangFisik ? 'PO-KAS' : 'EXP', todayStr);
+
+      if (isBarangFisik) {
+        await sendToSheet('insert', {
+          id: itemTrxId, date: todayStr, branch_id: currentBranch,
+          supplier_name: storeName ? `TOKO ${storeName.toUpperCase()}` : 'BELANJA KAS MANUAL',
+          item_name: item.itemName.toUpperCase(), qty: item.qty, unit: item.unit.toUpperCase(), price: item.price,
+          total_amount: item.total, paid_amount: item.total, payment_status: 'LUNAS', payment_method: paymentMethod,
+          employee_name: selectedEmployee.toUpperCase(), cash_given: cashGivenNum, expected_change: estimasiKembalian,
+          change_status: hasKembalian ? 'PENDING' : 'SETTLED', kasbon_id: kasbonId, isDeleted: false
+        }, 'purchases');
+
+        await sendToSheet('insert', { 
+          id: generateId('LAY', todayStr), date: todayStr, branch_id: currentBranch, category: item.category.replace(' ', '_'), 
+          item_name: item.itemName.toUpperCase(), qty_received: item.qty, qty_remaining: item.qty, unit_cost: item.price, 
+          reference_id: itemTrxId, isDeleted: false 
+        }, 'inventory_cost_layers');
+      } else {
+        await sendToSheet('insert', {
+          id: itemTrxId, date: todayStr, branch_id: currentBranch, category: item.category.toUpperCase(),
+          description: `${item.itemName.toUpperCase()} (${item.qty} ${item.unit}) ${storeName ? `- ${storeName.toUpperCase()}` : ''}`,
+          amount: item.total, payment_method: paymentMethod, employee_name: selectedEmployee.toUpperCase(), cash_given: cashGivenNum, 
+          expected_change: estimasiKembalian, change_status: hasKembalian ? 'PENDING' : 'SETTLED', kasbon_id: kasbonId, isDeleted: false
+        }, 'expenses');
+      }
     }
+
+    // POTONG DANA TUNAI SEBESAR UANG YANG DIKASIH OWNER (Rp 700.000)
+    await sendToSheet('insert', {
+      id: generateId('CFO', todayStr), date: todayStr, branch_id: currentBranch, type: 'OUT',
+      category: 'KASBON BELANJA KARYAWAN', 
+      description: `Kasbon Keluar ke ${selectedEmployee.toUpperCase()} (Nota: ${formatRupiah(totalTagihanCart)}, Titipan: ${formatRupiah(cashGivenNum)})`,
+      amount: cashGivenNum, method: paymentMethod, reference_id: kasbonId
+    }, 'cashflow_transactions');
+
+    showToast(`Sukses mencatat kasbon ${selectedEmployee}. Menunggu sisa kembalian di setor!`, "success");
+    setCart([]);
+    setSelectedEmployee('');
+    setStoreName('');
+    setCashGiven('');
   };
 
   return (
     <div className="space-y-6 pb-10 text-slate-800 animate-in fade-in duration-300">
       
+      {/* BANNER HEAD */}
       <div className="bg-[#151a25] rounded-3xl p-6 shadow-xl border border-slate-800 flex items-center gap-3 relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500 to-rose-500"></div>
         <div className="w-10 h-10 rounded-2xl bg-amber-500/10 flex items-center justify-center border border-amber-500/20"><Wallet size={20} className="text-amber-400"/></div>
@@ -166,90 +237,154 @@ export default function TabPurchases({
       </div>
 
       <div className="flex gap-2 bg-slate-100 p-1.5 rounded-2xl border w-fit">
-        <button onClick={() => setActiveTab('MANUAL')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-2 ${activeSubTab === 'MANUAL' ? 'bg-white text-rose-600 shadow-sm border' : 'text-slate-500 hover:text-slate-800'}`}><Wallet size={14}/> Kas &amp; Ops Manual</button>
+        <button onClick={() => setActiveTab('MANUAL')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-2 ${activeSubTab === 'MANUAL' ? 'bg-white text-rose-600 shadow-sm border' : 'text-slate-500 hover:text-slate-800'}`}><Wallet size={14}/> Kas &amp; Ops Manual (Multi-Item)</button>
         <button onClick={() => setActiveTab('SUPPLIER')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-2 ${activeSubTab === 'SUPPLIER' ? 'bg-white text-blue-600 shadow-sm border' : 'text-slate-500 hover:text-slate-800'}`}><Truck size={14}/> Nota Supplier Besar</button>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+        
+        {/* KANTONG KIRI: FORM INPUT */}
         <div className="xl:col-span-5 flex flex-col gap-6">
 
+          {/* 🔥 FORM KAS & OPS MANUAL: UPGRADE MULTI-ITEM KERANJANG SULTAN */}
           {activeSubTab === 'MANUAL' && (
             <div className="bg-white rounded-3xl border border-rose-200 shadow-sm overflow-hidden animate-in slide-in-from-left-4 duration-300">
               <div className="p-5 border-b bg-rose-50 font-black text-xs uppercase tracking-widest flex items-center gap-2 text-rose-700">
-                <Wallet size={16} className="text-rose-600"/> Formulir Pengeluaran Kas (Petty Cash)
+                <ShoppingCart size={16} className="text-rose-600"/> Formulir Pengeluaran Kas (Multi-Item)
               </div>
-              <form onSubmit={handleSubmitOps} className="p-5 space-y-4">
-                <div className="grid grid-cols-2 gap-3">
+              <div className="p-5 space-y-4">
+                
+                {/* PILIHAN KARYAWAN PENERIMA UANG */}
+                <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-100">
                   <div>
-                    <label className="text-[9px] font-black text-slate-500 uppercase block mb-1">Kategori Beban</label>
-                    <select value={formOps.category} onChange={e=>setFormOps({...formOps, category: e.target.value, itemName: '', unit: '', price: ''})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-black text-[10px] cursor-pointer outline-none focus:border-rose-400 uppercase">
-                      {opsCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                    <label className="text-[9px] font-black text-slate-500 uppercase block mb-1 flex items-center gap-1"><User size={10}/> Karyawan Pembawa Uang</label>
+                    <select 
+                      required 
+                      value={selectedEmployee} 
+                      onChange={e=>setSelectedEmployee(e.target.value)}
+                      className="w-full p-2.5 bg-white border border-slate-200 rounded-xl font-black text-[10px] outline-none cursor-pointer uppercase"
+                    >
+                      <option value="">-- PILIH KARYAWAN --</option>
+                      {employeeOptions.map(emp => <option key={hist.id || emp.id} value={emp.name}>{emp.name}</option>)}
                     </select>
                   </div>
                   <div>
-                     <label className="text-[9px] font-black text-rose-600 uppercase block mb-1">Pilih Item dari Master</label>
-                     <select required value={formOps.itemName} onChange={handleOpsItemSelect} className="w-full p-3 bg-rose-50 border border-rose-200 rounded-xl font-black text-[10px] text-rose-700 cursor-pointer outline-none focus:bg-white focus:border-rose-500 shadow-sm uppercase">
-                        <option value="">-- KLIK PILIH ITEM --</option>
-                        {realRawMaterials.filter(m => !m.isDeleted && m.category === formOps.category).map(item => (
-                          <option key={item.id} value={item.item_name}>{item.item_name}</option>
-                        ))}
-                     </select>
+                    <label className="text-[9px] font-black text-slate-500 uppercase block mb-1">Nama Toko / Warung</label>
+                    <input type="text" value={storeName} onChange={e=>setStoreName(e.target.value)} className="w-full p-2 bg-white border border-slate-200 rounded-xl font-bold uppercase text-[10px] outline-none" placeholder="WARUNG MADURA, ACENG, DLL" />
                   </div>
                 </div>
 
-                <div>
-                  <label className="text-[9px] font-black text-slate-500 uppercase block mb-1">Nama Toko / Keterangan (Opsional)</label>
-                  <input type="text" value={formOps.storeName} onChange={e=>setFormOps({...formOps, storeName: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold uppercase text-xs outline-none focus:bg-white focus:border-rose-400" placeholder="Cth: Indomaret, Warung Sebelah..." />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[9px] font-black text-slate-500 uppercase block mb-1">Jumlah / Volume</label>
-                    <input type="number" min="1" step="0.1" required value={formOps.qty} onChange={e=>setFormOps({...formOps, qty: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-black text-sm text-center outline-none focus:bg-white focus:border-rose-400" />
+                {/* AREA PEMILIHAN BARANG KE KERANJANG */}
+                <div className="border border-rose-100 p-3.5 rounded-2xl bg-rose-50/20 space-y-3">
+                  <div className="text-[9px] font-black text-rose-700 uppercase tracking-widest border-b border-rose-100 pb-1.5 flex items-center gap-1">➕ Selector Input Item Belanja</div>
+                  
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <select value={itemSelector.category} onChange={e=>setItemSelector({...itemSelector, category: e.target.value, itemName: '', unit: '', price: ''})} className="w-full p-2 bg-white border rounded-xl font-black text-[10px] outline-none uppercase">
+                        {opsCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                       <select value={itemSelector.itemName} onChange={handleOpsItemSelect} className="w-full p-2 bg-white border border-rose-200 rounded-xl font-black text-[10px] text-rose-700 outline-none uppercase">
+                          <option value="">-- PILIH ITEM --</option>
+                          {realRawMaterials.filter(m => !m.isDeleted && m.category === itemSelector.category).map(item => (
+                            <option key={item.id} value={item.item_name}>{item.item_name}</option>
+                          ))}
+                       </select>
+                    </div>
                   </div>
-                  <div>
-                    <label className="text-[9px] font-black text-slate-500 uppercase block mb-1">Satuan Dasar</label>
-                    <input type="text" required value={formOps.unit} onChange={e=>setFormOps({...formOps, unit: e.target.value})} className="w-full p-3 bg-slate-100 border border-slate-200 rounded-xl font-black text-sm text-center text-slate-600 outline-none uppercase" placeholder="Auto" />
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="text-[8px] font-black text-slate-400 uppercase block mb-0.5">Jumlah</label>
+                      <input type="number" min="0.1" step="0.1" value={itemSelector.qty} onChange={e=>setItemSelector({...itemSelector, qty: e.target.value})} className="w-full p-2 bg-white border rounded-xl text-center font-black text-xs outline-none" />
+                    </div>
+                    <div>
+                      <label className="text-[8px] font-black text-slate-400 uppercase block mb-0.5">Satuan</label>
+                      <input type="text" value={itemSelector.unit} onChange={e=>setItemSelector({...itemSelector, unit: e.target.value})} className="w-full p-2 bg-slate-50 border text-center font-black text-xs text-slate-500 rounded-xl uppercase" placeholder="Auto" />
+                    </div>
+                    <div>
+                      <label className="text-[8px] font-black text-slate-400 uppercase block mb-0.5">Harga/Satuan</label>
+                      <input type="number" value={itemSelector.price} onChange={e=>setItemSelector({...itemSelector, price: e.target.value})} className="w-full p-2 bg-white border rounded-xl text-right font-black text-xs outline-none" placeholder="0" />
+                    </div>
+                  </div>
+
+                  <button type="button" onClick={handleAddItemToCart} className="w-full bg-rose-700 text-white text-[9px] font-black uppercase tracking-widest py-2 rounded-xl hover:bg-rose-800 transition shadow-sm">
+                     + Masukkan Keranjang
+                  </button>
+                </div>
+
+                {/* LIST TAMPILAN KERANJANG BELANJA AKTUAL */}
+                <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-inner bg-slate-50">
+                  <div className="bg-slate-200/60 p-2 text-[9px] font-black uppercase text-slate-600 tracking-wider flex justify-between">
+                     <span>🛒 Keranjang Belanja Karyawan</span>
+                     <span>{cart.length} Item</span>
+                  </div>
+                  <div className="max-h-[18vh] overflow-y-auto divide-y divide-slate-200 font-bold text-[11px]">
+                     {cart.length === 0 ? (
+                       <div className="p-6 text-center text-slate-400 uppercase text-[9px] font-black tracking-widest">Keranjang masih kosong</div>
+                     ) : (
+                       cart.map(item => (
+                         <div key={item.cart_id} className="p-2.5 flex justify-between items-center bg-white hover:bg-slate-50">
+                            <div>
+                              <div className="uppercase text-slate-800 font-black">{item.itemName}</div>
+                              <div className="text-[9px] text-slate-400">{item.qty} {item.unit} x {formatRupiah(item.price)}</div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                               <span className="text-slate-900 font-black">{formatRupiah(item.total)}</span>
+                               <button type="button" onClick={()=>handleRemoveFromCart(item.cart_id)} className="text-rose-500 hover:text-rose-700"><Trash2 size={12}/></button>
+                            </div>
+                         </div>
+                       ))
+                     )}
+                  </div>
+                  <div className="bg-slate-900 text-white p-3.5 flex justify-between items-center font-black">
+                     <span className="text-[10px] text-emerald-400 uppercase">TOTAL NOTA AKTUAL:</span>
+                     <span className="text-lg text-emerald-400">{formatRupiah(totalTagihanCart)}</span>
                   </div>
                 </div>
 
-                <div>
-                  <label className="text-[9px] font-black text-slate-500 uppercase block mb-1">Harga Satuan (Bisa Diedit Manual)</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-3 font-black text-slate-400 text-sm">Rp</span>
-                    <input type="text" required value={formOps.price ? Number(formOps.price).toLocaleString('id-ID') : ''} onChange={e=>setFormOps({...formOps, price: e.target.value.replace(/\D/g, '')})} className="w-full pl-9 pr-3 py-3 bg-slate-50 border border-slate-200 rounded-xl font-black text-sm outline-none focus:bg-white focus:border-rose-400" placeholder="0" />
-                  </div>
+                {/* SINKRONISASI KAS KELUAR & ESTIMASI KEMBALIAN */}
+                <div className="bg-slate-100 border p-3.5 rounded-2xl grid grid-cols-2 gap-3 shadow-inner">
+                   <div>
+                     <label className="text-[9px] font-black text-slate-600 uppercase block mb-1">Uang Kas Diberikan Owner</label>
+                     <div className="relative">
+                       <span className="absolute left-3 top-2.5 font-black text-slate-400 text-xs">Rp</span>
+                       <input type="text" required value={cashGiven ? Number(cashGiven).toLocaleString('id-ID') : ''} onChange={e=>setCashGiven(e.target.value.replace(/\D/g, ''))} className="w-full pl-8 pr-2 py-2 border rounded-xl font-black text-sm bg-white outline-none focus:border-rose-400 text-slate-800" placeholder="Cth: 700.000" />
+                     </div>
+                   </div>
+                   <div>
+                     <label className="text-[9px] font-black text-blue-600 uppercase block mb-1">Estimasi Kembalian Wajib</label>
+                     <div className="w-full p-2.5 bg-blue-50 border border-blue-200 rounded-xl font-black text-sm text-center text-blue-700">
+                        {formatRupiah(estimasiKembalian)}
+                     </div>
+                   </div>
                 </div>
 
-                <div className="bg-rose-950 text-white p-4 rounded-xl flex justify-between items-center shadow-inner">
-                  <span className="text-[9px] font-black text-rose-300 uppercase tracking-widest">Total Pengeluaran Kas:</span>
-                  <span className="text-xl font-black text-rose-400">{formatRupiah(totalTagihanOps)}</span>
+                <div className="p-3 border rounded-xl bg-white flex justify-between items-center text-[9px] font-black uppercase text-slate-500">
+                   <span>Jalur Uang Laci</span>
+                   <select value={paymentMethod} onChange={e=>setPaymentMethod(e.target.value)} className="p-1 bg-transparent border-none outline-none cursor-pointer text-slate-800 font-black">
+                     <option value="CASH">CASH / TUNAI LACI</option>
+                     <option value="TF_BCA">TF REK BCA PUSAT</option>
+                     <option value="TF_BRI">TF REK BRI PUSAT</option>
+                   </select>
                 </div>
 
-                <div className="p-4 border border-rose-100 rounded-2xl bg-rose-50/50">
-                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-2">Jalur Uang Keluar (Otomatis Lunas)</label>
-                  <select value={formOps.paymentMethod} onChange={e=>setFormOps({...formOps, paymentMethod: e.target.value})} className="w-full p-3 border border-rose-200 rounded-xl text-[10px] font-black uppercase outline-none cursor-pointer bg-white text-rose-700">
-                    <option value="CASH">UANG TUNAI LACI KASIR</option>
-                    <option value="TF_BCA">TRANSFER REK. BCA PUSAT</option>
-                    <option value="TF_BRI">TRANSFER REK. BRI PUSAT</option>
-                  </select>
-                </div>
-
-                <button type="submit" className="w-full bg-rose-600 text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest shadow-lg shadow-rose-600/20 hover:bg-rose-700 transition-all active:scale-95 flex items-center justify-center gap-2 mt-2">
+                <button type="button" onClick={handleSubmitMultiOps} className="w-full bg-rose-600 text-white font-black py-3.5 rounded-xl text-xs uppercase tracking-widest shadow-lg hover:bg-rose-700 transition active:scale-95 flex items-center justify-center gap-2">
                   <CheckCircle2 size={16}/> Potong Kas &amp; Simpan Biaya
                 </button>
-              </form>
+              </div>
             </div>
           )}
 
+          {/* FORM NOTA SUPPLIER BESAR (AYAM BESAR) */}
           {activeSubTab === 'SUPPLIER' && (
             <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden animate-in slide-in-from-right-4 duration-300">
               <div className="p-5 border-b bg-slate-50 font-black text-xs uppercase tracking-widest flex items-center gap-2 text-slate-700">
                 <FileText size={16} className="text-blue-600"/> Formulir Nota Supplier (Gudang)
               </div>
               <form onSubmit={handleSubmitSupplier} className="p-5 space-y-4">
-                 {/* SAMA SEPERTI FORM SUPPLIER SEBELUMNYA. (Sudah diringkas agar tetap bekerja sempurna) */}
-                 <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-[9px] font-black text-emerald-700 uppercase block mb-1">Pilih Rekanan Supplier</label>
                     <select required value={formSupplier.supplierName} onChange={e=>setFormSupplier({...formSupplier, supplierName: e.target.value})} className="w-full p-3 bg-emerald-50/50 border border-emerald-300 rounded-xl font-black text-xs cursor-pointer outline-none focus:bg-white focus:border-emerald-500 shadow-sm">
@@ -271,18 +406,18 @@ export default function TabPurchases({
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[9px] font-black text-slate-500 uppercase block mb-1">{formSupplier.category === 'BAHAN_BAKU' ? 'Volume Beli (KG)' : 'Volume Beli (Pcs)'}</label>
+                    <label className="text-[9px] font-black text-slate-500 uppercase block mb-1">Volume Beli (KG)</label>
                     <input type="number" min="1" step="0.1" required value={formSupplier.qty} onChange={e=>setFormSupplier({...formSupplier, qty: e.target.value})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-black text-sm text-center outline-none focus:bg-white" placeholder="0" />
                   </div>
                   <div>
-                    <label className="text-[9px] font-black text-blue-600 uppercase block mb-1">{formSupplier.category === 'BAHAN_BAKU' ? 'Setara (Kantong)' : 'Satuan'}</label>
+                    <label className="text-[9px] font-black text-blue-600 uppercase block mb-1">Setara (Kantong)</label>
                     <div className="w-full p-3 bg-blue-50 border border-blue-200 rounded-xl font-black text-sm text-center text-blue-700">
                       {formSupplier.category === 'BAHAN_BAKU' ? `${formatNumber(hitungKantongSupplier)} KTG` : 'PCS'}
                     </div>
                   </div>
                 </div>
                 <div>
-                  <label className="text-[9px] font-black text-slate-500 uppercase block mb-1">{formSupplier.category === 'BAHAN_BAKU' ? 'Harga Per Satuan (Per KG)' : 'Harga Per Satuan (Per Pcs)'}</label>
+                  <label className="text-[9px] font-black text-slate-500 uppercase block mb-1">Harga Per Satuan (Per KG)</label>
                   <div className="relative">
                     <span className="absolute left-3 top-3 font-black text-slate-400 text-sm">Rp</span>
                     <input type="text" required value={formSupplier.price ? Number(formSupplier.price).toLocaleString('id-ID') : ''} onChange={e=>setFormSupplier({...formSupplier, price: e.target.value.replace(/\D/g, '')})} className="w-full pl-9 pr-3 py-3 bg-slate-50 border border-slate-200 rounded-xl font-black text-sm outline-none focus:bg-white" placeholder="0" />
@@ -317,7 +452,7 @@ export default function TabPurchases({
                     </div>
                   )}
                 </div>
-                <button type="submit" className="w-full bg-slate-900 text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest shadow-lg hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2 mt-2">
+                <button type="submit" className="w-full bg-slate-900 text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest shadow-lg hover:bg-slate-800 flex items-center justify-center gap-2 mt-2">
                   <CheckCircle2 size={16}/> Simpan Nota Belanja Supplier
                 </button>
               </form>
@@ -325,97 +460,48 @@ export default function TabPurchases({
           )}
         </div>
 
-        {/* KANTONG KANAN: JURNAL BUKU KAS GABUNGAN */}
+        {/* JURNAL BUKU KAS GABUNGAN */}
         <div className="xl:col-span-7 bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
           <div className="p-5 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
-            <div>
-              <h4 className="font-black text-xs uppercase text-slate-800 tracking-widest flex items-center gap-2"><FileText size={16} className="text-blue-600"/> Jurnal Buku Kas &amp; Belanja</h4>
-            </div>
-            <div className="flex items-center gap-2 bg-white border px-3 py-2 rounded-xl shadow-sm">
-              <Calendar size={14} className="text-blue-500"/>
-              <input type="date" value={tableDateFilter} onChange={e => setTableDateFilter(e.target.value || todayStr)} className="text-xs font-black text-slate-800 outline-none cursor-pointer" />
-            </div>
+            <div><h4 className="font-black text-xs uppercase text-slate-800 tracking-widest flex items-center gap-2"><FileText size={16} className="text-blue-600"/> Jurnal Buku Kas &amp; Belanja</h4></div>
+            <div className="flex items-center gap-2 bg-white border px-3 py-2 rounded-xl shadow-sm"><Calendar size={14} className="text-blue-500"/><input type="date" value={tableDateFilter} onChange={e => setTableDateFilter(e.target.value || todayStr)} className="text-xs font-black text-slate-800 outline-none cursor-pointer" /></div>
           </div>
-
           <div className="overflow-x-auto flex-1 p-2 custom-scrollbar min-h-[50vh]">
             <table className="w-full text-sm text-left border-collapse">
-              <thead className="bg-white text-[10px] uppercase text-slate-400 border-b border-slate-100 sticky top-0 shadow-sm">
-                <tr>
-                  <th className="px-5 py-4 font-black">Bukti &amp; Ref</th>
-                  <th className="px-5 py-4 font-black min-w-[200px]">Detail Transaksi</th>
-                  <th className="px-5 py-4 font-black text-right min-w-[180px]">Rincian Nominal</th>
-                  <th className="px-5 py-4 font-black text-center">Jalur</th>
-                  <th className="px-5 py-4 font-black text-center">Tindakan</th>
-                </tr>
+              <thead className="bg-white text-[10px] uppercase text-slate-400 border-b sticky top-0 shadow-sm">
+                <tr><th className="px-5 py-4">Bukti &amp; Ref</th><th className="px-5 py-4 min-w-[200px]">Detail Transaksi</th><th className="px-5 py-4 text-right min-w-[180px]">Rincian Nominal</th><th className="px-5 py-4 text-center">Jalur</th><th className="px-5 py-4 text-center">Tindakan</th></tr>
               </thead>
               <tbody className="text-xs font-bold divide-y divide-slate-50">
                 {historyCombined.length === 0 ? (
-                  <tr>
-                    <td colSpan="5" className="text-center py-20 text-slate-400 font-black uppercase tracking-widest bg-slate-50/50"><div className="flex justify-center mb-3 opacity-20"><Wallet size={40}/></div>Tidak ada catatan kas keluar hari ini.</td>
-                  </tr>
+                  <tr><td colSpan="5" className="text-center py-20 text-slate-400 font-black uppercase"><Wallet size={40} className="mx-auto mb-2 opacity-20"/>Tidak ada catatan kas keluar.</td></tr>
                 ) : (
                   historyCombined.map(p => {
                     const isPurchase = p.doc_type === 'PURCHASE';
                     const totalBill = Number(p.total_amount || 0);
                     const paidAmt = Number(p.paid_amount || 0);
-                    const sisaHutang = totalBill - paidAmt;
-                    const isLunas = String(p.payment_status).toUpperCase() === 'LUNAS' || sisaHutang <= 0;
-                    const isDP = paidAmt > 0 && sisaHutang > 0;
+                    const isLunas = String(p.payment_status).toUpperCase() === 'LUNAS' || (totalBill - paidAmt) <= 0;
                     const pMethod = String(p.payment_method || 'CASH').replace('_', ' ');
                     const isAyam = String(p.unit).toUpperCase() === 'KANTONG';
-                    const volumeKg = isAyam ? Number(p.qty) * 10 : 0; 
 
                     return (
-                      <tr key={p.id} className={`transition-colors group ${isPurchase ? 'hover:bg-amber-50/30' : 'hover:bg-rose-50/30'}`}>
-                        <td className="px-5 py-4 whitespace-nowrap">
+                      <tr key={p.id} className={`transition-colors ${isPurchase ? 'hover:bg-amber-50/20' : 'hover:bg-rose-50/20'}`}>
+                        <td className="px-5 py-4">
                           <div className="text-slate-800 font-black text-sm">{formatDate(p.date)}</div>
                           <div className="text-[9px] font-mono text-slate-400 mt-1">{p.id}</div>
-                          <span className={`text-[7px] font-black uppercase mt-1 px-1.5 py-0.5 rounded border inline-block ${isPurchase ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-rose-50 text-rose-600 border-rose-200'}`}>
-                             {isPurchase ? 'SUPPLIER / ASET' : 'BEBAN OPS MANUAL'}
-                          </span>
+                          <span className={`text-[7px] font-black uppercase mt-1 px-1.5 py-0.5 rounded border inline-block ${isPurchase ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-rose-50 text-rose-600 border-rose-200'}`}>{isPurchase ? 'ASET / BARANG' : 'BEBAN OPS'}</span>
                         </td>
                         <td className="px-5 py-4">
-                          <div className="font-black text-blue-700 uppercase text-xs mb-1">{p.title}</div>
+                          <div className="font-black text-blue-700 text-xs uppercase mb-0.5">{p.title}</div>
                           <div className="text-[10px] text-slate-700 uppercase font-black">{p.subtitle}</div>
-                          {isPurchase ? (
-                            <>
-                              <div className="text-[9px] text-slate-500 mt-1.5 font-bold uppercase">{isAyam ? `Volume Beli: ${formatNumber(volumeKg)} KG` : `Volume: ${formatNumber(p.qty)} ${p.unit || 'PCS'}`}</div>
-                              {isAyam && <div className="text-[8px] text-emerald-600 mt-0.5 font-black tracking-widest bg-emerald-50 inline-block px-1.5 py-0.5 rounded border border-emerald-100">Masuk Gudang: {formatNumber(p.qty)} KANTONG</div>}
-                            </>
-                          ) : (
-                            <div className="text-[9px] text-rose-500 mt-1.5 font-bold uppercase">Volume Kas: {formatNumber(p.qty)} {p.unit}</div>
-                          )}
+                          {p.employee_name && <div className="text-[9px] font-black text-indigo-600 mt-1">PIC JALAN: {p.employee_name} {p.change_status === 'PENDING' ? '(⏳ KEMBALIAN BELUM DISETOR)' : '(✅ SETTLED)'}</div>}
+                          <div className="text-[9px] text-slate-400 mt-0.5">Volume: {formatNumber(p.qty)} {p.unit} {isAyam && `(≈ ${formatNumber(p.qty * 10)} KG)`}</div>
                         </td>
-                        <td className="px-5 py-4 text-right whitespace-nowrap">
-                          <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 mb-1">
-                            <span>Total Nota:</span><span>{formatRupiah(totalBill)}</span>
-                          </div>
-                          <div className="flex justify-between items-center text-[10px] font-bold text-rose-600 mb-1 border-b border-slate-100 pb-1">
-                            <span>{isDP ? 'DP Dibayar:' : (isLunas ? 'Lunas Dibayar:' : 'Dibayar:')}</span><span>{formatRupiah(paidAmt)}</span>
-                          </div>
-                          {!isLunas && (
-                            <div className="flex justify-between items-center text-[11px] font-black text-amber-600 uppercase">
-                               <span>Sisa Hutang:</span><span>{formatRupiah(sisaHutang)}</span>
-                            </div>
-                          )}
+                        <td className="px-5 py-4 text-right">
+                          <div className="text-slate-500">Total: {formatRupiah(totalBill)}</div>
+                          <div className="text-rose-600 text-[10px]">Bayar: {formatRupiah(paidAmt)}</div>
                         </td>
-                        <td className="px-5 py-4 text-center whitespace-nowrap">
-                          <span className={`px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border shadow-sm ${isLunas ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : isDP ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
-                            {isLunas ? `LUNAS (${pMethod})` : isDP ? `DP (${pMethod})` : 'HUTANG FULL'}
-                          </span>
-                        </td>
-                        <td className="px-5 py-4 text-center whitespace-nowrap opacity-40 group-hover:opacity-100 transition-opacity">
-                          <div className="flex items-center justify-center gap-1">
-                            <button type="button" onClick={() => triggerPrint('NOTA_DOTMATRIX', { 
-                              title: isPurchase ? 'BUKTI BON BELANJA LOGISTIK PABRIK' : 'BUKTI PENGELUARAN KAS MANUAL', id: p.id, date: formatDate(p.date), 
-                              branch_name: p.branch_id, admin_name: user?.name || 'ADMIN KAS', customer_name: p.title, 
-                              items: [{ name: `${isPurchase ? 'BELANJA' : 'KAS OPS'}: ${p.subtitle}\n(Jalur: ${pMethod})`, qty: p.qty, subtotal: totalBill }], 
-                              amount: totalBill, paymentMethod: isLunas ? `LUNAS (${pMethod})` : isDP ? `DP MASUK (${pMethod})` : 'HUTANG TEMPO', 
-                              history: isDP ? { labelLama: 'Total Tagihan', nominalLama: totalBill, labelAksi: 'Uang Muka (DP)', nominalAksi: paidAmt, labelBaru: 'SISA HUTANG DAGANG', nominalBaru: sisaHutang } : null
-                            })} className="p-2 text-slate-500 bg-white border rounded-lg hover:text-blue-600 shadow-sm"><Printer size={14}/></button>
-                            <button type="button" onClick={() => { if(window.confirm(`Yakin void data ${isPurchase ? 'belanja' : 'kas'} ini? Arus uang akan ditarik mundur!`)) requestDelete(p.id); }} className="p-2 text-slate-500 bg-white border rounded-lg hover:text-rose-600 shadow-sm"><Trash2 size={14}/></button>
-                          </div>
-                        </td>
+                        <td className="px-5 py-4 text-center"><span className={`px-2 py-0.5 rounded text-[8px] font-black border ${isLunas ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>{isLunas ? `LUNAS (${pMethod})` : 'TEMPO/DP'}</span></td>
+                        <td className="px-5 py-4 text-center opacity-40 hover:opacity-100"><button type="button" onClick={() => { if(window.confirm("Void data belanja?")) requestDelete(p.id); }} className="p-2 text-slate-500 hover:text-rose-600"><Trash2 size={14}/></button></td>
                       </tr>
                     );
                   })
