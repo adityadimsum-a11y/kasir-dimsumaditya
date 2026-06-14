@@ -238,9 +238,19 @@ export default function App() {
             {...dbData} 
           />
         );
-      case 'dashboard_branch': return <TabDashboardBranch user={user} setPrintData={setPrintData} {...dbData} />;
-      case 'pemalang': return <TabPemalang user={user} sendToSheet={sendToSheet} {...dbData} />;
       
+      // 🔥 SUNTIKAN KUNCI PINTAR: Jika HQ yang membuka tab ini (Monitor Cibinong), paksa kunci ke branch 'CIBINONG'
+      case 'dashboard_branch': 
+        return (
+          <TabDashboardBranch 
+            user={user} 
+            setPrintData={setPrintData} 
+            forcedBranchId={user?.branch_type === 'HQ_FACTORY' ? 'CIBINONG' : undefined}
+            {...dbData} 
+          />
+        );
+
+      case 'pemalang': return <TabPemalang user={user} sendToSheet={sendToSheet} {...dbData} />;
       case 'cash_war_room': return <TabCashWarRoom user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
       case 'setoran_cabang': return <TabSetoranCabang user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />; 
       case 'scm_war_room': return <TabSCMWarRoom user={user} {...dbData} />;
@@ -274,7 +284,6 @@ export default function App() {
       case 'master_data': return <TabMasterData user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
       case 'monitoring_pemalang': return <TabMonitoringPemalang user={user} {...dbData} />;
       case 'kartu_stok': return <TabKartuStok user={user} {...dbData} />;
-      // 🔥 RUTE BARU: MASTER CUSTOMER KITA
       case 'master_customer': return <TabMasterCustomer user={user} sendToSheet={sendToSheet} showToast={showToast} requestDelete={requestDelete} {...dbData} />;
       default: return <TabDashboardBranch user={user} {...dbData} />;
     }
