@@ -4,7 +4,7 @@ import {
   CreditCard, UserCheck, Tag, Receipt, 
   CheckCircle2, AlertOctagon, Gift, Package, Snowflake, Timer, PlusCircle, Calendar, Printer, RefreshCw
 } from 'lucide-react';
-import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
+import { getTodayStr, generateId, formatDate, safeJsonParse } from '../../utils/helpers'; // 🔥 FIX: safeJsonParse ditambahkan resmi di sini!
 import SearchableDropdown from '../ui/SearchableDropdown';
 
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
@@ -46,8 +46,8 @@ export default function TabOrders({
   const [payBCA, setPayBCA] = useState('');
   const [payBRI, setPayBRI] = useState('');
   const [isSplitPayment, setIsSplitPayment] = useState(false);
-  const [singleMethod, setSingleMethod] = useState('CASH'); // Untuk non-mix
-  const [singleAmountPaid, setSingleAmountPaid] = useState(''); // Untuk non-mix
+  const [singleMethod, setSingleMethod] = useState('CASH'); 
+  const [singleAmountPaid, setSingleAmountPaid] = useState(''); 
 
   // --- STATE POP-UP MODAL PELANGGAN BARU ---
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
@@ -94,6 +94,8 @@ export default function TabOrders({
     setCart(prev => prev.map(item => item.id === id ? { ...item, qty: Math.max(0, newQty) } : item).filter(item => item.qty > 0));
   };
 
+  const removeFromCart = (id) => setCart(prev => prev.filter(item => item.id !== id));
+
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
   const cartHPP = cart.reduce((sum, item) => sum + (item.hpp * item.qty), 0);
 
@@ -121,7 +123,6 @@ export default function TabOrders({
       kembalian = 0;
     }
 
-    // Penyusunan String Metode untuk Database
     let methods = [];
     let breakdown = [];
     if (cash > 0) { methods.push('CASH'); breakdown.push({ method: 'CASH', amount: cash - (kembalian > 0 ? kembalian : 0) }); }
@@ -193,7 +194,6 @@ export default function TabOrders({
 
     if (!window.confirm(confirmMsg)) return;
 
-    // 1. Payload Utama Nota
     const orderPayload = {
       id: orderId,
       date: todayStr,
@@ -212,8 +212,6 @@ export default function TabOrders({
 
     const isSuccess = await sendToSheet('insert', orderPayload, 'orders');
     if (isSuccess) {
-      
-      // 2A. Jika Influencer Gratisan -> Masuk Jurnal Beban Promosi (HPP)
       if (orderMode === 'INFLUENCER') {
         await sendToSheet('insert', {
           id: generateId('EXP', todayStr), date: todayStr, branch_id: currentBranch,
@@ -221,10 +219,7 @@ export default function TabOrders({
           amount: cartHPP, payment_method: 'SISTEM', isDeleted: false,
           description: `Beban gratis menu ${totalItemQty} Pcs Nota ${orderId}. Dicatat berdasarkan nilai HPP.`
         }, 'expenses');
-      } 
-      // 2B. Jika Reguler & Ada Pecahan Uang Masuk Jurnal Kasflow
-      else if (paymentSummary.totalDibayar > 0) {
-        // Jika pembayaran campuran, pecah row kas masuknya berdasarkan instrumen bank/tunai
+      } else if (paymentSummary.totalDibayar > 0) {
         for (let pay of paymentSummary.breakdown) {
           if (pay.amount <= 0) continue;
           await sendToSheet('insert', {
@@ -237,7 +232,6 @@ export default function TabOrders({
 
       showToast(`Invoice ${orderId} Berhasil Diproses!`, 'success');
 
-      // 3. TRIGGER STRUK ALAMAT FORMAT GRABMERCHANT / GOBIZ RANGKAP
       setPrintData({
         title: orderMode === 'INFLUENCER' ? 'NOTA COMPLIMENTARY MARKETING' : (paymentSummary.sisaBon > 0 ? 'NOTA DP & BON GANTUNG' : 'INVOICE DISTRIBUSI RESMI'),
         id: orderId, date: formatDate(todayStr), branch_name: currentBranch.replace(/_/g, ' '),
@@ -251,14 +245,12 @@ export default function TabOrders({
         }
       });
 
-      // Clear Form Kasir
       setCart([]); setSelectedCustomerId(''); setNotes(''); setAmountPaid('');
       setPayCash(''); setPayBCA(''); setPayBRI(''); setSingleAmountPaid('');
       setIsSplitPayment(false); setOrderMode('REGULAR');
     }
   };
 
-  // --- ENGINE DATA HISTORI BAWAH POS ---
   const historyOrdersData = useMemo(() => {
     return (orders || []).filter(o => {
       if (o.isDeleted) return false;
@@ -276,9 +268,7 @@ export default function TabOrders({
   return (
     <div className="flex flex-col gap-6 pb-10 text-slate-700 normal-case animate-in fade-in duration-200">
       
-      {/* =========================================================
-          📊 1. PAPAN INFORMASI MADING RINGKASAN STOK LIVE ATAS (POIN 1)
-         ========================================================= */}
+      {/* 📊 1. PAPAN INFORMASI MADING RINGKASAN STOK LIVE ATAS */}
       <div className="bg-slate-900 text-white rounded-2xl p-4 shadow-md border border-slate-800 shrink-0">
         <div className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-2.5 flex items-center gap-1.5">
           <Package size={14}/> Ringkasan Ketersediaan Papan Stok Master Gudang (Real-Time Live)
@@ -299,7 +289,6 @@ export default function TabOrders({
         </div>
       </div>
 
-      {/* RENDER BODY DUA KOLOM UTAMA */}
       <div className="flex flex-col lg:flex-row gap-6">
         
         {/* KOLOM KIRI: KATALOG BARANG */}
@@ -339,7 +328,6 @@ export default function TabOrders({
         {/* KOLOM KANAN: DETAIL CHECKOUT SULTAN KASIR */}
         <div className="w-full lg:w-[420px] xl:w-[460px] shrink-0 flex flex-col gap-4">
           
-          {/* KERANJANG PARTAI BESAR */}
           <div className="card-holo flex flex-col max-h-[40vh] bg-white border border-slate-200 rounded-2xl shadow-2xs overflow-hidden">
             <div className="p-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center shrink-0">
               <h3 className="font-black text-slate-800 normal-case text-xs flex items-center gap-2"><Receipt size={14} className="text-blue-600"/> Nota Keranjang Belanja</h3>
@@ -360,7 +348,6 @@ export default function TabOrders({
                         <div className="text-blue-600 font-black text-[10px] mt-0.5">{formatRupiah(item.price)}</div>
                       </div>
                       
-                      {/* INPUT LIVE BISA DIKETIK (POIN 3) */}
                       <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-0.5 shadow-3xs shrink-0">
                         <button type="button" onClick={() => updateQtyExact(item.id, item.qty - 1)} className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-blue-600"><Minus size={10}/></button>
                         <input type="number" value={item.qty} onChange={(e) => updateQtyExact(item.id, parseInt(e.target.value) || 0)} className="w-12 text-center text-xs font-black text-slate-800 bg-transparent outline-none hide-arrows" />
@@ -380,11 +367,9 @@ export default function TabOrders({
             </div>
           </div>
 
-          {/* CHECKOUT BOX */}
-          <div className="card-holo p-5 bg-white border border-slate-200 rounded-2xl shadow-2xs border-t-4 border-t-blue-600">
+          <div className="card-holo p-5 bg-white border border-slate-200 rounded-2xl shadow-2xs border-t-4 border-t-blue-500">
             <div className="space-y-4">
               
-              {/* DROPDOWN PELANGGAN + TOMBOL KILAT BARU (POIN 2) */}
               <div>
                 <div className="flex justify-between items-center mb-1.5">
                   <label className="text-[9px] font-bold text-slate-500 normal-case flex items-center gap-1"><UserCheck size={12}/> Pelanggan</label>
@@ -393,7 +378,6 @@ export default function TabOrders({
                 <SearchableDropdown options={customerDropdownOptions} value={selectedCustomerId} onChange={(opt) => setSelectedCustomerId(opt.id)} placeholder="Ketik nama pelanggan / agen..." />
               </div>
 
-              {/* MODE INFLUENCER TOGGLE */}
               <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl flex items-center justify-between cursor-pointer shadow-inner" onClick={() => setOrderMode(prev => prev === 'REGULAR' ? 'INFLUENCER' : 'REGULAR')}>
                 <div className="flex items-center gap-2">
                   <div className={`p-1.5 rounded-lg ${orderMode === 'INFLUENCER' ? 'bg-red-100 text-red-600' : 'bg-white text-slate-400 border shadow-3xs'}`}><Gift size={12}/></div>
@@ -405,7 +389,6 @@ export default function TabOrders({
                 <div className={`w-8 h-4 rounded-full relative ${orderMode === 'INFLUENCER' ? 'bg-red-500' : 'bg-slate-300'}`}><div className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white transition-transform ${orderMode === 'INFLUENCER' ? 'translate-x-4' : ''}`}></div></div>
               </div>
 
-              {/* AREA METODE PEMBAYARAN DINAMIS (PO / MIX / TUNAI / TRANSFER) */}
               {orderMode === 'REGULAR' && (
                 <div className="space-y-3 bg-slate-50 p-3 rounded-xl border border-slate-200 shadow-inner">
                   <div className="flex items-center justify-between">
@@ -413,7 +396,6 @@ export default function TabOrders({
                     <label className="flex items-center gap-1 text-[10px] font-bold text-slate-700 cursor-pointer"><input type="checkbox" checked={isSplitPayment} onChange={e=>{ setIsSplitPayment(e.target.checked); setPayCash(''); setPayBCA(''); setPayBRI(''); setSingleAmountPaid(''); }} className="accent-blue-600"/> Aktifkan Bayar Campuran (Mix)</label>
                   </div>
 
-                  {/* KONDISI 1: JIKA BAYAR CAMPURAN AKTIF (MIX INDEPENDEN) */}
                   {isSplitPayment ? (
                     <div className="space-y-2 pt-1">
                       <div className="flex items-center gap-2 bg-white px-2 py-1 rounded-lg border shadow-3xs">
@@ -430,7 +412,6 @@ export default function TabOrders({
                       </div>
                     </div>
                   ) : (
-                    /* KONDISI 2: JIKA STANDAR METHOD SINGLE */
                     <div className="grid grid-cols-2 gap-2 pt-1">
                       <div>
                         <select value={singleMethod} onChange={e=>{ setSingleMethod(e.target.value); setSingleAmountPaid(''); }} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold outline-none cursor-pointer">
@@ -448,7 +429,6 @@ export default function TabOrders({
                     </div>
                   )}
 
-                  {/* REAL-TIME RADAR MONITOR AMNPLOP & KEMBALIAN (POIN 3) */}
                   <div className="border-t border-slate-200 pt-2 text-[10px] font-bold space-y-1 text-slate-600">
                     <div className="flex justify-between"><span>Total Input Pembayaran:</span><span className="font-black text-slate-800">{formatRupiah(isSplitPayment ? Number(payCash||0)+Number(payBCA||0)+Number(payBRI||0) : Number(singleAmountPaid||0))}</span></div>
                     {paymentSummary.sisaBon > 0 && <div className="flex justify-between text-rose-600 font-black"><span>⚠️ Sisa Kekurangan (Masuk Bon Gantung):</span><span>{formatRupiah(paymentSummary.sisaBon)}</span></div>}
@@ -475,7 +455,7 @@ export default function TabOrders({
       </div>
 
       {/* =========================================================
-          📑 2. TABEL HISTORI & FILTER PERIODE RENTANG BAWAH POS (POIN 4)
+          📑 2. TABEL HISTORI & FILTER PERIODE RENTANG BAWAH POS
          ========================================================= */}
       <div className="card-holo bg-white border border-slate-200 rounded-2xl shadow-2xs flex flex-col overflow-hidden mt-2">
         <div className="p-4 bg-slate-50 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0">
@@ -484,7 +464,6 @@ export default function TabOrders({
             <p className="text-[9px] font-bold text-slate-400 normal-case mt-0.5">Gunakan filter rentang tanggal di samping untuk melacak serta mencetak ulang invoice lama.</p>
           </div>
           
-          {/* FILTER PERIODE TANGGAL */}
           <div className="flex flex-wrap items-center gap-2 bg-white border p-1.5 rounded-xl shadow-3xs w-full sm:w-auto">
             <input type="date" value={historyDateFrom} onChange={e=>setHistoryDateFrom(e.target.value)} className="text-[10px] font-bold border-none outline-none cursor-pointer bg-transparent" />
             <span className="text-slate-400 font-bold text-xs">-</span>
@@ -514,7 +493,7 @@ export default function TabOrders({
                 <tr><td colSpan="7" className="text-center py-12 text-slate-400 font-medium text-xs normal-case">Tidak ada data invoice di periode ini.</td></tr>
               ) : (
                 filteredHistoryOrders.map(o => (
-                  <tr key={o.id} className="hover:bg-slate-50/50 transition-colors">
+                  <tr key={o.id} className="hover:bg-slate-50/50 transition-colors group">
                     <td className="px-4 py-3 whitespace-nowrap"><div className="text-slate-800 font-black font-mono">{o.id}</div><div className="text-[9px] text-slate-400 font-bold mt-0.5">{formatDate(o.date)}</div></td>
                     <td className="px-4 py-3 whitespace-nowrap text-slate-800 font-black normal-case text-xs">{o.customer_name}</td>
                     <td className="px-4 py-3 text-center whitespace-nowrap text-slate-600 font-black">{formatNumber(o.qty)} <span className="text-[10px] font-normal text-slate-400">Pcs</span></td>
@@ -524,7 +503,6 @@ export default function TabOrders({
                       <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${o.status === 'LUNAS' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-rose-100 text-rose-700 border border-rose-200'}`}>{o.status}</span>
                     </td>
                     <td className="px-4 py-3 text-center whitespace-nowrap">
-                      {/* RE-PRINT ACTION ALA GOBIZ */}
                       <button type="button" onClick={() => {
                         let listItems = [];
                         try { listItems = safeJsonParse(o.items, []); } catch(e) { listItems = []; }
@@ -546,7 +524,7 @@ export default function TabOrders({
       </div>
 
       {/* =========================================================
-          📑 3. POP-UP MODAL KILAT TAMBAH PELANGGAN BARU (POIN 2)
+          📑 3. POP-UP MODAL KILAT TAMBAH PELANGGAN BARU
          ========================================================= */}
       {showAddCustomerModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-[99999] flex items-center justify-center p-4 animate-in fade-in duration-150">
@@ -580,7 +558,6 @@ export default function TabOrders({
         </div>
       )}
 
-      {/* CSS untuk hilangkan panah input number */}
       <style>{`
         .hide-arrows::-webkit-outer-spin-button, .hide-arrows::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
         .hide-arrows { -moz-appearance: textfield; }
