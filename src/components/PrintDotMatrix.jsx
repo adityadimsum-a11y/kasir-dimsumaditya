@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Printer, X, Receipt } from 'lucide-react';
 
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 
-// Helper untuk format "Rp" secara aman (mencegah double Rp)
+// Helper untuk format "Rp" secara aman
 const safeRupiah = (val) => {
   if (!val) return 'Rp 0';
   const str = String(val);
@@ -31,6 +31,16 @@ function angkaTerbilang(angka) {
 }
 
 export default function PrintDotMatrix({ printData, onClose }) {
+  // Mencegah scroll pada body saat modal preview terbuka
+  useEffect(() => {
+    if (printData) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => { document.body.style.overflow = 'unset'; };
+  }, [printData]);
+
   if (!printData) return null;
 
   const handlePrint = () => window.print();
@@ -38,30 +48,65 @@ export default function PrintDotMatrix({ printData, onClose }) {
   const showContactAndBank = docType === 'INVOICE' || docType === 'WITHDRAWAL';
 
   return (
-    <div className="fixed inset-0 z-[99999] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 print:static print:bg-transparent print:p-0 print:backdrop-blur-none">
+    // HAPUS SEMUA CLASS PRINT TAILWIND DI CONTAINER INI BIAR GAK CRASH SAMA CSS NATIVE
+    <div className="fixed inset-0 z-[99999] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4" id="print-overlay">
       
-      {/* SUNTIKAN CSS GLOBAL KHUSUS PRINT
-        Ini obat anti layar blank! Mematikan semua constraint overflow dari Tailwind.
-      */}
+      {/* ========================================================================= */}
+      {/* 🚀 CSS SAKTI ANTI BLANK PUTIH UNTUK PRINTER DOT MATRIX LX-310 🚀          */}
+      {/* ========================================================================= */}
       <style type="text/css" media="print">
         {`
-          @page { size: 21.5cm 14cm; margin: 5mm; }
-          html, body { height: auto !important; overflow: visible !important; background-color: white !important; }
-          body * { visibility: hidden; }
-          #print-section, #print-section * { visibility: visible; }
-          #print-section { 
-            position: absolute; 
-            left: 0; 
-            top: 0; 
-            width: 21.5cm; /* Ukuran pas untuk kertas setengah (NCR) */
-            margin: 0; 
-            padding: 0; 
+          /* Atur ukuran kertas Continuous Form Setengah (A5 Landscape Custom) */
+          @page { size: 21.5cm 14cm; margin: 0; }
+          
+          /* Netralkan semua overflow dan background browser */
+          html, body, #root { 
+            overflow: visible !important; 
+            height: auto !important; 
+            background-color: white !important; 
           }
-          .no-print { display: none !important; }
+          
+          /* Matikan SEMUA efek blur dan bayangan yang bikin Chrome nge-blank */
+          * {
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+            filter: none !important;
+            box-shadow: none !important;
+            transform: none !important;
+          }
+
+          /* Sembunyikan semua elemen di layar secara paksa */
+          body * { 
+            visibility: hidden !important; 
+          }
+          
+          /* Tampilkan HANYA area cetak dan anak-anak di dalamnya */
+          #print-section, #print-section * { 
+            visibility: visible !important; 
+            color: black !important;
+          }
+          
+          /* Cabut area cetak dari dalam modal dan tempel pas di pojok kertas */
+          #print-section { 
+            position: absolute !important; 
+            left: 0 !important; 
+            top: 0 !important; 
+            width: 21.5cm !important; 
+            margin: 0 !important; 
+            padding: 5mm !important; /* Jarak aman pinggir kertas */
+            background: white !important;
+            border: none !important;
+          }
+          
+          /* Sembunyikan tombol-tombol saat print berjalan */
+          .no-print { 
+            display: none !important; 
+          }
         `}
       </style>
 
-      <div className="bg-slate-100 rounded-2xl shadow-2xl flex flex-col w-full max-w-4xl overflow-hidden max-h-[95vh] print:shadow-none print:border-none print:w-full print:max-h-none print:overflow-visible">
+      {/* MODAL CONTAINER */}
+      <div className="bg-slate-100 rounded-2xl shadow-2xl flex flex-col w-full max-w-4xl overflow-hidden max-h-[95vh]">
         
         {/* HEADER MODAL PREVIEW */}
         <div className="p-4 bg-white border-b border-slate-200 flex justify-between items-center shrink-0 no-print">
@@ -74,14 +119,13 @@ export default function PrintDotMatrix({ printData, onClose }) {
           </button>
         </div>
 
-        {/* AREA SCROLL PREVIEW (Kertas ada di dalam sini) */}
-        <div className="p-4 md:p-8 overflow-y-auto custom-scrollbar flex-1 flex justify-center print:p-0 print:overflow-visible">
+        {/* AREA SCROLL PREVIEW */}
+        <div className="p-4 md:p-8 overflow-y-auto custom-scrollbar flex-1 flex justify-center">
           
           {/* ========================================================= */}
-          {/* AREA KERTAS (YANG AKAN MASUK PRINTER)                       */}
-          {/* Desain Modern Clean Ala Startup                           */}
+          {/* 🖨️ AREA KERTAS INVOICE (YANG AKAN MASUK PRINTER)           */}
           {/* ========================================================= */}
-          <div id="print-section" className="bg-white shadow-md p-8 text-black font-sans w-full max-w-[21.5cm] relative print:shadow-none print:p-2">
+          <div id="print-section" className="bg-white shadow-md p-8 text-black font-sans w-full max-w-[21.5cm] relative">
             
             {/* KOP SURAT */}
             <div className="flex justify-between items-end border-b-[3px] border-slate-800 pb-3 mb-4">
@@ -139,10 +183,10 @@ export default function PrintDotMatrix({ printData, onClose }) {
                   </div>
                 </div>
 
-                {/* TABEL ITEM (CLEAN LOOK, NO VERTICAL LINES) */}
+                {/* TABEL ITEM (CLEAN LOOK) */}
                 <table className="w-full text-xs border-collapse mb-6">
                   <thead>
-                    <tr className="border-y-2 border-slate-800 bg-slate-50 print:bg-transparent">
+                    <tr className="border-y-2 border-slate-800 bg-slate-50">
                       <th className="py-2.5 px-2 text-left font-black w-8">NO</th>
                       <th className="py-2.5 px-2 text-left font-black">DESKRIPSI ITEM</th>
                       <th className="py-2.5 px-2 text-center font-black w-24">QTY</th>
@@ -193,7 +237,7 @@ export default function PrintDotMatrix({ printData, onClose }) {
             {/* RENDER CASH VOUCHER / KWITANSI             */}
             {/* ========================================== */}
             {['CASH_VOUCHER', 'WITHDRAWAL'].includes(docType) && (
-              <div className="border-2 border-slate-800 p-6 rounded-xl space-y-5 mb-8 bg-white shadow-sm print:shadow-none print:rounded-none">
+              <div className="border-2 border-slate-800 p-6 rounded-xl space-y-5 mb-8 bg-white">
                 <div className="flex gap-4 items-end border-b border-dashed border-slate-300 pb-2">
                   <div className="w-40 font-bold uppercase text-xs text-slate-500">NO REFERENSI</div>
                   <div className="flex-1 font-black text-sm uppercase text-slate-900">: {printData.id} <span className="text-slate-400 font-bold mx-2">|</span> TGL: {printData.date}</div>
@@ -206,7 +250,7 @@ export default function PrintDotMatrix({ printData, onClose }) {
                   <div className="w-40 font-bold uppercase text-xs text-slate-500">UANG SEJUMLAH</div>
                   <div className="flex-1 font-black text-xl uppercase text-slate-900">: {formatRupiah(printData.amount)}</div>
                 </div>
-                <div className="flex gap-4 items-start border-b border-dashed border-slate-300 pb-2 p-3 bg-slate-50 border border-slate-200 rounded-lg mt-4 print:bg-transparent print:border-slate-800 print:rounded-none">
+                <div className="flex gap-4 items-start border-b border-dashed border-slate-300 pb-2 p-3 bg-slate-50 border border-slate-200 rounded-lg mt-4">
                   <div className="w-36 font-bold uppercase text-xs mt-0.5 text-slate-500">TERBILANG</div>
                   <div className="flex-1 font-black text-sm uppercase italic text-slate-800 leading-tight"># {angkaTerbilang(printData.amount)} #</div>
                 </div>
@@ -240,11 +284,11 @@ export default function PrintDotMatrix({ printData, onClose }) {
                 )}
               </div>
 
-              {/* KANAN: RINGKASAN TOTAL (Gabung Metode biar gampang dibaca) */}
+              {/* KANAN: RINGKASAN TOTAL (Khusus Invoice & PO) */}
               {['INVOICE', 'PO'].includes(docType) && (
                 <div className="w-[340px]">
                   
-                  <div className="bg-slate-50 border border-slate-300 rounded-xl overflow-hidden print:bg-transparent print:rounded-none print:border-slate-800">
+                  <div className="bg-slate-50 border border-slate-300 rounded-xl overflow-hidden">
                     {printData.history ? (
                       <>
                         <div className="flex justify-between py-2.5 px-4 border-b border-slate-200 text-xs font-bold text-slate-600">
@@ -252,29 +296,28 @@ export default function PrintDotMatrix({ printData, onClose }) {
                           <span className="font-black text-slate-900">{safeRupiah(printData.history.nominalLama)}</span>
                         </div>
                         
-                        {/* Jika ada metode bayar dicicil, gabungkan di sini */}
-                        <div className="flex justify-between items-center py-2.5 px-4 border-b border-slate-200 bg-emerald-50/50 print:bg-transparent">
+                        <div className="flex justify-between items-center py-2.5 px-4 border-b border-slate-200 bg-emerald-50/50">
                           <div className="flex flex-col">
-                            <span className="text-xs font-bold uppercase text-emerald-800 print:text-black">{printData.history.labelAksi || 'SUDAH DIBAYAR'}</span>
-                            <span className="text-[9px] font-bold text-emerald-600 uppercase print:text-black">VIA: {printData.paymentMethod?.split('+')[0] || 'TUNAI/TRANSFER'}</span>
+                            <span className="text-xs font-bold uppercase text-emerald-800">{printData.history.labelAksi || 'SUDAH DIBAYAR'}</span>
+                            <span className="text-[9px] font-bold text-emerald-600 uppercase">VIA: {printData.paymentMethod?.split('+')[0] || 'TUNAI/TRANSFER'}</span>
                           </div>
-                          <span className="font-black text-emerald-700 text-sm print:text-black">{safeRupiah(printData.history.nominalAksi)}</span>
+                          <span className="font-black text-emerald-700 text-sm">{safeRupiah(printData.history.nominalAksi)}</span>
                         </div>
 
-                        <div className="flex justify-between py-3 px-4 text-sm font-black uppercase bg-red-50/50 print:bg-transparent">
-                          <span className="text-red-800 print:text-black">{printData.history.labelBaru || 'SISA TAGIHAN'}</span>
-                          <span className="text-red-600 text-base print:text-black">{safeRupiah(printData.history.nominalBaru)}</span>
+                        <div className="flex justify-between py-3 px-4 text-sm font-black uppercase bg-red-50/50">
+                          <span className="text-red-800">{printData.history.labelBaru || 'SISA TAGIHAN'}</span>
+                          <span className="text-red-600 text-base">{safeRupiah(printData.history.nominalBaru)}</span>
                         </div>
                       </>
                     ) : (
-                      <div className="flex justify-between py-4 px-4 font-black text-lg uppercase bg-blue-50/50 print:bg-transparent text-blue-900 print:text-black">
+                      <div className="flex justify-between py-4 px-4 font-black text-lg uppercase bg-blue-50/50 text-blue-900">
                         <span>TOTAL</span>
                         <span>{formatRupiah(printData.amount)}</span>
                       </div>
                     )}
                   </div>
 
-                  {/* RIWAYAT CICILAN MUNCUL DI BAWAH TOTAL */}
+                  {/* RIWAYAT CICILAN KLIP NOTA */}
                   {printData.paymentHistory && printData.paymentHistory.length > 0 && (
                     <div className="mt-3 text-[9px]">
                       <div className="font-black text-slate-500 uppercase mb-1 border-b border-slate-300 pb-1">Riwayat Pembayaran Sebelumnya:</div>
