@@ -20,8 +20,10 @@ export default function TabMasterCustomer({
   const currentBranch = (user?.branch_id === 'PUSAT' || !user?.branch_id) ? 'TANGERANG_PUSAT' : user?.branch_id;
   
   const [searchTerm, setSearchTerm] = useState('');
-  const [isEditing, setIsEditing] = useState(false);
   const [currentId, setCurrentId] = useState('');
+  
+  // 🔥 FIX: Pisahkan state untuk membuka form dan mode edit!
+  const [showForm, setShowForm] = useState(false); 
   
   const [formData, setFormData] = useState({
     customer_name: '', phone: '', address: '', notes: '', category: 'RESELLER'
@@ -89,6 +91,7 @@ export default function TabMasterCustomer({
             matchedCust.itemMap[i.name] = (matchedCust.itemMap[i.name] || 0) + (Number(i.qty) || 0);
           }
         });
+
         matchedCust.history.push(o);
       }
     });
@@ -131,13 +134,13 @@ export default function TabMasterCustomer({
       category: item.customer_tier || item.category || 'RESELLER' 
     });
     setCurrentId(item.customer_id); 
-    setIsEditing(true);
+    setShowForm(true); // 🔥 Munculkan form, otomatis jadi mode Edit karena currentId terisi
   };
 
   const handleCancel = () => {
     setFormData({ customer_name: '', phone: '', address: '', notes: '', category: 'RESELLER' });
-    setIsEditing(false);
-    setCurrentId('');
+    setShowForm(false);
+    setCurrentId(''); // Bersihkan ID agar mode berubah kembali jadi Insert
   };
 
   const handleDelete = async (id, name) => {
@@ -152,8 +155,10 @@ export default function TabMasterCustomer({
     
     setIsSubmitting(true);
     
+    const isEditMode = !!currentId; // Cek apakah ada ID aktif (Mode Edit) atau tidak (Mode Baru)
+
     const rawPayload = {
-      customer_id: isEditing ? currentId : generateId('CST', todayStr),
+      customer_id: isEditMode ? currentId : generateId('CST', todayStr),
       customer_name: formData.customer_name.trim().toUpperCase(),
       branch_id: currentBranch,
       customer_tier: formData.category || 'RESELLER',
@@ -164,20 +169,17 @@ export default function TabMasterCustomer({
       isDeleted: false
     };
 
-    const finalPayload = isEditing ? rawPayload : [rawPayload];
+    const finalPayload = isEditMode ? rawPayload : [rawPayload];
 
     try {
-      const actionType = isEditing ? 'update' : 'insert';
-      
-      // 🔥 JIKA sendToSheet UNDEFINED (Kabel putus), ini akan melempar TypeError!
+      const actionType = isEditMode ? 'update' : 'insert';
       const isSuccess = await sendToSheet(actionType, finalPayload, 'master_customers');
       
       if (isSuccess) {
-        showToast(isEditing ? 'Profil agen berhasil diperbarui!' : 'Agen baru berhasil didaftarkan!', 'success');
+        showToast(isEditMode ? 'Profil agen berhasil diperbarui!' : 'Agen baru berhasil didaftarkan!', 'success');
         handleCancel();
       }
     } catch (error) {
-      // 🔥 KITA BONGKAR ERRORNYA DI SINI BIAR KETAHUAN!
       alert(`CRASH SISTEM: ${error.message}`);
     } finally {
       setIsSubmitting(false); 
@@ -193,13 +195,13 @@ export default function TabMasterCustomer({
             <h2 className="text-lg font-black text-slate-800 flex items-center gap-2"><Users className="text-orange-600"/> Database Master CRM Agen</h2>
             <p className="text-xs font-bold text-slate-400 mt-1">Kelola data pelanggan dan bedah analitik kebiasaan belanja mereka.</p>
           </div>
-          <button onClick={() => { handleCancel(); setIsEditing(true); }} className="bg-orange-600 hover:bg-orange-700 text-white px-5 py-3 rounded-xl flex items-center gap-2 font-black text-xs shadow-md active:scale-95 transition-all">
+          <button onClick={() => { handleCancel(); setShowForm(true); }} className="bg-orange-600 hover:bg-orange-700 text-white px-5 py-3 rounded-xl flex items-center gap-2 font-black text-xs shadow-md active:scale-95 transition-all">
             <Plus size={16} /> Tambah Agen Baru
           </button>
         </div>
       </div>
 
-      {isEditing && (
+      {showForm && (
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-lg border-t-4 border-t-orange-500">
           <div className="flex justify-between items-center mb-4 pb-3 border-b border-slate-100">
             <h3 className="font-black text-slate-800 text-sm">{currentId ? 'Edit Profil Agen' : 'Registrasi Agen Baru'}</h3>
