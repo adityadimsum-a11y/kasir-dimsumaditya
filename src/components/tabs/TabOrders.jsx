@@ -387,7 +387,7 @@ export default function TabOrders({
               const liveStock = productStockMap[product.product_name] || 0;
               return (
                 <div key={product.id} onClick={() => addToCart(product)} className="bg-white border border-slate-200 rounded-2xl p-4 cursor-pointer hover:border-blue-400 hover:shadow-md transition-all flex flex-col justify-between h-full group relative shadow-2xs overflow-hidden">
-                  <div className={`absolute top-0 right-0 px-2.5 py-0.5 text-[9px] font-black rounded-bl-xl ${liveStock > 500 ? 'bg-emerald-500 animate-pulse' : liveStock > 0 ? 'bg-amber-500' : 'bg-rose-600'}`}>
+                  <div className={`absolute top-0 right-0 px-2.5 py-0.5 text-[9px] font-black rounded-bl-xl ${liveStock > 500 ? 'bg-emerald-100 text-emerald-800' : liveStock > 0 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'}`}>
                     Stok: {formatNumber(liveStock)}
                   </div>
                   <div className="mt-2">
@@ -453,7 +453,7 @@ export default function TabOrders({
                   <input 
                     type="text" 
                     value={customerSearchTerm} 
-                    onChange => setCustomerSearchTerm(e.target.value)} 
+                    onChange={(e) => setCustomerSearchTerm(e.target.value)} // 🔥 FIX 4: SUNTIK KEMBALI KURUNG PARAMETER (e) YANG REBORN DI SINI
                     placeholder="Ketik sepotong nama pelanggan..." 
                     className="w-full p-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold outline-none"
                   />
@@ -629,7 +629,13 @@ export default function TabOrders({
                       <td className="px-4 py-3 whitespace-nowrap"><div onClick={() => { setSelectedStaplesOrder({ ...o, orderHPP, listItems, sisaHutangDynamic, totalTerbayarDynamic }); setShowAddStaplesModal(true); }} className="text-blue-600 hover:underline cursor-pointer font-black font-mono">{o.id}</div><div className="text-[9px] text-slate-400 font-bold mt-0.5">{formatDate(o.date)}</div></td>
                       <td className="px-4 py-3 whitespace-nowrap text-slate-800 font-black text-xs">{o.customer_name}</td>
                       <td className="px-4 py-3 text-center whitespace-nowrap text-slate-600 font-black">{formatNumber(o.qty)} <span className="text-[10px] font-normal text-slate-400">Pcs</span></td>
-                      <td className="px-4 py-3 text-center whitespace-nowrap"><span className="px-2 py-0.5 rounded text-[9px] font-black bg-slate-100 text-slate-700 border border-slate-200">{o.payment_method}</span></td>
+                      
+                      <td className="px-4 py-3 text-center whitespace-nowrap">
+                        <span className="px-2 py-0.5 rounded text-[9px] font-black bg-slate-100 text-slate-700 border border-slate-200">{o.payment_method}</span>
+                        {String(o.payment_method).includes('DP_') && (
+                          <div className="text-[9px] font-black text-orange-600 mt-1">DP Masuk: {formatRupiah(o.amount_paid)}</div>
+                        )}
+                      </td>
                       
                       <td className="px-4 py-3 text-right whitespace-nowrap">
                         <div className="text-slate-900 font-black text-sm">{formatRupiah(o.total_amount)}</div>
@@ -770,7 +776,7 @@ export default function TabOrders({
 
       {showAddCustomerModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-[99999] flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm border border-slate-200 overflow-hidden flex flex-col">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-sm border border-slate-200 overflow-hidden flex flex-col">
             <div className="p-4 bg-slate-900 text-white flex justify-between items-center">
               <h3 className="font-black text-xs uppercase flex items-center gap-1.5"><PlusCircle size={14} className="text-emerald-400"/> Registrasi Pelanggan Kilat</h3>
               <button type="button" onClick={() => setShowAddCustomerModal(false)} className="text-slate-400 hover:text-white text-sm font-bold">✕</button>
