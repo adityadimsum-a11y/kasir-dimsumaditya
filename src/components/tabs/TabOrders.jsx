@@ -46,7 +46,6 @@ export default function TabOrders({
   
   const [singleMethod, setSingleMethod] = useState('CASH'); 
   const [singleAmountPaid, setSingleAmountPaid] = useState(''); 
-  // 🔥 FIX: STATE BARU KHUSUS UNTUK JALUR PEMBAYARAN DP
   const [dpMethod, setDpMethod] = useState('CASH');
 
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
@@ -94,11 +93,11 @@ export default function TabOrders({
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
   const cartHPP = cart.reduce((sum, item) => sum + (item.hpp * item.qty), 0);
 
-  // 🔥 ENGINE KALKULASI PINTAR (SUDAH MENCAKUP LOGIKA DP)
+  // 🔥 ENGINE KALKULASI PINTAR (TANPA QRIS LACI)
   const paymentSummary = useMemo(() => {
     if (orderMode === 'INFLUENCER') return { totalDibayar: 0, sisaBon: 0, kembalian: 0, methodStr: 'PROMO_MARKETING', breakdown: [] };
 
-    let cash = 0; let bca = 0; let bri = 0; let laciTf = 0;
+    let cash = 0; let bca = 0; let bri = 0;
     let poTerbuka = false;
 
     if (isSplitPayment) {
@@ -110,18 +109,15 @@ export default function TabOrders({
       if (singleMethod === 'CASH') cash = amt;
       else if (singleMethod === 'TF_BCA_PUSAT') bca = amt;
       else if (singleMethod === 'TF_BRI_PUSAT') bri = amt;
-      else if (singleMethod === 'TF_QRIS') laciTf = amt;
       else if (singleMethod === 'COD_PO') poTerbuka = true;
       else if (singleMethod === 'DP_PIUTANG') {
-        // Logika DP khusus: arahkan uang sesuai jalur DP yang dipilih
         if (dpMethod === 'CASH') cash = amt;
         else if (dpMethod === 'TF_BCA_PUSAT') bca = amt;
         else if (dpMethod === 'TF_BRI_PUSAT') bri = amt;
-        else if (dpMethod === 'TF_QRIS') laciTf = amt;
       }
     }
 
-    let totalBayarInput = cash + bca + bri + laciTf;
+    let totalBayarInput = cash + bca + bri;
     if (poTerbuka) totalBayarInput = 0;
 
     let kembalian = 0;
@@ -140,7 +136,6 @@ export default function TabOrders({
     if (cash > 0) { methods.push('CASH'); breakdown.push({ method: 'CASH', amount: cash - (kembalian > 0 ? kembalian : 0) }); }
     if (bca > 0) { methods.push('BCA'); breakdown.push({ method: 'TF_BCA_PUSAT', amount: bca }); }
     if (bri > 0) { methods.push('BRI'); breakdown.push({ method: 'TF_BRI_PUSAT', amount: bri }); }
-    if (laciTf > 0) { methods.push('QRIS'); breakdown.push({ method: 'TF_QRIS', amount: laciTf }); }
     if (poTerbuka) { methods.push('PO_COD'); breakdown.push({ method: 'COD_PO', amount: 0 }); }
 
     let methodStr = '';
@@ -453,9 +448,9 @@ export default function TabOrders({
                     <div className="space-y-2 pt-1">
                       <div className="grid grid-cols-2 gap-2">
                         <div>
+                          {/* 🔥 FIX: QRIS LACI SUDAH DIHILANGKAN DARI SINI */}
                           <select value={singleMethod} onChange={e=>{ setSingleMethod(e.target.value); setSingleAmountPaid(''); }} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold outline-none cursor-pointer shadow-3xs">
                             <option value="CASH">Cash (Tunai Laci)</option>
-                            <option value="TF_QRIS">Transfer / QRIS Laci</option>
                             <option value="TF_BCA_PUSAT">Transfer BCA Pusat</option>
                             <option value="TF_BRI_PUSAT">Transfer BRI Pusat</option>
                             <option value="DP_PIUTANG">Bayar DP (Uang Muka)</option>
@@ -476,12 +471,11 @@ export default function TabOrders({
                         )}
                       </div>
 
-                      {/* 🔥 FIX: KOTAK DINAMIS KHUSUS INPUT DP */}
+                      {/* 🔥 FIX: QRIS LACI JUGA DIHILANGKAN DARI OPSI JALUR DP */}
                       {singleMethod === 'DP_PIUTANG' && (
                         <div className="flex items-center gap-2 p-2 bg-orange-50 border border-orange-200 rounded-lg shadow-inner">
                           <select value={dpMethod} onChange={e=>setDpMethod(e.target.value)} className="w-1/2 p-2 bg-white border border-orange-200 rounded-lg text-[10px] font-bold outline-none cursor-pointer text-orange-900 shadow-3xs">
                             <option value="CASH">Jalur: Tunai Laci</option>
-                            <option value="TF_QRIS">Jalur: TF/QRIS Laci</option>
                             <option value="TF_BCA_PUSAT">Jalur: TF BCA Pusat</option>
                             <option value="TF_BRI_PUSAT">Jalur: TF BRI Pusat</option>
                           </select>
