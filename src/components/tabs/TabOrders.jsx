@@ -1,11 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { 
   ShoppingCart, Plus, Minus, Trash2, Search, 
-  CreditCard, UserCheck, Tag, Receipt, 
-  CheckCircle2, AlertOctagon, Gift, Package, Snowflake, Timer, PlusCircle, Calendar, Printer, RefreshCw
+  UserCheck, Tag, Receipt, 
+  CheckCircle2, AlertOctagon, Gift, Package, PlusCircle, Calendar, Printer
 } from 'lucide-react';
-import { getTodayStr, generateId, formatDate, safeJsonParse } from '../../utils/helpers'; // 🔥 FIX: safeJsonParse ditambahkan resmi di sini!
-import SearchableDropdown from '../ui/SearchableDropdown';
+import { getTodayStr, generateId, formatDate, safeJsonParse } from '../../utils/helpers';
 
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
@@ -31,6 +30,7 @@ export default function TabOrders({
   const [cart, setCart] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchHistoryTerm, setSearchHistoryTerm] = useState('');
+  const [customerSearchTerm, setCustomerSearchTerm] = useState(''); // 🔥 Search pelanggan lokal
   
   // Filter Tanggal Histori Bawah
   const [historyDateFrom, setHistoryDateFrom] = useState(todayStr);
@@ -38,10 +38,10 @@ export default function TabOrders({
 
   // Form Utama POS
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
-  const [orderMode, setOrderMode] = useState('REGULAR'); // REGULAR | INFLUENCER
+  const [orderMode, setOrderMode] = useState('REGULAR'); 
   const [notes, setNotes] = useState('');
 
-  // --- STATE MULTI-PAYMENT DYNAMIC (PO / MIX / BON GANTUNG) ---
+  // --- STATE MULTI-PAYMENT DYNAMIC ---
   const [payCash, setPayCash] = useState('');
   const [payBCA, setPayBCA] = useState('');
   const [payBRI, setPayBRI] = useState('');
@@ -64,13 +64,12 @@ export default function TabOrders({
     return map;
   }, [inventoryCostLayers, currentBranch]);
 
-  // --- DROPDOWN INTERAKTIF SYNC ---
-  const customerDropdownOptions = useMemo(() => {
-    return activeCustomers.map(c => ({
-      id: c.id,
-      name: `${c.customer_name} (${c.category.replace(/_/g, ' ')})`
-    }));
-  }, [activeCustomers]);
+  // --- FILTER DROPDOWN PELANGGAN PINTAR INTERNAL ---
+  const filteredCustomersForSelect = useMemo(() => {
+    if (!customerSearchTerm) return activeCustomers;
+    const s = customerSearchTerm.toLowerCase();
+    return activeCustomers.filter(c => (c.customer_name || '').toLowerCase().includes(s));
+  }, [activeCustomers, customerSearchTerm]);
 
   const filteredProducts = useMemo(() => {
     if (!searchTerm) return activeProducts;
@@ -195,19 +194,13 @@ export default function TabOrders({
     if (!window.confirm(confirmMsg)) return;
 
     const orderPayload = {
-      id: orderId,
-      date: todayStr,
-      branch_id: currentBranch,
-      customer_name: custName,
-      sales_channel: custCategory,
-      items: JSON.stringify(cart),
-      qty: totalItemQty,
-      total_amount: cartTotal,
-      amount_paid: paymentSummary.totalDibayar,
+      id: orderId, date: todayStr, branch_id: currentBranch,
+      customer_name: custName, sales_channel: custCategory,
+      items: JSON.stringify(cart), qty: totalItemQty,
+      total_amount: cartTotal, amount_paid: paymentSummary.totalDibayar,
       payment_method: paymentSummary.methodStr,
       status: paymentSummary.sisaBon <= 0 ? 'LUNAS' : 'BELUM_LUNAS',
-      notes: notes || '-',
-      isDeleted: false
+      notes: notes || '-', isDeleted: false
     };
 
     const isSuccess = await sendToSheet('insert', orderPayload, 'orders');
@@ -247,7 +240,7 @@ export default function TabOrders({
 
       setCart([]); setSelectedCustomerId(''); setNotes(''); setAmountPaid('');
       setPayCash(''); setPayBCA(''); setPayBRI(''); setSingleAmountPaid('');
-      setIsSplitPayment(false); setOrderMode('REGULAR');
+      setIsSplitPayment(false); setOrderMode('REGULAR'); setCustomerSearchTerm('');
     }
   };
 
@@ -268,7 +261,7 @@ export default function TabOrders({
   return (
     <div className="flex flex-col gap-6 pb-10 text-slate-700 normal-case animate-in fade-in duration-200">
       
-      {/* 📊 1. PAPAN INFORMASI MADING RINGKASAN STOK LIVE ATAS */}
+      {/* 📊 1. PAPAN INFORMASI STOK LIVE ATAS */}
       <div className="bg-slate-900 text-white rounded-2xl p-4 shadow-md border border-slate-800 shrink-0">
         <div className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-2.5 flex items-center gap-1.5">
           <Package size={14}/> Ringkasan Ketersediaan Papan Stok Master Gudang (Real-Time Live)
@@ -328,6 +321,7 @@ export default function TabOrders({
         {/* KOLOM KANAN: DETAIL CHECKOUT SULTAN KASIR */}
         <div className="w-full lg:w-[420px] xl:w-[460px] shrink-0 flex flex-col gap-4">
           
+          {/* KERANJANG PARTAI BESAR */}
           <div className="card-holo flex flex-col max-h-[40vh] bg-white border border-slate-200 rounded-2xl shadow-2xs overflow-hidden">
             <div className="p-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center shrink-0">
               <h3 className="font-black text-slate-800 normal-case text-xs flex items-center gap-2"><Receipt size={14} className="text-blue-600"/> Nota Keranjang Belanja</h3>
@@ -367,17 +361,40 @@ export default function TabOrders({
             </div>
           </div>
 
+          {/* CHECKOUT BOX */}
           <div className="card-holo p-5 bg-white border border-slate-200 rounded-2xl shadow-2xs border-t-4 border-t-blue-500">
             <div className="space-y-4">
               
+              {/* 🔥 EXCLUSIVE IN-VIEW PENCARIAN & SELECT PELANGGAN (SANGAT AMAN DARI ERROR PATH) */}
               <div>
-                <div className="flex justify-between items-center mb-1.5">
-                  <label className="text-[9px] font-bold text-slate-500 normal-case flex items-center gap-1"><UserCheck size={12}/> Pelanggan</label>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-[9px] font-bold text-slate-500 normal-case flex items-center gap-1"><UserCheck size={12}/> Cari Pelanggan</label>
                   <button type="button" onClick={() => setShowAddCustomerModal(true)} className="text-[9px] font-black text-emerald-600 hover:text-emerald-700 flex items-center gap-0.5 uppercase tracking-wider cursor-pointer"><PlusCircle size={10}/> (+) Pelanggan Baru</button>
                 </div>
-                <SearchableDropdown options={customerDropdownOptions} value={selectedCustomerId} onChange={(opt) => setSelectedCustomerId(opt.id)} placeholder="Ketik nama pelanggan / agen..." />
+                
+                <div className="space-y-2 bg-slate-50 p-2 rounded-xl border border-slate-200">
+                  <input 
+                    type="text" 
+                    value={customerSearchTerm} 
+                    onChange={e => setCustomerSearchTerm(e.target.value)} 
+                    placeholder="Ketik sepotong nama pelanggan..." 
+                    className="w-full p-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold outline-none"
+                  />
+                  <select 
+                    required 
+                    value={selectedCustomerId} 
+                    onChange={e => setSelectedCustomerId(e.target.value)} 
+                    className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 outline-none cursor-pointer"
+                  >
+                    <option value="">-- Pilih Hasil Pencarian ({filteredCustomersForSelect.length}) --</option>
+                    {filteredCustomersForSelect.map(c => (
+                      <option key={c.id} value={c.id}>{c.customer_name} ({c.category})</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
+              {/* MODE INFLUENCER TOGGLE */}
               <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl flex items-center justify-between cursor-pointer shadow-inner" onClick={() => setOrderMode(prev => prev === 'REGULAR' ? 'INFLUENCER' : 'REGULAR')}>
                 <div className="flex items-center gap-2">
                   <div className={`p-1.5 rounded-lg ${orderMode === 'INFLUENCER' ? 'bg-red-100 text-red-600' : 'bg-white text-slate-400 border shadow-3xs'}`}><Gift size={12}/></div>
