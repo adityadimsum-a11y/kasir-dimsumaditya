@@ -40,18 +40,22 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
   return (
     <div className="flex h-screen w-screen bg-slate-50 overflow-hidden font-sans antialiased text-slate-800">
       
-{/* AREA LOGO BRANDING */}
-<div className="p-5 border-b border-slate-200/50 flex flex-col items-center justify-center bg-white shrink-0">
-  <img 
-    src="https://dimsumaditya.id/wp-content/uploads/2026/06/Dimsum-Aditya-New-Logo-scaled.webp" 
-    alt="Dimsum Aditya ERP" 
-    className="h-12 w-auto object-contain drop-shadow-sm transition-transform hover:scale-105"
-  />
-  <div className="mt-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">
-    Enterprise Core System
-  </div>
-</div>
+      {/* 🔥 FIX: INI DIA BINGKAI <aside> YANG SEMPAT HILANG! */}
+      <aside className="w-64 bg-white border-r border-slate-200 flex flex-col h-full shrink-0 z-20 shadow-xs">
+        
+        {/* AREA LOGO BRANDING */}
+        <div className="p-5 border-b border-slate-200/50 flex flex-col items-center justify-center bg-white shrink-0">
+          <img 
+            src="https://dimsumaditya.id/wp-content/uploads/2026/06/Dimsum-Aditya-New-Logo-scaled.webp" 
+            alt="Dimsum Aditya ERP" 
+            className="h-12 w-auto object-contain drop-shadow-sm transition-transform hover:scale-105"
+          />
+          <div className="mt-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">
+            Enterprise Core System
+          </div>
+        </div>
 
+        {/* AREA MENU SIDEBAR */}
         <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6 custom-scrollbar">
           
           {/* KELOMPOK 1 */}
@@ -118,7 +122,6 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
               <ShoppingCart size={16} /> Kasir (POS) &amp; Penjualan
             </button>
 
-            {/* 🔥 MENU BARU BERDIRI SENDIRI: MASTER CUSTOMER INTELLIGENCE */}
             <button type="button" onClick={() => handleTabChange('master_customer')}
               className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all normal-case ${
                 activeTab === 'master_customer' ? 'bg-orange-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
@@ -235,7 +238,6 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
               </button>
             </div>
           )}
-
         </div>
 
         {/* PROFILE CRADLE FOOTER */}
