@@ -19,20 +19,18 @@ import {
   Scale, 
   History, 
   UserCheck,
-  Coins // 🔥 AMAN! ICON COINS SEKARANG SUDAH DIDAFGARKAN RESMI DI SINI!
+  Coins,
+  Contact2 // Icon tambahan untuk Master Customer
 } from 'lucide-react';
 
 export default function LayoutEngine({ children, activeTab, setActiveTab, user, handleLogout }) {
-  // Profiling User Session Aman
   const userName = user?.name || 'ADMIN PUSAT';
   const userRole = user?.role || 'super_admin';
   const branchType = user?.branch_type || 'HQ_FACTORY';
   const branchName = user?.branch_id === 'PUSAT' ? 'TANGERANG PUSAT' : user?.branch_id || 'PUSAT';
 
-  // Proteksi Menu Pusat Komando
   const isHQUser = branchType === 'HQ_FACTORY' || userRole === 'super_admin';
 
-  // Validasi Navigasi Ganti Tab
   const handleTabChange = (tabId) => {
     if (typeof setActiveTab === 'function') {
       setActiveTab(tabId);
@@ -42,10 +40,9 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
   return (
     <div className="flex h-screen w-screen bg-slate-50 overflow-hidden font-sans antialiased text-slate-800">
       
-      {/* ================= SIDEBAR UTAMA DIMSUM ADITYA ================= */}
+      {/* SIDEBAR UTAMA */}
       <aside className="w-64 bg-white border-r border-slate-200 flex flex-col justify-between shrink-0 h-full select-none">
         
-        {/* LOGO BOX BRANDING */}
         <div className="p-5 border-b border-slate-100 flex items-center gap-3 shrink-0">
           <div className="w-10 h-10 rounded-xl bg-red-600 flex items-center justify-center text-white font-black text-xs tracking-wider shadow-sm shadow-red-200 shrink-0">
             DIMSUM
@@ -56,10 +53,9 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
           </div>
         </div>
 
-        {/* UTAMA: SCROLL NAVIGASI CONTAINER */}
         <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6 custom-scrollbar">
           
-          {/* KELOMPOK 1: COMMAND CENTER WAR ROOM (Pusat Kendali Makro) */}
+          {/* KELOMPOK 1 */}
           {isHQUser && (
             <div className="space-y-1">
               <span className="px-3 text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">
@@ -110,7 +106,7 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
             </div>
           )}
 
-          {/* KELOMPOK 2: CORE OPERATIONS (Alur Transaksi & Logistik Fisik) */}
+          {/* KELOMPOK 2 */}
           <div className="space-y-1">
             <span className="px-3 text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">
               Operasional Inti
@@ -121,6 +117,14 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
                 activeTab === 'orders' ? 'bg-red-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
               }`}>
               <ShoppingCart size={16} /> Kasir (POS) &amp; Penjualan
+            </button>
+
+            {/* 🔥 MENU BARU BERDIRI SENDIRI: MASTER CUSTOMER INTELLIGENCE */}
+            <button type="button" onClick={() => handleTabChange('master_customer')}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all normal-case ${
+                activeTab === 'master_customer' ? 'bg-orange-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+              }`}>
+              <Contact2 size={16} className={activeTab === 'master_customer' ? 'text-white' : 'text-orange-500'} /> Data Pelanggan (CRM)
             </button>
 
             <button type="button" onClick={() => handleTabChange('pemalang')}
@@ -173,7 +177,7 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
             </button>
           </div>
 
-          {/* KELOMPOK 3: BACKOFFICE GENERAL LEDGER (Keuangan & Jurnal Buku Besar) */}
+          {/* KELOMPOK 3 */}
           {isHQUser && (
             <div className="space-y-1">
               <span className="px-3 text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">
@@ -210,7 +214,7 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
             </div>
           )}
 
-          {/* KELOMPOK 4: HUMAN CAPITAL & DATA ENTERPRISE MANAGEMENT */}
+          {/* KELOMPOK 4 */}
           {isHQUser && (
             <div className="space-y-1">
               <span className="px-3 text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">
@@ -222,13 +226,6 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
                   activeTab === 'karyawan' ? 'bg-red-50 text-red-600 border border-red-100/50' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
                 }`}>
                 <Users size={16} /> Manajemen Karyawan
-              </button>
-
-              <button type="button" onClick={() => handleTabChange('master_customer')}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all normal-case ${
-                  activeTab === 'master_customer' ? 'bg-red-50 text-red-600 border border-red-100/50' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-                }`}>
-                <UserCheck size={16} /> Database Pelanggan
               </button>
 
               <button type="button" onClick={() => handleTabChange('master_data')}
@@ -266,7 +263,7 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
 
       </aside>
 
-      {/* RENDER KONTEN UTAMA */}
+      {/* MAIN CONTAINER */}
       <main className="flex-1 h-full overflow-y-auto bg-slate-50 relative custom-scrollbar">
         {children}
       </main>
