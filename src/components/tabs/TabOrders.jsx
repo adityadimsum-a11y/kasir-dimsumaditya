@@ -19,14 +19,12 @@ export default function TabOrders({
   const currentBranch = (user?.branch_id === 'PUSAT' || !user?.branch_id) ? 'TANGERANG_PUSAT' : user?.branch_id;
   const isHQ = user?.branch_type === 'HQ_FACTORY' || user?.branch_id === 'PUSAT' || currentBranch === 'TANGERANG_PUSAT';
 
-  // --- SINKRONISASI DATABASE ---
   const realProducts = useMemo(() => master_products || masterProducts || [], [master_products, masterProducts]);
   const realCustomers = useMemo(() => master_customers || masterCustomers || [], [master_customers, masterCustomers]);
 
   const activeProducts = useMemo(() => realProducts.filter(p => !p.isDeleted), [realProducts]);
   const activeCustomers = useMemo(() => realCustomers.filter(c => !c.isDeleted).reverse(), [realCustomers]);
 
-  // --- STATE MANAJEMEN KASIR ---
   const [cart, setCart] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchHistoryTerm, setSearchHistoryTerm] = useState('');
@@ -93,7 +91,6 @@ export default function TabOrders({
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
   const cartHPP = cart.reduce((sum, item) => sum + (item.hpp * item.qty), 0);
 
-  // 🔥 ENGINE KALKULASI PINTAR (TANPA QRIS LACI)
   const paymentSummary = useMemo(() => {
     if (orderMode === 'INFLUENCER') return { totalDibayar: 0, sisaBon: 0, kembalian: 0, methodStr: 'PROMO_MARKETING', breakdown: [] };
 
@@ -283,7 +280,7 @@ export default function TabOrders({
   return (
     <div className="flex flex-col gap-6 pb-10 text-slate-700 normal-case animate-in fade-in duration-200">
       
-      {/* 📊 PAPAN INFORMASI STOK LIVE ATAS */}
+      {/* PAPAN INFORMASI STOK LIVE ATAS */}
       <div className="bg-slate-900 text-white rounded-2xl p-4 shadow-md border border-slate-800 shrink-0">
         <div className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-2.5 flex items-center gap-1.5">
           <Package size={14}/> Ringkasan Ketersediaan Papan Stok Master Gudang (Real-Time Live)
@@ -448,7 +445,6 @@ export default function TabOrders({
                     <div className="space-y-2 pt-1">
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          {/* 🔥 FIX: QRIS LACI SUDAH DIHILANGKAN DARI SINI */}
                           <select value={singleMethod} onChange={e=>{ setSingleMethod(e.target.value); setSingleAmountPaid(''); }} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold outline-none cursor-pointer shadow-3xs">
                             <option value="CASH">Cash (Tunai Laci)</option>
                             <option value="TF_BCA_PUSAT">Transfer BCA Pusat</option>
@@ -471,7 +467,6 @@ export default function TabOrders({
                         )}
                       </div>
 
-                      {/* 🔥 FIX: QRIS LACI JUGA DIHILANGKAN DARI OPSI JALUR DP */}
                       {singleMethod === 'DP_PIUTANG' && (
                         <div className="flex items-center gap-2 p-2 bg-orange-50 border border-orange-200 rounded-lg shadow-inner">
                           <select value={dpMethod} onChange={e=>setDpMethod(e.target.value)} className="w-1/2 p-2 bg-white border border-orange-200 rounded-lg text-[10px] font-bold outline-none cursor-pointer text-orange-900 shadow-3xs">
@@ -510,9 +505,6 @@ export default function TabOrders({
         </div>
       </div>
 
-      {/* =========================================================
-          📑 2. TABEL HISTORI KASIR DENGAN FITUR RAHASIA (HPP & LABA)
-         ========================================================= */}
       <div className="card-holo bg-white border border-slate-200 rounded-2xl shadow-2xs flex flex-col overflow-hidden mt-2">
         <div className="p-4 bg-slate-50 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0">
           <div>
@@ -559,7 +551,6 @@ export default function TabOrders({
                   });
                   const orderProfit = Number(o.total_amount || 0) - orderHPP;
 
-                  // 🔥 ENGINE SINKRONISASI PIUTANG (Membaca total cicilan dari menu Piutang Dagang)
                   let totalTerbayarDynamic = Number(o.amount_paid || 0);
                   (piutangPayments || []).forEach(p => {
                     if (!p.isDeleted && p.orderId === o.id) {
