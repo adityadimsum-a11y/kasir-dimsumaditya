@@ -25,6 +25,7 @@ export default function useDashboardPusat({
 
     // --- 2. GLOBAL CASH & WALLET MONITORING ---
     let inCash = 0, outCash = 0, pendingMarketplace = 0, hutangAyamAktif = 0;
+    let totalCairLemburKaryawan = 0; // 🔥 TRACKER REAL-TIME KESEJAHTERAAN KARYAWAN
     
     (marketplaceSettlement || []).forEach(m => { if (m.status === 'PENDING' && !m.isDeleted) pendingMarketplace += (Number(m.net) || 0); });
     (supplierLedger || []).forEach(l => { 
@@ -33,10 +34,17 @@ export default function useDashboardPusat({
         if (l.transaction_type === 'PURCHASE') hutangAyamAktif += amt; 
         if (l.transaction_type === 'PAYMENT') hutangAyamAktif -= amt; 
     });
+    
+    // Lacak Arus Kas Sekaligus Sedot Data Lembur Karyawan
     (cashflowTransactions || []).forEach(c => { 
         if(c.isDeleted) return;
         if(c.transaction_type === 'INFLOW' || c.type === 'CASH_IN') inCash += Number(c.amount); 
         if(c.transaction_type === 'OUTFLOW' || c.type === 'CASH_OUT') outCash += Number(c.amount); 
+        
+        // Jika ada pengeluaran kas berkategori Lembur/Bonus, hitung total konsumsi kesejahteraan harian mereka
+        if((c.type === 'OUT' || c.transaction_type === 'OUTFLOW') && c.category === 'UANG LEMBUR & BONUS') {
+          totalCairLemburKaryawan += Number(c.amount || 0);
+        }
     });
 
     const cashReadyTotal = inCash - outCash;
@@ -64,7 +72,7 @@ export default function useDashboardPusat({
       };
     });
 
-    // Kalkulasi invoice belanja
+    // Kalkulasi invoice belanja agen B2B
     (orders || []).forEach(o => {
         if(o.isDeleted) return;
         const oId = o.id;
@@ -89,12 +97,10 @@ export default function useDashboardPusat({
           customerPiutangMap[cName].total_belanja_akumulasi += Number(o.total_amount || o.total || 0);
           customerPiutangMap[cName].frequency_order += 1;
           
-          // Lacak tanggal repeat order terakhir
           if (!customerPiutangMap[cName].last_order_date || new Date(o.date) > new Date(customerPiutangMap[cName].last_order_date)) {
             customerPiutangMap[cName].last_order_date = o.date;
           }
 
-          // Analitik Pembelian Mingguan (Minggu Ini vs Minggu Lalu)
           const orderDateYMD = getLocalYMD(o.date);
           if (orderDateYMD >= limitSevenDaysStr && orderDateYMD <= todayStr) {
             customerPiutangMap[cName].qty_order_minggu_ini += qtyOrder;
@@ -104,14 +110,13 @@ export default function useDashboardPusat({
         }
     });
 
-    // Masukkan history cicilan/pembayaran piutang berikutnya
     (piutangPayments || []).forEach(p => {
         if(!p.isDeleted && groupOrders[p.orderId]) {
           groupOrders[p.orderId].bayar += Number(p.amount || p.amount_paid || 0);
         }
     });
 
-    // Rekap final siapa saja yang gantung bon / nunggak piutang
+    // Urutkan sisa bon gantung berjalan
     let totalPiutangPelanggan = 0;
     Object.values(groupOrders).forEach(go => {
         const sisaHutang = go.tagihan - go.bayar;
@@ -130,7 +135,6 @@ export default function useDashboardPusat({
                 metode_asal: go.method
               });
 
-              // Lacak tanggal bon gantung paling purba/lama
               if (!customerPiutangMap[cName].tanggal_bon_terlama || new Date(go.date) < new Date(customerPiutangMap[cName].tanggal_bon_terlama)) {
                 customerPiutangMap[cName].tanggal_bon_terlama = go.date;
               }
@@ -138,12 +142,10 @@ export default function useDashboardPusat({
         }
     });
 
-    // Filter daftar mading piutang aktif yang berbobot/ada hutangnya
     const listMadingPiutangAktif = Object.values(customerPiutangMap)
       .map(cust => {
-        // Logika Notif Merah Absen Belanja & Repeat Order Fluktuatif
         let harianAbsen = cust.last_order_date ? getDaysDifference(todayStr, cust.last_order_date) : 999;
-        let statusNotifMerah = harianAbsen > 7; // Menggantung lebih dari seminggu
+        let statusNotifMerah = harianAbsen > 7; 
         
         let trenFluktuasi = 'STABIL';
         let selisihPcs = cust.qty_order_minggu_ini - cust.qty_order_minggu_lalu;
@@ -161,8 +163,7 @@ export default function useDashboardPusat({
       .filter(c => c.total_bon_gantung > 0 || c.frequency_order > 0)
       .sort((a, b) => b.total_bon_gantung - a.total_bon_gantung);
 
-    // --- 4. ENGINE INTEGRASI OTOMATIS 4 AMPLOP SAKRAL + AMPLOP THR ---
-    // Mencari total omset murni dari transaksi lunas/DP yang valid hari ini
+    // --- 4. ENGINE INTEGRASI OTOMATIS 4 AMPLOP SAKRAL + AMPLOP KESEJAHTERAAN TIM (AMPLOP 5) ---
     let totalOmsetHariIni = (orders || []).reduce((sum, o) => {
       if(!o.isDeleted && o.date === todayStr) {
         return sum + ((Number(o.total_amount || o.total || 0)));
@@ -170,12 +171,20 @@ export default function useDashboardPusat({
       return sum;
     }, 0);
 
-    // 🔥 AUTOMATIC RATIO SPLITTER (Dihitung dari cashflow masuk riil atau omzet berjalan)
+    // 🔥 AUTOMATIC RATIO SPLITTER SAKRAL ADITYA CORE
     const amplop1_bahanBaku = totalOmsetHariIni * 0.55;
     const amplop2_operasional = totalOmsetHariIni * 0.20;
     const amplop3_jagaJaga = totalOmsetHariIni * 0.10;
-    const amplop4_profitMurni = totalOmsetHariIni * 0.10; // 15% dipecah: 10% masuk kas Bos
-    const amplop5_alokasiTHR = totalOmsetHariIni * 0.05;  // 5% dicadangkan otomatis untuk bonus/THR gratisan dimsum!
+    const amplop4_profitMurni = totalOmsetHariIni * 0.10; 
+    
+    // 🔥 PERSENTASE DEWA AMPLOP 5 (5% Total Cadangan Kesejahteraan Bersama)
+    const amplop5_totalKesejahteraan = totalOmsetHariIni * 0.05; 
+    
+    // 💡 STRATEGI OPERASIONAL: Pembagian Adil Brankas Berjalan Amplop 5
+    // 60% dari Dana Kesejahteraan dicadangkan untuk THR Akhir Tahun Pelanggan/Agen VIP
+    const porsiThrAgenPabrik = amplop5_totalKesejahteraan * 0.60;
+    // 40% dari Dana Kesejahteraan dicadangkan khusus untuk THR/Bonus Lembur Karyawan Inti Dapur
+    const porsiThrKaryawanDapur = amplop5_totalKesejahteraan * 0.40;
 
     // --- 5. VALUASI INVENTORY & STOK GUDANG ---
     let ayamGudangQty = 0, totalStokDimsumPcs = 0, totalValuasiGudang = 0;
@@ -190,7 +199,7 @@ export default function useDashboardPusat({
       else if (String(l.item_name).toUpperCase().includes('DIMSUM')) totalStokDimsumPcs += qty;
     });
 
-    // --- 6. LEADERBOARD LINTAS CABANG & KOMPARASI OPSI ---
+    // --- 6. LEADERBOARD LINTAS CABANG ---
     const branchSales = {};
     (masterBranches || []).forEach(br => {
         branchSales[br.branch_id] = { 
@@ -215,7 +224,7 @@ export default function useDashboardPusat({
 
     const leaderboardArr = Object.values(branchSales).sort((a,b) => b.omzetBulanIni - a.omzetBulanIni);
 
-    // --- 7. AUTO TASK PROCUREMENT & DISTRIBUSI ---
+    // --- 7. AUTO TASK PROCUREMENT ---
     let ayamUsed30d = 0;
     (stockMovements || []).forEach(m => {
         if(m.isDeleted) return;
@@ -245,7 +254,7 @@ export default function useDashboardPusat({
         });
     }
 
-    // --- 8. GRAPH TREND FLUKTUASI MADING (7 HARI TERAKHIR) ---
+    // --- 8. GRAPH TREND 7 HARI ---
     const trendDataMap = {};
     for(let i=6; i>=0; i--) {
         const d = new Date(todayObj); d.setDate(d.getDate() - i);
@@ -276,13 +285,18 @@ export default function useDashboardPusat({
         trendData,
         totalOmsetHariIni,
         
-        // 🔥 DATA OUTPUT MADING DETAIL UNTUK UI RADAR PUSAT
+        // 🔥 OUTPUT LOGIKA BARU UNTUK DISPLAY MADING UTAMA
         amplopKeuangan: {
           bahanBaku: amplop1_bahanBaku,
           operasional: amplop2_operasional,
           jagaJaga: amplop3_jagaJaga,
           profitMurni: amplop4_profitMurni,
-          alokasiTHR: amplop5_alokasiTHR
+          
+          // Data Detail Pembagian Kebijakan Pasak Bumi Amplop 5
+          totalKesejahteraanGlobal: amplop5_totalKesejahteraan,
+          subThrAgen: porsiThrAgenPabrik,
+          subThrKaryawan: porsiThrKaryawanDapur,
+          realtimePengeluaranLemburHariIni: totalCairLemburKaryawan
         },
         madingPiutangPelanggan: listMadingPiutangAktif
     };
