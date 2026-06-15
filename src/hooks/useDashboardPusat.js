@@ -3,7 +3,6 @@ import { getLocalYMD, getTodayStr } from '../utils/helpers';
 
 export default function useDashboardPusat(dbData) {
   return useMemo(() => {
-    // Destructuring internal agar aman dari error parameter panjang di React Compiler
     const {
       orders = [], expenses = [], purchases = [], piutangPayments = [], 
       supplierLedger = [], cashflowTransactions = [], marketplaceSettlement = [], 
