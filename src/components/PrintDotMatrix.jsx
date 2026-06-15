@@ -4,7 +4,7 @@ import { Printer, X, Receipt } from 'lucide-react';
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 
-// Helper untuk format "Rp" secara aman
+// Helper untuk format "Rp" secara aman (mencegah double Rp)
 const safeRupiah = (val) => {
   if (!val) return 'Rp 0';
   const str = String(val);
@@ -31,88 +31,85 @@ function angkaTerbilang(angka) {
 }
 
 export default function PrintDotMatrix({ printData, onClose }) {
-  // Mencegah scroll pada body saat modal preview terbuka
+  // Lock scroll layar belakang saat preview terbuka
   useEffect(() => {
-    if (printData) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
+    if (printData) document.body.style.overflow = 'hidden';
+    else document.body.style.overflow = 'unset';
     return () => { document.body.style.overflow = 'unset'; };
   }, [printData]);
 
   if (!printData) return null;
 
-  const handlePrint = () => window.print();
+  const handlePrint = () => {
+    window.print();
+  };
+
   const docType = printData.type || 'INVOICE'; 
   const showContactAndBank = docType === 'INVOICE' || docType === 'WITHDRAWAL';
 
   return (
-    // HAPUS SEMUA CLASS PRINT TAILWIND DI CONTAINER INI BIAR GAK CRASH SAMA CSS NATIVE
-    <div className="fixed inset-0 z-[99999] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4" id="print-overlay">
+    <div className="fixed inset-0 z-[99999] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 print:p-0 print:bg-transparent print:backdrop-blur-none">
       
       {/* ========================================================================= */}
-      {/* 🚀 CSS SAKTI ANTI BLANK PUTIH UNTUK PRINTER DOT MATRIX LX-310 🚀          */}
+      {/* 🚀 CSS SAKTI ANTI BLANK PUTIH UNTUK PRINTER DOT MATRIX EPSON LX-310 🚀    */}
       {/* ========================================================================= */}
       <style type="text/css" media="print">
         {`
-          /* Atur ukuran kertas Continuous Form Setengah (A5 Landscape Custom) */
-          @page { size: 21.5cm 14cm; margin: 0; }
+          /* Mengikuti Settingan Printer Bos: Width 21.49 cm, Height 13.97 cm, Margin 0 */
+          @page { 
+            size: 21.49cm 13.97cm; 
+            margin: 0; 
+          }
           
-          /* Netralkan semua overflow dan background browser */
-          html, body, #root { 
+          /* Netralkan semua layout Tailwind yang bikin Chrome nge-blank */
+          html, body, #root, .fixed, .absolute, .inset-0 { 
+            position: static !important;
             overflow: visible !important; 
             height: auto !important; 
+            width: auto !important;
             background-color: white !important; 
           }
           
-          /* Matikan SEMUA efek blur dan bayangan yang bikin Chrome nge-blank */
-          * {
-            backdrop-filter: none !important;
-            -webkit-backdrop-filter: none !important;
-            filter: none !important;
-            box-shadow: none !important;
-            transform: none !important;
-          }
-
-          /* Sembunyikan semua elemen di layar secara paksa */
+          /* Sembunyikan SEMUA elemen di layar secara paksa */
           body * { 
-            visibility: hidden !important; 
+            visibility: hidden; 
           }
           
-          /* Tampilkan HANYA area cetak dan anak-anak di dalamnya */
+          /* Tampilkan HANYA area ID print-section dan anak-anaknya */
           #print-section, #print-section * { 
-            visibility: visible !important; 
+            visibility: visible; 
             color: black !important;
           }
           
-          /* Cabut area cetak dari dalam modal dan tempel pas di pojok kertas */
+          /* Kunci posisi area cetak pas di pojok kiri atas kertas fisik */
           #print-section { 
             position: absolute !important; 
             left: 0 !important; 
             top: 0 !important; 
-            width: 21.5cm !important; 
+            width: 21.49cm !important; 
+            height: 13.97cm !important; /* Kunci tinggi biar gak tembus lembar ke-2 */
             margin: 0 !important; 
-            padding: 5mm !important; /* Jarak aman pinggir kertas */
+            padding: 5mm 8mm !important; /* Safe area agar jarum gak nabrak ujung kertas */
             background: white !important;
             border: none !important;
+            box-shadow: none !important;
+            box-sizing: border-box !important;
+            overflow: hidden !important; 
           }
           
-          /* Sembunyikan tombol-tombol saat print berjalan */
-          .no-print { 
-            display: none !important; 
-          }
+          /* Sembunyikan elemen modal & tombol saat print */
+          .no-print { display: none !important; }
         `}
       </style>
 
-      {/* MODAL CONTAINER */}
-      <div className="bg-slate-100 rounded-2xl shadow-2xl flex flex-col w-full max-w-4xl overflow-hidden max-h-[95vh]">
+      {/* CONTAINER MODAL DI LAYAR PC */}
+      <div className="bg-slate-100 rounded-2xl shadow-2xl flex flex-col w-full max-w-4xl overflow-hidden max-h-[98vh] print:shadow-none print:border-none print:w-full print:max-h-none print:rounded-none">
         
-        {/* HEADER MODAL PREVIEW */}
-        <div className="p-4 bg-white border-b border-slate-200 flex justify-between items-center shrink-0 no-print">
+        {/* HEADER MODAL */}
+        <div className="p-3 bg-white border-b border-slate-200 flex justify-between items-center shrink-0 no-print">
           <h3 className="font-black text-slate-800 flex items-center gap-2 text-sm normal-case">
             <Receipt size={18} className="text-blue-600" />
-            Pratinjau Cetak {docType === 'INVOICE' ? 'Invoice' : docType}
+            Pratinjau Kertas 3-Ply LX-310 ({docType})
           </h3>
           <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-red-600 bg-slate-50 border border-slate-200 rounded-lg shadow-sm transition-colors cursor-pointer">
             <X size={16} />
@@ -120,25 +117,25 @@ export default function PrintDotMatrix({ printData, onClose }) {
         </div>
 
         {/* AREA SCROLL PREVIEW */}
-        <div className="p-4 md:p-8 overflow-y-auto custom-scrollbar flex-1 flex justify-center">
+        <div className="p-2 md:p-6 overflow-y-auto custom-scrollbar flex-1 flex justify-center print:p-0 print:overflow-visible">
           
           {/* ========================================================= */}
-          {/* 🖨️ AREA KERTAS INVOICE (YANG AKAN MASUK PRINTER)           */}
+          {/* 🖨️ AREA KERTAS (YANG AKAN MASUK PRINTER)                   */}
           {/* ========================================================= */}
-          <div id="print-section" className="bg-white shadow-md p-8 text-black font-sans w-full max-w-[21.5cm] relative">
+          <div id="print-section" className="bg-white shadow-md p-6 md:p-8 text-black font-sans w-full max-w-[21.49cm] relative">
             
             {/* KOP SURAT */}
-            <div className="flex justify-between items-end border-b-[3px] border-slate-800 pb-3 mb-4">
+            <div className="flex justify-between items-end border-b-2 border-slate-800 pb-2 mb-3">
               <div>
-                <h1 className="text-3xl font-black uppercase tracking-tight leading-none text-slate-900">Dimsum Aditya</h1>
-                <p className="text-[11px] font-bold tracking-widest mt-1 text-slate-500 uppercase">Distributor Dimsum Ayam</p>
+                <h1 className="text-2xl font-black uppercase tracking-tight leading-none text-slate-900">Dimsum Aditya</h1>
+                <p className="text-[10px] font-bold tracking-widest mt-0.5 text-slate-600 uppercase">Distributor Dimsum Ayam</p>
               </div>
-              <div className="text-right text-[10px] font-bold leading-relaxed text-slate-700 max-w-[280px]">
-                {docType === 'WO' && <h2 className="text-lg font-black mb-1 bg-slate-800 text-white px-3 py-0.5 uppercase inline-block rounded">Work Order</h2>}
-                {docType === 'DO' && <h2 className="text-lg font-black mb-1 bg-slate-800 text-white px-3 py-0.5 uppercase inline-block rounded">Surat Jalan</h2>}
-                {docType === 'CASH_VOUCHER' && <h2 className="text-lg font-black mb-1 bg-slate-800 text-white px-3 py-0.5 uppercase inline-block rounded">Voucher Kas</h2>}
-                {docType === 'PO' && <h2 className="text-lg font-black mb-1 bg-slate-800 text-white px-3 py-0.5 uppercase inline-block rounded">Terima Barang</h2>}
-                {docType === 'WITHDRAWAL' && <h2 className="text-lg font-black mb-1 bg-slate-800 text-white px-3 py-0.5 uppercase inline-block rounded">Kwitansi Tunai</h2>}
+              <div className="text-right text-[9px] font-bold leading-tight text-slate-800 max-w-[280px]">
+                {docType === 'WO' && <h2 className="text-base font-black mb-1 bg-slate-800 text-white px-2 py-0.5 uppercase inline-block rounded">Work Order</h2>}
+                {docType === 'DO' && <h2 className="text-base font-black mb-1 bg-slate-800 text-white px-2 py-0.5 uppercase inline-block rounded">Surat Jalan</h2>}
+                {docType === 'CASH_VOUCHER' && <h2 className="text-base font-black mb-1 bg-slate-800 text-white px-2 py-0.5 uppercase inline-block rounded">Voucher Kas</h2>}
+                {docType === 'PO' && <h2 className="text-base font-black mb-1 bg-slate-800 text-white px-2 py-0.5 uppercase inline-block rounded">Terima Barang</h2>}
+                {docType === 'WITHDRAWAL' && <h2 className="text-base font-black mb-1 bg-slate-800 text-white px-2 py-0.5 uppercase inline-block rounded">Kwitansi Tunai</h2>}
                 
                 {showContactAndBank && (
                   <div className="mt-1">
@@ -155,72 +152,71 @@ export default function PrintDotMatrix({ printData, onClose }) {
             {/* ========================================== */}
             {['INVOICE', 'PO', 'DO', 'WO'].includes(docType) && (
               <>
-                {/* INFO TRANSAKSI */}
-                <div className="flex justify-between items-start mb-6">
-                  <div className="space-y-1">
-                    <div className="flex gap-4 text-xs"><span className="w-24 font-bold text-slate-500 uppercase">NO REF</span><span className="font-black uppercase text-slate-900">: {printData.id}</span></div>
-                    <div className="flex gap-4 text-xs"><span className="w-24 font-bold text-slate-500 uppercase">TANGGAL</span><span className="font-black uppercase text-slate-900">: {printData.date}</span></div>
-                    <div className="flex gap-4 text-xs"><span className="w-24 font-bold text-slate-500 uppercase">ADMIN</span><span className="font-black uppercase text-slate-900">: {printData.admin_name}</span></div>
+                {/* INFO TRANSAKSI (Tanpa Tulisan ADMIN di kiri) */}
+                <div className="flex justify-between items-start mb-3">
+                  <div className="space-y-0.5 w-1/2">
+                    <div className="flex gap-2 text-xs"><span className="w-20 font-bold text-slate-500 uppercase">NO REF</span><span className="font-black uppercase text-slate-900">: {printData.id}</span></div>
+                    <div className="flex gap-2 text-xs"><span className="w-20 font-bold text-slate-500 uppercase">TANGGAL</span><span className="font-black uppercase text-slate-900">: {printData.date}</span></div>
                     
                     {docType === 'WO' && printData.targetDate && (
-                      <div className="flex gap-4 text-xs mt-2 bg-red-50 px-2 py-1 rounded border border-red-100">
-                        <span className="w-24 font-black uppercase text-red-600">DEADLINE</span>
-                        <span className="font-black uppercase text-sm text-red-700">: {printData.targetDate}</span>
+                      <div className="flex gap-2 text-xs mt-1 bg-red-50 px-2 py-0.5 rounded border border-red-100 print:border-black print:bg-transparent">
+                        <span className="w-20 font-black uppercase text-red-600 print:text-black">DEADLINE</span>
+                        <span className="font-black uppercase text-sm text-red-700 print:text-black">: {printData.targetDate}</span>
                       </div>
                     )}
                   </div>
                   
                   <div className="text-right">
-                    <div className="text-[9px] font-bold uppercase mb-0.5 text-slate-400">
-                      {docType === 'INVOICE' && 'PELANGGAN / AGEN'}
-                      {docType === 'PO' && 'SUPPLIER'}
-                      {docType === 'DO' && 'DIKIRIM KE TUJUAN'}
-                      {docType === 'WO' && 'ATAS NAMA PESANAN'}
+                    <div className="text-[9px] font-bold uppercase text-slate-500">
+                      {docType === 'INVOICE' && 'PELANGGAN / AGEN:'}
+                      {docType === 'PO' && 'SUPPLIER:'}
+                      {docType === 'DO' && 'DIKIRIM KE TUJUAN:'}
+                      {docType === 'WO' && 'ATAS NAMA PESANAN:'}
                     </div>
-                    <div className="text-base font-black uppercase text-slate-900 max-w-[250px] leading-tight">
+                    <div className="text-base font-black uppercase text-slate-900 max-w-[250px] leading-none mt-0.5">
                       {printData.customer_name || printData.supplier_name || printData.destination || 'UMUM'}
                     </div>
                   </div>
                 </div>
 
-                {/* TABEL ITEM (CLEAN LOOK) */}
-                <table className="w-full text-xs border-collapse mb-6">
+                {/* TABEL ITEM (Di-press marginnya biar hemat kertas) */}
+                <table className="w-full text-xs border-collapse mb-3">
                   <thead>
-                    <tr className="border-y-2 border-slate-800 bg-slate-50">
-                      <th className="py-2.5 px-2 text-left font-black w-8">NO</th>
-                      <th className="py-2.5 px-2 text-left font-black">DESKRIPSI ITEM</th>
-                      <th className="py-2.5 px-2 text-center font-black w-24">QTY</th>
+                    <tr className="border-y-2 border-slate-800 bg-slate-50 print:bg-transparent">
+                      <th className="py-1.5 px-2 text-left font-black w-8">NO</th>
+                      <th className="py-1.5 px-2 text-left font-black">DESKRIPSI ITEM</th>
+                      <th className="py-1.5 px-2 text-center font-black w-24">QTY</th>
                       {['INVOICE', 'PO'].includes(docType) && (
                         <>
-                          <th className="py-2.5 px-2 text-right font-black w-32">HARGA</th>
-                          <th className="py-2.5 px-2 text-right font-black w-36">SUBTOTAL</th>
+                          <th className="py-1.5 px-2 text-right font-black w-28">HARGA</th>
+                          <th className="py-1.5 px-2 text-right font-black w-32">SUBTOTAL</th>
                         </>
                       )}
                     </tr>
                   </thead>
                   <tbody>
                     {printData.items?.map((item, idx) => {
-                      // Logic otomatis cari harga satuan jika tidak ada di data
+                      // Logic pencarian Harga Satuan otomatis
                       const hargaSatuan = item.price ? item.price : (item.subtotal && item.qty ? item.subtotal / item.qty : 0);
                       
                       return (
                         <tr key={idx} className="border-b border-slate-300 border-dashed last:border-b-2 last:border-slate-800">
-                          <td className="py-3 px-2 text-center align-top font-bold text-slate-500">{idx + 1}</td>
-                          <td className="py-3 px-2 align-top font-bold text-slate-900">{item.name}</td>
+                          <td className="py-2 px-2 text-center align-top font-bold text-slate-600">{idx + 1}</td>
+                          <td className="py-2 px-2 align-top font-bold text-slate-900">{item.name}</td>
                           
-                          <td className="py-3 px-2 text-center align-top">
-                            <div className="font-black text-sm text-slate-900">{formatNumber(item.qty)} <span className="text-[10px] font-bold text-slate-500">{item.unit || 'Pcs'}</span></div>
+                          <td className="py-2 px-2 text-center align-top">
+                            <div className="font-black text-sm text-slate-900">{formatNumber(item.qty)} <span className="text-[9px] font-bold text-slate-600">{item.unit || 'Pcs'}</span></div>
                             {(!item.unit || item.unit === 'Pcs') && (
-                              <div className="text-[9px] font-bold text-slate-500 mt-0.5">({formatNumber(item.qty / 4)} Porsi)</div>
+                              <div className="text-[8px] font-bold text-slate-500">({formatNumber(item.qty / 4)} Porsi)</div>
                             )}
                           </td>
 
                           {['INVOICE', 'PO'].includes(docType) && (
                             <>
-                              <td className="py-3 px-2 text-right align-top font-bold text-slate-700">
+                              <td className="py-2 px-2 text-right align-top font-bold text-slate-800">
                                 {formatRupiah(hargaSatuan)}
                               </td>
-                              <td className="py-3 px-2 text-right font-black text-slate-900 text-sm">
+                              <td className="py-2 px-2 text-right font-black text-slate-900 text-sm">
                                 {formatRupiah(item.subtotal)}
                               </td>
                             </>
@@ -234,83 +230,54 @@ export default function PrintDotMatrix({ printData, onClose }) {
             )}
 
             {/* ========================================== */}
-            {/* RENDER CASH VOUCHER / KWITANSI             */}
-            {/* ========================================== */}
-            {['CASH_VOUCHER', 'WITHDRAWAL'].includes(docType) && (
-              <div className="border-2 border-slate-800 p-6 rounded-xl space-y-5 mb-8 bg-white">
-                <div className="flex gap-4 items-end border-b border-dashed border-slate-300 pb-2">
-                  <div className="w-40 font-bold uppercase text-xs text-slate-500">NO REFERENSI</div>
-                  <div className="flex-1 font-black text-sm uppercase text-slate-900">: {printData.id} <span className="text-slate-400 font-bold mx-2">|</span> TGL: {printData.date}</div>
-                </div>
-                <div className="flex gap-4 items-end border-b border-dashed border-slate-300 pb-2">
-                  <div className="w-40 font-bold uppercase text-xs text-slate-500">{printData.flowType === 'IN' ? 'DITERIMA DARI' : 'DIBAYARKAN KEPADA'}</div>
-                  <div className="flex-1 font-black text-sm uppercase text-slate-900">: {printData.customer_name || printData.person_name || '-'}</div>
-                </div>
-                <div className="flex gap-4 items-end border-b border-dashed border-slate-300 pb-2">
-                  <div className="w-40 font-bold uppercase text-xs text-slate-500">UANG SEJUMLAH</div>
-                  <div className="flex-1 font-black text-xl uppercase text-slate-900">: {formatRupiah(printData.amount)}</div>
-                </div>
-                <div className="flex gap-4 items-start border-b border-dashed border-slate-300 pb-2 p-3 bg-slate-50 border border-slate-200 rounded-lg mt-4">
-                  <div className="w-36 font-bold uppercase text-xs mt-0.5 text-slate-500">TERBILANG</div>
-                  <div className="flex-1 font-black text-sm uppercase italic text-slate-800 leading-tight"># {angkaTerbilang(printData.amount)} #</div>
-                </div>
-                <div className="flex gap-4 items-start pt-2">
-                  <div className="w-40 font-bold uppercase text-xs text-slate-500">UNTUK KEPERLUAN</div>
-                  <div className="flex-1 font-bold text-sm uppercase text-slate-900 break-words">: {printData.notes || printData.description || '-'}</div>
-                </div>
-              </div>
-            )}
-
-            {/* ========================================== */}
             {/* AREA BAWAH: METODE, REKENING & RINGKASAN   */}
             {/* ========================================== */}
-            <div className="flex justify-between items-start gap-8">
+            <div className="flex justify-between items-start gap-4">
               
               {/* KIRI: METODE & REKENING */}
-              <div className="flex-1 space-y-4">
+              <div className="flex-1 space-y-2">
                 {(printData.notes || printData.paymentMethod) && !['CASH_VOUCHER', 'WITHDRAWAL'].includes(docType) && (
                   <div>
-                    <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Catatan / Metode:</div>
-                    <div className="font-bold text-xs uppercase text-slate-800 whitespace-pre-wrap">{printData.notes || printData.paymentMethod}</div>
+                    <div className="text-[9px] font-bold text-slate-500 uppercase">Catatan / Metode:</div>
+                    <div className="font-bold text-xs uppercase text-slate-900 whitespace-pre-wrap leading-tight mt-0.5">{printData.notes || printData.paymentMethod}</div>
                   </div>
                 )}
 
                 {showContactAndBank && (
-                  <div className="text-[10px] font-bold uppercase space-y-1 mt-4 pt-3 border-t border-slate-300 text-slate-600">
-                    <p className="font-black text-slate-900">INFO REKENING PEMBAYARAN:</p>
-                    <p>BCA : <span className="font-black text-slate-900 text-xs">1320552261</span> ( WASTAM )</p>
-                    <p>BRI : <span className="font-black text-slate-900 text-xs">775301006132536</span> ( WASTAM )</p>
+                  <div className="text-[9px] font-bold uppercase space-y-0.5 mt-2 pt-2 border-t border-slate-300 text-slate-600">
+                    <p className="font-black text-slate-900 mb-0.5">INFO REKENING PEMBAYARAN:</p>
+                    <p>BCA : <span className="font-black text-slate-900 text-[10px]">1320552261</span> ( WASTAM )</p>
+                    <p>BRI : <span className="font-black text-slate-900 text-[10px]">775301006132536</span> ( WASTAM )</p>
                   </div>
                 )}
               </div>
 
-              {/* KANAN: RINGKASAN TOTAL (Khusus Invoice & PO) */}
+              {/* KANAN: RINGKASAN TOTAL */}
               {['INVOICE', 'PO'].includes(docType) && (
-                <div className="w-[340px]">
-                  
-                  <div className="bg-slate-50 border border-slate-300 rounded-xl overflow-hidden">
+                <div className="w-[280px]">
+                  <div className="bg-slate-50 border border-slate-300 rounded-lg overflow-hidden print:bg-transparent print:rounded-none print:border-slate-800">
                     {printData.history ? (
                       <>
-                        <div className="flex justify-between py-2.5 px-4 border-b border-slate-200 text-xs font-bold text-slate-600">
+                        <div className="flex justify-between py-1.5 px-3 border-b border-slate-200 text-[10px] font-bold text-slate-600">
                           <span className="uppercase">{printData.history.labelLama || 'TOTAL BELANJA'}</span>
                           <span className="font-black text-slate-900">{safeRupiah(printData.history.nominalLama)}</span>
                         </div>
                         
-                        <div className="flex justify-between items-center py-2.5 px-4 border-b border-slate-200 bg-emerald-50/50">
+                        <div className="flex justify-between items-center py-1.5 px-3 border-b border-slate-200 bg-emerald-50/50 print:bg-transparent">
                           <div className="flex flex-col">
-                            <span className="text-xs font-bold uppercase text-emerald-800">{printData.history.labelAksi || 'SUDAH DIBAYAR'}</span>
-                            <span className="text-[9px] font-bold text-emerald-600 uppercase">VIA: {printData.paymentMethod?.split('+')[0] || 'TUNAI/TRANSFER'}</span>
+                            <span className="text-[10px] font-bold uppercase text-emerald-800 print:text-black">{printData.history.labelAksi || 'SUDAH DIBAYAR'}</span>
+                            <span className="text-[8px] font-bold text-emerald-600 uppercase print:text-slate-600">VIA: {printData.paymentMethod?.split('+')[0] || 'TUNAI/TRANSFER'}</span>
                           </div>
-                          <span className="font-black text-emerald-700 text-sm">{safeRupiah(printData.history.nominalAksi)}</span>
+                          <span className="font-black text-emerald-700 text-xs print:text-black">{safeRupiah(printData.history.nominalAksi)}</span>
                         </div>
 
-                        <div className="flex justify-between py-3 px-4 text-sm font-black uppercase bg-red-50/50">
-                          <span className="text-red-800">{printData.history.labelBaru || 'SISA TAGIHAN'}</span>
-                          <span className="text-red-600 text-base">{safeRupiah(printData.history.nominalBaru)}</span>
+                        <div className="flex justify-between py-2 px-3 text-xs font-black uppercase bg-red-50/50 print:bg-transparent">
+                          <span className="text-red-800 print:text-black">{printData.history.labelBaru || 'SISA TAGIHAN'}</span>
+                          <span className="text-red-600 text-sm print:text-black">{safeRupiah(printData.history.nominalBaru)}</span>
                         </div>
                       </>
                     ) : (
-                      <div className="flex justify-between py-4 px-4 font-black text-lg uppercase bg-blue-50/50 text-blue-900">
+                      <div className="flex justify-between py-2 px-3 font-black text-sm uppercase bg-blue-50/50 print:bg-transparent text-blue-900 print:text-black">
                         <span>TOTAL</span>
                         <span>{formatRupiah(printData.amount)}</span>
                       </div>
@@ -319,12 +286,12 @@ export default function PrintDotMatrix({ printData, onClose }) {
 
                   {/* RIWAYAT CICILAN KLIP NOTA */}
                   {printData.paymentHistory && printData.paymentHistory.length > 0 && (
-                    <div className="mt-3 text-[9px]">
-                      <div className="font-black text-slate-500 uppercase mb-1 border-b border-slate-300 pb-1">Riwayat Pembayaran Sebelumnya:</div>
-                      <div className="space-y-1">
+                    <div className="mt-2 text-[8px]">
+                      <div className="font-black text-slate-500 uppercase mb-0.5 border-b border-slate-300 pb-0.5">Riwayat Pembayaran:</div>
+                      <div className="space-y-0.5">
                         {printData.paymentHistory.map((hist, i) => (
                           <div key={i} className="flex justify-between font-bold text-slate-700">
-                            <span className="w-20">{hist.date}</span>
+                            <span className="w-16">{hist.date}</span>
                             <span className="flex-1 truncate px-1">{hist.method}</span>
                             <span className="text-right font-black">{safeRupiah(hist.amount)}</span>
                           </div>
@@ -332,7 +299,6 @@ export default function PrintDotMatrix({ printData, onClose }) {
                       </div>
                     </div>
                   )}
-
                 </div>
               )}
             </div>
@@ -340,37 +306,37 @@ export default function PrintDotMatrix({ printData, onClose }) {
             {/* ========================================== */}
             {/* TANDA TANGAN FOOTER                        */}
             {/* ========================================== */}
-            <div className="flex justify-between items-end mt-10 text-slate-800">
+            <div className="flex justify-between items-end mt-6 text-slate-800">
               
-              <div className="text-center w-36">
-                <div className="font-bold text-[10px] mb-12 uppercase">
+              <div className="text-center w-32">
+                <div className="font-bold text-[9px] mb-10 uppercase">
                   {docType === 'INVOICE' || docType === 'DO' ? 'Penerima / Pelanggan' : ''}
                   {docType === 'WO' ? 'Kepala Dapur' : ''}
                   {docType === 'PO' ? 'Supir Supplier' : ''}
                   {['CASH_VOUCHER', 'WITHDRAWAL'].includes(docType) ? 'Penerima Dana' : ''}
                 </div>
                 <div className="border-b border-slate-800 w-full mb-1"></div>
-                <div className="text-[9px] font-bold uppercase">Ttd & Nama Jelas</div>
+                <div className="text-[8px] font-bold uppercase">Ttd & Nama Jelas</div>
               </div>
               
               {docType === 'DO' ? (
-                <div className="text-center w-36">
-                  <div className="font-bold text-[10px] mb-12 uppercase">Supir / Kurir</div>
+                <div className="text-center w-32">
+                  <div className="font-bold text-[9px] mb-10 uppercase">Supir / Kurir</div>
                   <div className="border-b border-slate-800 w-full mb-1"></div>
-                  <div className="text-[9px] font-bold uppercase">{printData.driver_name || '................'}</div>
+                  <div className="text-[8px] font-bold uppercase">{printData.driver_name || '................'}</div>
                 </div>
               ) : (
-                <div className="text-center w-64 space-y-1 mb-1">
+                <div className="text-center w-56 space-y-0.5">
                   {docType === 'INVOICE' && (
-                    <p className="text-[10px] font-bold italic text-slate-500">"Terima kasih telah berbelanja di kami,<br/>kepuasan Anda adalah prioritas kami."</p>
+                    <p className="text-[9px] font-bold italic text-slate-500">"Terima kasih telah berbelanja di kami,<br/>kepuasan Anda adalah prioritas kami."</p>
                   )}
-                  <p className="font-black text-xs uppercase tracking-widest text-slate-900 mt-2">www.dimsumaditya.id</p>
+                  <p className="font-black text-[10px] uppercase tracking-widest text-slate-900 mt-1">www.dimsumaditya.id</p>
                 </div>
               )}
 
-              <div className="text-center w-36">
-                <div className="font-bold text-[10px] mb-12 uppercase">
-                  {docType === 'DO' ? 'Bagian Gudang' : 'Admin / Kasir'}
+              <div className="text-center w-32">
+                <div className="font-bold text-[9px] mb-10 uppercase">
+                  {docType === 'DO' ? 'Bagian Gudang' : 'Admin Kasir'}
                 </div>
                 <div className="border-b border-slate-800 w-full mb-1"></div>
                 <div className="text-[9px] font-bold uppercase">{printData.admin_name}</div>
@@ -381,12 +347,12 @@ export default function PrintDotMatrix({ printData, onClose }) {
           </div>
         </div>
 
-        {/* FOOTER MODAL & TOMBOL */}
-        <div className="p-4 bg-white border-t border-slate-200 flex justify-end gap-3 shrink-0 no-print">
-          <button onClick={onClose} className="px-6 py-2.5 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors text-xs border border-slate-200 cursor-pointer">
+        {/* FOOTER MODAL (TOMBOL CETAK) */}
+        <div className="p-3 bg-white border-t border-slate-200 flex justify-end gap-3 shrink-0 no-print">
+          <button onClick={onClose} className="px-5 py-2.5 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors text-xs border border-slate-200 cursor-pointer">
             Batal & Tutup
           </button>
-          <button onClick={handlePrint} className="px-6 py-2.5 rounded-xl font-black text-white bg-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-2 text-xs shadow-md cursor-pointer">
+          <button onClick={handlePrint} className="px-5 py-2.5 rounded-xl font-black text-white bg-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-2 text-xs shadow-md cursor-pointer">
             <Printer size={16} /> Cetak ke Printer LX-310
           </button>
         </div>
