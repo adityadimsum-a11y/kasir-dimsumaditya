@@ -199,7 +199,7 @@ export default function App() {
       case 'dashboard_branch': 
         return <TabDashboardBranch user={user} setPrintData={setPrintData} {...dbData} />;
       case 'pemalang': 
-        return <TabPemalang user={user} sendToSheet={sendToSheet} {...dbData} />;
+        return <TabPemalang user={user} sendToSheet={sendToSheet} requestDelete={requestDelete} setPrintData={setPrintData} showToast={showToast} {...dbData} />;
       case 'cash_war_room': 
         return <TabCashWarRoom user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
       case 'setoran_cabang': 
@@ -245,7 +245,6 @@ export default function App() {
     }
   };
 
-  // 🔥 LAYAR PENGUNCI LOGOUT REKOR UTUH (ANTI BOCOR)
   if (!user) {
     return (
       <div className="fixed inset-0 w-full h-screen overflow-hidden bg-slate-900 flex items-center justify-center font-sans antialiased p-4">
@@ -274,7 +273,7 @@ export default function App() {
                 type="text" 
                 required
                 value={loginForm.username}
-                onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })} // 🔥 FIX: SUNTIK PARAMETER KURUNG (e) YANG SAH DI SINI
+                onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-black outline-none focus:bg-white focus:border-red-500 transition-colors uppercase"
                 placeholder="Contoh: ADM_PUSAT"
               />
@@ -285,7 +284,7 @@ export default function App() {
                 type="password" 
                 required
                 value={loginForm.password}
-                onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })} // 🔥 FIX: SUNTIK PARAMETER KURUNG (e) YANG SAH DI SINI
+                onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-black outline-none focus:bg-white focus:border-red-500 transition-colors"
                 placeholder="••••••••"
               />
