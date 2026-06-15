@@ -6,8 +6,7 @@ const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 
 export default function TabStok({
-  masterProducts = [], masterRawMaterials = [],
-  orders = [], purchases = [], productionBatches = [], pemalang = [],
+  orders = [], purchases = [], pemalang = [],
   inventoryCostLayers = [], inventory_cost_layers, user
 }) {
   const [activeTab, setActiveTab] = useState('FREEZER');
@@ -42,9 +41,16 @@ export default function TabStok({
     return { list, totalValuasi, totalItems: list.length };
   }, [realInventory, currentBranch]);
 
-  const filteredStock = useMemo(() => {
-    if (!searchTerm) return stockSummary.list;
-    return stockSummary.list.filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredFreezerStock = useMemo(() => {
+    const list = stockSummary.list.filter(item => item.category !== 'BAHAN_BAKU' && item.category !== 'PACKAGING' && item.category !== 'KEMASAN');
+    if (!searchTerm) return list;
+    return list.filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  }, [stockSummary.list, searchTerm]);
+
+  const filteredRawStock = useMemo(() => {
+    const list = stockSummary.list.filter(item => item.category === 'BAHAN_BAKU' || item.category === 'PACKAGING' || item.category === 'KEMASAN');
+    if (!searchTerm) return list;
+    return list.filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
   }, [stockSummary.list, searchTerm]);
 
   const kartuMutasi = useMemo(() => {
@@ -145,6 +151,7 @@ export default function TabStok({
       {/* FILTER TAB BAR */}
       <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-4">
         <button onClick={() => setActiveTab('FREEZER')} className={`px-5 py-2.5 rounded-lg font-bold text-xs normal-case transition-all flex items-center gap-2 ${activeTab === 'FREEZER' ? 'bg-white shadow-xs text-red-600 border border-slate-200/50' : 'bg-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-700 border border-transparent'}`}><Package size={14}/> Papan Saldo Stok (Aktif)</button>
+        <button onClick={() => setActiveTab('BAHAN_BAKU')} className={`px-5 py-2.5 rounded-lg font-bold text-xs normal-case transition-all flex items-center gap-2 ${activeTab === 'BAHAN_BAKU' ? 'bg-white shadow-xs text-red-600 border border-slate-200/50' : 'bg-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-700 border border-transparent'}`}><Box size={14}/> Gudang mentah &amp; packaging</button>
         <button onClick={() => setActiveTab('MUTASI')} className={`px-5 py-2.5 rounded-lg font-bold text-xs normal-case transition-all flex items-center gap-2 ${activeTab === 'MUTASI' ? 'bg-white shadow-xs text-red-600 border border-slate-200/50' : 'bg-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-700 border border-transparent'}`}><ArrowRightLeft size={14}/> Buku mutasi keluar-masuk</button>
       </div>
 
@@ -153,7 +160,7 @@ export default function TabStok({
         <div className="card-holo flex flex-col overflow-hidden bg-white border border-slate-200 rounded-2xl shadow-2xs">
           <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
             <Database size={16} className="text-red-600"/>
-            <h3 className="text-xs font-extrabold normal-case text-slate-800">Daftar Inventaris Aktif</h3>
+            <h3 className="text-xs font-extrabold normal-case text-slate-800">Daftar Inventaris Aktif (Produk Jualan)</h3>
           </div>
           <div className="overflow-x-auto p-1 custom-scrollbar">
             <table className="w-full text-sm text-left border-collapse">
@@ -166,10 +173,10 @@ export default function TabStok({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs font-bold bg-white">
-                {filteredStock.length === 0 ? (
+                {filteredFreezerStock.length === 0 ? (
                   <tr><td colSpan="4" className="text-center py-10 text-slate-400 normal-case font-medium">Gudang kosong atau barang tidak ditemukan.</td></tr>
                 ) : (
-                  filteredStock.map((item, idx) => (
+                  filteredFreezerStock.map((item, idx) => (
                     <tr key={idx} className="hover:bg-slate-50 transition-colors">
                       <td className="px-5 py-4 whitespace-nowrap text-slate-800 font-black">{item.name}</td>
                       <td className="px-5 py-4 text-center">
@@ -190,12 +197,54 @@ export default function TabStok({
         </div>
       )}
 
+      {/* TAB BAHAN BAKU */}
+      {activeTab === 'BAHAN_BAKU' && (
+        <div className="card-holo flex flex-col overflow-hidden bg-white border border-slate-200 rounded-2xl shadow-2xs">
+          <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
+            <Box size={16} className="text-red-600"/>
+            <h3 className="text-xs font-extrabold normal-case text-slate-800">Kondisi stok bahan mentah &amp; kemasan</h3>
+          </div>
+          <div className="overflow-x-auto p-1 custom-scrollbar">
+            <table className="w-full text-sm text-left border-collapse">
+              <thead className="bg-white border-b border-slate-200 text-[10px] normal-case text-slate-500">
+                <tr>
+                  <th className="px-5 py-3 font-bold">Item logistik</th>
+                  <th className="px-5 py-3 font-bold text-center">Kategori</th>
+                  <th className="px-5 py-3 font-bold text-center">Sisa gudang</th>
+                  <th className="px-5 py-3 font-bold text-right">Nilai Aset Terkunci (HPP)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-xs font-bold bg-white">
+                {filteredRawStock.length === 0 ? (
+                  <tr><td colSpan="4" className="text-center py-10 text-slate-400 normal-case font-medium">Data logistik belum tersedia.</td></tr>
+                ) : (
+                  filteredRawStock.map((item, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-5 py-4 whitespace-nowrap font-extrabold text-slate-800 normal-case">{item.name || 'Umum'}</td>
+                      <td className="px-5 py-4 text-center">
+                        <span className={`px-2.5 py-1 text-[9px] font-bold normal-case rounded-md border ${item.category === 'PACKAGING' || item.category === 'KEMASAN' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>{item.category ? item.category.replace(/_/g, ' ') : 'Umum'}</span>
+                      </td>
+                      <td className="px-5 py-4 text-center">
+                        <div className={`text-lg font-black ${item.qty <= 5 ? 'text-red-600' : 'text-slate-800'}`}>{formatNumber(item.qty)}</div>
+                      </td>
+                      <td className="px-5 py-4 text-right text-slate-800 font-black">
+                        {formatRupiah(item.total_value)}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* TAB BUKU MUTASI */}
       {activeTab === 'MUTASI' && (
         <div className="card-holo flex flex-col overflow-hidden bg-white border border-slate-200 rounded-2xl shadow-2xs">
           <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
             <History size={16} className="text-red-600"/>
-            <h3 className="text-xs font-extrabold normal-case text-slate-800">Catatan mutasi riwayat gudang</h3>
+            <h3 className="text-xs font-extrabold normal-case text-slate-800">Catatan buku mutasi keluar-masuk gudang</h3>
           </div>
           <div className="overflow-x-auto p-1 custom-scrollbar min-h-[50vh]">
             <table className="w-full text-sm text-left border-collapse">
@@ -213,7 +262,7 @@ export default function TabStok({
                   <tr>
                     <td colSpan="5" className="text-center py-20 text-slate-400 normal-case font-medium">
                       <div className="flex justify-center mb-3 opacity-20"><ShieldAlert size={36}/></div>
-                      Belum ada aktivitas mutasi barang.
+                      Belum ada aktivitas mutasi barang yang tercatat.
                     </td>
                   </tr>
                 ) : (
