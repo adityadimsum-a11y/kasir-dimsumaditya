@@ -5,7 +5,7 @@ import LayoutEngine from './layouts/LayoutEngine';
 import TabDashboard from './components/tabs/TabDashboard';
 import TabOrders from './components/tabs/TabOrders';
 import TabPurchases from './components/tabs/TabPurchases';
-import TabSupplierAyam from './components/tabs/TabSupplierAyam'; 
+import TabSupplierAyam from './components/tabs/TabSupplierAyam';
 import TabExpenses from './components/tabs/TabExpenses';
 import TabPiutang from './components/tabs/TabPiutang';
 import TabPemalang from './components/tabs/TabPemalang';
@@ -168,7 +168,6 @@ export default function App() {
     }
   };
 
-  // 🔥 FIX LOGOUT: MENGHINDARI LOMPATAN TAB GHAIB SAAT USER NULL
   const handleLogout = () => {
     if (window.confirm("Apakah Anda yakin ingin keluar dari sistem?")) {
       localStorage.removeItem('dimsum_user');
@@ -246,7 +245,6 @@ export default function App() {
     }
   };
 
-  // 🔥 CONDITIONAL RENDER: JIKA USER BELUM LOGIN, TAMPILKAN LAYAR PENGUNCI LOGIN REKOR UTUH
   if (!user) {
     return (
       <div className="fixed inset-0 w-full h-screen overflow-hidden bg-slate-900 flex items-center justify-center font-sans antialiased p-4">
