@@ -27,7 +27,7 @@ export default function TabMasterCustomer({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // 🔥 STATE UNTUK POP-UP MADING ANALITIK
+  // STATE POP-UP MADING ANALITIK
   const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
   const [activeCustDetail, setActiveCustDetail] = useState(null);
 
@@ -36,7 +36,7 @@ export default function TabMasterCustomer({
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
-  // 🔥 ENGINE CRM DEWA: MENYATUKAN DATA MASTER + ANALISA MENDALAM
+  // 🔥 ENGINE CRM DEWA: PROSES MATEMATIKA DATA AGEN
   const customerAnalytics = useMemo(() => {
     const analyticsMap = {};
     const validOrders = (orders || []).filter(o => !o.isDeleted);
@@ -48,9 +48,8 @@ export default function TabMasterCustomer({
     const limit7 = sevenAgo.toISOString().split('T')[0];
     const limit14 = fourteenAgo.toISOString().split('T')[0];
 
-    // 1. Siapkan wadah untuk semua pelanggan
     (data || []).forEach(cust => {
-      if (!cust.isDeleted) {
+      if (cust && !cust.isDeleted && cust.id) {
         analyticsMap[cust.id] = {
           ...cust,
           totalTransaksi: 0, totalPcs: 0, totalOmset: 0,
@@ -60,10 +59,9 @@ export default function TabMasterCustomer({
       }
     });
 
-    // 2. Masukkan dan hitung histori belanja (The Intelligence)
     validOrders.forEach(o => {
       const matchedCust = Object.values(analyticsMap).find(
-        c => c.customer_name.toUpperCase() === String(o.customer_name || o.customer || '').toUpperCase()
+        c => String(c.customer_name || '').toUpperCase() === String(o.customer_name || o.customer || '').toUpperCase()
       );
 
       if (matchedCust) {
@@ -75,7 +73,6 @@ export default function TabMasterCustomer({
           matchedCust.terakhirBelanja = o.date;
         }
 
-        // Kalkulasi Fluktuasi Mingguan (Minggu Ini vs Minggu Lalu)
         const orderDateYMD = getLocalYMD(o.date);
         if (orderDateYMD >= limit7 && orderDateYMD <= todayStr) {
           matchedCust.qtyW1 += Number(o.qty || 0);
@@ -83,36 +80,31 @@ export default function TabMasterCustomer({
           matchedCust.qtyW2 += Number(o.qty || 0);
         }
 
-        // Kalkulasi Menu Favorit
         let parsedItems = [];
         try { parsedItems = safeJsonParse(o.items, []); } catch(e) {}
         parsedItems.forEach(i => {
-          matchedCust.itemMap[i.name] = (matchedCust.itemMap[i.name] || 0) + (Number(i.qty) || 0);
+          if(i && i.name) {
+            matchedCust.itemMap[i.name] = (matchedCust.itemMap[i.name] || 0) + (Number(i.qty) || 0);
+          }
         });
 
-        // Simpan nota untuk riwayat
         matchedCust.history.push(o);
       }
     });
 
-    // 3. Finalisasi Data: Sortir & Klasifikasi
     return Object.values(analyticsMap).map(cust => {
       if (cust.terakhirBelanja) {
         cust.hariAbsen = getDaysDifference(todayStr, cust.terakhirBelanja);
         cust.butuhFollowUp = cust.hariAbsen > 7; 
       }
 
-      // Hitung Trend
       cust.selisihPcs = cust.qtyW1 - cust.qtyW2;
       if (cust.selisihPcs > 0) cust.trend = 'NAIK';
       else if (cust.selisihPcs < 0) cust.trend = 'TURUN';
       else cust.trend = 'STABIL';
 
-      // Sortir Top 3 Menu Favorit
       const favs = Object.keys(cust.itemMap).map(k => ({ name: k, qty: cust.itemMap[k] }));
       cust.topItems = favs.sort((a,b) => b.qty - a.qty).slice(0, 3);
-
-      // Sortir 5 Riwayat Nota Terakhir
       cust.recentHistory = cust.history.sort((a,b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
 
       return cust;
@@ -153,37 +145,42 @@ export default function TabMasterCustomer({
     if(isSuccess) showToast('Data pelanggan berhasil dihapus!', 'success');
   };
 
+  // 🔥 SINKRONISASI JEROAN: RE-DESIGN SUBMIT ANTI-STUCK
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if(!formData.customer_name) return alert('Nama pelanggan wajib diisi!');
+    if (!formData.customer_name.trim()) return alert('Nama pelanggan wajib diisi!');
     
     setIsSubmitting(true);
+    
+    // Memastikan struktur payload 100% klop dengan kolom Google Sheet Ente
     const payload = {
-      ...formData,
-      customer_name: formData.customer_name.toUpperCase(), 
+      id: isEditing ? currentId : generateId('CST', todayStr),
+      customer_name: formData.customer_name.trim().toUpperCase(), 
+      phone: formData.phone || '-',
+      address: formData.address || '-',
+      notes: formData.notes || '-',
+      category: formData.category || 'RESELLER',
       isDeleted: false
     };
 
-    if (isEditing) {
-      payload.id = currentId;
-      const isSuccess = await sendToSheet('update', payload, 'master_customers');
+    try {
+      const actionType = isEditing ? 'update' : 'insert';
+      const isSuccess = await sendToSheet(actionType, payload, 'master_customers');
+      
       if (isSuccess) {
-        showToast('Profil agen berhasil diperbarui!', 'success');
+        showToast(isEditing ? 'Profil agen berhasil diperbarui!' : 'Agen baru berhasil didaftarkan!', 'success');
         handleCancel();
       }
-    } else {
-      payload.id = generateId('CST', todayStr);
-      const isSuccess = await sendToSheet('insert', payload, 'master_customers');
-      if (isSuccess) {
-        showToast('Agen baru berhasil didaftarkan!', 'success');
-        handleCancel();
-      }
+    } catch (error) {
+      alert('Gagal mengamankan data ke server cloud, silakan cek jaringan internet gudang!');
+    } finally {
+      // 🔥 PLUG SAFETY GAUGE: Apapun yang terjadi, status loading WAJIB dilepas kembali!
+      setIsSubmitting(false);
     }
-    setIsSubmitting(false);
   };
 
   return (
-    <div className="space-y-6 pb-10 animate-in fade-in duration-300">
+    <div className="space-y-6 pb-10 text-slate-700 normal-case animate-in fade-in duration-300">
       
       {/* HEADER & ANALITIK CRM SINGKAT */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
@@ -233,7 +230,7 @@ export default function TabMasterCustomer({
               </div>
             </div>
             <div className="flex justify-end gap-3 pt-2">
-              <button type="button" onClick={handleCancel} className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50">Batal</button>
+              <button type="button" disabled={isSubmitting} onClick={handleCancel} className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 disabled:opacity-50">Batal</button>
               <button type="submit" disabled={isSubmitting} className="px-5 py-2.5 rounded-xl bg-orange-600 text-white font-black text-xs shadow-md hover:bg-orange-700 disabled:opacity-50 flex items-center gap-2">
                 <Save size={16}/> {isSubmitting ? 'Menyimpan...' : 'Simpan Data Agen'}
               </button>
@@ -297,9 +294,7 @@ export default function TabMasterCustomer({
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        {/* 🔥 TOMBOL INTELIJEN MADING ANALITIK */}
-                        <button onClick={() => { setActiveCustDetail(item); setShowAnalyticsModal(true); }} className="p-1.5 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors border border-transparent hover:border-orange-200 shadow-3xs bg-white" title="Bedah Analitik & Kebiasaan"><BarChart3 size={14}/></button>
-                        
+                        <button onClick={() => { setActiveCustDetail(item); setShowAnalyticsModal(true); }} className="p-1.5 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors border border-transparent hover:border-orange-200 shadow-3xs bg-white" title="Bedah Analitik &amp; Kebiasaan"><BarChart3 size={14}/></button>
                         <button onClick={() => handleEdit(item)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-200 shadow-3xs bg-white"><Edit2 size={14}/></button>
                         <button onClick={() => handleDelete(item.id, item.customer_name)} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-200 shadow-3xs bg-white"><Trash2 size={14}/></button>
                       </div>
@@ -313,7 +308,7 @@ export default function TabMasterCustomer({
       </div>
 
       {/* ========================================================================= */}
-      {/* 📊 POP-UP MODAL MADING INTELIJEN PELANGGAN (THE SECRET WEAPON) */}
+      {/* POP-UP MODAL MADING INTELIJEN PELANGGAN */}
       {/* ========================================================================= */}
       {showAnalyticsModal && activeCustDetail && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-150">
@@ -333,7 +328,6 @@ export default function TabMasterCustomer({
 
             <div className="p-5 flex-1 overflow-y-auto custom-scrollbar bg-slate-50 space-y-5">
               
-              {/* STATUS FLUKTUASI (MINGGU INI VS LALU) */}
               <div className="grid grid-cols-2 gap-4 shrink-0">
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-3xs flex flex-col justify-center items-center text-center">
                   <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Status Fluktuasi Order</div>
@@ -350,7 +344,6 @@ export default function TabMasterCustomer({
                 </div>
               </div>
 
-              {/* TOP 3 MENU FAVORIT */}
               <div className="bg-white rounded-xl border border-slate-200 shadow-3xs overflow-hidden">
                 <div className="px-4 py-3 bg-orange-50/50 border-b border-orange-100 text-[10px] font-black text-orange-800 uppercase flex items-center gap-1.5">
                   <Package size={14}/> Top 3 Menu Favorit Agen
@@ -372,7 +365,6 @@ export default function TabMasterCustomer({
                 </div>
               </div>
 
-              {/* 5 NOTA TERAKHIR */}
               <div className="bg-white rounded-xl border border-slate-200 shadow-3xs overflow-hidden">
                 <div className="px-4 py-3 bg-blue-50/50 border-b border-blue-100 text-[10px] font-black text-blue-800 uppercase flex items-center gap-1.5">
                   <History size={14}/> 5 Riwayat Nota Terakhir
@@ -400,7 +392,6 @@ export default function TabMasterCustomer({
                 </div>
               </div>
 
-              {/* CATATAN INTERNAL */}
               {activeCustDetail.notes && (
                 <div className="bg-amber-50/50 border border-amber-200 rounded-xl p-4 text-xs font-medium text-amber-800 normal-case leading-relaxed">
                   <strong className="block mb-1 text-[10px] uppercase tracking-widest text-amber-600/70">Catatan Internal:</strong>
