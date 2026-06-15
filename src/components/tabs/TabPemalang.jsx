@@ -1,5 +1,4 @@
 import React, { useState, useMemo } from 'react';
-// 🔥 FIX: Ikon Database dan PackageCheck sudah dimasukkan!
 import { Factory, PlusCircle, Trash2, Calendar, ClipboardList, Info, CheckCircle2, Printer, Database, PackageCheck } from 'lucide-react';
 import { getTodayStr, generateId, formatDate, safeJsonParse } from '../../utils/helpers';
 
@@ -105,7 +104,7 @@ export default function TabPemalang({
       items: JSON.stringify([{ name: tokenName, qty: kalkulasi.actualTotalPcs, subtotal: 0 }]),
       qty: kalkulasi.actualTotalPcs, total_amount: 0, amount_paid: 0, payment_method: 'SISTEM_PRODUKSI',
       status: 'LUNAS', notes: `${notes.toUpperCase()} (Asal: ${adukan} adukan, fisik: ${actualInput} ${actualUnit})`, isDeleted: false,
-      item_name: productName, pic: pic.toUpperCase()
+      item_name: productName, pic: pic.toUpperCase() 
     };
 
     let payloadAyam = null;
