@@ -25,7 +25,7 @@ import TabSetoranCabang from './components/tabs/TabSetoranCabang';
 import TabDiscrepancy from './components/tabs/TabDiscrepancy';
 import TabKartuStok from './components/tabs/TabKartuStok';
 
-// 🔥 CONNECTED CORE CRM
+// CONNECTED CORE CRM
 import TabMasterCustomer from './components/tabs/TabMasterCustomer';
 import TabMonitoringCabangUniversal from './components/tabs/TabMonitoringCabangUniversal';
 import PrintDotMatrix from './components/PrintDotMatrix';
@@ -48,7 +48,15 @@ export default function App() {
     return savedUser ? JSON.parse(savedUser) : null;
   });
 
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(() => {
+    const savedUser = localStorage.getItem('dimsum_user');
+    if (savedUser) {
+      const parsed = JSON.parse(savedUser);
+      return parsed.branch_type === 'HQ_FACTORY' ? 'dashboard' : 'dashboard_branch';
+    }
+    return 'dashboard';
+  });
+
   const [isLoading, setIsLoading] = useState(false);
   const [toast, setToast] = useState(null);
   const [printData, setPrintData] = useState(null);
@@ -160,6 +168,7 @@ export default function App() {
     }
   };
 
+  // 🔥 FIX LOGOUT: MENGHINDARI LOMPATAN TAB GHAIB SAAT USER NULL
   const handleLogout = () => {
     if (window.confirm("Apakah Anda yakin ingin keluar dari sistem?")) {
       localStorage.removeItem('dimsum_user');
@@ -204,11 +213,8 @@ export default function App() {
         return <TabAnalytics user={user} {...dbData} />;
       case 'orders': 
         return <TabOrders user={user} sendToSheet={sendToSheet} setPrintData={setPrintData} showToast={showToast} {...dbData} />;
-      
-      // 🔥 FIX: KABEL SINKRONISASI sendToSheet & setPrintData SUDAH TERSAMBUNG DI SINI!
       case 'master_customer':
         return <TabMasterCustomer user={user} sendToSheet={sendToSheet} setPrintData={setPrintData} showToast={showToast} {...dbData} />;
-
       case 'purchases': 
         return <TabPurchases user={user} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={requestDelete} showToast={showToast} masterSuppliers={dbData.masterSuppliers} {...dbData} />;
       case 'supplier_ayam': 
@@ -216,7 +222,6 @@ export default function App() {
       case 'expenses': 
         return <TabExpenses user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
       case 'stok': 
-        // 🔥 FIX: setPrintData sekarang berhasil dialirkan ke TabStok!
         return <TabStok user={user} role={user?.role} sendToSheet={sendToSheet} requestDelete={requestDelete} setPrintData={setPrintData} showToast={showToast} {...dbData} />;
       case 'stok_outlet': 
         return <TabStokOutlet user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
@@ -240,6 +245,66 @@ export default function App() {
         return <TabDashboardBranch user={user} {...dbData} />;
     }
   };
+
+  // 🔥 CONDITIONAL RENDER: JIKA USER BELUM LOGIN, TAMPILKAN LAYAR PENGUNCI LOGIN REKOR UTUH
+  if (!user) {
+    return (
+      <div className="fixed inset-0 w-full h-screen overflow-hidden bg-slate-900 flex items-center justify-center font-sans antialiased p-4">
+        <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-slate-200 p-6 space-y-6 animate-in zoom-in-95 duration-200">
+          <div className="flex flex-col items-center text-center">
+            <img 
+              src="https://dimsumaditya.id/wp-content/uploads/2026/06/Dimsum-Aditya-New-Logo-scaled.webp" 
+              alt="Logo Dimsum Aditya" 
+              className="h-16 w-auto object-contain mb-2"
+            />
+            <h2 className="text-base font-black text-slate-800 uppercase tracking-tight">Otentikasi System Core</h2>
+            <p className="text-[10px] font-bold text-slate-400 uppercase mt-0.5 tracking-wider">Silakan masukkan kredensial resmi Anda</p>
+          </div>
+
+          {loginError && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 font-bold text-[11px] flex items-center gap-2 animate-shake">
+              <AlertCircle size={14} className="shrink-0" />
+              <span>{loginError}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleLoginSubmit} className="space-y-4 text-xs font-bold">
+            <div>
+              <label className="text-[9px] font-black text-slate-400 block mb-1 uppercase tracking-wider">ID Akun Operator</label>
+              <input 
+                type="text" 
+                required
+                value={loginForm.username}
+                onChange={e => setLoginForm({ ...loginForm, username: e.target.value })}
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-black outline-none focus:bg-white focus:border-red-500 transition-colors uppercase"
+                placeholder="Contoh: ADM_PUSAT"
+              />
+            </div>
+            <div>
+              <label className="text-[9px] font-black text-slate-400 block mb-1 uppercase tracking-wider">Kata Sandi (Keamanan)</label>
+              <input 
+                type="password" 
+                required
+                value={loginForm.password}
+                onChange={e => setLoginForm({ ...loginForm, password: e.target.value })}
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-black outline-none focus:bg-white focus:border-red-500 transition-colors"
+                placeholder="••••••••"
+              />
+            </div>
+
+            <button 
+              type="submit"
+              disabled={isLoading}
+              className="w-full py-3.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-black uppercase tracking-wider shadow-md transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+            >
+              {isLoading ? <Loader2 size={16} className="animate-spin" /> : 'Buka Gerbang Sistem'}
+            </button>
+          </form>
+        </div>
+        <ToastNotification toast={toast} onClose={() => setToast(null)} />
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 w-full h-screen overflow-hidden bg-transparent select-none">
