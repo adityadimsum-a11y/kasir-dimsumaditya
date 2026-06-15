@@ -4,7 +4,6 @@ import {
   Wallet, Truck, CheckCircle2, Plus, ShoppingCart, User
 } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
-import { triggerPrint } from '../../utils/PrintUtility';
 
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID', { maximumFractionDigits: 2 });
