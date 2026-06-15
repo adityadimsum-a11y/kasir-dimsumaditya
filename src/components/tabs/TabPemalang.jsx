@@ -21,7 +21,7 @@ export default function TabPemalang({ pemalang = [], sendToSheet, showToast, use
 
   // --- LOGIKA FILTER DATA PRODUKSI ---
   const filteredProductionLogs = useMemo(() => {
-    return (pemalang || []).filter(p => {
+    return (pemalang || []).filter((p) => {
       if (p.isDeleted) return false;
       return p.date >= filterDateFrom && p.date <= filterDateTo;
     }).sort((a, b) => b.id.localeCompare(a.id));
@@ -35,8 +35,6 @@ export default function TabPemalang({ pemalang = [], sendToSheet, showToast, use
     }
 
     const batchId = generateId('PRD', date);
-    
-    // Memformat string token agar terbaca oleh radar mading pusat
     const tokenName = `@@PRODUCTION@@||${adukan}||${ayamTerpakai}||${yieldPcs}||${notes || '-'}`;
 
     const confirmMsg = `=== KONFIRMASI PRODUKSI ADITYA ===\n\n` +
@@ -105,28 +103,28 @@ export default function TabPemalang({ pemalang = [], sendToSheet, showToast, use
             <form onSubmit={handleSubmitProduction} className="space-y-4 text-xs font-bold">
               <div>
                 <label className="text-[9px] font-black text-slate-400 block mb-1 uppercase tracking-wider">Tanggal Giling/Masak</label>
-                <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none cursor-pointer" />
+                <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none cursor-pointer" />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-[9px] font-black text-slate-400 block mb-1 uppercase tracking-wider">Jumlah Adukan (Kali)</label>
-                  <input type="number" required value={adukan} onChange={e=>setAdukan(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black outline-none placeholder:text-slate-300" placeholder="Contoh: 5" />
+                  <input type="number" required value={adukan} onChange={(e) => setAdukan(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black outline-none placeholder:text-slate-300" placeholder="Contoh: 5" />
                 </div>
                 <div>
                   <label className="text-[9px] font-black text-slate-400 block mb-1 uppercase tracking-wider">Daging Ayam (Kg)</label>
-                  <input type="number" step="any" required value={ayamTerpakai} onChange={e=>setAyamTerpakai(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black outline-none placeholder:text-slate-300" placeholder="Contoh: 12.5" />
+                  <input type="number" step="any" required value={ayamTerpakai} onChange={(e) => setAyamTerpakai(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black outline-none placeholder:text-slate-300" placeholder="Contoh: 12.5" />
                 </div>
               </div>
 
               <div>
                 <label className="text-[9px] font-black text-slate-400 block mb-1 uppercase tracking-wider">Yield Bersih (Pcs Masuk Freezer)</label>
-                <input type="number" required value={yieldPcs} onChange={e=>setYieldPcs(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black outline-none text-amber-700 placeholder:text-slate-300" placeholder="Contoh: 2500" />
+                <input type="number" required value={yieldPcs} onChange={(e) => setYieldPcs(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black outline-none text-amber-700 placeholder:text-slate-300" placeholder="Contoh: 2500" />
               </div>
 
               <div>
                 <label className="text-[9px] font-black text-slate-400 block mb-1 uppercase tracking-wider">Catatan Tambahan Kepala Dapur</label>
-                <input type="text" value={notes} onChange={e=>setNotes(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium outline-none text-xs" placeholder="Misal: Es batu kurang, tekstur lembek..." />
+                <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium outline-none text-xs" placeholder="Misal: Es batu kurang, tekstur lembek..." />
               </div>
 
               <button type="submit" className="w-full text-white font-black py-3 bg-amber-600 hover:bg-amber-700 rounded-xl text-xs shadow-md transition-transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer">
@@ -147,9 +145,9 @@ export default function TabPemalang({ pemalang = [], sendToSheet, showToast, use
               
               <div className="flex items-center gap-2 bg-white border p-1.5 rounded-xl shadow-3xs w-full sm:w-auto">
                 <Calendar size={12} className="text-slate-400 ml-1"/>
-                <input type="date" value={filterDateFrom} onChange={e=>setFilterPeriodeFrom(e.target.value)} className="text-[10px] font-bold border-none outline-none cursor-pointer bg-transparent" />
+                <input type="date" value={filterDateFrom} onChange={(e) => setFilterPeriodeFrom(e.target.value)} className="text-[10px] font-bold border-none outline-none cursor-pointer bg-transparent" />
                 <span className="text-slate-400 font-bold text-xs">-</span>
-                <input type="date" value={filterDateTo} onChange={e=>setFilterPeriodeTo(e.target.value)} className="text-[10px] font-bold border-none outline-none cursor-pointer bg-transparent" />
+                <input type="date" value={filterDateTo} onChange={(e) => setFilterPeriodeTo(e.target.value)} className="text-[10px] font-bold border-none outline-none cursor-pointer bg-transparent" />
               </div>
             </div>
 
@@ -167,9 +165,9 @@ export default function TabPemalang({ pemalang = [], sendToSheet, showToast, use
                 </thead>
                 <tbody className="text-xs font-bold divide-y divide-slate-100 bg-white text-slate-600">
                   {filteredProductionLogs.length === 0 ? (
-                    <tr><td colSpan="6" className="text-center py-12 text-slate-400 font-medium text-xs normal-case">Tidak ada rekap batch produksi pada rentang tanggal ini.</td></tr>
+                    <tr><td colSpan="6" className="text-center py-12 text-slate-400 font-bold normal-case bg-white">Tidak ada rekap batch produksi pada rentang tanggal ini.</td></tr>
                   ) : (
-                    filteredProductionLogs.map(log => {
+                    filteredProductionLogs.map((log) => {
                       let displayAdukan = '-';
                       let displayAyam = '-';
                       let displayYield = log.qty || 0;
@@ -195,7 +193,7 @@ export default function TabPemalang({ pemalang = [], sendToSheet, showToast, use
                             <button type="button" onClick={() => handleVoidProduction(log.id)} className="p-1.5 text-slate-400 hover:text-rose-600 border border-slate-200 rounded-lg shadow-3xs bg-white cursor-pointer hover:bg-rose-50" title="Void Laporan"><Trash2 size={13}/></button>
                           </td>
                         </tr>
-                      )
+                      );
                     })
                   )}
                 </tbody>
