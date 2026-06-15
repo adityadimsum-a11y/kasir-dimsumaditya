@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Factory, PlusCircle, Trash2, Calendar, ClipboardList, Info, CheckCircle2 } from 'lucide-react';
-import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
+import { getTodayStr, generateId, formatDate, safeJsonParse } from '../../utils/helpers';
 
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
@@ -36,7 +36,6 @@ export default function TabPemalang({ pemalang = [], sendToSheet, showToast, use
 
     const batchId = generateId('PRD', date);
     
-    // Algoritma Penyelundup Data Khusus ke database Sheet 'orders' / 'pemalang'
     // Memformat string token agar terbaca oleh radar mading pusat
     const tokenName = `@@PRODUCTION@@||${adukan}||${ayamTerpakai}||${yieldPcs}||${notes || '-'}`;
 
@@ -66,7 +65,6 @@ export default function TabPemalang({ pemalang = [], sendToSheet, showToast, use
       isDeleted: false
     };
 
-    // Dikirim ke sheet pemalang / orders (disesuaikan dengan arsitektur ERP holding)
     const isSuccess = await sendToSheet('insert', payload, 'pemalang');
     if (isSuccess) {
       if (typeof showToast === 'function') showToast(`Batch Produksi ${batchId} Berhasil Disahkan!`, 'success');
