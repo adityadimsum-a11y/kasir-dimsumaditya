@@ -1,16 +1,16 @@
 import React, { useState, useMemo } from 'react';
 import { 
   Wallet, Coins, ArrowUpRight, ArrowDownRight, Safe, 
-  Percent, Calendar, CheckCircle2, DollarSign, RefreshCw, AlertTriangle, Printer
+  Percent, Calendar, CheckCircle2, DollarSign, RefreshCw, AlertTriangle, Printer, Landmark
 } from 'lucide-react';
 import { getTodayStr, generateId, formatDate, safeJsonParse } from '../../utils/helpers';
 
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 
 export default function TabCashWarRoom({ 
-  orders = [], orders_data,
-  expenses = [], expenses_data,
-  cashflowTransactions = [], cashflow_transactions_data, // 🔥 Sinkronisasi parameter App.jsx
+  orders = [], 
+  expenses = [], 
+  cashflow_transactions = [], // 🔥 FIX MUTLAK: Variabel disamakan persis dengan key database GAS
   sendToSheet, setPrintData, showToast, user 
 }) {
   const todayStr = getTodayStr();
@@ -19,7 +19,7 @@ export default function TabCashWarRoom({
   // --- FILTER PERIODE EVALUASI KEUANGAN ---
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date();
-    d.setDate(d.getDate() - 14); // Default rentang evaluasi 14 Hari (2 Minggu)
+    d.setDate(d.getDate() - 14);
     return d.toISOString().substring(0, 10);
   });
   const [dateTo, setDateTo] = useState(todayStr);
@@ -30,21 +30,37 @@ export default function TabCashWarRoom({
   const [tfBankMethod, setTfBankMethod] = useState('TF_BCA_PUSAT');
   const [wdNotes, setWdNotes] = useState('');
 
-  // --- 🔥 RE-ROUTING DATA ENGINE SINKRON KABEL STATE APP.JSX ---
-  const realOrders = useMemo(() => orders_data || orders || [], [orders, orders_data]);
-  const realExpenses = useMemo(() => expenses_data || expenses || [], [expenses, expenses_data]);
-  
-  // Memastikan jembatan array membaca cashflowTransactions / data secara toleran dan tidak undifined
-  const realCashflow = useMemo(() => {
-    return cashflow_transactions_data || cashflowTransactions || [];
-  }, [cashflowTransactions, cashflow_transactions_data]);
+  // --- 🔥 SINKRONISASI SINGLE SOURCE OF TRUTH ---
+  const realOrders = useMemo(() => orders || [], [orders]);
+  const realCashflow = useMemo(() => cashflow_transactions || [], [cashflow_transactions]);
 
   // Kalkulasi live total nominal gabungan split input
   const totalWdInput = useMemo(() => {
     return Number(cashAmount || 0) + Number(tfAmount || 0);
   }, [cashAmount, tfAmount]);
 
-  // --- ENGINE ALGORITMA ALOKASI 4 AMPLOP KOMPULSIF HOLDING ---
+  // --- ENGINE 1: KALKULASI LIQUIDITAS BANK LIVE (CASH, BCA, BRI) ---
+  const liquiditas = useMemo(() => {
+    let bca = 0, bri = 0, cash = 0;
+    
+    realCashflow.forEach(cf => {
+      if (cf.isDeleted) return;
+      const amt = Number(cf.amount || 0);
+      const type = String(cf.type || '').toUpperCase();
+      const method = String(cf.method || cf.payment_method || '').toUpperCase();
+      
+      // Jika type OUT (Keluar), nominal dikali -1 (mengurangi saldo)
+      const sign = type === 'OUT' ? -1 : 1;
+
+      if (method.includes('BCA')) bca += (amt * sign);
+      else if (method.includes('BRI')) bri += (amt * sign);
+      else if (method.includes('CASH') || method.includes('TUNAI')) cash += (amt * sign);
+    });
+
+    return { bca, bri, cash, totalGabungan: bca + bri + cash };
+  }, [realCashflow]);
+
+  // --- ENGINE 2: ALGORITMA ALOKASI 4 AMPLOP KOMPULSIF HOLDING ---
   const brankasHolding = useMemo(() => {
     const isInPeriod = (dStr) => {
       if (!dStr) return false;
@@ -55,27 +71,24 @@ export default function TabCashWarRoom({
     let totalOmsetHolding = 0;
     let totalWdTerbayar = 0;
 
-    // 1. Akumulasi total omset masuk sah seluruh cabang
+    // 1. Akumulasi omset masuk
     realOrders.forEach(o => {
       if (!o.isDeleted && isInPeriod(o.date)) {
         totalOmsetHolding += Number(o.total_amount || 0);
       }
     });
 
-    // 2. Akumulasi total penarikan dividen jatah pribadi yang sudah sah ter-record
+    // 2. Akumulasi penarikan dividen jatah pribadi yang sudah sah ter-record
     realCashflow.forEach(cf => {
       if (!cf.isDeleted && isInPeriod(cf.date)) {
         const catUpper = String(cf.category || '').toUpperCase();
         const descUpper = String(cf.description || '').toUpperCase();
-        
-        // Proteksi filter berlapis membaca data kategori atau keyword mutasi dana
         if (catUpper === 'TARIK_CUAN_PRIBADI_15' || catUpper.includes('PRIBADI') || descUpper.includes('MUTASI CUAN 15%')) {
           totalWdTerbayar += Number(cf.amount || 0);
         }
       }
     });
 
-    // Prosentase pembagian brankas digital korporasi
     const amplopAyam55 = totalOmsetHolding * 0.55;
     const amplopOps20 = totalOmsetHolding * 0.20;
     const amplopCadangan10 = totalOmsetHolding * 0.10;
@@ -102,7 +115,7 @@ export default function TabCashWarRoom({
 
     const confirmMessage = `Konfirmasi Pemindahan Dana Hak Pribadi:\n\n` +
       `- Penarikan Tunai Laci: ${formatRupiah(cashAmount)}\n` +
-      `- Penarikan Transfer Bank: ${formatRupiah(tfAmount)} (${tfBankMethod.replace(/_/g, ' ')}\n` +
+      `- Penarikan Transfer Bank: ${formatRupiah(tfAmount)} (${tfBankMethod.replace(/_/g, ' ')})\n` +
       `------------------------------------------ +\n` +
       `Total Mutasi Dana: ${formatRupiah(finalAmount)}\n\n` +
       `Sistem akan memotong kas perusahaan dan menerbitkan struk fisik otomatis. Lanjutkan?`;
@@ -110,8 +123,6 @@ export default function TabCashWarRoom({
     if (!window.confirm(confirmMessage)) return;
 
     const cfId = generateId('CFO', todayStr);
-    
-    // Label klasifikasi metode bayar mix untuk database sheet
     const splitMethodLabel = Number(cashAmount || 0) > 0 && Number(tfAmount || 0) > 0 
       ? `MIX (CASH & ${tfBankMethod.replace('TF_', '')})` 
       : Number(cashAmount || 0) > 0 ? 'CASH' : tfBankMethod;
@@ -129,11 +140,9 @@ export default function TabCashWarRoom({
       isDeleted: false
     };
 
-    // Menembak tabel cashflow_transactions sesuai nama tabel backend Google Sheets Bos
     if (await sendToSheet('insert', payload, 'cashflow_transactions')) {
       showToast("Mutasi dana berhasil diproses dan terekam di ledger server!", "success");
 
-      // EMIT FORMAT NOTA PRINTER STRUK PREMIUM
       if (typeof setPrintData === 'function') {
         setPrintData({
           title: 'DOKUMEN PENARIKAN PROFIT BERSIH OWNER (15%)',
@@ -151,19 +160,15 @@ export default function TabCashWarRoom({
           history: {
             labelLama: 'Plafon Alokasi Awal', nominalLama: brankasHolding.amplopPribadi15 + finalAmount,
             labelAksi: 'Total Diambil (Split-Mix)', nominalAksi: finalAmount,
-            labelBaru: 'Sisa Plafon Plafon Berjalan', nominalBaru: Math.max(0, brankasHolding.sisaPlafonPribadi - finalAmount)
+            labelBaru: 'Sisa Plafon Berjalan', nominalBaru: Math.max(0, brankasHolding.sisaPlafonPribadi - finalAmount)
           }
         });
       }
 
-      // Reset Form Input Mulus
-      setCashAmount('');
-      setTfAmount('');
-      setWdNotes('');
+      setCashAmount(''); setTfAmount(''); setWdNotes('');
     }
   };
 
-  // --- FILTER LOG LIST HISTORI YANG VALID DAN TOLERAN TERHADAP STATE ---
   const filteredLogs = useMemo(() => {
     const isInPeriod = (dStr) => {
       if (!dStr) return false;
@@ -182,6 +187,31 @@ export default function TabCashWarRoom({
   return (
     <div className="space-y-6 pb-10 text-slate-700 normal-case animate-in fade-in duration-200">
       
+      {/* ========================================================= */}
+      {/* 🚀 NEW: PANEL LIQUIDITAS KAS & BANK TERKINI (ALL TIME) */}
+      {/* ========================================================= */}
+      <div className="card-holo p-5 bg-white border border-slate-200 shadow-2xs">
+        <div className="flex items-center gap-2 mb-4 border-b border-slate-100 pb-3">
+          <Landmark className="text-blue-600" size={18} />
+          <h2 className="text-sm font-black text-slate-800 normal-case">Liquiditas Kas &amp; Bank Holding (Live)</h2>
+          <span className="ml-auto text-[9px] font-bold text-slate-400 normal-case bg-slate-100 px-2 py-1 rounded-md">Total Kas Aktif: {formatRupiah(liquiditas.totalGabungan)}</span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-slate-100 text-center">
+          <div className="py-2 px-4 hover:bg-slate-50 transition-colors rounded-l-xl">
+            <span className="text-[10px] font-black text-slate-400 block mb-1">SALDO BANK BCA</span>
+            <div className={`text-xl font-black tracking-tight ${liquiditas.bca < 0 ? 'text-red-500' : 'text-blue-700'}`}>{formatRupiah(liquiditas.bca)}</div>
+          </div>
+          <div className="py-2 px-4 hover:bg-slate-50 transition-colors">
+            <span className="text-[10px] font-black text-slate-400 block mb-1">SALDO BANK BRI</span>
+            <div className={`text-xl font-black tracking-tight ${liquiditas.bri < 0 ? 'text-red-500' : 'text-indigo-700'}`}>{formatRupiah(liquiditas.bri)}</div>
+          </div>
+          <div className="py-2 px-4 hover:bg-slate-50 transition-colors rounded-r-xl">
+            <span className="text-[10px] font-black text-slate-400 block mb-1">UANG FISIK (TUNAI LACI)</span>
+            <div className={`text-xl font-black tracking-tight ${liquiditas.cash < 0 ? 'text-red-500' : 'text-emerald-700'}`}>{formatRupiah(liquiditas.cash)}</div>
+          </div>
+        </div>
+      </div>
+
       {/* CONTROL BANNER - PROFESSIONAL LOOK */}
       <div className="card-holo p-5 bg-white border flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-2xs">
         <div>
@@ -221,7 +251,7 @@ export default function TabCashWarRoom({
         <div className="bg-slate-900 border border-slate-950 p-4 rounded-2xl shadow-sm text-white">
           <span className="text-[9px] font-black text-slate-400 block mb-1 tracking-wider">AMPLOP 4: TABUNGAN PRIBADI OWNER (15%)</span>
           <div className="text-xl font-black text-emerald-400 tracking-tight">{formatRupiah(brankasHolding.amplopPribadi15)}</div>
-          <div className="text-[9px] text-slate-300 font-semibold mt-1">Total ditarik fisik: {formatRupiah(brankasHolding.totalWdTerbayar)}</div>
+          <div className="text-[9px] text-slate-300 font-semibold mt-1">Total akumulasi pencairan fisik: {formatRupiah(brankasHolding.totalWdTerbayar)}</div>
         </div>
       </div>
 
@@ -238,7 +268,6 @@ export default function TabCashWarRoom({
 
           <form onSubmit={handleTarikCuan} className="space-y-4">
             
-            {/* COMPONENT INPUT MIX PAYMENT */}
             <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200 shadow-inner">
               <div>
                 <label className="text-[9px] font-bold text-slate-600 block mb-1">Pencairan via Tunai Laci</label>
@@ -278,7 +307,7 @@ export default function TabCashWarRoom({
         {/* LOG RIWAYAT MUTASI SEBELAH KANAN (7 KOLOM) */}
         <div className="lg:col-span-7 card-holo p-5 bg-white border border-slate-200 flex flex-col overflow-hidden shadow-2xs">
           <h3 className="text-xs font-black text-slate-800 normal-case mb-3">Histori Log Transaksi Rekam Jejak Penarikan Dividen Owner</h3>
-          <div className="flex-1 overflow-y-auto custom-scrollbar max-h-[340px] p-1">
+          <div className="flex-1 overflow-y-auto custom-scrollbar max-h-[360px] p-1">
             <div className="space-y-2">
               {filteredLogs.length === 0 ? (
                 <div className="text-center py-16 text-slate-400 font-bold text-xs normal-case h-full flex flex-col items-center justify-center border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
