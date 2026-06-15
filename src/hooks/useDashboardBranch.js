@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
-import { getLocalYMD } from '../utils/helpers';
+import { getLocalYMD } from '../utils/helpers'; // 🔥 JALUR IMPORT DIKUNCI SESUAI STRUKTUR UTILS ENTE
 
 export default function useDashboardBranch(dbData, dateFrom, dateTo) {
   return useMemo(() => {
-    // 🔥 Ambil data mentah dari central state database cloud
+    // 🎛️ Bongkar data mentah dari state terpusat App.jsx
     const { 
       orders = [], 
       pemalangReports = [], 
@@ -11,16 +11,20 @@ export default function useDashboardBranch(dbData, dateFrom, dateTo) {
       stokData = [] 
     } = dbData || {};
 
+    // 📏 Parameter Konversi Sakral Cabang Pemalang
     const MASTER_AYAM_KG = 30; 
     const MASTER_PCS = 1000; 
     const KG_PER_KANTONG = 10;
 
+    // Fungsi pencocokan rentang tanggal operasional harian
     const isPeriod = (d) => {
       const ymd = getLocalYMD(d);
       return ymd >= dateFrom && ymd <= dateTo;
     };
     
-    // --- 1. KOMPUTASI DATA KEUANGAN & TRANSAKSI PEMALANG ---
+    // =========================================================
+    // 💰 1. MATEMATIKA KEUANGAN & RATIO SETORAN PEMALANG
+    // =========================================================
     const branchOrdersAll = (orders || []).filter(o => o?.category === 'Pemalang');
     const branchOrdersPeriod = branchOrdersAll.filter(o => isPeriod(o?.date));
     const branchReportsPeriod = (pemalangReports || []).filter(r => isPeriod(r?.date));
@@ -29,7 +33,7 @@ export default function useDashboardBranch(dbData, dateFrom, dateTo) {
     const totalPcs = branchOrdersPeriod.reduce((sum, o) => sum + (Number(o.qty || 0)), 0);
     const setoranKePusat = branchReportsPeriod.reduce((sum, r) => sum + (Number(r.nominal || r.amount || 0)), 0);
     
-    // Hitung sisa piutang berjalan khusus area cabang Pemalang
+    // Tracing Piutang / Bon Gantung Agen lokal Pemalang (Yang barangnya sudah diambil supir)
     const piutangBerjalan = branchOrdersAll.map(o => {
         const cicilan = (piutangPayments || []).filter(p => p.orderId === o.id).reduce((s, p) => s + (Number(p.amount) || 0), 0);
         const baseTotal = Number(o.total || o.total_amount || 0);
@@ -89,12 +93,18 @@ export default function useDashboardBranch(dbData, dateFrom, dateTo) {
 
     const topCustomersList = Object.values(customerMap).sort((a,b) => b.total - a.total);
 
-    // --- 2. KOMPUTASI LOGISTIK & OPERASIONAL REALTIME PEMALANG ---
+    // =========================================================
+    // 📦 2. PENGHITUNGAN LOGISTIK & REAL-TIME STOK LIVE ADUKAN
+    // =========================================================
     const mutasiAyamAll = (stokData || []).filter(s => s.type === 'MUTASI_AYAM_PEMALANG').reduce((sum, s) => sum + Number(s.qty || 0), 0);
     const prodPemalangAll = (stokData || []).filter(s => s.type === 'PRODUKSI_PEMALANG').reduce((sum, s) => sum + Number(s.qty || 0), 0);
+    
+    // Kalkulasi stok sisa kilogram ayam di gudang dapur Pemalang
     const sisaAyam = mutasiAyamAll - (prodPemalangAll * MASTER_AYAM_KG);
     
     const terjualPcsAll = branchOrdersAll.reduce((sum, o) => sum + Number(o.qty || 0), 0);
+    
+    // Kalkulasi sisa kapasitas unit freezer live Pemalang
     const sisaFreezer = (prodPemalangAll * MASTER_PCS) - terjualPcsAll;
 
     const adukanHariIni = (stokData || []).filter(s => s.type === 'PRODUKSI_PEMALANG' && isPeriod(s.date)).reduce((sum, s) => sum + Number(s.qty || 0), 0);
