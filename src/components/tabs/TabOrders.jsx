@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { 
   ShoppingCart, Plus, Minus, Trash2, Search, 
   UserCheck, Tag, Receipt, 
-  CheckCircle2, AlertOctagon, Gift, Package, PlusCircle, Calendar, Printer
+  CheckCircle2, AlertOctagon, Gift, Package, PlusCircle, Calendar, Printer, TrendingUp
 } from 'lucide-react';
 import { getTodayStr, generateId, formatDate, safeJsonParse } from '../../utils/helpers';
 
@@ -30,18 +30,16 @@ export default function TabOrders({
   const [cart, setCart] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchHistoryTerm, setSearchHistoryTerm] = useState('');
-  const [customerSearchTerm, setCustomerSearchTerm] = useState(''); // 🔥 Search pelanggan lokal
+  const [customerSearchTerm, setCustomerSearchTerm] = useState(''); 
   
   // Filter Tanggal Histori Bawah
   const [historyDateFrom, setHistoryDateFrom] = useState(todayStr);
   const [historyDateTo, setHistoryDateTo] = useState(todayStr);
 
-  // Form Utama POS
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [orderMode, setOrderMode] = useState('REGULAR'); 
   const [notes, setNotes] = useState('');
 
-  // --- STATE MULTI-PAYMENT DYNAMIC ---
   const [payCash, setPayCash] = useState('');
   const [payBCA, setPayBCA] = useState('');
   const [payBRI, setPayBRI] = useState('');
@@ -49,11 +47,9 @@ export default function TabOrders({
   const [singleMethod, setSingleMethod] = useState('CASH'); 
   const [singleAmountPaid, setSingleAmountPaid] = useState(''); 
 
-  // --- STATE POP-UP MODAL PELANGGAN BARU ---
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
   const [newCustomerForm, setNewCustomerForm] = useState({ name: '', phone: '', address: '', notes: '', category: 'RESELLER' });
 
-  // --- ENGINE BACA STOK LIVE PER MENU PRODUK ---
   const productStockMap = useMemo(() => {
     const map = {};
     (inventoryCostLayers || []).forEach(layer => {
@@ -64,7 +60,6 @@ export default function TabOrders({
     return map;
   }, [inventoryCostLayers, currentBranch]);
 
-  // --- FILTER DROPDOWN PELANGGAN PINTAR INTERNAL ---
   const filteredCustomersForSelect = useMemo(() => {
     if (!customerSearchTerm) return activeCustomers;
     const s = customerSearchTerm.toLowerCase();
@@ -77,7 +72,6 @@ export default function TabOrders({
     return activeProducts.filter(p => (p.product_name || '').toLowerCase().includes(s));
   }, [activeProducts, searchTerm]);
 
-  // --- FUNGSI UTAS KERANJANG ---
   const addToCart = (product) => {
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
@@ -98,7 +92,6 @@ export default function TabOrders({
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
   const cartHPP = cart.reduce((sum, item) => sum + (item.hpp * item.qty), 0);
 
-  // --- KALKULASI INTEGRASI PEMBAYARAN MIX / SINGLE & KEMBALIAN ---
   const paymentSummary = useMemo(() => {
     if (orderMode === 'INFLUENCER') return { totalDibayar: 0, sisaBon: 0, kembalian: 0, methodStr: 'PROMO_MARKETING', breakdown: [] };
 
@@ -146,23 +139,25 @@ export default function TabOrders({
     }
   };
 
-  // --- ACTION: SUBMIT PELANGGAN BARU CEPAT ---
   const handleCreateCustomerFast = async (e) => {
     e.preventDefault();
     if (!newCustomerForm.name) return alert("Nama wajib diisi!");
     
     const fastId = generateId('CST', todayStr);
     const payload = {
-      id: fastId,
+      customer_id: fastId,
+      date: todayStr,
+      branch_id: currentBranch,
       customer_name: newCustomerForm.name.toUpperCase(),
       phone: newCustomerForm.phone || '-',
       address: newCustomerForm.address || '-',
       notes: newCustomerForm.notes || 'Dibuat kilat via Kasir POS',
-      category: newCustomerForm.category,
+      customer_tier: newCustomerForm.category,
+      status: 'ACTIVE',
       isDeleted: false
     };
 
-    const isSuccess = await sendToSheet('insert', payload, 'master_customers');
+    const isSuccess = await sendToSheet('insert', [payload], 'master_customers');
     if (isSuccess) {
       showToast(`Pelanggan "${newCustomerForm.name}" Berhasil Terdaftar!`, 'success');
       setSelectedCustomerId(fastId);
@@ -171,14 +166,13 @@ export default function TabOrders({
     }
   };
 
-  // --- ACTION: EKSEKUSI CHECKOUT INVOICE ---
   const handleCheckout = async () => {
     if (cart.length === 0) return alert("Keranjang belanja masih kosong!");
     if (!selectedCustomerId) return alert("Wajib pilih nama pelanggan / agen!");
 
-    const customer = activeCustomers.find(c => c.id === selectedCustomerId);
+    const customer = activeCustomers.find(c => c.customer_id === selectedCustomerId || c.id === selectedCustomerId);
     const custName = customer ? customer.customer_name : 'UMUM';
-    const custCategory = customer ? customer.category : 'OFFLINE';
+    const custCategory = customer ? (customer.customer_tier || customer.category) : 'OFFLINE';
 
     const orderId = generateId('INV', todayStr);
     const totalItemQty = cart.reduce((sum, item) => sum + item.qty, 0);
@@ -225,6 +219,7 @@ export default function TabOrders({
 
       showToast(`Invoice ${orderId} Berhasil Diproses!`, 'success');
 
+      // 🔥 PRINT SANGAT RAHASIA: HPP & LABA TIDAK AKAN PERNAH DICETAK DI SINI
       setPrintData({
         title: orderMode === 'INFLUENCER' ? 'NOTA COMPLIMENTARY MARKETING' : (paymentSummary.sisaBon > 0 ? 'NOTA DP & BON GANTUNG' : 'INVOICE DISTRIBUSI RESMI'),
         id: orderId, date: formatDate(todayStr), branch_name: currentBranch.replace(/_/g, ' '),
@@ -238,7 +233,7 @@ export default function TabOrders({
         }
       });
 
-      setCart([]); setSelectedCustomerId(''); setNotes(''); setAmountPaid('');
+      setCart([]); setSelectedCustomerId(''); setNotes('');
       setPayCash(''); setPayBCA(''); setPayBRI(''); setSingleAmountPaid('');
       setIsSplitPayment(false); setOrderMode('REGULAR'); setCustomerSearchTerm('');
     }
@@ -261,7 +256,7 @@ export default function TabOrders({
   return (
     <div className="flex flex-col gap-6 pb-10 text-slate-700 normal-case animate-in fade-in duration-200">
       
-      {/* 📊 1. PAPAN INFORMASI STOK LIVE ATAS */}
+      {/* 📊 PAPAN INFORMASI STOK LIVE ATAS */}
       <div className="bg-slate-900 text-white rounded-2xl p-4 shadow-md border border-slate-800 shrink-0">
         <div className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-2.5 flex items-center gap-1.5">
           <Package size={14}/> Ringkasan Ketersediaan Papan Stok Master Gudang (Real-Time Live)
@@ -320,8 +315,6 @@ export default function TabOrders({
 
         {/* KOLOM KANAN: DETAIL CHECKOUT SULTAN KASIR */}
         <div className="w-full lg:w-[420px] xl:w-[460px] shrink-0 flex flex-col gap-4">
-          
-          {/* KERANJANG PARTAI BESAR */}
           <div className="card-holo flex flex-col max-h-[40vh] bg-white border border-slate-200 rounded-2xl shadow-2xs overflow-hidden">
             <div className="p-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center shrink-0">
               <h3 className="font-black text-slate-800 normal-case text-xs flex items-center gap-2"><Receipt size={14} className="text-blue-600"/> Nota Keranjang Belanja</h3>
@@ -356,16 +349,13 @@ export default function TabOrders({
             </div>
 
             <div className="p-4 bg-slate-50 border-t border-slate-100 text-xs font-bold shrink-0">
-              <div className="flex justify-between mb-1 text-slate-400"><span>Subtotal HPP (Modal)</span><span>{formatRupiah(cartHPP)}</span></div>
               <div className="flex justify-between text-slate-800 text-sm font-black"><span>Total Tagihan:</span><span className="text-base text-blue-600">{orderMode === 'INFLUENCER' ? 'Rp 0 (Promo)' : formatRupiah(cartTotal)}</span></div>
             </div>
           </div>
 
-          {/* CHECKOUT BOX */}
           <div className="card-holo p-5 bg-white border border-slate-200 rounded-2xl shadow-2xs border-t-4 border-t-blue-500">
             <div className="space-y-4">
               
-              {/* 🔥 EXCLUSIVE IN-VIEW PENCARIAN & SELECT PELANGGAN (SANGAT AMAN DARI ERROR PATH) */}
               <div>
                 <div className="flex justify-between items-center mb-1">
                   <label className="text-[9px] font-bold text-slate-500 normal-case flex items-center gap-1"><UserCheck size={12}/> Cari Pelanggan</label>
@@ -388,13 +378,12 @@ export default function TabOrders({
                   >
                     <option value="">-- Pilih Hasil Pencarian ({filteredCustomersForSelect.length}) --</option>
                     {filteredCustomersForSelect.map(c => (
-                      <option key={c.id} value={c.id}>{c.customer_name} ({c.category})</option>
+                      <option key={c.customer_id || c.id} value={c.customer_id || c.id}>{c.customer_name} ({c.customer_tier || c.category})</option>
                     ))}
                   </select>
                 </div>
               </div>
 
-              {/* MODE INFLUENCER TOGGLE */}
               <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl flex items-center justify-between cursor-pointer shadow-inner" onClick={() => setOrderMode(prev => prev === 'REGULAR' ? 'INFLUENCER' : 'REGULAR')}>
                 <div className="flex items-center gap-2">
                   <div className={`p-1.5 rounded-lg ${orderMode === 'INFLUENCER' ? 'bg-red-100 text-red-600' : 'bg-white text-slate-400 border shadow-3xs'}`}><Gift size={12}/></div>
@@ -464,7 +453,7 @@ export default function TabOrders({
               </div>
 
               <button type="button" onClick={handleCheckout} className={`w-full text-white font-black py-3.5 rounded-xl text-xs normal-case shadow-md transition-transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer ${orderMode === 'INFLUENCER' ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'}`}>
-                <CheckCircle2 size={16}/> {orderMode === 'INFLUENCER' ? 'Sahkan Kontribusi Promo' : 'Sahkan Transaksi &amp; Potong Stok'}
+                <CheckCircle2 size={16}/> {orderMode === 'INFLUENCER' ? 'Sahkan Kontribusi Promo' : 'Sahkan Transaksi & Potong Stok'}
               </button>
             </div>
           </div>
@@ -472,12 +461,12 @@ export default function TabOrders({
       </div>
 
       {/* =========================================================
-          📑 2. TABEL HISTORI & FILTER PERIODE RENTANG BAWAH POS
+          📑 2. TABEL HISTORI KASIR DENGAN FITUR RAHASIA (HPP & LABA)
          ========================================================= */}
       <div className="card-holo bg-white border border-slate-200 rounded-2xl shadow-2xs flex flex-col overflow-hidden mt-2">
         <div className="p-4 bg-slate-50 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0">
           <div>
-            <h3 className="font-black text-slate-800 text-xs flex items-center gap-2 normal-case"><Receipt size={16} className="text-blue-600"/> Histori Penjualan &amp; Re-Print Nota</h3>
+            <h3 className="font-black text-slate-800 text-xs flex items-center gap-2 normal-case"><Receipt size={16} className="text-blue-600"/> Histori Penjualan & Re-Print Nota</h3>
             <p className="text-[9px] font-bold text-slate-400 normal-case mt-0.5">Gunakan filter rentang tanggal di samping untuk melacak serta mencetak ulang invoice lama.</p>
           </div>
           
@@ -496,11 +485,11 @@ export default function TabOrders({
           <table className="w-full text-sm text-left border-collapse">
             <thead className="bg-slate-50/50 text-[10px] normal-case text-slate-500 border-b border-slate-100">
               <tr>
-                <th className="px-4 py-3 font-black">ID Transaksi &amp; Waktu</th>
+                <th className="px-4 py-3 font-black">ID Transaksi & Waktu</th>
                 <th className="px-4 py-3 font-black">Nama Pelanggan Agen</th>
                 <th className="px-4 py-3 font-black text-center">Volume Item</th>
                 <th className="px-4 py-3 font-black text-center">Metode Sistem</th>
-                <th className="px-4 py-3 font-black text-right">Total Tagihan</th>
+                <th className="px-4 py-3 font-black text-right">Keuangan (Omset & Laba)</th> {/* 🔥 FIX: Rahasia HPP di Sini */}
                 <th className="px-4 py-3 font-black text-center">Status</th>
                 <th className="px-4 py-3 font-black text-center">Aksi</th>
               </tr>
@@ -509,40 +498,55 @@ export default function TabOrders({
               {filteredHistoryOrders.length === 0 ? (
                 <tr><td colSpan="7" className="text-center py-12 text-slate-400 font-medium text-xs normal-case">Tidak ada data invoice di periode ini.</td></tr>
               ) : (
-                filteredHistoryOrders.map(o => (
-                  <tr key={o.id} className="hover:bg-slate-50/50 transition-colors group">
-                    <td className="px-4 py-3 whitespace-nowrap"><div className="text-slate-800 font-black font-mono">{o.id}</div><div className="text-[9px] text-slate-400 font-bold mt-0.5">{formatDate(o.date)}</div></td>
-                    <td className="px-4 py-3 whitespace-nowrap text-slate-800 font-black normal-case text-xs">{o.customer_name}</td>
-                    <td className="px-4 py-3 text-center whitespace-nowrap text-slate-600 font-black">{formatNumber(o.qty)} <span className="text-[10px] font-normal text-slate-400">Pcs</span></td>
-                    <td className="px-4 py-3 text-center whitespace-nowrap"><span className="px-2 py-0.5 rounded text-[9px] font-black bg-slate-100 text-slate-700 border border-slate-200">{o.payment_method}</span></td>
-                    <td className="px-4 py-3 text-right whitespace-nowrap text-slate-900 font-black text-sm">{formatRupiah(o.total_amount)}</td>
-                    <td className="px-4 py-3 text-center whitespace-nowrap">
-                      <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${o.status === 'LUNAS' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-rose-100 text-rose-700 border border-rose-200'}`}>{o.status}</span>
-                    </td>
-                    <td className="px-4 py-3 text-center whitespace-nowrap">
-                      <button type="button" onClick={() => {
-                        let listItems = [];
-                        try { listItems = safeJsonParse(o.items, []); } catch(e) { listItems = []; }
-                        setPrintData({
-                          title: 'RE-PRINT DUPLIKAT INVOICE', id: o.id, date: formatDate(o.date), branch_name: currentBranch.replace(/_/g, ' '),
-                          admin_name: user?.name || 'ADMIN PUSAT', customer_name: o.customer_name,
-                          items: listItems.map(i => ({ name: i.name, qty: i.qty, subtotal: i.price * i.qty })), amount: o.total_amount,
-                          paymentMethod: o.payment_method.replace(/_/g, ' '),
-                          history: { labelLama: 'Total Belanja', nominalLama: o.total_amount, labelAksi: 'Sudah Masuk Jurnal', nominalAksi: o.amount_paid, labelBaru: 'Sisa Piutang Berjalan', nominalBaru: Math.max(0, o.total_amount - o.amount_paid) }
-                        });
-                      }} className="p-1.5 text-slate-400 hover:text-blue-600 border border-slate-200 rounded-lg shadow-3xs bg-white cursor-pointer hover:bg-blue-50 transition-colors" title="Cetak Ulang Nota"><Printer size={14}/></button>
-                    </td>
-                  </tr>
-                ))
+                filteredHistoryOrders.map(o => {
+                  // 🔥 ENGINE KALKULASI HPP RAHASIA
+                  let listItems = [];
+                  try { listItems = safeJsonParse(o.items, []); } catch(e) {}
+                  
+                  let orderHPP = 0;
+                  listItems.forEach(item => {
+                    orderHPP += (Number(item.hpp || 0) * Number(item.qty || 0));
+                  });
+                  const orderProfit = Number(o.total_amount || 0) - orderHPP;
+
+                  return (
+                    <tr key={o.id} className="hover:bg-slate-50/50 transition-colors group">
+                      <td className="px-4 py-3 whitespace-nowrap"><div className="text-slate-800 font-black font-mono">{o.id}</div><div className="text-[9px] text-slate-400 font-bold mt-0.5">{formatDate(o.date)}</div></td>
+                      <td className="px-4 py-3 whitespace-nowrap text-slate-800 font-black normal-case text-xs">{o.customer_name}</td>
+                      <td className="px-4 py-3 text-center whitespace-nowrap text-slate-600 font-black">{formatNumber(o.qty)} <span className="text-[10px] font-normal text-slate-400">Pcs</span></td>
+                      <td className="px-4 py-3 text-center whitespace-nowrap"><span className="px-2 py-0.5 rounded text-[9px] font-black bg-slate-100 text-slate-700 border border-slate-200">{o.payment_method}</span></td>
+                      
+                      {/* 🔥 DISPLAY HPP RAHASIA (Hanya untuk Mata Pusat) */}
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
+                        <div className="text-slate-900 font-black text-sm">{formatRupiah(o.total_amount)}</div>
+                        <div className="text-[9px] font-bold text-slate-400 mt-1 line-through decoration-slate-300">HPP: {formatRupiah(orderHPP)}</div>
+                        <div className="text-[10px] font-black text-emerald-600 mt-0.5 flex items-center justify-end gap-1"><TrendingUp size={10}/> Laba: {formatRupiah(orderProfit)}</div>
+                      </td>
+
+                      <td className="px-4 py-3 text-center whitespace-nowrap">
+                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${o.status === 'LUNAS' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-rose-100 text-rose-700 border border-rose-200'}`}>{o.status}</span>
+                      </td>
+                      <td className="px-4 py-3 text-center whitespace-nowrap">
+                        <button type="button" onClick={() => {
+                          // 🔥 PRINT RAHASIA: Data HPP TIDAK DIIKUTSERTAKAN DALAM FUNGSI PRINT INI!
+                          setPrintData({
+                            title: 'RE-PRINT DUPLIKAT INVOICE', id: o.id, date: formatDate(o.date), branch_name: currentBranch.replace(/_/g, ' '),
+                            admin_name: user?.name || 'ADMIN PUSAT', customer_name: o.customer_name,
+                            items: listItems.map(i => ({ name: i.name, qty: i.qty, subtotal: i.price * i.qty })), amount: o.total_amount,
+                            paymentMethod: o.payment_method.replace(/_/g, ' '),
+                            history: { labelLama: 'Total Belanja', nominalLama: o.total_amount, labelAksi: 'Sudah Masuk Jurnal', nominalAksi: o.amount_paid, labelBaru: 'Sisa Piutang Berjalan', nominalBaru: Math.max(0, o.total_amount - o.amount_paid) }
+                          });
+                        }} className="p-1.5 text-slate-400 hover:text-blue-600 border border-slate-200 rounded-lg shadow-3xs bg-white cursor-pointer hover:bg-blue-50 transition-colors" title="Cetak Ulang Nota"><Printer size={14}/></button>
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* =========================================================
-          📑 3. POP-UP MODAL KILAT TAMBAH PELANGGAN BARU
-         ========================================================= */}
       {showAddCustomerModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-[99999] flex items-center justify-center p-4 animate-in fade-in duration-150">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm border border-slate-200 overflow-hidden flex flex-col">
@@ -568,7 +572,7 @@ export default function TabOrders({
               </div>
               <div className="pt-2 flex gap-2">
                 <button type="button" onClick={() => setShowAddCustomerModal(false)} className="flex-1 py-2 bg-slate-100 border text-slate-600 font-bold text-[10px] rounded-lg uppercase">Batal</button>
-                <button type="submit" className="flex-1 py-2 bg-emerald-600 text-white font-black text-[10px] rounded-lg uppercase shadow-md hover:bg-emerald-700">Daftarkan &amp; Pilih</button>
+                <button type="submit" className="flex-1 py-2 bg-emerald-600 text-white font-black text-[10px] rounded-lg uppercase shadow-md hover:bg-emerald-700">Daftarkan & Pilih</button>
               </div>
             </form>
           </div>
