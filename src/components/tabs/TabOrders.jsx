@@ -18,12 +18,14 @@ export default function TabOrders({
   const todayStr = getTodayStr();
   const currentBranch = (user?.branch_id === 'PUSAT' || !user?.branch_id) ? 'TANGERANG_PUSAT' : user?.branch_id;
 
+  // --- SINKRONISASI DATABASE ---
   const realProducts = useMemo(() => master_products || masterProducts || [], [master_products, masterProducts]);
   const realCustomers = useMemo(() => master_customers || masterCustomers || [], [master_customers, masterCustomers]);
 
   const activeProducts = useMemo(() => realProducts.filter(p => !p.isDeleted), [realProducts]);
   const activeCustomers = useMemo(() => realCustomers.filter(c => !c.isDeleted).reverse(), [realCustomers]);
 
+  // --- STATE MANAJEMEN KASIR ---
   const [cart, setCart] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchHistoryTerm, setSearchHistoryTerm] = useState('');
@@ -45,7 +47,10 @@ export default function TabOrders({
   const [singleAmountPaid, setSingleAmountPaid] = useState(''); 
   const [dpMethod, setDpMethod] = useState('CASH');
 
+  // STATE MODE EDIT NOTA LAMA
   const [editingOrderId, setEditingOrderId] = useState(null);
+
+  // STATE POP-UP BUKU STAPLES (DETAIL LEDGER)
   const [showStaplesModal, setShowAddStaplesModal] = useState(false);
   const [selectedStaplesOrder, setSelectedStaplesOrder] = useState(null);
 
@@ -331,6 +336,7 @@ export default function TabOrders({
   return (
     <div className="flex flex-col gap-6 pb-10 text-slate-700 normal-case animate-in fade-in duration-200">
       
+      {/* PAPAN INFORMASI STOK LIVE ATAS */}
       <div className="bg-slate-900 text-white rounded-2xl p-4 shadow-md border border-slate-800 shrink-0">
         <div className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-2.5 flex items-center gap-1.5">
           <Package size={14}/> Ringkasan Ketersediaan Papan Stok Master Gudang (Real-Time Live)
@@ -360,6 +366,7 @@ export default function TabOrders({
 
       <div className="flex flex-col lg:flex-row gap-6">
         
+        {/* KOLOM KIRI: KATALOG BARANG */}
         <div className="flex-1 flex flex-col gap-4">
           <div className="card-holo p-4 bg-white border border-slate-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-2xs gap-4">
             <div className="flex items-center gap-2">
@@ -380,7 +387,7 @@ export default function TabOrders({
               const liveStock = productStockMap[product.product_name] || 0;
               return (
                 <div key={product.id} onClick={() => addToCart(product)} className="bg-white border border-slate-200 rounded-2xl p-4 cursor-pointer hover:border-blue-400 hover:shadow-md transition-all flex flex-col justify-between h-full group relative shadow-2xs overflow-hidden">
-                  <div className={`absolute top-0 right-0 px-2.5 py-0.5 text-[9px] font-black rounded-bl-xl ${liveStock > 500 ? 'bg-emerald-100 text-emerald-800' : liveStock > 0 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'}`}>
+                  <div className={`absolute top-0 right-0 px-2.5 py-0.5 text-[9px] font-black rounded-bl-xl ${liveStock > 500 ? 'bg-emerald-500 animate-pulse' : liveStock > 0 ? 'bg-amber-500' : 'bg-rose-600'}`}>
                     Stok: {formatNumber(liveStock)}
                   </div>
                   <div className="mt-2">
@@ -393,6 +400,7 @@ export default function TabOrders({
           </div>
         </div>
 
+        {/* KOLOM KANAN: DETAIL CHECKOUT SULTAN KASIR */}
         <div className="w-full lg:w-[420px] xl:w-[460px] shrink-0 flex flex-col gap-4">
           <div className="card-holo flex flex-col max-h-[40vh] bg-white border border-slate-200 rounded-2xl shadow-2xs overflow-hidden">
             <div className="p-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center shrink-0">
@@ -445,7 +453,7 @@ export default function TabOrders({
                   <input 
                     type="text" 
                     value={customerSearchTerm} 
-                    onChange={e => setCustomerSearchTerm(e.target.value)} 
+                    onChange => setCustomerSearchTerm(e.target.value)} 
                     placeholder="Ketik sepotong nama pelanggan..." 
                     className="w-full p-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold outline-none"
                   />
@@ -548,8 +556,8 @@ export default function TabOrders({
               )}
 
               <div>
-                <label className="text-[9px] font-bold text-slate-500 normal-case block mb-1"><Tag size={12}/> Catatan Khusus Invoice</label>
-                <input type="text" value={notes} onChange={e=>setNotes(e.target.value)} className="w-full p-2 border border-slate-200 rounded-lg text-xs font-medium normal-case outline-none bg-slate-50 focus:bg-white focus:border-blue-400 transition-colors" placeholder={orderMode === 'INFLUENCER' ? "Ketik detail target promo..." : "Catatan kasir..."} />
+                <label className="text-[9px] font-bold text-slate-500 block mb-1"><Tag size={12}/> Catatan Khusus Invoice</label>
+                <input type="text" value={notes} onChange={e=>setNotes(e.target.value)} className="w-full p-2 border border-slate-200 rounded-lg text-xs font-medium outline-none bg-slate-50 focus:bg-white focus:border-blue-400 transition-colors" placeholder={orderMode === 'INFLUENCER' ? "Ketik detail target promo..." : "Catatan kasir..."} />
               </div>
 
               <button type="button" onClick={handleCheckout} className={`w-full text-white font-black py-3.5 rounded-xl text-xs normal-case shadow-md transition-transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer ${editingOrderId ? 'bg-orange-600 hover:bg-orange-700' : 'bg-blue-600 hover:bg-blue-700'}`}>
@@ -563,8 +571,8 @@ export default function TabOrders({
       <div className="card-holo bg-white border border-slate-200 rounded-2xl shadow-2xs flex flex-col overflow-hidden mt-2">
         <div className="p-4 bg-slate-50 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0">
           <div>
-            <h3 className="font-black text-slate-800 text-xs flex items-center gap-2 normal-case"><Receipt size={16} className="text-blue-600"/> Histori Penjualan & Re-Print Nota</h3>
-            <p className="text-[9px] font-bold text-slate-400 normal-case mt-0.5">Lacak riwayat transaksi penjualan. Gunakan fitur edit/void atas hak penuh owner jika terjadi kekeliruan.</p>
+            <h3 className="font-black text-slate-800 text-xs flex items-center gap-2"><Receipt size={16} className="text-blue-600"/> Histori Penjualan &amp; Re-Print Nota</h3>
+            <p className="text-[9px] font-bold text-slate-400 mt-0.5">Lacak riwayat transaksi penjualan. Gunakan fitur edit/void atas hak penuh owner jika terjadi kekeliruan.</p>
           </div>
           
           <div className="flex flex-wrap items-center gap-2 bg-white border p-1.5 rounded-xl shadow-3xs w-full sm:w-auto">
@@ -580,20 +588,20 @@ export default function TabOrders({
 
         <div className="overflow-x-auto p-1 custom-scrollbar">
           <table className="w-full text-sm text-left border-collapse">
-            <thead className="bg-slate-50/50 text-[10px] normal-case text-slate-500 border-b border-slate-100">
+            <thead className="bg-slate-50/50 text-[10px] text-slate-500 border-b border-slate-100">
               <tr>
-                <th className="px-4 py-3 font-black">ID Transaksi & Waktu</th>
+                <th className="px-4 py-3 font-black">ID Transaksi &amp; Waktu</th>
                 <th className="px-4 py-3 font-black">Nama Pelanggan Agen</th>
                 <th className="px-4 py-3 font-black text-center">Volume Item</th>
                 <th className="px-4 py-3 font-black text-center">Metode Sistem</th>
-                <th className="px-4 py-3 font-black text-right">Keuangan (Omset & Laba)</th>
+                <th className="px-4 py-3 font-black text-right">Keuangan (Omset &amp; Laba)</th>
                 <th className="px-4 py-3 font-black text-center">Status Lunas</th>
                 <th className="px-4 py-3 font-black text-center">Aksi Hub</th>
               </tr>
             </thead>
             <tbody className="text-xs font-bold divide-y divide-slate-100 bg-white">
               {filteredHistoryOrders.length === 0 ? (
-                <tr><td colSpan="7" className="text-center py-12 text-slate-400 font-medium text-xs normal-case">Tidak ada data invoice di periode ini.</td></tr>
+                <tr><td colSpan="7" className="text-center py-12 text-slate-400 font-medium text-xs">Tidak ada data invoice di periode ini.</td></tr>
               ) : (
                 filteredHistoryOrders.map(o => {
                   
@@ -619,15 +627,9 @@ export default function TabOrders({
                   return (
                     <tr key={o.id} className="hover:bg-slate-50/50 transition-colors group">
                       <td className="px-4 py-3 whitespace-nowrap"><div onClick={() => { setSelectedStaplesOrder({ ...o, orderHPP, listItems, sisaHutangDynamic, totalTerbayarDynamic }); setShowAddStaplesModal(true); }} className="text-blue-600 hover:underline cursor-pointer font-black font-mono">{o.id}</div><div className="text-[9px] text-slate-400 font-bold mt-0.5">{formatDate(o.date)}</div></td>
-                      <td className="px-4 py-3 whitespace-nowrap text-slate-800 font-black normal-case text-xs">{o.customer_name}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-slate-800 font-black text-xs">{o.customer_name}</td>
                       <td className="px-4 py-3 text-center whitespace-nowrap text-slate-600 font-black">{formatNumber(o.qty)} <span className="text-[10px] font-normal text-slate-400">Pcs</span></td>
-                      
-                      <td className="px-4 py-3 text-center whitespace-nowrap">
-                        <span className="px-2 py-0.5 rounded text-[9px] font-black bg-slate-100 text-slate-700 border border-slate-200">{o.payment_method}</span>
-                        {String(o.payment_method).includes('DP_') && (
-                          <div className="text-[9px] font-black text-orange-600 mt-1">DP Masuk: {formatRupiah(o.amount_paid)}</div>
-                        )}
-                      </td>
+                      <td className="px-4 py-3 text-center whitespace-nowrap"><span className="px-2 py-0.5 rounded text-[9px] font-black bg-slate-100 text-slate-700 border border-slate-200">{o.payment_method}</span></td>
                       
                       <td className="px-4 py-3 text-right whitespace-nowrap">
                         <div className="text-slate-900 font-black text-sm">{formatRupiah(o.total_amount)}</div>
@@ -672,7 +674,7 @@ export default function TabOrders({
             <div className="p-4 bg-slate-950 text-white flex justify-between items-center shrink-0">
               <div>
                 <h3 className="font-black text-xs uppercase flex items-center gap-1.5 text-orange-400">📖 Buku Staples Ledger Nota: {selectedStaplesOrder.id}</h3>
-                <p className="text-[9px] text-slate-400 font-bold mt-0.5 normal-case">Klien: {selectedStaplesOrder.customer_name} | Tanggal Input: {formatDate(selectedStaplesOrder.date)}</p>
+                <p className="text-[9px] text-slate-400 font-bold mt-0.5">Klien: {selectedStaplesOrder.customer_name} | Tanggal Input: {formatDate(selectedStaplesOrder.date)}</p>
               </div>
               <button type="button" onClick={() => setShowAddStaplesModal(false)} className="text-slate-400 hover:text-white font-bold text-sm cursor-pointer">✕ Close</button>
             </div>
@@ -745,7 +747,7 @@ export default function TabOrders({
                 </div>
               </div>
 
-              <div className="bg-slate-900 text-white p-3 rounded-xl space-y-1.5 font-bold text-[11px]">
+              <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-3 rounded-xl space-y-1.5 font-bold text-[11px]">
                 <div className="flex justify-between text-slate-400"><span>A. Nilai Omset Nota Kotor (A)</span><span>{formatRupiah(selectedStaplesOrder.total_amount)}</span></div>
                 <div className="flex justify-between text-slate-400"><span>B. Akumulasi Total Uang Diterima (B)</span><span className="text-emerald-400">{formatRupiah(selectedStaplesOrder.totalTerbayarDynamic)}</span></div>
                 <div className="border-t border-slate-700 my-1"></div>
