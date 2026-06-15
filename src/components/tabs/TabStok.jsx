@@ -5,7 +5,6 @@ import {
   FileText, Calendar, Calculator, ArrowRightLeft
 } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
-import { triggerPrint } from '../../utils/PrintUtility';
 
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
