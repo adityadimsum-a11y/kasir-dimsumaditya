@@ -43,8 +43,11 @@ export default function TabOrders({
   const [payBCA, setPayBCA] = useState('');
   const [payBRI, setPayBRI] = useState('');
   const [isSplitPayment, setIsSplitPayment] = useState(false);
+  
   const [singleMethod, setSingleMethod] = useState('CASH'); 
   const [singleAmountPaid, setSingleAmountPaid] = useState(''); 
+  // 🔥 FIX: STATE BARU KHUSUS UNTUK JALUR PEMBAYARAN DP
+  const [dpMethod, setDpMethod] = useState('CASH');
 
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
   const [newCustomerForm, setNewCustomerForm] = useState({ name: '', phone: '', address: '', notes: '', category: 'RESELLER' });
@@ -91,14 +94,32 @@ export default function TabOrders({
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
   const cartHPP = cart.reduce((sum, item) => sum + (item.hpp * item.qty), 0);
 
+  // 🔥 ENGINE KALKULASI PINTAR (SUDAH MENCAKUP LOGIKA DP)
   const paymentSummary = useMemo(() => {
     if (orderMode === 'INFLUENCER') return { totalDibayar: 0, sisaBon: 0, kembalian: 0, methodStr: 'PROMO_MARKETING', breakdown: [] };
 
-    let cash = isSplitPayment ? Number(payCash || 0) : (singleMethod === 'CASH' ? Number(singleAmountPaid || 0) : 0);
-    let bca = isSplitPayment ? Number(payBCA || 0) : (singleMethod === 'TF_BCA_PUSAT' ? Number(singleAmountPaid || 0) : 0);
-    let bri = isSplitPayment ? Number(payBRI || 0) : (singleMethod === 'TF_BRI_PUSAT' ? Number(singleAmountPaid || 0) : 0);
-    let laciTf = !isSplitPayment && singleMethod === 'TF_QRIS' ? Number(singleAmountPaid || 0) : 0;
-    let poTerbuka = !isSplitPayment && singleMethod === 'COD_PO' ? true : false;
+    let cash = 0; let bca = 0; let bri = 0; let laciTf = 0;
+    let poTerbuka = false;
+
+    if (isSplitPayment) {
+      cash = Number(payCash || 0);
+      bca = Number(payBCA || 0);
+      bri = Number(payBRI || 0);
+    } else {
+      const amt = Number(singleAmountPaid || 0);
+      if (singleMethod === 'CASH') cash = amt;
+      else if (singleMethod === 'TF_BCA_PUSAT') bca = amt;
+      else if (singleMethod === 'TF_BRI_PUSAT') bri = amt;
+      else if (singleMethod === 'TF_QRIS') laciTf = amt;
+      else if (singleMethod === 'COD_PO') poTerbuka = true;
+      else if (singleMethod === 'DP_PIUTANG') {
+        // Logika DP khusus: arahkan uang sesuai jalur DP yang dipilih
+        if (dpMethod === 'CASH') cash = amt;
+        else if (dpMethod === 'TF_BCA_PUSAT') bca = amt;
+        else if (dpMethod === 'TF_BRI_PUSAT') bri = amt;
+        else if (dpMethod === 'TF_QRIS') laciTf = amt;
+      }
+    }
 
     let totalBayarInput = cash + bca + bri + laciTf;
     if (poTerbuka) totalBayarInput = 0;
@@ -122,12 +143,23 @@ export default function TabOrders({
     if (laciTf > 0) { methods.push('QRIS'); breakdown.push({ method: 'TF_QRIS', amount: laciTf }); }
     if (poTerbuka) { methods.push('PO_COD'); breakdown.push({ method: 'COD_PO', amount: 0 }); }
 
-    let methodStr = isSplitPayment ? `MIX (${methods.join('+')})` : singleMethod;
-    if (sisaBon > 0 && totalBayarInput > 0) methodStr = `DP_${methodStr}+PIUTANG`;
-    else if (sisaBon === cartTotal && !poTerbuka) methodStr = 'PIUTANG';
+    let methodStr = '';
+    if (isSplitPayment) {
+      methodStr = `MIX (${methods.join('+')})`;
+      if (sisaBon > 0 && totalBayarInput > 0) methodStr = `DP_${methodStr}+PIUTANG`;
+      else if (sisaBon === cartTotal && !poTerbuka) methodStr = 'PIUTANG';
+    } else {
+      if (singleMethod === 'DP_PIUTANG') {
+        methodStr = `DP_${dpMethod}+PIUTANG`;
+      } else {
+        methodStr = singleMethod;
+        if (sisaBon > 0 && totalBayarInput > 0) methodStr = `DP_${methodStr}+PIUTANG`;
+        else if (sisaBon === cartTotal && !poTerbuka) methodStr = 'PIUTANG';
+      }
+    }
 
     return { totalDibayar: totalBayarInput - kembalian, sisaBon, kembalian, methodStr, breakdown };
-  }, [orderMode, isSplitPayment, payCash, payBCA, payBRI, singleMethod, singleAmountPaid, cartTotal]);
+  }, [orderMode, isSplitPayment, payCash, payBCA, payBRI, singleMethod, singleAmountPaid, cartTotal, dpMethod]);
 
   const setLunasOtomatis = (e) => {
     e.preventDefault();
@@ -178,9 +210,10 @@ export default function TabOrders({
 
     const confirmMsg = `Konfirmasi Transaksi Grosir Aditya:\n\n` +
       `Pelanggan: ${custName}\n` +
-      `Total Belanja: ${formatRupiah(cartTotal)}\n` +
+      `Total Belanja Aktual: ${formatRupiah(cartTotal)}\n` +
       `Total Item: ${totalItemQty} Pcs\n` +
       `Metode Sistem: ${paymentSummary.methodStr}\n` +
+      `Total Uang Masuk (DP): ${formatRupiah(paymentSummary.totalDibayar)}\n` +
       `Sisa Bon Gantung: ${formatRupiah(paymentSummary.sisaBon)}\n\n` +
       `Lanjutkan Transaksi?`;
 
@@ -234,6 +267,7 @@ export default function TabOrders({
       setCart([]); setSelectedCustomerId(''); setNotes('');
       setPayCash(''); setPayBCA(''); setPayBRI(''); setSingleAmountPaid('');
       setIsSplitPayment(false); setOrderMode('REGULAR'); setCustomerSearchTerm('');
+      setSingleMethod('CASH'); setDpMethod('CASH');
     }
   };
 
@@ -416,29 +450,53 @@ export default function TabOrders({
                       </div>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-2 gap-2 pt-1">
-                      <div>
-                        <select value={singleMethod} onChange={e=>{ setSingleMethod(e.target.value); setSingleAmountPaid(''); }} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold outline-none cursor-pointer">
-                          <option value="CASH">Cash (Tunai Laci)</option>
-                          <option value="TF_QRIS">Transfer / QRIS Laci</option>
-                          <option value="TF_BCA_PUSAT">Transfer BCA Pusat</option>
-                          <option value="TF_BRI_PUSAT">Transfer BRI Pusat</option>
-                          <option value="PIUTANG">Masuk Bon (Piutang Utang)</option>
-                          <option value="COD_PO">PO Terbuka (Bayar Pas Ambil)</option>
-                        </select>
+                    <div className="space-y-2 pt-1">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <select value={singleMethod} onChange={e=>{ setSingleMethod(e.target.value); setSingleAmountPaid(''); }} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold outline-none cursor-pointer shadow-3xs">
+                            <option value="CASH">Cash (Tunai Laci)</option>
+                            <option value="TF_QRIS">Transfer / QRIS Laci</option>
+                            <option value="TF_BCA_PUSAT">Transfer BCA Pusat</option>
+                            <option value="TF_BRI_PUSAT">Transfer BRI Pusat</option>
+                            <option value="DP_PIUTANG">Bayar DP (Uang Muka)</option>
+                            <option value="PIUTANG">Full Bon (Piutang Utang)</option>
+                            <option value="COD_PO">PO Terbuka (Bayar Nanti)</option>
+                          </select>
+                        </div>
+                        
+                        {singleMethod !== 'DP_PIUTANG' && singleMethod !== 'PIUTANG' && singleMethod !== 'COD_PO' && (
+                          <div>
+                            <input type="text" value={singleAmountPaid ? Number(singleAmountPaid).toLocaleString('id-ID') : ''} onChange={e=>setSingleAmountPaid(e.target.value.replace(/\D/g, ''))} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-black text-right text-slate-800 outline-none shadow-3xs" placeholder="Rp 0" />
+                          </div>
+                        )}
+                        {(singleMethod === 'PIUTANG' || singleMethod === 'COD_PO') && (
+                          <div>
+                            <input type="text" disabled value="" className="w-full p-2 bg-slate-100 border border-slate-200 rounded-lg text-xs font-black text-right text-slate-400 outline-none opacity-50" placeholder={singleMethod === 'PIUTANG' ? 'Rp 0 (Full Bon)' : 'Rp 0 (PO Terbuka)'} />
+                          </div>
+                        )}
                       </div>
-                      <div>
-                        <input type="text" disabled={singleMethod === 'PIUTANG' || singleMethod === 'COD_PO'} value={singleMethod === 'PIUTANG' || singleMethod === 'COD_PO' ? '' : (singleAmountPaid ? Number(singleAmountPaid).toLocaleString('id-ID') : '')} onChange={e=>setSingleAmountPaid(e.target.value.replace(/\D/g, ''))} className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-black text-right text-slate-800 outline-none disabled:opacity-50 disabled:bg-slate-100" placeholder={singleMethod === 'PIUTANG' ? 'Rp 0 (Bon)' : (singleMethod === 'COD_PO' ? 'Rp 0 (PO)' : 'Rp 0')} />
-                      </div>
+
+                      {/* 🔥 FIX: KOTAK DINAMIS KHUSUS INPUT DP */}
+                      {singleMethod === 'DP_PIUTANG' && (
+                        <div className="flex items-center gap-2 p-2 bg-orange-50 border border-orange-200 rounded-lg shadow-inner">
+                          <select value={dpMethod} onChange={e=>setDpMethod(e.target.value)} className="w-1/2 p-2 bg-white border border-orange-200 rounded-lg text-[10px] font-bold outline-none cursor-pointer text-orange-900 shadow-3xs">
+                            <option value="CASH">Jalur: Tunai Laci</option>
+                            <option value="TF_QRIS">Jalur: TF/QRIS Laci</option>
+                            <option value="TF_BCA_PUSAT">Jalur: TF BCA Pusat</option>
+                            <option value="TF_BRI_PUSAT">Jalur: TF BRI Pusat</option>
+                          </select>
+                          <input type="text" value={singleAmountPaid ? Number(singleAmountPaid).toLocaleString('id-ID') : ''} onChange={e=>setSingleAmountPaid(e.target.value.replace(/\D/g, ''))} className="w-1/2 p-2 bg-white border border-orange-200 rounded-lg text-xs font-black text-right text-orange-700 outline-none shadow-3xs placeholder:text-orange-300" placeholder="Nominal DP (Rp)" />
+                        </div>
+                      )}
                     </div>
                   )}
 
                   <div className="border-t border-slate-200 pt-2 text-[10px] font-bold space-y-1 text-slate-600">
                     <div className="flex justify-between"><span>Total Input Pembayaran:</span><span className="font-black text-slate-800">{formatRupiah(isSplitPayment ? Number(payCash||0)+Number(payBCA||0)+Number(payBRI||0) : Number(singleAmountPaid||0))}</span></div>
-                    {paymentSummary.sisaBon > 0 && <div className="flex justify-between text-rose-600 font-black"><span>⚠️ Sisa Kekurangan (Masuk Bon Gantung):</span><span>{formatRupiah(paymentSummary.sisaBon)}</span></div>}
+                    {paymentSummary.sisaBon > 0 && <div className="flex justify-between text-rose-600 font-black bg-rose-50 px-2 py-1 rounded"><span>⚠️ Sisa Kekurangan (Masuk Bon Gantung):</span><span>{formatRupiah(paymentSummary.sisaBon)}</span></div>}
                     {paymentSummary.kembalian > 0 && <div className="flex justify-between text-emerald-600 font-black text-xs border-2 border-dashed border-emerald-200 p-1.5 rounded-lg bg-emerald-50/50 mt-1"><span>🟢 KEMBALIAN KASIR:</span><span>{formatRupiah(paymentSummary.kembalian)}</span></div>}
                     
-                    {singleMethod !== 'PIUTANG' && singleMethod !== 'COD_PO' && (
+                    {singleMethod !== 'PIUTANG' && singleMethod !== 'COD_PO' && singleMethod !== 'DP_PIUTANG' && (
                       <div className="flex justify-end pt-1"><button type="button" onClick={setLunasOtomatis} className="text-[9px] font-black text-blue-600 bg-white border px-2 py-1 rounded shadow-3xs cursor-pointer">Set Lunas Otomatis</button></div>
                     )}
                   </div>
