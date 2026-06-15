@@ -1,11 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { 
-  Factory, Search, Printer, Trash2, 
-  CheckCircle2, Layers, Database, PackageCheck,
-  FileText, Calendar, Calculator, ArrowRightLeft
+  Factory, Printer, Trash2, 
+  CheckCircle2, Database, PackageCheck,
+  FileText, Calendar
 } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
-import { triggerPrint } from '../../utils/PrintUtility';
 
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
@@ -13,7 +12,7 @@ export default function TabStok({
   masterProducts = [], master_products, 
   inventoryCostLayers = [], inventory_cost_layers,
   productionBatches = [], production_batches,
-  sendToSheet, showToast, user, requestDelete 
+  sendToSheet, showToast, user, requestDelete, setPrintData
 }) {
   const todayStr = getTodayStr();
   const currentBranch = (user?.branch_id === 'PUSAT' || !user?.branch_id) ? 'TANGERANG_PUSAT' : user?.branch_id;
@@ -197,17 +196,17 @@ export default function TabStok({
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-[9px] font-bold text-slate-500 normal-case block mb-1.5">Tanggal adukan</label>
-                <input type="date" required value={form.date} onChange={e=>setForm({...form, date: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-xl text-xs font-bold outline-none bg-slate-50 cursor-pointer focus:border-red-400 focus:bg-white transition-colors" />
+                <input type="date" required value={form.date} onChange={(e) => setForm({...form, date: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-xl text-xs font-bold outline-none bg-slate-50 cursor-pointer focus:border-red-400 focus:bg-white transition-colors" />
               </div>
               <div>
                 <label className="text-[9px] font-bold text-slate-500 normal-case block mb-1.5">Kepala dapur / PIC</label>
-                <input type="text" required value={form.pic} onChange={e=>setForm({...form, pic: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-xl text-xs font-bold outline-none bg-slate-50 focus:border-red-400 focus:bg-white transition-colors" placeholder="Nama..." />
+                <input type="text" required value={form.pic} onChange={(e) => setForm({...form, pic: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-xl text-xs font-bold outline-none bg-slate-50 focus:border-red-400 focus:bg-white transition-colors" placeholder="Nama..." />
               </div>
             </div>
 
             <div>
               <label className="text-[9px] font-bold text-slate-500 normal-case block mb-1.5">Varian produk jadi</label>
-              <select required value={form.productName} onChange={e=>setForm({...form, productName: e.target.value})} className="w-full p-3 border border-slate-200 rounded-xl text-xs font-bold bg-slate-50 focus:border-red-400 focus:bg-white transition-colors cursor-pointer">
+              <select required value={form.productName} onChange={(e) => setForm({...form, productName: e.target.value})} className="w-full p-3 border border-slate-200 rounded-xl text-xs font-bold bg-slate-50 focus:border-red-400 focus:bg-white transition-colors cursor-pointer">
                 <option value="">-- Pilih variant produk --</option>
                 {activeMenus.map(m => <option key={m.id} value={m.product_name}>{m.product_name}</option>)}
               </select>
@@ -217,15 +216,14 @@ export default function TabStok({
             <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 shadow-inner relative">
               <div className="absolute -top-3 left-4 bg-slate-200 border border-slate-300 text-slate-700 text-[8px] font-bold px-2 py-0.5 rounded normal-case">Langkah 1</div>
               <label className="text-[10px] font-bold text-slate-600 normal-case block mb-2 text-center mt-1">Total adukan hari ini</label>
-              <input type="number" min="1" required value={form.adukanQty} onChange={e=>handleAdukanChange(e.target.value)} className="w-full py-3 border-2 border-slate-300 rounded-xl text-3xl font-black text-slate-800 bg-white outline-none text-center focus:border-red-500 transition-colors" placeholder="0" />
+              <input type="number" min="1" required value={form.adukanQty} onChange={(e) => handleAdukanChange(e.target.value)} className="w-full py-3 border-2 border-slate-300 rounded-xl text-3xl font-black text-slate-800 bg-white outline-none text-center focus:border-red-500 transition-colors" placeholder="0" />
             </div>
 
-            {/* 🔥 LANGKAH 2: RE-DESIGN TOTAL DENGAN GRID SYSTEM ANTI KEPOTONG */}
+            {/* LANGKAH 2 */}
             <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 shadow-inner relative">
               <div className="absolute -top-3 left-4 bg-red-600 text-white text-[8px] font-bold px-2 py-0.5 rounded normal-case flex items-center gap-1 shadow-xs"><PackageCheck size={10}/> Langkah 2</div>
               <label className="text-[10px] font-bold text-slate-600 normal-case block mb-3 text-center mt-1">Hasil kemasan fisik nyata</label>
               
-              {/* Pembagian Grid 12 Kolom Stabil: Input angka dapet 8 baris, Dropdown dapet 4 baris */}
               <div className="grid grid-cols-12 gap-2 items-stretch">
                 <div className="col-span-8">
                   <input 
@@ -233,7 +231,7 @@ export default function TabStok({
                     min="0" 
                     required 
                     value={form.actualInput} 
-                    onChange={e=>setForm({...form, actualInput: e.target.value})} 
+                    onChange={(e) => setForm({...form, actualInput: e.target.value})} 
                     className="w-full p-3 border-2 border-slate-300 rounded-xl text-2xl font-black text-slate-800 bg-white outline-none text-center focus:border-red-500 shadow-inner h-full" 
                     placeholder="0" 
                   />
@@ -241,7 +239,7 @@ export default function TabStok({
                 <div className="col-span-4">
                   <select 
                     value={form.actualUnit} 
-                    onChange={e=>setForm({...form, actualUnit: e.target.value})} 
+                    onChange={(e) => setForm({...form, actualUnit: e.target.value})} 
                     className="w-full px-1 bg-slate-800 text-white rounded-xl text-xs font-bold outline-none cursor-pointer border border-slate-700 shadow-sm text-center hover:bg-slate-900 transition-colors h-full flex items-center justify-center"
                   >
                     <option value="MIKA">Mika (50)</option>
@@ -272,7 +270,7 @@ export default function TabStok({
 
             <div>
               <label className="text-[9px] font-bold text-slate-500 normal-case block mb-1.5">Catatan tambahan (Opsional)</label>
-              <input type="text" value={form.notes} onChange={e=>setForm({...form, notes: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-xl text-xs font-semibold outline-none bg-slate-50 focus:border-red-400 focus:bg-white" placeholder="Cth: Sisa adonan panci..." />
+              <input type="text" value={form.notes} onChange={(e) => setForm({...form, notes: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-xl text-xs font-semibold outline-none bg-slate-50 focus:border-red-400 focus:bg-white" placeholder="Cth: Sisa adonan panci..." />
             </div>
 
             <button type="submit" className="w-full btn-holo py-3.5 rounded-xl text-xs font-bold shadow-xs flex items-center justify-center gap-2 mt-2">
@@ -289,7 +287,7 @@ export default function TabStok({
             </div>
             <div className="flex items-center gap-2 bg-white border border-slate-200 px-3 py-1.5 rounded-xl shadow-xs">
               <Calendar size={14} className="text-red-500 ml-0.5"/>
-              <input type="date" value={tableDateFilter} onChange={e => setTableDateFilter(e.target.value || todayStr)} className="text-xs font-bold text-slate-700 outline-none bg-transparent cursor-pointer" />
+              <input type="date" value={tableDateFilter} onChange={(e) => setTableDateFilter(e.target.value || todayStr)} className="text-xs font-bold text-slate-700 outline-none bg-transparent cursor-pointer" />
             </div>
           </div>
           
@@ -342,13 +340,18 @@ export default function TabStok({
                         </td>
                         <td className="px-5 py-4 text-center whitespace-nowrap opacity-60 group-hover:opacity-100 transition-opacity">
                           <div className="flex items-center justify-center gap-1.5">
-                            <button type="button" onClick={() => triggerPrint('NOTA_DOTMATRIX', {
-                              title: 'Bukti Setoran Produksi Dapur', id: p.id, date: formatDate(p.date),
-                              branch_name: currentBranch, admin_name: user?.name || 'ADMIN', customer_name: 'GUDANG FREEZER POS',
-                              items: [{ name: `HASIL AKTUAL FISIK: ${p.item_name}\n(PIC: ${p.pic} - ${adukanTercatat} ADUKAN)`, qty: 1, subtotal: p.actual_yield || p.qty }],
-                              amount: p.actual_yield || p.qty, paymentMethod: 'TERCATAT DI KASIR POS',
-                              history: { labelLama: 'Ayam Mentah Dipakai', nominalLama: potongAyam ? Math.abs(potongAyam.qty_remaining) : 0, labelAksi: 'Status Bahan Baku', nominalAksi: 'TERPOTONG OTOMATIS', labelBaru: 'Konversi Setara', nominalBaru: `${formatNumber(Math.floor((p.actual_yield || p.qty)/50))} Mika` }
-                            })} className="p-2 text-slate-400 bg-white border border-slate-200 shadow-xs hover:text-emerald-600 hover:bg-slate-50 rounded-lg transition-colors" title="Cetak bukti adukan"><Printer size={14}/></button>
+                            {/* 🔥 FIX: MENGGUNAKAN setPrintData SEBAGAI GANTI DARI triggerPrint YANG SUDAH DIHAPUS */}
+                            <button type="button" onClick={() => {
+                               if(typeof setPrintData === 'function') {
+                                  setPrintData({
+                                    title: 'Bukti Setoran Produksi Dapur', id: p.id, date: formatDate(p.date),
+                                    branch_name: currentBranch, admin_name: user?.name || 'ADMIN', customer_name: 'GUDANG FREEZER POS',
+                                    items: [{ name: `HASIL AKTUAL FISIK: ${p.item_name}\n(PIC: ${p.pic} - ${adukanTercatat} ADUKAN)`, qty: 1, subtotal: p.actual_yield || p.qty }],
+                                    amount: p.actual_yield || p.qty, paymentMethod: 'TERCATAT DI KASIR POS',
+                                    history: { labelLama: 'Ayam Mentah Dipakai', nominalLama: potongAyam ? Math.abs(potongAyam.qty_remaining) : 0, labelAksi: 'Status Bahan Baku', nominalAksi: 'TERPOTONG OTOMATIS', labelBaru: 'Konversi Setara', nominalBaru: `${formatNumber(Math.floor((p.actual_yield || p.qty)/50))} Mika` }
+                                  });
+                               }
+                            }} className="p-2 text-slate-400 bg-white border border-slate-200 shadow-xs hover:text-emerald-600 hover:bg-slate-50 rounded-lg transition-colors" title="Cetak bukti adukan"><Printer size={14}/></button>
                             <button type="button" onClick={() => { if(window.confirm("Yakin void transaksi adukan ini? Stok kasir and ayam gudang akan ditarik mundur!")) requestDelete(p.id); }} className="p-2 text-slate-400 bg-white border border-slate-200 shadow-xs hover:text-red-600 hover:bg-slate-50 rounded-lg transition-colors" title="Hapus laporan adukan"><Trash2 size={14}/></button>
                           </div>
                         </td>
