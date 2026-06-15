@@ -13,9 +13,11 @@ export default function TabMasterCustomer({
   data = [], 
   orders = [], 
   sendToSheet, 
-  showToast 
+  showToast,
+  user // 🔥 Mengambil data user pusat untuk mendeteksi branch_id eksekutor
 }) {
   const todayStr = getTodayStr(); 
+  const currentBranch = (user?.branch_id === 'PUSAT' || !user?.branch_id) ? 'TANGERANG_PUSAT' : user?.branch_id;
   
   const [searchTerm, setSearchTerm] = useState('');
   const [isEditing, setIsEditing] = useState(false);
@@ -27,7 +29,7 @@ export default function TabMasterCustomer({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // STATE POP-UP MADING ANALITIK
+  // STATE POP-UP MODAL MADING ANALITIK
   const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
   const [activeCustDetail, setActiveCustDetail] = useState(null);
 
@@ -36,7 +38,7 @@ export default function TabMasterCustomer({
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
-  // 🔥 ENGINE CRM DEWA: PROSES MATEMATIKA DATA AGEN
+  // 🔥 ENGINE CRM INTELIJEN: PROSES SINKRONISASI HISTORI NOTA
   const customerAnalytics = useMemo(() => {
     const analyticsMap = {};
     const validOrders = (orders || []).filter(o => !o.isDeleted);
@@ -145,22 +147,24 @@ export default function TabMasterCustomer({
     if(isSuccess) showToast('Data pelanggan berhasil dihapus!', 'success');
   };
 
-  // 🔥 SINKRONISASI JEROAN: RE-DESIGN SUBMIT ANTI-STUCK
+  // 🔥 SINKRONISASI TOTAL KABEL DATA KE BACKEND APPS SCRIPT BOS SULTAN
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.customer_name.trim()) return alert('Nama pelanggan wajib diisi!');
     
     setIsSubmitting(true);
     
-    // Memastikan struktur payload 100% klop dengan kolom Google Sheet Ente
+    // 🔥 VAKSIN ANTI-CRASH: Menyuntikkan 'date' dan 'branch_id' agar lolos validasi setupDatabase() Apps Script
     const payload = {
       id: isEditing ? currentId : generateId('CST', todayStr),
+      date: todayStr,                     // 📌 WAJIB: Sesuai kolom ke-2 template sheet Bos
+      branch_id: currentBranch,           // 📌 WAJIB: Sesuai kolom ke-3 template sheet Bos
       customer_name: formData.customer_name.trim().toUpperCase(), 
-      phone: formData.phone || '-',
-      address: formData.address || '-',
-      notes: formData.notes || '-',
+      phone: formData.phone.trim() || '-',
+      address: formData.address.trim() || '-',
+      notes: formData.notes.trim() || '-',
       category: formData.category || 'RESELLER',
-      isDeleted: false
+      isDeleted: false                    // 📌 WAJIB: Sesuai kolom ke-4 template sheet Bos
     };
 
     try {
@@ -172,10 +176,9 @@ export default function TabMasterCustomer({
         handleCancel();
       }
     } catch (error) {
-      alert('Gagal mengamankan data ke server cloud, silakan cek jaringan internet gudang!');
+      alert('Koneksi terputus atau Google Sheets menolak format data!');
     } finally {
-      // 🔥 PLUG SAFETY GAUGE: Apapun yang terjadi, status loading WAJIB dilepas kembali!
-      setIsSubmitting(false);
+      setIsSubmitting(false); // Melepaskan kuncian tombol loading
     }
   };
 
@@ -279,7 +282,7 @@ export default function TabMasterCustomer({
                     </td>
                     <td className="px-4 py-3 text-center">
                       <div className={`text-[11px] font-black ${item.butuhFollowUp ? 'text-rose-600' : 'text-emerald-600'}`}>
-                        {item.terakhirBelanja ? (item.hariAbsen === 0 ? 'Order Hari Ini!' : `${item.hariAbsen} Hari Lalu`) : 'Belum Ada'}
+                        {item.terakhirBelanja ? (item.hariAbsen === 0 ? 'Order Hari Ini!' : `${item.hariAbsen} Hari Lalu`) : 'Belum Anda'}
                       </div>
                       <div className="text-[9px] text-slate-400 font-medium mt-0.5">{item.terakhirBelanja ? formatDate(item.terakhirBelanja) : '-'}</div>
                     </td>
