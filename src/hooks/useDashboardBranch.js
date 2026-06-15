@@ -1,11 +1,17 @@
 import React, { useState, useMemo } from 'react';
-import { Calendar, Printer, Wallet, Coins, CreditCard, ArrowRightLeft, Users, ShoppingCart, AlertCircle, Clock, Factory, Store } from 'lucide-react';
-import { getTodayStr, getLocalYMD, formatRp, formatDate } from '../../utils/helpers';
+import { Calendar, Printer, Wallet, Coins, CreditCard, ArrowRightLeft, Users, ShoppingCart, AlertCircle, Factory, Store } from 'lucide-react';
+import { getTodayStr, getLocalYMD, formatDate } from '../../utils/helpers';
+
+// HELPER MANDIRI ANTI-CRASH
+const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 
 const StatCard = ({ title, amount, icon, color }) => (
-  <div className={`p-5 rounded-xl border flex flex-col justify-between ${color}`}>
-    <div className="flex justify-between items-start mb-4"><h3 className="font-medium text-sm opacity-90">{title}</h3><div className="p-2 bg-white/60 rounded-lg shadow-sm">{icon}</div></div>
-    <div className="text-2xl font-bold tracking-tight">{amount}</div>
+  <div className={`p-5 rounded-2xl border flex flex-col justify-between shadow-xs ${color}`}>
+    <div className="flex justify-between items-start mb-4">
+      <h3 className="font-bold text-xs opacity-90 normal-case">{title}</h3>
+      <div className="p-2 bg-white/60 rounded-xl shadow-3xs">{icon}</div>
+    </div>
+    <div className="text-2xl font-black tracking-tight">{amount}</div>
   </div>
 );
 
@@ -42,7 +48,6 @@ export default function TabDashboardBranch({ orders, pemalangReports, piutangPay
     const customerMap = {};
     let totalTerbayarPeriode = 0;
     
-    // Grup Order untuk Laporan Print
     const groupedOrders = {};
     
     const listOrders = branchOrdersPeriod.map(o => {
@@ -65,7 +70,6 @@ export default function TabDashboardBranch({ orders, pemalangReports, piutangPay
         else if (o.statusProduksi === 'Sudah Diambil') status = 'PIUTANG';
         else if (terbayar > 0) status = 'DP';
 
-        // Extract detailed payment history for print
         let allPayments = [];
         try { allPayments = JSON.parse(o.paymentMethod); } catch(e) { if(Number(o.paidAmount) > 0) allPayments = [{ method: o.paymentMethod, amount: Number(o.paidAmount) }]; }
         allPayments.push(...cicilanData.map(c => ({ method: c.paymentMethod, amount: c.amount })));
@@ -110,186 +114,76 @@ export default function TabDashboardBranch({ orders, pemalangReports, piutangPay
   const ops = rekap.ops;
 
   return (
-    <div className="space-y-6 animate-in fade-in pb-10">
+    <div className="space-y-6 animate-in fade-in pb-10 text-slate-800 normal-case">
       {/* FILTER & CETAK */}
-      <div className="bg-white p-4 rounded-xl border shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div><h3 className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2"><Calendar size={16}/> Filter Laporan & Cetak</h3><div className="flex gap-2"><input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="p-2 text-sm border rounded-lg" /><span className="text-slate-400 self-center">s/d</span><input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="p-2 text-sm border rounded-lg" /></div></div>
-          <button onClick={() => setPrintData({ type: 'reportBranch', data: { rekap, dateFrom, dateTo } })} className="bg-slate-800 hover:bg-slate-900 text-white px-5 py-2.5 rounded-lg flex gap-2 text-sm font-medium"><Printer size={16} /> Cetak Rekap Cabang</button>
+      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h3 className="text-xs font-black text-slate-800 mb-2 flex items-center gap-2 normal-case"><Calendar size={16} className="text-blue-600"/> Filter Laporan &amp; Cetak</h3>
+            <div className="flex gap-2 items-center bg-slate-50 p-1.5 rounded-xl border border-slate-200">
+               <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="p-2 text-[10px] font-bold border-none bg-transparent outline-none cursor-pointer" />
+               <span className="text-slate-400 font-bold px-2">-</span>
+               <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="p-2 text-[10px] font-bold border-none bg-transparent outline-none cursor-pointer" />
+            </div>
+          </div>
+          <button onClick={() => setPrintData({ type: 'reportBranch', data: { rekap, dateFrom, dateTo } })} className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-3 rounded-xl flex items-center justify-center gap-2 text-xs font-black shadow-md transition-colors active:scale-95 w-full md:w-auto"><Printer size={16} /> Cetak Rekap Cabang</button>
       </div>
 
-      {/* DASHBOARD OPERASIONAL (GAYA PUSAT) */}
-      <div className="bg-slate-900 rounded-2xl shadow-2xl overflow-hidden border border-slate-800 relative">
-          <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-500 via-emerald-400 to-amber-500"></div>
+      {/* DASHBOARD OPERASIONAL */}
+      <div className="bg-slate-900 rounded-2xl shadow-lg overflow-hidden border border-slate-800 relative">
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-emerald-400 to-amber-500"></div>
           <div className="p-5 border-b border-slate-800/60 flex justify-between items-center bg-slate-900/50">
               <div>
-                  <h2 className="text-lg font-black text-white flex items-center gap-2 tracking-wide"><Factory className="text-blue-400"/> KONTROL OPERASIONAL & PRODUKSI CABANG</h2>
-                  <p className="text-[11px] text-slate-400 mt-1">Monitoring real-time aktivitas dapur dan kapasitas gudang cabang.</p>
+                  <h2 className="text-sm font-black text-white flex items-center gap-2 normal-case"><Factory className="text-blue-400" size={18}/> Kontrol Operasional &amp; Produksi Cabang</h2>
+                  <p className="text-[10px] font-bold text-slate-400 mt-1 normal-case">Monitoring real-time aktivitas dapur dan kapasitas gudang cabang.</p>
               </div>
               <div className="text-right hidden sm:block">
-                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Status Data</div>
-                  <div className="text-xs font-bold text-emerald-400 flex items-center justify-end gap-1.5 mt-0.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span> LIVE REALTIME</div>
+                  <div className="text-[9px] font-bold text-slate-500 normal-case">Status Data</div>
+                  <div className="text-xs font-black text-emerald-400 flex items-center justify-end gap-1.5 mt-0.5"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span> LIVE REALTIME</div>
               </div>
           </div>
           
           <div className="grid grid-cols-2 md:grid-cols-5 divide-y md:divide-y-0 md:divide-x divide-slate-800/60 bg-slate-800/30">
               <div className="p-6 flex flex-col justify-center items-center text-center hover:bg-slate-800/50 transition">
-                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Adukan Hari Ini</div>
-                  <div className="text-3xl font-black text-white drop-shadow-md">{ops.adukanHariIni || 0} <span className="text-xs text-blue-400">Adk</span></div>
+                  <div className="text-[9px] font-bold text-slate-400 normal-case mb-2">Adukan Hari Ini</div>
+                  <div className="text-2xl font-black text-white drop-shadow-md">{ops.adukanHariIni || 0} <span className="text-[10px] font-bold text-blue-400">Adk</span></div>
               </div>
               <div className="p-6 flex flex-col justify-center items-center text-center hover:bg-slate-800/50 transition">
-                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Ayam Terpakai</div>
-                  <div className="text-3xl font-black text-white drop-shadow-md">-{ops.ayamTerpakaiHariIni || 0} <span className="text-xs text-orange-400">Kg</span></div>
+                  <div className="text-[9px] font-bold text-slate-400 normal-case mb-2">Ayam Terpakai</div>
+                  <div className="text-2xl font-black text-white drop-shadow-md">-{ops.ayamTerpakaiHariIni || 0} <span className="text-[10px] font-bold text-orange-400">Kg</span></div>
               </div>
               <div className="p-6 flex flex-col justify-center items-center text-center hover:bg-slate-800/50 transition relative overflow-hidden bg-slate-800/20">
-                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Sisa Ayam (Live)</div>
-                  <div className="text-3xl font-black text-white drop-shadow-md">{ops.sisaAyam || 0} <span className="text-xs text-emerald-400">Kg</span></div>
-                  <div className="text-[10px] font-bold text-emerald-400 mt-2 px-3 py-1 bg-emerald-950/80 rounded-full border border-emerald-800/50">{(ops.sisaAyamKtg || 0).toFixed(1).replace('.0','')} Kantong</div>
+                  <div className="text-[9px] font-bold text-slate-400 normal-case mb-2">Sisa Ayam (Live)</div>
+                  <div className="text-2xl font-black text-white drop-shadow-md">{ops.sisaAyam || 0} <span className="text-[10px] font-bold text-emerald-400">Kg</span></div>
+                  <div className="text-[9px] font-black text-emerald-400 mt-2 px-2.5 py-1 bg-emerald-950/80 rounded-lg border border-emerald-800/50 normal-case">{(ops.sisaAyamKtg || 0).toFixed(1).replace('.0','')} Kantong</div>
               </div>
               <div className="p-6 flex flex-col justify-center items-center text-center hover:bg-slate-800/50 transition">
-                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Masuk Freezer</div>
-                  <div className="text-3xl font-black text-white drop-shadow-md">+{ops.dimsumMasukHariIni || 0} <span className="text-xs text-blue-400">Pcs</span></div>
-                  <div className="text-[10px] font-bold text-blue-400 mt-2 px-3 py-1 bg-blue-950/80 rounded-full border border-blue-800/50">{((ops.dimsumMasukHariIni || 0) / PCS_PER_MIKA).toFixed(1).replace('.0','')} Mika</div>
+                  <div className="text-[9px] font-bold text-slate-400 normal-case mb-2">Masuk Freezer</div>
+                  <div className="text-2xl font-black text-white drop-shadow-md">+{ops.dimsumMasukHariIni || 0} <span className="text-[10px] font-bold text-blue-400">Pcs</span></div>
+                  <div className="text-[9px] font-black text-blue-400 mt-2 px-2.5 py-1 bg-blue-950/80 rounded-lg border border-blue-800/50 normal-case">{((ops.dimsumMasukHariIni || 0) / PCS_PER_MIKA).toFixed(1).replace('.0','')} Mika</div>
               </div>
               <div className="p-6 flex flex-col justify-center items-center text-center hover:bg-slate-800/50 transition relative overflow-hidden bg-slate-800/20">
-                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Sisa Freezer (Live)</div>
-                  <div className="text-3xl font-black text-white drop-shadow-md">{ops.sisaFreezer || 0} <span className="text-xs text-emerald-400">Pcs</span></div>
-                  <div className="text-[10px] font-bold text-emerald-400 mt-2 px-3 py-1 bg-emerald-950/80 rounded-full border border-emerald-800/50">{((ops.sisaFreezer || 0) / PCS_PER_MIKA).toFixed(1).replace('.0','')} Mika</div>
+                  <div className="text-[9px] font-bold text-slate-400 normal-case mb-2">Sisa Freezer (Live)</div>
+                  <div className="text-2xl font-black text-white drop-shadow-md">{ops.sisaFreezer || 0} <span className="text-[10px] font-bold text-emerald-400">Pcs</span></div>
+                  <div className="text-[9px] font-black text-emerald-400 mt-2 px-2.5 py-1 bg-emerald-950/80 rounded-lg border border-emerald-800/50 normal-case">{((ops.sisaFreezer || 0) / PCS_PER_MIKA).toFixed(1).replace('.0','')} Mika</div>
               </div>
           </div>
       </div>
 
-      {/* DASHBOARD KEUANGAN KAS (GAYA PUSAT) */}
-      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden">
-          <div className="flex justify-between items-start mb-4">
+      {/* DASHBOARD KEUANGAN KAS */}
+      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs relative overflow-hidden">
+          <div className="flex justify-between items-start mb-4 border-b border-slate-100 pb-3">
               <div>
-                  <h2 className="text-lg font-bold text-slate-800 mb-1 flex items-center gap-2"><Wallet size={20}/> Status Finansial & Target Cabang</h2>
-                  <p className="text-xs text-slate-500">*Dihitung untuk periode {formatDate(dateFrom)} s/d {formatDate(dateTo)}.</p>
+                  <h2 className="text-sm font-black text-slate-800 mb-1 flex items-center gap-2 normal-case"><Wallet size={18} className="text-blue-600"/> Status Finansial &amp; Target Cabang</h2>
+                  <p className="text-[10px] font-bold text-slate-500 normal-case">Dihitung untuk periode {formatDate(dateFrom)} s/d {formatDate(dateTo)}.</p>
               </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <StatCard title="Total Omset Penjualan" amount={formatRp(rekap.totalPenjualanKotor)} icon={<Wallet />} color="bg-blue-50 text-blue-700 border-blue-200" />
-              <StatCard title="Total Disetor (EOD)" amount={formatRp(rekap.setoranKePusat)} icon={<Coins />} color="bg-emerald-50 text-emerald-700 border-emerald-200" />
-              <StatCard title="Total Piutang Berjalan (Diambil)" amount={formatRp(rekap.totalPiutangBaru)} icon={<CreditCard />} color="bg-orange-50 text-orange-700 border-orange-200" />
+              <StatCard title="Total Omset Penjualan" amount={formatRupiah(rekap.totalPenjualanKotor)} icon={<Wallet size={16}/>} color="bg-blue-50 text-blue-700 border-blue-200" />
+              <StatCard title="Total Disetor (EOD)" amount={formatRupiah(rekap.setoranKePusat)} icon={<Coins size={16}/>} color="bg-emerald-50 text-emerald-700 border-emerald-200" />
+              <StatCard title="Total Piutang Berjalan" amount={formatRupiah(rekap.totalPiutangBaru)} icon={<CreditCard size={16}/>} color="bg-orange-50 text-orange-700 border-orange-200" />
           </div>
       </div>
 
-      {/* TABEL 1: LAPORAN HARIAN (EOD) */}
-      <div className="bg-white p-6 rounded-xl border border-indigo-200 shadow-sm flex flex-col mt-6">
-          <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-indigo-700"><Store size={20}/> Rekap Laporan Harian (End of Day)</h3>
-          <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                  <thead className="bg-indigo-50 border-b border-indigo-100">
-                      <tr><th className="px-3 py-2 text-indigo-800">Tanggal Lapor</th><th className="px-3 py-2 text-center text-indigo-800">Klaim Produksi / Order</th><th className="px-3 py-2 text-indigo-800">Sisa Fisik Freezer</th><th className="px-3 py-2 text-indigo-800">Sisa Fisik Ayam</th><th className="px-3 py-2 text-right text-indigo-800">Disetor (Rp)</th></tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                      {(!rekap.listReports || rekap.listReports.length === 0) ? (
-                          <tr><td colSpan="5" className="text-center py-6 text-slate-400">Tidak ada laporan EOD di periode ini.</td></tr>
-                      ) : (
-                          rekap.listReports.map((r, i) => (
-                              <tr key={i} className="hover:bg-slate-50">
-                                  <td className="px-3 py-2"><div className="font-bold text-slate-700">{formatDate(r.date)}</div></td>
-                                  <td className="px-3 py-2 text-center font-bold text-slate-600">{r.produksiMika} M / {r.pesananMika} M</td>
-                                  <td className="px-3 py-2 font-bold uppercase text-indigo-700">{r.stokFreezer}</td>
-                                  <td className="px-3 py-2 font-bold uppercase text-orange-700">{r.stokAyam || '-'}</td>
-                                  <td className="px-3 py-2 text-right font-black text-emerald-600">{formatRp(r.nominal)}</td>
-                              </tr>
-                          ))
-                      )}
-                  </tbody>
-              </table>
-          </div>
-      </div>
-
-      {/* TABEL 2: TRANSAKSI PENJUALAN */}
-      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col mt-6">
-          <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-slate-800"><ShoppingCart size={20}/> Transaksi Penjualan / Invoice Cabang</h3>
-          <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                  <thead className="bg-slate-50 border-b border-slate-100">
-                      <tr><th className="px-3 py-2 text-slate-800">Tgl & Ref</th><th className="px-3 py-2 text-slate-800">Pelanggan</th><th className="px-3 py-2 text-center text-slate-800">Qty</th><th className="px-3 py-2 text-center text-slate-800">Pembayaran (Via)</th><th className="px-3 py-2 text-right text-slate-800">Tagihan</th><th className="px-3 py-2 text-right text-slate-800">Sisa</th><th className="px-3 py-2 text-center text-slate-800">Status Bayar</th></tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                      {(!rekap.listOrders || rekap.listOrders.length === 0) ? (
-                          <tr><td colSpan="7" className="text-center py-6 text-slate-400">Tidak ada data penjualan cabang di periode ini.</td></tr>
-                      ) : (
-                          rekap.listOrders.map((o, i) => {
-                              return (
-                              <tr key={i} className="hover:bg-slate-50">
-                                  <td className="px-3 py-2"><div className="font-bold text-slate-700">{formatDate(o?.date)}</div><div className="text-[10px] text-slate-400 font-mono">{o?.id || '-'}</div></td>
-                                  <td className="px-3 py-2 font-bold uppercase text-xs">{o?.customer || '-'}</td>
-                                  <td className="px-3 py-2 text-center text-xs font-bold text-slate-600">{o?.qty} Pcs</td>
-                                  <td className="px-3 py-2 text-center text-[9px] font-medium text-slate-600">
-                                      {(o.allPayments || []).map((p, idx) => (
-                                          <div key={idx}>{p.method}: {formatRp(p.amount)}</div>
-                                      ))}
-                                      {o.allPayments.length === 0 && '-'}
-                                  </td>
-                                  <td className="px-3 py-2 text-right font-bold text-slate-700">{formatRp(o?.totalTagihan)}</td>
-                                  <td className="px-3 py-2 text-right font-black text-red-600">{formatRp(o?.sisaTagihan)}</td>
-                                  <td className="px-3 py-2 text-center"><span className={`px-2 py-1 rounded text-[10px] font-bold ${o?.status === 'LUNAS' ? 'bg-emerald-100 text-emerald-700' : o?.status === 'PIUTANG' ? 'bg-red-100 text-red-700' : o?.status === 'DP' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600 border'}`}>{o?.status}</span></td>
-                              </tr>
-                          )})
-                      )}
-                  </tbody>
-              </table>
-          </div>
-      </div>
-
-      {/* TABEL 3: PIUTANG BERJALAN (SAH DIAMBIL TAPI BELUM LUNAS) */}
-      {rekap.listPiutangBerjalan.length > 0 && (
-          <div className="bg-white p-6 rounded-xl border border-orange-200 shadow-sm flex flex-col mt-6">
-              <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-orange-700"><AlertCircle size={20}/> Daftar Piutang Berjalan (Sudah Diambil)</h3>
-              <div className="overflow-x-auto">
-                  <table className="w-full text-sm text-left">
-                      <thead className="bg-orange-50 border-b border-orange-100">
-                          <tr><th className="px-3 py-2 text-orange-800">Tgl & Inv</th><th className="px-3 py-2 text-orange-800">Pelanggan</th><th className="px-3 py-2 text-right text-orange-800">Sisa Tagihan</th></tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                          {rekap.listPiutangBerjalan.map((p, i) => (
-                              <tr key={i} className="hover:bg-slate-50">
-                                  <td className="px-3 py-2"><div className="font-bold text-slate-700">{formatDate(p.date)}</div><div className="text-[10px] text-slate-400 font-mono">{p.id}</div></td>
-                                  <td className="px-3 py-2 font-bold uppercase text-xs">{p.customer}</td>
-                                  <td className="px-3 py-2 text-right font-black text-red-600">{formatRp(p.sisaHutang)}</td>
-                              </tr>
-                          ))}
-                      </tbody>
-                  </table>
-              </div>
-          </div>
-      )}
-
-      {/* GRID BAWAH: ARUS TRANSAKSI & PELANGGAN TERATAS */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-        <div className="bg-white p-6 rounded-xl border border-blue-200 shadow-sm flex flex-col relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
-            <h3 className="font-bold text-lg mb-1 flex items-center gap-2 text-blue-800"><ArrowRightLeft size={20}/> Arus Transaksi Cabang</h3>
-            <p className="text-xs text-slate-500 mb-4 border-b pb-2">Khusus periode {formatDate(dateFrom)} - {formatDate(dateTo)}</p>
-            <div className="grid grid-cols-2 gap-4 mt-2">
-                <div className="bg-emerald-50 p-3 rounded border border-emerald-100"><div className="text-[10px] font-bold text-emerald-700 uppercase mb-1">Total Omset Cabang</div><div className="text-lg font-black text-emerald-600">+{formatRp(rekap.totalPenjualanKotor)}</div></div>
-                <div className="bg-blue-50 p-3 rounded border border-blue-100"><div className="text-[10px] font-bold text-blue-700 uppercase mb-1">Total Terbayar (Cash/TF)</div><div className="text-lg font-black text-blue-600">+{formatRp(rekap.totalTerbayarPeriode)}</div></div>
-                <div className="bg-orange-50 p-3 rounded border border-orange-100"><div className="text-[10px] font-bold text-orange-700 uppercase mb-1">Piutang / Belum Bayar</div><div className="text-lg font-black text-orange-600">{formatRp((rekap.totalPenjualanKotor) - (rekap.totalTerbayarPeriode))}</div></div>
-                <div className="bg-indigo-50 p-3 rounded border border-indigo-100"><div className="text-[10px] font-bold text-indigo-700 uppercase mb-1">Setoran EOD (Ke Pusat)</div><div className="text-lg font-black text-indigo-600">{formatRp(rekap.setoranKePusat)}</div></div>
-            </div>
-        </div>
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col max-h-[340px]">
-            <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Users size={20} className="text-slate-500"/> Pelanggan Teratas Cabang (Periode Ini)</h3>
-            <div className="overflow-y-auto pr-2 flex-1 space-y-3">
-               {(!rekap.topCustomersList || rekap.topCustomersList.length === 0) ? (
-                   <div className="text-center text-slate-400 text-sm mt-8">Tidak ada data penjualan cabang.</div>
-               ) : (
-                   rekap.topCustomersList.map((cust, i) => (
-                       <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100 hover:border-blue-200 transition">
-                           <div className="flex items-center gap-3">
-                               <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shadow-sm ${i === 0 ? 'bg-amber-400 text-white' : i === 1 ? 'bg-slate-300 text-slate-700' : i === 2 ? 'bg-orange-300 text-white' : 'bg-white text-slate-400'}`}>#{i+1}</div>
-                               <div><div className="font-bold text-slate-800">{cust.name}</div><div className="text-xs text-slate-500">{cust.frequency}x Order • {cust.qty} Pcs ({cust.porsi} Prs)</div></div>
-                           </div>
-                           <div className="font-bold text-emerald-600">{formatRp(cust.total)}</div>
-                       </div>
-                   ))
-               )}
-            </div>
-        </div>
-      </div>
     </div>
   );
 }
