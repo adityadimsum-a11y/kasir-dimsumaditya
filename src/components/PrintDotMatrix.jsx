@@ -1,209 +1,158 @@
-import React, { useEffect } from 'react';
+import React from 'react';
+import { Printer, X } from 'lucide-react';
+
+const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
+const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 
 export default function PrintDotMatrix({ printData, onClose }) {
-  useEffect(() => {
-    if (printData) {
-      // Delay sebentar biar DOM render sempurna sebelum nembak ke printer
-      const timer = setTimeout(() => { window.print(); }, 500);
-      const handleAfterPrint = () => { if (onClose) onClose(); };
-      window.addEventListener('afterprint', handleAfterPrint);
-      return () => { clearTimeout(timer); window.removeEventListener('afterprint', handleAfterPrint); };
-    }
-  }, [printData, onClose]);
-
+  // Jika tidak ada data yang dilempar, jangan tampilkan apa-apa
   if (!printData) return null;
 
-  const { 
-    title = 'INVOICE', id = '-', date = '-', branch_name = 'PUSAT', 
-    admin_name = '-', customer_name = '-', items = [], amount = 0, 
-    paymentMethod = '-', history = null 
-  } = printData;
-
-  const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
-  const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
-
-  // ALGORITMA PENYELUNDUP DATA KUSUS PABRIK (WORK ORDER / PRODUKSI)
-  let mode = 'INVOICE';
-  let meta = {};
-
-  if (items && items.length > 0 && typeof items[0].name === 'string') {
-    if (items[0].name.startsWith('@@WORK_ORDER@@')) {
-      mode = 'WORK_ORDER';
-      const parts = items[0].name.split('||');
-      meta = { channel: parts[1], request: parts[2], notes: parts[3], qty: items[0].qty };
-    } else if (items[0].name.startsWith('@@PRODUCTION@@')) {
-      mode = 'PRODUCTION';
-      const parts = items[0].name.split('||');
-      meta = { adukan: parts[1], ayam: parts[2], yield: parts[3], notes: parts[4] };
-    }
-  }
+  // Fungsi untuk trigger print native browser secara manual
+  const handlePrint = () => {
+    window.print();
+  };
 
   return (
-    <div className="fixed inset-0 bg-white z-[99999] print-container text-black font-mono overflow-y-auto">
-      {/* CSS KHUSUS PRINTER DOT MATRIX & THERMAL */}
-      <style>{`
-        @media print {
-          body * { visibility: hidden; }
-          .print-container, .print-container * { visibility: visible; }
-          .print-container { position: absolute; left: 0; top: 0; width: 100%; padding: 0; margin: 0; background: white; }
-          @page { size: auto; margin: 5mm; }
-          
-          /* Memaksa font selalu hitam tebal untuk tembus kertas karbon rangkap */
-          * { color: black !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        }
-      `}</style>
+    <div className="fixed inset-0 z-[99999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 print:bg-white print:backdrop-blur-none">
       
-      {/* KERTAS CONTINUOUS FORM MAX-WIDTH */}
-      <div className="max-w-3xl mx-auto p-4 md:p-8 bg-white print:max-w-full print:p-2 text-sm md:text-base leading-snug">
+      {/* KOTAK MODAL PREVIEW (Menyembunyikan kotak ini saat proses print berlangsung) */}
+      <div className="bg-white rounded-2xl shadow-2xl flex flex-col w-full max-w-md overflow-hidden max-h-[90vh] print:shadow-none print:border-none">
         
-        {/* ======================================= */}
-        {/* KOP STRUK GAYA GRABMERCHANT / GOBIZ */}
-        {/* ======================================= */}
-        <div className="text-center mb-4">
-          <div className="border-b-2 border-dashed border-black pb-2 mb-2">
-            <h1 className="text-3xl font-black uppercase tracking-widest mb-1">DIMSUM ADITYA</h1>
-            <div className="font-bold text-xs uppercase">Distributor & Pabrik Dimsum</div>
-            {mode === 'INVOICE' || history ? (
-              <div className="text-xs font-bold mt-1">
-                Jl. Thamrin Ketapang, Cipondoh, Tangerang<br/>
-                Telp: 0878-0902-0931
+        {/* HEADER MODAL - Disembunyikan saat print */}
+        <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center shrink-0 no-print">
+          <h3 className="font-bold text-slate-800 flex items-center gap-2 text-sm normal-case">
+            <Printer size={16} className="text-red-600" />
+            Pratinjau Nota (Preview)
+          </h3>
+          <button onClick={onClose} className="p-1 text-slate-400 hover:text-red-600 rounded-lg transition-colors cursor-pointer">
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* AREA SCROLL PREVIEW */}
+        <div className="p-6 overflow-y-auto custom-scrollbar flex-1 bg-slate-100 flex justify-center print:p-0 print:bg-white">
+          
+          {/* ========================================================= */}
+          {/* AREA KERTAS NOTA (Hanya area ini yang akan masuk ke printer) */}
+          {/* ========================================================= */}
+          <div id="print-section" className="bg-white shadow-sm border border-slate-200 p-6 w-[80mm] min-h-[100mm] text-black font-mono text-[11px] leading-tight print:shadow-none print:border-none">
+            
+            {/* SUNTIKAN CSS KHUSUS PRINTER */}
+            <style type="text/css" media="print">
+              {`
+                @page { size: auto; margin: 0mm; }
+                body { background-color: #ffffff; margin: 0; padding: 0; }
+                
+                /* Sembunyikan semua elemen di layar */
+                body * { visibility: hidden; }
+                
+                /* Tampilkan hanya area id print-section */
+                #print-section, #print-section * { visibility: visible; }
+                
+                /* Posisikan nota tepat di pojok kiri atas kertas printer */
+                #print-section { 
+                  position: absolute; 
+                  left: 0; 
+                  top: 0; 
+                  width: 76mm; /* Ukuran kertas struk kasir termal/dotmatrix standar */
+                  padding: 5mm;
+                  margin: 0;
+                }
+                
+                /* Class khusus untuk menyembunyikan tombol saat di-print */
+                .no-print { display: none !important; }
+              `}
+            </style>
+
+            {/* HEADER NOTA */}
+            <div className="text-center mb-4">
+              <h2 className="font-bold text-sm uppercase">DIMSUM ADITYA</h2>
+              <div className="text-[10px] mt-1 uppercase">{printData.branch_name?.replace(/_/g, ' ')}</div>
+              <div className="text-[10px] border-b border-dashed border-black pb-2 mt-1 mb-2 font-bold uppercase">
+                {printData.title || 'BUKTI TRANSAKSI'}
               </div>
-            ) : (
-              <div className="text-xs font-black mt-1 uppercase">CABANG OPERASIONAL: {branch_name}</div>
-            )}
-          </div>
-          <h2 className="text-xl font-black uppercase tracking-wider">{title}</h2>
-        </div>
-        
-        {/* INFORMASI TRANSAKSI */}
-        <div className="grid grid-cols-2 gap-2 mb-4 font-bold text-xs uppercase border-b-2 border-dashed border-black pb-4">
-          <div>
-            <div>NO TRX : {id}</div>
-            <div>TANGGAL: {date}</div>
-            <div>KASIR  : {admin_name}</div>
-          </div>
-          <div className="text-right">
-            <div>CUST / PIC:</div>
-            <div className="text-base font-black truncate">{customer_name}</div>
-          </div>
-        </div>
-
-        {/* =========================================
-            MODE 1: WORK ORDER PABRIK (KARANTINA)
-        ========================================= */}
-        {mode === 'WORK_ORDER' && (
-          <div className="space-y-4 my-6 text-center border-b-2 border-dashed border-black pb-6">
-            <div className="border-2 border-black p-4">
-              <div className="font-bold uppercase mb-1">JUMLAH WAJIB MASAK</div>
-              <div className="text-5xl font-black">{formatNumber(meta.qty)} <span className="text-xl">PCS</span></div>
             </div>
-            <div className="text-lg font-bold uppercase">AGEN: {meta.channel}</div>
-            <div className="border-2 border-black p-3 border-dotted">
-              <div className="font-bold mb-1">⚠️ SPESIFIKASI REQUEST:</div>
-              <div className="text-2xl font-black uppercase">{meta.request}</div>
-            </div>
-            <div className="font-bold uppercase text-left">📝 MEMO: {meta.notes}</div>
-          </div>
-        )}
 
-        {/* =========================================
-            MODE 2: LAPORAN HASIL PRODUKSI
-        ========================================= */}
-        {mode === 'PRODUCTION' && (
-          <div className="space-y-4 my-6 border-b-2 border-dashed border-black pb-6">
-            <div className="grid grid-cols-2 gap-4 text-center">
-               <div className="border-2 border-black p-4">
-                 <div className="font-bold uppercase mb-1">ADUKAN</div>
-                 <div className="text-3xl font-black">{formatNumber(meta.adukan)}</div>
-               </div>
-               <div className="border-2 border-black p-4">
-                 <div className="font-bold uppercase mb-1">AYAM SAKRAL</div>
-                 <div className="text-3xl font-black">{formatNumber(meta.ayam)} <span className="text-lg">KG</span></div>
-               </div>
+            {/* INFO TRANSAKSI */}
+            <div className="space-y-1 mb-3 uppercase">
+              <div className="flex justify-between"><span>No:</span> <span>{printData.id}</span></div>
+              <div className="flex justify-between"><span>Tgl:</span> <span>{printData.date}</span></div>
+              <div className="flex justify-between"><span>Opr:</span> <span>{printData.admin_name}</span></div>
+              {printData.customer_name && (
+                <div className="flex justify-between"><span>Plg:</span> <span>{printData.customer_name}</span></div>
+              )}
             </div>
-            <div className="border-2 border-black p-4 text-center bg-gray-100">
-               <div className="font-bold uppercase mb-1">YIELD MASUK FREEZER</div>
-               <div className="text-5xl font-black">{formatNumber(meta.yield)} <span className="text-2xl">PCS</span></div>
+
+            <div className="border-t border-dashed border-black my-2"></div>
+
+            {/* DAFTAR ITEM */}
+            <div className="space-y-2 mb-3 uppercase">
+              {printData.items?.map((item, idx) => (
+                <div key={idx} className="flex flex-col">
+                  <div className="font-bold whitespace-pre-wrap">{item.name}</div>
+                  <div className="flex justify-between mt-0.5">
+                    <span>{formatNumber(item.qty)} x {item.price ? formatNumber(item.price) : ''}</span>
+                    <span className="font-bold">{formatNumber(item.subtotal)}</span>
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
-        )}
 
-        {/* =========================================
-            MODE 3: INVOICE & SLIP PENARIKAN (UMUM)
-        ========================================= */}
-        {(mode === 'INVOICE' || history) && (
-          <div className="mb-6">
-            <table className="w-full text-xs md:text-sm font-bold uppercase">
-              <thead className="border-b-2 border-dashed border-black">
-                <tr className="text-left">
-                  <th className="py-2 w-1/2">DESKRIPSI ITEM</th>
-                  <th className="py-2 text-center w-1/4">QTY</th>
-                  <th className="py-2 text-right w-1/4">SUBTOTAL</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((item, idx) => (
-                  <tr key={idx} className="border-b border-dotted border-black/30">
-                    <td className="py-3 pr-2 whitespace-pre-wrap leading-tight">{item.name}</td>
-                    <td className="py-3 text-center font-black text-base">{formatNumber(item.qty)}{item.suffix || ''}</td>
-                    <td className="py-3 text-right font-black">{formatRupiah(item.subtotal)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="border-t border-dashed border-black my-2"></div>
 
-            {/* GRAND TOTAL */}
-            <div className="flex justify-between items-center font-black text-lg md:text-xl pt-3 mt-2 border-t-2 border-dashed border-black">
-              <span>TOTAL :</span>
-              <span>{formatRupiah(amount)}</span>
+            {/* TOTAL */}
+            <div className="flex justify-between font-bold text-xs mb-1 uppercase">
+              <span>TOTAL:</span>
+              <span>{formatNumber(printData.amount)}</span>
             </div>
             
-            <div className="flex justify-between items-center mt-2 font-bold text-xs uppercase">
-              <span>PEMBAYARAN :</span>
-              <span className="border border-black px-2 py-0.5">{paymentMethod}</span>
-            </div>
-
-            {/* 🔥 BLOK HISTORY: KHUSUS SLIP PENARIKAN 15% (WAR ROOM) */}
-            {history && (
-              <div className="mt-4 pt-3 border-t-2 border-dashed border-black text-xs font-bold uppercase">
-                <div className="text-center mb-2 underline font-black">MUTASI PLAFON DANA HOLDING</div>
-                <div className="flex justify-between mb-1">
-                  <span>{history.labelLama || 'PLAFON AWAL'} :</span>
-                  <span>{formatRupiah(history.nominalLama)}</span>
-                </div>
-                <div className="flex justify-between mb-1 text-black font-black">
-                  <span>{history.labelAksi || 'DITARIK'} :</span>
-                  <span>-{formatRupiah(history.nominalAksi)}</span>
-                </div>
-                <div className="flex justify-between mt-2 pt-1 border-t border-black font-black">
-                  <span>{history.labelBaru || 'SISA PLAFON'} :</span>
-                  <span>{formatRupiah(history.nominalBaru)}</span>
-                </div>
+            {printData.paymentMethod && (
+              <div className="flex justify-between mb-3 uppercase text-[10px]">
+                <span>Metode:</span>
+                <span>{printData.paymentMethod}</span>
               </div>
             )}
-          </div>
-        )}
 
-        {/* ======================================= */}
-        {/* TANDA TANGAN RANGKAP */}
-        {/* ======================================= */}
-        <div className="grid grid-cols-2 text-center font-bold text-xs uppercase gap-4 mt-8">
-          <div>
-            <div className="mb-16">{mode === 'WORK_ORDER' || mode === 'PRODUCTION' ? "KEPALA PRODUKSI" : "PENERIMA / KLIEN"}</div>
-            <div className="border-b border-black mx-8 mb-1"></div>
-            <div>( NAMA JELAS )</div>
+            {/* HISTORY SECTION (Khusus Mutasi/Produksi/Stok) */}
+            {printData.history && (
+              <div className="mt-4 pt-2 border-t border-dotted border-black uppercase text-[9px]">
+                <div className="text-center font-bold mb-2">RINGKASAN SISTEM</div>
+                <div className="flex justify-between"><span>{printData.history.labelLama}:</span> <span>{printData.history.nominalLama}</span></div>
+                <div className="flex justify-between"><span>{printData.history.labelAksi}:</span> <span>{printData.history.nominalAksi}</span></div>
+                <div className="flex justify-between font-bold mt-1"><span>{printData.history.labelBaru}:</span> <span>{printData.history.nominalBaru}</span></div>
+              </div>
+            )}
+
+            {/* FOOTER NOTA */}
+            <div className="border-t border-dashed border-black my-3 pt-3 text-center space-y-1 uppercase">
+              <div className="font-bold">Terima Kasih</div>
+              <div className="text-[8px]">Sistem Terintegrasi Dimsum Aditya</div>
+            </div>
+
           </div>
-          <div>
-            <div className="mb-16">HORMAT KAMI,</div>
-            <div className="border-b border-black mx-8 mb-1 font-black text-sm">{admin_name}</div>
-            <div>( ADMIN DIMSUM )</div>
-          </div>
+          {/* ========================================================= */}
+          
         </div>
-        
-        <div className="mt-8 text-center text-[10px] font-bold border-t-2 border-dashed border-black pt-4">
-          *** TERIMA KASIH ATAS KEPERCAYAAN ANDA ***<br/>
-          Dicetak oleh Sistem ERP Dimsum Aditya
+
+        {/* FOOTER MODAL & TOMBOL - Disembunyikan saat print */}
+        <div className="p-4 bg-white border-t border-slate-200 flex gap-3 shrink-0 no-print">
+          <button 
+            type="button"
+            onClick={onClose} 
+            className="flex-1 py-3 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors text-xs normal-case cursor-pointer"
+          >
+            Tutup Preview
+          </button>
+          <button 
+            type="button"
+            onClick={handlePrint} 
+            className="flex-1 py-3 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 text-xs shadow-md normal-case cursor-pointer"
+          >
+            <Printer size={16} /> Cetak Sekarang
+          </button>
         </div>
+
       </div>
     </div>
   );
