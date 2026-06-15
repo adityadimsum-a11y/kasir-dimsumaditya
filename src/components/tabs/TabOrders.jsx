@@ -453,7 +453,7 @@ export default function TabOrders({
                   <input 
                     type="text" 
                     value={customerSearchTerm} 
-                    onChange={(e) => setCustomerSearchTerm(e.target.value)} // 🔥 FIX 4: SUNTIK KEMBALI KURUNG PARAMETER (e) YANG REBORN DI SINI
+                    onChange={(e) => setCustomerSearchTerm(e.target.value)} // 🔥 SUNTIKAN INTEGRAL TANDA KURUNG PARAMETER BERHASIL PULIH SEMPURNA
                     placeholder="Ketik sepotong nama pelanggan..." 
                     className="w-full p-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold outline-none"
                   />
