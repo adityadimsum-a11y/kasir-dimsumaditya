@@ -12,7 +12,7 @@ export default function TabStok({
   masterProducts = [], master_products, 
   inventoryCostLayers = [], inventory_cost_layers,
   productionBatches = [], production_batches,
-  sendToSheet, showToast, user, requestDelete 
+  sendToSheet, showToast, user, requestDelete, setPrintData // 🔥 FIX: Prop setPrintData masuk!
 }) {
   const todayStr = getTodayStr();
   const currentBranch = (user?.branch_id === 'PUSAT' || !user?.branch_id) ? 'TANGERANG_PUSAT' : user?.branch_id;
@@ -57,8 +57,8 @@ export default function TabStok({
     const stdMika = adukan * 20;
 
     let actualTotalPcs = 0;
-    if (satuanDipilih === 'MIKA') actualTotalPcs = inputAngka * 50;     
-    if (satuanDipilih === 'PORSI') actualTotalPcs = inputAngka * 4;     
+    if (satuanDipilih === 'MIKA') actualTotalPcs = inputAngka * 50;      
+    if (satuanDipilih === 'PORSI') actualTotalPcs = inputAngka * 4;      
     if (satuanDipilih === 'PCS') actualTotalPcs = inputAngka;
 
     const previewMika = (actualTotalPcs / 50).toFixed(1);
@@ -219,12 +219,11 @@ export default function TabStok({
               <input type="number" min="1" required value={form.adukanQty} onChange={e=>handleAdukanChange(e.target.value)} className="w-full py-3 border-2 border-slate-300 rounded-xl text-3xl font-black text-slate-800 bg-white outline-none text-center focus:border-red-500 transition-colors" placeholder="0" />
             </div>
 
-            {/* 🔥 LANGKAH 2: RE-DESIGN TOTAL DENGAN GRID SYSTEM ANTI KEPOTONG */}
+            {/* 🔥 LANGKAH 2 */}
             <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 shadow-inner relative">
               <div className="absolute -top-3 left-4 bg-red-600 text-white text-[8px] font-bold px-2 py-0.5 rounded normal-case flex items-center gap-1 shadow-xs"><PackageCheck size={10}/> Langkah 2</div>
               <label className="text-[10px] font-bold text-slate-600 normal-case block mb-3 text-center mt-1">Hasil kemasan fisik nyata</label>
               
-              {/* Pembagian Grid 12 Kolom Stabil: Input angka dapet 8 baris, Dropdown dapet 4 baris */}
               <div className="grid grid-cols-12 gap-2 items-stretch">
                 <div className="col-span-8">
                   <input 
@@ -341,13 +340,15 @@ export default function TabStok({
                         </td>
                         <td className="px-5 py-4 text-center whitespace-nowrap opacity-60 group-hover:opacity-100 transition-opacity">
                           <div className="flex items-center justify-center gap-1.5">
-                            <button type="button" onClick={() => triggerPrint('NOTA_DOTMATRIX', {
+                            {/* 🔥 FIX: triggerPrint DIGANTI MENJADI setPrintData */}
+                            <button type="button" onClick={() => setPrintData({
                               title: 'Bukti Setoran Produksi Dapur', id: p.id, date: formatDate(p.date),
                               branch_name: currentBranch, admin_name: user?.name || 'ADMIN', customer_name: 'GUDANG FREEZER POS',
                               items: [{ name: `HASIL AKTUAL FISIK: ${p.item_name}\n(PIC: ${p.pic} - ${adukanTercatat} ADUKAN)`, qty: 1, subtotal: p.actual_yield || p.qty }],
                               amount: p.actual_yield || p.qty, paymentMethod: 'TERCATAT DI KASIR POS',
                               history: { labelLama: 'Ayam Mentah Dipakai', nominalLama: potongAyam ? Math.abs(potongAyam.qty_remaining) : 0, labelAksi: 'Status Bahan Baku', nominalAksi: 'TERPOTONG OTOMATIS', labelBaru: 'Konversi Setara', nominalBaru: `${formatNumber(Math.floor((p.actual_yield || p.qty)/50))} Mika` }
                             })} className="p-2 text-slate-400 bg-white border border-slate-200 shadow-xs hover:text-emerald-600 hover:bg-slate-50 rounded-lg transition-colors" title="Cetak bukti adukan"><Printer size={14}/></button>
+                            
                             <button type="button" onClick={() => { if(window.confirm("Yakin void transaksi adukan ini? Stok kasir and ayam gudang akan ditarik mundur!")) requestDelete(p.id); }} className="p-2 text-slate-400 bg-white border border-slate-200 shadow-xs hover:text-red-600 hover:bg-slate-50 rounded-lg transition-colors" title="Hapus laporan adukan"><Trash2 size={14}/></button>
                           </div>
                         </td>
