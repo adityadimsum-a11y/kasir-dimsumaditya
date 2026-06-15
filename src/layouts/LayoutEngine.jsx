@@ -265,7 +265,7 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
       </aside>
 
       {/* MAIN CONTAINER */}
-      <main className="flex-1 h-full overflow-y-auto bg-slate-50 relative custom-scrollbar">
+      <main className="flex-1 h-full overflow-y-auto bg-slate-50 relative custom-scrollbar p-4 md:p-6 lg:p-8">
         {children}
       </main>
 
