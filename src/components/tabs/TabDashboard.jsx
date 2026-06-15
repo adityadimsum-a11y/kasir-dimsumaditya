@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { 
   TrendingUp, Wallet, Package, Users, AlertCircle, BarChart3, 
   ShieldCheck, Landmark, Globe, ArrowRightLeft, CreditCard,
-  Building2, Banknote, Activity
+  Building2, Banknote, Activity, Factory
 } from 'lucide-react';
 import { getTodayStr } from '../../utils/helpers';
 
