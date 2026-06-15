@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { 
   ShoppingCart, Plus, Minus, Trash2, Search, 
   UserCheck, Tag, Receipt, 
-  CheckCircle2, Gift, Package, PlusCircle, Printer, TrendingUp, Eye, Edit
+  CheckCircle2, Gift, Package, PlusCircle, Printer, TrendingUp, Eye, Edit, ChefHat
 } from 'lucide-react';
 import { getTodayStr, generateId, formatDate, safeJsonParse } from '../../utils/helpers';
 
@@ -37,6 +37,9 @@ export default function TabOrders({
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [orderMode, setOrderMode] = useState('REGULAR'); 
   const [notes, setNotes] = useState('');
+
+  // TARGET TANGGAL PRE-ORDER (Khusus WO)
+  const [targetDate, setTargetDate] = useState(''); 
 
   const [payCash, setPayCash] = useState('');
   const [payBCA, setPayBCA] = useState('');
@@ -79,15 +82,50 @@ export default function TabOrders({
     return activeProducts.filter(p => (p.product_name || '').toLowerCase().includes(s));
   }, [activeProducts, searchTerm]);
 
+  // MENDAPATKAN HARGA PRODUK SESUAI KATEGORI KLIEN
+  const getProductPriceForCustomer = (product, customerId) => {
+    let customerTier = 'RESELLER'; // Default Tier
+    if (customerId) {
+       const cust = activeCustomers.find(c => c.id === customerId || c.customer_id === customerId);
+       if (cust) customerTier = cust.customer_tier || cust.category || 'RESELLER';
+    }
+
+    const priceMap = safeJsonParse(product.price_tiers, {});
+    // Jika ada price tier khusus untuk kategori ini, gunakan
+    if (priceMap[customerTier]) {
+        return Number(priceMap[customerTier]);
+    }
+    // Fallback ke selling_price utama jika tier tidak di-set
+    return Number(product.selling_price || 0);
+  };
+
   const addToCart = (product) => {
+    // Ambil harga dinamis berdasarkan klien yang lagi dipilih di select box
+    const currentPrice = getProductPriceForCustomer(product, selectedCustomerId);
+
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
       if (existing) return prev.map(item => item.id === product.id ? { ...item, qty: item.qty + 1 } : item);
       return [...prev, { 
         id: product.id, name: product.product_name, 
-        price: Number(product.selling_price || 0), hpp: Number(product.default_hpp || 0), qty: 1 
+        price: currentPrice, 
+        hpp: Number(product.default_hpp || 0), qty: 1 
       }];
     });
+  };
+
+  // UPDATE HARGA SELURUH KERANJANG JIKA GANTI PELANGGAN
+  const handleCustomerChange = (newCustId) => {
+      setSelectedCustomerId(newCustId);
+      if (cart.length > 0) {
+          setCart(prev => prev.map(item => {
+              const productMaster = activeProducts.find(p => p.id === item.id);
+              if (productMaster) {
+                  return { ...item, price: getProductPriceForCustomer(productMaster, newCustId) };
+              }
+              return item;
+          }));
+      }
   };
 
   const updateQtyExact = (id, newQty) => {
@@ -190,7 +228,7 @@ export default function TabOrders({
     const isSuccess = await sendToSheet('insert', [payload], 'master_customers');
     if (isSuccess) {
       showToast(`Pelanggan "${newCustomerForm.name}" Berhasil Terdaftar!`, 'success');
-      setSelectedCustomerId(fastId);
+      handleCustomerChange(fastId);
       setShowAddCustomerModal(false);
       setNewCustomerForm({ name: '', phone: '', address: '', notes: '', category: 'RESELLER' });
     }
@@ -206,6 +244,12 @@ export default function TabOrders({
 
     const orderId = editingOrderId ? editingOrderId : generateId('INV', todayStr);
     const totalItemQty = cart.reduce((sum, item) => sum + item.qty, 0);
+
+    // Bikin objek JSON Items yang disisipkan target date khusus kalau PO (Biar Dapur tau)
+    let finalNotes = notes || '-';
+    if (singleMethod === 'COD_PO' && targetDate) {
+        finalNotes = `(TARGET PO: ${formatDate(targetDate)}) ${finalNotes}`;
+    }
 
     const confirmMsg = `${editingOrderId ? '⚡ REVISI NOTA PENJUALAN' : 'Konfirmasi Transaksi Grosir Aditya'}:\n\n` +
       `No Invoice: ${orderId}\n` +
@@ -224,7 +268,7 @@ export default function TabOrders({
       total_amount: cartTotal, amount_paid: paymentSummary.totalDibayar,
       payment_method: paymentSummary.methodStr,
       status: paymentSummary.sisaBon <= 0 ? 'LUNAS' : 'BELUM_LUNAS',
-      notes: notes || '-', isDeleted: false
+      notes: finalNotes, isDeleted: false
     };
 
     const actionType = editingOrderId ? 'update' : 'insert';
@@ -256,19 +300,19 @@ export default function TabOrders({
       }
 
       setPrintData({
-        title: orderMode === 'INFLUENCER' ? 'NOTA COMPLIMENTARY MARKETING' : (paymentSummary.sisaBon > 0 ? 'NOTA DP & BON GANTUNG' : 'INVOICE DISTRIBUSI RESMI'),
+        type: 'INVOICE',
         id: orderId, date: formatDate(todayStr), branch_name: currentBranch.replace(/_/g, ' '),
         admin_name: user?.name || 'KASIR UTAMA', customer_name: custName,
-        items: cart.map(item => ({ name: item.name, qty: item.qty, subtotal: item.price * item.qty })),
-        amount: cartTotal, paymentMethod: paymentSummary.methodStr.replace(/_/g, ' '),
+        items: cart.map(item => ({ name: item.name, qty: item.qty, subtotal: item.price * item.qty, price: item.price })),
+        amount: cartTotal, paymentMethod: paymentSummary.methodStr.replace(/_/g, ' '), notes: finalNotes,
         history: {
           labelLama: 'Total Belanja', nominalLama: cartTotal,
-          labelAksi: 'Total Masuk Laci/Bank', nominalAksi: paymentSummary.totalDibayar,
-          labelBaru: 'Sisa Bersih Hutang/Bon', nominalBaru: paymentSummary.sisaBon
+          labelAksi: 'Total Masuk Kas', nominalAksi: paymentSummary.totalDibayar,
+          labelBaru: 'Sisa Piutang Berjalan', nominalBaru: paymentSummary.sisaBon
         }
       });
 
-      setCart([]); setSelectedCustomerId(''); setNotes('');
+      setCart([]); setSelectedCustomerId(''); setNotes(''); setTargetDate('');
       setPayCash(''); setPayBCA(''); setPayBRI(''); setSingleAmountPaid('');
       setIsSplitPayment(false); setOrderMode('REGULAR'); setCustomerSearchTerm('');
       setSingleMethod('CASH'); setDpMethod('CASH');
@@ -279,7 +323,14 @@ export default function TabOrders({
     if (!window.confirm(`Tarik nota ${o.id} kembali ke kasir untuk di-revisi total?`)) return;
     
     setEditingOrderId(o.id);
-    setNotes(o.notes || '');
+    
+    // Parse target PO date if exists
+    const notesArr = (o.notes || '').split(') ');
+    if (notesArr.length > 1 && notesArr[0].includes('TARGET PO')) {
+        setNotes(notesArr[1]);
+    } else {
+        setNotes(o.notes || '');
+    }
     
     const foundCust = activeCustomers.find(c => String(c.customer_name).toUpperCase() === String(o.customer_name).toUpperCase());
     if (foundCust) setSelectedCustomerId(foundCust.customer_id || foundCust.id);
@@ -360,7 +411,7 @@ export default function TabOrders({
       {editingOrderId && (
         <div className="bg-orange-600 text-white font-black text-xs p-4 rounded-xl shadow-md animate-bounce flex justify-between items-center shrink-0">
           <span>⚠️ ANDA SEDANG DALAM MODE REVISI NOTA: {editingOrderId}. KLIK BATAL JIKA INGIN KEMBALI KE NOTA BARU.</span>
-          <button onClick={() => { setEditingOrderId(null); setCart([]); setSelectedCustomerId(''); setNotes(''); }} className="bg-white text-orange-700 px-3 py-1 rounded-lg font-black uppercase tracking-wider">Batal Revisi</button>
+          <button onClick={() => { setEditingOrderId(null); setCart([]); setSelectedCustomerId(''); setNotes(''); setTargetDate(''); }} className="bg-white text-orange-700 px-3 py-1 rounded-lg font-black uppercase tracking-wider cursor-pointer">Batal Revisi</button>
         </div>
       )}
 
@@ -385,6 +436,9 @@ export default function TabOrders({
           <div className="grid grid-cols-2 xl:grid-cols-3 gap-4 overflow-y-auto custom-scrollbar max-h-[50vh] pb-2 pr-1">
             {filteredProducts.map(product => {
               const liveStock = productStockMap[product.product_name] || 0;
+              // Munculkan harga yang sesuai tier di katalog secara live jika customer dipilih
+              const displayPrice = getProductPriceForCustomer(product, selectedCustomerId);
+
               return (
                 <div key={product.id} onClick={() => addToCart(product)} className="bg-white border border-slate-200 rounded-2xl p-4 cursor-pointer hover:border-blue-400 hover:shadow-md transition-all flex flex-col justify-between h-full group relative shadow-2xs overflow-hidden">
                   <div className={`absolute top-0 right-0 px-2.5 py-0.5 text-[9px] font-black rounded-bl-xl ${liveStock > 500 ? 'bg-emerald-100 text-emerald-800' : liveStock > 0 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'}`}>
@@ -393,7 +447,9 @@ export default function TabOrders({
                   <div className="mt-2">
                     <h3 className="font-black text-slate-800 text-xs normal-case group-hover:text-blue-600 transition-colors pr-10">{product.product_name}</h3>
                   </div>
-                  <div className="mt-3 text-blue-600 font-black text-sm">{formatRupiah(product.selling_price)}</div>
+                  <div className="mt-3 text-blue-600 font-black text-sm">
+                      {formatRupiah(displayPrice)}
+                  </div>
                 </div>
               );
             })}
@@ -423,12 +479,12 @@ export default function TabOrders({
                       </div>
                       
                       <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-0.5 shadow-3xs shrink-0">
-                        <button type="button" onClick={() => updateQtyExact(item.id, item.qty - 1)} className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-blue-600"><Minus size={10}/></button>
+                        <button type="button" onClick={() => updateQtyExact(item.id, item.qty - 1)} className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-blue-600 cursor-pointer"><Minus size={10}/></button>
                         <input type="number" value={item.qty} onChange={(e) => updateQtyExact(item.id, parseInt(e.target.value) || 0)} className="w-12 text-center text-xs font-black text-slate-800 bg-transparent outline-none hide-arrows" />
-                        <button type="button" onClick={() => updateQtyExact(item.id, item.qty + 1)} className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-blue-600"><Plus size={10}/></button>
+                        <button type="button" onClick={() => updateQtyExact(item.id, item.qty + 1)} className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-blue-600 cursor-pointer"><Plus size={10}/></button>
                       </div>
                       
-                      <button type="button" onClick={() => removeFromCart(item.id)} className="ml-1 p-1.5 text-slate-400 hover:text-rose-600"><Trash2 size={13}/></button>
+                      <button type="button" onClick={() => removeFromCart(item.id)} className="ml-1 p-1.5 text-slate-400 hover:text-rose-600 cursor-pointer"><Trash2 size={13}/></button>
                     </div>
                   ))}
                 </div>
@@ -455,12 +511,12 @@ export default function TabOrders({
                     value={customerSearchTerm} 
                     onChange={(e) => setCustomerSearchTerm(e.target.value)} 
                     placeholder="Ketik sepotong nama pelanggan..." 
-                    className="w-full p-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold outline-none"
+                    className="w-full p-2 bg-white border border-slate-200 rounded-lg text-[10px] font-bold outline-none normal-case"
                   />
                   <select 
                     required 
                     value={selectedCustomerId} 
-                    onChange={e => setSelectedCustomerId(e.target.value)} 
+                    onChange={e => handleCustomerChange(e.target.value)} 
                     className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 outline-none cursor-pointer"
                   >
                     <option value="">-- Pilih Hasil Pencarian ({filteredCustomersForSelect.length}) --</option>
@@ -540,6 +596,14 @@ export default function TabOrders({
                           <input type="text" value={singleAmountPaid ? Number(singleAmountPaid).toLocaleString('id-ID') : ''} onChange={e=>setSingleAmountPaid(e.target.value.replace(/\D/g, ''))} className="w-1/2 p-2 bg-white border border-orange-200 rounded-lg text-xs font-black text-right text-orange-700 outline-none shadow-3xs placeholder:text-orange-300" placeholder="Nominal DP (Rp)" />
                         </div>
                       )}
+                      
+                      {singleMethod === 'COD_PO' && (
+                        <div className="p-2 bg-purple-50 border border-purple-200 rounded-lg shadow-inner">
+                          <label className="text-[9px] font-black text-purple-800 block mb-1">SET TANGGAL TARGET ACARA / PO: (Opsional)</label>
+                          <input type="date" value={targetDate} onChange={e=>setTargetDate(e.target.value)} className="w-full p-2 bg-white border border-purple-200 rounded-lg text-xs font-bold text-purple-900 outline-none cursor-pointer shadow-3xs" />
+                        </div>
+                      )}
+
                     </div>
                   )}
 
@@ -556,8 +620,8 @@ export default function TabOrders({
               )}
 
               <div>
-                <label className="text-[9px] font-bold text-slate-500 block mb-1"><Tag size={12}/> Catatan Khusus Invoice</label>
-                <input type="text" value={notes} onChange={e=>setNotes(e.target.value)} className="w-full p-2 border border-slate-200 rounded-lg text-xs font-medium normal-case outline-none bg-slate-50 focus:bg-white focus:border-blue-400 transition-colors" placeholder={orderMode === 'INFLUENCER' ? "Ketik detail target promo..." : "Catatan kasir..."} />
+                <label className="text-[9px] font-bold text-slate-500 block mb-1"><Tag size={12}/> Catatan Khusus Invoice / Request Dapur (WO)</label>
+                <input type="text" value={notes} onChange={e=>setNotes(e.target.value)} className="w-full p-2 border border-slate-200 rounded-lg text-xs font-medium normal-case outline-none bg-slate-50 focus:bg-white focus:border-blue-400 transition-colors" placeholder={orderMode === 'INFLUENCER' ? "Ketik detail target promo..." : "Contoh: Bawa sore hari, jangan pakai daun bawang..."} />
               </div>
 
               <button type="button" onClick={handleCheckout} className={`w-full text-white font-black py-3.5 rounded-xl text-xs normal-case shadow-md transition-transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer ${editingOrderId ? 'bg-orange-600 hover:bg-orange-700' : 'bg-blue-600 hover:bg-blue-700'}`}>
@@ -575,7 +639,7 @@ export default function TabOrders({
         <div className="p-4 bg-slate-50 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0">
           <div>
             <h3 className="font-black text-slate-800 text-xs flex items-center gap-2 normal-case"><Receipt size={16} className="text-blue-600"/> Histori Penjualan & Re-Print Nota</h3>
-            <p className="text-[9px] font-bold text-slate-400 normal-case mt-0.5">Kelola rekam jejak penjualan, re-print struk, void transaksi, serta bedah lini masa pembayaran piutang.</p>
+            <p className="text-[9px] font-bold text-slate-400 normal-case mt-0.5">Kelola rekam jejak penjualan, re-print struk, void transaksi, serta cetak Work Order (WO) dapur.</p>
           </div>
           
           <div className="flex flex-wrap items-center gap-2 bg-white border p-1.5 rounded-xl shadow-3xs w-full sm:w-auto">
@@ -617,9 +681,16 @@ export default function TabOrders({
                   const orderProfit = Number(o.total_amount || 0) - orderHPP;
 
                   let totalTerbayarDynamic = Number(o.amount_paid || 0);
+                  // Grab riwayat cicilan
+                  let paymentHistory = [];
+                  if (Number(o.amount_paid) > 0) {
+                      paymentHistory.push({ date: formatDate(o.date), method: o.payment_method.replace(/_/g, ' '), amount: o.amount_paid, refId: 'DP AWAL' });
+                  }
+
                   (piutangPayments || []).forEach(p => {
                     if (!p.isDeleted && p.orderId === o.id) {
                       totalTerbayarDynamic += Number(p.amount || 0);
+                      paymentHistory.push({ date: formatDate(p.date), method: p.method.replace(/_/g, ' '), amount: p.amount, refId: p.id });
                     }
                   });
                   
@@ -652,17 +723,39 @@ export default function TabOrders({
                       
                       <td className="px-4 py-3 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1">
-                          <button type="button" onClick={() => { setSelectedStaplesOrder({ ...o, orderHPP, listItems, sisaHutangDynamic, totalTerbayarDynamic }); setShowAddStaplesModal(true); }} className="p-1.5 text-slate-500 hover:text-emerald-600 border border-slate-200 rounded-lg bg-white shadow-3xs hover:bg-emerald-50 cursor-pointer" title="Buka Buku Staples Ledger"><Eye size={13}/></button>
+                          
                           <button type="button" onClick={() => handleTriggerEditOrder(o)} className="p-1.5 text-slate-500 hover:text-orange-600 border border-slate-200 rounded-lg bg-white shadow-3xs hover:bg-orange-50 cursor-pointer" title="Revisi/Edit Nota Total"><Edit size={13}/></button>
+                          
+                          {/* TOMBOL CETAK INVOICE CUSTOMER */}
                           <button type="button" onClick={() => {
                             setPrintData({
-                              title: 'RE-PRINT DUPLIKAT INVOICE', id: o.id, date: formatDate(o.date), branch_name: currentBranch.replace(/_/g, ' '),
+                              type: 'INVOICE',
+                              id: o.id, date: formatDate(o.date), branch_name: currentBranch.replace(/_/g, ' '),
                               admin_name: user?.name || 'ADMIN PUSAT', customer_name: o.customer_name,
-                              items: listItems.map(i => ({ name: i.name, qty: i.qty, subtotal: i.price * i.qty })), amount: o.total_amount,
-                              paymentMethod: o.payment_method.replace(/_/g, ' '),
+                              items: listItems.map(i => ({ name: i.name, qty: i.qty, subtotal: i.price * i.qty, price: i.price })), amount: o.total_amount,
+                              paymentMethod: o.payment_method.replace(/_/g, ' '), notes: o.notes,
+                              paymentHistory: paymentHistory,
                               history: { labelLama: 'Total Belanja', nominalLama: o.total_amount, labelAksi: 'Total Sudah Dibayar', nominalAksi: totalTerbayarDynamic, labelBaru: 'Sisa Piutang Berjalan', nominalBaru: sisaHutangDynamic }
                             });
-                          }} className="p-1.5 text-slate-400 hover:text-blue-600 border border-slate-200 rounded-lg shadow-3xs bg-white cursor-pointer hover:bg-blue-50 transition-colors" title="Cetak Ulang Nota"><Printer size={14}/></button>
+                          }} className="p-1.5 text-slate-400 hover:text-blue-600 border border-slate-200 rounded-lg shadow-3xs bg-white cursor-pointer hover:bg-blue-50 transition-colors" title="Cetak Ulang Invoice Pelanggan"><Printer size={14}/></button>
+
+                          {/* TOMBOL CETAK WORK ORDER (WO) DAPUR */}
+                          <button type="button" onClick={() => {
+                             let tgDate = ''; let cNotes = o.notes || '';
+                             if (cNotes.includes('TARGET PO')) {
+                                const splitted = cNotes.split(') ');
+                                tgDate = splitted[0].replace('(TARGET PO: ', '');
+                                cNotes = splitted.length > 1 ? splitted[1] : '';
+                             }
+                             setPrintData({
+                              type: 'WO',
+                              id: o.id, date: formatDate(o.date), branch_name: currentBranch.replace(/_/g, ' '),
+                              admin_name: user?.name || 'ADMIN PUSAT', customer_name: o.customer_name, targetDate: tgDate,
+                              items: listItems.map(i => ({ name: i.name, qty: i.qty, unit: i.unit })),
+                              notes: cNotes
+                            });
+                          }} className="p-1.5 text-slate-400 hover:text-purple-600 border border-slate-200 rounded-lg shadow-3xs bg-white cursor-pointer hover:bg-purple-50 transition-colors" title="Cetak Work Order (WO) Dapur"><ChefHat size={14}/></button>
+
                           <button type="button" onClick={() => handleTriggerVoidOrder(o.id)} className="p-1.5 text-slate-400 hover:text-rose-600 border border-slate-200 rounded-lg shadow-3xs bg-white cursor-pointer hover:bg-rose-50 transition-colors" title="Void Nota Permanen"><Trash2 size={13}/></button>
                         </div>
                       </td>
@@ -784,7 +877,7 @@ export default function TabOrders({
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm border border-slate-200 overflow-hidden flex flex-col">
             <div className="p-4 bg-slate-900 text-white flex justify-between items-center">
               <h3 className="font-black text-xs uppercase flex items-center gap-1.5"><PlusCircle size={14} className="text-emerald-400"/> Registrasi Pelanggan Kilat</h3>
-              <button type="button" onClick={() => setShowAddCustomerModal(false)} className="text-slate-400 hover:text-white text-sm font-bold">✕</button>
+              <button type="button" onClick={() => setShowAddCustomerModal(false)} className="text-slate-400 hover:text-white text-sm font-bold cursor-pointer">✕</button>
             </div>
             <form onSubmit={handleCreateCustomerFast} className="p-4 space-y-3">
               <div><label className="text-[9px] font-bold text-slate-400 block mb-1">Nama Lengkap / Nama Toko Agen</label><input type="text" required value={newCustomerForm.name} onChange={e=>setNewCustomerForm({...newCustomerForm, name: e.target.value})} className="w-full p-2 border border-slate-200 rounded-lg text-xs font-bold outline-none focus:border-blue-400 shadow-3xs uppercase" placeholder="Contoh: AGEN CIBINONG JAYA" /></div>
@@ -794,17 +887,17 @@ export default function TabOrders({
                 <div>
                   <label className="text-[9px] font-bold text-slate-400 block mb-1">Jalur / Kategori Harga</label>
                   <select value={newCustomerForm.category} onChange={e=>setNewCustomerForm({...newCustomerForm, category: e.target.value})} className="w-full p-2 border border-slate-200 rounded-lg text-[10px] font-bold cursor-pointer outline-none">
-                    <option value="RESELLER">Reseller (Rp 2.125)</option>
-                    <option value="MITRA">Mitra Utama (Rp 2.000)</option>
-                    <option value="ECERAN">Eceran Biasa (Rp 3.000)</option>
-                    <option value="PEMALANG">Cabang Pemalang (Rp 2.250)</option>
+                    <option value="RESELLER">Reseller</option>
+                    <option value="MITRA">Mitra Utama</option>
+                    <option value="ECERAN">Eceran Biasa</option>
+                    <option value="PEMALANG">Cabang Pemalang</option>
                   </select>
                 </div>
                 <div><label className="text-[9px] font-bold text-slate-400 block mb-1">Keterangan Khusus</label><input type="text" value={newCustomerForm.notes} onChange={e=>setNewCustomerForm({...newCustomerForm, notes: e.target.value})} className="w-full p-2 border border-slate-200 rounded-lg text-xs font-bold outline-none focus:border-blue-400 shadow-3xs" placeholder="Contoh: Ambil Sore..." /></div>
               </div>
               <div className="pt-2 flex gap-2">
-                <button type="button" onClick={() => setShowAddCustomerModal(false)} className="flex-1 py-2 bg-slate-100 border text-slate-600 font-bold text-[10px] rounded-lg uppercase">Batal</button>
-                <button type="submit" className="flex-1 py-2 bg-emerald-600 text-white font-black text-[10px] rounded-lg uppercase shadow-md hover:bg-emerald-700">Daftarkan & Pilih</button>
+                <button type="button" onClick={() => setShowAddCustomerModal(false)} className="flex-1 py-2 bg-slate-100 border text-slate-600 font-bold text-[10px] rounded-lg uppercase cursor-pointer">Batal</button>
+                <button type="submit" className="flex-1 py-2 bg-emerald-600 text-white font-black text-[10px] rounded-lg uppercase shadow-md hover:bg-emerald-700 cursor-pointer">Daftarkan & Pilih</button>
               </div>
             </form>
           </div>
