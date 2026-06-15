@@ -1,141 +1,350 @@
 import React, { useState, useMemo } from 'react';
-import { Package, Search, Database, Layers, ArrowDownUp } from 'lucide-react';
+import { Package, Box, ArrowRightLeft, Search, Archive, ArrowDownRight, ArrowUpRight, History, Database, ShieldAlert } from 'lucide-react';
+import { formatDate, safeJsonParse } from '../../utils/helpers';
 
-const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
-export default function TabStok({ 
-  inventoryCostLayers = [], inventory_cost_layers, 
-  user 
+export default function TabStok({
+  masterProducts = [], masterRawMaterials = [],
+  orders = [], purchases = [], productionBatches = []
 }) {
-  const currentBranch = (user?.branch_id === 'PUSAT' || !user?.branch_id) ? 'TANGERANG_PUSAT' : user?.branch_id;
+  const [activeTab, setActiveTab] = useState('FREEZER');
   const [searchTerm, setSearchTerm] = useState('');
 
-  const realInventory = useMemo(() => inventory_cost_layers || inventoryCostLayers || [], [inventory_cost_layers, inventoryCostLayers]);
-
-  // ENGINE REKAP STOK GUDANG REAL-TIME
-  const stockSummary = useMemo(() => {
-    const map = {};
-    let totalValuasi = 0;
-    let totalItems = 0;
-
-    realInventory.forEach(layer => {
-      if (!layer.isDeleted && layer.status === 'ACTIVE' && (layer.branch_id === currentBranch || currentBranch === 'TANGERANG_PUSAT')) {
-        const name = String(layer.item_name).toUpperCase();
-        if (!map[name]) {
-          map[name] = { 
-            name, 
-            qty: 0, 
-            category: layer.category || 'UMUM', 
-            total_value: 0 
-          };
-          totalItems++;
-        }
-        
-        const qty = Number(layer.qty_remaining || 0);
-        const cost = Number(layer.unit_cost || 0);
-        
-        map[name].qty += qty;
-        map[name].total_value += (qty * cost);
-        totalValuasi += (qty * cost);
+  const freezerStock = useMemo(() => {
+    const stockMap = {};
+    
+    (masterProducts || []).forEach(p => {
+      if (!p.isDeleted && p.product_name) {
+        stockMap[p.product_name] = { 
+          id: p.id, name: p.product_name, sku: p.sku || '', category: p.category || '',
+          stockIn: 0, stockOut: 0, currentStock: 0 
+        };
       }
     });
 
-    const list = Object.values(map).filter(item => item.qty !== 0);
+    (productionBatches || []).forEach(batch => {
+      if (!batch.isDeleted && batch.status === 'COMPLETED') {
+        const productName = batch.product_name || 'DIMSUM FROZEN CORE'; 
+        if (stockMap[productName]) {
+          stockMap[productName].stockIn += Number(batch.total_yield_pcs || batch.actual_yield || batch.qty || 0);
+        }
+      }
+    });
 
-    // Sort by name
-    list.sort((a, b) => a.name.localeCompare(b.name));
+    (orders || []).forEach(o => {
+      if (!o.isDeleted && o.status !== 'BATAL') {
+        const items = safeJsonParse(o.items, []);
+        items.forEach(item => {
+          const pName = item.name || item.product_name;
+          if (pName && stockMap[pName]) {
+            stockMap[pName].stockOut += Number(item.qty || 0);
+          }
+        });
+      }
+    });
 
-    return { list, totalValuasi, totalItems: list.length };
-  }, [realInventory, currentBranch]);
+    const safeSearch = (searchTerm || '').toLowerCase();
+    return Object.values(stockMap).map(item => {
+      item.currentStock = item.stockIn - item.stockOut;
+      return item;
+    }).filter(item => (item.name || '').toLowerCase().includes(safeSearch));
+  }, [masterProducts, productionBatches, orders, searchTerm]);
 
-  const filteredStock = useMemo(() => {
-    if (!searchTerm) return stockSummary.list;
-    return stockSummary.list.filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
-  }, [stockSummary.list, searchTerm]);
+  const rawStock = useMemo(() => {
+    const stockMap = {};
+
+    (masterRawMaterials || []).forEach(r => {
+      if (!r.isDeleted && r.raw_name) {
+        stockMap[r.raw_name] = {
+          id: r.id, name: r.raw_name, unit: r.unit || '', category: r.category || '',
+          stockIn: 0, stockOut: 0, currentStock: 0
+        };
+      }
+    });
+
+    (purchases || []).forEach(p => {
+      if (!p.isDeleted) {
+        const items = safeJsonParse(p.items, []);
+        if (items.length > 0) {
+          items.forEach(item => {
+            const rName = item.name || item.raw_name;
+            if (rName && stockMap[rName]) {
+              stockMap[rName].stockIn += Number(item.qty || 0);
+            }
+          });
+        } else if (p.raw_name && stockMap[p.raw_name]) {
+           stockMap[p.raw_name].stockIn += Number(p.qty || 0);
+        }
+      }
+    });
+
+    (productionBatches || []).forEach(batch => {
+      if (!batch.isDeleted && batch.status === 'COMPLETED') {
+        if (stockMap['AYAM FILLET PAHA'] && batch.total_ayam_kg) {
+            stockMap['AYAM FILLET PAHA'].stockOut += Number(batch.total_ayam_kg);
+        }
+        const ingredients = safeJsonParse(batch.ingredients_used, []);
+        ingredients.forEach(ing => {
+          const rName = ing.name || ing.raw_name;
+          if (rName && stockMap[rName]) {
+            stockMap[rName].stockOut += Number(ing.qty || 0);
+          }
+        });
+      }
+    });
+
+    const safeSearch = (searchTerm || '').toLowerCase();
+    return Object.values(stockMap).map(item => {
+      item.currentStock = item.stockIn - item.stockOut;
+      return item;
+    }).filter(item => (item.name || '').toLowerCase().includes(safeSearch));
+  }, [masterRawMaterials, purchases, productionBatches, searchTerm]);
+
+  const kartuMutasi = useMemo(() => {
+    const timeline = [];
+
+    (orders || []).forEach(o => {
+      if (!o.isDeleted && o.status !== 'BATAL') {
+        const items = safeJsonParse(o.items, []);
+        items.forEach(item => {
+          timeline.push({
+            id: o.id, date: o.date, type: 'OUT', category: 'Penjualan Kasir',
+            itemName: item.name || item.product_name || 'Item Tidak Diketahui', 
+            qty: item.qty || 0, reference: o.customer_name || 'Pelanggan Umum'
+          });
+        });
+      }
+    });
+
+    (purchases || []).forEach(p => {
+      if (!p.isDeleted) {
+        const items = safeJsonParse(p.items, []);
+        if(items.length > 0) {
+          items.forEach(item => {
+            timeline.push({
+              id: p.id, date: p.date, type: 'IN', category: 'Belanja Logistik',
+              itemName: item.name || item.raw_name || 'Item Tidak Diketahui', 
+              qty: item.qty || 0, reference: p.supplier_name || 'Supplier'
+            });
+          });
+        } else if (p.raw_name) {
+          timeline.push({
+            id: p.id, date: p.date, type: 'IN', category: 'Belanja Logistik',
+            itemName: p.raw_name, qty: p.qty || 1, reference: p.supplier_name || 'Supplier'
+          });
+        }
+      }
+    });
+
+    (productionBatches || []).forEach(batch => {
+      if (!batch.isDeleted && batch.status === 'COMPLETED') {
+        timeline.push({
+          id: batch.id, date: batch.date, type: 'IN', category: 'Hasil Produksi Pabrik',
+          itemName: batch.product_name || 'Dimsum Frozen Core', 
+          qty: batch.total_yield_pcs || batch.actual_yield || batch.qty || 0, 
+          reference: `Batch Produksi: ${batch.id}`
+        });
+
+        if (batch.total_ayam_kg) {
+            timeline.push({
+              id: batch.id + '-AYM', date: batch.date, type: 'OUT', category: 'Pemakaian Produksi',
+              itemName: 'AYAM FILLET PAHA', qty: batch.total_ayam_kg, reference: `Untuk Batch: ${batch.id}`
+            });
+        }
+
+        const ingredients = safeJsonParse(batch.ingredients_used, []);
+        ingredients.forEach(ing => {
+          timeline.push({
+            id: batch.id + '-ING', date: batch.date, type: 'OUT', category: 'Pemakaian Produksi',
+            itemName: ing.name || ing.raw_name || 'Item Tidak Diketahui', 
+            qty: ing.qty || 0, reference: `Untuk Batch: ${batch.id}`
+          });
+        });
+      }
+    });
+
+    const safeSearch = (searchTerm || '').toLowerCase();
+    return timeline
+      .filter(t => (t.itemName || '').toLowerCase().includes(safeSearch) || (t.category || '').toLowerCase().includes(safeSearch))
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
+  }, [orders, purchases, productionBatches, searchTerm]);
 
   return (
-    <div className="flex flex-col gap-6 pb-10 text-slate-700 normal-case animate-in fade-in duration-200">
-      
-      {/* HEADER MENU */}
-      <div className="card-holo p-4 bg-white border border-slate-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-2xs gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-blue-50 text-blue-600 rounded-xl border border-blue-100"><Package size={24}/></div>
-          <div>
-            <h2 className="text-base font-black text-slate-800 normal-case">Manajemen Kartu Stok &amp; Gudang</h2>
-            <p className="text-[10px] font-bold text-slate-400 normal-case mt-0.5">Pemantauan ketersediaan barang jadi dan bahan mentah secara real-time.</p>
-          </div>
+    <div className="space-y-6 pb-10 text-slate-700 normal-case">
+      {/* HEADER GUDANG - FLAT STYLE */}
+      <div className="card-holo p-6 shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative overflow-hidden bg-white border border-slate-200 rounded-2xl">
+        <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-600"></div>
+        <div className="pl-2">
+          <h2 className="text-base font-extrabold normal-case flex items-center gap-2 text-slate-900">
+            <Archive className="text-red-600" size={20} /> Pusat komando gudang &amp; stok
+          </h2>
+          <p className="text-[10px] font-semibold text-slate-400 mt-1 normal-case tracking-wide">
+            Pantau arus keluar-masuk barang dan bahan baku secara real-time.
+          </p>
         </div>
-        <div className="relative w-full sm:w-64 shrink-0">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
+        <div className="relative w-full md:w-64 text-slate-700">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
           <input 
             type="text" 
+            placeholder="Cari nama barang / aktivitas..." 
             value={searchTerm} 
             onChange={(e) => setSearchTerm(e.target.value)} 
-            className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:bg-white focus:border-blue-400 transition-colors shadow-3xs normal-case" 
-            placeholder="Cari nama barang..." 
+            className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 font-bold outline-none bg-slate-50 text-xs focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all shadow-inner" 
           />
         </div>
       </div>
 
-      {/* SUMMARY WIDGETS */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs flex items-center justify-between">
-          <div>
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Varian Tersimpan</div>
-            <div className="text-2xl font-black text-slate-800">{formatNumber(stockSummary.totalItems)} <span className="text-xs text-slate-400 font-medium">Jenis</span></div>
-          </div>
-          <div className="p-3 bg-slate-50 text-slate-500 rounded-xl border border-slate-100"><Layers size={20}/></div>
-        </div>
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs flex items-center justify-between md:col-span-2 border-l-4 border-l-blue-500">
-          <div>
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Valuasi Harta Gudang (HPP)</div>
-            <div className="text-2xl font-black text-blue-600">{formatRupiah(stockSummary.totalValuasi)}</div>
-          </div>
-          <div className="p-3 bg-blue-50 text-blue-600 rounded-xl border border-blue-100"><Database size={20}/></div>
-        </div>
+      {/* FILTER TAB BAR - CLEAN ENTERPRISE TABS */}
+      <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-4">
+        <button onClick={() => setActiveTab('FREEZER')} className={`px-5 py-2.5 rounded-lg font-bold text-xs normal-case transition-all flex items-center gap-2 ${activeTab === 'FREEZER' ? 'bg-white shadow-xs text-red-600 border border-slate-200/50' : 'bg-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-700 border border-transparent'}`}><Package size={14}/> Gudang freezer (Produk akhir)</button>
+        <button onClick={() => setActiveTab('BAHAN_BAKU')} className={`px-5 py-2.5 rounded-lg font-bold text-xs normal-case transition-all flex items-center gap-2 ${activeTab === 'BAHAN_BAKU' ? 'bg-white shadow-xs text-red-600 border border-slate-200/50' : 'bg-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-700 border border-transparent'}`}><Box size={14}/> Gudang mentah &amp; packaging</button>
+        <button onClick={() => setActiveTab('MUTASI')} className={`px-5 py-2.5 rounded-lg font-bold text-xs normal-case transition-all flex items-center gap-2 ${activeTab === 'MUTASI' ? 'bg-white shadow-xs text-red-600 border border-slate-200/50' : 'bg-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-700 border border-transparent'}`}><ArrowRightLeft size={14}/> Buku mutasi kartu stok</button>
       </div>
 
-      {/* TABEL INVENTARIS */}
-      <div className="card-holo bg-white border border-slate-200 rounded-2xl shadow-2xs flex flex-col overflow-hidden">
-        <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center gap-2 shrink-0">
-          <ArrowDownUp size={16} className="text-slate-500"/>
-          <h3 className="font-black text-slate-800 text-xs uppercase tracking-wider">Daftar Inventaris Aktif</h3>
+      {/* TAB FREEZER */}
+      {activeTab === 'FREEZER' && (
+        <div className="card-holo flex flex-col overflow-hidden bg-white border border-slate-200 rounded-2xl shadow-2xs">
+          <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
+            <Database size={16} className="text-red-600"/>
+            <h3 className="text-xs font-extrabold normal-case text-slate-800">Kondisi stok produk jualan terkini</h3>
+          </div>
+          <div className="overflow-x-auto p-1 custom-scrollbar">
+            <table className="w-full text-sm text-left border-collapse">
+              <thead className="bg-white border-b border-slate-200 text-[10px] normal-case text-slate-500">
+                <tr>
+                  <th className="px-5 py-3 font-bold">SKU / Nama produk</th>
+                  <th className="px-5 py-3 font-bold text-center">Total masuk (Produksi)</th>
+                  <th className="px-5 py-3 font-bold text-center">Total keluar (Terjual)</th>
+                  <th className="px-5 py-3 font-bold text-right">Sisa stok (Saldo)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-xs font-bold bg-white">
+                {freezerStock.length === 0 ? (
+                  <tr><td colSpan="4" className="text-center py-10 text-slate-400 normal-case font-medium">Data produk belum tersedia.</td></tr>
+                ) : (
+                  freezerStock.map((item, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        <div className="text-slate-800 font-extrabold normal-case">{item.name || 'Umum'}</div>
+                        <div className="text-[9px] font-medium text-slate-400 mt-1 normal-case">{item.sku || 'Tanpa SKU'} • {item.category ? item.category.replace(/_/g, ' ') : 'Umum'}</div>
+                      </td>
+                      <td className="px-5 py-4 text-center font-extrabold text-emerald-600">+{formatNumber(item.stockIn)}</td>
+                      <td className="px-5 py-4 text-center font-extrabold text-red-500">-{formatNumber(item.stockOut)}</td>
+                      <td className="px-5 py-4 text-right">
+                        <div className={`text-lg font-black ${item.currentStock <= 10 ? 'text-red-600' : 'text-slate-800'}`}>{formatNumber(item.currentStock)}</div>
+                        {item.currentStock <= 10 && <div className="text-[8px] text-red-500 font-bold normal-case mt-1 animate-pulse">⚠️ Stok Kritis</div>}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-        <div className="overflow-x-auto p-1 custom-scrollbar">
-          <table className="w-full text-sm text-left border-collapse">
-            <thead className="bg-slate-50/50 text-[10px] normal-case text-slate-500 border-b border-slate-100">
-              <tr>
-                <th className="px-5 py-4 font-black">Nama Barang / Material</th>
-                <th className="px-5 py-4 font-black text-center">Kategori</th>
-                <th className="px-5 py-4 font-black text-center">Sisa Kuantitas</th>
-                <th className="px-5 py-4 font-black text-right">Nilai Aset Terkunci (HPP)</th>
-              </tr>
-            </thead>
-            <tbody className="text-xs font-bold divide-y divide-slate-100 bg-white text-slate-600">
-              {filteredStock.length === 0 ? (
-                <tr><td colSpan="4" className="text-center py-12 text-slate-400 font-medium text-xs normal-case">Gudang kosong atau barang tidak ditemukan.</td></tr>
-              ) : (
-                filteredStock.map((item, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-5 py-3 whitespace-nowrap text-slate-800 font-black">{item.name}</td>
-                    <td className="px-5 py-3 text-center whitespace-nowrap">
-                      <span className="px-2.5 py-1 rounded-md text-[9px] font-black uppercase bg-slate-100 text-slate-500 border border-slate-200">{item.category.replace(/_/g, ' ')}</span>
-                    </td>
-                    <td className="px-5 py-3 text-center whitespace-nowrap">
-                      <span className={`text-sm font-extrabold ${item.qty < 100 ? 'text-rose-600' : 'text-emerald-600'}`}>{formatNumber(item.qty)}</span>
-                    </td>
-                    <td className="px-5 py-3 text-right whitespace-nowrap text-slate-800 font-black">
-                      {formatRupiah(item.total_value)}
+      )}
+
+      {/* TAB BAHAN BAKU */}
+      {activeTab === 'BAHAN_BAKU' && (
+        <div className="card-holo flex flex-col overflow-hidden bg-white border border-slate-200 rounded-2xl shadow-2xs">
+          <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
+            <Database size={16} className="text-red-600"/>
+            <h3 className="text-xs font-extrabold normal-case text-slate-800">Kondisi stok bahan baku &amp; kemasan</h3>
+          </div>
+          <div className="overflow-x-auto p-1 custom-scrollbar">
+            <table className="w-full text-sm text-left border-collapse">
+              <thead className="bg-white border-b border-slate-200 text-[10px] normal-case text-slate-500">
+                <tr>
+                  <th className="px-5 py-3 font-bold">Item logistik</th>
+                  <th className="px-5 py-3 font-bold text-center">Kategori &amp; satuan</th>
+                  <th className="px-5 py-3 font-bold text-center">Total beli masuk</th>
+                  <th className="px-5 py-3 font-bold text-center">Pemakaian dapur</th>
+                  <th className="px-5 py-3 font-bold text-right">Sisa gudang</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-xs font-bold bg-white">
+                {rawStock.length === 0 ? (
+                  <tr><td colSpan="5" className="text-center py-10 text-slate-400 normal-case font-medium">Data logistik belum tersedia.</td></tr>
+                ) : (
+                  rawStock.map((item, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-5 py-4 whitespace-nowrap font-extrabold text-slate-800 normal-case">{item.name || 'Umum'}</td>
+                      <td className="px-5 py-4 text-center">
+                        <span className={`px-2.5 py-1 text-[9px] font-bold normal-case rounded-md border ${item.category === 'PACKAGING' || item.category === 'KEMASAN' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>{item.category ? item.category.replace(/_/g, ' ') : 'Umum'}</span>
+                        <div className="text-[9px] text-slate-400 mt-2 font-medium normal-case">Satuan: {item.unit || 'Pcs'}</div>
+                      </td>
+                      <td className="px-5 py-4 text-center font-extrabold text-emerald-600">+{formatNumber(item.stockIn)}</td>
+                      <td className="px-5 py-4 text-center font-extrabold text-red-500">-{formatNumber(item.stockOut)}</td>
+                      <td className="px-5 py-4 text-right">
+                        <div className={`text-lg font-black ${item.currentStock <= 5 ? 'text-red-600' : 'text-slate-800'}`}>{formatNumber(item.currentStock)} <span className="text-[10px] text-slate-400 font-semibold ml-0.5 normal-case">{item.unit || ''}</span></div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* TAB BUKU MUTASI */}
+      {activeTab === 'MUTASI' && (
+        <div className="card-holo flex flex-col overflow-hidden bg-white border border-slate-200 rounded-2xl shadow-2xs">
+          <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
+            <History size={16} className="text-red-600"/>
+            <h3 className="text-xs font-extrabold normal-case text-slate-800">Catatan buku mutasi keluar-masuk gudang</h3>
+          </div>
+          <div className="overflow-x-auto p-1 custom-scrollbar min-h-[50vh]">
+            <table className="w-full text-sm text-left border-collapse">
+              <thead className="bg-white border-b border-slate-200 text-[10px] normal-case text-slate-500">
+                <tr>
+                  <th className="px-5 py-3 font-bold">Tanggal &amp; Waktu</th>
+                  <th className="px-5 py-3 font-bold">Aktivitas sistem</th>
+                  <th className="px-5 py-3 font-bold">Nama barang / Item</th>
+                  <th className="px-5 py-3 font-bold text-center">Status</th>
+                  <th className="px-5 py-3 font-bold text-right">Mutasi volume</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-xs font-bold bg-white">
+                {kartuMutasi.length === 0 ? (
+                  <tr>
+                    <td colSpan="5" className="text-center py-20 text-slate-400 normal-case font-medium">
+                      <div className="flex justify-center mb-3 opacity-20"><ShieldAlert size={36}/></div>
+                      Belum ada aktivitas mutasi barang yang tercatat.
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  kartuMutasi.map((log, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        <div className="text-slate-800 font-bold">{formatDate(log.date)}</div>
+                        <div className="text-[9px] font-medium text-slate-400 mt-1">Ref: {log.id}</div>
+                      </td>
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        <div className="font-bold text-slate-700 normal-case">{log.category}</div>
+                        <div className="text-[9px] text-slate-500 mt-1 normal-case truncate max-w-[200px]">Oleh: {log.reference}</div>
+                      </td>
+                      <td className="px-5 py-4 font-extrabold text-slate-800 normal-case">{log.itemName || 'Item tidak diketahui'}</td>
+                      <td className="px-5 py-4 text-center whitespace-nowrap">
+                        {log.type === 'IN' ? (
+                          <span className="bg-emerald-50 text-emerald-700 border border-emerald-100 px-2.5 py-1 rounded-md text-[9px] font-bold normal-case flex items-center justify-center gap-1 w-max mx-auto shadow-xs"><ArrowDownRight size={12}/> Barang masuk</span>
+                        ) : (
+                          <span className="bg-red-50 text-red-700 border border-red-100 px-2.5 py-1 rounded-md text-[9px] font-bold normal-case flex items-center justify-center gap-1 w-max mx-auto shadow-xs"><ArrowUpRight size={12}/> Barang keluar</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                        <div className={`text-lg font-black ${log.type === 'IN' ? 'text-emerald-600' : 'text-red-600'}`}>
+                          {log.type === 'IN' ? '+' : '-'}{formatNumber(log.qty)}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
-
+      )}
     </div>
   );
 }
