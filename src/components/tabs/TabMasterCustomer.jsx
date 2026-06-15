@@ -10,7 +10,7 @@ const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
 export default function TabMasterCustomer({ 
-  master_customers = [], // 🔥 FIX: KABEL PENERIMA DISAMAKAN DENGAN NAMA TABEL DI App.jsx!
+  master_customers = [], 
   orders = [], 
   sendToSheet, 
   showToast,
@@ -50,11 +50,13 @@ export default function TabMasterCustomer({
     const limit7 = sevenAgo.toISOString().split('T')[0];
     const limit14 = fourteenAgo.toISOString().split('T')[0];
 
-    // 🔥 FIX: Loop menggunakan master_customers, bukan 'data'
     (master_customers || []).forEach(cust => {
-      if (cust && !cust.isDeleted && cust.id) {
-        analyticsMap[cust.id] = {
+      // 🔥 FIX: Mapping menggunakan 'customer_id' sesuai Spreadsheet Bos
+      const custId = cust.customer_id || cust.id; 
+      if (cust && !cust.isDeleted && custId) {
+        analyticsMap[custId] = {
           ...cust,
+          customer_id: custId,
           totalTransaksi: 0, totalPcs: 0, totalOmset: 0,
           terakhirBelanja: null, hariAbsen: 999, butuhFollowUp: false,
           qtyW1: 0, qtyW2: 0, itemMap: {}, history: []
@@ -112,7 +114,7 @@ export default function TabMasterCustomer({
 
       return cust;
     }).reverse();
-  }, [master_customers, orders, todayStr]); // 🔥 FIX: Dependency diubah jadi master_customers
+  }, [master_customers, orders, todayStr]);
 
   const filteredData = useMemo(() => {
     if (!searchTerm) return customerAnalytics;
@@ -120,7 +122,7 @@ export default function TabMasterCustomer({
     return customerAnalytics.filter(item => 
       (item.customer_name || '').toLowerCase().includes(lower) ||
       (item.phone || '').toLowerCase().includes(lower) ||
-      (item.category || '').toLowerCase().includes(lower)
+      (item.customer_tier || item.category || '').toLowerCase().includes(lower)
     );
   }, [customerAnalytics, searchTerm]);
 
@@ -130,9 +132,9 @@ export default function TabMasterCustomer({
       phone: item.phone || '',
       address: item.address || '',
       notes: item.notes || '',
-      category: item.category || 'RESELLER'
+      category: item.customer_tier || item.category || 'RESELLER' // 🔥 FIX: Ambil dari customer_tier
     });
-    setCurrentId(item.id);
+    setCurrentId(item.customer_id); // 🔥 FIX: Set ID menggunakan customer_id
     setIsEditing(true);
   };
 
@@ -144,7 +146,8 @@ export default function TabMasterCustomer({
 
   const handleDelete = async (id, name) => {
     if(!window.confirm(`Yakin ingin menghapus agen "${name}"? Data riwayatnya tidak akan terhapus, tapi namanya hilang dari kasir.`)) return;
-    const isSuccess = await sendToSheet('update', { id, isDeleted: true }, 'master_customers');
+    // 🔥 FIX: Payload delete menggunakan 'customer_id' sesuai sheet
+    const isSuccess = await sendToSheet('update', { customer_id: id, isDeleted: true }, 'master_customers');
     if(isSuccess) showToast('Data pelanggan berhasil dihapus!', 'success');
   };
 
@@ -154,16 +157,17 @@ export default function TabMasterCustomer({
     
     setIsSubmitting(true);
     
+    // 🔥 VAKSIN TOTAL: MENYESUAIKAN 100% NAMA KOLOM DENGAN GOOGLE SHEET BOS
     const rawPayload = {
-      id: isEditing ? currentId : generateId('CST', todayStr),
-      date: todayStr,                     
-      branch_id: currentBranch,           
-      customer_name: formData.customer_name.trim().toUpperCase(), 
-      phone: formData.phone.trim() || '-',
-      address: formData.address.trim() || '-',
-      notes: formData.notes.trim() || '-',
-      category: formData.category || 'RESELLER',
-      isDeleted: false                    
+      customer_id: isEditing ? currentId : generateId('CST', todayStr), // Sesuai Kolom A
+      customer_name: formData.customer_name.trim().toUpperCase(),       // Sesuai Kolom B
+      branch_id: currentBranch,                                         // Sesuai Kolom C
+      customer_tier: formData.category || 'RESELLER',                   // Sesuai Kolom D
+      phone: formData.phone.trim() || '-',                              // Sesuai Kolom E
+      address: formData.address.trim() || '-',                          // Sesuai Kolom F
+      status: 'ACTIVE',                                                 // Sesuai Kolom G
+      notes: formData.notes.trim() || '-',                              // Kolom H (Akan ditambah otomatis oleh skrip)
+      isDeleted: false                                                  // Kolom I
     };
 
     const finalPayload = isEditing ? rawPayload : [rawPayload];
@@ -271,7 +275,7 @@ export default function TabMasterCustomer({
                 <tr><td colSpan="5" className="text-center py-10 text-slate-400">Data agen tidak ditemukan.</td></tr>
               ) : (
                 filteredData.map(item => (
-                  <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                  <tr key={item.customer_id || item.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="px-4 py-3">
                       <div className="font-black text-slate-800 text-[13px] uppercase flex items-center gap-1.5">
                         {item.customer_name} 
@@ -279,7 +283,7 @@ export default function TabMasterCustomer({
                           <span className="flex items-center gap-1 text-[8px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 border border-rose-200 animate-pulse"><AlertTriangle size={10}/> FOLLOW UP</span>
                         )}
                       </div>
-                      <div className="text-[9px] text-slate-400 font-mono mt-0.5">ID: {item.id} • Kategori: <span className="text-orange-600 font-black">{item.category}</span></div>
+                      <div className="text-[9px] text-slate-400 font-mono mt-0.5">ID: {item.customer_id} • Kategori: <span className="text-orange-600 font-black">{item.customer_tier || item.category}</span></div>
                     </td>
                     <td className="px-4 py-3 text-center">
                       <div className={`text-[11px] font-black ${item.butuhFollowUp ? 'text-rose-600' : 'text-emerald-600'}`}>
@@ -300,7 +304,7 @@ export default function TabMasterCustomer({
                       <div className="flex items-center justify-end gap-1.5">
                         <button onClick={() => { setActiveCustDetail(item); setShowAnalyticsModal(true); }} className="p-1.5 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors border border-transparent hover:border-orange-200 shadow-3xs bg-white" title="Bedah Analitik & Kebiasaan"><BarChart3 size={14}/></button>
                         <button onClick={() => handleEdit(item)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-200 shadow-3xs bg-white"><Edit2 size={14}/></button>
-                        <button onClick={() => handleDelete(item.id, item.customer_name)} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-200 shadow-3xs bg-white"><Trash2 size={14}/></button>
+                        <button onClick={() => handleDelete(item.customer_id, item.customer_name)} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-200 shadow-3xs bg-white"><Trash2 size={14}/></button>
                       </div>
                     </td>
                   </tr>
