@@ -1,304 +1,189 @@
-import { useMemo } from 'react';
-import { getLocalYMD, getTodayStr } from '../utils/helpers';
+import React, { useState, useMemo } from 'react';
+import { Calendar, Printer, Wallet, Coins, CreditCard, ArrowRightLeft, Users, ShoppingCart, AlertCircle, Factory, Store } from 'lucide-react';
+import { getTodayStr, getLocalYMD, formatDate } from '../../utils/helpers';
 
-export default function useDashboardPusat({
-  orders, expenses, purchases, piutangPayments, pemalangReports, stokData,
-  supplierLedger, cashflowTransactions, marketplaceSettlement, inventoryCostLayers,
-  stockMovements, discrepancyLogs, financialClosings, masterBranches, systemTasks,
-  master_customers
-}) {
-  return useMemo(() => {
-    const todayStr = getTodayStr();
-    const todayObj = new Date(todayStr);
+// HELPER MANDIRI ANTI-CRASH
+const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 
-    // --- 1. AMBIL SEGALA VARIABLE TANGGAL (STRATEGI REPEAT ORDER MINGGUAN) ---
-    const getDaysDifference = (d1, d2) => {
-      const diffTime = Math.abs(new Date(d1) - new Date(d2));
-      return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+const StatCard = ({ title, amount, icon, color }) => (
+  <div className={`p-5 rounded-2xl border flex flex-col justify-between shadow-xs ${color}`}>
+    <div className="flex justify-between items-start mb-4">
+      <h3 className="font-bold text-xs opacity-90 normal-case">{title}</h3>
+      <div className="p-2 bg-white/60 rounded-xl shadow-3xs">{icon}</div>
+    </div>
+    <div className="text-2xl font-black tracking-tight">{amount}</div>
+  </div>
+);
+
+export default function TabDashboardBranch({ orders, pemalangReports, piutangPayments, setPrintData, stokData }) {
+  const todayStr = getTodayStr();
+  const [dateFrom, setDateFrom] = useState(todayStr);
+  const [dateTo, setDateTo] = useState(todayStr);
+
+  const MASTER_AYAM_KG = 30; 
+  const MASTER_PCS = 1000; 
+  const KG_PER_KANTONG = 10;
+  const PCS_PER_MIKA = 50;
+
+  // KALKULASI DATA CABANG PEMALANG (MIRRORING LOGIC PUSAT)
+  const rekap = useMemo(() => {
+    const isPeriod = (d) => getLocalYMD(d) >= dateFrom && getLocalYMD(d) <= dateTo;
+    
+    // --- 1. DATA KEUANGAN & TRANSAKSI ---
+    const branchOrdersAll = (orders || []).filter(o => o?.category === 'Pemalang');
+    const branchOrdersPeriod = branchOrdersAll.filter(o => isPeriod(o?.date));
+    const branchReportsPeriod = (pemalangReports || []).filter(r => isPeriod(r?.date));
+    
+    const totalPenjualanKotor = branchOrdersPeriod.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
+    const totalPcs = branchOrdersPeriod.reduce((sum, o) => sum + (Number(o.qty) || 0), 0);
+    const setoranKePusat = branchReportsPeriod.reduce((sum, r) => sum + (Number(r.nominal) || 0), 0);
+    
+    // Piutang Berjalan (HANYA YANG SUDAH DIAMBIL)
+    const piutangBerjalan = branchOrdersAll.map(o => {
+        const cicilan = (piutangPayments || []).filter(p => p.orderId === o.id).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+        return { ...o, sisaTagihan: (Number(o.total) || 0) - (Number(o.paidAmount) || 0) - cicilan, statusProduksi: o.statusProduksi || 'Menunggu Produksi' };
+    }).filter(o => o.sisaTagihan > 0 && o.statusProduksi === 'Sudah Diambil');
+    const totalPiutangBaru = piutangBerjalan.reduce((sum, o) => sum + o.sisaTagihan, 0);
+
+    const customerMap = {};
+    let totalTerbayarPeriode = 0;
+    
+    const groupedOrders = {};
+    
+    const listOrders = branchOrdersPeriod.map(o => {
+        const cicilanData = (piutangPayments || []).filter(p => p.orderId === o.id);
+        const cicilan = cicilanData.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+        const terbayar = (Number(o.paidAmount) || 0) + cicilan;
+        const sisa = (Number(o.total) || 0) - terbayar;
+        
+        totalTerbayarPeriode += terbayar;
+
+        const cName = String(o.customer || '').toUpperCase();
+        if(!customerMap[cName]) customerMap[cName] = { name: cName, qty: 0, porsi: 0, total: 0, frequency: 0 };
+        customerMap[cName].qty += Number(o.qty);
+        customerMap[cName].porsi += (Number(o.qty) / 4);
+        customerMap[cName].total += Number(o.total);
+        customerMap[cName].frequency += 1;
+
+        let status = 'BELUM BAYAR';
+        if (sisa <= 0) status = 'LUNAS';
+        else if (o.statusProduksi === 'Sudah Diambil') status = 'PIUTANG';
+        else if (terbayar > 0) status = 'DP';
+
+        let allPayments = [];
+        try { allPayments = JSON.parse(o.paymentMethod); } catch(e) { if(Number(o.paidAmount) > 0) allPayments = [{ method: o.paymentMethod, amount: Number(o.paidAmount) }]; }
+        allPayments.push(...cicilanData.map(c => ({ method: c.paymentMethod, amount: c.amount })));
+
+        if(!groupedOrders[o.id]) groupedOrders[o.id] = { ...o, items: [`${o.qty} Pcs`], totalTagihan: o.total, totalTerbayar: terbayar, sisaTagihan: sisa, status, allPayments };
+        else { groupedOrders[o.id].items.push(`${o.qty} Pcs`); groupedOrders[o.id].totalTagihan += o.total; }
+
+        return { ...o, items: [`${o.qty} Pcs`], totalTagihan: o.total, totalTerbayar: terbayar, sisaTagihan: sisa, status };
+    });
+
+    const topCustomersList = Object.values(customerMap).sort((a,b) => b.total - a.total);
+
+    // --- 2. DATA OPERASIONAL ---
+    const mutasiAyamAll = (stokData || []).filter(s => s.type === 'MUTASI_AYAM_PEMALANG').reduce((sum, s) => sum + Number(s.qty), 0);
+    const prodPemalangAll = (stokData || []).filter(s => s.type === 'PRODUKSI_PEMALANG').reduce((sum, s) => sum + Number(s.qty), 0);
+    const sisaAyam = mutasiAyamAll - (prodPemalangAll * MASTER_AYAM_KG);
+    
+    const terjualPcsAll = branchOrdersAll.reduce((sum, o) => sum + Number(o.qty), 0);
+    const sisaFreezer = (prodPemalangAll * MASTER_PCS) - terjualPcsAll;
+
+    const adukanHariIni = (stokData || []).filter(s => s.type === 'PRODUKSI_PEMALANG' && isPeriod(s.date)).reduce((sum, s) => sum + Number(s.qty), 0);
+    
+    const ops = {
+        sisaAyam, sisaAyamKtg: sisaAyam / KG_PER_KANTONG,
+        sisaFreezer,
+        adukanHariIni, 
+        ayamTerpakaiHariIni: adukanHariIni * MASTER_AYAM_KG, 
+        dimsumMasukHariIni: adukanHariIni * MASTER_PCS
     };
 
-    const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(todayObj.getDate() - 7);
-    const limitSevenDaysStr = sevenDaysAgo.toISOString().split('T')[0];
-
-    const fourteenDaysAgo = new Date(); fourteenDaysAgo.setDate(todayObj.getDate() - 14);
-    const limitFourteenDaysStr = fourteenDaysAgo.toISOString().split('T')[0];
-
-    // --- 2. GLOBAL CASH & WALLET MONITORING ---
-    let inCash = 0, outCash = 0, pendingMarketplace = 0, hutangAyamAktif = 0;
-    let totalCairLemburKaryawan = 0; // 🔥 TRACKER REAL-TIME KESEJAHTERAAN KARYAWAN
-    
-    (marketplaceSettlement || []).forEach(m => { if (m.status === 'PENDING' && !m.isDeleted) pendingMarketplace += (Number(m.net) || 0); });
-    (supplierLedger || []).forEach(l => { 
-        if(l.isDeleted) return;
-        const amt = Number(l.amount) || 0; 
-        if (l.transaction_type === 'PURCHASE') hutangAyamAktif += amt; 
-        if (l.transaction_type === 'PAYMENT') hutangAyamAktif -= amt; 
-    });
-    
-    // Lacak Arus Kas Sekaligus Sedot Data Lembur Karyawan
-    (cashflowTransactions || []).forEach(c => { 
-        if(c.isDeleted) return;
-        if(c.transaction_type === 'INFLOW' || c.type === 'CASH_IN') inCash += Number(c.amount); 
-        if(c.transaction_type === 'OUTFLOW' || c.type === 'CASH_OUT') outCash += Number(c.amount); 
-        
-        // Jika ada pengeluaran kas berkategori Lembur/Bonus, hitung total konsumsi kesejahteraan harian mereka
-        if((c.type === 'OUT' || c.transaction_type === 'OUTFLOW') && c.category === 'UANG LEMBUR & BONUS') {
-          totalCairLemburKaryawan += Number(c.amount || 0);
-        }
-    });
-
-    const cashReadyTotal = inCash - outCash;
-
-    // --- 3. KENDALI EVALUASI DAN TRACING "BON GANTUNG / PIUTANG" DETAIL ---
-    const customerPiutangMap = {};
-    const groupOrders = {};
-
-    // Inisialisasi Master Pelanggan biar tidak ada yang kelewat di mading
-    (master_customers || []).forEach(cust => {
-      customerPiutangMap[cust.customer_name.toUpperCase()] = {
-        customer_id: cust.id,
-        customer_name: cust.customer_name.toUpperCase(),
-        phone: cust.phone || '-',
-        address: cust.address || '-',
-        notes_crm: cust.notes || '-',
-        total_bon_gantung: 0,
-        tanggal_bon_terlama: null,
-        last_order_date: null,
-        qty_order_minggu_ini: 0,
-        qty_order_minggu_lalu: 0,
-        total_belanja_akumulasi: 0,
-        frequency_order: 0,
-        nota_details: []
-      };
-    });
-
-    // Kalkulasi invoice belanja agen B2B
-    (orders || []).forEach(o => {
-        if(o.isDeleted) return;
-        const oId = o.id;
-        const cName = String(o.customer_name || o.customer || 'UMUM').toUpperCase();
-
-        if(!groupOrders[oId]) {
-          groupOrders[oId] = { 
-            id: oId,
-            date: o.date,
-            customer: cName,
-            tagihan: 0, 
-            bayar: Number(o.amount_paid || o.paidAmount || 0), 
-            method: o.payment_method || o.paymentMethod, 
-            status: o.status 
-          };
-        }
-        groupOrders[oId].tagihan += Number(o.total_amount || o.total || 0);
-
-        // Akumulasi data CRM Pelanggan
-        if (customerPiutangMap[cName]) {
-          const qtyOrder = Number(o.qty || 0);
-          customerPiutangMap[cName].total_belanja_akumulasi += Number(o.total_amount || o.total || 0);
-          customerPiutangMap[cName].frequency_order += 1;
-          
-          if (!customerPiutangMap[cName].last_order_date || new Date(o.date) > new Date(customerPiutangMap[cName].last_order_date)) {
-            customerPiutangMap[cName].last_order_date = o.date;
-          }
-
-          const orderDateYMD = getLocalYMD(o.date);
-          if (orderDateYMD >= limitSevenDaysStr && orderDateYMD <= todayStr) {
-            customerPiutangMap[cName].qty_order_minggu_ini += qtyOrder;
-          } else if (orderDateYMD >= limitFourteenDaysStr && orderDateYMD < limitSevenDaysStr) {
-            customerPiutangMap[cName].qty_order_minggu_lalu += qtyOrder;
-          }
-        }
-    });
-
-    (piutangPayments || []).forEach(p => {
-        if(!p.isDeleted && groupOrders[p.orderId]) {
-          groupOrders[p.orderId].bayar += Number(p.amount || p.amount_paid || 0);
-        }
-    });
-
-    // Urutkan sisa bon gantung berjalan
-    let totalPiutangPelanggan = 0;
-    Object.values(groupOrders).forEach(go => {
-        const sisaHutang = go.tagihan - go.bayar;
-        if(sisaHutang > 0 && (go.method === 'PIUTANG' || go.method === 'TEMPO' || go.status === 'BELUM_LUNAS')) {
-            totalPiutangPelanggan += sisaHutang;
-            const cName = go.customer;
-
-            if (customerPiutangMap[cName]) {
-              customerPiutangMap[cName].total_bon_gantung += sisaHutang;
-              customerPiutangMap[cName].nota_details.push({
-                invoice_id: go.id,
-                date: go.date,
-                total_tagihan: go.tagihan,
-                sudah_dibayar: go.bayar,
-                sisa_hutang: sisaHutang,
-                metode_asal: go.method
-              });
-
-              if (!customerPiutangMap[cName].tanggal_bon_terlama || new Date(go.date) < new Date(customerPiutangMap[cName].tanggal_bon_terlama)) {
-                customerPiutangMap[cName].tanggal_bon_terlama = go.date;
-              }
-            }
-        }
-    });
-
-    const listMadingPiutangAktif = Object.values(customerPiutangMap)
-      .map(cust => {
-        let harianAbsen = cust.last_order_date ? getDaysDifference(todayStr, cust.last_order_date) : 999;
-        let statusNotifMerah = harianAbsen > 7; 
-        
-        let trenFluktuasi = 'STABIL';
-        let selisihPcs = cust.qty_order_minggu_ini - cust.qty_order_minggu_lalu;
-        if (selisihPcs > 0) trenFluktuasi = 'NAIK';
-        if (selisihPcs < 0) trenFluktuasi = 'TURUN';
-
-        return {
-          ...cust,
-          hari_absen: harianAbsen,
-          is_notif_merah: statusNotifMerah,
-          tren_fluktuasi: trenFluktuasi,
-          selisih_pcs_mingguan: Math.abs(selisihPcs)
-        };
-      })
-      .filter(c => c.total_bon_gantung > 0 || c.frequency_order > 0)
-      .sort((a, b) => b.total_bon_gantung - a.total_bon_gantung);
-
-    // --- 4. ENGINE INTEGRASI OTOMATIS 4 AMPLOP SAKRAL + AMPLOP KESEJAHTERAAN TIM (AMPLOP 5) ---
-    let totalOmsetHariIni = (orders || []).reduce((sum, o) => {
-      if(!o.isDeleted && o.date === todayStr) {
-        return sum + ((Number(o.total_amount || o.total || 0)));
-      }
-      return sum;
-    }, 0);
-
-    // 🔥 AUTOMATIC RATIO SPLITTER SAKRAL ADITYA CORE
-    const amplop1_bahanBaku = totalOmsetHariIni * 0.55;
-    const amplop2_operasional = totalOmsetHariIni * 0.20;
-    const amplop3_jagaJaga = totalOmsetHariIni * 0.10;
-    const amplop4_profitMurni = totalOmsetHariIni * 0.10; 
-    
-    // 🔥 PERSENTASE DEWA AMPLOP 5 (5% Total Cadangan Kesejahteraan Bersama)
-    const amplop5_totalKesejahteraan = totalOmsetHariIni * 0.05; 
-    
-    // 💡 STRATEGI OPERASIONAL: Pembagian Adil Brankas Berjalan Amplop 5
-    // 60% dari Dana Kesejahteraan dicadangkan untuk THR Akhir Tahun Pelanggan/Agen VIP
-    const porsiThrAgenPabrik = amplop5_totalKesejahteraan * 0.60;
-    // 40% dari Dana Kesejahteraan dicadangkan khusus untuk THR/Bonus Lembur Karyawan Inti Dapur
-    const porsiThrKaryawanDapur = amplop5_totalKesejahteraan * 0.40;
-
-    // --- 5. VALUASI INVENTORY & STOK GUDANG ---
-    let ayamGudangQty = 0, totalStokDimsumPcs = 0, totalValuasiGudang = 0;
-    
-    (inventoryCostLayers || []).forEach(l => {
-      if (l.isDeleted || l.status !== 'ACTIVE') return;
-      const qty = Number(l.qty_remaining || 0);
-      const cost = Number(l.unit_cost || 0);
-      
-      totalValuasiGudang += (qty * cost);
-      if (String(l.item_name).toUpperCase() === 'AYAM') ayamGudangQty += qty;
-      else if (String(l.item_name).toUpperCase().includes('DIMSUM')) totalStokDimsumPcs += qty;
-    });
-
-    // --- 6. LEADERBOARD LINTAS CABANG ---
-    const branchSales = {};
-    (masterBranches || []).forEach(br => {
-        branchSales[br.branch_id] = { 
-          branch_id: br.branch_id,
-          name: br.branch_name || br.branch_id, 
-          type: br.branch_type,
-          omzetHariIni: 0, 
-          omzetBulanIni: 0 
-        };
-    });
-
-    const curMonth = todayStr.substring(0, 7);
-    (orders || []).forEach(o => {
-        if(o.isDeleted) return;
-        const brId = o.branch_id;
-        const netSales = Number(o.total_amount || o.total || 0);
-        if(branchSales[brId]) {
-            if(o.date === todayStr) branchSales[brId].omzetHariIni += netSales;
-            if(String(o.date).startsWith(curMonth)) branchSales[brId].omzetBulanIni += netSales;
-        }
-    });
-
-    const leaderboardArr = Object.values(branchSales).sort((a,b) => b.omzetBulanIni - a.omzetBulanIni);
-
-    // --- 7. AUTO TASK PROCUREMENT ---
-    let ayamUsed30d = 0;
-    (stockMovements || []).forEach(m => {
-        if(m.isDeleted) return;
-        const qty = Number(m.qty) || 0;
-        const dateObj = getLocalYMD(m.date);
-        const thirtyAgo = new Date(); thirtyAgo.setDate(todayObj.getDate() - 30);
-        const limitDateStr = thirtyAgo.toISOString().split('T')[0];
-        
-        if (m.item_name === 'AYAM' && m.movement_type === 'PRODUCTION_USAGE' && dateObj >= limitDateStr) {
-            ayamUsed30d += qty;
-        }
-    });
-
-    const avgAyamPerDay = Math.max((ayamUsed30d / 30), 1);
-    const ayamDaysRemaining = Math.max(0, ayamGudangQty / avgAyamPerDay);
-    const operationTasks = [];
-
-    if (ayamDaysRemaining <= 4) {
-        const taskId = 'TASK-PURCHASE-' + todayStr;
-        const targetAyam = 1020; 
-        const estCost = targetAyam * 37500;
-        operationTasks.push({ 
-            id: taskId, type: 'PURCHASE', priority: ayamDaysRemaining <= 2 ? 'CRITICAL' : 'HIGH',
-            title: `Jadwalkan Turun Ayam SCM (1.020 KG)`, 
-            desc: `Sisa gudang ${ayamGudangQty.toLocaleString('id-ID')} KG (Tahan ${ayamDaysRemaining.toFixed(1)} hari). Dana Est: Rp ${estCost.toLocaleString('id-ID')}`, 
-            actionLabel: 'Buat PO Belanja Ayam'
-        });
-    }
-
-    // --- 8. GRAPH TREND 7 HARI ---
-    const trendDataMap = {};
-    for(let i=6; i>=0; i--) {
-        const d = new Date(todayObj); d.setDate(d.getDate() - i);
-        const ds = d.toISOString().split('T')[0];
-        trendDataMap[ds] = 0;
-    }
-    (orders || []).forEach(o => {
-        if(!o.isDeleted && trendDataMap[o.date] !== undefined) {
-            trendDataMap[o.date] += Number(o.total_amount || o.total || 0);
-        }
-    });
-    const trendData = Object.keys(trendDataMap).sort().map(k => ({
-        label: k.substring(5),
-        value: trendDataMap[k]
-    }));
-
-    return { 
-        cashReadyTotal, 
-        hutangAyamAktif, 
-        totalPiutangPelanggan, 
-        pendingMarketplace,
-        ayamGudangQty, 
-        totalStokDimsumPcs, 
-        totalValuasiGudang, 
-        ayamDaysRemaining,
-        operationTasks, 
-        leaderboardArr, 
-        trendData,
-        totalOmsetHariIni,
-        
-        // 🔥 OUTPUT LOGIKA BARU UNTUK DISPLAY MADING UTAMA
-        amplopKeuangan: {
-          bahanBaku: amplop1_bahanBaku,
-          operasional: amplop2_operasional,
-          jagaJaga: amplop3_jagaJaga,
-          profitMurni: amplop4_profitMurni,
-          
-          // Data Detail Pembagian Kebijakan Pasak Bumi Amplop 5
-          totalKesejahteraanGlobal: amplop5_totalKesejahteraan,
-          subThrAgen: porsiThrAgenPabrik,
-          subThrKaryawan: porsiThrKaryawanDapur,
-          realtimePengeluaranLemburHariIni: totalCairLemburKaryawan
-        },
-        madingPiutangPelanggan: listMadingPiutangAktif
+    return {
+        totalPenjualanKotor, totalPcs, setoranKePusat, totalPiutangBaru, totalTerbayarPeriode,
+        listOrders: Object.values(groupedOrders),
+        listPiutangBerjalan: piutangBerjalan,
+        listReports: branchReportsPeriod,
+        topCustomersList,
+        listStokPusat: (stokData || []).filter(s => s.type === 'PRODUKSI_PEMALANG' && isPeriod(s.date)), 
+        ops
     };
-  }, [orders, expenses, purchases, piutangPayments, pemalangReports, stokData, supplierLedger, cashflowTransactions, marketplaceSettlement, inventoryCostLayers, stockMovements, discrepancyLogs, financialClosings, masterBranches, systemTasks, master_customers]);
+  }, [orders, pemalangReports, piutangPayments, stokData, dateFrom, dateTo]);
+
+  const ops = rekap.ops;
+
+  return (
+    <div className="space-y-6 animate-in fade-in pb-10 text-slate-800 normal-case">
+      {/* FILTER & CETAK */}
+      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h3 className="text-xs font-black text-slate-800 mb-2 flex items-center gap-2 normal-case"><Calendar size={16} className="text-blue-600"/> Filter Laporan &amp; Cetak</h3>
+            <div className="flex gap-2 items-center bg-slate-50 p-1.5 rounded-xl border border-slate-200">
+               <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="p-2 text-[10px] font-bold border-none bg-transparent outline-none cursor-pointer" />
+               <span className="text-slate-400 font-bold px-2">-</span>
+               <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="p-2 text-[10px] font-bold border-none bg-transparent outline-none cursor-pointer" />
+            </div>
+          </div>
+          <button onClick={() => setPrintData({ type: 'reportBranch', data: { rekap, dateFrom, dateTo } })} className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-3 rounded-xl flex items-center justify-center gap-2 text-xs font-black shadow-md transition-colors active:scale-95 w-full md:w-auto"><Printer size={16} /> Cetak Rekap Cabang</button>
+      </div>
+
+      {/* DASHBOARD OPERASIONAL */}
+      <div className="bg-slate-900 rounded-2xl shadow-lg overflow-hidden border border-slate-800 relative">
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-emerald-400 to-amber-500"></div>
+          <div className="p-5 border-b border-slate-800/60 flex justify-between items-center bg-slate-900/50">
+              <div>
+                  <h2 className="text-sm font-black text-white flex items-center gap-2 normal-case"><Factory className="text-blue-400" size={18}/> Kontrol Operasional &amp; Produksi Cabang</h2>
+                  <p className="text-[10px] font-bold text-slate-400 mt-1 normal-case">Monitoring real-time aktivitas dapur dan kapasitas gudang cabang.</p>
+              </div>
+              <div className="text-right hidden sm:block">
+                  <div className="text-[9px] font-bold text-slate-500 normal-case">Status Data</div>
+                  <div className="text-xs font-black text-emerald-400 flex items-center justify-end gap-1.5 mt-0.5"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]"></span> LIVE REALTIME</div>
+              </div>
+          </div>
+          
+          <div className="grid grid-cols-2 md:grid-cols-5 divide-y md:divide-y-0 md:divide-x divide-slate-800/60 bg-slate-800/30">
+              <div className="p-6 flex flex-col justify-center items-center text-center hover:bg-slate-800/50 transition">
+                  <div className="text-[9px] font-bold text-slate-400 normal-case mb-2">Adukan Hari Ini</div>
+                  <div className="text-2xl font-black text-white drop-shadow-md">{ops.adukanHariIni || 0} <span className="text-[10px] font-bold text-blue-400">Adk</span></div>
+              </div>
+              <div className="p-6 flex flex-col justify-center items-center text-center hover:bg-slate-800/50 transition">
+                  <div className="text-[9px] font-bold text-slate-400 normal-case mb-2">Ayam Terpakai</div>
+                  <div className="text-2xl font-black text-white drop-shadow-md">-{ops.ayamTerpakaiHariIni || 0} <span className="text-[10px] font-bold text-orange-400">Kg</span></div>
+              </div>
+              <div className="p-6 flex flex-col justify-center items-center text-center hover:bg-slate-800/50 transition relative overflow-hidden bg-slate-800/20">
+                  <div className="text-[9px] font-bold text-slate-400 normal-case mb-2">Sisa Ayam (Live)</div>
+                  <div className="text-2xl font-black text-white drop-shadow-md">{ops.sisaAyam || 0} <span className="text-[10px] font-bold text-emerald-400">Kg</span></div>
+                  <div className="text-[9px] font-black text-emerald-400 mt-2 px-2.5 py-1 bg-emerald-950/80 rounded-lg border border-emerald-800/50 normal-case">{(ops.sisaAyamKtg || 0).toFixed(1).replace('.0','')} Kantong</div>
+              </div>
+              <div className="p-6 flex flex-col justify-center items-center text-center hover:bg-slate-800/50 transition">
+                  <div className="text-[9px] font-bold text-slate-400 normal-case mb-2">Masuk Freezer</div>
+                  <div className="text-2xl font-black text-white drop-shadow-md">+{ops.dimsumMasukHariIni || 0} <span className="text-[10px] font-bold text-blue-400">Pcs</span></div>
+                  <div className="text-[9px] font-black text-blue-400 mt-2 px-2.5 py-1 bg-blue-950/80 rounded-lg border border-blue-800/50 normal-case">{((ops.dimsumMasukHariIni || 0) / PCS_PER_MIKA).toFixed(1).replace('.0','')} Mika</div>
+              </div>
+              <div className="p-6 flex flex-col justify-center items-center text-center hover:bg-slate-800/50 transition relative overflow-hidden bg-slate-800/20">
+                  <div className="text-[9px] font-bold text-slate-400 normal-case mb-2">Sisa Freezer (Live)</div>
+                  <div className="text-2xl font-black text-white drop-shadow-md">{ops.sisaFreezer || 0} <span className="text-[10px] font-bold text-emerald-400">Pcs</span></div>
+                  <div className="text-[9px] font-black text-emerald-400 mt-2 px-2.5 py-1 bg-emerald-950/80 rounded-lg border border-emerald-800/50 normal-case">{((ops.sisaFreezer || 0) / PCS_PER_MIKA).toFixed(1).replace('.0','')} Mika</div>
+              </div>
+          </div>
+      </div>
+
+      {/* DASHBOARD KEUANGAN KAS */}
+      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs relative overflow-hidden">
+          <div className="flex justify-between items-start mb-4 border-b border-slate-100 pb-3">
+              <div>
+                  <h2 className="text-sm font-black text-slate-800 mb-1 flex items-center gap-2 normal-case"><Wallet size={18} className="text-blue-600"/> Status Finansial &amp; Target Cabang</h2>
+                  <p className="text-[10px] font-bold text-slate-500 normal-case">Dihitung untuk periode {formatDate(dateFrom)} s/d {formatDate(dateTo)}.</p>
+              </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <StatCard title="Total Omset Penjualan" amount={formatRupiah(rekap.totalPenjualanKotor)} icon={<Wallet size={16}/>} color="bg-blue-50 text-blue-700 border-blue-200" />
+              <StatCard title="Total Disetor (EOD)" amount={formatRupiah(rekap.setoranKePusat)} icon={<Coins size={16}/>} color="bg-emerald-50 text-emerald-700 border-emerald-200" />
+              <StatCard title="Total Piutang Berjalan" amount={formatRupiah(rekap.totalPiutangBaru)} icon={<CreditCard size={16}/>} color="bg-orange-50 text-orange-700 border-orange-200" />
+          </div>
+      </div>
+
+    </div>
+  );
 }
