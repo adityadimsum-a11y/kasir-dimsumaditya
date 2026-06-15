@@ -2,7 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { 
   Users, Plus, Search, Edit2, Trash2, Save, 
   X, AlertTriangle, ShoppingCart, BarChart3, 
-  TrendingUp, TrendingDown, Package, History, Activity, Printer
+  TrendingUp, TrendingDown, Package, History, Activity, Printer,
+  Award, ChevronRight, Filter
 } from 'lucide-react';
 import { generateId, getTodayStr, getLocalYMD, safeJsonParse, formatDate } from '../../utils/helpers'; 
 
@@ -30,14 +31,17 @@ export default function TabMasterCustomer({
   const [showForm, setShowForm] = useState(false); 
   const [isSubmitting, setIsSubmitting] = useState(false);
   
+  // STATE MADING ANALITIK & FILTER BULAN
   const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
   const [activeCustDetail, setActiveCustDetail] = useState(null);
+  const [modalFilterMonth, setModalFilterMonth] = useState(() => todayStr.substring(0, 7)); // Format YYYY-MM
 
   const getDaysDifference = (d1, d2) => {
     const diffTime = Math.abs(new Date(d1) - new Date(d2));
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
+  // 🔥 ENGINE CRM INTELIJEN & PROFIT HPP
   const customerAnalytics = useMemo(() => {
     const analyticsMap = {};
     const validOrders = (orders || []).filter(o => !o.isDeleted);
@@ -55,7 +59,7 @@ export default function TabMasterCustomer({
         analyticsMap[custId] = {
           ...cust,
           customer_id: custId,
-          totalTransaksi: 0, totalPcs: 0, totalOmset: 0,
+          totalTransaksi: 0, totalPcs: 0, totalOmset: 0, totalHPP: 0, // 🔥 FIX: HPP ditambah
           terakhirBelanja: null, hariAbsen: 999, butuhFollowUp: false,
           qtyW1: 0, qtyW2: 0, itemMap: {}, history: []
         };
@@ -85,13 +89,17 @@ export default function TabMasterCustomer({
 
         let parsedItems = [];
         try { parsedItems = safeJsonParse(o.items, []); } catch(e) {}
+        
+        let orderHPP = 0;
         parsedItems.forEach(i => {
           if(i && i.name) {
             matchedCust.itemMap[i.name] = (matchedCust.itemMap[i.name] || 0) + (Number(i.qty) || 0);
+            orderHPP += (Number(i.hpp || 0) * Number(i.qty || 0)); // 🔥 Kalkulasi HPP per item
           }
         });
 
-        matchedCust.history.push(o);
+        matchedCust.totalHPP += orderHPP;
+        matchedCust.history.push({ ...o, orderHPP }); // Simpan HPP ke dalam history spesifik
       }
     });
 
@@ -106,13 +114,22 @@ export default function TabMasterCustomer({
       else if (cust.selisihPcs < 0) cust.trend = 'TURUN';
       else cust.trend = 'STABIL';
 
+      cust.totalProfit = cust.totalOmset - cust.totalHPP; // 🔥 Hitung Total Profit per Pelanggan
+
       const favs = Object.keys(cust.itemMap).map(k => ({ name: k, qty: cust.itemMap[k] }));
       cust.topItems = favs.sort((a,b) => b.qty - a.qty).slice(0, 3);
-      cust.recentHistory = cust.history.sort((a,b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
 
       return cust;
     }).reverse();
   }, [master_customers, orders, todayStr]);
+
+  // 🔥 ENGINE LEADERBOARD TOP 10 SULTAN
+  const top10Customers = useMemo(() => {
+    return [...customerAnalytics]
+      .filter(c => c.totalOmset > 0)
+      .sort((a, b) => b.totalOmset - a.totalOmset)
+      .slice(0, 10);
+  }, [customerAnalytics]);
 
   const filteredData = useMemo(() => {
     if (!searchTerm) return customerAnalytics;
@@ -123,6 +140,14 @@ export default function TabMasterCustomer({
       (item.customer_tier || item.category || '').toLowerCase().includes(lower)
     );
   }, [customerAnalytics, searchTerm]);
+
+  // 🔥 FILTER HISTORY MADING BERDASARKAN BULAN PILIHAN
+  const filteredModalHistory = useMemo(() => {
+    if (!activeCustDetail) return [];
+    return activeCustDetail.history
+      .filter(o => String(o.date).startsWith(modalFilterMonth)) // Hanya tampil bulan yang dipilih
+      .sort((a,b) => new Date(b.date) - new Date(a.date));
+  }, [activeCustDetail, modalFilterMonth]);
 
   const handleEdit = (item) => {
     setFormData({
@@ -186,7 +211,6 @@ export default function TabMasterCustomer({
     }
   };
 
-  // 🔥 ENGINE CETAK REKAPITULASI (A4/PDF)
   const handlePrintRekap = () => {
     if (filteredData.length === 0) return alert('Tidak ada data yang bisa dicetak!');
     
@@ -270,6 +294,7 @@ export default function TabMasterCustomer({
   return (
     <div className="space-y-6 pb-10 text-slate-700 normal-case animate-in fade-in duration-300">
       
+      {/* HEADER & ANALITIK CRM SINGKAT */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
@@ -287,6 +312,30 @@ export default function TabMasterCustomer({
           </div>
         </div>
       </div>
+
+      {/* 🔥 LEADERBOARD TOP 10 AGEN SULTAN */}
+      {top10Customers.length > 0 && !showForm && (
+        <div className="bg-gradient-to-r from-orange-500 to-amber-500 p-5 rounded-2xl shadow-md text-white">
+          <h3 className="text-xs font-black uppercase tracking-wider mb-4 flex items-center gap-2"><Award size={16}/> Klasemen Top 10 Agen Sultan</h3>
+          <div className="flex gap-4 overflow-x-auto custom-scrollbar pb-2 snap-x">
+            {top10Customers.map((cust, idx) => (
+              <div 
+                key={cust.customer_id} 
+                onClick={() => { setActiveCustDetail(cust); setShowAnalyticsModal(true); setModalFilterMonth(todayStr.substring(0, 7)); }}
+                className="bg-white/10 hover:bg-white/20 border border-white/20 p-3 rounded-xl min-w-[200px] shrink-0 cursor-pointer snap-start transition-all"
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <span className={`w-6 h-6 flex items-center justify-center rounded-full text-[10px] font-black shadow-sm ${idx === 0 ? 'bg-amber-300 text-amber-900' : idx === 1 ? 'bg-slate-200 text-slate-700' : idx === 2 ? 'bg-orange-800 text-white' : 'bg-white/20 text-white'}`}>#{idx + 1}</span>
+                  <span className="text-[9px] font-bold bg-black/20 px-2 py-0.5 rounded">{cust.totalTransaksi} Order</span>
+                </div>
+                <div className="font-black text-sm truncate">{cust.customer_name}</div>
+                <div className="text-[10px] font-medium text-white/70 mt-0.5 mb-2">{cust.customer_tier || cust.category}</div>
+                <div className="font-black text-amber-200 text-base">{formatRupiah(cust.totalOmset)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {showForm && (
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-lg border-t-4 border-t-orange-500">
@@ -386,7 +435,7 @@ export default function TabMasterCustomer({
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        <button onClick={() => { setActiveCustDetail(item); setShowAnalyticsModal(true); }} className="p-1.5 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors border border-transparent hover:border-orange-200 shadow-3xs bg-white" title="Bedah Analitik & Kebiasaan"><BarChart3 size={14}/></button>
+                        <button onClick={() => { setActiveCustDetail(item); setShowAnalyticsModal(true); setModalFilterMonth(todayStr.substring(0, 7)); }} className="p-1.5 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors border border-transparent hover:border-orange-200 shadow-3xs bg-white" title="Bedah Analitik & Kebiasaan"><BarChart3 size={14}/></button>
                         <button onClick={() => handleEdit(item)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-200 shadow-3xs bg-white" title="Edit Profil"><Edit2 size={14}/></button>
                         <button onClick={() => handleDelete(item.customer_id, item.customer_name)} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-200 shadow-3xs bg-white" title="Hapus Permanen"><Trash2 size={14}/></button>
                       </div>
@@ -399,9 +448,10 @@ export default function TabMasterCustomer({
         </div>
       </div>
 
+      {/* POP-UP MODAL MADING INTELIJEN PELANGGAN (DENGAN FILTER BULAN & HPP) */}
       {showAnalyticsModal && activeCustDetail && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-200 overflow-hidden flex flex-col h-[85vh]">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-200 overflow-hidden flex flex-col h-[90vh]">
             
             <div className="p-5 bg-slate-900 text-white flex justify-between items-start shrink-0 relative overflow-hidden">
               <div className="absolute right-0 top-0 opacity-10"><BarChart3 size={100}/></div>
@@ -427,9 +477,24 @@ export default function TabMasterCustomer({
                 </div>
 
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-3xs flex flex-col justify-center items-center text-center">
-                  <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Kontribusi Agen</div>
+                  <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Akumulasi Belanja</div>
                   <div className="text-lg font-black text-slate-800 tracking-tight">{formatRupiah(activeCustDetail.totalOmset)}</div>
-                  <div className="text-[9px] text-slate-400 mt-1 font-medium normal-case">Akumulasi {activeCustDetail.totalTransaksi} nota terdaftar.</div>
+                  <div className="text-[9px] text-slate-400 mt-1 font-medium normal-case">Total {activeCustDetail.totalTransaksi} nota terdaftar.</div>
+                </div>
+                
+                {/* 🔥 INFO RAHASIA: TOTAL HPP & PROFIT */}
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-3xs flex flex-col justify-center items-center text-center col-span-2">
+                  <div className="text-[9px] font-black text-orange-600 uppercase tracking-wider mb-2 bg-orange-50 px-2 py-1 rounded">Rahasia Dapur (HQ Only)</div>
+                  <div className="grid grid-cols-2 w-full gap-4 divide-x divide-slate-100">
+                    <div>
+                      <div className="text-[9px] font-bold text-slate-400 uppercase mb-0.5">Total Modal (HPP)</div>
+                      <div className="text-sm font-black text-slate-700 tracking-tight line-through decoration-slate-300">{formatRupiah(activeCustDetail.totalHPP)}</div>
+                    </div>
+                    <div>
+                      <div className="text-[9px] font-bold text-slate-400 uppercase mb-0.5">Total Estimasi Profit</div>
+                      <div className="text-sm font-black text-emerald-600 tracking-tight flex justify-center items-center gap-1"><TrendingUp size={12}/> {formatRupiah(activeCustDetail.totalProfit)}</div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -455,14 +520,21 @@ export default function TabMasterCustomer({
               </div>
 
               <div className="bg-white rounded-xl border border-slate-200 shadow-3xs overflow-hidden">
-                <div className="px-4 py-3 bg-blue-50/50 border-b border-blue-100 text-[10px] font-black text-blue-800 uppercase flex items-center gap-1.5">
-                  <History size={14}/> 5 Riwayat Nota Terakhir
+                <div className="px-4 py-3 bg-blue-50/50 border-b border-blue-100 flex justify-between items-center">
+                  <div className="text-[10px] font-black text-blue-800 uppercase flex items-center gap-1.5">
+                    <History size={14}/> Riwayat Nota Bulanan
+                  </div>
+                  <div className="flex items-center gap-2 bg-white rounded-lg px-2 py-1 border border-blue-200 shadow-3xs">
+                    <Filter size={12} className="text-slate-400"/>
+                    <input type="month" value={modalFilterMonth} onChange={e=>setModalFilterMonth(e.target.value)} className="text-[9px] font-bold outline-none text-slate-700 bg-transparent cursor-pointer" />
+                  </div>
                 </div>
-                <div className="divide-y divide-slate-100">
-                  {activeCustDetail.recentHistory.length === 0 ? (
-                    <div className="text-center text-slate-400 text-xs font-bold py-6">Belum ada riwayat transaksi.</div>
+                
+                <div className="divide-y divide-slate-100 max-h-[250px] overflow-y-auto custom-scrollbar">
+                  {filteredModalHistory.length === 0 ? (
+                    <div className="text-center text-slate-400 text-xs font-bold py-8">Belum ada riwayat transaksi di bulan ini.</div>
                   ) : (
-                    activeCustDetail.recentHistory.map((nota, idx) => (
+                    filteredModalHistory.map((nota, idx) => (
                       <div key={idx} className="p-3.5 flex justify-between items-center hover:bg-slate-50 transition-colors">
                         <div>
                           <div className="text-[11px] font-black text-slate-800 flex items-center gap-2">
@@ -473,7 +545,7 @@ export default function TabMasterCustomer({
                         </div>
                         <div className="text-right">
                           <div className="font-black text-slate-800 text-sm tracking-tight">{formatRupiah(nota.total_amount)}</div>
-                          <div className="text-[9px] text-slate-500 font-bold mt-0.5 normal-case">{formatNumber(nota.qty)} Pcs dibeli</div>
+                          <div className="text-[9px] text-slate-500 font-bold mt-0.5 normal-case">HPP: <span className="line-through decoration-slate-300">{formatRupiah(nota.orderHPP)}</span> | Profit: <span className="text-emerald-600 font-black">{formatRupiah(nota.total_amount - nota.orderHPP)}</span></div>
                         </div>
                       </div>
                     ))
