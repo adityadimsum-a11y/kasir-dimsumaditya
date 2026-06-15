@@ -205,7 +205,7 @@ export default function App() {
       case 'orders': 
         return <TabOrders user={user} sendToSheet={sendToSheet} setPrintData={setPrintData} showToast={showToast} {...dbData} />;
       
-      // 🔥 FIX: KABEL SINKRONISASI sendToSheet SUDAH TERSAMBUNG DI SINI!
+      // 🔥 RUTE HUB INTEGRASI BARU: MENU MASTER CUSTOMER DATA PLATFORM
       case 'master_customer':
         return <TabMasterCustomer user={user} sendToSheet={sendToSheet} setPrintData={setPrintData} showToast={showToast} {...dbData} />;
 
