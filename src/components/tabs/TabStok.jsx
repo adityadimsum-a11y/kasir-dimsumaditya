@@ -1,12 +1,14 @@
 import React, { useState, useMemo } from 'react';
-import { Package, Box, ArrowRightLeft, Search, Archive, ArrowDownRight, ArrowUpRight, History, Database, ShieldAlert } from 'lucide-react';
+// 🔥 FIX: Ikon Layers sudah dimasukkan di sini!
+import { Package, Box, ArrowRightLeft, Search, Archive, ArrowDownRight, ArrowUpRight, History, Database, ShieldAlert, Layers } from 'lucide-react';
 import { formatDate, safeJsonParse } from '../../utils/helpers';
 
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 
 export default function TabStok({
-  orders = [], purchases = [], pemalang = [],
+  masterProducts = [], masterRawMaterials = [],
+  orders = [], purchases = [], productionBatches = [], pemalang = [],
   inventoryCostLayers = [], inventory_cost_layers, user
 }) {
   const [activeTab, setActiveTab] = useState('FREEZER');
@@ -262,7 +264,7 @@ export default function TabStok({
                   <tr>
                     <td colSpan="5" className="text-center py-20 text-slate-400 normal-case font-medium">
                       <div className="flex justify-center mb-3 opacity-20"><ShieldAlert size={36}/></div>
-                      Belum ada aktivitas mutasi barang yang tercatat.
+                      Belum ada aktivitas mutasi barang.
                     </td>
                   </tr>
                 ) : (
