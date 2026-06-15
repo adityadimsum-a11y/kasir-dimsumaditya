@@ -10,16 +10,16 @@ const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID
 export default function TabCashWarRoom({ 
   orders = [], orders_data,
   expenses = [], expenses_data,
-  cashflowTransactions = [], cashflow_transactions_data,
+  cashflowTransactions = [], cashflow_transactions_data, // 🔥 Sinkronisasi parameter App.jsx
   sendToSheet, setPrintData, showToast, user 
 }) {
   const todayStr = getTodayStr();
   const isHQ = user?.branch_type === 'HQ_FACTORY' || user?.branch_id === 'PUSAT';
 
-  // --- FILTER PERIODE EVALUASI KEUANGAN (DEFAULT 14 HARI / 2 MINGGU) ---
+  // --- FILTER PERIODE EVALUASI KEUANGAN ---
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date();
-    d.setDate(d.getDate() - 14);
+    d.setDate(d.getDate() - 14); // Default rentang evaluasi 14 Hari (2 Minggu)
     return d.toISOString().substring(0, 10);
   });
   const [dateTo, setDateTo] = useState(todayStr);
@@ -30,9 +30,14 @@ export default function TabCashWarRoom({
   const [tfBankMethod, setTfBankMethod] = useState('TF_BCA_PUSAT');
   const [wdNotes, setWdNotes] = useState('');
 
-  // --- INTEGRASI SATU SUMBER DATA DIGITAL (ANTI SINKRONISASI COG) ---
+  // --- 🔥 RE-ROUTING DATA ENGINE SINKRON KABEL STATE APP.JSX ---
   const realOrders = useMemo(() => orders_data || orders || [], [orders, orders_data]);
-  const realCashflow = useMemo(() => cashflow_transactions_data || cashflowTransactions || [], [cashflowTransactions, cashflow_transactions_data]);
+  const realExpenses = useMemo(() => expenses_data || expenses || [], [expenses, expenses_data]);
+  
+  // Memastikan jembatan array membaca cashflowTransactions / data secara toleran dan tidak undifined
+  const realCashflow = useMemo(() => {
+    return cashflow_transactions_data || cashflowTransactions || [];
+  }, [cashflowTransactions, cashflow_transactions_data]);
 
   // Kalkulasi live total nominal gabungan split input
   const totalWdInput = useMemo(() => {
@@ -57,19 +62,20 @@ export default function TabCashWarRoom({
       }
     });
 
-    // 2. 🔥 FIX PATCH ENGINE: Perbaikan deteksi kriteria log agar sinkron total dengan Google Sheet
+    // 2. Akumulasi total penarikan dividen jatah pribadi yang sudah sah ter-record
     realCashflow.forEach(cf => {
       if (!cf.isDeleted && isInPeriod(cf.date)) {
-        const descUpper = String(cf.description || '').toUpperCase();
         const catUpper = String(cf.category || '').toUpperCase();
+        const descUpper = String(cf.description || '').toUpperCase();
         
-        if (catUpper === 'TARIK_CUAN_PRIBADI_15' || descUpper.includes('MUTASI CUAN 15%') || catUpper.includes('PRIBADI')) {
+        // Proteksi filter berlapis membaca data kategori atau keyword mutasi dana
+        if (catUpper === 'TARIK_CUAN_PRIBADI_15' || catUpper.includes('PRIBADI') || descUpper.includes('MUTASI CUAN 15%')) {
           totalWdTerbayar += Number(cf.amount || 0);
         }
       }
     });
 
-    // Prosentase pembagian brankas digital
+    // Prosentase pembagian brankas digital korporasi
     const amplopAyam55 = totalOmsetHolding * 0.55;
     const amplopOps20 = totalOmsetHolding * 0.20;
     const amplopCadangan10 = totalOmsetHolding * 0.10;
@@ -88,7 +94,7 @@ export default function TabCashWarRoom({
     const finalAmount = totalWdInput;
 
     if (!isHQ) return alert("Otoritas ditolak. Hanya akun manajemen pusat yang memiliki hak penarikan jatah dividen harian.");
-    if (finalAmount <= 0) return alert("Nominal pengisian dana tunai laci atau transfer bank tidak boleh kosong!");
+    if (finalAmount <= 0) return alert("Nominal pencairan via tunai laci atau transfer bank tidak boleh kosong!");
     
     if (finalAmount > brankasHolding.sisaPlafonPribadi) {
       if (!window.confirm(`Perhatian: Total penarikan gabungan (${formatRupiah(finalAmount)}) melebihi jatah plafon berjalan (${formatRupiah(brankasHolding.sisaPlafonPribadi)}).\n\nTetap lanjutkan penarikan darurat?`)) return;
@@ -96,7 +102,7 @@ export default function TabCashWarRoom({
 
     const confirmMessage = `Konfirmasi Pemindahan Dana Hak Pribadi:\n\n` +
       `- Penarikan Tunai Laci: ${formatRupiah(cashAmount)}\n` +
-      `- Penarikan Transfer Bank: ${formatRupiah(tfAmount)} (${tfBankMethod.replace(/_/g, ' ')})\n` +
+      `- Penarikan Transfer Bank: ${formatRupiah(tfAmount)} (${tfBankMethod.replace(/_/g, ' ')}\n` +
       `------------------------------------------ +\n` +
       `Total Mutasi Dana: ${formatRupiah(finalAmount)}\n\n` +
       `Sistem akan memotong kas perusahaan dan menerbitkan struk fisik otomatis. Lanjutkan?`;
@@ -123,6 +129,7 @@ export default function TabCashWarRoom({
       isDeleted: false
     };
 
+    // Menembak tabel cashflow_transactions sesuai nama tabel backend Google Sheets Bos
     if (await sendToSheet('insert', payload, 'cashflow_transactions')) {
       showToast("Mutasi dana berhasil diproses dan terekam di ledger server!", "success");
 
@@ -156,7 +163,7 @@ export default function TabCashWarRoom({
     }
   };
 
-  // 🔥 FILTER LOG LIST DENGAN LOGIKA TOLERANSI LAYER STRING MATCHING
+  // --- FILTER LOG LIST HISTORI YANG VALID DAN TOLERAN TERHADAP STATE ---
   const filteredLogs = useMemo(() => {
     const isInPeriod = (dStr) => {
       if (!dStr) return false;
@@ -166,9 +173,9 @@ export default function TabCashWarRoom({
 
     return realCashflow.filter(cf => {
       if (cf.isDeleted || !isInPeriod(cf.date)) return false;
-      const descUpper = String(cf.description || '').toUpperCase();
       const catUpper = String(cf.category || '').toUpperCase();
-      return catUpper === 'TARIK_CUAN_PRIBADI_15' || descUpper.includes('MUTASI CUAN 15%') || catUpper.includes('PRIBADI');
+      const descUpper = String(cf.description || '').toUpperCase();
+      return catUpper === 'TARIK_CUAN_PRIBADI_15' || catUpper.includes('PRIBADI') || descUpper.includes('MUTASI CUAN 15%');
     }).reverse();
   }, [realCashflow, dateFrom, dateTo]);
 
@@ -214,7 +221,7 @@ export default function TabCashWarRoom({
         <div className="bg-slate-900 border border-slate-950 p-4 rounded-2xl shadow-sm text-white">
           <span className="text-[9px] font-black text-slate-400 block mb-1 tracking-wider">AMPLOP 4: TABUNGAN PRIBADI OWNER (15%)</span>
           <div className="text-xl font-black text-emerald-400 tracking-tight">{formatRupiah(brankasHolding.amplopPribadi15)}</div>
-          <div className="text-[9px] text-slate-300 font-semibold mt-1">Total akumulasi pencairan fisik: {formatRupiah(brankasHolding.totalWdTerbayar)}</div>
+          <div className="text-[9px] text-slate-300 font-semibold mt-1">Total ditarik fisik: {formatRupiah(brankasHolding.totalWdTerbayar)}</div>
         </div>
       </div>
 
@@ -271,7 +278,7 @@ export default function TabCashWarRoom({
         {/* LOG RIWAYAT MUTASI SEBELAH KANAN (7 KOLOM) */}
         <div className="lg:col-span-7 card-holo p-5 bg-white border border-slate-200 flex flex-col overflow-hidden shadow-2xs">
           <h3 className="text-xs font-black text-slate-800 normal-case mb-3">Histori Log Transaksi Rekam Jejak Penarikan Dividen Owner</h3>
-          <div className="flex-1 overflow-y-auto custom-scrollbar max-h-[360px] p-1">
+          <div className="flex-1 overflow-y-auto custom-scrollbar max-h-[340px] p-1">
             <div className="space-y-2">
               {filteredLogs.length === 0 ? (
                 <div className="text-center py-16 text-slate-400 font-bold text-xs normal-case h-full flex flex-col items-center justify-center border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
