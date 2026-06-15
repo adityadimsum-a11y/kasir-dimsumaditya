@@ -14,7 +14,7 @@ export default function TabMasterCustomer({
   orders = [], 
   sendToSheet, 
   showToast,
-  user // 🔥 Mengambil data user pusat untuk mendeteksi branch_id eksekutor
+  user 
 }) {
   const todayStr = getTodayStr(); 
   const currentBranch = (user?.branch_id === 'PUSAT' || !user?.branch_id) ? 'TANGERANG_PUSAT' : user?.branch_id;
@@ -147,38 +147,43 @@ export default function TabMasterCustomer({
     if(isSuccess) showToast('Data pelanggan berhasil dihapus!', 'success');
   };
 
-  // 🔥 SINKRONISASI TOTAL KABEL DATA KE BACKEND APPS SCRIPT BOS SULTAN
+  // 🔥 SINKRONISASI PASAK BUMI: PROSES SUBMIT DENGAN BUNGKUSAN ARRAY ANTI-TOLAK
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.customer_name.trim()) return alert('Nama pelanggan wajib diisi!');
     
     setIsSubmitting(true);
     
-    // 🔥 VAKSIN ANTI-CRASH: Menyuntikkan 'date' dan 'branch_id' agar lolos validasi setupDatabase() Apps Script
-    const payload = {
+    // Penyusunan struktur objek data murni tanpa membawa sampah state kotor React
+    const rawPayload = {
       id: isEditing ? currentId : generateId('CST', todayStr),
-      date: todayStr,                     // 📌 WAJIB: Sesuai kolom ke-2 template sheet Bos
-      branch_id: currentBranch,           // 📌 WAJIB: Sesuai kolom ke-3 template sheet Bos
+      date: todayStr,                     
+      branch_id: currentBranch,           
       customer_name: formData.customer_name.trim().toUpperCase(), 
       phone: formData.phone.trim() || '-',
       address: formData.address.trim() || '-',
       notes: formData.notes.trim() || '-',
       category: formData.category || 'RESELLER',
-      isDeleted: false                    // 📌 WAJIB: Sesuai kolom ke-4 template sheet Bos
+      isDeleted: false                    
     };
+
+    // 🔥 VAKSIN UTAMA: Membungkus payload ke dalam format Bungkusan Array `[rawPayload]`
+    // Trik ini memaksa fungsi `Array.isArray(p)` di Apps Script Bos bekerja melebarkan kolom
+    // secara otomatis ke sebelah kanan Sheets tanpa memicu error Out of Bounds!
+    const finalPayload = isEditing ? rawPayload : [rawPayload];
 
     try {
       const actionType = isEditing ? 'update' : 'insert';
-      const isSuccess = await sendToSheet(actionType, payload, 'master_customers');
+      const isSuccess = await sendToSheet(actionType, finalPayload, 'master_customers');
       
       if (isSuccess) {
         showToast(isEditing ? 'Profil agen berhasil diperbarui!' : 'Agen baru berhasil didaftarkan!', 'success');
         handleCancel();
       }
     } catch (error) {
-      alert('Koneksi terputus atau Google Sheets menolak format data!');
+      alert('Koneksi terputus atau format database Apps Script menolak data!');
     } finally {
-      setIsSubmitting(false); // Melepaskan kuncian tombol loading
+      setIsSubmitting(false); // Melepaskan kuncian loading tombol
     }
   };
 
@@ -282,7 +287,7 @@ export default function TabMasterCustomer({
                     </td>
                     <td className="px-4 py-3 text-center">
                       <div className={`text-[11px] font-black ${item.butuhFollowUp ? 'text-rose-600' : 'text-emerald-600'}`}>
-                        {item.terakhirBelanja ? (item.hariAbsen === 0 ? 'Order Hari Ini!' : `${item.hariAbsen} Hari Lalu`) : 'Belum Anda'}
+                        {item.terakhirBelanja ? (item.hariAbsen === 0 ? 'Order Hari Ini!' : `${item.hariAbsen} Hari Lalu`) : 'Belum Ada'}
                       </div>
                       <div className="text-[9px] text-slate-400 font-medium mt-0.5">{item.terakhirBelanja ? formatDate(item.terakhirBelanja) : '-'}</div>
                     </td>
@@ -310,9 +315,7 @@ export default function TabMasterCustomer({
         </div>
       </div>
 
-      {/* ========================================================================= */}
       {/* POP-UP MODAL MADING INTELIJEN PELANGGAN */}
-      {/* ========================================================================= */}
       {showAnalyticsModal && activeCustDetail && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-150">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-200 overflow-hidden flex flex-col h-[85vh]">
@@ -405,7 +408,7 @@ export default function TabMasterCustomer({
             </div>
 
             <div className="p-4 bg-slate-50 border-t border-slate-100 text-right shrink-0">
-              <button onClick={() => setShowAnalyticsModal(false)} className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl shadow-md transition-colors cursor-pointer">
+              <button onClick={() => { setShowAnalyticsModal(false); }} className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl shadow-md transition-colors cursor-pointer">
                 Tutup Mading
               </button>
             </div>
