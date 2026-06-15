@@ -6,17 +6,24 @@ const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 
 export default function TabStok({
-  masterProducts = [], masterRawMaterials = [],
-  orders = [], purchases = [], productionBatches = [], pemalang = [],
-  inventoryCostLayers = [], inventory_cost_layers, user
+  masterProducts = [], master_products,
+  masterRawMaterials = [], master_raw_materials,
+  orders = [], purchases = [], pemalang = [],
+  productionBatches = [], production_batches,
+  inventoryCostLayers = [], inventory_cost_layers, 
+  user
 }) {
   const [activeTab, setActiveTab] = useState('FREEZER');
   const [searchTerm, setSearchTerm] = useState('');
   const currentBranch = (user?.branch_id === 'PUSAT' || !user?.branch_id) ? 'TANGERANG_PUSAT' : user?.branch_id;
 
+  // JARING PENGAMAN DATA (MENCEGAH UNDEFINED)
   const realInventory = useMemo(() => inventory_cost_layers || inventoryCostLayers || [], [inventory_cost_layers, inventoryCostLayers]);
+  const realProducts = useMemo(() => master_products || masterProducts || [], [master_products, masterProducts]);
+  const realRawMaterials = useMemo(() => master_raw_materials || masterRawMaterials || [], [master_raw_materials, masterRawMaterials]);
+  const realProductionBatches = useMemo(() => production_batches || productionBatches || [], [production_batches, productionBatches]);
 
-  // ENGINE REKAP STOK GUDANG REAL-TIME (DARI INVENTORY COST LAYERS)
+  // ENGINE REKAP STOK GUDANG REAL-TIME
   const stockSummary = useMemo(() => {
     const map = {};
     let totalValuasi = 0;
@@ -54,10 +61,100 @@ export default function TabStok({
     return list.filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
   }, [stockSummary.list, searchTerm]);
 
+  const freezerStock = useMemo(() => {
+    const stockMap = {};
+    
+    realProducts.forEach(p => {
+      if (!p.isDeleted && p.product_name) {
+        stockMap[p.product_name] = { 
+          id: p.id, name: p.product_name, sku: p.sku || '', category: p.category || '',
+          stockIn: 0, stockOut: 0, currentStock: 0 
+        };
+      }
+    });
+
+    realProductionBatches.forEach(batch => {
+      if (!batch.isDeleted && batch.status === 'COMPLETED') {
+        const productName = batch.product_name || 'DIMSUM FROZEN CORE'; 
+        if (stockMap[productName]) {
+          stockMap[productName].stockIn += Number(batch.total_yield_pcs || batch.actual_yield || batch.qty || 0);
+        }
+      }
+    });
+
+    orders.forEach(o => {
+      if (!o.isDeleted && o.status !== 'BATAL') {
+        const items = safeJsonParse(o.items, []);
+        items.forEach(item => {
+          const pName = item.name || item.product_name;
+          if (pName && stockMap[pName]) {
+            stockMap[pName].stockOut += Number(item.qty || 0);
+          }
+        });
+      }
+    });
+
+    const safeSearch = (searchTerm || '').toLowerCase();
+    return Object.values(stockMap).map(item => {
+      item.currentStock = item.stockIn - item.stockOut;
+      return item;
+    }).filter(item => (item.name || '').toLowerCase().includes(safeSearch));
+  }, [realProducts, realProductionBatches, orders, searchTerm]);
+
+  const rawStock = useMemo(() => {
+    const stockMap = {};
+
+    realRawMaterials.forEach(r => {
+      if (!r.isDeleted && r.raw_name) {
+        stockMap[r.raw_name] = {
+          id: r.id, name: r.raw_name, unit: r.unit || '', category: r.category || '',
+          stockIn: 0, stockOut: 0, currentStock: 0
+        };
+      }
+    });
+
+    purchases.forEach(p => {
+      if (!p.isDeleted) {
+        const items = safeJsonParse(p.items, []);
+        if (items.length > 0) {
+          items.forEach(item => {
+            const rName = item.name || item.raw_name;
+            if (rName && stockMap[rName]) {
+              stockMap[rName].stockIn += Number(item.qty || 0);
+            }
+          });
+        } else if (p.raw_name && stockMap[p.raw_name]) {
+           stockMap[p.raw_name].stockIn += Number(p.qty || 0);
+        }
+      }
+    });
+
+    realProductionBatches.forEach(batch => {
+      if (!batch.isDeleted && batch.status === 'COMPLETED') {
+        if (stockMap['AYAM FILLET PAHA'] && batch.total_ayam_kg) {
+            stockMap['AYAM FILLET PAHA'].stockOut += Number(batch.total_ayam_kg);
+        }
+        const ingredients = safeJsonParse(batch.ingredients_used, []);
+        ingredients.forEach(ing => {
+          const rName = ing.name || ing.raw_name;
+          if (rName && stockMap[rName]) {
+            stockMap[rName].stockOut += Number(ing.qty || 0);
+          }
+        });
+      }
+    });
+
+    const safeSearch = (searchTerm || '').toLowerCase();
+    return Object.values(stockMap).map(item => {
+      item.currentStock = item.stockIn - item.stockOut;
+      return item;
+    }).filter(item => (item.name || '').toLowerCase().includes(safeSearch));
+  }, [realRawMaterials, purchases, realProductionBatches, searchTerm]);
+
   const kartuMutasi = useMemo(() => {
     const timeline = [];
 
-    (orders || []).forEach(o => {
+    orders.forEach(o => {
       if (!o.isDeleted && o.status !== 'BATAL') {
         const items = safeJsonParse(o.items, []);
         items.forEach(item => {
@@ -70,7 +167,7 @@ export default function TabStok({
       }
     });
 
-    (purchases || []).forEach(p => {
+    purchases.forEach(p => {
       if (!p.isDeleted) {
         const items = safeJsonParse(p.items, []);
         if(items.length > 0) {
@@ -90,7 +187,34 @@ export default function TabStok({
       }
     });
 
-    (pemalang || []).forEach(p => {
+    realProductionBatches.forEach(batch => {
+      if (!batch.isDeleted && batch.status === 'COMPLETED') {
+        timeline.push({
+          id: batch.id, date: batch.date, type: 'IN', category: 'Hasil Produksi Pabrik',
+          itemName: batch.product_name || 'Dimsum Frozen Core', 
+          qty: batch.total_yield_pcs || batch.actual_yield || batch.qty || 0, 
+          reference: `Batch Produksi: ${batch.id}`
+        });
+
+        if (batch.total_ayam_kg) {
+            timeline.push({
+              id: batch.id + '-AYM', date: batch.date, type: 'OUT', category: 'Pemakaian Produksi',
+              itemName: 'AYAM FILLET PAHA', qty: batch.total_ayam_kg, reference: `Untuk Batch: ${batch.id}`
+            });
+        }
+
+        const ingredients = safeJsonParse(batch.ingredients_used, []);
+        ingredients.forEach(ing => {
+          timeline.push({
+            id: batch.id + '-ING', date: batch.date, type: 'OUT', category: 'Pemakaian Produksi',
+            itemName: ing.name || ing.raw_name || 'Item Tidak Diketahui', 
+            qty: ing.qty || 0, reference: `Untuk Batch: ${batch.id}`
+          });
+        });
+      }
+    });
+
+    pemalang.forEach(p => {
       if (!p.isDeleted) {
          timeline.push({
             id: p.id, date: p.date, type: 'IN', category: 'Produksi Pabrik',
@@ -103,7 +227,7 @@ export default function TabStok({
     return timeline
       .filter(t => (t.itemName || '').toLowerCase().includes(safeSearch) || (t.category || '').toLowerCase().includes(safeSearch))
       .sort((a, b) => new Date(b.date) - new Date(a.date));
-  }, [orders, purchases, pemalang, searchTerm]);
+  }, [orders, purchases, realProductionBatches, pemalang, searchTerm]);
 
   return (
     <div className="space-y-6 pb-10 text-slate-700 normal-case animate-in fade-in duration-200">
@@ -203,7 +327,7 @@ export default function TabStok({
         <div className="card-holo flex flex-col overflow-hidden bg-white border border-slate-200 rounded-2xl shadow-2xs">
           <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
             <Box size={16} className="text-red-600"/>
-            <h3 className="text-xs font-extrabold normal-case text-slate-800">Kondisi stok bahan baku &amp; kemasan</h3>
+            <h3 className="text-xs font-extrabold normal-case text-slate-800">Kondisi stok bahan mentah &amp; kemasan</h3>
           </div>
           <div className="overflow-x-auto p-1 custom-scrollbar">
             <table className="w-full text-sm text-left border-collapse">
@@ -225,12 +349,11 @@ export default function TabStok({
                       <td className="px-5 py-4 whitespace-nowrap font-extrabold text-slate-800 normal-case">{item.name || 'Umum'}</td>
                       <td className="px-5 py-4 text-center">
                         <span className={`px-2.5 py-1 text-[9px] font-bold normal-case rounded-md border ${item.category === 'PACKAGING' || item.category === 'KEMASAN' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>{item.category ? item.category.replace(/_/g, ' ') : 'Umum'}</span>
-                        <div className="text-[9px] text-slate-400 mt-2 font-medium normal-case">Satuan: {item.unit || 'Pcs'}</div>
                       </td>
                       <td className="px-5 py-4 text-center font-extrabold text-emerald-600">+{formatNumber(item.stockIn)}</td>
                       <td className="px-5 py-4 text-center font-extrabold text-red-500">-{formatNumber(item.stockOut)}</td>
                       <td className="px-5 py-4 text-right">
-                        <div className={`text-lg font-black ${item.currentStock <= 5 ? 'text-red-600' : 'text-slate-800'}`}>{formatNumber(item.currentStock)} <span className="text-[10px] text-slate-400 font-semibold ml-0.5 normal-case">{item.unit || ''}</span></div>
+                        <div className={`text-lg font-black ${item.currentStock <= 5 ? 'text-red-600' : 'text-slate-800'}`}>{formatNumber(item.currentStock)}</div>
                       </td>
                     </tr>
                   ))
