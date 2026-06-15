@@ -32,7 +32,6 @@ export default function TabOrders({
   const [searchHistoryTerm, setSearchHistoryTerm] = useState('');
   const [customerSearchTerm, setCustomerSearchTerm] = useState(''); 
   
-  // Filter Tanggal Histori Bawah
   const [historyDateFrom, setHistoryDateFrom] = useState(todayStr);
   const [historyDateTo, setHistoryDateTo] = useState(todayStr);
 
@@ -219,7 +218,6 @@ export default function TabOrders({
 
       showToast(`Invoice ${orderId} Berhasil Diproses!`, 'success');
 
-      // 🔥 PRINT SANGAT RAHASIA: HPP & LABA TIDAK AKAN PERNAH DICETAK DI SINI
       setPrintData({
         title: orderMode === 'INFLUENCER' ? 'NOTA COMPLIMENTARY MARKETING' : (paymentSummary.sisaBon > 0 ? 'NOTA DP & BON GANTUNG' : 'INVOICE DISTRIBUSI RESMI'),
         id: orderId, date: formatDate(todayStr), branch_name: currentBranch.replace(/_/g, ' '),
@@ -489,8 +487,8 @@ export default function TabOrders({
                 <th className="px-4 py-3 font-black">Nama Pelanggan Agen</th>
                 <th className="px-4 py-3 font-black text-center">Volume Item</th>
                 <th className="px-4 py-3 font-black text-center">Metode Sistem</th>
-                <th className="px-4 py-3 font-black text-right">Keuangan (Omset & Laba)</th> {/* 🔥 FIX: Rahasia HPP di Sini */}
-                <th className="px-4 py-3 font-black text-center">Status</th>
+                <th className="px-4 py-3 font-black text-right">Keuangan (Omset & Laba)</th>
+                <th className="px-4 py-3 font-black text-center">Status Lunas</th>
                 <th className="px-4 py-3 font-black text-center">Aksi</th>
               </tr>
             </thead>
@@ -499,7 +497,7 @@ export default function TabOrders({
                 <tr><td colSpan="7" className="text-center py-12 text-slate-400 font-medium text-xs normal-case">Tidak ada data invoice di periode ini.</td></tr>
               ) : (
                 filteredHistoryOrders.map(o => {
-                  // 🔥 ENGINE KALKULASI HPP RAHASIA
+                  
                   let listItems = [];
                   try { listItems = safeJsonParse(o.items, []); } catch(e) {}
                   
@@ -509,6 +507,17 @@ export default function TabOrders({
                   });
                   const orderProfit = Number(o.total_amount || 0) - orderHPP;
 
+                  // 🔥 ENGINE SINKRONISASI PIUTANG (Membaca total cicilan dari menu Piutang Dagang)
+                  let totalTerbayarDynamic = Number(o.amount_paid || 0);
+                  (piutangPayments || []).forEach(p => {
+                    if (!p.isDeleted && p.orderId === o.id) {
+                      totalTerbayarDynamic += Number(p.amount || 0);
+                    }
+                  });
+                  
+                  const sisaHutangDynamic = Math.max(0, Number(o.total_amount || 0) - totalTerbayarDynamic);
+                  const statusLunasDynamic = sisaHutangDynamic <= 0 ? 'LUNAS' : 'BELUM_LUNAS';
+
                   return (
                     <tr key={o.id} className="hover:bg-slate-50/50 transition-colors group">
                       <td className="px-4 py-3 whitespace-nowrap"><div className="text-slate-800 font-black font-mono">{o.id}</div><div className="text-[9px] text-slate-400 font-bold mt-0.5">{formatDate(o.date)}</div></td>
@@ -516,7 +525,6 @@ export default function TabOrders({
                       <td className="px-4 py-3 text-center whitespace-nowrap text-slate-600 font-black">{formatNumber(o.qty)} <span className="text-[10px] font-normal text-slate-400">Pcs</span></td>
                       <td className="px-4 py-3 text-center whitespace-nowrap"><span className="px-2 py-0.5 rounded text-[9px] font-black bg-slate-100 text-slate-700 border border-slate-200">{o.payment_method}</span></td>
                       
-                      {/* 🔥 DISPLAY HPP RAHASIA (Hanya untuk Mata Pusat) */}
                       <td className="px-4 py-3 text-right whitespace-nowrap">
                         <div className="text-slate-900 font-black text-sm">{formatRupiah(o.total_amount)}</div>
                         <div className="text-[9px] font-bold text-slate-400 mt-1 line-through decoration-slate-300">HPP: {formatRupiah(orderHPP)}</div>
@@ -524,17 +532,21 @@ export default function TabOrders({
                       </td>
 
                       <td className="px-4 py-3 text-center whitespace-nowrap">
-                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${o.status === 'LUNAS' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-rose-100 text-rose-700 border border-rose-200'}`}>{o.status}</span>
+                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${statusLunasDynamic === 'LUNAS' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-rose-100 text-rose-700 border border-rose-200'}`}>{statusLunasDynamic}</span>
+                        {sisaHutangDynamic > 0 && <div className="text-[8px] font-bold text-rose-600 mt-1">Sisa Bon: {formatRupiah(sisaHutangDynamic)}</div>}
                       </td>
                       <td className="px-4 py-3 text-center whitespace-nowrap">
                         <button type="button" onClick={() => {
-                          // 🔥 PRINT RAHASIA: Data HPP TIDAK DIIKUTSERTAKAN DALAM FUNGSI PRINT INI!
                           setPrintData({
                             title: 'RE-PRINT DUPLIKAT INVOICE', id: o.id, date: formatDate(o.date), branch_name: currentBranch.replace(/_/g, ' '),
                             admin_name: user?.name || 'ADMIN PUSAT', customer_name: o.customer_name,
                             items: listItems.map(i => ({ name: i.name, qty: i.qty, subtotal: i.price * i.qty })), amount: o.total_amount,
                             paymentMethod: o.payment_method.replace(/_/g, ' '),
-                            history: { labelLama: 'Total Belanja', nominalLama: o.total_amount, labelAksi: 'Sudah Masuk Jurnal', nominalAksi: o.amount_paid, labelBaru: 'Sisa Piutang Berjalan', nominalBaru: Math.max(0, o.total_amount - o.amount_paid) }
+                            history: { 
+                              labelLama: 'Total Belanja', nominalLama: o.total_amount, 
+                              labelAksi: 'Total Sudah Dibayar', nominalAksi: totalTerbayarDynamic, // 🔥 Dynamic sync!
+                              labelBaru: 'Sisa Piutang Berjalan', nominalBaru: sisaHutangDynamic 
+                            }
                           });
                         }} className="p-1.5 text-slate-400 hover:text-blue-600 border border-slate-200 rounded-lg shadow-3xs bg-white cursor-pointer hover:bg-blue-50 transition-colors" title="Cetak Ulang Nota"><Printer size={14}/></button>
                       </td>
