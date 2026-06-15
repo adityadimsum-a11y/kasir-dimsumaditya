@@ -10,7 +10,7 @@ const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
 export default function TabMasterCustomer({ 
-  data = [], 
+  master_customers = [], // 🔥 FIX: KABEL PENERIMA DISAMAKAN DENGAN NAMA TABEL DI App.jsx!
   orders = [], 
   sendToSheet, 
   showToast,
@@ -50,7 +50,8 @@ export default function TabMasterCustomer({
     const limit7 = sevenAgo.toISOString().split('T')[0];
     const limit14 = fourteenAgo.toISOString().split('T')[0];
 
-    (data || []).forEach(cust => {
+    // 🔥 FIX: Loop menggunakan master_customers, bukan 'data'
+    (master_customers || []).forEach(cust => {
       if (cust && !cust.isDeleted && cust.id) {
         analyticsMap[cust.id] = {
           ...cust,
@@ -111,7 +112,7 @@ export default function TabMasterCustomer({
 
       return cust;
     }).reverse();
-  }, [data, orders, todayStr]);
+  }, [master_customers, orders, todayStr]); // 🔥 FIX: Dependency diubah jadi master_customers
 
   const filteredData = useMemo(() => {
     if (!searchTerm) return customerAnalytics;
@@ -147,14 +148,12 @@ export default function TabMasterCustomer({
     if(isSuccess) showToast('Data pelanggan berhasil dihapus!', 'success');
   };
 
-  // 🔥 SINKRONISASI PASAK BUMI: PROSES SUBMIT DENGAN BUNGKUSAN ARRAY ANTI-TOLAK
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.customer_name.trim()) return alert('Nama pelanggan wajib diisi!');
     
     setIsSubmitting(true);
     
-    // Penyusunan struktur objek data murni tanpa membawa sampah state kotor React
     const rawPayload = {
       id: isEditing ? currentId : generateId('CST', todayStr),
       date: todayStr,                     
@@ -167,9 +166,6 @@ export default function TabMasterCustomer({
       isDeleted: false                    
     };
 
-    // 🔥 VAKSIN UTAMA: Membungkus payload ke dalam format Bungkusan Array `[rawPayload]`
-    // Trik ini memaksa fungsi `Array.isArray(p)` di Apps Script Bos bekerja melebarkan kolom
-    // secara otomatis ke sebelah kanan Sheets tanpa memicu error Out of Bounds!
     const finalPayload = isEditing ? rawPayload : [rawPayload];
 
     try {
@@ -183,7 +179,7 @@ export default function TabMasterCustomer({
     } catch (error) {
       alert('Koneksi terputus atau format database Apps Script menolak data!');
     } finally {
-      setIsSubmitting(false); // Melepaskan kuncian loading tombol
+      setIsSubmitting(false); 
     }
   };
 
@@ -302,7 +298,7 @@ export default function TabMasterCustomer({
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        <button onClick={() => { setActiveCustDetail(item); setShowAnalyticsModal(true); }} className="p-1.5 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors border border-transparent hover:border-orange-200 shadow-3xs bg-white" title="Bedah Analitik &amp; Kebiasaan"><BarChart3 size={14}/></button>
+                        <button onClick={() => { setActiveCustDetail(item); setShowAnalyticsModal(true); }} className="p-1.5 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors border border-transparent hover:border-orange-200 shadow-3xs bg-white" title="Bedah Analitik & Kebiasaan"><BarChart3 size={14}/></button>
                         <button onClick={() => handleEdit(item)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-200 shadow-3xs bg-white"><Edit2 size={14}/></button>
                         <button onClick={() => handleDelete(item.id, item.customer_name)} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-200 shadow-3xs bg-white"><Trash2 size={14}/></button>
                       </div>
@@ -408,7 +404,7 @@ export default function TabMasterCustomer({
             </div>
 
             <div className="p-4 bg-slate-50 border-t border-slate-100 text-right shrink-0">
-              <button onClick={() => { setShowAnalyticsModal(false); }} className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl shadow-md transition-colors cursor-pointer">
+              <button onClick={() => setShowAnalyticsModal(false)} className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl shadow-md transition-colors cursor-pointer">
                 Tutup Mading
               </button>
             </div>
