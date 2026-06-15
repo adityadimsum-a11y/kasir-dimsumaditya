@@ -1,7 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Users, Clock, Trophy, Coffee, DollarSign, ArrowDownToLine, Printer, Trash2 } from 'lucide-react';
-// 🔥 FIX KABEL PRINTER: Cuma mundur 2 langkah (../../)
-import { triggerPrint } from '../../utils/PrintUtility';
 
 // --- HELPER LOKAL ANTI-CRASH ---
 const formatRupiah = (angka) => "Rp. " + Number(angka || 0).toLocaleString('id-ID');
