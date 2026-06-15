@@ -13,21 +13,25 @@ const safeRupiah = (val) => {
   return formatRupiah(num);
 };
 
-// ENGINE ANGKA TERBILANG OTOMATIS
-function angkaTerbilang(angka) {
+// ENGINE ANGKA TERBILANG OTOMATIS (Sudah Diperbaiki Logikanya)
+function terbilang(angka) {
   const bilangan = Number(angka);
-  if (isNaN(bilangan) || bilangan === 0) return "Nol Rupiah";
+  if (isNaN(bilangan) || bilangan === 0) return "Nol";
   const huruf = ["", "Satu", "Dua", "Tiga", "Empat", "Lima", "Enam", "Tujuh", "Delapan", "Sembilan", "Sepuluh", "Sebelas"];
   let hasil = "";
   if (bilangan < 12) hasil = huruf[bilangan];
-  else if (bilangan < 20) hasil = angkaTerbilang(bilangan - 10) + " Belas";
-  else if (bilangan < 100) hasil = angkaTerbilang(Math.floor(bilangan / 10)) + " Puluh " + angkaTerbilang(bilangan % 10);
-  else if (bilangan < 200) hasil = "Seratus " + angkaTerbilang(bilangan - 100);
-  else if (bilangan < 1000) hasil = angkaTerbilang(Math.floor(bilangan / 100)) + " Ratus " + angkaTerbilang(bilangan % 100);
-  else if (bilangan < 2000) hasil = "Seribu " + angkaTerbilang(bilangan - 1000);
-  else if (bilangan < 1000000) hasil = angkaTerbilang(Math.floor(bilangan / 1000)) + " Ribu " + angkaTerbilang(bilangan % 1000);
-  else if (bilangan < 1000000000) hasil = angkaTerbilang(Math.floor(bilangan / 1000000)) + " Juta " + angkaTerbilang(bilangan % 1000000);
-  return hasil.trim() + " Rupiah";
+  else if (bilangan < 20) hasil = terbilang(bilangan - 10) + " Belas";
+  else if (bilangan < 100) hasil = terbilang(Math.floor(bilangan / 10)) + " Puluh " + terbilang(bilangan % 10);
+  else if (bilangan < 200) hasil = "Seratus " + terbilang(bilangan - 100);
+  else if (bilangan < 1000) hasil = terbilang(Math.floor(bilangan / 100)) + " Ratus " + terbilang(bilangan % 100);
+  else if (bilangan < 2000) hasil = "Seribu " + terbilang(bilangan - 1000);
+  else if (bilangan < 1000000) hasil = terbilang(Math.floor(bilangan / 1000)) + " Ribu " + terbilang(bilangan % 1000);
+  else if (bilangan < 1000000000) hasil = terbilang(Math.floor(bilangan / 1000000)) + " Juta " + terbilang(bilangan % 1000000);
+  return hasil.trim();
+}
+
+function angkaTerbilang(angka) {
+  return terbilang(angka) + " Rupiah";
 }
 
 export default function PrintDotMatrix({ printData, onClose }) {
@@ -269,7 +273,7 @@ export default function PrintDotMatrix({ printData, onClose }) {
         ) : (
           <div className="text-center w-64 space-y-1">
             {docType === 'INVOICE' && (
-              <p className="text-[11px] font-bold italic text-black">"Terima kasih telah berbelanja di kami,<br/>kepuasan Anda adalah prioritas kami."</p>
+              <p className="text-[11px] font-bold italic text-black">&quot;Terima kasih telah berbelanja di kami,<br/>kepuasan Anda adalah prioritas kami.&quot;</p>
             )}
             <p className="font-black text-[12px] uppercase tracking-widest text-black mt-2">www.dimsumaditya.id</p>
           </div>
