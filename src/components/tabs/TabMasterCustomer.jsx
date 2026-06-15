@@ -59,7 +59,7 @@ export default function TabMasterCustomer({
         analyticsMap[custId] = {
           ...cust,
           customer_id: custId,
-          totalTransaksi: 0, totalPcs: 0, totalOmset: 0, totalHPP: 0, // 🔥 FIX: HPP ditambah
+          totalTransaksi: 0, totalPcs: 0, totalOmset: 0, totalHPP: 0, 
           terakhirBelanja: null, hariAbsen: 999, butuhFollowUp: false,
           qtyW1: 0, qtyW2: 0, itemMap: {}, history: []
         };
@@ -94,7 +94,7 @@ export default function TabMasterCustomer({
         parsedItems.forEach(i => {
           if(i && i.name) {
             matchedCust.itemMap[i.name] = (matchedCust.itemMap[i.name] || 0) + (Number(i.qty) || 0);
-            orderHPP += (Number(i.hpp || 0) * Number(i.qty || 0)); // 🔥 Kalkulasi HPP per item
+            orderHPP += (Number(i.hpp || 0) * Number(i.qty || 0)); // Kalkulasi HPP per item
           }
         });
 
@@ -114,7 +114,7 @@ export default function TabMasterCustomer({
       else if (cust.selisihPcs < 0) cust.trend = 'TURUN';
       else cust.trend = 'STABIL';
 
-      cust.totalProfit = cust.totalOmset - cust.totalHPP; // 🔥 Hitung Total Profit per Pelanggan
+      cust.totalProfit = cust.totalOmset - cust.totalHPP; 
 
       const favs = Object.keys(cust.itemMap).map(k => ({ name: k, qty: cust.itemMap[k] }));
       cust.topItems = favs.sort((a,b) => b.qty - a.qty).slice(0, 3);
@@ -448,7 +448,6 @@ export default function TabMasterCustomer({
         </div>
       </div>
 
-      {/* POP-UP MODAL MADING INTELIJEN PELANGGAN (DENGAN FILTER BULAN & HPP) */}
       {showAnalyticsModal && activeCustDetail && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-150">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-200 overflow-hidden flex flex-col h-[90vh]">
@@ -482,7 +481,6 @@ export default function TabMasterCustomer({
                   <div className="text-[9px] text-slate-400 mt-1 font-medium normal-case">Total {activeCustDetail.totalTransaksi} nota terdaftar.</div>
                 </div>
                 
-                {/* 🔥 INFO RAHASIA: TOTAL HPP & PROFIT */}
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-3xs flex flex-col justify-center items-center text-center col-span-2">
                   <div className="text-[9px] font-black text-orange-600 uppercase tracking-wider mb-2 bg-orange-50 px-2 py-1 rounded">Rahasia Dapur (HQ Only)</div>
                   <div className="grid grid-cols-2 w-full gap-4 divide-x divide-slate-100">
