@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Printer, X, Receipt } from 'lucide-react';
 
@@ -35,10 +35,20 @@ function angkaTerbilang(angka) {
 }
 
 export default function PrintDotMatrix({ printData, onClose }) {
+  // STATE SAKTI ANTI-ERROR VERCEL SSR
+  const [isMounted, setIsMounted] = useState(false);
+
   useEffect(() => {
+    setIsMounted(true); // Menandakan aplikasi sudah di-render di browser
+    
     if (printData) document.body.style.overflow = 'hidden';
     else document.body.style.overflow = 'unset';
-    return () => { document.body.style.overflow = 'unset'; };
+    
+    return () => { 
+      if (typeof document !== 'undefined') {
+        document.body.style.overflow = 'unset'; 
+      }
+    };
   }, [printData]);
 
   if (!printData) return null;
@@ -51,7 +61,7 @@ export default function PrintDotMatrix({ printData, onClose }) {
   const showContactAndBank = docType === 'INVOICE' || docType === 'WITHDRAWAL';
 
   // ============================================================================
-  // ISI KERTAS NOTA (Compact & Vercel Safe - No Unescaped Entities)
+  // ISI KERTAS NOTA
   // ============================================================================
   const renderDocument = () => (
     <div className="text-black font-sans w-full relative">
@@ -214,7 +224,7 @@ export default function PrintDotMatrix({ printData, onClose }) {
                   <div className="flex justify-between items-center py-1 px-2 border-b border-black bg-emerald-100 print:bg-transparent">
                     <div className="flex flex-col">
                       <span className="text-[10px] font-bold uppercase text-black">{printData.history.labelAksi || 'SUDAH DIBAYAR'}</span>
-                      <span className="text-[8px] font-bold text-black uppercase mt-0.5">VIA: {printData.paymentMethod?.split('+')[0] || 'TUNAI/TRANSFER'}</span>
+                      <span className="text-[8px] font-bold text-black uppercase">VIA: {printData.paymentMethod?.split('+')[0] || 'TUNAI/TRANSFER'}</span>
                     </div>
                     <span className="font-black text-black text-xs">{safeRupiah(printData.history.nominalAksi)}</span>
                   </div>
@@ -260,7 +270,6 @@ export default function PrintDotMatrix({ printData, onClose }) {
             {['CASH_VOUCHER', 'WITHDRAWAL'].includes(docType) ? 'Penerima Dana' : ''}
           </div>
           <div className="border-b border-black w-full mb-1"></div>
-          {/* SIMBOL & DIGANTI JADI &amp; AGAR AMAN DI VERCEL */}
           <div className="text-[8px] font-bold uppercase">Ttd &amp; Nama Jelas</div>
         </div>
         
@@ -314,7 +323,6 @@ export default function PrintDotMatrix({ printData, onClose }) {
           </div>
 
           <div className="p-3 bg-white border-t border-slate-200 flex justify-end gap-3 shrink-0">
-            {/* SIMBOL & DIGANTI JADI &amp; AGAR AMAN DI VERCEL */}
             <button onClick={onClose} className="px-5 py-2.5 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors text-xs border border-slate-200 cursor-pointer">
               Batal &amp; Tutup
             </button>
@@ -326,14 +334,13 @@ export default function PrintDotMatrix({ printData, onClose }) {
         </div>
       </div>
 
-      {/* 2. LAYER KHUSUS PRINTER (DI-PORTAL LANGSUNG KE BODY) */}
-      {createPortal(
+      {/* 2. LAYER KHUSUS PRINTER (DI-PORTAL LANGSUNG KE BODY HANYA JIKA CLIENT-SIDE) */}
+      {isMounted && createPortal(
         <div id="print-portal-container" className="hidden print:block absolute left-0 top-0 bg-white m-0 z-[999999]" style={{ width: '21.49cm', height: '13.97cm', padding: '4mm 6mm', boxSizing: 'border-box', overflow: 'hidden', fontFamily: 'Arial, Helvetica, sans-serif' }}>
           <style type="text/css" media="print">
             {`
               @page { size: 21.49cm 13.97cm; margin: 0; }
               body { background-color: white !important; margin: 0; padding: 0; }
-              /* Sembunyikan semua isi website KECUALI Portal ini */
               body > *:not(#print-portal-container) { display: none !important; }
             `}
           </style>
