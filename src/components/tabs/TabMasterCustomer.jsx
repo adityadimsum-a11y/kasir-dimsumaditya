@@ -1,351 +1,273 @@
 import React, { useState, useMemo } from 'react';
 import { 
-  Users, Search, ShieldAlert, Award, FileText, 
-  Printer, ArrowUpRight, ArrowDownRight, User, Heart, ShoppingBag, Clock, Coins, Gift
+  Users, Plus, Search, Edit2, Trash2, Save, 
+  X, AlertTriangle, TrendingUp, AlertCircle, ShoppingCart 
 } from 'lucide-react';
-import { formatDate, safeJsonParse } from '../../utils/helpers';
+import { generateId, getTodayStr, getLocalYMD } from '../../utils/helpers'; // 🔥 FIX: getTodayStr sudah di-import resmi!
 
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
-const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
 export default function TabMasterCustomer({ 
-  orders = [], 
-  masterCustomers = [], master_customers,
-  setPrintData,
-  showToast,
-  user
+  data = [], 
+  orders = [], // 🔥 Ambil data order untuk dianalisa
+  sendToSheet, 
+  showToast 
 }) {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCustomerId, setSelectedCustomerId] = useState(null);
+  const todayStr = getTodayStr(); // 🔥 Variabel ini sudah aman sekarang
   
-  // State Anggaran Pengelolaan Bonus / THR
-  const [bonusBudget, setBonusBonusBudget] = useState(2000000); 
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [currentId, setCurrentId] = useState('');
+  
+  const [formData, setFormData] = useState({
+    customer_name: '', phone: '', address: '', notes: '', category: 'RESELLER'
+  });
 
-  const realCustomers = useMemo(() => master_customers || masterCustomers || [], [master_customers, masterCustomers]);
-  const activeCustomers = useMemo(() => realCustomers.filter(c => !c.isDeleted), [realCustomers]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // --- ENGINE SAKTI INTELLESENSE CUSTOMER DATA CDP ---
-  const customerIntelligenceData = useMemo(() => {
-    const dataMap = {};
-    const today = new Date();
+  const getDaysDifference = (d1, d2) => {
+    const diffTime = Math.abs(new Date(d1) - new Date(d2));
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  };
 
-    // Inisialisasi kerangka data master customer
-    activeCustomers.forEach(c => {
-      dataMap[c.customer_name.toUpperCase()] = {
-        meta: c,
-        totalTransaksi: 0,
-        totalQty: 0,
-        totalNominal: 0,
-        lastOrderDate: null,
-        productMap: {},
-        weeklyHistory: { lastWeekQty: 0, currentWeekQty: 0 },
-        ordersList: []
-      };
-    });
-
-    const oneWeekAgo = new Date(); oneWeekAgo.setDate(today.getDate() - 7);
-    const twoWeeksAgo = new Date(); twoWeeksAgo.setDate(today.getDate() - 14);
-
-    // Proses data transaksi penjualan
-    (orders || []).forEach(o => {
-      if (o.isDeleted) return;
-      const cName = String(o.customer_name || '').toUpperCase();
-      if (!dataMap[cName]) return;
-
-      const items = safeJsonParse(o.items, []);
-      const orderDate = new Date(o.date);
-
-      dataMap[cName].totalTransaksi += 1;
-      dataMap[cName].totalNominal += Number(o.total_amount || 0);
-      dataMap[cName].ordersList.push(o);
-
-      if (!dataMap[cName].lastOrderDate || orderDate > new Date(dataMap[cName].lastOrderDate)) {
-        dataMap[cName].lastOrderDate = o.date;
-      }
-
-      items.forEach(it => {
-        const q = Number(it.qty || 0);
-        dataMap[cName].totalQty += q;
-        dataMap[cName].productMap[it.name] = (dataMap[cName].productMap[it.name] || 0) + q;
-
-        // Analitik Fluktuasi Perilaku Belanja Mingguan
-        if (orderDate >= oneWeekAgo && orderDate <= today) {
-          dataMap[cName].weeklyHistory.currentWeekQty += q;
-        } else if (orderDate >= twoWeeksAgo && orderDate < oneWeekAgo) {
-          dataMap[cName].weeklyHistory.lastWeekQty += q;
-        }
-      });
-    });
-
-    // Menghitung status retensi, performa fluktuasi, dan kelayakan bonus
-    return Object.values(dataMap).map(c => {
-      let status = 'AKTIF';
-      let statusColor = 'bg-emerald-50 text-emerald-700 border-emerald-200';
-      
-      if (c.lastOrderDate) {
-        const diffTime = Math.abs(today - new Date(c.lastOrderDate));
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        if (diffDays > 14) {
-          status = 'TIDAK AKTIF';
-          statusColor = 'bg-rose-50 text-rose-700 border-rose-200';
-        } else if (diffDays > 7) {
-          status = 'PERLU FOLLOW UP';
-          statusColor = 'bg-amber-50 text-amber-700 border-amber-200 animate-pulse';
-        }
-      } else {
-        status = 'TIDAK AKTIF';
-        statusColor = 'bg-rose-50 text-rose-700 border-rose-200';
-      }
-
-      // Hitung persentase fluktuasi
-      let fluctuationLabel = 'Stabil';
-      let fluctuationColor = 'text-slate-500';
-      const lW = c.weeklyHistory.lastWeekQty;
-      const cW = c.weeklyHistory.currentWeekQty;
-
-      if (lW > 0) {
-        const percent = ((cW - lW) / lW) * 100;
-        if (percent > 0) {
-          fluctuationLabel = `▲ Naik ${percent.toFixed(0)}%`;
-          fluctuationColor = 'text-emerald-600 font-black';
-        } else if (percent < 0) {
-          fluctuationLabel = `▼ Turun ${Math.abs(percent).toFixed(0)}%`;
-          fluctuationColor = 'text-rose-600 font-black';
-        }
-      } else if (cW > 0) {
-        fluctuationLabel = '▲ Baru / Naik 100%';
-        fluctuationColor = 'text-emerald-600 font-black';
-      }
-
-      // Rekomendasi Program Loyalitas Bonus / THR otomatis
-      let rekomendasiBonus = 'Hadiah Produk 25 Pcs';
-      let nilaiBonusEstimasi = 50000;
-      if (c.totalNominal > 10000000) {
-        rekomendasiBonus = 'Uang THR Tunai Rp 250.000';
-        nilaiBonusEstimasi = 250000;
-      } else if (c.totalNominal > 5000000) {
-        rekomendasiBonus = 'Hadiah Produk 100 Pcs';
-        nilaiBonusEstimasi = 150000;
-      } else if (c.totalNominal > 2000000) {
-        rekomendasiBonus = 'Hadiah Produk 50 Pcs';
-        nilaiBonusEstimasi = 100000;
-      }
-
-      return {
-        ...c,
-        status,
-        statusColor,
-        fluctuationLabel,
-        fluctuationColor,
-        rekomendasiBonus,
-        nilaiBonusEstimasi,
-        rataRataBelanja: c.totalTransaksi > 0 ? Math.floor(c.totalNominal / c.totalTransaksi) : 0
-      };
-    });
-  }, [activeCustomers, orders, todayStr]);
-
-  const filteredIntelligenceList = useMemo(() => {
-    if (!searchTerm) return customerIntelligenceData;
-    const s = searchTerm.toLowerCase();
-    return customerIntelligenceData.filter(c => c.meta.customer_name.toLowerCase().includes(s));
-  }, [customerIntelligenceData, searchTerm]);
-
-  const selectedCustomer = useMemo(() => {
-    if (!selectedCustomerId) return null;
-    return customerIntelligenceData.find(c => c.meta.id === selectedCustomerId);
-  }, [customerIntelligenceData, selectedCustomerId]);
-
-  // --- PRINT REKAP BONUSES & THR (MANAJERIAL FORMAT A4) ---
-  const handlePrintBonusTHR = () => {
-    if (typeof setPrintData !== 'function') return;
+  // 🔥 ENGINE CRM: MENYATUKAN DATA MASTER DENGAN HISTORI TRANSAKSI
+  const customerAnalytics = useMemo(() => {
+    const analyticsMap = {};
+    const validOrders = (orders || []).filter(o => !o.isDeleted);
     
-    // Siapkan struktur data manajerial kustom A4
-    setPrintData({
-      title: 'LAPORAN REKAPITULASI DISTRIBUSI THR & LOYALITAS PELANGGAN',
-      id: generateId('THR', todayStr),
-      date: formatDate(todayStr),
-      branch_name: 'MANAGEMENT HEADQUARTER',
-      admin_name: user?.name || 'DIREKTUR UTAMA',
-      customer_name: 'SELURUH NODE JALUR AGEN & MITRA',
-      paymentMethod: 'DOKUMEN APRESIASI AKHIR TAHUN',
-      // Selundupkan data ke dalam manifes cetak
-      items: filteredIntelligenceList.map((c, idx) => ({
-        name: `[RANK #${idx + 1}] ${c.meta.customer_name}\nKATEGORI: ${c.meta.category} | TOTAL BELANJA: ${formatRupiah(c.totalNominal)}\nPROGRAM HADIAH: ${c.rekomendasiBonus}`,
-        qty: c.totalTransaksi,
-        suffix: ' x Order',
-        subtotal: c.nilaiBonusEstimasi
-      })),
-      amount: filteredIntelligenceList.reduce((sum, c) => sum + c.nilaiBonusEstimasi, 0)
+    // Siapkan wadah untuk semua pelanggan di database
+    (data || []).forEach(cust => {
+      if (!cust.isDeleted) {
+        analyticsMap[cust.id] = {
+          ...cust,
+          totalTransaksi: 0,
+          totalPcs: 0,
+          totalOmset: 0,
+          terakhirBelanja: null,
+          hariAbsen: 999,
+          butuhFollowUp: false
+        };
+      }
     });
-    showToast("Dokumen Laporan THR berhasil dikirim ke antrean cetak!", "success");
+
+    // Masukkan histori belanja ke masing-masing profil pelanggan
+    validOrders.forEach(o => {
+      // Cari pelanggan berdasarkan nama (karena kadang kasir cuma input nama manual)
+      const matchedCust = Object.values(analyticsMap).find(
+        c => c.customer_name.toUpperCase() === String(o.customer_name || o.customer || '').toUpperCase()
+      );
+
+      if (matchedCust) {
+        matchedCust.totalTransaksi += 1;
+        matchedCust.totalPcs += Number(o.qty || 0);
+        matchedCust.totalOmset += Number(o.total_amount || o.total || 0);
+
+        if (!matchedCust.terakhirBelanja || new Date(o.date) > new Date(matchedCust.terakhirBelanja)) {
+          matchedCust.terakhirBelanja = o.date;
+        }
+      }
+    });
+
+    // Kalkulasi Lampu Merah (Absen > 7 Hari)
+    return Object.values(analyticsMap).map(cust => {
+      if (cust.terakhirBelanja) {
+        cust.hariAbsen = getDaysDifference(todayStr, cust.terakhirBelanja);
+        cust.butuhFollowUp = cust.hariAbsen > 7; // Alarm merah jika lebih dari seminggu gak belanja
+      }
+      return cust;
+    }).reverse();
+  }, [data, orders, todayStr]);
+
+  const filteredData = useMemo(() => {
+    if (!searchTerm) return customerAnalytics;
+    const lower = searchTerm.toLowerCase();
+    return customerAnalytics.filter(item => 
+      (item.customer_name || '').toLowerCase().includes(lower) ||
+      (item.phone || '').toLowerCase().includes(lower) ||
+      (item.category || '').toLowerCase().includes(lower)
+    );
+  }, [customerAnalytics, searchTerm]);
+
+  const handleEdit = (item) => {
+    setFormData({
+      customer_name: item.customer_name || '',
+      phone: item.phone || '',
+      address: item.address || '',
+      notes: item.notes || '',
+      category: item.category || 'RESELLER'
+    });
+    setCurrentId(item.id);
+    setIsEditing(true);
+  };
+
+  const handleCancel = () => {
+    setFormData({ customer_name: '', phone: '', address: '', notes: '', category: 'RESELLER' });
+    setIsEditing(false);
+    setCurrentId('');
+  };
+
+  const handleDelete = async (id, name) => {
+    if(!window.confirm(`Yakin ingin menghapus agen "${name}"? Data riwayatnya tidak akan terhapus, tapi namanya hilang dari kasir.`)) return;
+    const isSuccess = await sendToSheet('update', { id, isDeleted: true }, 'master_customers');
+    if(isSuccess) showToast('Data pelanggan berhasil dihapus!', 'success');
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if(!formData.customer_name) return alert('Nama pelanggan wajib diisi!');
+    
+    setIsSubmitting(true);
+    const payload = {
+      ...formData,
+      customer_name: formData.customer_name.toUpperCase(), // Paksa huruf besar biar seragam
+      isDeleted: false
+    };
+
+    if (isEditing) {
+      payload.id = currentId;
+      const isSuccess = await sendToSheet('update', payload, 'master_customers');
+      if (isSuccess) {
+        showToast('Profil agen berhasil diperbarui!', 'success');
+        handleCancel();
+      }
+    } else {
+      payload.id = generateId('CST', todayStr);
+      const isSuccess = await sendToSheet('insert', payload, 'master_customers');
+      if (isSuccess) {
+        showToast('Agen baru berhasil didaftarkan!', 'success');
+        handleCancel();
+      }
+    }
+    setIsSubmitting(false);
   };
 
   return (
-    <div className="space-y-6 pb-10 text-slate-700 normal-case animate-in fade-in duration-200">
+    <div className="space-y-6 pb-10 animate-in fade-in duration-300">
       
-      {/* ATAS: MONITOR DANA BONUS AMPLOP MANAGEMENT */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="card-holo bg-white p-5 border border-slate-200 rounded-2xl shadow-2xs border-t-4 border-t-orange-500">
-          <div className="text-[10px] font-black text-slate-400 uppercase">Amplop Anggaran Alokasi Bonus CRM</div>
-          <div className="text-2xl font-black text-slate-800 tracking-tight mt-1">{formatRupiah(bonusBudget)}</div>
-          <input 
-            type="range" min="500000" max="10000000" step="500000" 
-            value={bonusBudget} onChange={e=>setBonusBonusBudget(Number(e.target.value))}
-            className="w-full mt-3 accent-orange-500 cursor-pointer h-1 bg-slate-100 rounded-lg appearance-none"
-          />
-        </div>
-        <div className="card-holo bg-white p-5 border border-slate-200 rounded-2xl shadow-2xs border-t-4 border-t-blue-500">
-          <div className="text-[10px] font-black text-slate-400 uppercase">Pelanggan Butuh Tindakan (Follow Up)</div>
-          <div className="text-2xl font-black text-amber-600 tracking-tight mt-1">
-            {formatNumber(customerIntelligenceData.filter(c => c.status === 'PERLU FOLLOW UP').length)} <span className="text-xs font-bold text-slate-400">Jiwa</span>
-          </div>
-          <div className="text-[9px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 mt-2 inline-block">Tidak melakukan repeat order &gt; 7 Hari</div>
-        </div>
-        <div className="card-holo bg-slate-900 p-5 border border-slate-800 rounded-2xl shadow-md text-white flex flex-col justify-between">
+      {/* HEADER & ANALITIK CRM SINGKAT */}
+      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <div className="text-[10px] font-bold text-orange-400 uppercase">Aksi Cetak Manajerial</div>
-            <div className="text-xs font-medium text-slate-400 mt-0.5">Keluarkan dokumen fisik insentif loyalitas.</div>
+            <h2 className="text-lg font-black text-slate-800 flex items-center gap-2"><Users className="text-blue-600"/> Database Master CRM Agen</h2>
+            <p className="text-xs font-bold text-slate-400 mt-1">Kelola data pelanggan dan pantau agen yang terdeteksi jarang berbelanja.</p>
           </div>
-          <button type="button" onClick={handlePrintBonusTHR} className="bg-orange-500 hover:bg-orange-600 text-white font-black py-2 px-4 rounded-xl text-xs flex items-center justify-center gap-2 mt-3 shadow-sm transition-colors cursor-pointer w-full">
-            <Printer size={14}/> Cetak Rekap THR A4
+          <button onClick={() => { handleCancel(); setIsEditing(true); }} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl flex items-center gap-2 font-black text-xs shadow-md active:scale-95 transition-all">
+            <Plus size={16} /> Tambah Agen Baru
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        {/* KANTONG KIRI: REKAPAN RETENSI DATABASE CUSTOMER INTELLIGENCE */}
-        <div className="lg:col-span-5 card-holo bg-white border border-slate-200 rounded-2xl shadow-2xs flex flex-col h-[70vh] overflow-hidden">
-          <div className="p-4 bg-slate-50 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 shrink-0">
-            <h4 className="font-black text-xs text-slate-800 flex items-center gap-1.5"><Users size={16} className="text-orange-500"/> Intelijen Pelanggan</h4>
-            <div className="relative w-full sm:w-48">
-              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"/>
-              <input type="text" value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} className="w-full pl-7 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-bold outline-none focus:border-orange-400 shadow-3xs normal-case" placeholder="Cari nama..." />
-            </div>
+      {isEditing && (
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-lg border-t-4 border-t-blue-500">
+          <div className="flex justify-between items-center mb-4 pb-3 border-b border-slate-100">
+            <h3 className="font-black text-slate-800 text-sm">{currentId ? 'Edit Profil Agen' : 'Registrasi Agen Baru'}</h3>
+            <button onClick={handleCancel} className="text-slate-400 hover:text-rose-500"><X size={20}/></button>
           </div>
-
-          <div className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">
-            {filteredIntelligenceList.map(c => (
-              <div 
-                key={c.meta.id} 
-                onClick={() => setSelectedCustomerId(c.meta.id)}
-                className={`p-3.5 rounded-xl border cursor-pointer transition-all ${selectedCustomerId === c.meta.id ? 'bg-orange-50/50 border-orange-400 shadow-sm' : 'bg-white border-slate-100 hover:border-slate-300 shadow-3xs'}`}
-              >
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h5 className="font-black text-slate-800 text-xs uppercase leading-tight">{c.meta.customer_name}</h5>
-                    <div className="text-[9px] font-bold text-slate-400 normal-case mt-0.5">Kategori: {c.meta.category} • Wilayah: {c.meta.address}</div>
-                  </div>
-                  <span className={`px-2 py-0.5 rounded border text-[8px] font-black tracking-wide ${c.statusColor}`}>{c.status}</span>
-                </div>
-                <div className="flex justify-between items-center mt-3 pt-2 border-t border-slate-100 text-[10px] font-bold">
-                  <div className="text-slate-500">Pola Belanja: <span className={c.fluctuationColor}>{c.fluctuationLabel}</span></div>
-                  <div className="text-slate-800 font-black">{formatRupiah(c.totalNominal)}</div>
-                </div>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">Nama Agen / Toko</label>
+                <input required type="text" value={formData.customer_name} onChange={e=>setFormData({...formData, customer_name: e.target.value})} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black uppercase outline-none focus:bg-white focus:border-blue-400" placeholder="MANDIRI JAYA" />
               </div>
-            ))}
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">Kategori / Harga</label>
+                <select value={formData.category} onChange={e=>setFormData({...formData, category: e.target.value})} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black outline-none focus:bg-white focus:border-blue-400 cursor-pointer">
+                  <option value="RESELLER">Reseller</option>
+                  <option value="MITRA">Mitra Utama</option>
+                  <option value="ECERAN">Eceran Biasa</option>
+                  <option value="PEMALANG">Area Pemalang</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">No. WhatsApp</label>
+                <input type="text" value={formData.phone} onChange={e=>setFormData({...formData, phone: e.target.value.replace(/\D/g, '')})} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:bg-white focus:border-blue-400" placeholder="0812..." />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">Alamat Pengiriman</label>
+                <input type="text" value={formData.address} onChange={e=>setFormData({...formData, address: e.target.value})} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:bg-white focus:border-blue-400" placeholder="Jl. Merdeka..." />
+              </div>
+              <div className="md:col-span-2">
+                <label className="text-[10px] font-bold text-slate-500 block mb-1">Catatan Internal (CRM)</label>
+                <textarea rows="2" value={formData.notes} onChange={e=>setFormData({...formData, notes: e.target.value})} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium outline-none focus:bg-white focus:border-blue-400" placeholder="Karakteristik pelanggan, jam operasional..." />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <button type="button" onClick={handleCancel} className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50">Batal</button>
+              <button type="submit" disabled={isSubmitting} className="px-5 py-2.5 rounded-xl bg-blue-600 text-white font-black text-xs shadow-md hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
+                <Save size={16}/> {isSubmitting ? 'Menyimpan...' : 'Simpan Data Agen'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* TABEL DATABASE AGEN (DENGAN RADAR CRM) */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
+        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+          <div className="relative w-full max-w-sm">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
+            <input type="text" value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none focus:border-blue-400 shadow-3xs" placeholder="Cari nama, no WA, atau kategori..." />
+          </div>
+          <div className="text-[10px] font-black text-slate-500 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-3xs hidden sm:block">
+            Total Agen Aktif: {customerAnalytics.length}
           </div>
         </div>
 
-        {/* KANTONG KANAN: PROFIL DETIL INSIGHT CUSTOMER INTELLIGENCE */}
-        <div className="lg:col-span-7 flex flex-col gap-4 h-[70vh]">
-          {!selectedCustomer ? (
-            <div className="card-holo bg-white border border-slate-200 rounded-2xl p-8 flex-1 flex flex-col items-center justify-center text-center text-slate-400 shadow-2xs">
-              <ShieldAlert size={40} className="opacity-20 mb-3 text-orange-500" />
-              <div className="text-xs font-bold normal-case">Silakan klik salah satu kartu pelanggan di sebelah kiri untuk membedah data profil intelijen &amp; kelayakan reward secara terukur.</div>
-            </div>
-          ) : (
-            <div className="card-holo bg-white border border-slate-200 rounded-2xl shadow-2xs flex-1 flex flex-col overflow-hidden">
-              
-              {/* HEADER PROFIL */}
-              <div className="p-4 bg-slate-50 border-b border-slate-100 shrink-0 flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-8 rounded-xl bg-orange-500 text-white font-black text-sm flex items-center justify-center shadow-inner">{selectedCustomer.meta.customer_name.charAt(0)}</div>
-                  <div>
-                    <h4 className="font-black text-slate-800 text-sm uppercase leading-none">{selectedCustomer.meta.customer_name}</h4>
-                    <span className="text-[9px] text-slate-400 font-bold mt-1 block normal-case">ID: {selectedCustomer.meta.id} • Terdaftar sejak: {formatDate(selectedCustomer.meta.date)}</span>
-                  </div>
-                </div>
-                <span className={`px-2.5 py-1 rounded-md text-[9px] font-black border tracking-wider ${selectedCustomer.statusColor}`}>{selectedCustomer.status}</span>
-              </div>
-
-              {/* RANGKUMAN CONTENT SCROLLABLE INSIGHT */}
-              <div className="flex-1 overflow-y-auto p-5 space-y-5 custom-scrollbar text-xs">
-                
-                {/* 1. INFORMASI DASAR */}
-                <div className="grid grid-cols-2 gap-4 bg-slate-50 p-3 rounded-xl border border-slate-100 shadow-inner">
-                  <div><div className="text-[9px] text-slate-400 font-bold normal-case">No. Handphone</div><div className="font-black text-slate-800 text-xs mt-0.5">{selectedCustomer.meta.phone}</div></div>
-                  <div><div className="text-[9px] text-slate-400 font-bold normal-case">Alamat Kirim</div><div className="font-bold text-slate-700 text-xs mt-0.5 truncate">{selectedCustomer.meta.address}</div></div>
-                </div>
-
-                {/* 2. RINGKASAN PEMBELIAN */}
-                <div>
-                  <h5 className="font-black text-slate-800 text-[10px] uppercase tracking-wider mb-2 flex items-center gap-1"><ShoppingBag size={12} className="text-orange-500"/> Ringkasan Akumulasi Pembelian</h5>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-                    <div className="border border-slate-100 bg-white p-2 rounded-xl shadow-3xs"><div className="text-[8px] text-slate-400 font-bold">Total Transaksi</div><div className="font-black text-slate-800 text-sm mt-0.5">{selectedCustomer.totalTransaksi}x</div></div>
-                    <div className="border border-slate-100 bg-white p-2 rounded-xl shadow-3xs"><div className="text-[8px] text-slate-400 font-bold">Total Volume Pcs</div><div className="font-black text-blue-600 text-sm mt-0.5">{formatNumber(selectedCustomer.totalQty)}</div></div>
-                    <div className="border border-slate-100 bg-white p-2 rounded-xl shadow-3xs"><div className="text-[8px] text-slate-400 font-bold">Nilai Belanja</div><div className="font-black text-emerald-600 text-sm mt-0.5">{formatRupiah(selectedCustomer.totalNominal)}</div></div>
-                    <div className="border border-slate-100 bg-white p-2 rounded-xl shadow-3xs"><div className="text-[8px] text-slate-400 font-bold">Rerata Per Invoice</div><div className="font-black text-purple-600 text-[11px] mt-0.5">{formatRupiah(selectedCustomer.rataRateBelanja)}</div></div>
-                  </div>
-                </div>
-
-                {/* 3. REKOMENDASI PROGRAM APRESIASI BONUS / THR */}
-                <div className="bg-orange-50/50 border border-orange-200 rounded-xl p-4 flex items-center justify-between shadow-3xs">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-white p-2 rounded-xl text-orange-500 border border-orange-100 shadow-3xs"><Gift size={16}/></div>
-                    <div>
-                      <div className="text-[10px] font-black text-orange-800 uppercase tracking-wider">Klaim Amplop THR &amp; Reward Mitra</div>
-                      <div className="text-[11px] font-black text-slate-800 mt-0.5 normal-case">Rekomendasi: <span className="text-orange-600 font-black">{selectedCustomer.rekomendasiBonus}</span></div>
-                    </div>
-                  </div>
-                  <div className="text-right text-[9px] text-slate-400 font-bold normal-case">
-                    Terakhir Order:<br/>
-                    <span className="font-black text-slate-700 text-xs">{selectedCustomer.lastOrderDate ? formatDate(selectedCustomer.lastOrderDate) : 'Belum Ada'}</span>
-                  </div>
-                </div>
-
-                {/* 4. PRODUK FAVORIT */}
-                <div>
-                  <h5 className="font-black text-slate-800 text-[10px] uppercase tracking-wider mb-2 flex items-center gap-1"><Heart size={12} className="text-rose-500"/> Analitik Menu Produk Terfavorit</h5>
-                  <div className="space-y-1.5 max-h-[120px] overflow-y-auto custom-scrollbar pr-1">
-                    {Object.entries(selectedCustomer.product_name || selectedCustomer.productMap).length === 0 ? (
-                      <div className="text-[10px] text-slate-400 font-medium py-2">Belum ada rekam jejak produk terdaftar.</div>
-                    ) : (
-                      Object.entries(selectedCustomer.product_name || selectedCustomer.productMap)
-                        .sort((a,b) => b[1] - a[1])
-                        .map(([pName, pQty]) => (
-                          <div key={pName} className="flex justify-between items-center p-2 bg-slate-50 rounded-lg border border-slate-100">
-                            <span className="font-bold text-slate-700 text-[11px] uppercase truncate max-w-[200px]">{pName}</span>
-                            <span className="font-black text-slate-900 text-xs">{formatNumber(pQty)} <span className="text-[9px] text-slate-400 font-normal">PCS</span></span>
-                          </div>
-                        ))
-                    )}
-                  </div>
-                </div>
-
-                {/* 5. HISTORI DETIL NOTA BELANJA */}
-                <div>
-                  <h5 className="font-black text-slate-800 text-[10px] uppercase tracking-wider mb-2 flex items-center gap-1"><Clock size={12} className="text-blue-500"/> Log Histori Aliran Transaksi</h5>
-                  <div className="space-y-1.5 max-h-[120px] overflow-y-auto custom-scrollbar pr-1">
-                    {selectedCustomer.ordersList.map(o => (
-                      <div key={o.id} className="flex justify-between items-center p-2 bg-white rounded-lg border border-slate-100 shadow-3xs">
-                        <div>
-                          <div className="font-black text-slate-800 text-[10px]">{o.id}</div>
-                          <div className="text-[8px] text-slate-400 font-mono mt-0.5">{formatDate(o.date)} • VIA: {o.payment_method}</div>
-                        </div>
-                        <span className="font-black text-emerald-600 text-xs">{formatRupiah(o.total_amount)}</span>
+        <div className="overflow-x-auto custom-scrollbar">
+          <table className="w-full text-sm text-left">
+            <thead className="text-[10px] font-black text-slate-500 uppercase bg-slate-50/50 border-b border-slate-100">
+              <tr>
+                <th className="px-4 py-3">Nama Agen / Toko</th>
+                <th className="px-4 py-3 text-center">Status Keaktifan Order</th>
+                <th className="px-4 py-3 text-center">Akumulasi Belanja</th>
+                <th className="px-4 py-3 text-center">Kontak &amp; Alamat</th>
+                <th className="px-4 py-3 text-right">Aksi</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-xs font-bold text-slate-700">
+              {filteredData.length === 0 ? (
+                <tr><td colSpan="5" className="text-center py-10 text-slate-400">Data agen tidak ditemukan.</td></tr>
+              ) : (
+                filteredData.map(item => (
+                  <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="font-black text-slate-800 text-[13px] uppercase flex items-center gap-1.5">
+                        {item.customer_name} 
+                        {/* 🚨 LAMPU MERAH ABSEN CRM (Follow Up) */}
+                        {item.butuhFollowUp && (
+                          <span className="flex items-center gap-1 text-[8px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 border border-rose-200 animate-pulse"><AlertTriangle size={10}/> BUTUH FOLLOW UP</span>
+                        )}
                       </div>
-                    ))}
-                  </div>
-                </div>
-
-              </div>
-
-            </div>
-          )}
+                      <div className="text-[9px] text-slate-400 font-mono mt-0.5">ID: {item.id} • Kategori: <span className="text-blue-600 font-black">{item.category}</span></div>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <div className={`text-[11px] font-black ${item.butuhFollowUp ? 'text-rose-600' : 'text-emerald-600'}`}>
+                        {item.terakhirBelanja ? (item.hariAbsen === 0 ? 'Order Hari Ini!' : `${item.hariAbsen} Hari Lalu`) : 'Belum Pernah Order'}
+                      </div>
+                      <div className="text-[9px] text-slate-400 font-medium mt-0.5">{item.terakhirBelanja || '-'}</div>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <div className="font-black text-slate-800">{formatRupiah(item.totalOmset)}</div>
+                      <div className="text-[9px] text-slate-500 font-bold mt-0.5 flex items-center justify-center gap-1"><ShoppingCart size={10}/> {item.totalTransaksi}x Transaksi ({formatNumber(item.totalPcs)} Pcs)</div>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <div className="font-black text-slate-700">{item.phone || '-'}</div>
+                      <div className="text-[9px] text-slate-400 font-medium mt-0.5 truncate max-w-[150px] mx-auto" title={item.address}>{item.address || 'Alamat belum diisi'}</div>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button onClick={() => handleEdit(item)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-200 shadow-3xs bg-white"><Edit2 size={14}/></button>
+                        <button onClick={() => handleDelete(item.id, item.customer_name)} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-200 shadow-3xs bg-white"><Trash2 size={14}/></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
-
       </div>
+      
     </div>
   );
 }
