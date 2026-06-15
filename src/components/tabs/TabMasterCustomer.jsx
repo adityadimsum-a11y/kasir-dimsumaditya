@@ -29,7 +29,6 @@ export default function TabMasterCustomer({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // STATE POP-UP MODAL MADING ANALITIK
   const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
   const [activeCustDetail, setActiveCustDetail] = useState(null);
 
@@ -38,7 +37,6 @@ export default function TabMasterCustomer({
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
-  // 🔥 ENGINE CRM INTELIJEN: PROSES SINKRONISASI HISTORI NOTA
   const customerAnalytics = useMemo(() => {
     const analyticsMap = {};
     const validOrders = (orders || []).filter(o => !o.isDeleted);
@@ -51,7 +49,6 @@ export default function TabMasterCustomer({
     const limit14 = fourteenAgo.toISOString().split('T')[0];
 
     (master_customers || []).forEach(cust => {
-      // 🔥 FIX: Mapping menggunakan 'customer_id' sesuai Spreadsheet Bos
       const custId = cust.customer_id || cust.id; 
       if (cust && !cust.isDeleted && custId) {
         analyticsMap[custId] = {
@@ -92,7 +89,6 @@ export default function TabMasterCustomer({
             matchedCust.itemMap[i.name] = (matchedCust.itemMap[i.name] || 0) + (Number(i.qty) || 0);
           }
         });
-
         matchedCust.history.push(o);
       }
     });
@@ -132,9 +128,9 @@ export default function TabMasterCustomer({
       phone: item.phone || '',
       address: item.address || '',
       notes: item.notes || '',
-      category: item.customer_tier || item.category || 'RESELLER' // 🔥 FIX: Ambil dari customer_tier
+      category: item.customer_tier || item.category || 'RESELLER' 
     });
-    setCurrentId(item.customer_id); // 🔥 FIX: Set ID menggunakan customer_id
+    setCurrentId(item.customer_id); 
     setIsEditing(true);
   };
 
@@ -146,7 +142,6 @@ export default function TabMasterCustomer({
 
   const handleDelete = async (id, name) => {
     if(!window.confirm(`Yakin ingin menghapus agen "${name}"? Data riwayatnya tidak akan terhapus, tapi namanya hilang dari kasir.`)) return;
-    // 🔥 FIX: Payload delete menggunakan 'customer_id' sesuai sheet
     const isSuccess = await sendToSheet('update', { customer_id: id, isDeleted: true }, 'master_customers');
     if(isSuccess) showToast('Data pelanggan berhasil dihapus!', 'success');
   };
@@ -157,23 +152,24 @@ export default function TabMasterCustomer({
     
     setIsSubmitting(true);
     
-    // 🔥 VAKSIN TOTAL: MENYESUAIKAN 100% NAMA KOLOM DENGAN GOOGLE SHEET BOS
     const rawPayload = {
-      customer_id: isEditing ? currentId : generateId('CST', todayStr), // Sesuai Kolom A
-      customer_name: formData.customer_name.trim().toUpperCase(),       // Sesuai Kolom B
-      branch_id: currentBranch,                                         // Sesuai Kolom C
-      customer_tier: formData.category || 'RESELLER',                   // Sesuai Kolom D
-      phone: formData.phone.trim() || '-',                              // Sesuai Kolom E
-      address: formData.address.trim() || '-',                          // Sesuai Kolom F
-      status: 'ACTIVE',                                                 // Sesuai Kolom G
-      notes: formData.notes.trim() || '-',                              // Kolom H (Akan ditambah otomatis oleh skrip)
-      isDeleted: false                                                  // Kolom I
+      customer_id: isEditing ? currentId : generateId('CST', todayStr),
+      customer_name: formData.customer_name.trim().toUpperCase(),
+      branch_id: currentBranch,
+      customer_tier: formData.category || 'RESELLER',
+      phone: formData.phone.trim() || '-',
+      address: formData.address.trim() || '-',
+      status: 'ACTIVE',
+      notes: formData.notes.trim() || '-',
+      isDeleted: false
     };
 
     const finalPayload = isEditing ? rawPayload : [rawPayload];
 
     try {
       const actionType = isEditing ? 'update' : 'insert';
+      
+      // 🔥 JIKA sendToSheet UNDEFINED (Kabel putus), ini akan melempar TypeError!
       const isSuccess = await sendToSheet(actionType, finalPayload, 'master_customers');
       
       if (isSuccess) {
@@ -181,7 +177,8 @@ export default function TabMasterCustomer({
         handleCancel();
       }
     } catch (error) {
-      alert('Koneksi terputus atau format database Apps Script menolak data!');
+      // 🔥 KITA BONGKAR ERRORNYA DI SINI BIAR KETAHUAN!
+      alert(`CRASH SISTEM: ${error.message}`);
     } finally {
       setIsSubmitting(false); 
     }
@@ -190,7 +187,6 @@ export default function TabMasterCustomer({
   return (
     <div className="space-y-6 pb-10 text-slate-700 normal-case animate-in fade-in duration-300">
       
-      {/* HEADER & ANALITIK CRM SINGKAT */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
@@ -247,7 +243,6 @@ export default function TabMasterCustomer({
         </div>
       )}
 
-      {/* TABEL DATABASE AGEN (DENGAN RADAR CRM) */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
         <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
           <div className="relative w-full max-w-sm">
@@ -315,7 +310,6 @@ export default function TabMasterCustomer({
         </div>
       </div>
 
-      {/* POP-UP MODAL MADING INTELIJEN PELANGGAN */}
       {showAnalyticsModal && activeCustDetail && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-150">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-200 overflow-hidden flex flex-col h-[85vh]">
