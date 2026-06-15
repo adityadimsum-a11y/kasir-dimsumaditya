@@ -205,7 +205,7 @@ export default function App() {
       case 'orders': 
         return <TabOrders user={user} sendToSheet={sendToSheet} setPrintData={setPrintData} showToast={showToast} {...dbData} />;
       
-      // 🔥 FIX: KABEL SINKRONISASI sendToSheet SUDAH TERSAMBUNG DI SINI!
+      // 🔥 FIX: KABEL SINKRONISASI sendToSheet & setPrintData SUDAH TERSAMBUNG DI SINI!
       case 'master_customer':
         return <TabMasterCustomer user={user} sendToSheet={sendToSheet} setPrintData={setPrintData} showToast={showToast} {...dbData} />;
 
@@ -216,6 +216,7 @@ export default function App() {
       case 'expenses': 
         return <TabExpenses user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
       case 'stok': 
+        // 🔥 FIX: setPrintData sekarang berhasil dialirkan ke TabStok!
         return <TabStok user={user} role={user?.role} sendToSheet={sendToSheet} requestDelete={requestDelete} setPrintData={setPrintData} showToast={showToast} {...dbData} />;
       case 'stok_outlet': 
         return <TabStokOutlet user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
