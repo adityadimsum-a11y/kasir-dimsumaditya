@@ -18,14 +18,12 @@ export default function TabOrders({
   const todayStr = getTodayStr();
   const currentBranch = (user?.branch_id === 'PUSAT' || !user?.branch_id) ? 'TANGERANG_PUSAT' : user?.branch_id;
 
-  // --- SINKRONISASI DATABASE ---
   const realProducts = useMemo(() => master_products || masterProducts || [], [master_products, masterProducts]);
   const realCustomers = useMemo(() => master_customers || masterCustomers || [], [master_customers, masterCustomers]);
 
   const activeProducts = useMemo(() => realProducts.filter(p => !p.isDeleted), [realProducts]);
   const activeCustomers = useMemo(() => realCustomers.filter(c => !c.isDeleted).reverse(), [realCustomers]);
 
-  // --- STATE MANAJEMEN KASIR ---
   const [cart, setCart] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchHistoryTerm, setSearchHistoryTerm] = useState('');
@@ -47,10 +45,7 @@ export default function TabOrders({
   const [singleAmountPaid, setSingleAmountPaid] = useState(''); 
   const [dpMethod, setDpMethod] = useState('CASH');
 
-  // STATE BARU: MODE EDIT NOTA LAMA
   const [editingOrderId, setEditingOrderId] = useState(null);
-
-  // STATE BARU: POP-UP BUKU STAPLES (DETAIL LEDGER)
   const [showStaplesModal, setShowAddStaplesModal] = useState(false);
   const [selectedStaplesOrder, setSelectedStaplesOrder] = useState(null);
 
@@ -196,7 +191,6 @@ export default function TabOrders({
     }
   };
 
-  // 🔥 ACTION UTAMA: SAHKAN TRANSAKSI (MENDUKUNG MODE INSERT DAN REVISI/EDIT TOTAL)
   const handleCheckout = async () => {
     if (cart.length === 0) return alert("Keranjang belanja masih kosong!");
     if (!selectedCustomerId) return alert("Wajib pilih nama pelanggan / agen!");
@@ -276,18 +270,15 @@ export default function TabOrders({
     }
   };
 
-  // 🔥 INTERVENSI EDIT: MENARIK DATA NOTA LAMA KE MESIN KASIR AKTIF
   const handleTriggerEditOrder = (o) => {
     if (!window.confirm(`Tarik nota ${o.id} kembali ke kasir untuk di-revisi total?`)) return;
     
     setEditingOrderId(o.id);
     setNotes(o.notes || '');
     
-    // Cari data pelanggan lama
     const foundCust = activeCustomers.find(c => String(c.customer_name).toUpperCase() === String(o.customer_name).toUpperCase());
     if (foundCust) setSelectedCustomerId(foundCust.customer_id || foundCust.id);
 
-    // Parsing item belanjaan
     const parsedItems = safeJsonParse(o.items, []);
     const itemsToCart = parsedItems.map(item => {
       const matchProd = activeProducts.find(p => p.product_name === item.name);
@@ -301,7 +292,6 @@ export default function TabOrders({
     });
     setCart(itemsToCart);
 
-    // Rollback set model bayar single
     if (String(o.payment_method).startsWith('DP_')) {
       setSingleMethod('DP_PIUTANG');
       setSingleAmountPaid(String(o.amount_paid));
@@ -341,7 +331,6 @@ export default function TabOrders({
   return (
     <div className="flex flex-col gap-6 pb-10 text-slate-700 normal-case animate-in fade-in duration-200">
       
-      {/* 📊 PAPAN INFORMASI STOK LIVE ATAS */}
       <div className="bg-slate-900 text-white rounded-2xl p-4 shadow-md border border-slate-800 shrink-0">
         <div className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-2.5 flex items-center gap-1.5">
           <Package size={14}/> Ringkasan Ketersediaan Papan Stok Master Gudang (Real-Time Live)
@@ -371,7 +360,6 @@ export default function TabOrders({
 
       <div className="flex flex-col lg:flex-row gap-6">
         
-        {/* KOLOM KIRI: KATALOG BARANG */}
         <div className="flex-1 flex flex-col gap-4">
           <div className="card-holo p-4 bg-white border border-slate-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-2xs gap-4">
             <div className="flex items-center gap-2">
@@ -405,7 +393,6 @@ export default function TabOrders({
           </div>
         </div>
 
-        {/* KOLOM KANAN: DETAIL CHECKOUT SULTAN KASIR */}
         <div className="w-full lg:w-[420px] xl:w-[460px] shrink-0 flex flex-col gap-4">
           <div className="card-holo flex flex-col max-h-[40vh] bg-white border border-slate-200 rounded-2xl shadow-2xs overflow-hidden">
             <div className="p-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center shrink-0">
@@ -573,9 +560,6 @@ export default function TabOrders({
         </div>
       </div>
 
-      {/* =========================================================
-          📑 HISTORI PENJUALAN UTAMA KASIR POS DIMSUM ADITYA
-         ========================================================= */}
       <div className="card-holo bg-white border border-slate-200 rounded-2xl shadow-2xs flex flex-col overflow-hidden mt-2">
         <div className="p-4 bg-slate-50 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0">
           <div>
@@ -634,11 +618,10 @@ export default function TabOrders({
 
                   return (
                     <tr key={o.id} className="hover:bg-slate-50/50 transition-colors group">
-                      <td className="px-4 py-3 whitespace-nowrap"><div onClick={() => { setSelectedStaplesOrder({ ...o, orderHPP, listItems, sisaHutangDynamic, totalTerbayarDynamic }); setShowAddSimpleModal(true); }} className="text-blue-600 hover:underline cursor-pointer font-black font-mono">{o.id}</div><div className="text-[9px] text-slate-400 font-bold mt-0.5">{formatDate(o.date)}</div></td>
+                      <td className="px-4 py-3 whitespace-nowrap"><div onClick={() => { setSelectedStaplesOrder({ ...o, orderHPP, listItems, sisaHutangDynamic, totalTerbayarDynamic }); setShowAddStaplesModal(true); }} className="text-blue-600 hover:underline cursor-pointer font-black font-mono">{o.id}</div><div className="text-[9px] text-slate-400 font-bold mt-0.5">{formatDate(o.date)}</div></td>
                       <td className="px-4 py-3 whitespace-nowrap text-slate-800 font-black normal-case text-xs">{o.customer_name}</td>
                       <td className="px-4 py-3 text-center whitespace-nowrap text-slate-600 font-black">{formatNumber(o.qty)} <span className="text-[10px] font-normal text-slate-400">Pcs</span></td>
                       
-                      {/* 🔥 FIX 1: MENAMPILKAN NOMINAL DP LIVE TEPAT DI BAWAH METODE SISTEM */}
                       <td className="px-4 py-3 text-center whitespace-nowrap">
                         <span className="px-2 py-0.5 rounded text-[9px] font-black bg-slate-100 text-slate-700 border border-slate-200">{o.payment_method}</span>
                         {String(o.payment_method).includes('DP_') && (
@@ -657,7 +640,6 @@ export default function TabOrders({
                         {sisaHutangDynamic > 0 && <div className="text-[8px] font-bold text-rose-600 mt-1">Sisa Bon: {formatRupiah(sisaHutangDynamic)}</div>}
                       </td>
                       
-                      {/* 🔥 FIX 3: AKSI UTAMA MENDUKUNG VIEW (STAPLES), EDIT (REVISI TOTAL), PRINT, DAN VOID */}
                       <td className="px-4 py-3 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1">
                           <button type="button" onClick={() => { setSelectedStaplesOrder({ ...o, orderHPP, listItems, sisaHutangDynamic, totalTerbayarDynamic }); setShowAddStaplesModal(true); }} className="p-1.5 text-slate-500 hover:text-emerald-600 border border-slate-200 rounded-lg bg-white shadow-3xs hover:bg-emerald-50 cursor-pointer" title="Buka Buku Staples Ledger"><Eye size={13}/></button>
@@ -683,9 +665,6 @@ export default function TabOrders({
         </div>
       </div>
 
-      {/* =========================================================
-          📚 FIX 2: POP-UP MODAL "BUKU STAPLES" ARSIVE LEDGER AGEN
-         ========================================================= */}
       {showStaplesModal && selectedStaplesOrder && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-[99999] flex items-center justify-center p-4 animate-in fade-in duration-150">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl border border-slate-200 overflow-hidden flex flex-col h-[80vh]">
@@ -700,7 +679,6 @@ export default function TabOrders({
 
             <div className="p-4 flex-1 overflow-y-auto custom-scrollbar bg-slate-50 space-y-4">
               
-              {/* 1. TABEL MINI RINCIAN BELANJA + RAHASIA MATA DEWA OWNER */}
               <div className="bg-white rounded-xl border p-3 shadow-3xs">
                 <div className="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-2">1. Rincian Item Barang &amp; Laba Bersih</div>
                 <div className="overflow-x-auto">
@@ -735,7 +713,6 @@ export default function TabOrders({
                 </div>
               </div>
 
-              {/* 2. TIMELINE HISTORI ANGSURAN CICILAN */}
               <div className="bg-white rounded-xl border p-3 shadow-3xs">
                 <div className="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-2">2. Rekam Jejak Aliran Setoran / Cicilan Piutang</div>
                 <div className="overflow-x-auto">
@@ -749,14 +726,12 @@ export default function TabOrders({
                       </tr>
                     </thead>
                     <tbody className="divide-y font-bold text-slate-600">
-                      {/* Tampilkan DP Awal */}
                       <tr>
                         <td className="p-2 text-slate-400">{formatDate(selectedStaplesOrder.date)}</td>
                         <td className="p-2"><span className="px-1.5 py-0.5 bg-slate-100 rounded text-[9px]">DP POS INITIAL</span></td>
                         <td className="p-2 text-right text-slate-800">{formatRupiah(selectedStaplesOrder.amount_paid)}</td>
                         <td className="p-2 font-mono text-[10px] text-slate-400">INITIAL_PAY</td>
                       </tr>
-                      {/* Tampilkan Angsuran dari lembar piutangPayments */}
                       {(piutangPayments || []).filter(p => !p.isDeleted && p.orderId === selectedStaplesOrder.id).map(p => (
                         <tr key={p.id}>
                           <td className="p-2 text-slate-700">{formatDate(p.date)}</td>
@@ -770,7 +745,6 @@ export default function TabOrders({
                 </div>
               </div>
 
-              {/* 3. FOOTER LEDGER SUMMARY RINGKASAN AKHIR */}
               <div className="bg-slate-900 text-white p-3 rounded-xl space-y-1.5 font-bold text-[11px]">
                 <div className="flex justify-between text-slate-400"><span>A. Nilai Omset Nota Kotor (A)</span><span>{formatRupiah(selectedStaplesOrder.total_amount)}</span></div>
                 <div className="flex justify-between text-slate-400"><span>B. Akumulasi Total Uang Diterima (B)</span><span className="text-emerald-400">{formatRupiah(selectedStaplesOrder.totalTerbayarDynamic)}</span></div>
