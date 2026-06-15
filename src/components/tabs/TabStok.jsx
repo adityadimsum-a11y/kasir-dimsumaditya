@@ -1,5 +1,4 @@
 import React, { useState, useMemo } from 'react';
-// 🔥 FIX: Ikon Layers sudah dimasukkan di sini!
 import { Package, Box, ArrowRightLeft, Search, Archive, ArrowDownRight, ArrowUpRight, History, Database, ShieldAlert, Layers } from 'lucide-react';
 import { formatDate, safeJsonParse } from '../../utils/helpers';
 
@@ -211,26 +210,27 @@ export default function TabStok({
               <thead className="bg-white border-b border-slate-200 text-[10px] normal-case text-slate-500">
                 <tr>
                   <th className="px-5 py-3 font-bold">Item logistik</th>
-                  <th className="px-5 py-3 font-bold text-center">Kategori</th>
-                  <th className="px-5 py-3 font-bold text-center">Sisa gudang</th>
-                  <th className="px-5 py-3 font-bold text-right">Nilai Aset Terkunci (HPP)</th>
+                  <th className="px-5 py-3 font-bold text-center">Kategori &amp; satuan</th>
+                  <th className="px-5 py-3 font-bold text-center">Total beli masuk</th>
+                  <th className="px-5 py-3 font-bold text-center">Pemakaian dapur</th>
+                  <th className="px-5 py-3 font-bold text-right">Sisa gudang</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs font-bold bg-white">
                 {filteredRawStock.length === 0 ? (
-                  <tr><td colSpan="4" className="text-center py-10 text-slate-400 normal-case font-medium">Data logistik belum tersedia.</td></tr>
+                  <tr><td colSpan="5" className="text-center py-10 text-slate-400 normal-case font-medium">Data logistik belum tersedia.</td></tr>
                 ) : (
                   filteredRawStock.map((item, idx) => (
                     <tr key={idx} className="hover:bg-slate-50 transition-colors">
                       <td className="px-5 py-4 whitespace-nowrap font-extrabold text-slate-800 normal-case">{item.name || 'Umum'}</td>
                       <td className="px-5 py-4 text-center">
                         <span className={`px-2.5 py-1 text-[9px] font-bold normal-case rounded-md border ${item.category === 'PACKAGING' || item.category === 'KEMASAN' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>{item.category ? item.category.replace(/_/g, ' ') : 'Umum'}</span>
+                        <div className="text-[9px] text-slate-400 mt-2 font-medium normal-case">Satuan: {item.unit || 'Pcs'}</div>
                       </td>
-                      <td className="px-5 py-4 text-center">
-                        <div className={`text-lg font-black ${item.qty <= 5 ? 'text-red-600' : 'text-slate-800'}`}>{formatNumber(item.qty)}</div>
-                      </td>
-                      <td className="px-5 py-4 text-right text-slate-800 font-black">
-                        {formatRupiah(item.total_value)}
+                      <td className="px-5 py-4 text-center font-extrabold text-emerald-600">+{formatNumber(item.stockIn)}</td>
+                      <td className="px-5 py-4 text-center font-extrabold text-red-500">-{formatNumber(item.stockOut)}</td>
+                      <td className="px-5 py-4 text-right">
+                        <div className={`text-lg font-black ${item.currentStock <= 5 ? 'text-red-600' : 'text-slate-800'}`}>{formatNumber(item.currentStock)} <span className="text-[10px] text-slate-400 font-semibold ml-0.5 normal-case">{item.unit || ''}</span></div>
                       </td>
                     </tr>
                   ))
@@ -264,7 +264,7 @@ export default function TabStok({
                   <tr>
                     <td colSpan="5" className="text-center py-20 text-slate-400 normal-case font-medium">
                       <div className="flex justify-center mb-3 opacity-20"><ShieldAlert size={36}/></div>
-                      Belum ada aktivitas mutasi barang.
+                      Belum ada aktivitas mutasi barang yang tercatat.
                     </td>
                   </tr>
                 ) : (
