@@ -37,7 +37,7 @@ const ToastNotification = ({ toast, onClose }) => {
   return (
     <div className={`fixed top-4 right-4 z-[9999] px-5 py-3.5 rounded-xl shadow-lg font-bold text-xs normal-case flex items-center gap-3 animate-in slide-in-from-top-5 border duration-200 ${toast.type === 'error' ? 'bg-red-600 text-white border-red-700 shadow-red-600/20' : 'bg-emerald-600 text-white border-emerald-700 shadow-emerald-600/20'}`}>
       <span>{toast.message}</span>
-      <button onClick={onClose} className="opacity-70 hover:opacity-100 transition-opacity font-bold text-base">✕</button>
+      <button onClick={onClose} className="opacity-70 hover:opacity-100 transition-opacity font-bold text-base cursor-pointer">✕</button>
     </div>
   );
 };
@@ -322,8 +322,8 @@ export default function App() {
             <h3 className="text-base font-extrabold text-slate-800 mb-1 normal-case">Batalkan Transaksi?</h3>
             <p className="text-xs text-slate-500 mb-6 font-medium normal-case">Data akan di-void dari cloud. Tindakan ini terekam otomatis dalam sistem audit trail.</p>
             <div className="flex gap-3 justify-center">
-              <button type="button" onClick={() => setConfirmDialog(null)} className="flex-1 py-2.5 bg-slate-50 text-slate-600 border border-slate-200 font-bold text-xs rounded-xl hover:bg-slate-100 transition-colors normal-case">Batal (Esc)</button>
-              <button type="button" onClick={handleExecuteDelete} className="flex-1 py-2.5 bg-red-600 text-white font-bold text-xs rounded-xl hover:bg-red-700 transition-colors flex items-center justify-center gap-2 normal-case">
+              <button type="button" onClick={() => setConfirmDialog(null)} className="flex-1 py-2.5 bg-slate-50 text-slate-600 border border-slate-200 font-bold text-xs rounded-xl hover:bg-slate-100 transition-colors normal-case cursor-pointer">Batal (Esc)</button>
+              <button type="button" onClick={handleExecuteDelete} className="flex-1 py-2.5 bg-red-600 text-white font-bold text-xs rounded-xl hover:bg-red-700 transition-colors flex items-center justify-center gap-2 normal-case cursor-pointer">
                 {isLoading ? <Loader2 size={14} className="animate-spin" /> : 'Ya, Batalkan'}
               </button>
             </div>
