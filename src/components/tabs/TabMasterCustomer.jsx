@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { 
   Users, Plus, Search, Edit2, Trash2, Save, 
   X, AlertTriangle, ShoppingCart, BarChart3, 
-  TrendingUp, TrendingDown, Package, History, Activity
+  TrendingUp, TrendingDown, Package, History, Activity, Printer // 🔥 FIX: Import Printer Icon
 } from 'lucide-react';
 import { generateId, getTodayStr, getLocalYMD, safeJsonParse, formatDate } from '../../utils/helpers'; 
 
@@ -20,15 +20,14 @@ export default function TabMasterCustomer({
   const currentBranch = (user?.branch_id === 'PUSAT' || !user?.branch_id) ? 'TANGERANG_PUSAT' : user?.branch_id;
   
   const [searchTerm, setSearchTerm] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
   const [currentId, setCurrentId] = useState('');
-  
-  // 🔥 FIX: Pisahkan state untuk membuka form dan mode edit!
-  const [showForm, setShowForm] = useState(false); 
   
   const [formData, setFormData] = useState({
     customer_name: '', phone: '', address: '', notes: '', category: 'RESELLER'
   });
 
+  const [showForm, setShowForm] = useState(false); 
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
@@ -134,13 +133,15 @@ export default function TabMasterCustomer({
       category: item.customer_tier || item.category || 'RESELLER' 
     });
     setCurrentId(item.customer_id); 
-    setShowForm(true); // 🔥 Munculkan form, otomatis jadi mode Edit karena currentId terisi
+    setShowForm(true); 
+    setIsEditing(true);
   };
 
   const handleCancel = () => {
     setFormData({ customer_name: '', phone: '', address: '', notes: '', category: 'RESELLER' });
     setShowForm(false);
-    setCurrentId(''); // Bersihkan ID agar mode berubah kembali jadi Insert
+    setIsEditing(false);
+    setCurrentId('');
   };
 
   const handleDelete = async (id, name) => {
@@ -154,8 +155,7 @@ export default function TabMasterCustomer({
     if (!formData.customer_name.trim()) return alert('Nama pelanggan wajib diisi!');
     
     setIsSubmitting(true);
-    
-    const isEditMode = !!currentId; // Cek apakah ada ID aktif (Mode Edit) atau tidak (Mode Baru)
+    const isEditMode = !!currentId; 
 
     const rawPayload = {
       customer_id: isEditMode ? currentId : generateId('CST', todayStr),
@@ -186,18 +186,107 @@ export default function TabMasterCustomer({
     }
   };
 
+  // 🔥 ENGINE CETAK REKAPITULASI (A4/PDF)
+  const handlePrintRekap = () => {
+    if (filteredData.length === 0) return alert('Tidak ada data yang bisa dicetak!');
+    
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return alert('Gagal mencetak. Pop-up terblokir oleh browser Anda!');
+
+    let tableRows = '';
+    filteredData.forEach((item, index) => {
+      tableRows += `
+        <tr>
+          <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${index + 1}</td>
+          <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${item.customer_name}<br><small style="color: #666; font-weight: normal;">ID: ${item.customer_id}</small></td>
+          <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${item.customer_tier || item.category}</td>
+          <td style="padding: 8px; border: 1px solid #ddd;">${item.phone || '-'}</td>
+          <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">${formatRupiah(item.totalOmset)}</td>
+          <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${item.totalTransaksi}x</td>
+          <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${item.terakhirBelanja ? formatDate(item.terakhirBelanja) : 'Belum Ada'}</td>
+        </tr>
+      `;
+    });
+
+    const htmlTemplate = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Rekap Pelanggan CRM - Dimsum Aditya</title>
+          <style>
+            body { font-family: 'Segoe UI', Arial, sans-serif; padding: 30px; color: #333; }
+            .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #ea580c; padding-bottom: 10px; }
+            h2 { margin: 0 0 5px 0; color: #ea580c; font-size: 24px; text-transform: uppercase; }
+            p { margin: 0; color: #64748b; font-size: 13px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 11px; }
+            th { background-color: #f8fafc; padding: 10px 8px; border: 1px solid #cbd5e1; text-align: left; font-weight: bold; color: #475569; text-transform: uppercase; }
+            .footer { margin-top: 30px; font-size: 10px; color: #94a3b8; text-align: right; font-style: italic; }
+            @media print {
+              body { padding: 0; }
+              @page { margin: 1.5cm; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h2>REKAPITULASI MASTER DATABASE AGEN</h2>
+            <p>Tanggal Cetak: ${formatDate(todayStr)} | Filter: ${searchTerm ? `"${searchTerm}"` : 'Semua Data'} | Total Data: ${filteredData.length} Agen</p>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th style="text-align: center; width: 5%;">No</th>
+                <th style="width: 25%;">Nama Agen / ID</th>
+                <th style="text-align: center; width: 10%;">Kategori</th>
+                <th style="width: 15%;">No. Telepon</th>
+                <th style="text-align: right; width: 15%;">Akumulasi Omset</th>
+                <th style="text-align: center; width: 15%;">Frekuensi Order</th>
+                <th style="text-align: center; width: 15%;">Terakhir Belanja</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tableRows}
+            </tbody>
+          </table>
+          <div class="footer">
+            *Dokumen ini dicetak otomatis dari Enterprise Core System Dimsum Aditya.
+          </div>
+          <script>
+            window.onload = () => { 
+              setTimeout(() => {
+                window.print(); 
+                window.close(); 
+              }, 500); // Beri jeda 0.5 detik agar styling termuat sempurna sebelum print
+            }
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlTemplate);
+    printWindow.document.close();
+  };
+
   return (
     <div className="space-y-6 pb-10 text-slate-700 normal-case animate-in fade-in duration-300">
       
+      {/* HEADER & ANALITIK CRM SINGKAT */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h2 className="text-lg font-black text-slate-800 flex items-center gap-2"><Users className="text-orange-600"/> Database Master CRM Agen</h2>
             <p className="text-xs font-bold text-slate-400 mt-1">Kelola data pelanggan dan bedah analitik kebiasaan belanja mereka.</p>
           </div>
-          <button onClick={() => { handleCancel(); setShowForm(true); }} className="bg-orange-600 hover:bg-orange-700 text-white px-5 py-3 rounded-xl flex items-center gap-2 font-black text-xs shadow-md active:scale-95 transition-all">
-            <Plus size={16} /> Tambah Agen Baru
-          </button>
+          
+          {/* 🔥 FIX: TOMBOL CETAK & TAMBAH BERJEJER RAPI DI SINI */}
+          <div className="flex items-center gap-2 w-full md:w-auto">
+            <button onClick={handlePrintRekap} className="flex-1 md:flex-none bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-3 rounded-xl flex items-center justify-center gap-2 font-black text-xs border border-slate-200 shadow-sm active:scale-95 transition-all">
+              <Printer size={16} className="text-slate-500" /> Cetak (A4)
+            </button>
+            <button onClick={() => { handleCancel(); setShowForm(true); }} className="flex-1 md:flex-none bg-orange-600 hover:bg-orange-700 text-white px-5 py-3 rounded-xl flex items-center justify-center gap-2 font-black text-xs shadow-md active:scale-95 transition-all">
+              <Plus size={16} /> Tambah Agen
+            </button>
+          </div>
         </div>
       </div>
 
@@ -245,6 +334,7 @@ export default function TabMasterCustomer({
         </div>
       )}
 
+      {/* TABEL DATABASE AGEN (DENGAN RADAR CRM) */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
         <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
           <div className="relative w-full max-w-sm">
@@ -252,7 +342,7 @@ export default function TabMasterCustomer({
             <input type="text" value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none focus:border-orange-400 shadow-3xs" placeholder="Cari nama, no WA, atau kategori..." />
           </div>
           <div className="text-[10px] font-black text-slate-500 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-3xs hidden sm:block">
-            Total Agen Aktif: {customerAnalytics.length}
+            Total Agen Aktif: {filteredData.length}
           </div>
         </div>
 
@@ -300,8 +390,8 @@ export default function TabMasterCustomer({
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1.5">
                         <button onClick={() => { setActiveCustDetail(item); setShowAnalyticsModal(true); }} className="p-1.5 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors border border-transparent hover:border-orange-200 shadow-3xs bg-white" title="Bedah Analitik & Kebiasaan"><BarChart3 size={14}/></button>
-                        <button onClick={() => handleEdit(item)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-200 shadow-3xs bg-white"><Edit2 size={14}/></button>
-                        <button onClick={() => handleDelete(item.customer_id, item.customer_name)} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-200 shadow-3xs bg-white"><Trash2 size={14}/></button>
+                        <button onClick={() => handleEdit(item)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-200 shadow-3xs bg-white" title="Edit Profil"><Edit2 size={14}/></button>
+                        <button onClick={() => handleDelete(item.customer_id, item.customer_name)} className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-200 shadow-3xs bg-white" title="Hapus Permanen"><Trash2 size={14}/></button>
                       </div>
                     </td>
                   </tr>
@@ -312,6 +402,7 @@ export default function TabMasterCustomer({
         </div>
       </div>
 
+      {/* POP-UP MODAL MADING INTELIJEN PELANGGAN */}
       {showAnalyticsModal && activeCustDetail && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-150">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-200 overflow-hidden flex flex-col h-[85vh]">
