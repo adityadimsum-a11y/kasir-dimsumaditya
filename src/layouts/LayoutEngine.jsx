@@ -63,49 +63,49 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
           {isHQUser && (
             <div className="space-y-1">
               <span className="px-3 text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">
-                Command Center
+                Pusat Kendali Utama
               </span>
               
               <button type="button" onClick={() => handleTabChange('dashboard')}
                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all normal-case ${
                   activeTab === 'dashboard' ? 'bg-red-50 text-red-600 border border-red-100/50' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
                 }`}>
-                <Globe size={16} /> Global HQ Radar
+                <Globe size={16} /> Radar Pusat (Global)
               </button>
 
               <button type="button" onClick={() => handleTabChange('business_radar')}
                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all normal-case ${
                   activeTab === 'business_radar' ? 'bg-red-50 text-red-600 border border-red-100/50' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
                 }`}>
-                <TrendingUp size={16} /> Business Radar
+                <TrendingUp size={16} /> Performa Bisnis
               </button>
 
               <button type="button" onClick={() => handleTabChange('monitoring_cabang')}
                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all normal-case ${
                   activeTab === 'monitoring_cabang' ? 'bg-red-50 text-red-600 border border-red-100/50' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
                 }`}>
-                <Building2 size={16} /> Monitor Cabang
+                <Building2 size={16} /> Pantau Cabang
               </button>
 
               <button type="button" onClick={() => handleTabChange('cash_war_room')}
                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all normal-case ${
                   activeTab === 'cash_war_room' ? 'bg-red-50 text-red-600 border border-red-100/50' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
                 }`}>
-                <ShieldAlert size={16} /> Cash War Room
+                <ShieldAlert size={16} /> Brankas &amp; Aliran Kas
               </button>
 
               <button type="button" onClick={() => handleTabChange('scm_war_room')}
                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all normal-case ${
                   activeTab === 'scm_war_room' ? 'bg-red-50 text-red-600 border border-red-100/50' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
                 }`}>
-                <BarChart3 size={16} /> SCM War Room
+                <BarChart3 size={16} /> Kendali Logistik
               </button>
 
               <button type="button" onClick={() => handleTabChange('analytics')}
                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all normal-case ${
                   activeTab === 'analytics' ? 'bg-red-50 text-red-600 border border-red-100/50' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
                 }`}>
-                <Layers size={16} /> Advanced Analytics
+                <Layers size={16} /> Analisa Mendalam
               </button>
             </div>
           )}
@@ -113,14 +113,14 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
           {/* KELOMPOK 2: CORE OPERATIONS (Alur Transaksi & Logistik Fisik) */}
           <div className="space-y-1">
             <span className="px-3 text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">
-              Core Operations
+              Operasional Inti
             </span>
 
             <button type="button" onClick={() => handleTabChange('orders')}
               className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all normal-case ${
                 activeTab === 'orders' ? 'bg-red-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
               }`}>
-              <ShoppingCart size={16} /> POS &amp; Penjualan
+              <ShoppingCart size={16} /> Kasir (POS) &amp; Penjualan
             </button>
 
             <button type="button" onClick={() => handleTabChange('pemalang')}
@@ -162,14 +162,14 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
               className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all normal-case ${
                 activeTab === 'distribusi' ? 'bg-red-50 text-red-600 border border-red-100/50' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
               }`}>
-              <Truck size={16} /> Distribusi Global
+              <Truck size={16} /> Distribusi Antar Cabang
             </button>
 
             <button type="button" onClick={() => handleTabChange('discrepancy')}
               className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all normal-case ${
                 activeTab === 'discrepancy' ? 'bg-red-50 text-red-600 border border-red-100/50' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
               }`}>
-              <ClipboardCheck size={16} /> Stok Basi / Opname
+              <ClipboardCheck size={16} /> Opname &amp; Stok Basi
             </button>
           </div>
 
@@ -177,7 +177,7 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
           {isHQUser && (
             <div className="space-y-1">
               <span className="px-3 text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">
-                Backoffice Ledger
+                Pembukuan &amp; Keuangan
               </span>
 
               <button type="button" onClick={() => handleTabChange('accounting')}
@@ -191,7 +191,7 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all normal-case ${
                   activeTab === 'accounting_audit' ? 'bg-red-50 text-red-600 border border-red-100/50' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
                 }`}>
-                <History size={16} /> Audit Trail Log
+                <History size={16} /> Riwayat Aktivitas (Audit)
               </button>
 
               <button type="button" onClick={() => handleTabChange('piutang')}
@@ -205,7 +205,7 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all normal-case ${
                   activeTab === 'setoran_cabang' ? 'bg-red-50 text-red-600 border border-red-100/50' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
                 }`}>
-                <Coins size={16} /> Kliring Setoran EOD
+                <Coins size={16} /> Validasi Setoran Kasir
               </button>
             </div>
           )}
@@ -214,28 +214,28 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
           {isHQUser && (
             <div className="space-y-1">
               <span className="px-3 text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">
-                Enterprise Capital
+                Manajemen Data &amp; Tim
               </span>
 
               <button type="button" onClick={() => handleTabChange('karyawan')}
                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all normal-case ${
                   activeTab === 'karyawan' ? 'bg-red-50 text-red-600 border border-red-100/50' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
                 }`}>
-                <Users size={16} /> Utilitas Karyawan
+                <Users size={16} /> Manajemen Karyawan
               </button>
 
               <button type="button" onClick={() => handleTabChange('master_customer')}
                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all normal-case ${
                   activeTab === 'master_customer' ? 'bg-red-50 text-red-600 border border-red-100/50' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
                 }`}>
-                <UserCheck size={16} /> Master Customer CRM
+                <UserCheck size={16} /> Database Pelanggan
               </button>
 
               <button type="button" onClick={() => handleTabChange('master_data')}
                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all normal-case ${
                   activeTab === 'master_data' ? 'bg-red-50 text-red-600 border border-red-100/50' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
                 }`}>
-                <Database size={16} /> Master Setup Sistem
+                <Database size={16} /> Pengaturan Sistem Dasar
               </button>
             </div>
           )}
@@ -260,7 +260,7 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
             className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-slate-500 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-100 transition-all cursor-pointer normal-case"
           >
             <LogOut size={14} />
-            Logout Sistem
+            Keluar Aplikasi
           </button>
         </div>
 
