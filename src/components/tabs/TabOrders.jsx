@@ -544,7 +544,7 @@ export default function TabOrders({
                             paymentMethod: o.payment_method.replace(/_/g, ' '),
                             history: { 
                               labelLama: 'Total Belanja', nominalLama: o.total_amount, 
-                              labelAksi: 'Total Sudah Dibayar', nominalAksi: totalTerbayarDynamic, // 🔥 Dynamic sync!
+                              labelAksi: 'Total Sudah Dibayar', nominalAksi: totalTerbayarDynamic, 
                               labelBaru: 'Sisa Piutang Berjalan', nominalBaru: sisaHutangDynamic 
                             }
                           });
