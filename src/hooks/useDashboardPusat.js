@@ -1,5 +1,8 @@
 import { useMemo } from 'react';
-import { getLocalYMD, getTodayStr, formatRp } from '../utils/helpers';
+import { getLocalYMD, getTodayStr } from '../utils/helpers';
+
+// HELPER MANDIRI ANTI-CRASH
+const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 
 export default function useDashboardPusat({
   orders, expenses, purchases, piutangPayments, pemalangReports, stokData,
@@ -109,17 +112,16 @@ export default function useDashboardPusat({
     const operationTasks = [];
     const executedTaskIds = (systemTasks || []).map(t => t.id);
 
-    // FIX POINT 2: Menggunakan Acuan Rp 37.500 per Kg
     if (ayamDaysRemaining <= 4) {
         const taskId = 'TASK-PURCHASE-' + todayStr;
         if (!executedTaskIds.includes(taskId)) {
             const targetAyam = 1020; 
-            const estCost = targetAyam * 37500; // Harga akurat 37.500 sesuai aturan dapur
+            const estCost = targetAyam * 37500;
             const priority = ayamDaysRemaining <= 2 ? 'CRITICAL' : 'HIGH';
             operationTasks.push({ 
                 id: taskId, type: 'PURCHASE', priority,
                 title: `Auto-Procurement: Jadwalkan Turun Ayam (1.020 KG)`, 
-                desc: `Sisa ayam gudang ${ayamGudangQty.toLocaleString('id-ID')} KG (Tahan ${ayamDaysRemaining.toFixed(1)} hari). Siapkan PO 1 Ton untuk dikirim segera. Est Dana: Rp ${formatRp(estCost)}.`, 
+                desc: `Sisa ayam gudang ${ayamGudangQty.toLocaleString('id-ID')} KG (Tahan ${ayamDaysRemaining.toFixed(1)} hari). Siapkan PO 1 Ton untuk dikirim segera. Est Dana: ${formatRupiah(estCost)}.`, 
                 actionLabel: 'Siapkan Dana & Buat PO'
             });
         }
