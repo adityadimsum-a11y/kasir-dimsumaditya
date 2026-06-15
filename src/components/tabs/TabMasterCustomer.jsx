@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { 
   Users, Plus, Search, Edit2, Trash2, Save, 
   X, AlertTriangle, ShoppingCart, BarChart3, 
-  TrendingUp, TrendingDown, Package, History, Activity, Printer // 🔥 FIX: Import Printer Icon
+  TrendingUp, TrendingDown, Package, History, Activity, Printer
 } from 'lucide-react';
 import { generateId, getTodayStr, getLocalYMD, safeJsonParse, formatDate } from '../../utils/helpers'; 
 
@@ -256,7 +256,7 @@ export default function TabMasterCustomer({
               setTimeout(() => {
                 window.print(); 
                 window.close(); 
-              }, 500); // Beri jeda 0.5 detik agar styling termuat sempurna sebelum print
+              }, 500); 
             }
           </script>
         </body>
@@ -270,7 +270,6 @@ export default function TabMasterCustomer({
   return (
     <div className="space-y-6 pb-10 text-slate-700 normal-case animate-in fade-in duration-300">
       
-      {/* HEADER & ANALITIK CRM SINGKAT */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
@@ -278,7 +277,6 @@ export default function TabMasterCustomer({
             <p className="text-xs font-bold text-slate-400 mt-1">Kelola data pelanggan dan bedah analitik kebiasaan belanja mereka.</p>
           </div>
           
-          {/* 🔥 FIX: TOMBOL CETAK & TAMBAH BERJEJER RAPI DI SINI */}
           <div className="flex items-center gap-2 w-full md:w-auto">
             <button onClick={handlePrintRekap} className="flex-1 md:flex-none bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-3 rounded-xl flex items-center justify-center gap-2 font-black text-xs border border-slate-200 shadow-sm active:scale-95 transition-all">
               <Printer size={16} className="text-slate-500" /> Cetak (A4)
@@ -334,7 +332,6 @@ export default function TabMasterCustomer({
         </div>
       )}
 
-      {/* TABEL DATABASE AGEN (DENGAN RADAR CRM) */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
         <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
           <div className="relative w-full max-w-sm">
@@ -402,7 +399,6 @@ export default function TabMasterCustomer({
         </div>
       </div>
 
-      {/* POP-UP MODAL MADING INTELIJEN PELANGGAN */}
       {showAnalyticsModal && activeCustDetail && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-150">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-200 overflow-hidden flex flex-col h-[85vh]">
