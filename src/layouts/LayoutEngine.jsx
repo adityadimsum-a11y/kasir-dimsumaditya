@@ -40,18 +40,17 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
   return (
     <div className="flex h-screen w-screen bg-slate-50 overflow-hidden font-sans antialiased text-slate-800">
       
-      {/* SIDEBAR UTAMA */}
-      <aside className="w-64 bg-white border-r border-slate-200 flex flex-col justify-between shrink-0 h-full select-none">
-        
-        <div className="p-5 border-b border-slate-100 flex items-center gap-3 shrink-0">
-          <div className="w-10 h-10 rounded-xl bg-red-600 flex items-center justify-center text-white font-black text-xs tracking-wider shadow-sm shadow-red-200 shrink-0">
-            DIMSUM
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-xs font-black text-slate-800 tracking-wide uppercase truncate">{branchName}</h1>
-            <p className="text-[9px] font-bold text-red-600 uppercase tracking-wider mt-0.5">Dimsum Aditya ERP</p>
-          </div>
-        </div>
+{/* AREA LOGO BRANDING */}
+<div className="p-5 border-b border-slate-200/50 flex flex-col items-center justify-center bg-white shrink-0">
+  <img 
+    src="https://dimsumaditya.id/wp-content/uploads/2026/06/Dimsum-Aditya-New-Logo-scaled.webp" 
+    alt="Dimsum Aditya ERP" 
+    className="h-12 w-auto object-contain drop-shadow-sm transition-transform hover:scale-105"
+  />
+  <div className="mt-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">
+    Enterprise Core System
+  </div>
+</div>
 
         <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6 custom-scrollbar">
           
