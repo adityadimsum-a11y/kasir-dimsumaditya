@@ -39,70 +39,43 @@ export const getFirstDayOfMonthStr = () => {
 
 export const getLocalYMD = (dateVal) => {
   if (!dateVal) return '';
-
   const str = String(dateVal);
-
   if (str.length === 10 && str[4] === '-') return str;
 
   const d = new Date(dateVal);
-
-  if (isNaN(d.getTime())) {
-    return str.split('T')[0].substring(0, 10);
-  }
+  if (isNaN(d.getTime())) return str.split('T')[0].substring(0, 10);
 
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
-
   return `${y}-${m}-${day}`;
 };
 
 export const formatDate = (date) => {
   if (!date) return '-';
-
   const d = new Date(date);
-
-  if (isNaN(d.getTime())) {
-    return String(date).split('T')[0];
-  }
-
+  if (isNaN(d.getTime())) return String(date).split('T')[0];
   return dateFormatter.format(d);
 };
 
 export const formatTime = (date) => {
   if (!date) return '-';
-
   const d = new Date(date);
-
   if (isNaN(d.getTime())) return '-';
-
-  return d.toLocaleTimeString('id-ID', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 };
 
 export const formatDateTime = (date) => {
   if (!date) return '-';
-
   const d = new Date(date);
-
-  if (isNaN(d.getTime())) {
-    return String(date);
-  }
-
+  if (isNaN(d.getTime())) return String(date);
   return `${formatDate(d)} ${formatTime(d)}`;
 };
 
 export const generateId = (prefix, date) => {
   const d = new Date(date || Date.now());
-
-  const mmyy = isNaN(d.getTime())
-    ? 'ERR'
-    : `${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getFullYear()).slice(-2)}`;
-
+  const mmyy = isNaN(d.getTime()) ? 'ERR' : `${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getFullYear()).slice(-2)}`;
   const seq = String(Math.floor(Math.random() * 9000) + 1000);
-
   return `${prefix}-DMA-${mmyy}-${seq}`;
 };
 
@@ -113,9 +86,7 @@ export const generateRequestId = () => {
 export const safeSort = (a, b) => {
   const da = new Date(a?.date || 0).getTime();
   const db = new Date(b?.date || 0).getTime();
-
   if (isNaN(da) || isNaN(db)) return -1;
-
   return db - da;
 };
 
@@ -130,14 +101,11 @@ export const safeArray = (value) => {
 
 export const terbilang = (angka) => {
   const num = Math.floor(Number(angka));
-
   if (isNaN(num) || num <= 0) return 'Nol';
 
   const t = (n) => {
     if (n < 12) {
-      return [
-        '', 'Satu', 'Dua', 'Tiga', 'Empat', 'Lima', 'Enam', 'Tujuh', 'Delapan', 'Sembilan', 'Sepuluh', 'Sebelas',
-      ][n];
+      return ['', 'Satu', 'Dua', 'Tiga', 'Empat', 'Lima', 'Enam', 'Tujuh', 'Delapan', 'Sembilan', 'Sepuluh', 'Sebelas'][n];
     }
     if (n < 20) return `${t(n - 10)} Belas`;
     if (n < 100) return `${t(Math.floor(n / 10))} Puluh${n % 10 === 0 ? '' : ` ${t(n % 10)}`}`;
@@ -149,7 +117,6 @@ export const terbilang = (angka) => {
     if (n < 1000000000000) return `${t(Math.floor(n / 1000000000))} Milyar${n % 1000000000 === 0 ? '' : ` ${t(n % 1000000000)}`}`;
     return '';
   };
-
   return t(num);
 };
 
