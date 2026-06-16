@@ -31,6 +31,10 @@ export default function PaginationController({
             onChange={(e) => onRowsPerPageChange(Number(e.target.value))}
             className="bg-white border border-slate-200 text-[10px] font-black text-slate-700 py-1.5 px-2.5 rounded-lg outline-none cursor-pointer focus:border-blue-500 shadow-3xs transition-colors"
           >
+            {/* Fallback jika parent mengirim nilai di luar preset */}
+            {![25, 50, 100].includes(rowsPerPage) && (
+              <option value={rowsPerPage}>{rowsPerPage} / Halaman</option>
+            )}
             <option value={25}>25 / Halaman</option>
             <option value={50}>50 / Halaman</option>
             <option value={100}>100 / Halaman</option>
