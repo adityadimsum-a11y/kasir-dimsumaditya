@@ -614,11 +614,17 @@ export default function TabPurchases({
                         </td>
                         <td className="px-5 py-4 text-center whitespace-nowrap opacity-60 group-hover:opacity-100 transition-opacity">
                           <div className="flex items-center justify-center gap-1.5">
+                            
+                            {/* 🔥 UPDATE: Modifikasi Payload Print Data */}
                             <button type="button" onClick={() => {
                                if(typeof setPrintData === 'function') {
                                   setPrintData({
-                                    title: 'Bukti Kas Keluar', id: p.id, date: formatDate(p.date), branch_name: currentBranch,
-                                    admin_name: user?.name || 'ADMIN', customer_name: p.title,
+                                    type: 'PURCHASE', // <--- Parameter penanda untuk mesin printer
+                                    title: 'BUKTI KAS KELUAR & PO SUPPLIER', 
+                                    id: p.id, date: formatDate(p.date), branch_name: currentBranch,
+                                    admin_name: user?.name || 'ADMIN', 
+                                    customer_name: p.title, // Backup fallback
+                                    supplier_name: p.title, // Info spesifik nama supplier
                                     items: [{ name: p.subtitle, qty: p.qty, unit: p.unit, subtotal: totalBill }],
                                     amount: totalBill, paymentMethod: pMethod,
                                     history: { labelLama: 'Total Tagihan', nominalLama: totalBill, labelAksi: 'Total Dibayar', nominalAksi: paidAmt, labelBaru: 'Sisa Hutang', nominalBaru: Math.max(0, totalBill - paidAmt) }
