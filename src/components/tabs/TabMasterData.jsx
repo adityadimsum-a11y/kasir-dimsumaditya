@@ -6,7 +6,7 @@ import {
   TrendingUp, TrendingDown, ArrowRight, Clock, 
   Calendar, BarChart2, Filter, ArrowUpRight, ArrowDownRight, Minus, Tag
 } from 'lucide-react';
-import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
+import { getTodayStr, generateId, formatDate, formatNumber } from '../../utils/helpers';
 
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 
