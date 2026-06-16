@@ -53,10 +53,10 @@ export default function TabKaryawan({
 
   // --- PEMETAAN CABANG DINAMIS ---
   const petaNamaCabang = useMemo(() => {
-    const mapping = { TANGERANG_PUSAT: '🍊 Tangerang Pusat' };
+    const mapping = { TANGERANG_PUSAT: '🍊 TANGERANG PUSAT' };
     (realMasterBranches || []).forEach(b => {
       if (b && !b.isDeleted && b.branch_id && b.branch_id !== 'PUSAT' && b.branch_id !== 'TANGERANG_PUSAT') { 
-        mapping[String(b.branch_id).trim().toUpperCase()] = `🏪 ${b.branch_name || b.branch_id}`; 
+        mapping[String(b.branch_id).trim().toUpperCase()] = `🏪 ${b.branch_name ? b.branch_name.toUpperCase() : b.branch_id.toUpperCase()}`; 
       }
     });
     return mapping;
@@ -84,8 +84,8 @@ export default function TabKaryawan({
       if (bId === 'PUSAT') bId = 'TANGERANG_PUSAT';
 
       dataStaf[k.id] = {
-        id: k.id, name: k.name || 'Tanpa Nama', position: k.position || 'KASIR', baseSalary: Number(k.baseSalary || 0), branch_id: bId, status: k.status || 'AKTIF',
-        phone: k.phone || '-', address: k.address || 'Alamat belum diisi',
+        id: k.id, name: k.name || 'TANPA NAMA', position: k.position || 'KASIR', baseSalary: Number(k.baseSalary || 0), branch_id: bId, status: k.status || 'AKTIF',
+        phone: k.phone || '-', address: k.address || 'ALAMAT BELUM DIISI',
         photo_url: parseDriveLink(k.photo_url) || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150', ktp_url: parseDriveLink(k.ktp_url) || '', raw_photo_link: k.photo_url || '', raw_ktp_link: k.ktp_url || '',
         totalKasbon: 0, totalDibayar: 0, sisaHutang: 0, 
         raw_debts: [], payroll_list: [], history_kredit: [], history_kasbon: []
@@ -114,7 +114,7 @@ export default function TabKaryawan({
         else if (poolDibayar > 0) { terbayarUntukIni = poolDibayar; poolDibayar = 0; }
 
         let sisa = nominalHutang - terbayarUntukIni;
-        let status = sisa === 0 ? 'Lunas' : (terbayarUntukIni > 0 ? 'Berjalan' : 'Belum Bayar');
+        let status = sisa === 0 ? 'LUNAS' : (terbayarUntukIni > 0 ? 'BERJALAN' : 'BELUM BAYAR');
         let processedDebt = { ...debt, terbayar: terbayarUntukIni, sisa: sisa, status: status };
 
         if (debt.category === 'KREDIT_BARANG') {
@@ -170,11 +170,11 @@ export default function TabKaryawan({
 
     const budgetGaji = omzet2Minggu * 0.20;
     const sisaNafasAnggaran = budgetGaji - gajiGlobal;
-    return { kasbonCabang, gajiCabangBulanIni, kasbonGlobal, gajiGlobal, budgetGaji, sisaNafasAnggaran, statusAnggaran: sisaNafasAnggaran >= 0 ? 'Aman' : 'Defisit' };
+    return { kasbonCabang, gajiCabangBulanIni, kasbonGlobal, gajiGlobal, budgetGaji, sisaNafasAnggaran, statusAnggaran: sisaNafasAnggaran >= 0 ? 'AMAN' : 'DEFISIT' };
   }, [globalEmployeeCompiled, expenses, activeProcessingBranch, todayStr, optimisticDeletedIds, realOrders, isHQ, currentBranch]);
 
   return (
-    <div className="space-y-6 animate-in fade-in pb-10 text-slate-700 normal-case">
+    <div className="space-y-6 animate-in fade-in pb-10 text-slate-700 uppercase tracking-wider">
       
       {/* CARD METRIK - FLAT ENTERPRISE STYLE */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -182,28 +182,28 @@ export default function TabKaryawan({
           <div className="card-holo p-6 md:col-span-2 grid grid-cols-2 gap-4 relative overflow-hidden">
             <Wallet className="absolute -right-4 -bottom-4 text-slate-100 pointer-events-none" size={120} />
             <div className="relative z-10">
-              <div className="text-[10px] font-bold text-slate-500 normal-case flex items-center gap-1.5"><Wallet size={14} className="text-emerald-500"/> Anggaran amplop gaji (20%)</div>
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5"><Wallet size={14} className="text-emerald-500"/> ANGGARAN AMPLOP GAJI (20%)</div>
               <div className="text-2xl font-extrabold tracking-tight mt-1 text-slate-800">{formatRupiah(metrikSDM.budgetGaji)}</div>
-              <div className="text-[10px] mt-2 font-medium text-slate-400 normal-case">Gaji terbayar: <span className="text-red-500 font-bold">{formatRupiah(metrikSDM.gajiGlobal)}</span></div>
+              <div className="text-[10px] mt-2 font-medium text-slate-400 uppercase tracking-wider">GAJI TERBAYAR: <span className="text-red-500 font-bold">{formatRupiah(metrikSDM.gajiGlobal)}</span></div>
             </div>
             <div className="relative z-10 border-l border-slate-100 pl-4">
-              <div className="text-[10px] font-bold text-slate-500 normal-case flex items-center gap-1.5"><ArrowRightLeft size={14} className="text-blue-500"/> Sisa anggaran HQ</div>
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5"><ArrowRightLeft size={14} className="text-blue-500"/> SISA ANGGARAN HQ</div>
               <div className={`text-2xl font-extrabold tracking-tight mt-1 ${metrikSDM.sisaNafasAnggaran >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{formatRupiah(metrikSDM.sisaNafasAnggaran)}</div>
-              <span className={`text-[9px] mt-2 inline-block px-2.5 py-0.5 rounded-md font-bold normal-case border shadow-xs ${metrikSDM.sisaNafasAnggaran >= 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200 animate-pulse'}`}>{metrikSDM.statusAnggaran}</span>
+              <span className={`text-[9px] mt-2 inline-block px-2.5 py-0.5 rounded-md font-bold uppercase tracking-wider border shadow-xs ${metrikSDM.sisaNafasAnggaran >= 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200 animate-pulse'}`}>{metrikSDM.statusAnggaran}</span>
             </div>
           </div>
         ) : (
           <div className="card-holo p-6 md:col-span-2 flex flex-col justify-center border-l-4 border-l-blue-500">
-            <div className="text-[10px] font-bold text-slate-500 normal-case mb-1">Total gaji terbayar (Bulan ini)</div>
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">TOTAL GAJI TERBAYAR (BULAN INI)</div>
             <div className="text-3xl font-extrabold text-blue-600 tracking-tight">{formatRupiah(metrikSDM.gajiCabangBulanIni)}</div>
           </div>
         )}
         <div className="card-holo p-6 flex flex-col justify-center border-l-4 border-l-orange-500">
-          <div className="text-[10px] font-bold text-slate-500 normal-case mb-1">Piutang kasbon (Nasional)</div>
+          <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">PIUTANG KASBON (NASIONAL)</div>
           <div className="text-2xl font-extrabold text-orange-600 tracking-tight">{formatRupiah(metrikSDM.kasbonGlobal)}</div>
         </div>
         <div className="card-holo p-6 flex flex-col justify-center border-l-4 border-l-emerald-500">
-          <div className="text-[10px] font-bold text-slate-500 normal-case mb-1">Kasbon area aktif</div>
+          <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">KASBON AREA AKTIF</div>
           <div className="text-2xl font-extrabold text-emerald-600 tracking-tight">{formatRupiah(metrikSDM.kasbonCabang)}</div>
         </div>
       </div>
@@ -211,11 +211,11 @@ export default function TabKaryawan({
       {/* FILTER RADAR CABANG */}
       {isHQ && (
         <div className="card-holo p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="flex items-center gap-2"><Layers size={16} className="text-blue-600" /><span className="text-[10px] font-bold normal-case text-slate-600">Pilih radar cabang SDM:</span></div>
+          <div className="flex items-center gap-2"><Layers size={16} className="text-blue-600" /><span className="text-[10px] font-bold uppercase tracking-wider text-slate-600">PILIH RADAR CABANG SDM:</span></div>
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => setSelectedBranchFilter('SEMUA_CABANG')} className={`px-4 py-2 rounded-lg text-[10px] font-bold normal-case transition-all ${activeProcessingBranch === 'SEMUA_CABANG' ? 'bg-white border border-slate-200 shadow-xs text-red-600' : 'bg-transparent text-slate-500 hover:bg-slate-50'}`}>🌍 Nasional (Gabungan)</button>
+            <button type="button" onClick={() => setSelectedBranchFilter('SEMUA_CABANG')} className={`px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${activeProcessingBranch === 'SEMUA_CABANG' ? 'bg-white border border-slate-200 shadow-xs text-red-600' : 'bg-transparent text-slate-500 hover:bg-slate-50'}`}>🌍 NASIONAL (GABUNGAN)</button>
             {daftarCabangId.map(brId => (
-              <button key={brId} type="button" onClick={() => setSelectedBranchFilter(brId)} className={`px-4 py-2 rounded-lg text-[10px] font-bold normal-case transition-all ${activeProcessingBranch === brId ? 'bg-white border border-slate-200 shadow-xs text-red-600' : 'bg-transparent text-slate-500 hover:bg-slate-50'}`}>{petaNamaCabang[brId]}</button>
+              <button key={brId} type="button" onClick={() => setSelectedBranchFilter(brId)} className={`px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${activeProcessingBranch === brId ? 'bg-white border border-slate-200 shadow-xs text-red-600' : 'bg-transparent text-slate-500 hover:bg-slate-50'}`}>{petaNamaCabang[brId]}</button>
             ))}
           </div>
         </div>
@@ -223,10 +223,10 @@ export default function TabKaryawan({
 
       {/* NAVIGASI SUB TABS */}
       <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-4">
-        {isHQ && <button onClick={() => setActiveSubTab('payroll')} className={`px-5 py-2.5 rounded-lg font-bold text-xs normal-case transition-colors flex items-center gap-1.5 ${activeSubTab === 'payroll' ? 'bg-white shadow-xs text-red-600 border border-slate-200/50' : 'bg-transparent text-slate-500 hover:bg-slate-50 border border-transparent'}`}><DollarSign size={14}/> Gaji &amp; payroll</button>}
-        <button onClick={() => setActiveSubTab('lembur')} className={`px-5 py-2.5 rounded-lg font-bold text-xs normal-case transition-colors flex items-center gap-1.5 ${activeSubTab === 'lembur' ? 'bg-white shadow-xs text-red-600 border border-slate-200/50' : 'bg-transparent text-slate-500 hover:bg-slate-50 border border-transparent'}`}><Clock size={14}/> Lembur &amp; bonus</button>
-        <button onClick={() => setActiveSubTab('kasbon')} className={`px-5 py-2.5 rounded-lg font-bold text-xs normal-case transition-colors flex items-center gap-1.5 ${activeSubTab === 'kasbon' ? 'bg-white shadow-xs text-red-600 border border-slate-200/50' : 'bg-transparent text-slate-500 hover:bg-slate-50 border border-transparent'}`}><Banknote size={14}/> Kasbon &amp; kredit</button>
-        <button onClick={() => setActiveSubTab('master')} className={`px-5 py-2.5 rounded-lg font-bold text-xs normal-case transition-colors flex items-center gap-1.5 ${activeSubTab === 'master' ? 'bg-white shadow-xs text-red-600 border border-slate-200/50' : 'bg-transparent text-slate-500 hover:bg-slate-50 border border-transparent'}`}><Users size={14}/> Master SDM</button>
+        {isHQ && <button onClick={() => setActiveSubTab('payroll')} className={`px-5 py-2.5 rounded-lg font-bold text-xs uppercase tracking-wider transition-colors flex items-center gap-1.5 ${activeSubTab === 'payroll' ? 'bg-white shadow-xs text-red-600 border border-slate-200/50' : 'bg-transparent text-slate-500 hover:bg-slate-50 border border-transparent'}`}><DollarSign size={14}/> GAJI &amp; PAYROLL</button>}
+        <button onClick={() => setActiveSubTab('lembur')} className={`px-5 py-2.5 rounded-lg font-bold text-xs uppercase tracking-wider transition-colors flex items-center gap-1.5 ${activeSubTab === 'lembur' ? 'bg-white shadow-xs text-red-600 border border-slate-200/50' : 'bg-transparent text-slate-500 hover:bg-slate-50 border border-transparent'}`}><Clock size={14}/> LEMBUR &amp; BONUS</button>
+        <button onClick={() => setActiveSubTab('kasbon')} className={`px-5 py-2.5 rounded-lg font-bold text-xs uppercase tracking-wider transition-colors flex items-center gap-1.5 ${activeSubTab === 'kasbon' ? 'bg-white shadow-xs text-red-600 border border-slate-200/50' : 'bg-transparent text-slate-500 hover:bg-slate-50 border border-transparent'}`}><Banknote size={14}/> KASBON &amp; KREDIT</button>
+        <button onClick={() => setActiveSubTab('master')} className={`px-5 py-2.5 rounded-lg font-bold text-xs uppercase tracking-wider transition-colors flex items-center gap-1.5 ${activeSubTab === 'master' ? 'bg-white shadow-xs text-red-600 border border-slate-200/50' : 'bg-transparent text-slate-500 hover:bg-slate-50 border border-transparent'}`}><Users size={14}/> MASTER SDM</button>
       </div>
 
       {/* 🔥 SALURKAN DATA CLOUD KE MASING-MASING KANTONG ANAK BERSIH */}
@@ -242,7 +242,7 @@ export default function TabKaryawan({
         <div className="fixed inset-0 bg-slate-900/40 z-[9999] flex justify-center items-start pt-12 md:pt-16 p-4 overflow-y-auto animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-5xl w-full overflow-hidden flex flex-col mb-10">
             <div className="bg-slate-50 border-b border-slate-200 px-6 py-4 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2"><Users size={16} className="text-red-600"/><h3 className="font-bold text-sm normal-case text-slate-800">Arsip profil &amp; rekam jejak karyawan</h3></div>
+              <div className="flex items-center gap-2"><Users size={16} className="text-red-600"/><h3 className="font-bold text-sm uppercase tracking-wider text-slate-800">ARSIP PROFIL &amp; REKAM JEJAK KARYAWAN</h3></div>
               <button type="button" onClick={() => setSelectedEmployeeDetails(null)} className="p-1 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-red-600 transition-colors"><X size={18}/></button>
             </div>
             
@@ -255,20 +255,20 @@ export default function TabKaryawan({
                     <img src={selectedEmployeeDetails.photo_url} alt="Profil Full" className="w-full h-full object-cover" onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
                   </div>
                   <div>
-                    <h2 className="text-xl font-extrabold text-slate-800 normal-case mb-2">{selectedEmployeeDetails.name}</h2>
+                    <h2 className="text-xl font-extrabold text-slate-800 uppercase tracking-wider mb-2">{selectedEmployeeDetails.name}</h2>
                     <div className="flex flex-wrap gap-2 mb-4">
-                      <span className="px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-100 text-[9px] font-bold normal-case">{selectedEmployeeDetails.position.replace('_', ' ')}</span>
-                      <span className="px-2.5 py-1 rounded-md bg-slate-100 text-slate-600 border border-slate-200 text-[9px] font-bold normal-case">Cabang {selectedEmployeeDetails.branch_id.replace('_', ' ')}</span>
+                      <span className="px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-100 text-[9px] font-bold uppercase tracking-wider">{selectedEmployeeDetails.position.replace('_', ' ')}</span>
+                      <span className="px-2.5 py-1 rounded-md bg-slate-100 text-slate-600 border border-slate-200 text-[9px] font-bold uppercase tracking-wider">CABANG {selectedEmployeeDetails.branch_id.replace('_', ' ')}</span>
                     </div>
-                    <div className="text-xs font-semibold text-slate-600 space-y-2.5">
+                    <div className="text-xs font-semibold text-slate-600 space-y-2.5 uppercase tracking-wider">
                       <div className="flex items-center gap-2"><Phone size={14} className="text-slate-400"/> {selectedEmployeeDetails.phone}</div>
-                      <div className="flex items-center gap-2"><CalendarDays size={14} className="text-slate-400"/> Gaji standar: <span className="text-slate-800 font-extrabold">{formatRupiah(selectedEmployeeDetails.baseSalary)}</span></div>
-                      <div className="flex items-center gap-2 text-red-600"><Wallet size={14}/> Total sisa piutang: <span className="font-extrabold">{formatRupiah(selectedEmployeeDetails.sisaHutang)}</span></div>
+                      <div className="flex items-center gap-2"><CalendarDays size={14} className="text-slate-400"/> GAJI STANDAR: <span className="text-slate-800 font-extrabold">{formatRupiah(selectedEmployeeDetails.baseSalary)}</span></div>
+                      <div className="flex items-center gap-2 text-red-600"><Wallet size={14}/> TOTAL SISA PIUTANG: <span className="font-extrabold">{formatRupiah(selectedEmployeeDetails.sisaHutang)}</span></div>
                     </div>
                   </div>
                   {selectedEmployeeDetails.ktp_url && (
                     <div className="space-y-1.5">
-                      <div className="text-[10px] font-bold normal-case text-slate-400 flex items-center gap-1"><Image size={12}/> Arsip KTP</div>
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1"><Image size={12}/> ARSIP KTP</div>
                       <div className="w-full bg-slate-50 border border-slate-200 rounded-xl overflow-hidden shadow-sm flex items-center justify-center h-32 cursor-pointer hover:opacity-80 transition" onClick={() => window.open(selectedEmployeeDetails.ktp_url, '_blank')}><img src={selectedEmployeeDetails.ktp_url} alt="KTP" className="w-full h-full object-cover" /></div>
                     </div>
                   )}
@@ -278,79 +278,79 @@ export default function TabKaryawan({
                   
                   {/* BUKU KREDIT BARANG */}
                   <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-xs">
-                    <h4 className="text-xs font-extrabold normal-case text-slate-800 border-b border-slate-200 pb-3 mb-4 flex items-center gap-2"><ShoppingCart size={16} className="text-blue-600"/> Buku mutasi kredit barang</h4>
+                    <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-3 mb-4 flex items-center gap-2"><ShoppingCart size={16} className="text-blue-600"/> BUKU MUTASI KREDIT BARANG</h4>
                     {selectedEmployeeDetails.history_kredit.length > 0 ? (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {selectedEmployeeDetails.history_kredit.map((kr, i) => (
-                          <div key={i} className={`border p-4 rounded-xl relative overflow-hidden transition-all shadow-xs ${kr.status === 'Lunas' ? 'bg-emerald-50/50 border-emerald-200' : 'bg-white border-slate-200 hover:border-blue-300'}`}>
-                            {kr.status === 'Lunas' && <CheckCircle2 className="absolute top-2 right-2 text-emerald-400 opacity-20" size={60} />}
+                          <div key={i} className={`border p-4 rounded-xl relative overflow-hidden transition-all shadow-xs ${kr.status === 'LUNAS' ? 'bg-emerald-50/50 border-emerald-200' : 'bg-white border-slate-200 hover:border-blue-300'}`}>
+                            {kr.status === 'LUNAS' && <CheckCircle2 className="absolute top-2 right-2 text-emerald-400 opacity-20" size={60} />}
                             <div className="flex gap-3">
                               <div className="w-16 h-16 rounded-lg bg-slate-100 border border-slate-200 shrink-0 overflow-hidden cursor-pointer shadow-inner" onClick={() => kr.foto_url && window.open(parseDriveLink(kr.foto_url), '_blank')}>
-                                {kr.foto_url ? <img src={parseDriveLink(kr.foto_url)} alt="Barang" className="w-full h-full object-cover" /> : <div className="flex items-center justify-center w-full h-full text-[8px] text-slate-400 text-center font-bold">No Foto</div>}
+                                {kr.foto_url ? <img src={parseDriveLink(kr.foto_url)} alt="Barang" className="w-full h-full object-cover" /> : <div className="flex items-center justify-center w-full h-full text-[8px] text-slate-400 text-center font-bold">NO FOTO</div>}
                               </div>
                               <div className="flex-1">
-                                <div className="text-xs font-extrabold text-slate-800 normal-case line-clamp-2 leading-snug">{kr.description}</div>
-                                <div className="text-[9px] text-slate-400 mb-2 font-medium">{formatDate(kr.date)} | ID: {kr.id}</div>
+                                <div className="text-xs font-extrabold text-slate-800 uppercase tracking-wider line-clamp-2 leading-snug">{kr.description}</div>
+                                <div className="text-[9px] text-slate-400 mb-2 font-medium uppercase tracking-wider">{formatDate(kr.date)} | ID: {kr.id}</div>
                                 <div className="space-y-1">
-                                  <div className="flex justify-between text-[10px] font-semibold"><span className="text-slate-500">Harga total:</span><span className="text-slate-800 font-bold">{formatRupiah(kr.amount)}</span></div>
-                                  <div className="flex justify-between text-[10px] font-semibold"><span className="text-slate-500">Terbayar:</span><span className="text-emerald-600 font-bold">{formatRupiah(kr.terbayar)}</span></div>
-                                  <div className="flex justify-between text-[10px] font-bold border-t border-slate-100 pt-1 mt-1"><span className="text-slate-500">Sisa piutang:</span><span className="text-red-600 font-extrabold">{formatRupiah(kr.sisa)}</span></div>
+                                  <div className="flex justify-between text-[10px] font-semibold"><span className="text-slate-500">HARGA TOTAL:</span><span className="text-slate-800 font-bold">{formatRupiah(kr.amount)}</span></div>
+                                  <div className="flex justify-between text-[10px] font-semibold"><span className="text-slate-500">TERBAYAR:</span><span className="text-emerald-600 font-bold">{formatRupiah(kr.terbayar)}</span></div>
+                                  <div className="flex justify-between text-[10px] font-bold border-t border-slate-100 pt-1 mt-1"><span className="text-slate-500">SISA PIUTANG:</span><span className="text-red-600 font-extrabold">{formatRupiah(kr.sisa)}</span></div>
                                 </div>
                               </div>
                             </div>
                             <div className="mt-4 bg-slate-50 p-2 rounded-lg border border-slate-100 text-center">
-                              <div className="text-[9px] font-bold text-slate-400 normal-case mb-0.5">Status angsuran</div>
-                              <div className={`text-[10px] font-extrabold normal-case ${kr.status === 'Lunas' ? 'text-emerald-600' : 'text-blue-600'}`}>{kr.status === 'Lunas' ? '✅ Lunas terarsip' : `⏳ Cicilan ke-${kr.cicilanKe} dari ${kr.tenor} Bln`}</div>
+                              <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">STATUS ANGSURAN</div>
+                              <div className={`text-[10px] font-extrabold uppercase tracking-wider ${kr.status === 'LUNAS' ? 'text-emerald-600' : 'text-blue-600'}`}>{kr.status === 'LUNAS' ? '✅ LUNAS TERARSIP' : `⏳ CICILAN KE-${kr.cicilanKe} DARI ${kr.tenor} BLN`}</div>
                             </div>
                           </div>
                         ))}
                       </div>
-                    ) : (<div className="text-center py-6 text-[10px] font-bold text-slate-400 bg-white rounded-xl border border-dashed border-slate-200">Belum ada riwayat kredit barang / cicilan.</div>)}
+                    ) : (<div className="text-center py-6 text-[10px] font-bold text-slate-400 bg-white rounded-xl border border-dashed border-slate-200 uppercase tracking-wider">BELUM ADA RIWAYAT KREDIT BARANG / CICILAN.</div>)}
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     {/* RIWAYAT KASBON TUNAI */}
                     <div className="bg-slate-50 border border-slate-200 rounded-3xl p-5 shadow-xs">
-                      <h4 className="text-xs font-extrabold normal-case text-slate-800 border-b border-slate-200 pb-3 mb-4 flex items-center gap-2"><History size={16} className="text-orange-500"/> Riwayat kasbon tunai</h4>
+                      <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-3 mb-4 flex items-center gap-2"><History size={16} className="text-orange-500"/> RIWAYAT KASBON TUNAI</h4>
                       {selectedEmployeeDetails.history_kasbon.length > 0 ? (
                         <div className="space-y-3">
                           {selectedEmployeeDetails.history_kasbon.map((ks, i) => (
-                            <div key={i} className={`flex flex-col border border-slate-200 p-3.5 rounded-xl gap-2 shadow-xs ${ks.status === 'Lunas' ? 'bg-slate-100/50' : 'bg-white border-l-4 border-l-orange-500'}`}>
+                            <div key={i} className={`flex flex-col border border-slate-200 p-3.5 rounded-xl gap-2 shadow-xs ${ks.status === 'LUNAS' ? 'bg-slate-100/50' : 'bg-white border-l-4 border-l-orange-500'}`}>
                               <div className="flex justify-between items-start">
-                                <div><div className="text-xs font-extrabold text-slate-800 normal-case">{ks.description}</div><div className="text-[9px] text-slate-400 mt-0.5 font-medium">{formatDate(ks.date)}</div></div>
-                                <span className={`px-2 py-0.5 text-[8px] font-bold normal-case rounded-md border ${ks.status === 'Lunas' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>{ks.status}</span>
+                                <div><div className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">{ks.description}</div><div className="text-[9px] text-slate-400 mt-0.5 font-medium">{formatDate(ks.date)}</div></div>
+                                <span className={`px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider rounded-md border ${ks.status === 'LUNAS' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>{ks.status}</span>
                               </div>
-                              <div className="flex justify-between items-center text-[10px] font-semibold border-t border-slate-100 pt-2 mt-1">
-                                <span className="text-slate-500">Nominal: <span className="font-bold">{formatRupiah(ks.amount)}</span></span>
-                                <span className={ks.status === 'Lunas' ? 'text-emerald-600 font-extrabold' : 'text-red-600 font-extrabold'}>Sisa: {formatRupiah(ks.sisa)}</span>
+                              <div className="flex justify-between items-center text-[10px] font-semibold border-t border-slate-100 pt-2 mt-1 uppercase tracking-wider">
+                                <span className="text-slate-500">NOMINAL: <span className="font-bold">{formatRupiah(ks.amount)}</span></span>
+                                <span className={ks.status === 'LUNAS' ? 'text-emerald-600 font-extrabold' : 'text-red-600 font-extrabold'}>SISA: {formatRupiah(ks.sisa)}</span>
                               </div>
                             </div>
                           ))}
                         </div>
-                      ) : (<div className="text-center py-6 text-[10px] font-bold text-slate-400 bg-white rounded-xl border border-dashed border-slate-200">Tidak ada hutang kasbon aktif.</div>)}
+                      ) : (<div className="text-center py-6 text-[10px] font-bold text-slate-400 bg-white rounded-xl border border-dashed border-slate-200 uppercase tracking-wider">TIDAK ADA HUTANG KASBON AKTIF.</div>)}
                     </div>
 
                     {/* ARSIP BUKTI PENGGAJIAN */}
                     <div className="bg-slate-50 border border-slate-200 rounded-3xl p-5 shadow-xs">
-                      <h4 className="text-xs font-extrabold normal-case text-slate-800 border-b border-slate-200 pb-3 mb-4 flex items-center gap-2"><CalendarDays size={16} className="text-emerald-600"/> Arsip bukti penggajian</h4>
+                      <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-800 border-b border-slate-200 pb-3 mb-4 flex items-center gap-2"><CalendarDays size={16} className="text-emerald-600"/> ARSIP BUKTI PENGGAJIAN</h4>
                       {selectedEmployeeDetails.payroll_list.length > 0 ? (
                         <div className="space-y-3">
                           {selectedEmployeeDetails.payroll_list.map((pr, i) => {
-                            const isDescriptionHasPeriod = pr.description && pr.description.includes('Periode:');
-                            const extractedPeriod = isDescriptionHasPeriod ? pr.description.split('Periode:')[1].trim().split('(')[0] : formatDate(pr.date);
+                            const isDescriptionHasPeriod = pr.description && pr.description.toUpperCase().includes('PERIODE:');
+                            const extractedPeriod = isDescriptionHasPeriod ? pr.description.toUpperCase().split('PERIODE:')[1].trim().split('(')[0] : formatDate(pr.date);
                             return (
                               <div key={i} className="flex flex-col justify-between bg-white border border-slate-200 p-4 rounded-xl shadow-xs hover:border-emerald-300 transition-colors">
-                                <div><div className="text-xs font-extrabold text-slate-800 normal-case border-b border-slate-100 pb-2 mb-2">Periode: {extractedPeriod}</div><div className="text-[9px] text-slate-400 font-medium">Tgl cair: {formatDate(pr.date)}</div></div>
-                                <div className="mt-3 pt-3 border-t border-dashed border-slate-200 space-y-1">
-                                  <div className="flex justify-between text-[10px] font-medium"><span className="text-slate-500">Gaji kotor:</span><span className="text-slate-700 font-bold">{formatRupiah((pr.base_salary||0)+(pr.allowance||0))}</span></div>
-                                  <div className="flex justify-between text-[10px] font-medium"><span className="text-slate-500">Potongan hutang:</span><span className="text-red-600 font-bold">-{formatRupiah(pr.kasbon_deduction)}</span></div>
-                                  <div className="flex justify-between text-[10px] font-bold mt-2 pt-2 border-t border-slate-100"><span className="text-slate-800 normal-case">Netto cair:</span><span className="text-emerald-600 font-extrabold">{formatRupiah(pr.amount)}</span></div>
+                                <div><div className="text-xs font-extrabold text-slate-800 uppercase tracking-wider border-b border-slate-100 pb-2 mb-2">PERIODE: {extractedPeriod}</div><div className="text-[9px] text-slate-400 font-medium uppercase tracking-wider">TGL CAIR: {formatDate(pr.date)}</div></div>
+                                <div className="mt-3 pt-3 border-t border-dashed border-slate-200 space-y-1 uppercase tracking-wider">
+                                  <div className="flex justify-between text-[10px] font-medium"><span className="text-slate-500">GAJI KOTOR:</span><span className="text-slate-700 font-bold">{formatRupiah((pr.base_salary||0)+(pr.allowance||0))}</span></div>
+                                  <div className="flex justify-between text-[10px] font-medium"><span className="text-slate-500">POTONGAN HUTANG:</span><span className="text-red-600 font-bold">-{formatRupiah(pr.kasbon_deduction)}</span></div>
+                                  <div className="flex justify-between text-[10px] font-bold mt-2 pt-2 border-t border-slate-100"><span className="text-slate-800 uppercase tracking-wider">NETTO CAIR:</span><span className="text-emerald-600 font-extrabold">{formatRupiah(pr.amount)}</span></div>
                                 </div>
                               </div>
                             )
                           })}
                         </div>
-                      ) : (<div className="text-center py-6 text-[10px] font-bold text-slate-400 bg-white rounded-xl border border-dashed border-slate-200">Belum ada riwayat penggajian.</div>)}
+                      ) : (<div className="text-center py-6 text-[10px] font-bold text-slate-400 bg-white rounded-xl border border-dashed border-slate-200 uppercase tracking-wider">BELUM ADA RIWAYAT PENGGAJIAN.</div>)}
                     </div>
                   </div>
                 </div>
@@ -358,7 +358,7 @@ export default function TabKaryawan({
             </div>
             
             <div className="bg-slate-50 px-6 py-4 border-t border-slate-200 text-right shrink-0">
-              <button type="button" onClick={() => setSelectedEmployeeDetails(null)} className="px-5 py-2.5 bg-white border border-slate-200 text-slate-600 font-bold text-xs normal-case rounded-lg hover:bg-slate-100 hover:text-slate-800 transition-colors shadow-xs">Tutup arsip profil karyawan</button>
+              <button type="button" onClick={() => setSelectedEmployeeDetails(null)} className="px-5 py-2.5 bg-white border border-slate-200 text-slate-600 font-bold text-xs uppercase tracking-wider rounded-lg hover:bg-slate-100 hover:text-slate-800 transition-colors shadow-xs">TUTUP ARSIP PROFIL KARYAWAN</button>
             </div>
           </div>
         </div>
