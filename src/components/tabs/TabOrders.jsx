@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { 
   ShoppingCart, Plus, Minus, Trash2, Search, 
   UserCheck, Tag, Receipt, CheckCircle2, Gift, Package, 
-  PlusCircle, Printer, Eye, Edit, ChefHat, AlertTriangle, Unlock
+  PlusCircle, Printer, Eye, Edit, ChefHat, AlertTriangle, Unlock, TrendingUp
 } from 'lucide-react';
 import { getTodayStr, generateId, formatDate, safeJsonParse } from '../../utils/helpers';
 
