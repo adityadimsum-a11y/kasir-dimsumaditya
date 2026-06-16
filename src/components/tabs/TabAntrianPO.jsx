@@ -1,11 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import { 
   PackageCheck, Clock, ArrowRight, Save, 
-  Search, ThermometerSnowflake, Box, AlertCircle, CheckCircle2
+  Search, ThermometerSnowflake, Box, AlertCircle, CheckCircle2,
+  Eye, Receipt, Wallet
 } from 'lucide-react';
 import { getTodayStr, generateId, safeJsonParse, formatDate } from '../../utils/helpers';
 
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
+const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 
 export default function TabAntrianPO({ orders, inventoryCostLayers, user, sendToSheet, showToast }) {
   const todayStr = getTodayStr();
@@ -14,6 +16,9 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, user, sendTo
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPO, setSelectedPO] = useState(null);
   const [allocations, setAllocations] = useState({}); 
+
+  // STATE BARU UNTUK CEK DETAIL PO
+  const [detailPO, setDetailPO] = useState(null);
 
   // =========================================================================
   // 1. ENGINE KALKULASI STOK BEBAS VS STOK KARANTINA
@@ -25,11 +30,9 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, user, sendTo
     (inventoryCostLayers || []).forEach(l => {
       if (l.isDeleted || l.branch_id !== currentBranch) return;
       
-      // Hitung Stok Bebas Jual (Tidak termasuk yang dikarantina)
       if (l.status === 'ACTIVE') {
         free[l.item_name] = (free[l.item_name] || 0) + Number(l.qty_remaining || 0);
       } 
-      // Hitung Dompet Karantina (Dikelompokkan per ID Nota PO)
       else if (l.status === 'KARANTINA') {
         if (!quarantine[l.reference_id]) quarantine[l.reference_id] = {};
         quarantine[l.reference_id][l.item_name] = (quarantine[l.reference_id][l.item_name] || 0) + Number(l.qty_remaining || 0);
@@ -39,14 +42,12 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, user, sendTo
   }, [inventoryCostLayers, currentBranch]);
 
   // =========================================================================
-  // 2. FILTER & ENRICH DATA NOTA PO (PROGRES KARANTINA)
+  // 2. FILTER & ENRICH DATA NOTA PO
   // =========================================================================
   const poOrders = useMemo(() => {
     const filtered = (orders || []).filter(o => {
       if (o.isDeleted || o.branch_id !== currentBranch) return false;
-      // Deteksi Nota PO: Metode bayar COD_PO atau ada keterangan TARGET PO
       const isPO = o.payment_method === 'COD_PO' || String(o.notes).includes('TARGET PO');
-      // Sembunyikan yang sudah diarsipkan / selesai total
       return isPO && o.status !== 'SELESAI_KIRIM'; 
     });
 
@@ -56,14 +57,12 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, user, sendTo
       let totalQuarantined = 0;
       
       const enrichedItems = items.map(i => {
-        // Ambil saldo karantina khusus untuk item ini di nota ini
         const qQty = stockData.quarantine[po.id]?.[i.name] || 0;
         totalOrdered += Number(i.qty || 0);
         totalQuarantined += qQty;
         return { ...i, quarantined: qQty };
       });
 
-      // Cabut Tanggal Target dari Notes jika ada
       let target = 'Tanpa Target';
       if (po.notes && po.notes.includes('TARGET PO:')) {
           const split1 = po.notes.split('TARGET PO: ');
@@ -83,7 +82,6 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, user, sendTo
     }).sort((a,b) => new Date(b.date) - new Date(a.date));
   }, [orders, currentBranch, stockData]);
 
-  // Pencarian Cepat
   const displayedPOs = useMemo(() => {
     if (!searchTerm) return poOrders;
     const lower = searchTerm.toLowerCase();
@@ -91,7 +89,7 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, user, sendTo
   }, [poOrders, searchTerm]);
 
   // =========================================================================
-  // 3. LOGIKA EKSEKUSI KARANTINA (DARI STOK BEBAS -> KE FREEZER KARANTINA)
+  // 3. LOGIKA EKSEKUSI KARANTINA
   // =========================================================================
   const handleOpenModal = (po) => {
     setSelectedPO(po);
@@ -120,7 +118,6 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, user, sendTo
           return alert(`Gagal! Angka alokasi ${item.name} melebihi sisa kekurangan PO.`);
         }
 
-        // 1. Catat Barang Keluar dari Stok Bebas
         payloads.push({
           id: generateId('INV', todayStr) + '-OUT-' + Math.floor(Math.random() * 1000),
           date: todayStr, branch_id: currentBranch, category: 'PENYESUAIAN_KARANTINA',
@@ -128,11 +125,10 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, user, sendTo
           reference_id: selectedPO.id, notes: `Dikunci untuk Karantina PO (${selectedPO.id})`, isDeleted: false
         });
 
-        // 2. Catat Barang Masuk ke Dompet Karantina Nota Ini
         payloads.push({
           id: generateId('INV', todayStr) + '-IN-' + Math.floor(Math.random() * 1000),
           date: todayStr, branch_id: currentBranch, category: 'KARANTINA_PO',
-          item_name: item.name, qty_remaining: inputVal, unit_cost: 0, status: 'KARANTINA', // STATUS SAKTI
+          item_name: item.name, qty_remaining: inputVal, unit_cost: 0, status: 'KARANTINA', 
           reference_id: selectedPO.id, notes: `Stok Karantina Beku`, isDeleted: false
         });
       }
@@ -248,24 +244,128 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, user, sendTo
                 ))}
               </div>
 
-              {/* Card Footer / Actions */}
-              <div className="p-4 bg-slate-50 border-t border-slate-100 flex gap-3">
-                <button 
-                  onClick={() => handleOpenModal(po)} 
-                  disabled={po.progress === 100}
-                  className="flex-1 py-2.5 bg-orange-600 hover:bg-orange-700 text-white text-xs font-black rounded-xl shadow-md transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                >
-                  <ThermometerSnowflake size={14}/> {po.progress === 100 ? 'Stok Terpenuhi 100%' : 'Alokasikan Ke Freezer'}
-                </button>
+              {/* Card Footer / Actions DI-UPDATE */}
+              <div className="p-4 bg-slate-50 border-t border-slate-100 flex flex-col gap-3">
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => setDetailPO(po)} 
+                    className="flex-1 py-2.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-[11px] font-black rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2 cursor-pointer uppercase"
+                  >
+                    <Eye size={14}/> Cek Detail PO
+                  </button>
+                  <button 
+                    onClick={() => handleOpenModal(po)} 
+                    disabled={po.progress === 100}
+                    className="flex-1 py-2.5 bg-orange-600 hover:bg-orange-700 text-white text-[11px] font-black rounded-xl shadow-md transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer uppercase"
+                  >
+                    <ThermometerSnowflake size={14}/> {po.progress === 100 ? 'Terpenuhi 100%' : 'Alokasikan Freezer'}
+                  </button>
+                </div>
+                
                 {po.progress === 100 && (
-                  <button onClick={() => handleSelesaikanPO(po.id)} className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-md transition-colors cursor-pointer">
-                    Selesai &amp; Arsipkan
+                  <button onClick={() => handleSelesaikanPO(po.id)} className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-md transition-colors cursor-pointer uppercase flex items-center justify-center gap-2">
+                    <CheckCircle2 size={16}/> Selesai &amp; Arsipkan PO
                   </button>
                 )}
               </div>
 
             </div>
           ))}
+        </div>
+      )}
+
+      {/* =========================================================================
+          MODAL DETAIL PO (MINI LEDGER)
+         ========================================================================= */}
+      {detailPO && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-[99999] flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl border border-slate-200 overflow-hidden flex flex-col max-h-[85vh]">
+            
+            <div className="p-4 bg-slate-950 text-white flex justify-between items-center shrink-0">
+              <div>
+                <h3 className="font-black text-xs uppercase flex items-center gap-1.5 text-blue-400"><Receipt size={16}/> Rincian Lengkap PO</h3>
+                <p className="text-[10px] text-slate-400 font-bold mt-0.5 normal-case">Klien: {detailPO.customer_name} | Nota: {detailPO.id}</p>
+              </div>
+              <button type="button" onClick={() => setDetailPO(null)} className="text-slate-400 hover:text-white font-bold text-sm cursor-pointer">✕</button>
+            </div>
+
+            <div className="p-5 flex-1 overflow-y-auto custom-scrollbar bg-slate-50 space-y-4">
+              
+              {/* Info Pelanggan & Catatan Khusus */}
+              <div className="bg-white border border-slate-200 p-3 rounded-xl shadow-3xs">
+                <div className="flex justify-between items-center border-b border-slate-100 pb-2 mb-2">
+                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Tanggal Tulis Nota</span>
+                  <span className="text-xs font-bold text-slate-800">{formatDate(detailPO.date)}</span>
+                </div>
+                <div className="flex justify-between items-center border-b border-slate-100 pb-2 mb-2">
+                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Target Dikirim</span>
+                  <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded">{formatDate(detailPO.targetDate)}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">Catatan Kasir / Dapur:</span>
+                  <div className="text-xs font-bold text-slate-700 bg-orange-50 border border-orange-100 p-2 rounded-lg italic">
+                    {detailPO.notes || 'Tidak ada catatan.'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Rincian Belanja */}
+              <div className="bg-white border border-slate-200 p-3 rounded-xl shadow-3xs">
+                <div className="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-2">Detail Pesanan Barang</div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-[11px] border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 text-slate-500 font-bold border-b text-[10px]">
+                        <th className="p-2">Item</th>
+                        <th className="p-2 text-center">Qty</th>
+                        <th className="p-2 text-right">Harga</th>
+                        <th className="p-2 text-right">Subtotal</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y text-slate-700 font-bold">
+                      {detailPO.enrichedItems.map((itm, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50/50">
+                          <td className="p-2 uppercase">{itm.name}</td>
+                          <td className="p-2 text-center">{formatNumber(itm.qty)} Pcs</td>
+                          <td className="p-2 text-right">{formatRupiah(itm.price || (itm.subtotal/itm.qty))}</td>
+                          <td className="p-2 text-right text-slate-900">{formatRupiah(itm.subtotal)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Ringkasan Keuangan */}
+              <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 rounded-xl space-y-2 font-bold text-[11px] shadow-sm">
+                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-slate-700 text-blue-400">
+                  <Wallet size={16}/> <span className="uppercase tracking-wider">Ringkasan Keuangan</span>
+                </div>
+                <div className="flex justify-between text-slate-300">
+                  <span>Total Nilai PO</span>
+                  <span>{formatRupiah(detailPO.total_amount)}</span>
+                </div>
+                <div className="flex justify-between text-slate-300">
+                  <span>DP / Uang Muka Masuk ({detailPO.payment_method})</span>
+                  <span className="text-emerald-400">{formatRupiah(detailPO.amount_paid)}</span>
+                </div>
+                <div className="border-t border-slate-700 my-1"></div>
+                <div className="flex justify-between text-sm font-black">
+                  <span>Sisa Pembayaran</span>
+                  <span className={(detailPO.total_amount - detailPO.amount_paid) <= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                    {(detailPO.total_amount - detailPO.amount_paid) <= 0 ? 'LUNAS' : formatRupiah(detailPO.total_amount - detailPO.amount_paid)}
+                  </span>
+                </div>
+              </div>
+
+            </div>
+            
+            <div className="p-4 bg-white border-t border-slate-200 text-right shrink-0">
+              <button type="button" onClick={() => setDetailPO(null)} className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-black text-[11px] rounded-xl shadow-md cursor-pointer uppercase w-full sm:w-auto">
+                Tutup Detail
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
