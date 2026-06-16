@@ -87,54 +87,57 @@ export default function TabSCMWarRoom({ distributionOrders, inventoryCostLayers,
     <div className="space-y-6 pb-10 text-slate-700 normal-case animate-in fade-in duration-200">
       
       {/* SCM BANNER STATS TOP */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="card-holo bg-slate-900 rounded-2xl p-5 border border-slate-800 shadow-md text-white relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-4 opacity-10"><Truck size={80}/></div>
-          <div className="text-[10px] font-bold text-blue-400 normal-case mb-1">Stok Dalam Perjalanan (Moving)</div>
-          <div className="text-3xl font-black tracking-tight">{formatNumber(scmStats.frozenInTransit)} <span className="text-xs font-bold text-blue-300">Pcs</span></div>
-          <div className="text-[9px] text-slate-400 mt-2 normal-case">Total produk sedang dibawa kurir supir ekspedisi.</div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-3xl p-6 border border-slate-800 shadow-lg text-white relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-4 opacity-5"><Truck size={90}/></div>
+          <div className="text-[11px] font-black text-blue-400 mb-1.5 flex items-center gap-1.5"><Truck size={14}/> Stok Dalam Perjalanan (Moving)</div>
+          <div className="text-4xl font-black tracking-tighter">{formatNumber(scmStats.frozenInTransit)} <span className="text-sm font-bold text-blue-300">Pcs</span></div>
+          <div className="text-[10px] text-slate-400 mt-2 font-medium">Total produk sedang dibawa kurir supir ekspedisi.</div>
         </div>
 
-        <div className="card-holo bg-white rounded-2xl p-5 border border-slate-200 shadow-xs relative overflow-hidden border-t-4 border-t-orange-500">
-          <div className="text-[10px] font-black text-slate-500 normal-case">Resiko Kadaluarsa Kulkas (&gt;60 Hari)</div>
-          <div className="text-3xl font-black text-orange-600 tracking-tight mt-1">{formatNumber(scmStats.deadStockPcs)} <span className="text-xs font-bold text-orange-400">Pcs</span></div>
-          <div className="text-[9px] font-bold text-orange-700 bg-orange-50 px-2 py-1 rounded-md border border-orange-100 mt-2 inline-block normal-case">
+        <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm relative overflow-hidden hover:shadow-md transition-shadow">
+          <div className="absolute top-0 right-0 p-4 opacity-5"><FileWarning size={90} className="text-orange-500"/></div>
+          <div className="text-[11px] font-black text-orange-600 mb-1.5 flex items-center gap-1.5"><Timer size={14}/> Resiko Kadaluarsa Kulkas (&gt;60 Hari)</div>
+          <div className="text-4xl font-black text-orange-600 tracking-tighter mt-1">{formatNumber(scmStats.deadStockPcs)} <span className="text-sm font-bold text-orange-400">Pcs</span></div>
+          <div className="text-[10px] font-black text-orange-700 bg-orange-50 px-2.5 py-1.5 rounded-lg border border-orange-100 mt-2 inline-block">
             Valuasi Terancam Hangus: {formatRupiah(scmStats.agingStockValue)}
           </div>
         </div>
 
-        <div className="card-holo bg-white rounded-2xl p-5 border border-slate-200 shadow-xs relative overflow-hidden border-t-4 border-t-red-500">
-          <div className="text-[10px] font-black text-slate-500 normal-case">Tingkat Kerusakan Jalan (Discrepancy)</div>
-          <div className="text-3xl font-black text-red-600 tracking-tight mt-1">{scmStats.discrepancyRate}%</div>
-          <div className="text-[9px] font-bold text-slate-400 mt-2 normal-case">Rasio susut produk hancur di jalan ekspedisi.</div>
+        <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm relative overflow-hidden hover:shadow-md transition-shadow">
+          <div className="absolute top-0 right-0 p-4 opacity-5"><AlertTriangle size={90} className="text-rose-500"/></div>
+          <div className="text-[11px] font-black text-rose-600 mb-1.5 flex items-center gap-1.5"><Package size={14}/> Tingkat Kerusakan Jalan</div>
+          <div className="text-4xl font-black text-rose-600 tracking-tighter mt-1">{scmStats.discrepancyRate}%</div>
+          <div className="text-[10px] font-bold text-slate-400 mt-2">Rasio susut produk hancur di jalan ekspedisi.</div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         {/* MONITOR ARMADA AKTIF */}
-        <div className="card-holo bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col">
-          <h3 className="font-black text-slate-800 text-xs normal-case flex items-center gap-2 mb-4 border-b border-slate-100 pb-3">
-            <Timer size={16} className="text-blue-600"/> Status Armada Logistik Di Jalan (In Transit)
+        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col h-full">
+          <h3 className="font-black text-slate-800 text-sm flex items-center gap-2 mb-4 border-b border-slate-100 pb-3">
+            <Timer size={18} className="text-blue-600"/> Status Armada Logistik Di Jalan (In Transit)
           </h3>
           {scmStats.activeTransitDOs.length === 0 ? (
-            <div className="text-xs text-center text-slate-400 py-12 font-bold normal-case bg-slate-50/50 rounded-xl border border-dashed border-slate-200 flex-1 flex flex-col justify-center">
-              Semua armada sudah merapat. Tidak ada pengiriman aktif.
+            <div className="text-xs text-center text-slate-400 py-16 font-bold bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 flex-1 flex flex-col justify-center">
+              <div className="mx-auto mb-3 opacity-30"><Truck size={40}/></div>
+              Semua armada sudah merapat.<br/>Tidak ada pengiriman aktif.
             </div>
           ) : (
             <div className="space-y-3 max-h-[40vh] overflow-y-auto custom-scrollbar pr-1">
               {scmStats.activeTransitDOs.map(doItem => (
-                <div key={doItem.id} className="flex justify-between items-center bg-slate-50 border border-slate-200 p-3.5 rounded-xl group hover:border-blue-300 transition-colors shadow-3xs">
+                <div key={doItem.id} className="flex justify-between items-center bg-slate-50 border border-slate-200 p-4 rounded-2xl group hover:border-blue-300 hover:bg-blue-50/30 transition-colors shadow-sm">
                   <div>
-                    <div className="text-[9px] font-black text-blue-600 normal-case mb-1">ID: {doItem.id}</div>
-                    <div className="font-black text-slate-800 text-xs normal-case">Tujuan: {doItem.destination_branch_id?.replace(/_/g, ' ')}</div>
-                    <div className="text-[9px] font-bold text-slate-500 normal-case mt-0.5">Supir Kurir: {doItem.driver_name || 'Tim Ekspedisi'}</div>
+                    <div className="text-[10px] font-black text-blue-600 uppercase tracking-wider mb-1">ID: {doItem.id}</div>
+                    <div className="font-black text-slate-800 text-sm uppercase">{doItem.destination_branch_id?.replace(/_/g, ' ')}</div>
+                    <div className="text-[10px] font-bold text-slate-500 mt-1">Supir Kurir: {doItem.driver_name || 'Tim Ekspedisi'}</div>
                   </div>
                   <div className="text-right">
-                     <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-md text-[9px] font-black normal-case animate-pulse inline-block shadow-3xs border border-blue-200">
+                     <span className="bg-blue-100 text-blue-700 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider animate-pulse inline-block border border-blue-200">
                        ON THE ROAD
                      </span>
-                     <div className="font-black text-blue-700 text-sm mt-1.5">{formatNumber(doItem.qty)} Pcs</div>
+                     <div className="font-black text-blue-700 text-base mt-2">{formatNumber(doItem.qty)} Pcs</div>
                   </div>
                 </div>
               ))}
@@ -143,27 +146,28 @@ export default function TabSCMWarRoom({ distributionOrders, inventoryCostLayers,
         </div>
 
         {/* ALARM BAWAH AMBASSADOR REORDER */}
-        <div className="card-holo bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col">
-          <h3 className="font-black text-slate-800 text-xs normal-case flex items-center gap-2 mb-4 border-b border-slate-100 pb-3">
-            <AlertTriangle size={16} className="text-red-600"/> Ambang Batas Kritis Restock Cabang
+        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col h-full">
+          <h3 className="font-black text-slate-800 text-sm flex items-center gap-2 mb-4 border-b border-slate-100 pb-3">
+            <AlertTriangle size={18} className="text-rose-600"/> Ambang Batas Kritis Restock Cabang
           </h3>
           {scmStats.reorderAlerts.length === 0 ? (
-            <div className="text-[11px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 p-5 rounded-xl normal-case text-center shadow-3xs">
-              Stok Freezer di seluruh node cabang aman di atas kuota 11.000 Pcs.
+            <div className="text-xs font-black text-emerald-700 bg-emerald-50 border border-emerald-200 p-6 rounded-2xl text-center flex-1 flex flex-col justify-center shadow-sm">
+              <div className="mx-auto mb-3 opacity-50"><ShieldAlert size={40}/></div>
+              Stok Freezer di seluruh node cabang aman<br/>di atas kuota 11.000 Pcs.
             </div>
           ) : (
             <div className="space-y-3 max-h-[40vh] overflow-y-auto custom-scrollbar pr-1">
               {scmStats.reorderAlerts.map(alert => (
-                <div key={alert.node} className="flex justify-between items-center bg-red-50/50 border border-red-100 p-3.5 rounded-xl border-l-4 border-l-red-500 shadow-3xs hover:bg-red-50 transition-colors">
+                <div key={alert.node} className="flex justify-between items-center bg-rose-50/80 border border-rose-100 p-4 rounded-2xl border-l-4 border-l-rose-500 shadow-sm hover:bg-rose-50 transition-colors">
                   <div>
-                    <div className="text-[9px] font-black text-red-500 normal-case mb-1">Peringatan Kuota Menipis</div>
-                    <div className="font-black text-slate-800 text-xs normal-case">Node: {alert.node.replace(/_/g, ' ')}</div>
+                    <div className="text-[10px] font-black text-rose-500 uppercase tracking-wider mb-1">Peringatan Kuota Menipis</div>
+                    <div className="font-black text-slate-800 text-sm uppercase">Node: {alert.node.replace(/_/g, ' ')}</div>
                   </div>
                   <div className="text-right">
-                    <span className="bg-red-100 text-red-700 border border-red-200 px-2 py-1 rounded-md text-[9px] font-black normal-case shadow-3xs">
+                    <span className="bg-rose-100 text-rose-700 border border-rose-200 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider">
                       STOK SEKARAT
                     </span>
-                    <div className="font-black text-red-700 text-sm mt-1.5">Sisa: {formatNumber(alert.qty)} Pcs</div>
+                    <div className="font-black text-rose-700 text-base mt-2">Sisa: {formatNumber(alert.qty)} Pcs</div>
                   </div>
                 </div>
               ))}
@@ -172,40 +176,41 @@ export default function TabSCMWarRoom({ distributionOrders, inventoryCostLayers,
         </div>
 
         {/* MONITOR UMUR SIMPAN BARANG KADALUARSA */}
-        <div className="card-holo bg-white p-5 rounded-2xl border border-slate-200 shadow-xs lg:col-span-2 overflow-hidden flex flex-col">
-          <h3 className="font-black text-slate-800 text-xs normal-case flex items-center gap-2 mb-4 border-b border-slate-100 pb-3">
-            <FileWarning size={16} className="text-orange-600"/> Pengawasan Resiko Umur Simpan Gudang (Dead Stock &gt; 60 Hari)
+        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm lg:col-span-2 overflow-hidden flex flex-col">
+          <h3 className="font-black text-slate-800 text-sm flex items-center gap-2 mb-4 border-b border-slate-100 pb-3">
+            <FileWarning size={18} className="text-orange-600"/> Pengawasan Resiko Umur Simpan Gudang (Dead Stock &gt; 60 Hari)
           </h3>
-          <div className="overflow-x-auto custom-scrollbar flex-1 p-1">
+          <div className="overflow-x-auto custom-scrollbar flex-1 p-2">
             <table className="w-full text-sm text-left border-collapse">
-              <thead className="bg-slate-50/50 text-[10px] text-slate-500 normal-case border-b border-slate-100">
+              <thead className="bg-slate-50/50 text-[10px] text-slate-500 uppercase tracking-wider border-b border-slate-100">
                 <tr>
-                  <th className="px-4 py-3 font-black">Node Lokasi Gudang</th>
-                  <th className="px-4 py-3 font-black">Kode Layer FIFO ID</th>
-                  <th className="px-4 py-3 font-black text-center">Umur Mengendap</th>
-                  <th className="px-4 py-3 font-black text-right">Kuantitas Fisik Rusak</th>
+                  <th className="px-5 py-4 font-black">Node Lokasi Gudang</th>
+                  <th className="px-5 py-4 font-black">Kode Layer FIFO ID</th>
+                  <th className="px-5 py-4 font-black text-center">Umur Mengendap</th>
+                  <th className="px-5 py-4 font-black text-right">Kuantitas Fisik Terancam</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-bold text-xs text-slate-700 bg-white">
                 {scmStats.agingAlerts.length === 0 ? (
                   <tr>
-                    <td colSpan="4" className="text-center py-12 text-emerald-600 font-black normal-case text-xs">
-                      Bersih Total! Seluruh adonan &amp; dimsum di freezer segar di bawah 60 hari.
+                    <td colSpan="4" className="text-center py-16 text-emerald-600 font-black text-xs">
+                       <div className="mx-auto flex justify-center mb-3 opacity-30"><ShieldAlert size={40}/></div>
+                       Bersih Total! Seluruh adonan &amp; dimsum di freezer segar di bawah 60 hari.
                     </td>
                   </tr>
                 ) : (
                   scmStats.agingAlerts.map(a => (
-                    <tr key={a.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-4 py-4 normal-case font-black text-slate-800">
-                        <span className="text-slate-400 mr-1">🏢</span> {a.branch.replace(/_/g, ' ')}
+                    <tr key={a.id} className="hover:bg-orange-50/30 transition-colors">
+                      <td className="px-5 py-4 font-black text-slate-800 uppercase tracking-wider">
+                        <span className="text-slate-400 mr-2 text-base">🏢</span> {a.branch.replace(/_/g, ' ')}
                       </td>
-                      <td className="px-4 py-4 text-slate-500 font-mono text-[10px]">{a.id}</td>
-                      <td className="px-4 py-4 text-center">
-                        <span className="text-red-600 font-black bg-red-50 px-2.5 py-1 rounded-md border border-red-100 text-[10px]">
+                      <td className="px-5 py-4 text-slate-500 font-mono text-[10px]">{a.id}</td>
+                      <td className="px-5 py-4 text-center">
+                        <span className="text-orange-700 font-black bg-orange-50 px-3 py-1.5 rounded-lg border border-orange-200 text-[10px] shadow-sm uppercase tracking-wider">
                           {a.days} Hari Membeku
                         </span>
                       </td>
-                      <td className="px-4 py-4 text-right font-black text-sm text-rose-600">
+                      <td className="px-5 py-4 text-right font-black text-base text-rose-600 tracking-tight">
                         {formatNumber(a.qty)} Pcs
                       </td>
                     </tr>
