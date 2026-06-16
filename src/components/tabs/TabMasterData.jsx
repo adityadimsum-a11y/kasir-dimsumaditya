@@ -45,7 +45,8 @@ export default function TabMasterData({
   });
 
   const [formMenu, setFormMenu] = useState({ id: '', product_name: '', category: 'FROZEN_GOODS', selling_price: '', default_hpp: '1125', min_order: '1', penalty_price: '0' });
-  const [formSpl, setFormSpl] = useState({ id: '', supplier_name: '', pic_name: '', phone: '', address: '' });
+  // 🔥 UPDATE: Tambah default_price di state supplier
+  const [formSpl, setFormSpl] = useState({ id: '', supplier_name: '', pic_name: '', phone: '', address: '', default_price: '' });
   const [formItem, setFormItem] = useState({ id: '', item_name: '', category: 'BAHAN BAKU', unit: '', default_price: '' });
 
   const activeProducts = useMemo(() => realProducts.filter(p => !p.isDeleted && String(p.isDeleted).toUpperCase() !== 'TRUE').reverse(), [realProducts]);
@@ -75,14 +76,16 @@ export default function TabMasterData({
     e.preventDefault();
     if (!formSpl.supplier_name) return alert("Nama perusahaan supplier wajib diisi!");
     const splId = isEditingSpl ? formSpl.id : generateId('SPL', todayStr);
+    // 🔥 UPDATE: Menambahkan default_price ke payload database
     const payload = {
       id: splId, date: todayStr, branch_id: currentBranch, isDeleted: false,
-      supplier_name: formSpl.supplier_name.toUpperCase(), pic_name: formSpl.pic_name.toUpperCase(), phone: formSpl.phone, address: formSpl.address.toUpperCase()
+      supplier_name: formSpl.supplier_name.toUpperCase(), pic_name: formSpl.pic_name.toUpperCase(), phone: formSpl.phone, address: formSpl.address.toUpperCase(),
+      default_price: Number(formSpl.default_price || 0) 
     };
     const isSuccess = await sendToSheet(isEditingSpl ? 'update' : 'insert', payload, 'master_suppliers');
     if (isSuccess) {
       showToast(isEditingSpl ? 'Data Supplier diperbarui!' : 'Supplier resmi terdaftar!', 'success');
-      setIsEditingSpl(false); setFormSpl({ id: '', supplier_name: '', pic_name: '', phone: '', address: '' });
+      setIsEditingSpl(false); setFormSpl({ id: '', supplier_name: '', pic_name: '', phone: '', address: '', default_price: '' });
     }
   };
 
@@ -253,7 +256,7 @@ export default function TabMasterData({
            <div className="xl:col-span-4 card-holo p-6 border-t-4 border-t-blue-500">
               <div className="flex justify-between items-center mb-5 border-b border-slate-100 pb-3">
                 <h3 className="font-extrabold text-slate-800 normal-case text-sm flex items-center gap-2"><Truck size={16} className="text-blue-600"/> {isEditingSpl ? 'Edit supplier' : 'Tambah supplier'}</h3>
-                {isEditingSpl && <button type="button" onClick={() => { setIsEditingSpl(false); setFormSpl({ id: '', supplier_name: '', pic_name: '', phone: '', address: '' }); }} className="p-1.5 bg-slate-100 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg"><X size={14}/></button>}
+                {isEditingSpl && <button type="button" onClick={() => { setIsEditingSpl(false); setFormSpl({ id: '', supplier_name: '', pic_name: '', phone: '', address: '', default_price: '' }); }} className="p-1.5 bg-slate-100 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg"><X size={14}/></button>}
               </div>
               <form onSubmit={handleSubmitSupplier} className="space-y-4">
                 <div>
@@ -268,6 +271,14 @@ export default function TabMasterData({
                   <label className="text-[9px] font-bold text-slate-500 normal-case block mb-1">Nomor Handphone / WA</label>
                   <input type="text" required value={formSpl.phone} onChange={e=>setFormSpl({...formSpl, phone: e.target.value})} className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold outline-none focus:border-blue-500" placeholder="08xx..." />
                 </div>
+                {/* 🔥 UPDATE: Input untuk Harga Satuan Default Supplier */}
+                <div>
+                  <label className="text-[9px] font-bold text-slate-500 normal-case block mb-1">Harga Satuan Default (Rp/Kg)</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 font-bold text-slate-400 text-xs">Rp</span>
+                    <input type="text" required value={formSpl.default_price ? Number(formSpl.default_price).toLocaleString('id-ID') : ''} onChange={e=>setFormSpl({...formSpl, default_price: e.target.value.replace(/\D/g, '')})} className="w-full pl-8 pr-3 py-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold outline-none focus:border-blue-500" placeholder="0" />
+                  </div>
+                </div>
                 <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg text-xs normal-case shadow-sm hover:bg-blue-700 transition-colors mt-2">Simpan supplier</button>
               </form>
            </div>
@@ -275,7 +286,8 @@ export default function TabMasterData({
              <div className="p-4 bg-slate-50 border-b border-slate-100 font-extrabold text-xs normal-case text-slate-700">Database mitra supplier aktif</div>
              <table className="w-full text-sm text-left">
                <thead className="bg-white text-[10px] normal-case text-slate-400 border-b border-slate-200">
-                 <tr><th className="px-5 py-3 font-bold">Nama supplier &amp; PIC</th><th className="px-5 py-3 font-bold">Kontak</th><th className="px-5 py-3 font-bold text-center">Aksi</th></tr>
+                 {/* 🔥 UPDATE: Kolom Header Harga Default ditambahkan */}
+                 <tr><th className="px-5 py-3 font-bold">Nama supplier &amp; PIC</th><th className="px-5 py-3 font-bold">Kontak</th><th className="px-5 py-3 font-bold text-right">Harga Acuan</th><th className="px-5 py-3 font-bold text-center">Aksi</th></tr>
                </thead>
                <tbody className="divide-y divide-slate-100 text-xs font-bold bg-white">
                  {activeSuppliers.map(s => (
@@ -285,8 +297,11 @@ export default function TabMasterData({
                        <div className="text-[10px] font-medium text-slate-500 normal-case mt-0.5">PIC: {s.pic_name}</div>
                      </td>
                      <td className="px-5 py-4 text-slate-600">{s.phone}</td>
+                     {/* 🔥 UPDATE: Cell Menampilkan Harga Default */}
+                     <td className="px-5 py-4 text-right text-emerald-600 font-extrabold">{formatRupiah(s.default_price)}</td>
                      <td className="px-5 py-4 text-center">
-                       <button onClick={() => {setFormSpl(s); setIsEditingSpl(true);}} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-slate-100 rounded-lg transition-colors border shadow-xs"><Edit2 size={14}/></button>
+                       {/* 🔥 UPDATE: Edit State menyertakan default_price */}
+                       <button onClick={() => {setFormSpl({...s, default_price: String(s.default_price || '')}); setIsEditingSpl(true);}} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-slate-100 rounded-lg transition-colors border shadow-xs"><Edit2 size={14}/></button>
                      </td>
                    </tr>
                  ))}
