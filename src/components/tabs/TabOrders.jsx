@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { 
   ShoppingCart, Plus, Minus, Trash2, Search, 
-  UserCheck, Tag, Receipt, 
-  CheckCircle2, Gift, Package, PlusCircle, Printer, TrendingUp, Eye, Edit, ChefHat
+  UserCheck, Tag, Receipt, CheckCircle2, Gift, Package, 
+  PlusCircle, Printer, Eye, Edit, ChefHat, AlertTriangle, Unlock
 } from 'lucide-react';
 import { getTodayStr, generateId, formatDate, safeJsonParse } from '../../utils/helpers';
 
@@ -18,12 +18,14 @@ export default function TabOrders({
   const todayStr = getTodayStr();
   const currentBranch = (user?.branch_id === 'PUSAT' || !user?.branch_id) ? 'TANGERANG_PUSAT' : user?.branch_id;
 
+  // --- SINKRONISASI DATABASE ---
   const realProducts = useMemo(() => master_products || masterProducts || [], [master_products, masterProducts]);
   const realCustomers = useMemo(() => master_customers || masterCustomers || [], [master_customers, masterCustomers]);
 
   const activeProducts = useMemo(() => realProducts.filter(p => !p.isDeleted), [realProducts]);
   const activeCustomers = useMemo(() => realCustomers.filter(c => !c.isDeleted).reverse(), [realCustomers]);
 
+  // --- STATE MANAJEMEN KASIR ---
   const [cart, setCart] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchHistoryTerm, setSearchHistoryTerm] = useState('');
@@ -53,14 +55,32 @@ export default function TabOrders({
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
   const [newCustomerForm, setNewCustomerForm] = useState({ name: '', phone: '', address: '', notes: '', category: 'RESELLER' });
 
-  const productStockMap = useMemo(() => {
-    const map = {};
+  // --- STATE PINJAM KARANTINA ---
+  const [showBorrowModal, setShowBorrowModal] = useState(false);
+  const [borrowForm, setBorrowForm] = useState({ product: null, poId: '', qty: '', maxQty: 0 });
+
+  // =========================================================================
+  // 1. ENGINE KALKULASI STOK BEBAS VS STOK KARANTINA (LIVE)
+  // =========================================================================
+  const stockData = useMemo(() => {
+    const free = {};
+    const quarantine = {};
+    const poQuarantineDetails = {}; 
+
     (inventoryCostLayers || []).forEach(layer => {
-      if (!layer.isDeleted && layer.status === 'ACTIVE' && layer.branch_id === currentBranch) {
-        map[layer.item_name] = (map[layer.item_name] || 0) + Number(layer.qty_remaining || 0);
+      if (layer.isDeleted || layer.branch_id !== currentBranch) return;
+      
+      if (layer.status === 'ACTIVE') {
+        free[layer.item_name] = (free[layer.item_name] || 0) + Number(layer.qty_remaining || 0);
+      } 
+      else if (layer.status === 'KARANTINA') {
+        quarantine[layer.item_name] = (quarantine[layer.item_name] || 0) + Number(layer.qty_remaining || 0);
+        
+        if (!poQuarantineDetails[layer.reference_id]) poQuarantineDetails[layer.reference_id] = {};
+        poQuarantineDetails[layer.reference_id][layer.item_name] = (poQuarantineDetails[layer.reference_id][layer.item_name] || 0) + Number(layer.qty_remaining || 0);
       }
     });
-    return map;
+    return { free, quarantine, poQuarantineDetails };
   }, [inventoryCostLayers, currentBranch]);
 
   const filteredCustomersForSelect = useMemo(() => {
@@ -75,6 +95,7 @@ export default function TabOrders({
     return activeProducts.filter(p => (p.product_name || '').toLowerCase().includes(s));
   }, [activeProducts, searchTerm]);
 
+  // MENDAPATKAN HARGA PRODUK SESUAI KATEGORI KLIEN
   const getProductPriceForCustomer = (product, customerId) => {
     let customerTier = 'RESELLER'; 
     if (customerId) {
@@ -86,13 +107,32 @@ export default function TabOrders({
     return Number(product.selling_price || 0);
   };
 
-  const addToCart = (product) => {
+  const addToCart = (product, forcedQty = 1) => {
     const currentPrice = getProductPriceForCustomer(product, selectedCustomerId);
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
-      if (existing) return prev.map(item => item.id === product.id ? { ...item, qty: item.qty + 1 } : item);
-      return [...prev, { id: product.id, name: product.product_name, price: currentPrice, hpp: Number(product.default_hpp || 0), qty: 1 }];
+      if (existing) return prev.map(item => item.id === product.id ? { ...item, qty: item.qty + forcedQty } : item);
+      return [...prev, { id: product.id, name: product.product_name, price: currentPrice, hpp: Number(product.default_hpp || 0), qty: forcedQty }];
     });
+  };
+
+  // LOGIKA CEGAT KASIR JIKA STOK BEBAS HABIS
+  const handleProductClick = (product) => {
+    const freeStock = stockData.free[product.product_name] || 0;
+    const cartItem = cart.find(i => i.id === product.id);
+    const currentCartQty = cartItem ? cartItem.qty : 0;
+
+    if (freeStock - currentCartQty <= 0) {
+      const qStock = stockData.quarantine[product.product_name] || 0;
+      if (qStock > 0) {
+        setBorrowForm({ product, poId: '', qty: '', maxQty: 0 });
+        setShowBorrowModal(true);
+      } else {
+        showToast(`Stok Bebas Habis & Tidak ada stok Karantina untuk dipinjam!`, 'error');
+      }
+      return;
+    }
+    addToCart(product, 1);
   };
 
   const handleCustomerChange = (newCustId) => {
@@ -106,7 +146,18 @@ export default function TabOrders({
       }
   };
 
-  const updateQtyExact = (id, newQty) => setCart(prev => prev.map(item => item.id === id ? { ...item, qty: Math.max(0, newQty) } : item).filter(item => item.qty > 0));
+  const updateQtyExact = (id, newQty) => {
+    const product = activeProducts.find(p => p.id === id);
+    if (!product) return;
+    const freeStock = stockData.free[product.product_name] || 0;
+    
+    if (newQty > freeStock) {
+       showToast(`Maksimal stok bebas hanya ${freeStock} Pcs! Pinjam karantina jika kurang.`, 'error');
+       return;
+    }
+    setCart(prev => prev.map(item => item.id === id ? { ...item, qty: Math.max(0, newQty) } : item).filter(item => item.qty > 0));
+  };
+
   const removeFromCart = (id) => setCart(prev => prev.filter(item => item.id !== id));
 
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
@@ -179,6 +230,47 @@ export default function TabOrders({
     }
   };
 
+  // =========================================================================
+  // EKSEKUSI PEMINJAMAN STOK KARANTINA KETIKA KASIR TERDESAK
+  // =========================================================================
+  const poOptionsForBorrow = useMemo(() => {
+    if (!borrowForm.product) return [];
+    const opts = [];
+    const pName = borrowForm.product.product_name;
+    Object.entries(stockData.poQuarantineDetails).forEach(([poId, items]) => {
+      const qty = items[pName] || 0;
+      if (qty > 0) {
+        const po = orders.find(o => o.id === poId);
+        opts.push({ poId, qty, customer: po?.customer_name || 'UMUM' });
+      }
+    });
+    return opts;
+  }, [borrowForm.product, stockData.poQuarantineDetails, orders]);
+
+  const executeBorrowKarantina = async () => {
+    if (!borrowForm.poId) return alert("Pilih Nota PO sumber pinjaman!");
+    const borrowQtyNum = Number(borrowForm.qty);
+    if (borrowQtyNum <= 0 || borrowQtyNum > borrowForm.maxQty) return alert("Angka pinjaman tidak valid!");
+    if (!window.confirm(`Pinjam ${borrowQtyNum} Pcs dari PO ${borrowForm.poId}? Tindakan ini akan tercatat di sistem.`)) return;
+
+    // 1. Kurangi Karantina, 2. Jadikan Stok Bebas
+    const p1 = { id: generateId('INV', todayStr) + '-QOUT', date: todayStr, branch_id: currentBranch, category: 'BONGKAR_KARANTINA', item_name: borrowForm.product.product_name, qty_remaining: -borrowQtyNum, unit_cost: 0, status: 'KARANTINA', reference_id: borrowForm.poId, notes: `Dibongkar paksa Kasir POS`, isDeleted: false };
+    const p2 = { id: generateId('INV', todayStr) + '-FREE', date: todayStr, branch_id: currentBranch, category: 'STOK_PINJAMAN', item_name: borrowForm.product.product_name, qty_remaining: borrowQtyNum, unit_cost: 0, status: 'ACTIVE', reference_id: 'PINJAMAN', notes: `Bongkaran dari PO ${borrowForm.poId}`, isDeleted: false };
+    
+    const success = await sendToSheet('insert', [p1, p2], 'inventory_cost_layers');
+    if (success) {
+       // Tambahkan jejak digital di Catatan Kasir agar Tercetak di Struk
+       setNotes(prev => {
+          const addNote = `[PINJAM KARANTINA] ${borrowQtyNum} Pcs ${borrowForm.product.product_name} dari PO ${borrowForm.poId}`;
+          return prev ? prev + ' | ' + addNote : addNote;
+       });
+       
+       addToCart(borrowForm.product, borrowQtyNum);
+       setShowBorrowModal(false);
+       showToast('Stok berhasil dipinjam & masuk keranjang otomatis!', 'success');
+    }
+  };
+
   const handleCheckout = async () => {
     if (cart.length === 0) return alert("Keranjang belanja masih kosong!");
     if (!selectedCustomerId) return alert("Wajib pilih nama pelanggan / agen!");
@@ -186,6 +278,7 @@ export default function TabOrders({
     const customer = activeCustomers.find(c => c.customer_id === selectedCustomerId || c.id === selectedCustomerId);
     const custName = customer ? customer.customer_name : 'UMUM';
     const custCategory = customer ? (customer.customer_tier || customer.category) : 'OFFLINE';
+
     const orderId = editingOrderId ? editingOrderId : generateId('INV', todayStr);
     const totalItemQty = cart.reduce((sum, item) => sum + item.qty, 0);
 
@@ -284,14 +377,19 @@ export default function TabOrders({
         </div>
         <div className="flex flex-wrap gap-3">
           {activeProducts.map(p => {
-            const stockQty = productStockMap[p.product_name] || 0;
+            const freeStock = stockData.free[p.product_name] || 0;
+            const qStock = stockData.quarantine[p.product_name] || 0;
             return (
-              <div key={p.id} className="bg-slate-800/60 border border-slate-700/50 p-3 rounded-xl flex items-start gap-3 min-w-[160px] shadow-3xs flex-1 sm:flex-none">
-                <div className={`w-2.5 h-2.5 rounded-full mt-1 shrink-0 ${stockQty > 500 ? 'bg-emerald-500 animate-pulse' : stockQty > 0 ? 'bg-amber-500' : 'bg-rose-600'}`}></div>
+              <div key={p.id} className="bg-slate-800/60 border border-slate-700/50 p-3 rounded-xl flex items-start gap-3 min-w-[160px] shadow-3xs flex-1 sm:flex-none relative overflow-hidden">
+                {qStock > 0 && (
+                  <div className="absolute top-0 right-0 bg-orange-600 text-white text-[8px] font-black px-2 py-0.5 rounded-bl-lg">
+                    {formatNumber(qStock)} Karantina
+                  </div>
+                )}
+                <div className={`w-2.5 h-2.5 rounded-full mt-1 shrink-0 ${freeStock > 500 ? 'bg-emerald-500 animate-pulse' : freeStock > 0 ? 'bg-amber-500' : 'bg-rose-600'}`}></div>
                 <div className="flex-1">
-                  {/* Gunakan whitespace-normal break-words agar teks produk membungkus ke bawah jika panjang */}
                   <div className="text-[10px] font-bold text-slate-300 uppercase leading-snug whitespace-normal break-words">{p.product_name}</div>
-                  <div className="text-sm font-black text-white mt-1">{formatNumber(stockQty)} <span className="text-[9px] text-slate-400 font-normal">Pcs</span></div>
+                  <div className="text-sm font-black text-white mt-1">{formatNumber(freeStock)} <span className="text-[9px] text-slate-400 font-normal">Pcs (Bebas)</span></div>
                 </div>
               </div>
             );
@@ -474,20 +572,38 @@ export default function TabOrders({
 
           <div className="grid grid-cols-2 xl:grid-cols-3 gap-4 overflow-y-auto custom-scrollbar max-h-[70vh] pb-2 pr-1">
             {filteredProducts.map(product => {
-              const liveStock = productStockMap[product.product_name] || 0;
+              const freeStock = stockData.free[product.product_name] || 0;
+              const qStock = stockData.quarantine[product.product_name] || 0;
               const displayPrice = getProductPriceForCustomer(product, selectedCustomerId);
 
               return (
-                <div key={product.id} onClick={() => addToCart(product)} className="bg-white border border-slate-200 rounded-2xl p-4 cursor-pointer hover:border-blue-400 hover:shadow-md transition-all flex flex-col justify-between h-full group relative shadow-2xs overflow-hidden">
-                  <div className={`absolute top-0 right-0 px-2.5 py-0.5 text-[9px] font-black rounded-bl-xl ${liveStock > 500 ? 'bg-emerald-100 text-emerald-800' : liveStock > 0 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'}`}>
-                    Stok: {formatNumber(liveStock)}
+                <div key={product.id} onClick={() => handleProductClick(product)} className={`bg-white border rounded-2xl p-4 cursor-pointer hover:shadow-md transition-all flex flex-col justify-between h-full group relative shadow-2xs overflow-hidden ${freeStock <= 0 && qStock > 0 ? 'border-orange-300 hover:border-orange-500' : 'border-slate-200 hover:border-blue-400'}`}>
+                  
+                  {/* BADGE STOK PECAH DUA (BEBAS & KARANTINA) */}
+                  <div className="absolute top-0 right-0 flex flex-col items-end">
+                    <div className={`px-2 py-0.5 text-[9px] font-black rounded-bl-lg ${freeStock > 500 ? 'bg-emerald-100 text-emerald-800' : freeStock > 0 ? 'bg-blue-100 text-blue-800' : 'bg-rose-100 text-rose-800'}`}>
+                      Bebas: {formatNumber(freeStock)}
+                    </div>
+                    {qStock > 0 && (
+                      <div className="px-2 py-0.5 text-[8px] font-black bg-orange-100 text-orange-800 rounded-bl-lg border-l border-b border-orange-200">
+                        PO: {formatNumber(qStock)}
+                      </div>
+                    )}
                   </div>
-                  <div className="mt-2">
-                    <h3 className="font-black text-slate-800 text-xs normal-case group-hover:text-blue-600 transition-colors pr-10">{product.product_name}</h3>
+
+                  <div className="mt-5">
+                    <h3 className="font-black text-slate-800 text-xs normal-case group-hover:text-blue-600 transition-colors pr-2">{product.product_name}</h3>
                   </div>
-                  <div className="mt-3 text-blue-600 font-black text-sm">
-                      {formatRupiah(displayPrice)}
+                  
+                  <div className="mt-3 flex justify-between items-end">
+                    <div className="text-blue-600 font-black text-sm">{formatRupiah(displayPrice)}</div>
+                    {freeStock <= 0 && qStock > 0 && (
+                      <div className="text-[9px] font-black text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-200 flex items-center gap-1 animate-pulse">
+                        <Unlock size={10}/> Pinjam PO
+                      </div>
+                    )}
                   </div>
+
                 </div>
               );
             })}
@@ -495,6 +611,78 @@ export default function TabOrders({
         </div>
 
       </div>
+
+      {/* =========================================================
+          MODAL DARURAT: PINJAM STOK KARANTINA KASIR (CROSS-BORROW)
+         ========================================================= */}
+      {showBorrowModal && borrowForm.product && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-[2px] z-[99999] flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-orange-200 overflow-hidden flex flex-col border-t-8 border-t-orange-500">
+            <div className="p-5 flex flex-col items-center text-center border-b border-slate-100">
+              <div className="w-14 h-14 bg-orange-100 rounded-full flex items-center justify-center text-orange-600 mb-3 shadow-inner">
+                <AlertTriangle size={28}/>
+              </div>
+              <h3 className="font-black text-slate-800 text-lg uppercase tracking-tight">Stok Bebas Kosong!</h3>
+              <p className="text-[11px] font-bold text-slate-500 mt-1 normal-case leading-relaxed">
+                Stok bebas <b>{borrowForm.product.product_name}</b> di gudang habis total. Anda bisa meminjam stok dari Nota PO yang sedang dikarantina.
+              </p>
+            </div>
+            
+            <div className="p-5 bg-slate-50 space-y-4">
+              <div>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1.5">Pilih Nota PO Sumber Pinjaman</label>
+                <select 
+                  value={borrowForm.poId} 
+                  onChange={(e) => {
+                    const selected = poOptionsForBorrow.find(opt => opt.poId === e.target.value);
+                    setBorrowForm({ ...borrowForm, poId: e.target.value, maxQty: selected ? selected.qty : 0, qty: '' });
+                  }} 
+                  className="w-full p-3 border-2 border-orange-200 rounded-xl text-xs font-bold bg-white focus:border-orange-500 outline-none cursor-pointer text-slate-800"
+                >
+                  <option value="">-- Pilih Nota PO Karantina --</option>
+                  {poOptionsForBorrow.map(opt => (
+                    <option key={opt.poId} value={opt.poId}>
+                      PO: {opt.customer} ({opt.poId}) - Tersedia: {formatNumber(opt.qty)} Pcs
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {borrowForm.poId && (
+                <div className="animate-in fade-in slide-in-from-top-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1.5 flex justify-between">
+                    <span>Jumlah Pcs Dipinjam</span>
+                    <span className="text-orange-600">Maks: {formatNumber(borrowForm.maxQty)} Pcs</span>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="number" 
+                      max={borrowForm.maxQty}
+                      value={borrowForm.qty} 
+                      onChange={(e) => setBorrowForm({ ...borrowForm, qty: e.target.value.replace(/\D/g, '') })}
+                      className="flex-1 p-3 border-2 border-slate-300 rounded-xl text-xl font-black outline-none focus:border-orange-500 text-slate-800 text-center shadow-inner"
+                      placeholder="0"
+                    />
+                    <button 
+                      onClick={() => setBorrowForm({ ...borrowForm, qty: String(borrowForm.maxQty) })}
+                      className="px-4 py-3.5 bg-slate-800 hover:bg-black text-white text-xs font-black rounded-xl transition-colors cursor-pointer uppercase"
+                    >
+                      Bongkar Semua
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 bg-white border-t border-slate-100 flex gap-3">
+              <button onClick={() => setShowBorrowModal(false)} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition-colors cursor-pointer uppercase">Batal</button>
+              <button onClick={executeBorrowKarantina} disabled={!borrowForm.poId || !borrowForm.qty || Number(borrowForm.qty) <= 0} className="flex-1 py-3 bg-orange-600 hover:bg-orange-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer flex items-center justify-center gap-2 uppercase disabled:opacity-50 disabled:cursor-not-allowed">
+                <Unlock size={14}/> Bongkar &amp; Masukkan POS
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* =========================================================
           📑 TABLE HISTORI NOTA PENJUALAN + AKSI TOTAL OWNER HUB
