@@ -2,25 +2,34 @@ import React, { useState, useMemo } from 'react';
 import { 
   PackageCheck, Clock, ArrowRight, Save, 
   Search, ThermometerSnowflake, AlertCircle, CheckCircle2,
-  Eye, Receipt, Wallet, Archive, ListTodo
+  Eye, Receipt, Wallet, Archive, ListTodo, Calendar, Package
 } from 'lucide-react';
 import { getTodayStr, generateId, safeJsonParse, formatDate } from '../../utils/helpers';
 
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 
-export default function TabAntrianPO({ orders, inventoryCostLayers, user, sendToSheet, showToast }) {
+export default function TabAntrianPO({ orders, inventoryCostLayers, masterProducts, master_products, user, sendToSheet, showToast }) {
   const todayStr = getTodayStr();
   const currentBranch = (user?.branch_id === 'PUSAT' || !user?.branch_id) ? 'TANGERANG_PUSAT' : user?.branch_id;
 
   const [activeSubTab, setActiveSubTab] = useState('ACTIVE'); // 'ACTIVE' | 'COMPLETED'
   const [searchTerm, setSearchTerm] = useState('');
+  const [historyDateFrom, setHistoryDateFrom] = useState(todayStr);
+  const [historyDateTo, setHistoryDateTo] = useState(todayStr);
+
   const [selectedPO, setSelectedPO] = useState(null);
   const [allocations, setAllocations] = useState({}); 
   const [detailPO, setDetailPO] = useState(null);
 
   // =========================================================================
-  // 1. ENGINE KALKULASI STOK BEBAS VS STOK KARANTINA
+  // 1. DATA MASTER PRODUK (UNTUK PAPAN STOK ATAS)
+  // =========================================================================
+  const realProducts = useMemo(() => master_products || masterProducts || [], [master_products, masterProducts]);
+  const activeProducts = useMemo(() => realProducts.filter(p => !p.isDeleted), [realProducts]);
+
+  // =========================================================================
+  // 2. ENGINE KALKULASI STOK BEBAS VS STOK KARANTINA
   // =========================================================================
   const stockData = useMemo(() => {
     const free = {};
@@ -41,7 +50,7 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, user, sendTo
   }, [inventoryCostLayers, currentBranch]);
 
   // =========================================================================
-  // 2. FILTER & ENRICH DATA NOTA PO (SEMUA PO TANPA KECUALI)
+  // 3. FILTER & ENRICH DATA NOTA PO (SEMUA PO TANPA KECUALI)
   // =========================================================================
   const allPOOrders = useMemo(() => {
     const filtered = (orders || []).filter(o => {
@@ -80,23 +89,30 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, user, sendTo
     }).sort((a,b) => new Date(b.date) - new Date(a.date));
   }, [orders, currentBranch, stockData]);
 
-  // Pisahkan berdasarkan Sub-Tab yang sedang aktif
+  // Pisahkan berdasarkan Sub-Tab yang sedang aktif + Filter Kalender
   const displayedPOs = useMemo(() => {
-    const targetList = activeSubTab === 'ACTIVE' 
-      ? allPOOrders.filter(po => po.status !== 'SELESAI_KIRIM')
-      : allPOOrders.filter(po => po.status === 'SELESAI_KIRIM');
+    let targetList = [];
+
+    if (activeSubTab === 'ACTIVE') {
+      targetList = allPOOrders.filter(po => po.status !== 'SELESAI_KIRIM');
+    } else {
+      // Jika di Tab Arsip/Selesai, terapkan filter tanggal
+      targetList = allPOOrders.filter(po => {
+        if (po.status !== 'SELESAI_KIRIM') return false;
+        const d = po.date.substring(0, 10);
+        return d >= historyDateFrom && d <= historyDateTo;
+      });
+    }
 
     if (!searchTerm) return targetList;
     const lower = searchTerm.toLowerCase();
     return targetList.filter(po => po.id.toLowerCase().includes(lower) || String(po.customer_name).toLowerCase().includes(lower));
-  }, [allPOOrders, activeSubTab, searchTerm]);
+  }, [allPOOrders, activeSubTab, searchTerm, historyDateFrom, historyDateTo]);
 
-  // Statistik untuk Badge di Tab
   const countActive = allPOOrders.filter(po => po.status !== 'SELESAI_KIRIM').length;
-  const countCompleted = allPOOrders.filter(po => po.status === 'SELESAI_KIRIM').length;
 
   // =========================================================================
-  // 3. LOGIKA EKSEKUSI KARANTINA
+  // 4. LOGIKA EKSEKUSI KARANTINA
   // =========================================================================
   const handleOpenModal = (po) => {
     setSelectedPO(po);
@@ -156,41 +172,61 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, user, sendTo
     const isSuccess = await sendToSheet('update', { id: poId, status: 'SELESAI_KIRIM' }, 'orders');
     if (isSuccess) {
       showToast("Nota PO berhasil dipindahkan ke Arsip!", "success");
-      setActiveSubTab('COMPLETED'); // Otomatis arahkan pandangan bos ke tab riwayat
+      setActiveSubTab('COMPLETED'); 
     }
   };
 
   return (
     <div className="flex flex-col gap-6 pb-10 text-slate-700 normal-case animate-in fade-in duration-200">
       
-      {/* HEADER BANNER */}
-      <div className="card-holo p-6 bg-white border border-slate-200 rounded-2xl shadow-2xs border-t-4 border-t-orange-500 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h2 className="text-lg font-black text-slate-800 flex items-center gap-2 mb-1 normal-case">
-            <ThermometerSnowflake className="text-orange-500" size={24} /> 
-            Pusat Komando Antrian PO &amp; Freezer Karantina
+      {/* HEADER BANNER: PAPAN STOK & TOTAL ANTRIAN */}
+      <div className="card-holo p-5 bg-white border border-slate-200 rounded-2xl shadow-2xs border-t-4 border-t-orange-500 flex flex-col xl:flex-row justify-between items-start gap-6">
+        
+        {/* KIRI: PAPAN STOK BEBAS */}
+        <div className="flex-1 w-full overflow-hidden">
+          <h2 className="text-sm font-black text-slate-800 flex items-center gap-2 mb-3 normal-case">
+            <ThermometerSnowflake className="text-orange-500" size={18} /> 
+            Pusat Komando Antrian PO &amp; Stok Bebas Gudang (Live)
           </h2>
-          <p className="text-xs font-bold text-slate-500 normal-case max-w-2xl">
-            Amankan hasil adukan dapur untuk pelanggan PO di sini. Stok yang dikarantina otomatis hilang dari peredaran Kasir untuk mencegah salah jual (Anti-Fitnah Gudang).
-          </p>
-        </div>
-        <div className="bg-orange-50 border border-orange-200 px-4 py-3 rounded-xl shrink-0 flex items-center gap-3">
-          <div className="bg-orange-100 p-2 rounded-lg"><PackageCheck size={20} className="text-orange-600"/></div>
-          <div>
-            <div className="text-[10px] font-black text-orange-800 uppercase tracking-widest">Total Antrian Berjalan</div>
-            <div className="text-xl font-black text-orange-600">{countActive} <span className="text-sm">Nota</span></div>
+          <div className="flex overflow-x-auto custom-scrollbar pb-3 gap-3">
+            {activeProducts.map(p => {
+              const stockQty = stockData.free[p.product_name] || 0;
+              return (
+                <div key={p.id} className="bg-slate-50 border border-slate-200 p-3 rounded-xl flex flex-col min-w-[160px] shadow-3xs shrink-0">
+                  <div className="text-[10px] font-bold text-slate-500 uppercase leading-snug whitespace-normal break-words mb-2 line-clamp-2 min-h-[30px]">
+                    {p.product_name}
+                  </div>
+                  <div className="text-xl font-black text-slate-800 leading-none mb-1">
+                    {formatNumber(stockQty)} <span className="text-[9px] text-slate-400 font-normal">Pcs</span>
+                  </div>
+                  <div className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 self-start">
+                    {formatNumber((stockQty/50).toFixed(1))} Mika | {formatNumber(Math.floor(stockQty/4))} Porsi
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
+
+        {/* KANAN: TOTAL ANTRIAN BADGE */}
+        <div className="bg-orange-50 border border-orange-200 px-6 py-5 rounded-2xl shrink-0 flex items-center gap-4 xl:w-72 shadow-inner w-full xl:w-auto">
+          <div className="bg-orange-100 p-3 rounded-xl shadow-sm"><PackageCheck size={28} className="text-orange-600"/></div>
+          <div>
+            <div className="text-[10px] font-black text-orange-800 uppercase tracking-widest mb-0.5">Total Antrian Berjalan</div>
+            <div className="text-2xl font-black text-orange-600">{countActive} <span className="text-sm font-bold text-orange-700/70">Nota</span></div>
+          </div>
+        </div>
+
       </div>
 
       {/* TOOLBAR FILTER & SUB-TABS */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-3 rounded-xl border border-slate-200 shadow-3xs gap-3">
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center bg-white p-3 rounded-xl border border-slate-200 shadow-3xs gap-3">
         
         {/* SUB TABS NAVIGATION */}
-        <div className="flex bg-slate-100 p-1 rounded-lg w-full md:w-auto">
+        <div className="flex bg-slate-100 p-1 rounded-lg w-full xl:w-auto overflow-x-auto custom-scrollbar shrink-0">
           <button 
             onClick={() => setActiveSubTab('ACTIVE')} 
-            className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-md text-xs font-black transition-all cursor-pointer ${
+            className={`flex-1 xl:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-md text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
               activeSubTab === 'ACTIVE' ? 'bg-white text-orange-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'
             }`}
           >
@@ -200,24 +236,35 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, user, sendTo
           
           <button 
             onClick={() => setActiveSubTab('COMPLETED')} 
-            className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-md text-xs font-black transition-all cursor-pointer ${
+            className={`flex-1 xl:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-md text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
               activeSubTab === 'COMPLETED' ? 'bg-emerald-50 text-emerald-600 shadow-sm border border-emerald-100' : 'text-slate-500 hover:text-slate-700'
             }`}
           >
             <Archive size={14}/> Riwayat Selesai
-            <span className={`px-1.5 py-0.5 rounded text-[9px] ${activeSubTab === 'COMPLETED' ? 'bg-emerald-200 text-emerald-800' : 'bg-slate-200 text-slate-500'}`}>{countCompleted}</span>
           </button>
         </div>
 
-        <div className="relative w-full md:w-80">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
-          <input 
-            type="text" 
-            value={searchTerm} 
-            onChange={(e) => setSearchTerm(e.target.value)} 
-            className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold outline-none focus:bg-white focus:border-orange-400 transition-colors normal-case" 
-            placeholder="Cari ID Nota atau Nama Klien..." 
-          />
+        {/* SEARCH & KALENDER (KALENDER MUNCUL JIKA TAB COMPLETED) */}
+        <div className="flex flex-col sm:flex-row items-center gap-2 w-full xl:w-auto">
+          {activeSubTab === 'COMPLETED' && (
+            <div className="flex items-center justify-between w-full sm:w-auto gap-2 bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg shrink-0">
+               <Calendar size={14} className="text-slate-400 shrink-0"/>
+               <input type="date" value={historyDateFrom} onChange={e=>setHistoryDateFrom(e.target.value)} className="text-[10px] font-bold bg-transparent outline-none cursor-pointer text-slate-600 w-full sm:w-auto" />
+               <span className="text-slate-400 font-bold">-</span>
+               <input type="date" value={historyDateTo} onChange={e=>setHistoryDateTo(e.target.value)} className="text-[10px] font-bold bg-transparent outline-none cursor-pointer text-slate-600 w-full sm:w-auto" />
+            </div>
+          )}
+
+          <div className="relative w-full sm:w-64 xl:w-72 shrink-0">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
+            <input 
+              type="text" 
+              value={searchTerm} 
+              onChange={(e) => setSearchTerm(e.target.value)} 
+              className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold outline-none focus:bg-white focus:border-orange-400 transition-colors normal-case" 
+              placeholder="Cari ID Nota atau Nama Klien..." 
+            />
+          </div>
         </div>
       </div>
 
@@ -234,7 +281,7 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, user, sendTo
              <>
                <Archive size={48} className="mb-4 opacity-20" />
                <h3 className="text-sm font-black uppercase tracking-widest mb-1 text-slate-500">Arsip Kosong</h3>
-               <p className="text-xs font-bold normal-case">Belum ada riwayat PO yang diselesaikan.</p>
+               <p className="text-xs font-bold normal-case">Belum ada riwayat PO yang diselesaikan pada periode ini.</p>
              </>
           )}
         </div>
@@ -264,7 +311,7 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, user, sendTo
                 </div>
               </div>
 
-              {/* Progress Bar (Jika Selesai, Bar Full Hijau) */}
+              {/* Progress Bar */}
               <div className="w-full bg-slate-200 h-1.5">
                 <div className={`h-1.5 transition-all duration-500 ${po.progress === 100 || activeSubTab === 'COMPLETED' ? 'bg-emerald-500' : 'bg-orange-500'}`} style={{ width: activeSubTab === 'COMPLETED' ? '100%' : `${po.progress}%` }}></div>
               </div>
@@ -297,7 +344,7 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, user, sendTo
                 ))}
               </div>
 
-              {/* Card Footer / Actions Berubah Tergantung Tab */}
+              {/* Card Footer / Actions */}
               {activeSubTab === 'COMPLETED' ? (
                 <div className="p-4 bg-white border-t border-slate-100">
                   <button onClick={() => setDetailPO(po)} className="w-full py-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-black rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2 cursor-pointer uppercase">
@@ -345,7 +392,7 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, user, sendTo
             <div className={`p-4 text-white flex justify-between items-center shrink-0 ${activeSubTab === 'COMPLETED' ? 'bg-emerald-950' : 'bg-slate-950'}`}>
               <div>
                 <h3 className={`font-black text-xs uppercase flex items-center gap-1.5 ${activeSubTab === 'COMPLETED' ? 'text-emerald-400' : 'text-blue-400'}`}>
-                  {activeSubTab === 'COMPLETED' ? <Archive size={16}/> : <Receipt size={16}/>} Rincian Lengkap PO {activeSubTab === 'COMPLETED' ? '(ARSIP)' : ''}
+                  {activeSubTab === 'COMPLETED' ? <Archive size={16}/> : <Receipt size={16}/>} Rincian Lengkap PO
                 </h3>
                 <p className="text-[10px] text-slate-400 font-bold mt-0.5 normal-case">Klien: {detailPO.customer_name} | Nota: {detailPO.id}</p>
               </div>
@@ -493,7 +540,7 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, user, sendTo
                         />
                         <button 
                           onClick={() => handleAllocationChange(item.name, String(Math.min(sisaButuh, stokBebasLive)))}
-                          className="px-3 py-2.5 bg-slate-800 hover:bg-black text-white text-[10px] font-black rounded-lg transition-colors cursor-pointer"
+                          className="px-3 py-2.5 bg-slate-800 hover:bg-black text-white text-[10px] font-black rounded-lg transition-colors cursor-pointer uppercase"
                         >
                           Max
                         </button>
@@ -507,7 +554,7 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, user, sendTo
             <div className="p-4 bg-white border-t border-slate-200 flex gap-3 shrink-0">
               <button type="button" onClick={() => setSelectedPO(null)} className="px-5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition-colors cursor-pointer uppercase">Batal</button>
               <button type="button" onClick={submitKarantina} className="flex-1 py-3 bg-orange-600 hover:bg-orange-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer flex items-center justify-center gap-2 uppercase">
-                <Save size={16}/> Kunci &amp; Simpan ke Karantina
+                <Save size={16}/> Kunci &amp; Simpan Ke Karantina
               </button>
             </div>
           </div>
