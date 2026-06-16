@@ -25,8 +25,9 @@ import TabSetoranCabang from './components/tabs/TabSetoranCabang';
 import TabDiscrepancy from './components/tabs/TabDiscrepancy';
 import TabKartuStok from './components/tabs/TabKartuStok';
 
-// CONNECTED CORE CRM
+// CONNECTED CORE CRM & PO
 import TabMasterCustomer from './components/tabs/TabMasterCustomer';
+import TabAntrianPO from './components/tabs/TabAntrianPO';
 import TabMonitoringCabangUniversal from './components/tabs/TabMonitoringCabangUniversal';
 import PrintDotMatrix from './components/PrintDotMatrix';
 
@@ -214,6 +215,8 @@ export default function App() {
         return <TabOrders user={user} sendToSheet={sendToSheet} setPrintData={setPrintData} showToast={showToast} {...dbData} />;
       case 'master_customer':
         return <TabMasterCustomer user={user} sendToSheet={sendToSheet} setPrintData={setPrintData} showToast={showToast} {...dbData} />;
+      case 'antrian_po':
+        return <TabAntrianPO user={user} sendToSheet={sendToSheet} showToast={showToast} setPrintData={setPrintData} {...dbData} />;
       case 'purchases': 
         return <TabPurchases user={user} sendToSheet={sendToSheet} setPrintData={setPrintData} requestDelete={requestDelete} showToast={showToast} masterSuppliers={dbData.masterSuppliers} {...dbData} />;
       case 'supplier_ayam': 
