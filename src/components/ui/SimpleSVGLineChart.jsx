@@ -1,6 +1,5 @@
 import React from 'react';
 
-// 🔥 FIX: Menggunakan Helper Mandiri agar tidak crash dengan modul luar
 const formatAngkaPendek = (num) => {
     if (num >= 1000000) return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
     if (num >= 1000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
@@ -10,8 +9,8 @@ const formatAngkaPendek = (num) => {
 export default function SimpleSVGLineChart({ data }) {
     if(!data || data.length === 0) return null;
     
-    // Tentukan nilai maksimum untuk batas Y (minimal 100 agar grafik tidak flat kalau angka kecil)
-    const maxVal = Math.max(...data.map(d => d.value), 100); 
+    // Konversi aman memastikan d.value benar-benar angka untuk menghindari NaN
+    const maxVal = Math.max(...data.map(d => Number(d.value) || 0), 100); 
     
     // Dimensi SVG
     const width = 800; const height = 200;
@@ -20,8 +19,10 @@ export default function SimpleSVGLineChart({ data }) {
     const chartH = height - (paddingY * 2);
 
     const getPoint = (val, i) => {
+        // Sama dengan maxVal, pastikan kita memproses Number
+        const safeVal = Number(val) || 0;
         const x = paddingX + (i * (chartW / (data.length - 1 || 1)));
-        const y = height - paddingY - ((val / maxVal) * chartH);
+        const y = height - paddingY - ((safeVal / maxVal) * chartH);
         return `${x},${y}`;
     };
 
@@ -39,7 +40,7 @@ export default function SimpleSVGLineChart({ data }) {
             <polyline 
                points={polylinePoints} 
                fill="none" 
-               stroke="#3b82f6" // Warna Biru Elegan
+               stroke="#3b82f6" 
                strokeWidth="3.5" 
                strokeLinecap="round" 
                strokeLinejoin="round" 
@@ -54,8 +55,8 @@ export default function SimpleSVGLineChart({ data }) {
                         {/* Area penangkap hover biar lebih lebar */}
                         <circle cx={cx} cy={cy} r="15" fill="transparent" className="cursor-pointer" />
                         
-                        {/* Titik grafik asli */}
-                        <circle cx={cx} cy={cy} r="4.5" fill="#3b82f6" stroke="#ffffff" strokeWidth="2" className="transition-all duration-300 group-hover:r-[6px]" />
+                        {/* Titik grafik asli - Fix class Tailwind untuk radius */}
+                        <circle cx={cx} cy={cy} r="4.5" fill="#3b82f6" stroke="#ffffff" strokeWidth="2" className="transition-all duration-300 group-hover:[r:6px]" />
                         
                         {/* Teks Nominal di atas titik (Muncul kalau data <= 15 titik agar tidak tumpuk) */}
                         {data.length <= 15 && (
