@@ -1,10 +1,10 @@
-import React, { useState, useMemo } from 'react'; // 🔥 FIX: useMemo sudah masuk!
+import React, { useState, useMemo } from 'react'; 
 import { 
   TrendingUp, Wallet, ArrowUpRight, ArrowDownRight, 
   ShieldAlert, Users, Gift, Activity, ArrowRight, 
   User, Calendar, FileText, CheckCircle2
 } from 'lucide-react';
-import { formatDate, getTodayStr } from '../../utils/helpers'; // 🔥 FIX: formatDate & getTodayStr sudah masuk!
+import { formatDate, getTodayStr } from '../../utils/helpers'; 
 
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
@@ -18,7 +18,7 @@ export default function TabBusinessRadar({
   const [selectedCustomerDetail, setSelectedCustomerDetail] = useState(null);
   const [filterPeriode, setFilterPeriode] = useState('7_HARI');
 
-  const todayStr = getTodayStr(); // 🔥 Menggunakan helper resmi
+  const todayStr = getTodayStr(); 
 
   const rekapMading = useMemo(() => {
     const getDaysDifference = (d1, d2) => {
@@ -141,15 +141,15 @@ export default function TabBusinessRadar({
       .filter(c => c.total_bon_gantung > 0 || c.frequency_order > 0)
       .sort((a, b) => b.total_bon_gantung - a.total_bon_gantung);
 
+    // 🔥 DOKTRIN 4 AMPLOP VIRTUAL (MODE SURVIVAL) DIUPDATE DI SINI!
     const amplopBahanBaku = totalOmsetHariIni * 0.55;
-    const amplopOperasional = totalOmsetHariIni * 0.20;
-    const amplopJagaJaga = totalOmsetHariIni * 0.10;
-    const amplopProfitMurni = totalOmsetHariIni * 0.10;
-    const amplopAlokasiTHR = totalOmsetHariIni * 0.05;
+    const amplopOperasional = totalOmsetHariIni * 0.25;
+    const amplopJagaJaga = totalOmsetHariIni * 0.15;
+    const amplopProfitMurni = totalOmsetHariIni * 0.05;
 
     return {
       totalOmsetHariIni, totalPengeluaranRiil, totalPiutangGlobal,
-      amplop: { bahanBaku: amplopBahanBaku, operasional: amplopOperasional, jagaJaga: amplopJagaJaga, profitMurni: amplopProfitMurni, alokasiTHR: amplopAlokasiTHR },
+      amplop: { bahanBaku: amplopBahanBaku, operasional: amplopOperasional, jagaJaga: amplopJagaJaga, profitMurni: amplopProfitMurni },
       listMadingPiutang
     };
   }, [orders, cashflowTransactions, master_customers, todayStr]);
@@ -161,68 +161,80 @@ export default function TabBusinessRadar({
   }, [listMadingPiutang]);
 
   return (
-    <div className="space-y-6 pb-10 text-slate-700 normal-case animate-in fade-in duration-200">
-      <div className="card-holo p-5 bg-white border border-slate-200 rounded-2xl shadow-2xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative overflow-hidden">
-        <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-600"></div>
+    <div className="space-y-6 pb-10 text-slate-700 animate-in fade-in duration-200">
+      <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative overflow-hidden">
+        <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-red-600"></div>
         <div className="pl-2">
-          <h2 className="text-sm font-black normal-case flex items-center gap-2 text-slate-800">
+          <h2 className="text-sm font-black flex items-center gap-2 text-slate-800">
             <TrendingUp className="text-red-600" size={18}/> Radar Bisnis &amp; Analitik Sultan Core
           </h2>
-          <p className="text-[10px] font-bold text-slate-400 mt-0.5 normal-case">Pemantauan otomatis rasio 4 amplop kas laci, kontrol HPP, serta alarm radar pengawasan piutang jatuh tempo.</p>
+          <p className="text-[10px] font-bold text-slate-500 mt-1">Pemantauan otomatis rasio 4 amplop kas laci, kontrol HPP, serta alarm radar pengawasan piutang jatuh tempo.</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-2xs flex items-center justify-between">
+        <div className="p-6 bg-white border border-slate-200 rounded-3xl shadow-sm flex items-center justify-between">
           <div><div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Aliran Omset Masuk</div><div className="text-2xl font-black text-slate-800 tracking-tight">{formatRupiah(rekapMading.totalOmsetHariIni)}</div></div>
-          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl"><ArrowUpRight size={20}/></div>
+          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl"><ArrowUpRight size={24}/></div>
         </div>
-        <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-2xs flex items-center justify-between">
+        <div className="p-6 bg-white border border-slate-200 rounded-3xl shadow-sm flex items-center justify-between">
           <div><div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Pengeluaran Kas</div><div className="text-2xl font-black text-slate-800 tracking-tight">{formatRupiah(rekapMading.totalPengeluaranRiil)}</div></div>
-          <div className="p-3 bg-rose-50 text-rose-600 rounded-xl"><ArrowDownRight size={20}/></div>
+          <div className="p-3 bg-rose-50 text-rose-600 rounded-xl"><ArrowDownRight size={24}/></div>
         </div>
-        <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-2xs flex items-center justify-between">
+        <div className="p-6 bg-white border border-slate-200 rounded-3xl shadow-sm flex items-center justify-between">
           <div><div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Estimasi Sisa Laba</div><div className={`text-2xl font-black tracking-tight ${rekapMading.totalOmsetHariIni - rekapMading.totalPengeluaranRiil >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{formatRupiah(rekapMading.totalOmsetHariIni - rekapMading.totalPengeluaranRiil)}</div></div>
-          <div className="p-3 bg-amber-50 text-amber-600 rounded-xl"><Activity size={20}/></div>
+          <div className="p-3 bg-amber-50 text-amber-600 rounded-xl"><Activity size={24}/></div>
         </div>
       </div>
 
-      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
-        <h3 className="text-xs font-black text-slate-800 normal-case mb-4 flex items-center gap-1.5"><Wallet size={16} className="text-blue-600" /> Papan Alokasi 4 Amplop Pendapatan &amp; Tabungan Kesejahteraan (Real-Time Split)</h3>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <div className="p-4 bg-red-50/50 border border-red-100 rounded-xl text-center"><div className="text-[9px] font-black text-red-700 uppercase mb-1">📦 Amplop 1 (Bahan 55%)</div><div className="text-sm font-black text-slate-800">{formatRupiah(amplop.bahanBaku)}</div></div>
-          <div className="p-4 bg-blue-50/50 border border-blue-100 rounded-xl text-center"><div className="text-[9px] font-black text-blue-700 uppercase mb-1">⚙️ Amplop 2 (Ops 20%)</div><div className="text-sm font-black text-slate-800">{formatRupiah(amplop.operasional)}</div></div>
-          <div className="p-4 bg-amber-50/50 border border-amber-100 rounded-xl text-center"><div className="text-[9px] font-black text-amber-700 uppercase mb-1">⚡ Amplop 3 (Jaga 10%)</div><div className="text-sm font-black text-slate-800">{formatRupiah(amplop.jagaJaga)}</div></div>
-          <div className="p-4 bg-emerald-50/50 border border-emerald-100 rounded-xl text-center"><div className="text-[9px] font-black text-emerald-700 uppercase mb-1">💰 Amplop 4 (Profit 10%)</div><div className="text-sm font-black text-emerald-600">{formatRupiah(amplop.profitMurni)}</div></div>
-          <div className="p-4 bg-purple-50/60 border border-purple-100 rounded-xl text-center col-span-2 md:col-span-1 border-dashed"><div className="text-[9px] font-black text-purple-700 uppercase mb-1 flex justify-center gap-1"><Gift size={10}/> Kesejahteraan (5%)</div><div className="text-sm font-black text-purple-700">{formatRupiah(amplop.alokasiTHR)}</div></div>
+      {/* 🔥 PAPAN 4 AMPLOP MASA KRITIS (SURVIVAL MODE) */}
+      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+        <h3 className="text-xs font-black text-slate-800 mb-5 flex items-center gap-1.5"><Wallet size={16} className="text-blue-600" /> Papan Alokasi 4 Amplop Pendapatan (Real-Time Split)</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="p-5 bg-gradient-to-br from-blue-50 to-white border border-blue-100 rounded-2xl text-center shadow-sm relative overflow-hidden border-t-4 border-t-blue-500">
+             <div className="text-[10px] font-black text-blue-700 uppercase tracking-wider mb-1">📦 Amplop 1 (Ayam 55%)</div>
+             <div className="text-lg font-black text-slate-800 tracking-tight">{formatRupiah(amplop.bahanBaku)}</div>
+          </div>
+          <div className="p-5 bg-gradient-to-br from-emerald-50 to-white border border-emerald-100 rounded-2xl text-center shadow-sm relative overflow-hidden border-t-4 border-t-emerald-500">
+             <div className="text-[10px] font-black text-emerald-700 uppercase tracking-wider mb-1">⚙️ Amplop 2 (Ops 25%)</div>
+             <div className="text-lg font-black text-slate-800 tracking-tight">{formatRupiah(amplop.operasional)}</div>
+          </div>
+          <div className="p-5 bg-gradient-to-br from-orange-50 to-white border border-orange-100 rounded-2xl text-center shadow-sm relative overflow-hidden border-t-4 border-t-orange-500">
+             <div className="text-[10px] font-black text-orange-700 uppercase tracking-wider mb-1">⚡ Amplop 3 (Cicilan 15%)</div>
+             <div className="text-lg font-black text-slate-800 tracking-tight">{formatRupiah(amplop.jagaJaga)}</div>
+          </div>
+          <div className="p-5 bg-gradient-to-br from-amber-50 to-white border border-amber-100 rounded-2xl text-center shadow-sm relative overflow-hidden border-t-4 border-t-amber-500">
+             <div className="text-[10px] font-black text-amber-700 uppercase tracking-wider mb-1">💰 Amplop 4 (Profit 5%)</div>
+             <div className="text-lg font-black text-slate-800 tracking-tight">{formatRupiah(amplop.profitMurni)}</div>
+          </div>
         </div>
       </div>
 
-      <div className="card-holo bg-white border border-slate-200 rounded-2xl shadow-2xs flex flex-col overflow-hidden">
-        <div className="p-4 bg-slate-900 border-b border-slate-800 flex justify-between items-center">
-          <div><h4 className="font-black text-xs text-white flex items-center gap-2 normal-case"><ShieldAlert size={16} className="text-yellow-400 animate-pulse"/> Radar Pengawasan Tagihan Macet &amp; Bon Gantung Agen</h4></div>
-          <span className="bg-yellow-500 text-slate-950 px-2.5 py-1 rounded-lg text-[9px] font-black shadow-3xs">Total Bon Global: {formatRupiah(rekapMading.totalPiutangGlobal)}</span>
+      <div className="bg-white border border-slate-200 rounded-3xl shadow-sm flex flex-col overflow-hidden">
+        <div className="p-5 bg-slate-900 border-b border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div><h4 className="font-black text-xs text-white flex items-center gap-2"><ShieldAlert size={16} className="text-yellow-400 animate-pulse"/> Radar Pengawasan Tagihan Macet &amp; Bon Gantung Agen</h4></div>
+          <span className="bg-yellow-500 text-slate-950 px-3 py-1.5 rounded-lg text-[10px] font-black shadow-sm">Total Bon Global: {formatRupiah(rekapMading.totalPiutangGlobal)}</span>
         </div>
-        <div className="overflow-x-auto p-1 custom-scrollbar">
+        <div className="overflow-x-auto p-2 custom-scrollbar">
           <table className="w-full text-sm text-left border-collapse">
-            <thead className="text-[10px] normal-case text-slate-500 bg-slate-50 border-b border-slate-100">
-              <tr><th className="px-4 py-3 font-black">Nama Agen / Pelanggan</th><th className="px-4 py-3 font-black text-center">Status Absen Order</th><th className="px-4 py-3 font-black text-center">Tren Kuantitas</th><th className="px-4 py-3 font-black text-right">Bon Gantung Aktif</th><th className="px-4 py-3 font-black text-center">Aksi Tracing</th></tr>
+            <thead className="text-[10px] text-slate-500 bg-slate-50 border-b border-slate-100 uppercase tracking-wider">
+              <tr><th className="px-5 py-3 font-black">Nama Agen / Pelanggan</th><th className="px-5 py-3 font-black text-center">Status Absen Order</th><th className="px-5 py-3 font-black text-center">Tren Kuantitas</th><th className="px-5 py-3 font-black text-right">Bon Gantung Aktif</th><th className="px-5 py-3 font-black text-center">Aksi Tracing</th></tr>
             </thead>
             <tbody className="text-xs font-bold divide-y divide-slate-100 bg-white">
               {piutangMacetMading.length === 0 ? (
-                <tr><td colSpan="5" className="text-center py-16 text-slate-400 font-bold normal-case bg-white"><div className="flex flex-col items-center justify-center"><CheckCircle2 size={36} className="mb-2 text-emerald-500 opacity-30"/><span>BERSIH TOTAL! Tidak ada tagihan gantung yang menunggak saat ini.</span></div></td></tr>
+                <tr><td colSpan="5" className="text-center py-16 text-slate-400 font-bold bg-white"><div className="flex flex-col items-center justify-center"><CheckCircle2 size={40} className="mb-3 text-emerald-500 opacity-30"/><span>BERSIH TOTAL! Tidak ada tagihan gantung yang menunggak saat ini.</span></div></td></tr>
               ) : (
                 piutangMacetMading.map((cust, i) => (
                   <tr key={i} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="px-4 py-4 whitespace-nowrap"><div className="text-slate-800 font-black text-[13px] normal-case flex items-center gap-2">👤 {cust.customer_name} {cust.is_notif_merah && <span className="px-2 py-0.5 rounded text-[8px] font-black bg-rose-100 text-rose-700 border border-rose-200 animate-pulse uppercase tracking-wider">⚠️ Macet Belanja</span>}</div></td>
-                    <td className="px-4 py-4 text-center whitespace-nowrap"><div className={`text-[11px] font-extrabold ${cust.is_notif_merah ? 'text-rose-600' : 'text-slate-700'}`}>{cust.hari_absen === 999 ? 'Belum Pernah Order' : `${cust.hari_absen} Hari Absen`}</div></td>
-                    <td className="px-4 py-4 text-center whitespace-nowrap">
-                      {cust.tren_fluktuasi === 'NAIK' && <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100">🔼 Naik +{formatNumber(cust.selisih_pcs_mingguan)}</span>}
-                      {cust.tren_fluktuasi === 'TURUN' && <span className="text-[10px] font-black text-rose-600 bg-rose-50 px-2 py-1 rounded-md border border-rose-100">🔽 Turun -{formatNumber(cust.selisih_pcs_mingguan)}</span>}
-                      {cust.tren_fluktuasi === 'STABIL' && <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-md">Stabil (0)</span>}
+                    <td className="px-5 py-4 whitespace-nowrap"><div className="text-slate-800 font-black text-[13px] uppercase flex items-center gap-2">👤 {cust.customer_name} {cust.is_notif_merah && <span className="px-2 py-0.5 rounded text-[8px] font-black bg-rose-100 text-rose-700 border border-rose-200 animate-pulse uppercase tracking-wider">⚠️ Macet Belanja</span>}</div></td>
+                    <td className="px-5 py-4 text-center whitespace-nowrap"><div className={`text-[11px] font-extrabold ${cust.is_notif_merah ? 'text-rose-600' : 'text-slate-700'}`}>{cust.hari_absen === 999 ? 'Belum Pernah Order' : `${cust.hari_absen} Hari Absen`}</div></td>
+                    <td className="px-5 py-4 text-center whitespace-nowrap">
+                      {cust.tren_fluktuasi === 'NAIK' && <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-100">🔼 Naik +{formatNumber(cust.selisih_pcs_mingguan)}</span>}
+                      {cust.tren_fluktuasi === 'TURUN' && <span className="text-[10px] font-black text-rose-600 bg-rose-50 px-2.5 py-1 rounded-md border border-rose-100">🔽 Turun -{formatNumber(cust.selisih_pcs_mingguan)}</span>}
+                      {cust.tren_fluktuasi === 'STABIL' && <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md">Stabil (0)</span>}
                     </td>
-                    <td className="px-4 py-4 text-right whitespace-nowrap"><div className="font-black text-rose-600 text-sm tracking-tight">{formatRupiah(cust.total_bon_gantung)}</div></td>
-                    <td className="px-4 py-4 text-center whitespace-nowrap"><button onClick={() => setSelectedCustomerDetail(cust)} className="px-3 py-1.5 bg-white text-slate-700 border border-slate-200 hover:border-blue-400 hover:text-blue-600 font-black text-[10px] rounded-lg shadow-3xs cursor-pointer flex items-center justify-center mx-auto gap-1">Buka Mading <ArrowRight size={12}/></button></td>
+                    <td className="px-5 py-4 text-right whitespace-nowrap"><div className="font-black text-rose-600 text-sm tracking-tight">{formatRupiah(cust.total_bon_gantung)}</div></td>
+                    <td className="px-5 py-4 text-center whitespace-nowrap"><button onClick={() => setSelectedCustomerDetail(cust)} className="px-4 py-2 bg-white text-slate-700 border border-slate-200 hover:border-blue-400 hover:text-blue-600 font-black text-[10px] rounded-lg shadow-sm cursor-pointer flex items-center justify-center mx-auto gap-1">Buka Mading <ArrowRight size={14}/></button></td>
                   </tr>
                 ))
               )}
@@ -231,47 +243,47 @@ export default function TabBusinessRadar({
         </div>
       </div>
 
-      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
-        <h3 className="text-xs font-black text-slate-800 normal-case flex items-center gap-1.5 mb-4"><Users size={16} className="text-purple-600" /> Klasemen Loyalitas &amp; Kelayakan Bonus THR Agen</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[300px] overflow-y-auto custom-scrollbar pr-1">
+      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+        <h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5 mb-5"><Users size={16} className="text-purple-600" /> Klasemen Loyalitas &amp; Kelayakan Bonus THR Agen</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[350px] overflow-y-auto custom-scrollbar pr-1">
           {listMadingPiutang.map((cust, idx) => (
-            <div key={idx} className="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-100 hover:border-purple-300 hover:bg-purple-50/10 transition-all shadow-3xs">
+            <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-purple-300 hover:bg-purple-50/20 transition-all shadow-sm">
               <div className="flex items-center gap-3 min-w-0">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs shadow-sm shrink-0 ${idx === 0 ? 'bg-amber-400 text-white' : idx === 1 ? 'bg-slate-300 text-slate-800' : idx === 2 ? 'bg-amber-600 text-white' : 'bg-white text-slate-400 border border-slate-200'}`}>#{idx + 1}</div>
-                <div className="min-w-0"><div className="font-black text-slate-800 text-xs uppercase truncate">{cust.customer_name}</div><div className="text-[10px] text-slate-500 font-bold mt-0.5 normal-case">{cust.frequency_order}x Transaksi • Omset: <span className="text-slate-800 font-black">{formatRupiah(cust.total_belanja_akumulasi)}</span></div></div>
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-sm shadow-sm shrink-0 ${idx === 0 ? 'bg-amber-400 text-white' : idx === 1 ? 'bg-slate-300 text-slate-800' : idx === 2 ? 'bg-amber-600 text-white' : 'bg-white text-slate-400 border border-slate-200'}`}>#{idx + 1}</div>
+                <div className="min-w-0"><div className="font-black text-slate-800 text-xs uppercase truncate">{cust.customer_name}</div><div className="text-[10px] text-slate-500 font-bold mt-0.5">{cust.frequency_order}x Transaksi • Omset: <span className="text-slate-800 font-black">{formatRupiah(cust.total_belanja_akumulasi)}</span></div></div>
               </div>
-              <div className="text-right shrink-0"><span className={`px-2 py-1 rounded text-[8px] font-black uppercase ${cust.total_belanja_akumulasi > 10000000 ? 'bg-purple-100 text-purple-700 border border-purple-200' : cust.total_belanja_akumulasi > 3000000 ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>{cust.total_belanja_akumulasi > 10000000 ? '⭐ VIP' : cust.total_belanja_akumulasi > 3000000 ? 'MITRA' : 'REGULER'}</span></div>
+              <div className="text-right shrink-0"><span className={`px-2.5 py-1 rounded text-[9px] font-black uppercase tracking-wider ${cust.total_belanja_akumulasi > 10000000 ? 'bg-purple-100 text-purple-700 border border-purple-200' : cust.total_belanja_akumulasi > 3000000 ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>{cust.total_belanja_akumulasi > 10000000 ? '⭐ VIP' : cust.total_belanja_akumulasi > 3000000 ? 'MITRA' : 'REGULER'}</span></div>
             </div>
           ))}
         </div>
       </div>
 
       {selectedCustomerDetail && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl border border-slate-200 overflow-hidden flex flex-col h-[70vh]">
-            <div className="p-4 bg-slate-900 text-white flex justify-between items-center shrink-0">
-              <div><h3 className="font-black text-sm uppercase flex items-center gap-1.5"><User size={16} className="text-yellow-400"/> Mading Tracing: {selectedCustomerDetail.customer_name}</h3><p className="text-[9px] text-slate-400 font-medium normal-case mt-0.5">Alamat: {selectedCustomerDetail.address} | Telp: {selectedCustomerDetail.phone}</p></div>
-              <button onClick={() => setSelectedCustomerDetail(null)} className="text-slate-400 hover:text-white text-lg font-bold cursor-pointer">✕</button>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-[2px] z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl border border-slate-200 overflow-hidden flex flex-col h-[75vh]">
+            <div className="p-5 bg-slate-900 text-white flex justify-between items-center shrink-0">
+              <div><h3 className="font-black text-sm uppercase flex items-center gap-2 tracking-wider"><User size={18} className="text-yellow-400"/> Mading Tracing: {selectedCustomerDetail.customer_name}</h3><p className="text-[10px] text-slate-400 font-medium mt-1">Alamat: {selectedCustomerDetail.address} | Telp: {selectedCustomerDetail.phone}</p></div>
+              <button onClick={() => setSelectedCustomerDetail(null)} className="text-slate-400 hover:text-white text-xl font-bold cursor-pointer">✕</button>
             </div>
-            <div className="p-4 flex-1 overflow-y-auto custom-scrollbar space-y-4 bg-slate-50">
-              <div className="grid grid-cols-2 gap-3 shrink-0">
-                <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-3xs text-center"><div className="text-[9px] font-bold text-slate-400 uppercase mb-0.5">Total Bon Gantung</div><div className="text-lg font-black text-rose-600 tracking-tight">{formatRupiah(selectedCustomerDetail.total_bon_gantung)}</div></div>
-                <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-3xs text-center"><div className="text-[9px] font-bold text-slate-400 uppercase mb-0.5">Akumulasi Belanja Historis</div><div className="text-lg font-black text-slate-800 tracking-tight">{formatRupiah(selectedCustomerDetail.total_belanja_akumulasi)}</div></div>
+            <div className="p-5 flex-1 overflow-y-auto custom-scrollbar space-y-5 bg-slate-50">
+              <div className="grid grid-cols-2 gap-4 shrink-0">
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-center"><div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Bon Gantung</div><div className="text-xl font-black text-rose-600 tracking-tight">{formatRupiah(selectedCustomerDetail.total_bon_gantung)}</div></div>
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-center"><div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Akumulasi Belanja Historis</div><div className="text-xl font-black text-slate-800 tracking-tight">{formatRupiah(selectedCustomerDetail.total_belanja_akumulasi)}</div></div>
               </div>
-              <div className="bg-white rounded-xl border border-slate-200 shadow-3xs overflow-hidden">
-                <div className="px-3 py-2 bg-slate-100 border-b border-slate-200 text-[10px] font-black text-slate-700 uppercase flex items-center gap-1"><FileText size={12}/> Daftar Nota Yang Belum Lunas</div>
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="px-4 py-3 bg-slate-100 border-b border-slate-200 text-[10px] font-black text-slate-700 uppercase flex items-center gap-1.5 tracking-wider"><FileText size={14}/> Daftar Nota Yang Belum Lunas</div>
                 <div className="divide-y divide-slate-100 text-xs font-bold">
                   {selectedCustomerDetail.nota_details.map((nota, nIdx) => (
-                    <div key={nIdx} className="p-3 flex justify-between items-center hover:bg-slate-50 transition-colors">
-                      <div><div className="text-[9px] font-mono text-slate-400">{nota.invoice_id}</div><div className="text-[10px] font-bold text-slate-600 mt-0.5 flex items-center gap-1"><Calendar size={10}/> {formatDate(nota.date)}</div><div className="text-[8px] font-black text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded w-max mt-1">METODE ASAL: {nota.metode_asal}</div></div>
-                      <div className="text-right"><div className="text-slate-800 font-medium text-[10px] normal-case">Tagihan: {formatRupiah(nota.total_tagihan)}</div><div className="text-slate-400 font-medium text-[10px] normal-case mt-0.5">Di-DP: {formatRupiah(nota.sudah_dibayar)}</div><div className="font-black text-rose-600 text-xs mt-1">Sisa: {formatRupiah(nota.sisa_hutang)}</div></div>
+                    <div key={nIdx} className="p-4 flex justify-between items-center hover:bg-slate-50 transition-colors">
+                      <div><div className="text-[10px] font-mono text-slate-400">{nota.invoice_id}</div><div className="text-[11px] font-bold text-slate-600 mt-1 flex items-center gap-1"><Calendar size={12}/> {formatDate(nota.date)}</div><div className="text-[9px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded w-max mt-1.5 uppercase border border-blue-100">METODE ASAL: {nota.metode_asal}</div></div>
+                      <div className="text-right"><div className="text-slate-800 font-medium text-[11px]">Tagihan: {formatRupiah(nota.total_tagihan)}</div><div className="text-slate-400 font-medium text-[11px] mt-0.5">Di-DP: {formatRupiah(nota.sudah_dibayar)}</div><div className="font-black text-rose-600 text-sm mt-1">Sisa: {formatRupiah(nota.sisa_hutang)}</div></div>
                     </div>
                   ))}
                 </div>
               </div>
-              <div className="bg-amber-50/50 border border-amber-200 rounded-xl p-3 text-[10px] font-bold text-amber-800 uppercase leading-relaxed">📌 Catatan CRM: "{selectedCustomerDetail.notes_crm}"</div>
+              <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-4 text-[11px] font-bold text-amber-800 leading-relaxed"><span className="text-amber-600 font-black uppercase tracking-wider mb-1 block">📌 Catatan CRM:</span> "{selectedCustomerDetail.notes_crm}"</div>
             </div>
-            <div className="p-3 bg-slate-50 border-t border-slate-100 text-right shrink-0"><button onClick={() => setSelectedCustomerDetail(null)} className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-black text-[10px] uppercase rounded-xl shadow-md cursor-pointer">Tutup Mading</button></div>
+            <div className="p-4 bg-slate-50 border-t border-slate-100 text-right shrink-0"><button onClick={() => setSelectedCustomerDetail(null)} className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-black text-[11px] uppercase tracking-wider rounded-xl shadow-md cursor-pointer">Tutup Mading</button></div>
           </div>
         </div>
       )}
