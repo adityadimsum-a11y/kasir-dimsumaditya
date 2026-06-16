@@ -75,6 +75,9 @@ export default function PrintDotMatrix({ printData, onClose }) {
           {docType === 'PO' && <h2 className="text-base font-black mb-1 bg-slate-800 text-white px-2 py-0.5 uppercase inline-block rounded print:text-black print:border-2 print:border-black print:bg-transparent">Terima Barang</h2>}
           {docType === 'WITHDRAWAL' && <h2 className="text-base font-black mb-1 bg-slate-800 text-white px-2 py-0.5 uppercase inline-block rounded print:text-black print:border-2 print:border-black print:bg-transparent">Kwitansi Tunai</h2>}
           
+          {/* 🔥 UPDATE: Label baru untuk fitur Purchase Kas Keluar */}
+          {docType === 'PURCHASE' && <h2 className="text-base font-black mb-1 bg-slate-800 text-white px-2 py-0.5 uppercase inline-block rounded print:text-black print:border-2 print:border-black print:bg-transparent">Bukti Kas Keluar</h2>}
+          
           {showContactAndBank && (
             <div className="mt-1">
               <p>Jl. Thamrin Kp. Ketapang No.97,</p>
@@ -85,7 +88,8 @@ export default function PrintDotMatrix({ printData, onClose }) {
         </div>
       </div>
 
-      {['INVOICE', 'PO', 'DO', 'WO'].includes(docType) && (
+      {/* 🔥 UPDATE: Menambahkan 'PURCHASE' ke array agar tabel dirender */}
+      {['INVOICE', 'PO', 'DO', 'WO', 'PURCHASE'].includes(docType) && (
         <>
           {/* INFO TRANSAKSI */}
           <div className="flex justify-between items-start mb-3">
@@ -107,6 +111,8 @@ export default function PrintDotMatrix({ printData, onClose }) {
                 {docType === 'PO' && 'SUPPLIER:'}
                 {docType === 'DO' && 'DIKIRIM KE TUJUAN:'}
                 {docType === 'WO' && 'ATAS NAMA PESANAN:'}
+                {/* 🔥 UPDATE: Label khusus untuk Purchase */}
+                {docType === 'PURCHASE' && 'SUPPLIER / REKANAN:'}
               </div>
               <div className="text-base font-black uppercase text-slate-900 max-w-[250px] leading-none mt-0.5">
                 {printData.customer_name || printData.supplier_name || printData.destination || 'UMUM'}
@@ -121,7 +127,8 @@ export default function PrintDotMatrix({ printData, onClose }) {
                 <th className="py-1.5 px-2 text-left font-black w-8">NO</th>
                 <th className="py-1.5 px-2 text-left font-black">DESKRIPSI ITEM</th>
                 <th className="py-1.5 px-2 text-center font-black w-24">QTY</th>
-                {['INVOICE', 'PO'].includes(docType) && (
+                {/* 🔥 UPDATE: Menambahkan 'PURCHASE' ke array header tabel */}
+                {['INVOICE', 'PO', 'PURCHASE'].includes(docType) && (
                   <>
                     <th className="py-1.5 px-2 text-right font-black w-28">HARGA</th>
                     <th className="py-1.5 px-2 text-right font-black w-32">SUBTOTAL</th>
@@ -145,7 +152,8 @@ export default function PrintDotMatrix({ printData, onClose }) {
                       )}
                     </td>
 
-                    {['INVOICE', 'PO'].includes(docType) && (
+                    {/* 🔥 UPDATE: Menambahkan 'PURCHASE' ke array body tabel */}
+                    {['INVOICE', 'PO', 'PURCHASE'].includes(docType) && (
                       <>
                         <td className="py-2 px-2 text-right align-top font-bold text-slate-800">
                           {formatRupiah(hargaSatuan)}
@@ -207,7 +215,8 @@ export default function PrintDotMatrix({ printData, onClose }) {
           )}
         </div>
 
-        {['INVOICE', 'PO'].includes(docType) && (
+        {/* 🔥 UPDATE: Menambahkan 'PURCHASE' ke block total */}
+        {['INVOICE', 'PO', 'PURCHASE'].includes(docType) && (
           <div className="w-[280px]">
             <div className="bg-slate-50 border border-slate-300 rounded-lg overflow-hidden print:bg-transparent print:rounded-none print:border-slate-800">
               {printData.history ? (
@@ -263,7 +272,8 @@ export default function PrintDotMatrix({ printData, onClose }) {
             {docType === 'INVOICE' || docType === 'DO' ? 'Penerima / Pelanggan' : ''}
             {docType === 'WO' ? 'Kepala Dapur' : ''}
             {docType === 'PO' ? 'Supir Supplier' : ''}
-            {['CASH_VOUCHER', 'WITHDRAWAL'].includes(docType) ? 'Penerima Dana' : ''}
+            {/* 🔥 UPDATE: Label TTD khusus Purchase */}
+            {['CASH_VOUCHER', 'WITHDRAWAL', 'PURCHASE'].includes(docType) ? 'Penerima Dana' : ''}
           </div>
           <div className="border-b border-slate-800 w-full mb-1"></div>
           <div className="text-[8px] font-bold uppercase">Ttd &amp; Nama Jelas</div>
