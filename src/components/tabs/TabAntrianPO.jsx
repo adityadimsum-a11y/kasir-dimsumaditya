@@ -177,29 +177,29 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, masterProduc
   };
 
   return (
-    <div className="flex flex-col gap-6 pb-10 text-slate-700 normal-case animate-in fade-in duration-200">
+    <div className="flex flex-col gap-6 pb-10 text-slate-700 animate-in fade-in duration-200">
       
       {/* HEADER BANNER: PAPAN STOK & TOTAL ANTRIAN */}
-      <div className="card-holo p-5 bg-white border border-slate-200 rounded-2xl shadow-2xs border-t-4 border-t-orange-500 flex flex-col xl:flex-row justify-between items-start gap-6">
+      <div className="bg-white border border-slate-200 rounded-3xl shadow-sm p-6 flex flex-col xl:flex-row justify-between items-start gap-6 relative overflow-hidden">
         
         {/* KIRI: PAPAN STOK BEBAS */}
-        <div className="flex-1 w-full overflow-hidden">
-          <h2 className="text-sm font-black text-slate-800 flex items-center gap-2 mb-3 normal-case">
-            <ThermometerSnowflake className="text-orange-500" size={18} /> 
+        <div className="flex-1 w-full overflow-hidden z-10">
+          <h2 className="text-base font-black text-slate-800 flex items-center gap-2 mb-4 tracking-wide">
+            <ThermometerSnowflake className="text-orange-500" size={20} /> 
             Pusat Komando Antrian PO &amp; Stok Bebas Gudang (Live)
           </h2>
-          <div className="flex overflow-x-auto custom-scrollbar pb-3 gap-3">
+          <div className="flex overflow-x-auto custom-scrollbar pb-3 gap-4">
             {activeProducts.map(p => {
               const stockQty = stockData.free[p.product_name] || 0;
               return (
-                <div key={p.id} className="bg-slate-50 border border-slate-200 p-3 rounded-xl flex flex-col min-w-[160px] shadow-3xs shrink-0">
-                  <div className="text-[10px] font-bold text-slate-500 uppercase leading-snug whitespace-normal break-words mb-2 line-clamp-2 min-h-[30px]">
+                <div key={p.id} className="bg-slate-50 border border-slate-200 p-4 rounded-2xl flex flex-col min-w-[180px] shadow-sm shrink-0 hover:border-orange-300 transition-colors">
+                  <div className="text-[10px] font-bold text-slate-500 uppercase leading-snug whitespace-normal break-words mb-3 line-clamp-2 min-h-[30px]">
                     {p.product_name}
                   </div>
-                  <div className="text-xl font-black text-slate-800 leading-none mb-1">
-                    {formatNumber(stockQty)} <span className="text-[9px] text-slate-400 font-normal">Pcs</span>
+                  <div className="text-2xl font-black text-slate-800 leading-none mb-2">
+                    {formatNumber(stockQty)} <span className="text-[10px] text-slate-400 font-normal normal-case">Pcs</span>
                   </div>
-                  <div className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 self-start">
+                  <div className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100 self-start">
                     {formatNumber((stockQty/50).toFixed(1))} Mika | {formatNumber(Math.floor(stockQty/4))} Porsi
                   </div>
                 </div>
@@ -209,59 +209,59 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, masterProduc
         </div>
 
         {/* KANAN: TOTAL ANTRIAN BADGE */}
-        <div className="bg-orange-50 border border-orange-200 px-6 py-5 rounded-2xl shrink-0 flex items-center gap-4 xl:w-72 shadow-inner w-full xl:w-auto">
-          <div className="bg-orange-100 p-3 rounded-xl shadow-sm"><PackageCheck size={28} className="text-orange-600"/></div>
+        <div className="bg-gradient-to-br from-orange-50 to-orange-100/50 border border-orange-200 p-6 rounded-3xl shrink-0 flex items-center gap-4 xl:w-80 shadow-sm w-full xl:w-auto z-10">
+          <div className="bg-orange-200/50 p-4 rounded-2xl shadow-inner"><PackageCheck size={36} className="text-orange-600"/></div>
           <div>
-            <div className="text-[10px] font-black text-orange-800 uppercase tracking-widest mb-0.5">Total Antrian Berjalan</div>
-            <div className="text-2xl font-black text-orange-600">{countActive} <span className="text-sm font-bold text-orange-700/70">Nota</span></div>
+            <div className="text-[10px] font-black text-orange-800 uppercase tracking-widest mb-1">Total Antrian Berjalan</div>
+            <div className="text-3xl font-black text-orange-600 tracking-tight">{countActive} <span className="text-sm font-bold text-orange-700/70 normal-case">Nota Aktif</span></div>
           </div>
         </div>
 
       </div>
 
       {/* TOOLBAR FILTER & SUB-TABS */}
-      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center bg-white p-3 rounded-xl border border-slate-200 shadow-3xs gap-3">
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-sm gap-4">
         
         {/* SUB TABS NAVIGATION */}
-        <div className="flex bg-slate-100 p-1 rounded-lg w-full xl:w-auto overflow-x-auto custom-scrollbar shrink-0">
+        <div className="flex bg-slate-100 p-1.5 rounded-xl w-full xl:w-auto overflow-x-auto custom-scrollbar shrink-0 shadow-inner">
           <button 
             onClick={() => setActiveSubTab('ACTIVE')} 
-            className={`flex-1 xl:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-md text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
+            className={`flex-1 xl:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
               activeSubTab === 'ACTIVE' ? 'bg-white text-orange-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'
             }`}
           >
-            <ListTodo size={14}/> Antrian Berjalan
-            <span className={`px-1.5 py-0.5 rounded text-[9px] ${activeSubTab === 'ACTIVE' ? 'bg-orange-100 text-orange-700' : 'bg-slate-200 text-slate-500'}`}>{countActive}</span>
+            <ListTodo size={16}/> Antrian Berjalan
+            <span className={`px-2 py-0.5 rounded-md text-[10px] ${activeSubTab === 'ACTIVE' ? 'bg-orange-100 text-orange-700' : 'bg-slate-200 text-slate-500'}`}>{countActive}</span>
           </button>
           
           <button 
             onClick={() => setActiveSubTab('COMPLETED')} 
-            className={`flex-1 xl:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-md text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
+            className={`flex-1 xl:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
               activeSubTab === 'COMPLETED' ? 'bg-emerald-50 text-emerald-600 shadow-sm border border-emerald-100' : 'text-slate-500 hover:text-slate-700'
             }`}
           >
-            <Archive size={14}/> Riwayat Selesai
+            <Archive size={16}/> Riwayat Selesai
           </button>
         </div>
 
         {/* SEARCH & KALENDER (KALENDER MUNCUL JIKA TAB COMPLETED) */}
-        <div className="flex flex-col sm:flex-row items-center gap-2 w-full xl:w-auto">
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
           {activeSubTab === 'COMPLETED' && (
-            <div className="flex items-center justify-between w-full sm:w-auto gap-2 bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg shrink-0">
-               <Calendar size={14} className="text-slate-400 shrink-0"/>
-               <input type="date" value={historyDateFrom} onChange={e=>setHistoryDateFrom(e.target.value)} className="text-[10px] font-bold bg-transparent outline-none cursor-pointer text-slate-600 w-full sm:w-auto" />
+            <div className="flex items-center justify-between w-full sm:w-auto gap-2 bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl shrink-0">
+               <Calendar size={16} className="text-slate-400 shrink-0"/>
+               <input type="date" value={historyDateFrom} onChange={e=>setHistoryDateFrom(e.target.value)} className="text-[11px] font-bold bg-transparent outline-none cursor-pointer text-slate-600 w-full sm:w-auto" />
                <span className="text-slate-400 font-bold">-</span>
-               <input type="date" value={historyDateTo} onChange={e=>setHistoryDateTo(e.target.value)} className="text-[10px] font-bold bg-transparent outline-none cursor-pointer text-slate-600 w-full sm:w-auto" />
+               <input type="date" value={historyDateTo} onChange={e=>setHistoryDateTo(e.target.value)} className="text-[11px] font-bold bg-transparent outline-none cursor-pointer text-slate-600 w-full sm:w-auto" />
             </div>
           )}
 
-          <div className="relative w-full sm:w-64 xl:w-72 shrink-0">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
+          <div className="relative w-full sm:w-72 shrink-0">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
             <input 
               type="text" 
               value={searchTerm} 
               onChange={(e) => setSearchTerm(e.target.value)} 
-              className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold outline-none focus:bg-white focus:border-orange-400 transition-colors normal-case" 
+              className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:bg-white focus:border-orange-400 transition-colors shadow-sm" 
               placeholder="Cari ID Nota atau Nama Klien..." 
             />
           </div>
@@ -270,72 +270,72 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, masterProduc
 
       {/* GRID KARTU PO */}
       {displayedPOs.length === 0 ? (
-        <div className="bg-white border-2 border-dashed border-slate-300 rounded-2xl p-16 text-center flex flex-col items-center justify-center text-slate-400">
+        <div className="bg-white border-2 border-dashed border-slate-300 rounded-3xl p-20 text-center flex flex-col items-center justify-center text-slate-400 shadow-sm">
           {activeSubTab === 'ACTIVE' ? (
              <>
-               <CheckCircle2 size={48} className="mb-4 opacity-20 text-emerald-500" />
-               <h3 className="text-sm font-black uppercase tracking-widest mb-1 text-slate-500">Semua Terkendali</h3>
-               <p className="text-xs font-bold normal-case">Tidak ada antrian Pre-Order yang sedang berjalan saat ini.</p>
+               <CheckCircle2 size={56} className="mb-4 opacity-20 text-emerald-500" />
+               <h3 className="text-base font-black tracking-wide mb-1 text-slate-600">Semua Terkendali</h3>
+               <p className="text-sm font-bold normal-case">Tidak ada antrian Pre-Order yang sedang berjalan saat ini.</p>
              </>
           ) : (
              <>
-               <Archive size={48} className="mb-4 opacity-20" />
-               <h3 className="text-sm font-black uppercase tracking-widest mb-1 text-slate-500">Arsip Kosong</h3>
-               <p className="text-xs font-bold normal-case">Belum ada riwayat PO yang diselesaikan pada periode ini.</p>
+               <Archive size={56} className="mb-4 opacity-20" />
+               <h3 className="text-base font-black tracking-wide mb-1 text-slate-600">Arsip Kosong</h3>
+               <p className="text-sm font-bold normal-case">Belum ada riwayat PO yang diselesaikan pada periode ini.</p>
              </>
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
           {displayedPOs.map(po => (
-            <div key={po.id} className={`bg-white border rounded-2xl shadow-xs overflow-hidden flex flex-col transition-colors ${activeSubTab === 'COMPLETED' ? 'border-emerald-200' : 'border-slate-200 hover:border-orange-300'}`}>
+            <div key={po.id} className={`bg-white border rounded-3xl shadow-sm overflow-hidden flex flex-col transition-colors hover:shadow-md ${activeSubTab === 'COMPLETED' ? 'border-emerald-200' : 'border-slate-200 hover:border-orange-300'}`}>
               
               {/* Card Header */}
-              <div className={`p-4 border-b flex justify-between items-start ${activeSubTab === 'COMPLETED' ? 'bg-emerald-50/50 border-emerald-100' : 'bg-slate-50 border-slate-100'}`}>
+              <div className={`p-5 border-b flex justify-between items-start ${activeSubTab === 'COMPLETED' ? 'bg-emerald-50/50 border-emerald-100' : 'bg-slate-50 border-slate-100'}`}>
                 <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="bg-slate-200 text-slate-700 font-mono text-[9px] px-2 py-0.5 rounded font-black">{po.id}</span>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="bg-slate-200 text-slate-700 font-mono text-[10px] px-2 py-0.5 rounded-md font-black">{po.id}</span>
                     {activeSubTab === 'COMPLETED' ? (
-                      <span className="bg-emerald-100 text-emerald-700 text-[9px] px-2 py-0.5 rounded font-black flex items-center gap-1"><CheckCircle2 size={10}/> SELESAI &amp; TERKIRIM</span>
+                      <span className="bg-emerald-100 text-emerald-700 text-[10px] px-2 py-0.5 rounded-md font-black flex items-center gap-1 uppercase tracking-wider border border-emerald-200"><CheckCircle2 size={12}/> Selesai &amp; Terkirim</span>
                     ) : (
-                      <span className="bg-red-100 text-red-700 text-[9px] px-2 py-0.5 rounded font-black flex items-center gap-1"><Clock size={10}/> Target: {formatDate(po.targetDate)}</span>
+                      <span className="bg-red-100 text-red-700 text-[10px] px-2 py-0.5 rounded-md font-black flex items-center gap-1 uppercase tracking-wider border border-red-200"><Clock size={12}/> Target: {formatDate(po.targetDate)}</span>
                     )}
                   </div>
-                  <h3 className="font-black text-slate-800 text-base uppercase">{po.customer_name}</h3>
+                  <h3 className="font-black text-slate-800 text-lg uppercase tracking-tight">{po.customer_name}</h3>
                 </div>
                 <div className="text-right">
-                  <div className="text-[10px] font-bold text-slate-500">Status Stok Karantina</div>
-                  <div className={`text-lg font-black ${po.progress === 100 || activeSubTab === 'COMPLETED' ? 'text-emerald-600' : 'text-orange-600'}`}>
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Status Karantina</div>
+                  <div className={`text-2xl font-black tracking-tighter ${po.progress === 100 || activeSubTab === 'COMPLETED' ? 'text-emerald-600' : 'text-orange-600'}`}>
                     {activeSubTab === 'COMPLETED' ? '100%' : `${po.progress.toFixed(0)}%`}
                   </div>
                 </div>
               </div>
 
               {/* Progress Bar */}
-              <div className="w-full bg-slate-200 h-1.5">
-                <div className={`h-1.5 transition-all duration-500 ${po.progress === 100 || activeSubTab === 'COMPLETED' ? 'bg-emerald-500' : 'bg-orange-500'}`} style={{ width: activeSubTab === 'COMPLETED' ? '100%' : `${po.progress}%` }}></div>
+              <div className="w-full bg-slate-200 h-2">
+                <div className={`h-2 transition-all duration-500 ${po.progress === 100 || activeSubTab === 'COMPLETED' ? 'bg-emerald-500' : 'bg-orange-500'}`} style={{ width: activeSubTab === 'COMPLETED' ? '100%' : `${po.progress}%` }}></div>
               </div>
 
               {/* Card Body (Item List Compact) */}
-              <div className={`p-4 flex-1 space-y-3 ${activeSubTab === 'COMPLETED' ? 'opacity-80' : ''}`}>
+              <div className={`p-5 flex-1 space-y-3 ${activeSubTab === 'COMPLETED' ? 'opacity-80' : ''}`}>
                 {po.enrichedItems.map((item, i) => (
-                  <div key={i} className={`flex justify-between items-center border p-2.5 rounded-xl ${activeSubTab === 'COMPLETED' ? 'bg-white border-slate-100' : 'bg-slate-50 border-slate-100'}`}>
-                    <div className="flex-1">
-                      <div className="font-bold text-slate-700 text-xs uppercase line-clamp-1">{item.name}</div>
-                      <div className="text-[10px] font-bold text-slate-400 mt-0.5">Order: {formatNumber(item.qty)} Pcs</div>
+                  <div key={i} className={`flex justify-between items-center border p-3 rounded-2xl ${activeSubTab === 'COMPLETED' ? 'bg-white border-slate-100' : 'bg-slate-50 border-slate-100 shadow-3xs'}`}>
+                    <div className="flex-1 pr-2">
+                      <div className="font-bold text-slate-800 text-xs uppercase line-clamp-1">{item.name}</div>
+                      <div className="text-[10px] font-bold text-slate-500 mt-1 normal-case">Order: {formatNumber(item.qty)} Pcs</div>
                     </div>
-                    <div className="flex items-center gap-3 shrink-0">
+                    <div className="flex items-center gap-4 shrink-0">
                       <div className="text-right">
-                        <div className="text-[9px] font-black text-slate-400 uppercase">{activeSubTab === 'COMPLETED' ? 'Dikirim' : 'Terkumpul'}</div>
-                        <div className="font-black text-sm text-emerald-600">{activeSubTab === 'COMPLETED' ? formatNumber(item.qty) : formatNumber(item.quarantined)}</div>
+                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-0.5">{activeSubTab === 'COMPLETED' ? 'Dikirim' : 'Terkumpul'}</div>
+                        <div className="font-black text-base text-emerald-600">{activeSubTab === 'COMPLETED' ? formatNumber(item.qty) : formatNumber(item.quarantined)}</div>
                       </div>
                       
                       {activeSubTab === 'ACTIVE' && (
                         <>
-                          <ArrowRight size={14} className="text-slate-300"/>
+                          <ArrowRight size={16} className="text-slate-300"/>
                           <div className="text-right w-16">
-                            <div className="text-[9px] font-black text-slate-400 uppercase">Kekurangan</div>
-                            <div className="font-black text-sm text-red-500">{formatNumber(item.qty - item.quarantined)}</div>
+                            <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Kekurangan</div>
+                            <div className="font-black text-base text-red-500">{formatNumber(item.qty - item.quarantined)}</div>
                           </div>
                         </>
                       )}
@@ -346,32 +346,32 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, masterProduc
 
               {/* Card Footer / Actions */}
               {activeSubTab === 'COMPLETED' ? (
-                <div className="p-4 bg-white border-t border-slate-100">
-                  <button onClick={() => setDetailPO(po)} className="w-full py-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-black rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2 cursor-pointer uppercase">
+                <div className="p-5 bg-white border-t border-slate-100">
+                  <button onClick={() => setDetailPO(po)} className="w-full py-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-[11px] font-black rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider">
                     <Eye size={16}/> Buka Arsip &amp; Detail PO
                   </button>
                 </div>
               ) : (
-                <div className="p-4 bg-slate-50 border-t border-slate-100 flex flex-col gap-3">
+                <div className="p-5 bg-slate-50 border-t border-slate-100 flex flex-col gap-3">
                   <div className="flex gap-3">
                     <button 
                       onClick={() => setDetailPO(po)} 
-                      className="flex-1 py-2.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-[11px] font-black rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2 cursor-pointer uppercase"
+                      className="flex-1 py-3 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-[11px] font-black rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider"
                     >
-                      <Eye size={14}/> Cek Detail PO
+                      <Eye size={16}/> Cek Detail PO
                     </button>
                     <button 
                       onClick={() => handleOpenModal(po)} 
                       disabled={po.progress === 100}
-                      className="flex-1 py-2.5 bg-orange-600 hover:bg-orange-700 text-white text-[11px] font-black rounded-xl shadow-md transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer uppercase"
+                      className="flex-1 py-3 bg-orange-600 hover:bg-orange-700 text-white text-[11px] font-black rounded-xl shadow-md transition-transform active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer uppercase tracking-wider"
                     >
-                      <ThermometerSnowflake size={14}/> {po.progress === 100 ? 'Terpenuhi 100%' : 'Alokasikan Freezer'}
+                      <ThermometerSnowflake size={16}/> {po.progress === 100 ? 'Terpenuhi 100%' : 'Alokasikan Freezer'}
                     </button>
                   </div>
                   
                   {po.progress === 100 && (
-                    <button onClick={() => handleSelesaikanPO(po.id)} className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-md transition-colors cursor-pointer uppercase flex items-center justify-center gap-2 animate-in slide-in-from-bottom-2">
-                      <CheckCircle2 size={16}/> Selesai &amp; Pindahkan ke Arsip
+                    <button onClick={() => handleSelesaikanPO(po.id)} className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-md transition-transform active:scale-95 cursor-pointer uppercase tracking-wider flex items-center justify-center gap-2 animate-in slide-in-from-bottom-2">
+                      <CheckCircle2 size={18}/> Selesai &amp; Pindahkan ke Arsip
                     </button>
                   )}
                 </div>
@@ -386,59 +386,59 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, masterProduc
           MODAL DETAIL PO (MINI LEDGER)
          ========================================================================= */}
       {detailPO && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-[99999] flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl border border-slate-200 overflow-hidden flex flex-col max-h-[85vh]">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-[2px] z-[99999] flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl border border-slate-200 overflow-hidden flex flex-col max-h-[85vh]">
             
-            <div className={`p-4 text-white flex justify-between items-center shrink-0 ${activeSubTab === 'COMPLETED' ? 'bg-emerald-950' : 'bg-slate-950'}`}>
+            <div className={`p-5 text-white flex justify-between items-center shrink-0 ${activeSubTab === 'COMPLETED' ? 'bg-emerald-950' : 'bg-slate-950'}`}>
               <div>
-                <h3 className={`font-black text-xs uppercase flex items-center gap-1.5 ${activeSubTab === 'COMPLETED' ? 'text-emerald-400' : 'text-blue-400'}`}>
-                  {activeSubTab === 'COMPLETED' ? <Archive size={16}/> : <Receipt size={16}/>} Rincian Lengkap PO
+                <h3 className={`font-black text-sm uppercase flex items-center gap-2 tracking-wider ${activeSubTab === 'COMPLETED' ? 'text-emerald-400' : 'text-blue-400'}`}>
+                  {activeSubTab === 'COMPLETED' ? <Archive size={18}/> : <Receipt size={18}/>} Rincian Lengkap PO
                 </h3>
-                <p className="text-[10px] text-slate-400 font-bold mt-0.5 normal-case">Klien: {detailPO.customer_name} | Nota: {detailPO.id}</p>
+                <p className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-wider">Klien: {detailPO.customer_name} | Nota: {detailPO.id}</p>
               </div>
-              <button type="button" onClick={() => setDetailPO(null)} className="text-slate-400 hover:text-white font-bold text-sm cursor-pointer">✕</button>
+              <button type="button" onClick={() => setDetailPO(null)} className="text-slate-400 hover:text-white font-bold text-xl cursor-pointer">✕</button>
             </div>
 
-            <div className="p-5 flex-1 overflow-y-auto custom-scrollbar bg-slate-50 space-y-4">
+            <div className="p-6 flex-1 overflow-y-auto custom-scrollbar bg-slate-50 space-y-5">
               
               {/* Info Pelanggan & Catatan Khusus */}
-              <div className="bg-white border border-slate-200 p-3 rounded-xl shadow-3xs">
-                <div className="flex justify-between items-center border-b border-slate-100 pb-2 mb-2">
+              <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm">
+                <div className="flex justify-between items-center border-b border-slate-100 pb-3 mb-3">
                   <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Tanggal Tulis Nota</span>
                   <span className="text-xs font-bold text-slate-800">{formatDate(detailPO.date)}</span>
                 </div>
-                <div className="flex justify-between items-center border-b border-slate-100 pb-2 mb-2">
+                <div className="flex justify-between items-center border-b border-slate-100 pb-3 mb-3">
                   <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Target Dikirim</span>
-                  <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded">{formatDate(detailPO.targetDate)}</span>
+                  <span className="text-xs font-bold text-red-600 bg-red-50 border border-red-100 px-3 py-1 rounded-lg">{formatDate(detailPO.targetDate)}</span>
                 </div>
                 <div>
-                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">Catatan Kasir / Dapur:</span>
-                  <div className="text-xs font-bold text-slate-700 bg-orange-50 border border-orange-100 p-2 rounded-lg italic">
-                    {detailPO.notes || 'Tidak ada catatan.'}
+                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1.5">Catatan Kasir / Dapur:</span>
+                  <div className="text-xs font-bold text-slate-700 bg-orange-50 border border-orange-200 p-3 rounded-xl italic leading-relaxed">
+                    "{detailPO.notes || 'Tidak ada catatan.'}"
                   </div>
                 </div>
               </div>
 
               {/* Rincian Belanja */}
-              <div className="bg-white border border-slate-200 p-3 rounded-xl shadow-3xs">
-                <div className="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-2">Detail Pesanan Barang</div>
+              <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm">
+                <div className="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-3">Detail Pesanan Barang</div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-[11px] border-collapse">
                     <thead>
-                      <tr className="bg-slate-50 text-slate-500 font-bold border-b text-[10px]">
-                        <th className="p-2">Item</th>
-                        <th className="p-2 text-center">Qty</th>
-                        <th className="p-2 text-right">Harga</th>
-                        <th className="p-2 text-right">Subtotal</th>
+                      <tr className="bg-slate-50 text-slate-500 font-bold border-b text-[10px] uppercase tracking-wider">
+                        <th className="p-3">Item</th>
+                        <th className="p-3 text-center">Qty</th>
+                        <th className="p-3 text-right">Harga</th>
+                        <th className="p-3 text-right">Subtotal</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y text-slate-700 font-bold">
                       {detailPO.enrichedItems.map((itm, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50/50">
-                          <td className="p-2 uppercase">{itm.name}</td>
-                          <td className="p-2 text-center">{formatNumber(itm.qty)} Pcs</td>
-                          <td className="p-2 text-right">{formatRupiah(itm.price || (itm.subtotal/itm.qty))}</td>
-                          <td className="p-2 text-right text-slate-900">{formatRupiah(itm.subtotal)}</td>
+                        <tr key={idx} className="hover:bg-slate-50/80">
+                          <td className="p-3 uppercase">{itm.name}</td>
+                          <td className="p-3 text-center">{formatNumber(itm.qty)} Pcs</td>
+                          <td className="p-3 text-right">{formatRupiah(itm.price || (itm.subtotal/itm.qty))}</td>
+                          <td className="p-3 text-right text-slate-900 font-black">{formatRupiah(itm.subtotal)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -447,9 +447,9 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, masterProduc
               </div>
 
               {/* Ringkasan Keuangan */}
-              <div className={`text-white p-4 rounded-xl space-y-2 font-bold text-[11px] shadow-sm ${activeSubTab === 'COMPLETED' ? 'bg-gradient-to-r from-emerald-900 to-emerald-800' : 'bg-gradient-to-r from-slate-900 to-slate-800'}`}>
-                <div className={`flex items-center gap-2 mb-2 pb-2 border-b border-slate-700 ${activeSubTab === 'COMPLETED' ? 'text-emerald-400' : 'text-blue-400'}`}>
-                  <Wallet size={16}/> <span className="uppercase tracking-wider">Ringkasan Keuangan</span>
+              <div className={`text-white p-5 rounded-2xl space-y-3 font-bold text-xs shadow-md ${activeSubTab === 'COMPLETED' ? 'bg-gradient-to-r from-emerald-900 to-emerald-800' : 'bg-gradient-to-r from-slate-900 to-slate-800'}`}>
+                <div className={`flex items-center gap-2 mb-3 pb-3 border-b border-slate-700 ${activeSubTab === 'COMPLETED' ? 'text-emerald-400' : 'text-blue-400'}`}>
+                  <Wallet size={18}/> <span className="uppercase tracking-widest text-[10px]">Ringkasan Keuangan</span>
                 </div>
                 <div className="flex justify-between text-slate-300">
                   <span>Total Nilai PO</span>
@@ -459,7 +459,7 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, masterProduc
                   <span>DP / Uang Muka Masuk ({detailPO.payment_method})</span>
                   <span className="text-emerald-400">{formatRupiah(detailPO.amount_paid)}</span>
                 </div>
-                <div className="border-t border-slate-700 my-1"></div>
+                <div className="border-t border-slate-700 my-2"></div>
                 <div className="flex justify-between text-sm font-black">
                   <span>Sisa Pembayaran</span>
                   <span className={(detailPO.total_amount - detailPO.amount_paid) <= 0 ? 'text-emerald-400' : 'text-rose-400'}>
@@ -470,8 +470,8 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, masterProduc
 
             </div>
             
-            <div className="p-4 bg-white border-t border-slate-200 text-right shrink-0">
-              <button type="button" onClick={() => setDetailPO(null)} className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-black text-[11px] rounded-xl shadow-md cursor-pointer uppercase w-full sm:w-auto">
+            <div className="p-5 bg-white border-t border-slate-200 text-right shrink-0">
+              <button type="button" onClick={() => setDetailPO(null)} className="w-full sm:w-auto px-8 py-3 bg-slate-900 hover:bg-slate-800 text-white font-black text-[11px] uppercase tracking-wider rounded-xl shadow-md cursor-pointer transition-colors">
                 Tutup Arsip
               </button>
             </div>
@@ -483,20 +483,20 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, masterProduc
           MODAL ALOKASI KARANTINA (DARI STOK BEBAS -> KE FREEZER PO)
          ========================================================================= */}
       {selectedPO && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-[99999] flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl border border-slate-200 overflow-hidden flex flex-col h-[85vh]">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-[2px] z-[99999] flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl border border-slate-200 overflow-hidden flex flex-col h-[85vh]">
             
-            <div className="p-4 bg-slate-950 text-white flex justify-between items-center shrink-0">
+            <div className="p-5 bg-slate-950 text-white flex justify-between items-center shrink-0">
               <div>
-                <h3 className="font-black text-xs uppercase flex items-center gap-1.5 text-orange-400"><ThermometerSnowflake size={16}/> Eksekusi Bekukan Stok</h3>
-                <p className="text-[10px] text-slate-400 font-bold mt-0.5 normal-case">Klien: {selectedPO.customer_name} | Nota: {selectedPO.id}</p>
+                <h3 className="font-black text-sm uppercase flex items-center gap-2 text-orange-400 tracking-wider"><ThermometerSnowflake size={18}/> Eksekusi Bekukan Stok</h3>
+                <p className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-wider">Klien: {selectedPO.customer_name} | Nota: {selectedPO.id}</p>
               </div>
-              <button type="button" onClick={() => setSelectedPO(null)} className="text-slate-400 hover:text-white font-bold text-sm cursor-pointer">✕</button>
+              <button type="button" onClick={() => setSelectedPO(null)} className="text-slate-400 hover:text-white font-bold text-xl cursor-pointer">✕</button>
             </div>
 
-            <div className="p-5 flex-1 overflow-y-auto custom-scrollbar bg-slate-50 space-y-4">
-              <div className="bg-orange-50 border border-orange-200 p-3 rounded-xl flex gap-3 mb-4">
-                <AlertCircle className="text-orange-600 shrink-0" size={18}/>
+            <div className="p-6 flex-1 overflow-y-auto custom-scrollbar bg-slate-50 space-y-5">
+              <div className="bg-orange-50 border border-orange-200 p-4 rounded-2xl flex gap-3 mb-2 shadow-sm">
+                <AlertCircle className="text-orange-600 shrink-0 mt-0.5" size={20}/>
                 <div className="text-[10px] font-bold text-orange-800 normal-case leading-relaxed">
                   Masukkan jumlah fisik barang yang sudah dipisahkan ke dalam Freezer khusus pesanan ini. Sistem akan otomatis memotongnya dari <b>Stok Bebas (Gudang Utama)</b>.
                 </div>
@@ -509,38 +509,38 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, masterProduc
                 if (sisaButuh <= 0) return null; // Sembunyikan yang sudah penuh
 
                 return (
-                  <div key={idx} className="bg-white border border-slate-200 rounded-xl p-4 shadow-3xs relative overflow-hidden">
-                    <div className="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
-                    <div className="pl-2">
-                      <div className="font-black text-slate-800 text-xs uppercase mb-3">{item.name}</div>
+                  <div key={idx} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-500"></div>
+                    <div className="pl-3">
+                      <div className="font-black text-slate-800 text-sm uppercase tracking-wide mb-4">{item.name}</div>
                       
-                      <div className="grid grid-cols-3 gap-3 mb-4 text-center">
-                        <div className="bg-slate-50 border border-slate-100 rounded-lg p-2">
-                          <div className="text-[9px] font-black text-slate-400 uppercase">Sisa Dibutuhkan</div>
-                          <div className="text-sm font-black text-red-600">{formatNumber(sisaButuh)}</div>
+                      <div className="grid grid-cols-3 gap-3 mb-5 text-center">
+                        <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 shadow-inner">
+                          <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">Sisa Dibutuhkan</div>
+                          <div className="text-lg font-black text-red-600">{formatNumber(sisaButuh)}</div>
                         </div>
-                        <div className="bg-slate-50 border border-slate-100 rounded-lg p-2">
-                          <div className="text-[9px] font-black text-slate-400 uppercase">Stok Karantina</div>
-                          <div className="text-sm font-black text-emerald-600">{formatNumber(item.quarantined)}</div>
+                        <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 shadow-inner">
+                          <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">Stok Karantina</div>
+                          <div className="text-lg font-black text-emerald-600">{formatNumber(item.quarantined)}</div>
                         </div>
-                        <div className="bg-blue-50 border border-blue-100 rounded-lg p-2">
-                          <div className="text-[9px] font-black text-blue-500 uppercase">Stok Bebas (Live)</div>
-                          <div className="text-sm font-black text-blue-700">{formatNumber(stokBebasLive)}</div>
+                        <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 shadow-inner">
+                          <div className="text-[9px] font-black text-blue-500 uppercase tracking-wider mb-1">Stok Bebas (Live)</div>
+                          <div className="text-lg font-black text-blue-700">{formatNumber(stokBebasLive)}</div>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-3">
-                        <label className="text-[10px] font-black text-slate-600 normal-case w-24">Alokasikan Pcs:</label>
+                        <label className="text-[10px] font-black text-slate-600 uppercase tracking-wider shrink-0">Alokasikan Pcs:</label>
                         <input 
                           type="text" 
                           value={allocations[item.name] || ''} 
                           onChange={(e) => handleAllocationChange(item.name, e.target.value)} 
-                          className="flex-1 p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm font-black outline-none focus:bg-white focus:border-orange-500 text-slate-800 transition-colors"
+                          className="flex-1 p-3 bg-slate-50 border border-slate-300 rounded-xl text-base font-black outline-none focus:bg-white focus:border-orange-500 text-slate-800 transition-colors shadow-inner"
                           placeholder="0"
                         />
                         <button 
                           onClick={() => handleAllocationChange(item.name, String(Math.min(sisaButuh, stokBebasLive)))}
-                          className="px-3 py-2.5 bg-slate-800 hover:bg-black text-white text-[10px] font-black rounded-lg transition-colors cursor-pointer uppercase"
+                          className="px-4 py-3 bg-slate-800 hover:bg-black text-white text-[11px] font-black rounded-xl transition-colors cursor-pointer uppercase tracking-wider shadow-md"
                         >
                           Max
                         </button>
@@ -551,10 +551,10 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, masterProduc
               })}
             </div>
             
-            <div className="p-4 bg-white border-t border-slate-200 flex gap-3 shrink-0">
-              <button type="button" onClick={() => setSelectedPO(null)} className="px-5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition-colors cursor-pointer uppercase">Batal</button>
-              <button type="button" onClick={submitKarantina} className="flex-1 py-3 bg-orange-600 hover:bg-orange-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer flex items-center justify-center gap-2 uppercase">
-                <Save size={16}/> Kunci &amp; Simpan Ke Karantina
+            <div className="p-5 bg-white border-t border-slate-200 flex gap-4 shrink-0">
+              <button type="button" onClick={() => setSelectedPO(null)} className="px-6 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition-colors cursor-pointer uppercase tracking-wider">Batal</button>
+              <button type="button" onClick={submitKarantina} className="flex-1 py-3.5 bg-orange-600 hover:bg-orange-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer flex items-center justify-center gap-2 uppercase tracking-wider transition-transform active:scale-95">
+                <Save size={18}/> Kunci &amp; Simpan Ke Karantina
               </button>
             </div>
           </div>
