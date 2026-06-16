@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { 
   ShoppingCart, Plus, Minus, Trash2, Search, 
   UserCheck, Tag, Receipt, CheckCircle2, Gift, Package, 
-  PlusCircle, Printer, Eye, Edit, ChefHat, AlertTriangle, Unlock, TrendingUp
+  PlusCircle, Printer, Eye, Edit, ChefHat, AlertTriangle, Unlock, TrendingUp, Info
 } from 'lucide-react';
 import { getTodayStr, generateId, formatDate, safeJsonParse } from '../../utils/helpers';
 
@@ -95,28 +95,35 @@ export default function TabOrders({
     return activeProducts.filter(p => (p.product_name || '').toLowerCase().includes(s));
   }, [activeProducts, searchTerm]);
 
-  // MENDAPATKAN HARGA PRODUK SESUAI KATEGORI KLIEN
-  const getProductPriceForCustomer = (product, customerId) => {
-    let customerTier = 'RESELLER'; 
-    if (customerId) {
-       const cust = activeCustomers.find(c => c.id === customerId || c.customer_id === customerId);
-       if (cust) customerTier = cust.customer_tier || cust.category || 'RESELLER';
+  // 🔥 ENGINE LOGIKA HARGA BERTINGKAT (GROSIR VS ECERAN)
+  const getProductPriceForCustomer = (product, customerId, currentQty = 1) => {
+    const wholesaleQty = Number(product.wholesale_qty || 1);
+    const wholesalePrice = Number(product.selling_price || 0);
+    const retailPrice = Number(product.retail_price || product.penalty_price || product.selling_price || 0);
+
+    // Jika qty pesanan di bawah syarat grosir, berikan harga Eceran (Lebih mahal)
+    if (wholesaleQty > 1 && currentQty < wholesaleQty) {
+        return retailPrice;
     }
-    const priceMap = safeJsonParse(product.price_tiers, {});
-    if (priceMap[customerTier]) return Number(priceMap[customerTier]);
-    return Number(product.selling_price || 0);
+    // Jika qty memenuhi, berikan harga Grosir/Selling standar
+    return wholesalePrice;
   };
 
   const addToCart = (product, forcedQty = 1) => {
-    const currentPrice = getProductPriceForCustomer(product, selectedCustomerId);
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
-      if (existing) return prev.map(item => item.id === product.id ? { ...item, qty: item.qty + forcedQty } : item);
-      return [...prev, { id: product.id, name: product.product_name, price: currentPrice, hpp: Number(product.default_hpp || 0), qty: forcedQty }];
+      const newTotalQty = existing ? existing.qty + forcedQty : forcedQty;
+      
+      // Auto-hitung harga dinamis setiap ada penambahan Qty
+      const dynamicPrice = getProductPriceForCustomer(product, selectedCustomerId, newTotalQty);
+
+      if (existing) {
+        return prev.map(item => item.id === product.id ? { ...item, qty: newTotalQty, price: dynamicPrice } : item);
+      }
+      return [...prev, { id: product.id, name: product.product_name, price: dynamicPrice, hpp: Number(product.default_hpp || 0), qty: newTotalQty }];
     });
   };
 
-  // LOGIKA CEGAT KASIR JIKA STOK BEBAS HABIS
   const handleProductClick = (product) => {
     const freeStock = stockData.free[product.product_name] || 0;
     const cartItem = cart.find(i => i.id === product.id);
@@ -140,7 +147,8 @@ export default function TabOrders({
       if (cart.length > 0) {
           setCart(prev => prev.map(item => {
               const productMaster = activeProducts.find(p => p.id === item.id);
-              if (productMaster) return { ...item, price: getProductPriceForCustomer(productMaster, newCustId) };
+              // Hitung ulang seluruh harga keranjang saat pelanggan berubah
+              if (productMaster) return { ...item, price: getProductPriceForCustomer(productMaster, newCustId, item.qty) };
               return item;
           }));
       }
@@ -155,7 +163,21 @@ export default function TabOrders({
        showToast(`Maksimal stok bebas hanya ${freeStock} Pcs! Pinjam karantina jika kurang.`, 'error');
        return;
     }
-    setCart(prev => prev.map(item => item.id === id ? { ...item, qty: Math.max(0, newQty) } : item).filter(item => item.qty > 0));
+
+    // Peringatan Batas Minimal Pembelian
+    if (newQty > 0 && newQty < Number(product.min_order || 1)) {
+       showToast(`Peringatan: Minimal pembelian ${product.product_name} adalah ${product.min_order} Pcs!`, 'warning');
+    }
+
+    setCart(prev => prev.map(item => {
+       if (item.id === id) {
+           const finalQty = Math.max(0, newQty);
+           // Auto-hitung harga mundur/maju berdasarkan Qty aktual di keranjang
+           const dynamicPrice = getProductPriceForCustomer(product, selectedCustomerId, finalQty);
+           return { ...item, qty: finalQty, price: dynamicPrice };
+       }
+       return item;
+    }).filter(item => item.qty > 0));
   };
 
   const removeFromCart = (id) => setCart(prev => prev.filter(item => item.id !== id));
@@ -314,7 +336,7 @@ export default function TabOrders({
 
       setPrintData({
         type: 'INVOICE', id: orderId, date: formatDate(todayStr), branch_name: currentBranch.replace(/_/g, ' '),
-        admin_name: user?.name || 'KASIR UTAMA', customer_name: custName, items: cart.map(item => ({ name: item.name, qty: item.qty, subtotal: item.price * item.qty, price: item.price })),
+        admin_name: user?.name || 'Kasir Utama', customer_name: custName, items: cart.map(item => ({ name: item.name, qty: item.qty, subtotal: item.price * item.qty, price: item.price })),
         amount: cartTotal, paymentMethod: paymentSummary.methodStr.replace(/_/g, ' '), notes: finalNotes,
         history: { labelLama: 'Total Belanja', nominalLama: cartTotal, labelAksi: 'Total Masuk Kas', nominalAksi: paymentSummary.totalDibayar, labelBaru: 'Sisa Piutang Berjalan', nominalBaru: paymentSummary.sisaBon }
       });
@@ -370,26 +392,38 @@ export default function TabOrders({
   return (
     <div className="flex flex-col gap-6 pb-10 text-slate-700 normal-case animate-in fade-in duration-200">
       
-      {/* PAPAN INFORMASI STOK LIVE ATAS (Fix Teks Terpotong) */}
-      <div className="bg-slate-900 text-white rounded-2xl p-4 shadow-md border border-slate-800 shrink-0">
-        <div className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-2.5 flex items-center gap-1.5">
-          <Package size={14}/> Ringkasan Ketersediaan Papan Stok Master Gudang (Real-Time Live)
+      {/* 🔥 FLUID GRADIENT MONITOR - PAPAN STOK LIVE ATAS */}
+      <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 text-white rounded-3xl p-5 shadow-2xl border border-slate-800 shrink-0 relative overflow-hidden">
+        <div className="absolute -top-32 -left-32 w-72 h-72 bg-blue-600/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute -bottom-32 -right-32 w-72 h-72 bg-emerald-600/10 rounded-full blur-3xl pointer-events-none"></div>
+        
+        <div className="relative z-10 text-[11px] font-black text-blue-400 uppercase tracking-widest mb-4 flex items-center gap-1.5">
+          <Package size={16}/> Ringkasan Ketersediaan Papan Stok Master Gudang (Real-Time)
         </div>
-        <div className="flex flex-wrap gap-3">
+        <div className="relative z-10 flex flex-wrap gap-4">
           {activeProducts.map(p => {
             const freeStock = stockData.free[p.product_name] || 0;
             const qStock = stockData.quarantine[p.product_name] || 0;
             return (
-              <div key={p.id} className="bg-slate-800/60 border border-slate-700/50 p-3 rounded-xl flex items-start gap-3 min-w-[160px] shadow-3xs flex-1 sm:flex-none relative overflow-hidden">
+              <div key={p.id} className="bg-gradient-to-br from-slate-800/80 to-slate-900 border border-slate-700/60 p-4 rounded-2xl flex flex-col justify-between gap-3 min-w-[190px] shadow-lg flex-1 sm:flex-none relative overflow-hidden group hover:border-slate-500 transition-colors">
+                
                 {qStock > 0 && (
-                  <div className="absolute top-0 right-0 bg-orange-600 text-white text-[8px] font-black px-2 py-0.5 rounded-bl-lg">
+                  <div className="absolute top-0 right-0 bg-orange-600 text-white text-[9px] font-black px-2 py-0.5 rounded-bl-lg">
                     {formatNumber(qStock)} Karantina
                   </div>
                 )}
-                <div className={`w-2.5 h-2.5 rounded-full mt-1 shrink-0 ${freeStock > 500 ? 'bg-emerald-500 animate-pulse' : freeStock > 0 ? 'bg-amber-500' : 'bg-rose-600'}`}></div>
-                <div className="flex-1">
-                  <div className="text-[10px] font-bold text-slate-300 uppercase leading-snug whitespace-normal break-words">{p.product_name}</div>
-                  <div className="text-sm font-black text-white mt-1">{formatNumber(freeStock)} <span className="text-[9px] text-slate-400 font-normal">Pcs (Bebas)</span></div>
+                
+                <div className="flex items-start gap-2.5">
+                   <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 shadow-sm ${freeStock > 500 ? 'bg-emerald-400 animate-pulse shadow-emerald-500/50' : freeStock > 0 ? 'bg-amber-400 shadow-amber-500/50' : 'bg-rose-500 shadow-rose-500/50'}`}></div>
+                   <div>
+                     <div className="text-[11px] font-bold text-slate-300 uppercase leading-snug line-clamp-2">{p.product_name}</div>
+                     <div className="text-xl font-black text-white mt-1">{formatNumber(freeStock)} <span className="text-[10px] text-slate-400 font-normal normal-case">Pcs (Bebas)</span></div>
+                   </div>
+                </div>
+
+                <div className="flex gap-1.5 mt-1 border-t border-slate-700/50 pt-2">
+                   <span className="bg-slate-950/60 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[9px] font-bold shadow-inner">{Math.floor(freeStock/50)} Mika</span>
+                   <span className="bg-slate-950/60 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded text-[9px] font-bold shadow-inner">{Math.floor(freeStock/4)} Porsi</span>
                 </div>
               </div>
             );
@@ -425,7 +459,7 @@ export default function TabOrders({
                   {cart.map(item => (
                     <div key={item.id} className="flex justify-between items-center p-2.5 bg-slate-50 border border-slate-100 rounded-xl">
                       <div className="flex-1 pr-2 min-w-0">
-                        <div className="font-black text-slate-800 text-[11px] normal-case truncate">{item.name}</div>
+                        <div className="font-black text-slate-800 text-[11px] uppercase truncate">{item.name}</div>
                         <div className="text-blue-600 font-black text-[10px] mt-0.5">{formatRupiah(item.price)}</div>
                       </div>
                       <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-0.5 shadow-3xs shrink-0">
@@ -467,8 +501,8 @@ export default function TabOrders({
                 <div className="flex items-center gap-2">
                   <div className={`p-1.5 rounded-lg ${orderMode === 'INFLUENCER' ? 'bg-red-100 text-red-600' : 'bg-white text-slate-400 border shadow-3xs'}`}><Gift size={12}/></div>
                   <div>
-                    <div className="text-[11px] font-black text-slate-800">Mode Influencer / Promosi Gratis</div>
-                    <div className="text-[9px] font-bold text-slate-400 mt-0.5">HPP akan dicatat sebagai beban promosi harian.</div>
+                    <div className="text-[11px] font-black text-slate-800 normal-case">Mode Influencer / Promosi Gratis</div>
+                    <div className="text-[9px] font-bold text-slate-400 mt-0.5 normal-case">HPP akan dicatat sebagai beban promosi harian.</div>
                   </div>
                 </div>
                 <div className={`w-8 h-4 rounded-full relative ${orderMode === 'INFLUENCER' ? 'bg-red-500' : 'bg-slate-300'}`}><div className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white transition-transform ${orderMode === 'INFLUENCER' ? 'translate-x-4' : ''}`}></div></div>
@@ -478,7 +512,7 @@ export default function TabOrders({
                 <div className="space-y-3 bg-slate-50 p-3 rounded-xl border border-slate-200 shadow-inner">
                   <div className="flex items-center justify-between">
                     <label className="text-[9px] font-black text-slate-600 uppercase tracking-wider">Opsi Model Bayar</label>
-                    <label className="flex items-center gap-1 text-[10px] font-bold text-slate-700 cursor-pointer"><input type="checkbox" checked={isSplitPayment} onChange={e=>{ setIsSplitPayment(e.target.checked); setPayCash(''); setPayBCA(''); setPayBRI(''); setSingleAmountPaid(''); }} className="accent-blue-600"/> Aktifkan Bayar Campuran (Mix)</label>
+                    <label className="flex items-center gap-1 text-[10px] font-bold text-slate-700 cursor-pointer normal-case"><input type="checkbox" checked={isSplitPayment} onChange={e=>{ setIsSplitPayment(e.target.checked); setPayCash(''); setPayBCA(''); setPayBRI(''); setSingleAmountPaid(''); }} className="accent-blue-600"/> Aktifkan Bayar Campuran (Mix)</label>
                   </div>
 
                   {isSplitPayment ? (
@@ -524,14 +558,14 @@ export default function TabOrders({
                       )}
                       {singleMethod === 'COD_PO' && (
                         <div className="p-2 bg-purple-50 border border-purple-200 rounded-lg shadow-inner">
-                          <label className="text-[9px] font-black text-purple-800 block mb-1">SET TANGGAL TARGET ACARA / PO: (Opsional)</label>
+                          <label className="text-[9px] font-black text-purple-800 block mb-1 normal-case">Set Tanggal Target Acara / PO: (Opsional)</label>
                           <input type="date" value={targetDate} onChange={e=>setTargetDate(e.target.value)} className="w-full p-2 bg-white border border-purple-200 rounded-lg text-xs font-bold text-purple-900 outline-none cursor-pointer shadow-3xs" />
                         </div>
                       )}
                     </div>
                   )}
 
-                  <div className="border-t border-slate-200 pt-2 text-[10px] font-bold space-y-1 text-slate-600">
+                  <div className="border-t border-slate-200 pt-2 text-[10px] font-bold space-y-1 text-slate-600 normal-case">
                     <div className="flex justify-between"><span>Total Input Pembayaran:</span><span className="font-black text-slate-800">{formatRupiah(isSplitPayment ? Number(payCash||0)+Number(payBCA||0)+Number(payBRI||0) : Number(singleAmountPaid||0))}</span></div>
                     {paymentSummary.sisaBon > 0 && <div className="flex justify-between text-rose-600 font-black bg-rose-50 px-2 py-1 rounded"><span>⚠️ Sisa Kekurangan (Masuk Bon Gantung):</span><span>{formatRupiah(paymentSummary.sisaBon)}</span></div>}
                     {paymentSummary.kembalian > 0 && <div className="flex justify-between text-emerald-600 font-black text-xs border-2 border-dashed border-emerald-200 p-1.5 rounded-lg bg-emerald-50/50 mt-1"><span>🟢 KEMBALIAN KASIR:</span><span>{formatRupiah(paymentSummary.kembalian)}</span></div>}
@@ -543,7 +577,7 @@ export default function TabOrders({
               )}
 
               <div>
-                <label className="text-[9px] font-bold text-slate-500 block mb-1"><Tag size={12}/> Catatan Khusus Invoice / Request Dapur (WO)</label>
+                <label className="text-[9px] font-bold text-slate-500 block mb-1 normal-case"><Tag size={12} className="inline mr-1"/>Catatan Khusus Invoice / Request Dapur (WO)</label>
                 <input type="text" value={notes} onChange={e=>setNotes(e.target.value)} className="w-full p-2 border border-slate-200 rounded-lg text-xs font-medium normal-case outline-none bg-slate-50 focus:bg-white focus:border-blue-400 transition-colors" placeholder={orderMode === 'INFLUENCER' ? "Ketik detail target promo..." : "Contoh: Bawa sore hari, jangan pakai daun bawang..."} />
               </div>
 
@@ -570,11 +604,16 @@ export default function TabOrders({
             </div>
           </div>
 
+          {/* DAFTAR MENU DENGAN INFORMASI HARGA BERTINGKAT & KONVERSI */}
           <div className="grid grid-cols-2 xl:grid-cols-3 gap-4 overflow-y-auto custom-scrollbar max-h-[70vh] pb-2 pr-1">
             {filteredProducts.map(product => {
               const freeStock = stockData.free[product.product_name] || 0;
               const qStock = stockData.quarantine[product.product_name] || 0;
-              const displayPrice = getProductPriceForCustomer(product, selectedCustomerId);
+              
+              // Tarik harga normal untuk display awal (Grosir)
+              const wholesalePrice = Number(product.selling_price || 0);
+              const retailPrice = Number(product.retail_price || product.penalty_price || product.selling_price || 0);
+              const wholesaleQty = Number(product.wholesale_qty || 1);
 
               return (
                 <div key={product.id} onClick={() => handleProductClick(product)} className={`bg-white border rounded-2xl p-4 cursor-pointer hover:shadow-md transition-all flex flex-col justify-between h-full group relative shadow-2xs overflow-hidden ${freeStock <= 0 && qStock > 0 ? 'border-orange-300 hover:border-orange-500' : 'border-slate-200 hover:border-blue-400'}`}>
@@ -591,17 +630,38 @@ export default function TabOrders({
                     )}
                   </div>
 
-                  <div className="mt-5">
-                    <h3 className="font-black text-slate-800 text-xs normal-case group-hover:text-blue-600 transition-colors pr-2">{product.product_name}</h3>
+                  <div className="mt-5 mb-2">
+                    <h3 className="font-black text-slate-800 text-xs uppercase group-hover:text-blue-600 transition-colors pr-2 leading-snug line-clamp-2">{product.product_name}</h3>
                   </div>
                   
-                  <div className="mt-3 flex justify-between items-end">
-                    <div className="text-blue-600 font-black text-sm">{formatRupiah(displayPrice)}</div>
-                    {freeStock <= 0 && qStock > 0 && (
-                      <div className="text-[9px] font-black text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-200 flex items-center gap-1 animate-pulse">
-                        <Unlock size={10}/> Pinjam PO
+                  <div className="space-y-2 mt-auto">
+                    {/* INFO HARGA BERTINGKAT */}
+                    {wholesaleQty > 1 ? (
+                      <div className="space-y-1">
+                        <div className="text-[9px] font-bold text-slate-500 bg-slate-50 border border-slate-100 px-2 py-1 rounded-md flex justify-between">
+                          <span>Eceran (&lt; {wholesaleQty}):</span> <span className="text-rose-600 font-black">{formatRupiah(retailPrice)}</span>
+                        </div>
+                        <div className="text-[9px] font-bold text-slate-500 bg-emerald-50 border border-emerald-100 px-2 py-1 rounded-md flex justify-between">
+                          <span>Grosir (&ge; {wholesaleQty}):</span> <span className="text-emerald-700 font-black">{formatRupiah(wholesalePrice)}</span>
+                        </div>
                       </div>
+                    ) : (
+                      <div className="text-emerald-600 font-black text-sm">{formatRupiah(wholesalePrice)}</div>
                     )}
+
+                    <div className="flex justify-between items-end pt-1">
+                      {/* BANTUAN KONVERSI UNTUK KASIR */}
+                      <div className="flex items-center gap-1">
+                         <span className="text-[8px] font-black bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200" title="1 Mika = 50 Pcs">1 MK = 50</span>
+                         <span className="text-[8px] font-black bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200" title="1 Porsi = 4 Pcs">1 PR = 4</span>
+                      </div>
+
+                      {freeStock <= 0 && qStock > 0 && (
+                        <div className="text-[9px] font-black text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-200 flex items-center gap-1 animate-pulse">
+                          <Unlock size={10}/> Pinjam PO
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                 </div>
@@ -622,7 +682,7 @@ export default function TabOrders({
               <div className="w-14 h-14 bg-orange-100 rounded-full flex items-center justify-center text-orange-600 mb-3 shadow-inner">
                 <AlertTriangle size={28}/>
               </div>
-              <h3 className="font-black text-slate-800 text-lg uppercase tracking-tight">Stok Bebas Kosong!</h3>
+              <h3 className="font-black text-slate-800 text-lg normal-case tracking-tight">Stok Bebas Kosong!</h3>
               <p className="text-[11px] font-bold text-slate-500 mt-1 normal-case leading-relaxed">
                 Stok bebas <b>{borrowForm.product.product_name}</b> di gudang habis total. Anda bisa meminjam stok dari Nota PO yang sedang dikarantina.
               </p>
@@ -630,14 +690,14 @@ export default function TabOrders({
             
             <div className="p-5 bg-slate-50 space-y-4">
               <div>
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1.5">Pilih Nota PO Sumber Pinjaman</label>
+                <label className="text-[10px] font-black text-slate-500 normal-case block mb-1.5">Pilih Nota PO Sumber Pinjaman</label>
                 <select 
                   value={borrowForm.poId} 
                   onChange={(e) => {
                     const selected = poOptionsForBorrow.find(opt => opt.poId === e.target.value);
                     setBorrowForm({ ...borrowForm, poId: e.target.value, maxQty: selected ? selected.qty : 0, qty: '' });
                   }} 
-                  className="w-full p-3 border-2 border-orange-200 rounded-xl text-xs font-bold bg-white focus:border-orange-500 outline-none cursor-pointer text-slate-800"
+                  className="w-full p-3 border-2 border-orange-200 rounded-xl text-xs font-bold bg-white focus:border-orange-500 outline-none cursor-pointer text-slate-800 normal-case"
                 >
                   <option value="">-- Pilih Nota PO Karantina --</option>
                   {poOptionsForBorrow.map(opt => (
@@ -650,7 +710,7 @@ export default function TabOrders({
 
               {borrowForm.poId && (
                 <div className="animate-in fade-in slide-in-from-top-2">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1.5 flex justify-between">
+                  <label className="text-[10px] font-black text-slate-500 normal-case block mb-1.5 flex justify-between">
                     <span>Jumlah Pcs Dipinjam</span>
                     <span className="text-orange-600">Maks: {formatNumber(borrowForm.maxQty)} Pcs</span>
                   </label>
@@ -665,7 +725,7 @@ export default function TabOrders({
                     />
                     <button 
                       onClick={() => setBorrowForm({ ...borrowForm, qty: String(borrowForm.maxQty) })}
-                      className="px-4 py-3.5 bg-slate-800 hover:bg-black text-white text-xs font-black rounded-xl transition-colors cursor-pointer uppercase"
+                      className="px-4 py-3.5 bg-slate-800 hover:bg-black text-white text-xs font-black rounded-xl transition-colors cursor-pointer normal-case"
                     >
                       Bongkar Semua
                     </button>
@@ -675,8 +735,8 @@ export default function TabOrders({
             </div>
 
             <div className="p-4 bg-white border-t border-slate-100 flex gap-3">
-              <button onClick={() => setShowBorrowModal(false)} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition-colors cursor-pointer uppercase">Batal</button>
-              <button onClick={executeBorrowKarantina} disabled={!borrowForm.poId || !borrowForm.qty || Number(borrowForm.qty) <= 0} className="flex-1 py-3 bg-orange-600 hover:bg-orange-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer flex items-center justify-center gap-2 uppercase disabled:opacity-50 disabled:cursor-not-allowed">
+              <button onClick={() => setShowBorrowModal(false)} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition-colors cursor-pointer normal-case">Batal</button>
+              <button onClick={executeBorrowKarantina} disabled={!borrowForm.poId || !borrowForm.qty || Number(borrowForm.qty) <= 0} className="flex-1 py-3 bg-orange-600 hover:bg-orange-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer flex items-center justify-center gap-2 normal-case disabled:opacity-50 disabled:cursor-not-allowed">
                 <Unlock size={14}/> Bongkar &amp; Masukkan POS
               </button>
             </div>
@@ -741,14 +801,12 @@ export default function TabOrders({
                       paymentHistory.push({ date: formatDate(p.date), method: p.method.replace(/_/g, ' '), amount: p.amount, refId: p.id });
                     }
                   });
-                  
                   const sisaHutangDynamic = Math.max(0, Number(o.total_amount || 0) - totalTerbayarDynamic);
                   const statusLunasDynamic = sisaHutangDynamic <= 0 ? 'LUNAS' : 'BELUM_LUNAS';
-
                   return (
                     <tr key={o.id} className="hover:bg-slate-50/50 transition-colors group">
                       <td className="px-4 py-3 whitespace-nowrap"><div onClick={() => { setSelectedStaplesOrder({ ...o, orderHPP, listItems, sisaHutangDynamic, totalTerbayarDynamic }); setShowAddStaplesModal(true); }} className="text-blue-600 hover:underline cursor-pointer font-black font-mono">{o.id}</div><div className="text-[9px] text-slate-400 font-bold mt-0.5">{formatDate(o.date)}</div></td>
-                      <td className="px-4 py-3 whitespace-nowrap text-slate-800 font-black normal-case text-xs">{o.customer_name}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-slate-800 font-black uppercase text-xs">{o.customer_name}</td>
                       <td className="px-4 py-3 text-center whitespace-nowrap text-slate-600 font-black">{formatNumber(o.qty)} <span className="text-[10px] font-normal text-slate-400">Pcs</span></td>
                       
                       <td className="px-4 py-3 text-center whitespace-nowrap">
@@ -775,7 +833,8 @@ export default function TabOrders({
                           
                           <button type="button" onClick={() => {
                             setPrintData({
-                              type: 'INVOICE', id: o.id, date: formatDate(o.date), branch_name: currentBranch.replace(/_/g, ' '),
+                              type: 'INVOICE', 
+                              id: o.id, date: formatDate(o.date), branch_name: currentBranch.replace(/_/g, ' '),
                               admin_name: user?.name || 'ADMIN PUSAT', customer_name: o.customer_name,
                               items: listItems.map(i => ({ name: i.name, qty: i.qty, subtotal: i.price * i.qty, price: i.price })), amount: o.total_amount,
                               paymentMethod: o.payment_method.replace(/_/g, ' '), notes: o.notes, paymentHistory: paymentHistory,
@@ -784,7 +843,8 @@ export default function TabOrders({
                           }} className="p-1.5 text-slate-400 hover:text-blue-600 border border-slate-200 rounded-lg shadow-3xs bg-white cursor-pointer hover:bg-blue-50 transition-colors" title="Cetak Ulang Invoice Pelanggan"><Printer size={14}/></button>
 
                           <button type="button" onClick={() => {
-                             let tgDate = ''; let cNotes = o.notes || '';
+                             let tgDate = '';
+                             let cNotes = o.notes || '';
                              if (cNotes.includes('TARGET PO')) {
                                 const splitted = cNotes.split(') ');
                                 tgDate = splitted[0].replace('(TARGET PO: ', '');
@@ -826,7 +886,7 @@ export default function TabOrders({
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-[11px] border-collapse">
                     <thead>
-                      <tr className="bg-slate-50 text-slate-500 font-bold border-b text-[10px]">
+                      <tr className="bg-slate-50 text-slate-500 font-bold border-b text-[10px] normal-case">
                         <th className="p-2">Nama Barang</th><th className="p-2 text-center">Qty (Pcs)</th><th className="p-2 text-right">Harga</th>
                         <th className="p-2 text-right">Subtotal</th><th className="p-2 text-right text-orange-600 bg-orange-50/50">HPP</th><th className="p-2 text-right text-emerald-600 bg-emerald-50/50">Profit</th>
                       </tr>
@@ -852,18 +912,18 @@ export default function TabOrders({
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-[11px] border-collapse">
                     <thead>
-                      <tr className="bg-slate-50 text-slate-500 font-bold border-b text-[10px]"><th className="p-2">Waktu Setor</th><th className="p-2">Metode Kas</th><th className="p-2 text-right">Jumlah Bayar</th><th className="p-2 font-mono">ID Kuitansi</th></tr>
+                      <tr className="bg-slate-50 text-slate-500 font-bold border-b text-[10px] normal-case"><th className="p-2">Waktu Setor</th><th className="p-2">Metode Kas</th><th className="p-2 text-right">Jumlah Bayar</th><th className="p-2 font-mono">ID Kuitansi</th></tr>
                     </thead>
                     <tbody className="divide-y font-bold text-slate-600">
-                      <tr><td className="p-2 text-slate-400">{formatDate(selectedStaplesOrder.date)}</td><td className="p-2"><span className="px-1.5 py-0.5 bg-slate-100 rounded text-[9px]">DP POS INITIAL</span></td><td className="p-2 text-right text-slate-800">{formatRupiah(selectedStaplesOrder.amount_paid)}</td><td className="p-2 font-mono text-[10px] text-slate-400">INITIAL_PAY</td></tr>
+                      <tr><td className="p-2 text-slate-400">{formatDate(selectedStaplesOrder.date)}</td><td className="p-2"><span className="px-1.5 py-0.5 bg-slate-100 rounded text-[9px] uppercase">DP POS INITIAL</span></td><td className="p-2 text-right text-slate-800">{formatRupiah(selectedStaplesOrder.amount_paid)}</td><td className="p-2 font-mono text-[10px] text-slate-400">INITIAL_PAY</td></tr>
                       {(piutangPayments || []).filter(p => !p.isDeleted && p.orderId === selectedStaplesOrder.id).map(p => (
-                        <tr key={p.id}><td className="p-2 text-slate-700">{formatDate(p.date)}</td><td className="p-2"><span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[9px] border border-blue-100">{p.method}</span></td><td className="p-2 text-right text-blue-600">{formatRupiah(p.amount)}</td><td className="p-2 font-mono text-[10px] text-slate-400">{p.id}</td></tr>
+                        <tr key={p.id}><td className="p-2 text-slate-700">{formatDate(p.date)}</td><td className="p-2"><span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[9px] border border-blue-100 uppercase">{p.method}</span></td><td className="p-2 text-right text-blue-600">{formatRupiah(p.amount)}</td><td className="p-2 font-mono text-[10px] text-slate-400">{p.id}</td></tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
               </div>
-              <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-3 rounded-xl space-y-1.5 font-bold text-[11px]">
+              <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-3 rounded-xl space-y-1.5 font-bold text-[11px] normal-case">
                 <div className="flex justify-between text-slate-400"><span>A. Nilai Omset Nota Kotor (A)</span><span>{formatRupiah(selectedStaplesOrder.total_amount)}</span></div>
                 <div className="flex justify-between text-slate-400"><span>B. Akumulasi Total Uang Diterima (B)</span><span className="text-emerald-400">{formatRupiah(selectedStaplesOrder.totalTerbayarDynamic)}</span></div>
                 <div className="border-t border-slate-700 my-1"></div>
@@ -874,7 +934,7 @@ export default function TabOrders({
               </div>
             </div>
             <div className="p-3 bg-slate-100 border-t text-right shrink-0">
-              <button type="button" onClick={() => setShowAddStaplesModal(false)} className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-black text-[10px] rounded-xl shadow-md cursor-pointer uppercase">Tutup Buku Staples</button>
+              <button type="button" onClick={() => setShowAddStaplesModal(false)} className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-black text-[10px] rounded-xl shadow-md cursor-pointer normal-case">Tutup Buku Staples</button>
             </div>
           </div>
         </div>
@@ -884,25 +944,25 @@ export default function TabOrders({
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-[99999] flex items-center justify-center p-4 animate-in fade-in duration-150">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm border border-slate-200 overflow-hidden flex flex-col">
             <div className="p-4 bg-slate-900 text-white flex justify-between items-center">
-              <h3 className="font-black text-xs uppercase flex items-center gap-1.5"><PlusCircle size={14} className="text-emerald-400"/> Registrasi Pelanggan Kilat</h3>
+              <h3 className="font-black text-xs normal-case flex items-center gap-1.5"><PlusCircle size={14} className="text-emerald-400"/> Registrasi Pelanggan Kilat</h3>
               <button type="button" onClick={() => setShowAddCustomerModal(false)} className="text-slate-400 hover:text-white text-sm font-bold cursor-pointer">✕</button>
             </div>
             <form onSubmit={handleCreateCustomerFast} className="p-4 space-y-3">
-              <div><label className="text-[9px] font-bold text-slate-400 block mb-1">Nama Lengkap / Nama Toko Agen</label><input type="text" required value={newCustomerForm.name} onChange={e=>setNewCustomerForm({...newCustomerForm, name: e.target.value})} className="w-full p-2 border border-slate-200 rounded-lg text-xs font-bold outline-none focus:border-blue-400 shadow-3xs uppercase" placeholder="Contoh: AGEN CIBINONG JAYA" /></div>
-              <div><label className="text-[9px] font-bold text-slate-400 block mb-1">No. Telepon / WhatsApp</label><input type="text" value={newCustomerForm.phone} onChange={e=>setNewCustomerForm({...newCustomerForm, phone: e.target.value.replace(/\D/g, '')})} className="w-full p-2 border border-slate-200 rounded-lg text-xs font-bold outline-none focus:border-blue-400 shadow-3xs" placeholder="Contoh: 0812XXXXXXXX" /></div>
-              <div><label className="text-[9px] font-bold text-slate-400 block mb-1">Alamat Lengkap Pengiriman</label><input type="text" value={newCustomerForm.address} onChange={e=>setNewCustomerForm({...newCustomerForm, address: e.target.value})} className="w-full p-2 border border-slate-200 rounded-lg text-xs font-bold outline-none focus:border-blue-400 shadow-3xs" placeholder="Contoh: Jl. Merdeka No. 12, RT 02/03" /></div>
+              <div><label className="text-[9px] font-bold text-slate-400 block mb-1 normal-case">Nama Lengkap / Nama Toko Agen</label><input type="text" required value={newCustomerForm.name} onChange={e=>setNewCustomerForm({...newCustomerForm, name: e.target.value})} className="w-full p-2 border border-slate-200 rounded-lg text-xs font-bold outline-none focus:border-blue-400 shadow-3xs uppercase" placeholder="Contoh: AGEN CIBINONG JAYA" /></div>
+              <div><label className="text-[9px] font-bold text-slate-400 block mb-1 normal-case">No. Telepon / WhatsApp</label><input type="text" value={newCustomerForm.phone} onChange={e=>setNewCustomerForm({...newCustomerForm, phone: e.target.value.replace(/\D/g, '')})} className="w-full p-2 border border-slate-200 rounded-lg text-xs font-bold outline-none focus:border-blue-400 shadow-3xs" placeholder="Contoh: 0812XXXXXXXX" /></div>
+              <div><label className="text-[9px] font-bold text-slate-400 block mb-1 normal-case">Alamat Lengkap Pengiriman</label><input type="text" value={newCustomerForm.address} onChange={e=>setNewCustomerForm({...newCustomerForm, address: e.target.value})} className="w-full p-2 border border-slate-200 rounded-lg text-xs font-bold outline-none focus:border-blue-400 shadow-3xs normal-case" placeholder="Contoh: Jl. Merdeka No. 12, RT 02/03" /></div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-[9px] font-bold text-slate-400 block mb-1">Jalur / Kategori Harga</label>
-                  <select value={newCustomerForm.category} onChange={e=>setNewCustomerForm({...newCustomerForm, category: e.target.value})} className="w-full p-2 border border-slate-200 rounded-lg text-[10px] font-bold cursor-pointer outline-none">
+                  <label className="text-[9px] font-bold text-slate-400 block mb-1 normal-case">Jalur / Kategori Harga</label>
+                  <select value={newCustomerForm.category} onChange={e=>setNewCustomerForm({...newCustomerForm, category: e.target.value})} className="w-full p-2 border border-slate-200 rounded-lg text-[10px] font-bold cursor-pointer outline-none normal-case">
                     <option value="RESELLER">Reseller</option><option value="MITRA">Mitra Utama</option><option value="ECERAN">Eceran Biasa</option><option value="PEMALANG">Cabang Pemalang</option>
                   </select>
                 </div>
-                <div><label className="text-[9px] font-bold text-slate-400 block mb-1">Keterangan Khusus</label><input type="text" value={newCustomerForm.notes} onChange={e=>setNewCustomerForm({...newCustomerForm, notes: e.target.value})} className="w-full p-2 border border-slate-200 rounded-lg text-xs font-bold outline-none focus:border-blue-400 shadow-3xs" placeholder="Contoh: Ambil Sore..." /></div>
+                <div><label className="text-[9px] font-bold text-slate-400 block mb-1 normal-case">Keterangan Khusus</label><input type="text" value={newCustomerForm.notes} onChange={e=>setNewCustomerForm({...newCustomerForm, notes: e.target.value})} className="w-full p-2 border border-slate-200 rounded-lg text-xs font-bold outline-none focus:border-blue-400 shadow-3xs normal-case" placeholder="Contoh: Ambil Sore..." /></div>
               </div>
               <div className="pt-2 flex gap-2">
-                <button type="button" onClick={() => setShowAddCustomerModal(false)} className="flex-1 py-2 bg-slate-100 border text-slate-600 font-bold text-[10px] rounded-lg uppercase cursor-pointer">Batal</button>
-                <button type="submit" className="flex-1 py-2 bg-emerald-600 text-white font-black text-[10px] rounded-lg uppercase shadow-md hover:bg-emerald-700 cursor-pointer">Daftarkan & Pilih</button>
+                <button type="button" onClick={() => setShowAddCustomerModal(false)} className="flex-1 py-2 bg-slate-100 border text-slate-600 font-bold text-[10px] rounded-lg normal-case cursor-pointer">Batal</button>
+                <button type="submit" className="flex-1 py-2 bg-emerald-600 text-white font-black text-[10px] rounded-lg normal-case shadow-md hover:bg-emerald-700 cursor-pointer">Daftarkan & Pilih</button>
               </div>
             </form>
           </div>
