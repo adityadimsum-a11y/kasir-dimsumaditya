@@ -40,6 +40,25 @@ export default function TabPemalang({
     return { ayamKantong, ayamKg: ayamKantong * 10 };
   }, [realInventory, currentBranch]);
 
+  // Skenario B: Menghitung akumulasi riil total Kg daging ayam terpakai berdasarkan data jurnal yang sudah disubmit pada tanggal terpilih
+  const totalAyamKgTerpakai = useMemo(() => {
+    let totalKg = 0;
+    (pemalang || []).forEach((p) => {
+      if (p.isDeleted || p.date !== date) return;
+      if (p.items) {
+        const parsed = safeJsonParse(p.items, []);
+        if (parsed.length > 0 && String(parsed[0].name).startsWith('@@PRODUCTION@@')) {
+          const parts = parsed[0].name.split('||');
+          const kgValue = Number(parts[2] || 0);
+          if (!isNaN(kgValue)) {
+            totalKg += kgValue;
+          }
+        }
+      }
+    });
+    return totalKg;
+  }, [pemalang, date]);
+
   const kalkulasi = useMemo(() => {
     const adukanNum = Number(adukan || 0);
     const inputAngka = Number(actualInput || 0);
@@ -154,6 +173,7 @@ export default function TabPemalang({
              <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col items-center justify-center text-center shadow-xs">
                <div className="text-[9px] font-bold text-slate-400 normal-case mb-1">Ayam dipakai</div>
                <div className="text-sm font-extrabold text-slate-800">{formatNumber(kalkulasi.butuhAyamKantong)} <span className="text-[10px] text-slate-400 font-medium">Kantong</span></div>
+               <div className="text-sm font-extrabold text-slate-800 mt-0.5">{formatNumber(totalAyamKgTerpakai)} <span className="text-[10px] text-slate-400 font-medium">Kg</span></div>
              </div>
              <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col items-center justify-center text-center relative overflow-hidden shadow-xs">
                {kalkulasi.sisaAyamKantong < 0 && <div className="absolute top-0 w-full bg-red-600 text-white text-[8px] font-bold text-center py-0.5">Minus</div>}
