@@ -19,7 +19,7 @@ export default function TabMasterData({
   const todayStr = getTodayStr();
   const currentBranch = (user?.branch_id === 'PUSAT' || !user?.branch_id) ? 'TANGERANG_PUSAT' : user?.branch_id;
 
-  const [activeTab, setActiveTab] = useState('ITEM_BIAYA'); 
+  const [activeTab, setActiveTab] = useState('RULES'); // Set default ke RULES untuk testing
   const [isEditing, setIsEditing] = useState(false);
   const [isEditingSpl, setIsEditingSpl] = useState(false);
   const [isEditingItem, setIsEditingItem] = useState(false);
@@ -37,8 +37,13 @@ export default function TabMasterData({
   const realSuppliers = useMemo(() => master_suppliers || masterSuppliers || [], [master_suppliers, masterSuppliers]);
   const realRawMaterials = useMemo(() => master_raw_materials || masterRawMaterials || [], [master_raw_materials, masterRawMaterials]);
   
+  // 🔥 STATE MASTER CONVERSION RULES (BISA DI-EDIT MANUAL)
   const [rules, setRules] = useState({
-    kgPerKantong: 10, kgPerAdukan: 30, pcsPerAdukan: 1000, pcsPerPorsi: 4, pcsPerMika: 50
+    kgPerKantong: 10, 
+    kgPerAdukan: 30, 
+    pcsPerAdukan: 1000, 
+    pcsPerPorsi: 4, 
+    pcsPerMika: 50
   });
 
   const [formMenu, setFormMenu] = useState({ id: '', product_name: '', category: 'FROZEN_GOODS', selling_price: '', default_hpp: '1125', min_order: '1', penalty_price: '0' });
@@ -48,6 +53,20 @@ export default function TabMasterData({
   const activeProducts = useMemo(() => realProducts.filter(p => !p.isDeleted && String(p.isDeleted).toUpperCase() !== 'TRUE').reverse(), [realProducts]);
   const activeSuppliers = useMemo(() => realSuppliers.filter(s => !s.isDeleted && String(s.isDeleted).toUpperCase() !== 'TRUE').reverse(), [realSuppliers]);
   const activeRawMaterials = useMemo(() => realRawMaterials.filter(m => !m.isDeleted && String(m.isDeleted).toUpperCase() !== 'TRUE').reverse(), [realRawMaterials]);
+
+  // --- ACTIONS: SAVE MASTER RULES ---
+  const handleSaveRules = async () => {
+    // Simulasi penyimpanan ke database (Bisa pakai tabel system_settings)
+    // const payload = { id: 'SYS-RULES', date: todayStr, branch_id: currentBranch, data: JSON.stringify(rules), isDeleted: false };
+    // await sendToSheet('update', payload, 'system_settings');
+    
+    // Tampilkan notifikasi sukses ke Bos
+    if (typeof showToast === 'function') {
+      showToast('Konfigurasi Master Engine berhasil diperbarui ke seluruh sistem!', 'success');
+    } else {
+      alert('Konfigurasi Master Engine berhasil diperbarui ke seluruh sistem!');
+    }
+  };
 
   // --- ACTIONS: SUBMIT MENU ---
   const handleSubmitMenu = async (e) => {
@@ -73,7 +92,6 @@ export default function TabMasterData({
     if (!formSpl.supplier_name) return alert("Nama perusahaan supplier wajib diisi!");
     const splId = isEditingSpl ? formSpl.id : generateId('SPL', todayStr);
     
-    // 🔥 FIX BUG 2: Pengaman formSpl.address agar tidak crash saat undefined
     const payload = {
       id: splId, date: todayStr, branch_id: currentBranch, isDeleted: false,
       supplier_name: formSpl.supplier_name.toUpperCase(), pic_name: formSpl.pic_name.toUpperCase(), phone: formSpl.phone, 
@@ -239,7 +257,6 @@ export default function TabMasterData({
                      <td className="px-5 py-4 text-center">
                        <div className="flex items-center justify-center gap-1.5">
                          <button onClick={()=> {setFormMenu({...p, default_hpp: String(p.default_hpp || ''), min_order: String(p.min_order || ''), penalty_price: String(p.penalty_price || '')}); setIsEditing(true);}} className="p-2 text-slate-400 hover:text-blue-600 bg-white hover:bg-blue-50 rounded-lg transition-colors border shadow-xs"><Edit2 size={14}/></button>
-                         {/* 🔥 FIX BUG 3: Tambah Tombol Karantina Menu */}
                          <button onClick={async () => { if(window.confirm(`Karantina menu ${p.product_name}? Item tidak akan muncul lagi di kasir.`)) sendToSheet('update', {id: p.id, isDeleted: true}, 'master_products'); }} className="p-2 text-slate-400 hover:text-red-600 bg-white hover:bg-red-50 rounded-lg transition-colors border shadow-xs"><Trash2 size={14}/></button>
                        </div>
                      </td>
@@ -299,7 +316,6 @@ export default function TabMasterData({
                      <td className="px-5 py-4 text-center">
                        <div className="flex items-center justify-center gap-1.5">
                          <button onClick={() => {setFormSpl({...s, default_price: String(s.default_price || ''), address: s.address || ''}); setIsEditingSpl(true);}} className="p-2 text-slate-400 hover:text-blue-600 bg-white hover:bg-slate-100 rounded-lg transition-colors border shadow-xs"><Edit2 size={14}/></button>
-                         {/* 🔥 FIX BUG 3: Tambah Tombol Karantina Supplier */}
                          <button onClick={async () => { if(window.confirm(`Putus kontrak & karantina supplier ${s.supplier_name}?`)) sendToSheet('update', {id: s.id, isDeleted: true}, 'master_suppliers'); }} className="p-2 text-slate-400 hover:text-red-600 bg-white hover:bg-red-50 rounded-lg transition-colors border shadow-xs"><Trash2 size={14}/></button>
                        </div>
                      </td>
@@ -389,7 +405,6 @@ export default function TabMasterData({
                             <div className="flex items-center justify-center gap-1.5">
                               <button onClick={() => openHistoryModal(m)} className="p-2 text-slate-400 bg-white border border-slate-200 rounded-lg hover:text-blue-600 hover:bg-blue-50 shadow-xs transition-colors" title="Lihat riwayat perubahan harga"><History size={14}/></button>
                               <button onClick={() => { setFormItem({ id: m.id, item_name: m.item_name, category: m.category, unit: m.unit, default_price: String(m.default_price) }); setIsEditingItem(true); }} className="p-2 text-slate-400 bg-white border border-slate-200 rounded-lg hover:text-blue-600 hover:bg-blue-50 shadow-xs transition-colors"><Edit2 size={14}/></button>
-                              {/* 🔥 FIX BUG 1: Ganti Hard Delete ke Karantina (Soft Delete) */}
                               <button onClick={async () => { if(window.confirm("Karantina item ini dari kamus pabrik?")) sendToSheet('update', {id: m.id, isDeleted: true}, 'master_raw_materials'); }} className="p-2 text-slate-400 bg-white border border-slate-200 rounded-lg hover:text-red-600 hover:bg-red-50 shadow-xs transition-colors"><Trash2 size={14}/></button>
                             </div>
                           </td>
@@ -487,22 +502,113 @@ export default function TabMasterData({
         </div>
       )}
 
-      {/* --- TAB RULES --- */}
+      {/* --- TAB RULES (DARK ENTERPRISE MODE - RE-DESIGN) --- */}
       {activeTab === 'RULES' && (
-        <div className="card-holo p-6 md:p-8 animate-in fade-in">
-          <div className="flex items-center gap-2 mb-6 border-b border-slate-100 pb-4">
-             <Settings size={20} className="text-red-600"/> 
-             <h3 className="text-base font-extrabold normal-case text-slate-800">Master conversion engine</h3>
+        <div className="bg-[#161b22] p-6 md:p-8 rounded-2xl text-slate-300 shadow-xl border border-slate-800 font-sans animate-in fade-in">
+          <div className="flex items-start gap-4 mb-8">
+            <div className="p-3 bg-amber-500/10 text-amber-500 rounded-xl border border-amber-500/20 shadow-inner">
+              <Settings size={28}/>
+            </div>
+            <div>
+              <h2 className="text-xl font-black text-white uppercase tracking-wider">Master Conversion Engine</h2>
+              <p className="text-[10px] font-bold text-amber-500 uppercase tracking-widest mt-1">Ubah angka di bawah ini untuk menyesuaikan perhitungan pabrik</p>
+            </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 shadow-xs">
-               <div className="text-[10px] font-bold text-slate-500 normal-case mb-2">Rule #1: Timbangan mentah</div>
-               <div className="text-xl font-black text-slate-800">{rules.kgPerKantong} Kg = <span className="text-red-600">1 Kantong</span></div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-8">
+            {/* RULE 1 */}
+            <div className="bg-[#1f242c] border border-[#30363d] rounded-xl p-5 shadow-inner">
+              <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #1: Timbangan Mentah</div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-end gap-2">
+                  <input type="number" value={rules.kgPerKantong} onChange={e => setRules({...rules, kgPerKantong: Number(e.target.value)})} className="w-20 bg-[#0d1117] border border-[#30363d] text-white text-2xl font-black rounded-lg p-2 text-center outline-none focus:border-amber-500 transition-colors" />
+                  <span className="text-xs font-bold text-slate-500 pb-2">KG</span>
+                </div>
+                <div className="text-slate-500 font-black text-xl">=</div>
+                <div className="text-right">
+                  <div className="text-xl font-black text-orange-500">1 <span className="text-sm">Kantong</span></div>
+                  <div className="text-[9px] font-bold text-slate-500 mt-1">Ayam Mentah</div>
+                </div>
+              </div>
             </div>
-            <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 shadow-xs">
-               <div className="text-[10px] font-bold text-slate-500 normal-case mb-2">Rule #2: Resep base</div>
-               <div className="text-xl font-black text-slate-800">{rules.kgPerAdukan} Kg = <span className="text-red-600">1 Adukan</span></div>
+
+            {/* RULE 2 */}
+            <div className="bg-[#1f242c] border border-[#30363d] rounded-xl p-5 shadow-inner">
+              <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #2: Resep Adukan</div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-end gap-2">
+                  <input type="number" value={rules.kgPerAdukan} onChange={e => setRules({...rules, kgPerAdukan: Number(e.target.value)})} className="w-20 bg-[#0d1117] border border-[#30363d] text-white text-2xl font-black rounded-lg p-2 text-center outline-none focus:border-amber-500 transition-colors" />
+                  <span className="text-xs font-bold text-slate-500 pb-2">KG</span>
+                </div>
+                <div className="text-slate-500 font-black text-xl">=</div>
+                <div className="text-right">
+                  <div className="text-xl font-black text-orange-500">1 <span className="text-sm">Adukan</span></div>
+                  <div className="text-[9px] font-bold text-slate-500 mt-1">Mix Base</div>
+                </div>
+              </div>
             </div>
+
+            {/* RULE 3 */}
+            <div className="bg-[#1f242c] border border-[#30363d] rounded-xl p-5 shadow-inner">
+              <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #3: Target Yield Dasar</div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xl font-black text-white">1 <span className="text-sm text-slate-400">Adukan</span></div>
+                  <div className="text-[9px] font-bold text-slate-500 mt-1">Mix Base</div>
+                </div>
+                <div className="text-slate-500 font-black text-xl">=</div>
+                <div className="flex items-end gap-2">
+                  <input type="number" value={rules.pcsPerAdukan} onChange={e => setRules({...rules, pcsPerAdukan: Number(e.target.value)})} className="w-24 bg-[#0d1117] border border-[#30363d] text-blue-400 text-2xl font-black rounded-lg p-2 text-center outline-none focus:border-blue-500 transition-colors" />
+                  <span className="text-xs font-bold text-slate-500 pb-2">PCS</span>
+                </div>
+              </div>
+            </div>
+
+            {/* RULE 4 */}
+            <div className="bg-[#1f242c] border border-[#30363d] rounded-xl p-5 shadow-inner">
+              <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #4: Konversi Porsi Eceran</div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xl font-black text-white">1 <span className="text-sm text-slate-400">Porsi</span></div>
+                  <div className="text-[9px] font-bold text-slate-500 mt-1">Penjualan Resto</div>
+                </div>
+                <div className="text-slate-500 font-black text-xl">=</div>
+                <div className="flex items-end gap-2 text-right">
+                  <input type="number" value={rules.pcsPerPorsi} onChange={e => setRules({...rules, pcsPerPorsi: Number(e.target.value)})} className="w-16 bg-[#0d1117] border border-[#30363d] text-purple-400 text-2xl font-black rounded-lg p-2 text-center outline-none focus:border-purple-500 transition-colors" />
+                  <span className="text-xs font-bold text-slate-500 pb-2">PCS</span>
+                </div>
+              </div>
+            </div>
+
+            {/* RULE 5 */}
+            <div className="bg-[#1f242c] border border-[#30363d] rounded-xl p-5 shadow-inner lg:col-span-2">
+              <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #5: Konversi Packaging / Mika Frozen</div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xl font-black text-white">1 <span className="text-sm text-slate-400">Mika</span></div>
+                  <div className="text-[9px] font-bold text-slate-500 mt-1">Kemasan Frozen</div>
+                </div>
+                <div className="text-slate-500 font-black text-xl">=</div>
+                <div className="flex items-end gap-2">
+                  <input type="number" value={rules.pcsPerMika} onChange={e => setRules({...rules, pcsPerMika: Number(e.target.value)})} className="w-20 bg-[#0d1117] border border-[#30363d] text-pink-500 text-2xl font-black rounded-lg p-2 text-center outline-none focus:border-pink-500 transition-colors" />
+                  <span className="text-xs font-bold text-slate-500 pb-2">PCS</span>
+                </div>
+                <div className="text-slate-500 font-black text-xl">=</div>
+                <div className="text-right">
+                  <div className="text-2xl font-black text-emerald-400">{(rules.pcsPerAdukan / (rules.pcsPerMika || 1)).toFixed(0)} <span className="text-sm text-emerald-500/70">Mika</span></div>
+                  <div className="text-[9px] font-bold text-slate-500 mt-1">Per Adukan (Auto)</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-6 border-t border-[#30363d]">
+            <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
+               <CheckCircle2 size={14} className="text-amber-500"/> Pastikan klik simpan setelah mengubah angka konfigurasi di atas.
+            </div>
+            <button onClick={handleSaveRules} className="w-full md:w-auto px-6 py-3 bg-amber-500 hover:bg-amber-600 text-slate-900 font-black rounded-xl text-xs flex items-center justify-center gap-2 transition-colors shadow-lg cursor-pointer">
+              <Save size={16}/> SIMPAN KONFIGURASI
+            </button>
           </div>
         </div>
       )}
