@@ -5,12 +5,14 @@ import { Printer, X, Receipt } from 'lucide-react';
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 
-// Helper untuk format "Rp" secara aman
+// 🔥 FIX 1: Pertahankan tanda minus (-) untuk akuntansi yang ada diskon / retur
 const safeRupiah = (val) => {
+  if (val === 0 || val === '0') return 'Rp 0';
   if (!val) return 'Rp 0';
   const str = String(val);
   if (str.includes('Rp')) return str;
-  const num = Number(str.replace(/\D/g, ''));
+  // Ubah regex untuk mengizinkan digit dan tanda minus
+  const num = Number(str.replace(/[^\d-]/g, ''));
   return formatRupiah(num);
 };
 
@@ -18,32 +20,33 @@ const safeRupiah = (val) => {
 function angkaTerbilang(angka) {
   const bilangan = Number(angka);
   if (isNaN(bilangan) || bilangan === 0) return "Nol Rupiah";
+  // Menangani angka minus pada terbilang
+  const isMinus = bilangan < 0;
+  const absBilangan = Math.abs(bilangan);
+  
   const huruf = ["", "Satu", "Dua", "Tiga", "Empat", "Lima", "Enam", "Tujuh", "Delapan", "Sembilan", "Sepuluh", "Sebelas"];
   let hasil = "";
-  if (bilangan < 12) hasil = huruf[bilangan];
-  else if (bilangan < 20) hasil = angkaTerbilang(bilangan - 10) + " Belas";
-  else if (bilangan < 100) hasil = angkaTerbilang(Math.floor(bilangan / 10)) + " Puluh " + angkaTerbilang(bilangan % 10);
-  else if (bilangan < 200) hasil = "Seratus " + angkaTerbilang(bilangan - 100);
-  else if (bilangan < 1000) hasil = angkaTerbilang(Math.floor(bilangan / 100)) + " Ratus " + angkaTerbilang(bilangan % 100);
-  else if (bilangan < 2000) hasil = "Seribu " + angkaTerbilang(bilangan - 1000);
-  else if (bilangan < 1000000) hasil = angkaTerbilang(Math.floor(bilangan / 1000)) + " Ribu " + angkaTerbilang(bilangan % 1000);
-  else if (bilangan < 1000000000) hasil = angkaTerbilang(Math.floor(bilangan / 1000000)) + " Juta " + angkaTerbilang(bilangan % 1000000);
-  return hasil.trim() + " Rupiah";
+  if (absBilangan < 12) hasil = huruf[absBilangan];
+  else if (absBilangan < 20) hasil = angkaTerbilang(absBilangan - 10).replace(" Rupiah", "") + " Belas";
+  else if (absBilangan < 100) hasil = angkaTerbilang(Math.floor(absBilangan / 10)).replace(" Rupiah", "") + " Puluh " + angkaTerbilang(absBilangan % 10).replace(" Rupiah", "");
+  else if (absBilangan < 200) hasil = "Seratus " + angkaTerbilang(absBilangan - 100).replace(" Rupiah", "");
+  else if (absBilangan < 1000) hasil = angkaTerbilang(Math.floor(absBilangan / 100)).replace(" Rupiah", "") + " Ratus " + angkaTerbilang(absBilangan % 100).replace(" Rupiah", "");
+  else if (absBilangan < 2000) hasil = "Seribu " + angkaTerbilang(absBilangan - 1000).replace(" Rupiah", "");
+  else if (absBilangan < 1000000) hasil = angkaTerbilang(Math.floor(absBilangan / 1000)).replace(" Rupiah", "") + " Ribu " + angkaTerbilang(absBilangan % 1000).replace(" Rupiah", "");
+  else if (absBilangan < 1000000000) hasil = angkaTerbilang(Math.floor(absBilangan / 1000000)).replace(" Rupiah", "") + " Juta " + angkaTerbilang(absBilangan % 1000000).replace(" Rupiah", "");
+  
+  return (isMinus ? "Minus " : "") + hasil.trim() + " Rupiah";
 }
 
 export default function PrintDotMatrix({ printData, onClose }) {
-  // OBAT ANTI ERROR VERCEL
   const [isMounted, setIsMounted] = useState(false);
 
-  // Lock scroll layar belakang saat preview terbuka
   useEffect(() => {
     setIsMounted(true);
     if (printData) document.body.style.overflow = 'hidden';
     else document.body.style.overflow = 'unset';
     return () => { 
-      if (typeof document !== 'undefined') {
-        document.body.style.overflow = 'unset'; 
-      }
+      if (typeof document !== 'undefined') document.body.style.overflow = 'unset'; 
     };
   }, [printData]);
 
@@ -56,9 +59,6 @@ export default function PrintDotMatrix({ printData, onClose }) {
   const docType = printData.type || 'INVOICE'; 
   const showContactAndBank = docType === 'INVOICE' || docType === 'WITHDRAWAL';
 
-  // ============================================================================
-  // ISI KERTAS NOTA (Dipisah agar bisa dipakai di Preview & di Mesin Cetak Portal)
-  // ============================================================================
   const renderDocument = () => (
     <div className="text-black font-sans w-full relative">
       
@@ -74,8 +74,6 @@ export default function PrintDotMatrix({ printData, onClose }) {
           {docType === 'CASH_VOUCHER' && <h2 className="text-base font-black mb-1 bg-slate-800 text-white px-2 py-0.5 uppercase inline-block rounded print:text-black print:border-2 print:border-black print:bg-transparent">Voucher Kas</h2>}
           {docType === 'PO' && <h2 className="text-base font-black mb-1 bg-slate-800 text-white px-2 py-0.5 uppercase inline-block rounded print:text-black print:border-2 print:border-black print:bg-transparent">Terima Barang</h2>}
           {docType === 'WITHDRAWAL' && <h2 className="text-base font-black mb-1 bg-slate-800 text-white px-2 py-0.5 uppercase inline-block rounded print:text-black print:border-2 print:border-black print:bg-transparent">Kwitansi Tunai</h2>}
-          
-          {/* 🔥 UPDATE: Label baru untuk fitur Purchase Kas Keluar */}
           {docType === 'PURCHASE' && <h2 className="text-base font-black mb-1 bg-slate-800 text-white px-2 py-0.5 uppercase inline-block rounded print:text-black print:border-2 print:border-black print:bg-transparent">Bukti Kas Keluar</h2>}
           
           {showContactAndBank && (
@@ -88,7 +86,6 @@ export default function PrintDotMatrix({ printData, onClose }) {
         </div>
       </div>
 
-      {/* 🔥 UPDATE: Menambahkan 'PURCHASE' ke array agar tabel dirender */}
       {['INVOICE', 'PO', 'DO', 'WO', 'PURCHASE'].includes(docType) && (
         <>
           {/* INFO TRANSAKSI */}
@@ -111,11 +108,11 @@ export default function PrintDotMatrix({ printData, onClose }) {
                 {docType === 'PO' && 'SUPPLIER:'}
                 {docType === 'DO' && 'DIKIRIM KE TUJUAN:'}
                 {docType === 'WO' && 'ATAS NAMA PESANAN:'}
-                {/* 🔥 UPDATE: Label khusus untuk Purchase */}
                 {docType === 'PURCHASE' && 'SUPPLIER / REKANAN:'}
               </div>
               <div className="text-base font-black uppercase text-slate-900 max-w-[250px] leading-none mt-0.5">
-                {printData.customer_name || printData.supplier_name || printData.destination || 'UMUM'}
+                {/* 🔥 FIX 4: Tambahkan person_name agar Purchase Kas tidak lari ke UMUM */}
+                {printData.customer_name || printData.supplier_name || printData.destination || printData.person_name || 'UMUM'}
               </div>
             </div>
           </div>
@@ -127,7 +124,6 @@ export default function PrintDotMatrix({ printData, onClose }) {
                 <th className="py-1.5 px-2 text-left font-black w-8">NO</th>
                 <th className="py-1.5 px-2 text-left font-black">DESKRIPSI ITEM</th>
                 <th className="py-1.5 px-2 text-center font-black w-24">QTY</th>
-                {/* 🔥 UPDATE: Menambahkan 'PURCHASE' ke array header tabel */}
                 {['INVOICE', 'PO', 'PURCHASE'].includes(docType) && (
                   <>
                     <th className="py-1.5 px-2 text-right font-black w-28">HARGA</th>
@@ -138,7 +134,10 @@ export default function PrintDotMatrix({ printData, onClose }) {
             </thead>
             <tbody>
               {printData.items?.map((item, idx) => {
-                const hargaSatuan = item.price ? item.price : (item.subtotal && item.qty ? item.subtotal / item.qty : 0);
+                // 🔥 FIX 2 & 3: Kalkulasi aman untuk Hindari Infinity pembagian 0 & Subtotal kosong
+                const safeQty = Number(item.qty) || 0;
+                const hargaSatuan = item.price !== undefined ? item.price : (item.subtotal && safeQty ? item.subtotal / safeQty : 0);
+                const subtotalAkhir = item.subtotal !== undefined ? item.subtotal : (hargaSatuan * safeQty);
                 
                 return (
                   <tr key={idx} className="border-b border-slate-300 border-dashed last:border-b-2 last:border-slate-800">
@@ -147,19 +146,18 @@ export default function PrintDotMatrix({ printData, onClose }) {
                     
                     <td className="py-2 px-2 text-center align-top">
                       <div className="font-black text-sm text-slate-900">{formatNumber(item.qty)} <span className="text-[9px] font-bold text-slate-600">{item.unit || 'Pcs'}</span></div>
-                      {(!item.unit || item.unit === 'Pcs') && (
-                        <div className="text-[8px] font-bold text-slate-500">({formatNumber(item.qty / 4)} Porsi)</div>
+                      {(!item.unit || item.unit === 'Pcs') && safeQty > 0 && (
+                        <div className="text-[8px] font-bold text-slate-500">({formatNumber(safeQty / 4)} Porsi)</div>
                       )}
                     </td>
 
-                    {/* 🔥 UPDATE: Menambahkan 'PURCHASE' ke array body tabel */}
                     {['INVOICE', 'PO', 'PURCHASE'].includes(docType) && (
                       <>
                         <td className="py-2 px-2 text-right align-top font-bold text-slate-800">
                           {formatRupiah(hargaSatuan)}
                         </td>
                         <td className="py-2 px-2 text-right font-black text-slate-900 text-sm">
-                          {formatRupiah(item.subtotal)}
+                          {formatRupiah(subtotalAkhir)}
                         </td>
                       </>
                     )}
@@ -172,26 +170,26 @@ export default function PrintDotMatrix({ printData, onClose }) {
       )}
 
       {['CASH_VOUCHER', 'WITHDRAWAL'].includes(docType) && (
-        <div className="border-2 border-slate-800 p-4 rounded-xl space-y-4 mb-6 bg-white print:rounded-none">
-          <div className="flex gap-4 items-end border-b border-dashed border-slate-300 pb-1">
-            <div className="w-40 font-bold uppercase text-xs text-slate-500">NO REFERENSI</div>
-            <div className="flex-1 font-black text-sm uppercase text-slate-900">: {printData.id} <span className="text-slate-400 font-bold mx-2">|</span> TGL: {printData.date}</div>
+        <div className="border-2 border-slate-800 p-4 rounded-xl space-y-4 mb-6 bg-white print:rounded-none print:border-black">
+          <div className="flex gap-4 items-end border-b border-dashed border-slate-300 pb-1 print:border-slate-800">
+            <div className="w-40 font-bold uppercase text-xs text-slate-500 print:text-black">NO REFERENSI</div>
+            <div className="flex-1 font-black text-sm uppercase text-slate-900 print:text-black">: {printData.id} <span className="text-slate-400 font-bold mx-2 print:text-black">|</span> TGL: {printData.date}</div>
           </div>
-          <div className="flex gap-4 items-end border-b border-dashed border-slate-300 pb-1">
-            <div className="w-40 font-bold uppercase text-xs text-slate-500">{printData.flowType === 'IN' ? 'DITERIMA DARI' : 'DIBAYARKAN KEPADA'}</div>
-            <div className="flex-1 font-black text-sm uppercase text-slate-900">: {printData.customer_name || printData.person_name || '-'}</div>
+          <div className="flex gap-4 items-end border-b border-dashed border-slate-300 pb-1 print:border-slate-800">
+            <div className="w-40 font-bold uppercase text-xs text-slate-500 print:text-black">{printData.flowType === 'IN' ? 'DITERIMA DARI' : 'DIBAYARKAN KEPADA'}</div>
+            <div className="flex-1 font-black text-sm uppercase text-slate-900 print:text-black">: {printData.customer_name || printData.person_name || '-'}</div>
           </div>
-          <div className="flex gap-4 items-end border-b border-dashed border-slate-300 pb-1">
-            <div className="w-40 font-bold uppercase text-xs text-slate-500">UANG SEJUMLAH</div>
-            <div className="flex-1 font-black text-lg uppercase text-slate-900">: {formatRupiah(printData.amount)}</div>
+          <div className="flex gap-4 items-end border-b border-dashed border-slate-300 pb-1 print:border-slate-800">
+            <div className="w-40 font-bold uppercase text-xs text-slate-500 print:text-black">UANG SEJUMLAH</div>
+            <div className="flex-1 font-black text-lg uppercase text-slate-900 print:text-black">: {formatRupiah(printData.amount)}</div>
           </div>
-          <div className="flex gap-4 items-start border-b border-dashed border-slate-300 pb-1 p-2 bg-slate-50 border border-slate-200 rounded-lg mt-3 print:bg-transparent print:border-slate-800 print:rounded-none">
-            <div className="w-36 font-bold uppercase text-xs mt-0.5 text-slate-500">TERBILANG</div>
-            <div className="flex-1 font-black text-sm uppercase italic text-slate-800 leading-tight">&quot;{angkaTerbilang(printData.amount)}&quot;</div>
+          <div className="flex gap-4 items-start border-b border-dashed border-slate-300 pb-1 p-2 bg-slate-50 border border-slate-200 rounded-lg mt-3 print:bg-transparent print:border-slate-800 print:border-b-dashed print:border-t-0 print:border-x-0 print:rounded-none">
+            <div className="w-36 font-bold uppercase text-xs mt-0.5 text-slate-500 print:text-black">TERBILANG</div>
+            <div className="flex-1 font-black text-sm uppercase italic text-slate-800 leading-tight print:text-black">&quot;{angkaTerbilang(printData.amount)}&quot;</div>
           </div>
           <div className="flex gap-4 items-start pt-1">
-            <div className="w-40 font-bold uppercase text-xs text-slate-500">UNTUK KEPERLUAN</div>
-            <div className="flex-1 font-bold text-xs uppercase text-slate-900 break-words">: {printData.notes || printData.description || '-'}</div>
+            <div className="w-40 font-bold uppercase text-xs text-slate-500 print:text-black">UNTUK KEPERLUAN</div>
+            <div className="flex-1 font-bold text-xs uppercase text-slate-900 break-words print:text-black">: {printData.notes || printData.description || '-'}</div>
           </div>
         </div>
       )}
@@ -207,7 +205,7 @@ export default function PrintDotMatrix({ printData, onClose }) {
             </div>
           )}
           {showContactAndBank && (
-            <div className="text-[9px] font-bold uppercase space-y-0.5 mt-2 pt-2 border-t border-slate-300 text-slate-600">
+            <div className="text-[9px] font-bold uppercase space-y-0.5 mt-2 pt-2 border-t border-slate-300 text-slate-600 print:border-slate-800 print:text-black">
               <p className="font-black text-slate-900 mb-0.5">INFO REKENING PEMBAYARAN:</p>
               <p>BCA : <span className="font-black text-slate-900 text-[10px]">1320552261</span> ( WASTAM )</p>
               <p>BRI : <span className="font-black text-slate-900 text-[10px]">775301006132536</span> ( WASTAM )</p>
@@ -215,13 +213,12 @@ export default function PrintDotMatrix({ printData, onClose }) {
           )}
         </div>
 
-        {/* 🔥 UPDATE: Menambahkan 'PURCHASE' ke block total */}
         {['INVOICE', 'PO', 'PURCHASE'].includes(docType) && (
           <div className="w-[280px]">
-            <div className="bg-slate-50 border border-slate-300 rounded-lg overflow-hidden print:bg-transparent print:rounded-none print:border-slate-800">
+            <div className="bg-slate-50 border border-slate-300 rounded-lg overflow-hidden print:bg-transparent print:rounded-none print:border-2 print:border-slate-800">
               {printData.history ? (
                 <>
-                  <div className="flex justify-between py-1.5 px-3 border-b border-slate-200 text-[10px] font-bold text-slate-600 print:border-slate-800">
+                  <div className="flex justify-between py-1.5 px-3 border-b border-slate-200 text-[10px] font-bold text-slate-600 print:border-slate-800 print:text-black">
                     <span className="uppercase">{printData.history.labelLama || 'TOTAL BELANJA'}</span>
                     <span className="font-black text-slate-900">{safeRupiah(printData.history.nominalLama)}</span>
                   </div>
@@ -248,11 +245,11 @@ export default function PrintDotMatrix({ printData, onClose }) {
             </div>
 
             {printData.paymentHistory && printData.paymentHistory.length > 0 && (
-              <div className="mt-2 text-[8px]">
-                <div className="font-black text-slate-500 uppercase mb-0.5 border-b border-slate-300 pb-0.5">Riwayat Pembayaran:</div>
+              <div className="mt-2 text-[8px] print:text-black">
+                <div className="font-black text-slate-500 uppercase mb-0.5 border-b border-slate-300 pb-0.5 print:text-black print:border-slate-800">Riwayat Pembayaran:</div>
                 <div className="space-y-0.5">
                   {printData.paymentHistory.map((hist, i) => (
-                    <div key={i} className="flex justify-between font-bold text-slate-700">
+                    <div key={i} className="flex justify-between font-bold text-slate-700 print:text-black">
                       <span className="w-16">{hist.date}</span>
                       <span className="flex-1 truncate px-1">{hist.method}</span>
                       <span className="text-right font-black">{safeRupiah(hist.amount)}</span>
@@ -266,17 +263,18 @@ export default function PrintDotMatrix({ printData, onClose }) {
       </div>
 
       {/* TANDA TANGAN */}
-      <div className="flex justify-between items-end mt-4 text-slate-800">
+      <div className="flex justify-between items-end mt-4 text-slate-800 print:text-black">
         <div className="text-center w-32">
           <div className="font-bold text-[9px] mb-8 uppercase">
             {docType === 'INVOICE' || docType === 'DO' ? 'Penerima / Pelanggan' : ''}
             {docType === 'WO' ? 'Kepala Dapur' : ''}
             {docType === 'PO' ? 'Supir Supplier' : ''}
-            {/* 🔥 UPDATE: Label TTD khusus Purchase */}
             {['CASH_VOUCHER', 'WITHDRAWAL', 'PURCHASE'].includes(docType) ? 'Penerima Dana' : ''}
           </div>
           <div className="border-b border-slate-800 w-full mb-1"></div>
-          <div className="text-[8px] font-bold uppercase">Ttd &amp; Nama Jelas</div>
+          <div className="text-[8px] font-bold uppercase print:hidden">Ttd &amp; Nama Jelas</div>
+          {/* 🔥 FIX: Khusus cetakan asli supir supplier PO bisa ditulis namanya juga kalau ada data supirnya */}
+          <div className="text-[8px] font-bold uppercase hidden print:block">{docType === 'PO' && printData.driver_name ? printData.driver_name : 'Ttd & Nama Jelas'}</div>
         </div>
         
         {docType === 'DO' ? (
@@ -288,7 +286,7 @@ export default function PrintDotMatrix({ printData, onClose }) {
         ) : (
           <div className="text-center w-56 space-y-0.5">
             {docType === 'INVOICE' && (
-              <p className="text-[9px] font-bold italic text-slate-500">&quot;Terima kasih telah berbelanja di kami,<br/>kepuasan Anda adalah prioritas kami.&quot;</p>
+              <p className="text-[9px] font-bold italic text-slate-500 print:text-black">&quot;Terima kasih telah berbelanja di kami,<br/>kepuasan Anda adalah prioritas kami.&quot;</p>
             )}
             <p className="font-black text-[10px] uppercase tracking-widest text-slate-900 mt-1">www.dimsumaditya.id</p>
           </div>
@@ -299,7 +297,7 @@ export default function PrintDotMatrix({ printData, onClose }) {
             {docType === 'DO' ? 'Bagian Gudang' : 'Admin Kasir'}
           </div>
           <div className="border-b border-slate-800 w-full mb-1"></div>
-          <div className="text-[8px] font-bold uppercase">{printData.admin_name}</div>
+          <div className="text-[8px] font-bold uppercase">{printData.admin_name || '................'}</div>
         </div>
       </div>
 
@@ -340,16 +338,13 @@ export default function PrintDotMatrix({ printData, onClose }) {
         </div>
       </div>
 
-      {/* 2. LAYER KHUSUS PRINTER (DI-PORTAL LANGSUNG KE BODY) 
-          Ini rahasianya! Saat nge-print, aplikasi utama hilang, yang dikirim ke Epson LX-310 cuma tag ini!
-      */}
+      {/* 2. LAYER KHUSUS PRINTER (DI-PORTAL LANGSUNG KE BODY) */}
       {isMounted && createPortal(
         <div id="print-portal-container" className="hidden print:block absolute left-0 top-0 bg-white m-0 z-[999999]" style={{ width: '21.49cm', height: '13.97cm', padding: '4mm 6mm', boxSizing: 'border-box', overflow: 'hidden' }}>
           <style type="text/css" media="print">
             {`
               @page { size: 21.49cm 13.97cm; margin: 0; }
               body { background-color: white !important; margin: 0; padding: 0; }
-              /* Sembunyikan semua isi website KECUALI Portal ini */
               body > *:not(#print-portal-container) { display: none !important; }
             `}
           </style>
