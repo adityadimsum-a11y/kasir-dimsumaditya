@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { 
   PackageCheck, Clock, ArrowRight, Save, 
-  Search, ThermometerSnowflake, Box, AlertCircle, CheckCircle2,
-  Eye, Receipt, Wallet
+  Search, ThermometerSnowflake, AlertCircle, CheckCircle2,
+  Eye, Receipt, Wallet, Archive, ListTodo
 } from 'lucide-react';
 import { getTodayStr, generateId, safeJsonParse, formatDate } from '../../utils/helpers';
 
@@ -13,11 +13,10 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, user, sendTo
   const todayStr = getTodayStr();
   const currentBranch = (user?.branch_id === 'PUSAT' || !user?.branch_id) ? 'TANGERANG_PUSAT' : user?.branch_id;
 
+  const [activeSubTab, setActiveSubTab] = useState('ACTIVE'); // 'ACTIVE' | 'COMPLETED'
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPO, setSelectedPO] = useState(null);
   const [allocations, setAllocations] = useState({}); 
-
-  // STATE BARU UNTUK CEK DETAIL PO
   const [detailPO, setDetailPO] = useState(null);
 
   // =========================================================================
@@ -42,13 +41,12 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, user, sendTo
   }, [inventoryCostLayers, currentBranch]);
 
   // =========================================================================
-  // 2. FILTER & ENRICH DATA NOTA PO
+  // 2. FILTER & ENRICH DATA NOTA PO (SEMUA PO TANPA KECUALI)
   // =========================================================================
-  const poOrders = useMemo(() => {
+  const allPOOrders = useMemo(() => {
     const filtered = (orders || []).filter(o => {
       if (o.isDeleted || o.branch_id !== currentBranch) return false;
-      const isPO = o.payment_method === 'COD_PO' || String(o.notes).includes('TARGET PO');
-      return isPO && o.status !== 'SELESAI_KIRIM'; 
+      return o.payment_method === 'COD_PO' || String(o.notes).includes('TARGET PO');
     });
 
     return filtered.map(po => {
@@ -82,11 +80,20 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, user, sendTo
     }).sort((a,b) => new Date(b.date) - new Date(a.date));
   }, [orders, currentBranch, stockData]);
 
+  // Pisahkan berdasarkan Sub-Tab yang sedang aktif
   const displayedPOs = useMemo(() => {
-    if (!searchTerm) return poOrders;
+    const targetList = activeSubTab === 'ACTIVE' 
+      ? allPOOrders.filter(po => po.status !== 'SELESAI_KIRIM')
+      : allPOOrders.filter(po => po.status === 'SELESAI_KIRIM');
+
+    if (!searchTerm) return targetList;
     const lower = searchTerm.toLowerCase();
-    return poOrders.filter(po => po.id.toLowerCase().includes(lower) || String(po.customer_name).toLowerCase().includes(lower));
-  }, [poOrders, searchTerm]);
+    return targetList.filter(po => po.id.toLowerCase().includes(lower) || String(po.customer_name).toLowerCase().includes(lower));
+  }, [allPOOrders, activeSubTab, searchTerm]);
+
+  // Statistik untuk Badge di Tab
+  const countActive = allPOOrders.filter(po => po.status !== 'SELESAI_KIRIM').length;
+  const countCompleted = allPOOrders.filter(po => po.status === 'SELESAI_KIRIM').length;
 
   // =========================================================================
   // 3. LOGIKA EKSEKUSI KARANTINA
@@ -145,9 +152,12 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, user, sendTo
   };
 
   const handleSelesaikanPO = async (poId) => {
-    if (!window.confirm("Tandai PO ini sebagai Selesai/Terkirim? (Akan hilang dari daftar antrian Karantina)")) return;
+    if (!window.confirm("Tandai PO ini sebagai Selesai/Terkirim? (Akan dipindahkan ke Tab Riwayat Selesai)")) return;
     const isSuccess = await sendToSheet('update', { id: poId, status: 'SELESAI_KIRIM' }, 'orders');
-    if (isSuccess) showToast("Nota PO diarsipkan!", "success");
+    if (isSuccess) {
+      showToast("Nota PO berhasil dipindahkan ke Arsip!", "success");
+      setActiveSubTab('COMPLETED'); // Otomatis arahkan pandangan bos ke tab riwayat
+    }
   };
 
   return (
@@ -168,13 +178,37 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, user, sendTo
           <div className="bg-orange-100 p-2 rounded-lg"><PackageCheck size={20} className="text-orange-600"/></div>
           <div>
             <div className="text-[10px] font-black text-orange-800 uppercase tracking-widest">Total Antrian Berjalan</div>
-            <div className="text-xl font-black text-orange-600">{displayedPOs.length} <span className="text-sm">Nota</span></div>
+            <div className="text-xl font-black text-orange-600">{countActive} <span className="text-sm">Nota</span></div>
           </div>
         </div>
       </div>
 
-      {/* TOOLBAR FILTER */}
-      <div className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200 shadow-3xs">
+      {/* TOOLBAR FILTER & SUB-TABS */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-3 rounded-xl border border-slate-200 shadow-3xs gap-3">
+        
+        {/* SUB TABS NAVIGATION */}
+        <div className="flex bg-slate-100 p-1 rounded-lg w-full md:w-auto">
+          <button 
+            onClick={() => setActiveSubTab('ACTIVE')} 
+            className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-md text-xs font-black transition-all cursor-pointer ${
+              activeSubTab === 'ACTIVE' ? 'bg-white text-orange-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <ListTodo size={14}/> Antrian Berjalan
+            <span className={`px-1.5 py-0.5 rounded text-[9px] ${activeSubTab === 'ACTIVE' ? 'bg-orange-100 text-orange-700' : 'bg-slate-200 text-slate-500'}`}>{countActive}</span>
+          </button>
+          
+          <button 
+            onClick={() => setActiveSubTab('COMPLETED')} 
+            className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-md text-xs font-black transition-all cursor-pointer ${
+              activeSubTab === 'COMPLETED' ? 'bg-emerald-50 text-emerald-600 shadow-sm border border-emerald-100' : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <Archive size={14}/> Riwayat Selesai
+            <span className={`px-1.5 py-0.5 rounded text-[9px] ${activeSubTab === 'COMPLETED' ? 'bg-emerald-200 text-emerald-800' : 'bg-slate-200 text-slate-500'}`}>{countCompleted}</span>
+          </button>
+        </div>
+
         <div className="relative w-full md:w-80">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
           <input 
@@ -190,84 +224,111 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, user, sendTo
       {/* GRID KARTU PO */}
       {displayedPOs.length === 0 ? (
         <div className="bg-white border-2 border-dashed border-slate-300 rounded-2xl p-16 text-center flex flex-col items-center justify-center text-slate-400">
-          <CheckCircle2 size={48} className="mb-4 opacity-20 text-emerald-500" />
-          <h3 className="text-sm font-black uppercase tracking-widest mb-1 text-slate-500">Semua Terkendali</h3>
-          <p className="text-xs font-bold normal-case">Tidak ada antrian Pre-Order yang sedang berjalan saat ini.</p>
+          {activeSubTab === 'ACTIVE' ? (
+             <>
+               <CheckCircle2 size={48} className="mb-4 opacity-20 text-emerald-500" />
+               <h3 className="text-sm font-black uppercase tracking-widest mb-1 text-slate-500">Semua Terkendali</h3>
+               <p className="text-xs font-bold normal-case">Tidak ada antrian Pre-Order yang sedang berjalan saat ini.</p>
+             </>
+          ) : (
+             <>
+               <Archive size={48} className="mb-4 opacity-20" />
+               <h3 className="text-sm font-black uppercase tracking-widest mb-1 text-slate-500">Arsip Kosong</h3>
+               <p className="text-xs font-bold normal-case">Belum ada riwayat PO yang diselesaikan.</p>
+             </>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
           {displayedPOs.map(po => (
-            <div key={po.id} className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden flex flex-col hover:border-orange-300 transition-colors">
+            <div key={po.id} className={`bg-white border rounded-2xl shadow-xs overflow-hidden flex flex-col transition-colors ${activeSubTab === 'COMPLETED' ? 'border-emerald-200' : 'border-slate-200 hover:border-orange-300'}`}>
               
               {/* Card Header */}
-              <div className="p-4 bg-slate-50 border-b border-slate-100 flex justify-between items-start">
+              <div className={`p-4 border-b flex justify-between items-start ${activeSubTab === 'COMPLETED' ? 'bg-emerald-50/50 border-emerald-100' : 'bg-slate-50 border-slate-100'}`}>
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <span className="bg-slate-200 text-slate-700 font-mono text-[9px] px-2 py-0.5 rounded font-black">{po.id}</span>
-                    <span className="bg-red-100 text-red-700 text-[9px] px-2 py-0.5 rounded font-black flex items-center gap-1"><Clock size={10}/> Target: {formatDate(po.targetDate)}</span>
+                    {activeSubTab === 'COMPLETED' ? (
+                      <span className="bg-emerald-100 text-emerald-700 text-[9px] px-2 py-0.5 rounded font-black flex items-center gap-1"><CheckCircle2 size={10}/> SELESAI &amp; TERKIRIM</span>
+                    ) : (
+                      <span className="bg-red-100 text-red-700 text-[9px] px-2 py-0.5 rounded font-black flex items-center gap-1"><Clock size={10}/> Target: {formatDate(po.targetDate)}</span>
+                    )}
                   </div>
                   <h3 className="font-black text-slate-800 text-base uppercase">{po.customer_name}</h3>
                 </div>
                 <div className="text-right">
                   <div className="text-[10px] font-bold text-slate-500">Status Stok Karantina</div>
-                  <div className={`text-lg font-black ${po.progress === 100 ? 'text-emerald-600' : 'text-orange-600'}`}>
-                    {po.progress.toFixed(0)}%
+                  <div className={`text-lg font-black ${po.progress === 100 || activeSubTab === 'COMPLETED' ? 'text-emerald-600' : 'text-orange-600'}`}>
+                    {activeSubTab === 'COMPLETED' ? '100%' : `${po.progress.toFixed(0)}%`}
                   </div>
                 </div>
               </div>
 
-              {/* Progress Bar */}
+              {/* Progress Bar (Jika Selesai, Bar Full Hijau) */}
               <div className="w-full bg-slate-200 h-1.5">
-                <div className={`h-1.5 transition-all duration-500 ${po.progress === 100 ? 'bg-emerald-500' : 'bg-orange-500'}`} style={{ width: `${po.progress}%` }}></div>
+                <div className={`h-1.5 transition-all duration-500 ${po.progress === 100 || activeSubTab === 'COMPLETED' ? 'bg-emerald-500' : 'bg-orange-500'}`} style={{ width: activeSubTab === 'COMPLETED' ? '100%' : `${po.progress}%` }}></div>
               </div>
 
               {/* Card Body (Item List Compact) */}
-              <div className="p-4 flex-1 space-y-3">
+              <div className={`p-4 flex-1 space-y-3 ${activeSubTab === 'COMPLETED' ? 'opacity-80' : ''}`}>
                 {po.enrichedItems.map((item, i) => (
-                  <div key={i} className="flex justify-between items-center bg-slate-50 border border-slate-100 p-2.5 rounded-xl">
+                  <div key={i} className={`flex justify-between items-center border p-2.5 rounded-xl ${activeSubTab === 'COMPLETED' ? 'bg-white border-slate-100' : 'bg-slate-50 border-slate-100'}`}>
                     <div className="flex-1">
                       <div className="font-bold text-slate-700 text-xs uppercase line-clamp-1">{item.name}</div>
                       <div className="text-[10px] font-bold text-slate-400 mt-0.5">Order: {formatNumber(item.qty)} Pcs</div>
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
                       <div className="text-right">
-                        <div className="text-[9px] font-black text-slate-400 uppercase">Terkumpul</div>
-                        <div className="font-black text-sm text-emerald-600">{formatNumber(item.quarantined)}</div>
+                        <div className="text-[9px] font-black text-slate-400 uppercase">{activeSubTab === 'COMPLETED' ? 'Dikirim' : 'Terkumpul'}</div>
+                        <div className="font-black text-sm text-emerald-600">{activeSubTab === 'COMPLETED' ? formatNumber(item.qty) : formatNumber(item.quarantined)}</div>
                       </div>
-                      <ArrowRight size={14} className="text-slate-300"/>
-                      <div className="text-right w-16">
-                        <div className="text-[9px] font-black text-slate-400 uppercase">Kekurangan</div>
-                        <div className="font-black text-sm text-red-500">{formatNumber(item.qty - item.quarantined)}</div>
-                      </div>
+                      
+                      {activeSubTab === 'ACTIVE' && (
+                        <>
+                          <ArrowRight size={14} className="text-slate-300"/>
+                          <div className="text-right w-16">
+                            <div className="text-[9px] font-black text-slate-400 uppercase">Kekurangan</div>
+                            <div className="font-black text-sm text-red-500">{formatNumber(item.qty - item.quarantined)}</div>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
                 ))}
               </div>
 
-              {/* Card Footer / Actions DI-UPDATE */}
-              <div className="p-4 bg-slate-50 border-t border-slate-100 flex flex-col gap-3">
-                <div className="flex gap-3">
-                  <button 
-                    onClick={() => setDetailPO(po)} 
-                    className="flex-1 py-2.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-[11px] font-black rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2 cursor-pointer uppercase"
-                  >
-                    <Eye size={14}/> Cek Detail PO
-                  </button>
-                  <button 
-                    onClick={() => handleOpenModal(po)} 
-                    disabled={po.progress === 100}
-                    className="flex-1 py-2.5 bg-orange-600 hover:bg-orange-700 text-white text-[11px] font-black rounded-xl shadow-md transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer uppercase"
-                  >
-                    <ThermometerSnowflake size={14}/> {po.progress === 100 ? 'Terpenuhi 100%' : 'Alokasikan Freezer'}
+              {/* Card Footer / Actions Berubah Tergantung Tab */}
+              {activeSubTab === 'COMPLETED' ? (
+                <div className="p-4 bg-white border-t border-slate-100">
+                  <button onClick={() => setDetailPO(po)} className="w-full py-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-black rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2 cursor-pointer uppercase">
+                    <Eye size={16}/> Buka Arsip &amp; Detail PO
                   </button>
                 </div>
-                
-                {po.progress === 100 && (
-                  <button onClick={() => handleSelesaikanPO(po.id)} className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-md transition-colors cursor-pointer uppercase flex items-center justify-center gap-2">
-                    <CheckCircle2 size={16}/> Selesai &amp; Arsipkan PO
-                  </button>
-                )}
-              </div>
+              ) : (
+                <div className="p-4 bg-slate-50 border-t border-slate-100 flex flex-col gap-3">
+                  <div className="flex gap-3">
+                    <button 
+                      onClick={() => setDetailPO(po)} 
+                      className="flex-1 py-2.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-[11px] font-black rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2 cursor-pointer uppercase"
+                    >
+                      <Eye size={14}/> Cek Detail PO
+                    </button>
+                    <button 
+                      onClick={() => handleOpenModal(po)} 
+                      disabled={po.progress === 100}
+                      className="flex-1 py-2.5 bg-orange-600 hover:bg-orange-700 text-white text-[11px] font-black rounded-xl shadow-md transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer uppercase"
+                    >
+                      <ThermometerSnowflake size={14}/> {po.progress === 100 ? 'Terpenuhi 100%' : 'Alokasikan Freezer'}
+                    </button>
+                  </div>
+                  
+                  {po.progress === 100 && (
+                    <button onClick={() => handleSelesaikanPO(po.id)} className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-md transition-colors cursor-pointer uppercase flex items-center justify-center gap-2 animate-in slide-in-from-bottom-2">
+                      <CheckCircle2 size={16}/> Selesai &amp; Pindahkan ke Arsip
+                    </button>
+                  )}
+                </div>
+              )}
 
             </div>
           ))}
@@ -281,9 +342,11 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, user, sendTo
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-[99999] flex items-center justify-center p-4 animate-in fade-in duration-150">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl border border-slate-200 overflow-hidden flex flex-col max-h-[85vh]">
             
-            <div className="p-4 bg-slate-950 text-white flex justify-between items-center shrink-0">
+            <div className={`p-4 text-white flex justify-between items-center shrink-0 ${activeSubTab === 'COMPLETED' ? 'bg-emerald-950' : 'bg-slate-950'}`}>
               <div>
-                <h3 className="font-black text-xs uppercase flex items-center gap-1.5 text-blue-400"><Receipt size={16}/> Rincian Lengkap PO</h3>
+                <h3 className={`font-black text-xs uppercase flex items-center gap-1.5 ${activeSubTab === 'COMPLETED' ? 'text-emerald-400' : 'text-blue-400'}`}>
+                  {activeSubTab === 'COMPLETED' ? <Archive size={16}/> : <Receipt size={16}/>} Rincian Lengkap PO {activeSubTab === 'COMPLETED' ? '(ARSIP)' : ''}
+                </h3>
                 <p className="text-[10px] text-slate-400 font-bold mt-0.5 normal-case">Klien: {detailPO.customer_name} | Nota: {detailPO.id}</p>
               </div>
               <button type="button" onClick={() => setDetailPO(null)} className="text-slate-400 hover:text-white font-bold text-sm cursor-pointer">✕</button>
@@ -337,8 +400,8 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, user, sendTo
               </div>
 
               {/* Ringkasan Keuangan */}
-              <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-4 rounded-xl space-y-2 font-bold text-[11px] shadow-sm">
-                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-slate-700 text-blue-400">
+              <div className={`text-white p-4 rounded-xl space-y-2 font-bold text-[11px] shadow-sm ${activeSubTab === 'COMPLETED' ? 'bg-gradient-to-r from-emerald-900 to-emerald-800' : 'bg-gradient-to-r from-slate-900 to-slate-800'}`}>
+                <div className={`flex items-center gap-2 mb-2 pb-2 border-b border-slate-700 ${activeSubTab === 'COMPLETED' ? 'text-emerald-400' : 'text-blue-400'}`}>
                   <Wallet size={16}/> <span className="uppercase tracking-wider">Ringkasan Keuangan</span>
                 </div>
                 <div className="flex justify-between text-slate-300">
@@ -362,7 +425,7 @@ export default function TabAntrianPO({ orders, inventoryCostLayers, user, sendTo
             
             <div className="p-4 bg-white border-t border-slate-200 text-right shrink-0">
               <button type="button" onClick={() => setDetailPO(null)} className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-black text-[11px] rounded-xl shadow-md cursor-pointer uppercase w-full sm:w-auto">
-                Tutup Detail
+                Tutup Arsip
               </button>
             </div>
           </div>
