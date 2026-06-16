@@ -33,7 +33,23 @@ export default function LemburModule({
     isJamuan: false,
     jamuanNominal: '100000' // Default bisa diedit
   });
+
+  // STATE UNTUK RAW INPUT ANTI-KURSOR LOMPAT
+  const [displayLembur, setDisplayLembur] = useState('30.000');
+  const [displayJamuan, setDisplayJamuan] = useState('100.000');
   
+  const handleLemburInput = (e) => {
+      const val = e.target.value.replace(/\D/g, '');
+      setForm(prev => ({...prev, lemburNominal: val}));
+      setDisplayLembur(val ? Number(val).toLocaleString('id-ID') : '');
+  };
+
+  const handleJamuanInput = (e) => {
+      const val = e.target.value.replace(/\D/g, '');
+      setForm(prev => ({...prev, jamuanNominal: val}));
+      setDisplayJamuan(val ? Number(val).toLocaleString('id-ID') : '');
+  };
+
   useEffect(() => {
     if (!form.picId && employees.length > 0) {
       const leader = employees.find(e => e.position === 'LEADER_TIM' || e.position === 'KEPALA_DAPUR');
@@ -55,11 +71,11 @@ export default function LemburModule({
   }, [expenses, activeBranch, optimisticDeletedIds]);
 
   const handleDelete = async (id) => {
-    if(window.confirm("Yakin ingin membatalkan/void data pencairan lembur & bonus tim ini?")) {
+    if(window.confirm("Yakin ingin membatalkan/void data pencairan lembur & bonus tim ini? Uang kas akan kembali utuh.")) {
       setOptimisticDeletedIds(prev => new Set(prev).add(id)); 
       const success = await sendToSheet('delete', { id }, 'expenses');
       if(success) { 
-        if(showToast) showToast('Data lembur berhasil dibatalkan.', 'success'); 
+        if(showToast) showToast('Data klaim lembur berhasil dibatalkan.', 'success'); 
       } else { 
         setOptimisticDeletedIds(prev => { const n = new Set(prev); n.delete(id); return n; }); 
       }
@@ -70,23 +86,25 @@ export default function LemburModule({
   const qtyPeserta = form.participants.length;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 normal-case">
-      <div className="card-holo bg-white p-6 rounded-2xl border border-slate-200 border-t-4 border-t-blue-600 h-max shadow-2xs">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in duration-300">
+      
+      {/* KANTONG KIRI: FORM KLAIM */}
+      <div className="bg-white p-6 rounded-3xl border border-slate-200 border-t-4 border-t-blue-600 h-max shadow-sm">
         
         {isTargetTembus ? (
-          <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-xl mb-6 flex items-start gap-3 shadow-3xs animate-in fade-in duration-500">
-             <div className="text-3xl mt-0.5">🎉</div>
+          <div className="bg-gradient-to-r from-emerald-50 to-emerald-100/50 border border-emerald-200 text-emerald-800 p-5 rounded-2xl mb-6 flex items-start gap-4 shadow-sm animate-in fade-in duration-500">
+             <div className="text-4xl mt-1 drop-shadow-md">🎉</div>
              <div>
-               <div className="font-black normal-case text-sm text-emerald-700">Bonus Target Tembus!</div>
-               <div className="text-[10px] font-bold mt-1 text-emerald-700/80 normal-case leading-relaxed">Adukan dapur berhasil mencapai <b>{formatNumber(totalPorsiHariIni)} Porsi</b> (Atau {formatNumber(totalPcsHariIni)} Pcs). Silakan klaim bonus Omset Rp 20.000 per Kepala!</div>
+               <div className="font-black uppercase tracking-wider text-sm text-emerald-700">Bonus Target Tembus!</div>
+               <div className="text-[11px] font-bold mt-1 text-emerald-700/80 leading-relaxed normal-case">Adukan dapur berhasil mencapai <b>{formatNumber(totalPorsiHariIni)} Porsi</b> (Atau {formatNumber(totalPcsHariIni)} Pcs). Silakan klaim bonus Omset Rp 20.000 per Kepala!</div>
              </div>
           </div>
         ) : (
-          <div className="bg-slate-50 border border-slate-200 text-slate-600 p-4 rounded-xl mb-6 flex items-start gap-3 shadow-3xs animate-in fade-in duration-500">
-             <div className="text-3xl mt-0.5 opacity-50">⏳</div>
+          <div className="bg-slate-50 border border-slate-200 text-slate-600 p-5 rounded-2xl mb-6 flex items-start gap-4 shadow-sm animate-in fade-in duration-500">
+             <div className="text-4xl mt-1 opacity-50 grayscale">⏳</div>
              <div>
-               <div className="font-black normal-case text-sm text-slate-700">Target Belum Tercapai</div>
-               <div className="text-[10px] font-bold mt-1 text-slate-500 normal-case leading-relaxed">Adukan dapur hari ini baru tercetak <b>{formatNumber(totalPorsiHariIni)} Porsi</b> ({formatNumber(totalPcsHariIni)} Pcs). Butuh &gt;2500 Porsi untuk membuka kunci bonus omset.</div>
+               <div className="font-black uppercase tracking-wider text-sm text-slate-700">Target Belum Tercapai</div>
+               <div className="text-[11px] font-bold mt-1 text-slate-500 leading-relaxed normal-case">Adukan dapur hari ini baru tercetak <b>{formatNumber(totalPorsiHariIni)} Porsi</b> ({formatNumber(totalPcsHariIni)} Pcs). Butuh &gt;2500 Porsi untuk membuka kunci bonus omset.</div>
              </div>
           </div>
         )}
@@ -107,6 +125,13 @@ export default function LemburModule({
 
           if (totalCair === 0) return alert("Pilih minimal satu kotak komponen klaim di bawah, atau pastikan nominal terisi!");
 
+          const confirmMsg = `Konfirmasi Pencairan Dana Kesejahteraan:\n\n` +
+            `Total Cair: ${formatRupiah(totalCair)}\n` +
+            `PIC Penerima: ${empData?.name}\n\n` +
+            `Uang fisik laci perusahaan akan otomatis dipotong. Lanjutkan?`;
+            
+          if (!window.confirm(confirmMsg)) return;
+
           const participantNames = form.participants.map(id => globalCompiled[id]?.name).join(', ');
           let descText = [];
           if(form.isLembur) descText.push(`Uang Lembur ${qtyPeserta} Org (Rp ${formatNumber(form.lemburNominal)}/org)`);
@@ -122,91 +147,92 @@ export default function LemburModule({
             await sendToSheet('insert', { id: generateId('CFO', todayStr), date: form.date, branch_id: penempatanTrx, type: 'OUT', category: 'UANG LEMBUR & BONUS', amount: totalCair, method: 'CASH', reference_id: expenseId, description: `Pencairan Lembur/Bonus Tim Dapur & Outlet (PIC Pencairan: ${empData?.name})`, isDeleted: false }, 'cashflow_transactions');
             
             setForm({ date: todayStr, picId: '', participants: [], isLembur: false, lemburNominal: '30000', isBonus: false, isJamuan: false, jamuanNominal: '100000' });
+            setDisplayLembur('30.000'); setDisplayJamuan('100.000');
             if (showToast) showToast('Dana lembur/bonus sukses dicairkan! Uang fisik laci kasir otomatis terpotong.', 'success');
           }
-        }} className="space-y-4">
+        }} className="space-y-5">
           
           <div>
-            <label className="text-[10px] font-bold text-slate-500 normal-case block mb-1">Tgl Eksekusi Cair</label>
-            <input type="date" required value={form.date} onChange={e=>setForm({...form, date: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg text-xs font-bold outline-none bg-slate-50 focus:bg-white focus:border-blue-400 transition-colors shadow-3xs cursor-pointer" />
+            <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1.5">Tgl Eksekusi Cair</label>
+            <input type="date" required value={form.date} onChange={e=>setForm({...form, date: e.target.value})} className="w-full p-3 border border-slate-200 rounded-xl text-xs font-bold outline-none bg-slate-50 focus:bg-white focus:border-blue-400 transition-colors shadow-sm cursor-pointer" />
           </div>
           
           <div>
-            <label className="text-[10px] font-bold text-blue-600 normal-case block mb-1.5">1. Penanggung Jawab (PIC Penerima Uang Tunai)</label>
-            <select required value={form.picId} onChange={e=>setForm({...form, picId: e.target.value})} className="w-full p-2.5 border border-blue-200 bg-blue-50/50 rounded-lg font-bold text-xs normal-case outline-none cursor-pointer focus:bg-white focus:border-blue-500 transition-colors shadow-3xs">
+            <label className="text-[10px] font-black text-blue-600 uppercase tracking-wider block mb-1.5">1. Penanggung Jawab (PIC Penerima Uang Tunai)</label>
+            <select required value={form.picId} onChange={e=>setForm({...form, picId: e.target.value})} className="w-full p-3 border border-blue-200 bg-blue-50/50 rounded-xl font-bold text-xs uppercase tracking-wider outline-none cursor-pointer focus:bg-white focus:border-blue-500 transition-colors shadow-sm">
               <option value="">-- Pilih Leader Tim / Penanggung Jawab --</option>
               {employees.map(k => <option key={k.id} value={k.id}>{k.name} ({k.position.replace(/_/g, ' ')}) - CAB {k.branch_id}</option>)}
             </select>
           </div>
 
-          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-inner">
-            <label className="text-[10px] font-bold text-slate-700 normal-case mb-3 flex items-center gap-1.5"><Users size={14} className="text-blue-500"/> 2. Daftar Peserta Anggota Tim ({qtyPeserta} Orang Hadir)</label>
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 shadow-inner">
+            <label className="text-[10px] font-black text-slate-700 uppercase tracking-wider mb-3 flex items-center gap-2"><Users size={16} className="text-blue-500"/> 2. Daftar Peserta Anggota Tim ({qtyPeserta} Orang Hadir)</label>
             <div className="flex flex-wrap gap-2">
               {employees.map(emp => (
-                <label key={emp.id} className={`flex items-center gap-2 px-3 py-1.5 border rounded-lg text-[10px] font-bold normal-case cursor-pointer transition-all ${form.participants.includes(emp.id) ? 'bg-blue-600 border-blue-600 text-white shadow-md scale-105' : 'bg-white border-slate-200 text-slate-600 hover:bg-blue-50 hover:text-blue-600'}`}>
+                <label key={emp.id} className={`flex items-center gap-2 px-3 py-2 border rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer transition-all ${form.participants.includes(emp.id) ? 'bg-blue-600 border-blue-600 text-white shadow-md scale-105' : 'bg-white border-slate-200 text-slate-600 hover:bg-blue-50 hover:text-blue-600 shadow-sm'}`}>
                   <input type="checkbox" className="hidden" checked={form.participants.includes(emp.id)} onChange={() => toggleParticipant(emp.id)} />
                   {emp.name}
                 </label>
               ))}
             </div>
-            {qtyPeserta === 0 && <div className="text-[9px] text-rose-500 font-bold normal-case mt-3 italic">*Wajib tap / klik nama anggota tim di atas untuk mendaftarkan absen peserta lembur.</div>}
+            {qtyPeserta === 0 && <div className="text-[10px] text-rose-500 font-bold normal-case mt-4 italic">*Wajib tap / klik nama anggota tim di atas untuk mendaftarkan absen peserta lembur.</div>}
           </div>
 
           <div className="space-y-3 mt-4">
             
             {/* 🔥 FLEKSIBEL: UANG LEMBUR */}
-            <div className={`flex justify-between items-center p-3 border rounded-xl shadow-3xs transition-colors ${form.isLembur ? 'border-blue-400 bg-blue-50/50' : 'bg-white border-slate-200'}`}>
+            <div className={`flex justify-between items-center p-4 border rounded-2xl shadow-sm transition-colors ${form.isLembur ? 'border-blue-400 bg-blue-50/50' : 'bg-white border-slate-200'}`}>
               <label className="flex items-center gap-3 cursor-pointer flex-1">
-                <input type="checkbox" checked={form.isLembur} onChange={e=>setForm({...form, isLembur: e.target.checked})} className="w-4 h-4 accent-blue-600 cursor-pointer shrink-0"/>
+                <input type="checkbox" checked={form.isLembur} onChange={e=>setForm({...form, isLembur: e.target.checked})} className="w-5 h-5 accent-blue-600 cursor-pointer shrink-0"/>
                 <div>
-                  <div className="text-[11px] font-black text-slate-800 normal-case flex items-center gap-1.5"><Clock size={14} className="text-blue-600"/> Jam Lembur Lewat 17:00 WIB</div>
-                  <div className="text-[9px] font-bold text-slate-500 mt-0.5 normal-case">Uang lembur tambahan per kepala</div>
+                  <div className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-2"><Clock size={16} className="text-blue-600"/> Jam Lembur Lewat 17:00 WIB</div>
+                  <div className="text-[10px] font-bold text-slate-500 mt-1 normal-case">Uang lembur tambahan per kepala</div>
                 </div>
               </label>
-              <div className={`flex items-center gap-1 bg-white px-2 py-1.5 rounded-lg border shadow-3xs ml-2 transition-colors ${form.isLembur ? 'border-blue-300' : 'border-slate-100 opacity-50'}`}>
+              <div className={`flex items-center gap-1.5 bg-white px-3 py-2 rounded-xl border shadow-inner ml-2 transition-colors ${form.isLembur ? 'border-blue-300' : 'border-slate-100 opacity-50'}`}>
                 <span className={`text-[10px] font-black ${form.isLembur ? 'text-blue-600' : 'text-slate-400'}`}>Rp</span>
                 <input 
                   type="text" 
-                  value={form.lemburNominal ? Number(form.lemburNominal).toLocaleString('id-ID') : ''} 
-                  onChange={e => setForm({...form, lemburNominal: e.target.value.replace(/\D/g, '')})}
+                  value={displayLembur} 
+                  onChange={handleLemburInput}
                   disabled={!form.isLembur}
-                  className={`w-16 sm:w-20 text-right outline-none text-sm font-black disabled:bg-transparent ${form.isLembur ? 'text-blue-700' : 'text-slate-400'}`}
+                  className={`w-20 text-right outline-none text-base font-black disabled:bg-transparent ${form.isLembur ? 'text-blue-700' : 'text-slate-400'}`}
                   placeholder="0"
                 />
               </div>
             </div>
 
             {/* 🔒 FIXED: BONUS OMSET */}
-            <label className={`flex justify-between items-center p-3 border rounded-xl shadow-3xs cursor-pointer transition-colors hover:bg-slate-50 ${form.isBonus ? 'border-emerald-400 bg-emerald-50/50' : 'bg-white border-slate-200'}`}>
+            <label className={`flex justify-between items-center p-4 border rounded-2xl shadow-sm cursor-pointer transition-colors hover:bg-slate-50 ${form.isBonus ? 'border-emerald-400 bg-emerald-50/50' : 'bg-white border-slate-200'}`}>
               <div className="flex items-center gap-3 flex-1">
-                <input type="checkbox" disabled={!isTargetTembus} checked={form.isBonus} onChange={e=>setForm({...form, isBonus: e.target.checked})} className="w-4 h-4 accent-emerald-600 cursor-pointer disabled:opacity-50 shrink-0"/>
+                <input type="checkbox" disabled={!isTargetTembus} checked={form.isBonus} onChange={e=>setForm({...form, isBonus: e.target.checked})} className="w-5 h-5 accent-emerald-600 cursor-pointer disabled:opacity-50 shrink-0"/>
                 <div>
-                  <div className="text-[11px] font-black text-slate-800 normal-case flex items-center gap-1.5"><Trophy size={14} className={isTargetTembus ? "text-emerald-600" : "text-slate-400"}/> Bonus Omset Target Harian</div>
-                  <div className="text-[9px] font-bold text-slate-500 mt-0.5 normal-case">Bonus apresiasi tembus target per kepala</div>
+                  <div className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-2"><Trophy size={16} className={isTargetTembus ? "text-emerald-600" : "text-slate-400"}/> Bonus Omset Target Harian</div>
+                  <div className="text-[10px] font-bold text-slate-500 mt-1 normal-case">Bonus apresiasi tembus target per kepala</div>
                 </div>
               </div>
-              <div className={`font-black text-sm bg-white px-3 py-1.5 rounded-lg border shadow-3xs ml-2 shrink-0 ${isTargetTembus ? 'text-emerald-600 border-emerald-200' : 'text-slate-400 border-slate-100 opacity-50'}`}>
+              <div className={`font-black text-sm bg-white px-4 py-2 rounded-xl border shadow-sm ml-2 shrink-0 ${isTargetTembus ? 'text-emerald-600 border-emerald-200' : 'text-slate-400 border-slate-100 opacity-50'}`}>
                 Rp 20.000
               </div>
             </label>
 
             {/* 🔥 FLEKSIBEL: UANG JAMUAN MAKAN */}
-            <div className={`flex justify-between items-center p-3 border rounded-xl shadow-3xs transition-colors ${form.isJamuan ? 'border-orange-400 bg-orange-50/50' : 'bg-white border-slate-200'}`}>
+            <div className={`flex justify-between items-center p-4 border rounded-2xl shadow-sm transition-colors ${form.isJamuan ? 'border-orange-400 bg-orange-50/50' : 'bg-white border-slate-200'}`}>
               <label className="flex items-center gap-3 cursor-pointer flex-1">
-                <input type="checkbox" checked={form.isJamuan} onChange={e=>setForm({...form, isJamuan: e.target.checked})} className="w-4 h-4 accent-orange-500 cursor-pointer shrink-0"/>
+                <input type="checkbox" checked={form.isJamuan} onChange={e=>setForm({...form, isJamuan: e.target.checked})} className="w-5 h-5 accent-orange-500 cursor-pointer shrink-0"/>
                 <div>
-                  <div className="text-[11px] font-black text-slate-800 normal-case flex items-center gap-1.5"><Coffee size={14} className="text-orange-600"/> Uang Dana Jamuan / Konsumsi</div>
-                  <div className="text-[9px] font-bold text-slate-500 mt-0.5 normal-case">Pengeluaran beli makanan global tim</div>
+                  <div className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-2"><Coffee size={16} className="text-orange-600"/> Uang Dana Jamuan / Makan</div>
+                  <div className="text-[10px] font-bold text-slate-500 mt-1 normal-case">Pengeluaran beli makanan global tim</div>
                 </div>
               </label>
-              <div className={`flex items-center gap-1 bg-white px-2 py-1.5 rounded-lg border shadow-3xs ml-2 transition-colors ${form.isJamuan ? 'border-orange-300' : 'border-slate-100 opacity-50'}`}>
+              <div className={`flex items-center gap-1.5 bg-white px-3 py-2 rounded-xl border shadow-inner ml-2 transition-colors ${form.isJamuan ? 'border-orange-300' : 'border-slate-100 opacity-50'}`}>
                 <span className={`text-[10px] font-black ${form.isJamuan ? 'text-orange-600' : 'text-slate-400'}`}>Rp</span>
                 <input 
                   type="text" 
-                  value={form.jamuanNominal ? Number(form.jamuanNominal).toLocaleString('id-ID') : ''} 
-                  onChange={e => setForm({...form, jamuanNominal: e.target.value.replace(/\D/g, '')})}
+                  value={displayJamuan} 
+                  onChange={handleJamuanInput}
                   disabled={!form.isJamuan}
-                  className={`w-16 sm:w-20 text-right outline-none text-sm font-black disabled:bg-transparent ${form.isJamuan ? 'text-orange-700' : 'text-slate-400'}`}
+                  className={`w-24 text-right outline-none text-base font-black disabled:bg-transparent ${form.isJamuan ? 'text-orange-700' : 'text-slate-400'}`}
                   placeholder="0"
                 />
               </div>
@@ -214,31 +240,32 @@ export default function LemburModule({
 
           </div>
 
-          <button type="submit" disabled={!form.picId} className="w-full bg-slate-900 text-white font-black py-3.5 rounded-xl text-xs normal-case disabled:opacity-40 shadow-md hover:bg-slate-800 transition-transform active:scale-95 mt-4 flex items-center justify-center gap-2 cursor-pointer">
-            <DollarSign size={14}/> Cairkan Uang &amp; Catat Kas
+          <button type="submit" disabled={!form.picId} className="w-full bg-slate-900 text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest disabled:opacity-40 shadow-md hover:bg-slate-800 transition-transform active:scale-95 mt-2 flex items-center justify-center gap-2 cursor-pointer">
+            <DollarSign size={16}/> Cairkan Uang &amp; Catat Kas
           </button>
         </form>
       </div>
 
-      <div className="lg:col-span-2 card-holo bg-white rounded-2xl border border-slate-200 flex flex-col overflow-hidden shadow-2xs h-[75vh]">
-        <div className="p-4 bg-slate-50 border-b border-slate-100 font-black text-xs normal-case text-slate-800 flex items-center gap-2">
-          <Clock size={16} className="text-blue-500"/> Arsip Bukti Pencairan Lembur &amp; Bonus Tim
+      <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-200 flex flex-col overflow-hidden shadow-sm">
+        <div className="p-6 bg-slate-50 border-b border-slate-100 font-black text-sm uppercase tracking-wider text-slate-800 flex items-center gap-2">
+          <Clock size={18} className="text-blue-500"/> Arsip Bukti Pencairan Lembur &amp; Bonus Tim
         </div>
-        <div className="overflow-x-auto p-1 custom-scrollbar flex-1">
+        <div className="overflow-x-auto p-2 custom-scrollbar flex-1">
           <table className="w-full text-sm text-left border-collapse">
-            <thead className="bg-slate-50/50 text-[10px] normal-case text-slate-500 border-b border-slate-100 sticky top-0 shadow-3xs z-10">
+            <thead className="bg-slate-50/50 text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-100 sticky top-0 shadow-sm z-10">
               <tr>
-                <th className="px-5 py-3 font-black">Waktu Cair &amp; ID</th>
-                <th className="px-5 py-3 font-black">Penerima Dana Tunai (PIC)</th>
-                <th className="px-5 py-3 font-black">Rincian Komponen Diklaim</th>
-                <th className="px-5 py-3 font-black text-right">Total Uang Cair</th>
-                <th className="px-5 py-3 font-black text-center">Aksi</th>
+                <th className="px-5 py-4 font-black">Waktu Cair &amp; ID</th>
+                <th className="px-5 py-4 font-black">Penerima Dana Tunai (PIC)</th>
+                <th className="px-5 py-4 font-black">Rincian Komponen Diklaim</th>
+                <th className="px-5 py-4 font-black text-right">Total Uang Cair</th>
+                <th className="px-5 py-4 font-black text-center">Aksi Hub</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50 text-xs font-bold bg-white">
+            <tbody className="divide-y divide-slate-100 text-xs font-bold bg-white">
               {historyLembur.length === 0 ? (
                 <tr>
-                  <td colSpan="5" className="text-center py-24 text-slate-400 font-bold normal-case bg-white">
+                  <td colSpan="5" className="text-center py-32 text-slate-400 font-black uppercase tracking-widest bg-white">
+                    <div className="mx-auto flex justify-center mb-4 opacity-20"><Coffee size={48}/></div>
                     Belum ada aktivitas klaim lembur atau bonus di area cabang ini.
                   </td>
                 </tr>
@@ -246,42 +273,47 @@ export default function LemburModule({
                 historyLembur.map(log => {
                   const emp = globalCompiled[log.employee_id];
                   return (
-                    <tr key={log.id} className="hover:bg-slate-50 transition-colors group">
+                    <tr key={log.id} className="hover:bg-blue-50/30 transition-colors group">
                       <td className="px-5 py-4 whitespace-nowrap">
-                        <div className="text-slate-800 font-black text-xs">{formatDate(log.date)}</div>
-                        <div className="text-[9px] font-mono text-slate-400 mt-1">{log.id}</div>
+                        <div className="text-slate-800 font-black text-sm">{formatDate(log.date)}</div>
+                        <div className="text-[10px] font-mono text-slate-400 mt-1">{log.id}</div>
                       </td>
-                      <td className="px-5 py-4 whitespace-nowrap">
-                        <div className="normal-case text-blue-700 font-black text-xs">{emp?.name || 'TIM OPERASIONAL'}</div>
-                        <div className="text-[9px] font-bold text-slate-400 mt-0.5 normal-case">LOKASI: {emp?.branch_id.replace(/_/g, ' ') || activeBranch.replace(/_/g, ' ')}</div>
+                      <td onClick={() => emp && onViewDetails(emp)} className="px-5 py-4 flex items-center gap-3 cursor-pointer">
+                        <img src={emp?.photo_url} alt="Profile" className="w-12 h-12 rounded-xl object-cover border shadow-sm group-hover:scale-105 transition-transform" onError={(e)=>{e.target.src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150"}}/>
+                        <div>
+                          <span className="uppercase font-black text-slate-800 group-hover:text-blue-600 transition-colors block tracking-wide text-sm mb-1">{emp?.name || 'TIM OPERASIONAL'}</span>
+                          <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">Lokasi: {emp?.branch_id.replace(/_/g, ' ') || activeBranch.replace(/_/g, ' ')}</span>
+                        </div>
                       </td>
-                      <td className="px-5 py-4 text-[10px] text-slate-600 leading-relaxed normal-case font-medium max-w-sm">
+                      <td className="px-5 py-4 text-[11px] text-slate-600 leading-relaxed normal-case font-medium max-w-sm">
                         {log.description}
                       </td>
-                      <td className="px-5 py-4 text-right text-emerald-600 font-black whitespace-nowrap text-sm">
-                        <div className="flex items-center justify-end gap-1.5"><ArrowDownToLine size={12}/> {formatRupiah(log.amount)}</div>
+                      <td className="px-5 py-4 text-right text-emerald-600 font-black whitespace-nowrap text-lg tracking-tight">
+                        <div className="flex items-center justify-end gap-1.5"><ArrowDownToLine size={14}/> {formatRupiah(log.amount)}</div>
                       </td>
-                      <td className="px-5 py-4 text-center whitespace-nowrap opacity-50 group-hover:opacity-100 transition-opacity">
+                      <td className="px-5 py-4 text-center whitespace-nowrap opacity-40 group-hover:opacity-100 transition-opacity">
                         <div className="flex items-center justify-center gap-2">
-                          {/* 🔥 FIX: RE-ROUTING PRINT KE APP.JSX */}
                           <button type="button" onClick={() => {
                             if (typeof setPrintData === 'function') {
                               setPrintData({
+                                type: 'INVOICE', 
                                 title: 'BUKTI CAIR LEMBUR & BONUS', 
                                 id: log.id, date: formatDate(log.date), 
                                 branch_name: emp?.branch_id || activeBranch, 
                                 admin_name: user?.name || 'ADMIN HRD', 
                                 customer_name: emp?.name || 'P. JAWAB TIM',
+                                position: 'OPERASIONAL',
                                 items: [{ name: `Pencairan Tunai:\n${log.description}`, qty: 1, subtotal: log.amount }], 
-                                amount: log.amount, paymentMethod: 'POTONG KAS TUNAI'
+                                amount: log.amount, paymentMethod: 'POTONG KAS TUNAI',
+                                history: { labelLama: 'Total Pencairan', nominalLama: log.amount, labelAksi: 'Uang Diserahkan ke PIC', nominalAksi: log.amount, labelBaru: 'SALDO', nominalBaru: 0 }
                               });
                             }
-                          }} className="p-2 text-slate-400 bg-white border border-slate-200 shadow-3xs hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer" title="Cetak Ulang Slip Nota">
+                          }} className="p-2.5 text-slate-500 bg-white border border-slate-200 shadow-sm hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors cursor-pointer" title="Cetak Ulang Slip Nota">
                             <Printer size={16}/>
                           </button>
                           
                           {isHQ && (
-                            <button type="button" onClick={() => handleDelete(log.id)} className="p-2 text-slate-400 bg-white border border-slate-200 shadow-3xs hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer" title="Void & Batalkan Data">
+                            <button type="button" onClick={() => handleDelete(log.id)} className="p-2.5 text-slate-500 bg-white border border-slate-200 shadow-sm hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer" title="Void & Batalkan Data">
                               <Trash2 size={16}/>
                             </button>
                           )}
