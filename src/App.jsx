@@ -13,7 +13,7 @@ import TabStok from './components/tabs/TabStok';
 import TabDistribusi from './components/tabs/TabDistribusi';
 import TabKaryawan from './components/tabs/TabKaryawan';
 import TabDashboardBranch from './components/tabs/TabDashboardBranch';
-import TabCashWarRoom from './components/tabs/TabCashWarRoom';
+// 🔥 TabCashWarRoom SUDAH DIHAPUS DARI IMPORT!
 import TabSCMWarRoom from './components/tabs/TabSCMWarRoom';
 import TabAnalytics from './components/tabs/TabAnalytics';
 import TabBusinessRadar from './components/tabs/TabBusinessRadar';
@@ -201,8 +201,6 @@ export default function App() {
         return <TabDashboardBranch user={user} setPrintData={setPrintData} {...dbData} />;
       case 'pemalang': 
         return <TabPemalang user={user} sendToSheet={sendToSheet} requestDelete={requestDelete} setPrintData={setPrintData} showToast={showToast} {...dbData} />;
-      case 'cash_war_room': 
-        return <TabCashWarRoom user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
       case 'setoran_cabang': 
         return <TabSetoranCabang user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />; 
       case 'scm_war_room': 
