@@ -40,7 +40,6 @@ export default function TabPemalang({
     return { ayamKantong, ayamKg: ayamKantong * 10 };
   }, [realInventory, currentBranch]);
 
-  // Skenario B: Menghitung akumulasi riil total Kg daging ayam terpakai berdasarkan data jurnal yang sudah disubmit pada tanggal terpilih
   const totalAyamKgTerpakai = useMemo(() => {
     let totalKg = 0;
     (pemalang || []).forEach((p) => {
@@ -150,78 +149,86 @@ export default function TabPemalang({
   };
 
   return (
-    <div className="flex flex-col gap-6 pb-10 text-slate-700 normal-case animate-in fade-in duration-200">
+    <div className="flex flex-col gap-6 pb-10 text-slate-700 animate-in fade-in duration-300">
       
-      <div className="card-holo p-6 relative overflow-hidden flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 bg-white border border-slate-200 rounded-2xl">
-        <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-600"></div>
-        <div className="relative z-10 flex-1 w-full pl-2">
-           <div className="flex items-center gap-2 mb-4">
-             <Database size={16} className="text-red-600"/>
-             <h2 className="text-sm font-extrabold normal-case text-slate-800">Monitor gudang &amp; hasil fisik aktual</h2>
+      {/* 🚀 HEADER BANNER PABRIK - FLUID GRADIENT */}
+      <div className="bg-gradient-to-r from-red-900 via-rose-900 to-red-900 p-6 lg:p-8 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 rounded-3xl shadow-xl relative overflow-hidden border border-red-800">
+        <div className="absolute top-0 right-0 p-4 opacity-5"><Factory size={120} className="text-red-400"/></div>
+        <div className="absolute -top-32 -left-32 w-72 h-72 bg-red-500/20 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div className="relative z-10 w-full xl:w-1/3">
+           <div className="flex items-center gap-2 mb-3">
+             <Database size={24} className="text-red-400"/>
+             <h2 className="text-xl font-black text-white uppercase tracking-wide">Monitor Gudang &amp; Hasil Fisik Aktual</h2>
            </div>
-           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 w-full">
-             <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col items-center justify-center text-center relative overflow-hidden">
-               <div className="absolute top-0 w-full bg-red-50 text-red-600 text-[8px] font-bold text-center py-0.5 border-b border-slate-200">Masuk kasir POS</div>
-               <div className="text-[9px] font-bold text-slate-400 normal-case mb-1 mt-2">Total aktual (Pcs)</div>
-               <div className="text-2xl font-black text-slate-800">{formatNumber(kalkulasi.actualTotalPcs)}</div>
-             </div>
-             <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col items-center justify-center text-center shadow-xs">
-               <div className="text-[9px] font-bold text-slate-400 normal-case mb-1">Target standar</div>
-               <div className="text-xs font-bold text-slate-700">{formatNumber(kalkulasi.stdMika)} <span className="text-[9px] text-slate-400">Mika</span></div>
-               <div className="text-xs font-bold text-slate-700">{formatNumber(kalkulasi.stdPcs)} <span className="text-[9px] text-slate-400">Pcs</span></div>
-             </div>
-             <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col items-center justify-center text-center shadow-xs">
-               <div className="text-[9px] font-bold text-slate-400 normal-case mb-1">Ayam dipakai</div>
-               <div className="text-sm font-extrabold text-slate-800">{formatNumber(kalkulasi.butuhAyamKantong)} <span className="text-[10px] text-slate-400 font-medium">Kantong</span></div>
-               <div className="text-sm font-extrabold text-slate-800 mt-0.5">{formatNumber(kalkulasi.butuhAyamKg)} <span className="text-[10px] text-slate-400 font-medium">Kg</span></div>
-             </div>
-             <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col items-center justify-center text-center relative overflow-hidden shadow-xs">
-               {kalkulasi.sisaAyamKantong < 0 && <div className="absolute top-0 w-full bg-red-600 text-white text-[8px] font-bold text-center py-0.5">Minus</div>}
-               <div className="text-[9px] font-bold text-slate-400 normal-case mb-1">Sisa di gudang</div>
-               <div className={`text-sm font-extrabold ${kalkulasi.sisaAyamKantong < 0 ? 'text-red-600' : 'text-slate-800'}`}>{formatNumber(kalkulasi.sisaAyamKantong)} <span className="text-[10px] text-slate-400 font-medium">Kantong</span></div>
-             </div>
-           </div>
+           <p className="text-[11px] font-bold text-slate-300 leading-relaxed max-w-sm">
+             Pusat kendali laporan adukan pabrik. Catat pemakaian ayam mentah dan hasil jadi dimsum yang masuk ke dalam freezer.
+           </p>
+        </div>
+        
+        <div className="relative z-10 grid grid-cols-2 sm:grid-cols-4 gap-4 w-full xl:w-2/3">
+          <div className="bg-slate-900/60 border border-slate-700/50 rounded-2xl p-4 flex flex-col items-center justify-center text-center shadow-inner backdrop-blur-sm">
+            <div className="text-[10px] font-black text-red-400 uppercase tracking-wider mb-1">Total Aktual Masuk POS</div>
+            <div className="text-3xl font-black text-white tracking-tight my-1">{formatNumber(kalkulasi.actualTotalPcs)} <span className="text-[10px] text-slate-400 font-bold">Pcs</span></div>
+          </div>
+          <div className="bg-slate-900/60 border border-slate-700/50 rounded-2xl p-4 flex flex-col items-center justify-center text-center shadow-inner backdrop-blur-sm">
+            <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Target Standar</div>
+            <div className="text-sm font-black text-white leading-tight">{formatNumber(kalkulasi.stdMika)} <span className="text-[9px] text-slate-500">Mika</span></div>
+            <div className="text-sm font-black text-white leading-tight">{formatNumber(kalkulasi.stdPcs)} <span className="text-[9px] text-slate-500">Pcs</span></div>
+          </div>
+          <div className="bg-slate-900/60 border border-slate-700/50 rounded-2xl p-4 flex flex-col items-center justify-center text-center shadow-inner backdrop-blur-sm">
+            <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Ayam Dipakai</div>
+            <div className="text-sm font-black text-white leading-tight">{formatNumber(kalkulasi.butuhAyamKantong)} <span className="text-[9px] text-slate-500">Kantong</span></div>
+            <div className="text-sm font-black text-white leading-tight">{formatNumber(kalkulasi.butuhAyamKg)} <span className="text-[9px] text-slate-500">Kg</span></div>
+          </div>
+          <div className={`bg-slate-900/60 border ${kalkulasi.sisaAyamKantong < 0 ? 'border-red-500 shadow-red-500/20' : 'border-slate-700/50'} rounded-2xl p-4 flex flex-col items-center justify-center text-center shadow-inner backdrop-blur-sm relative overflow-hidden`}>
+            {kalkulasi.sisaAyamKantong < 0 && <div className="absolute top-0 w-full bg-red-600 text-white text-[8px] font-black uppercase tracking-widest text-center py-0.5">Minus!</div>}
+            <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 mt-1">Sisa Di Gudang</div>
+            <div className={`text-xl font-black ${kalkulasi.sisaAyamKantong < 0 ? 'text-red-400' : 'text-white'}`}>{formatNumber(kalkulasi.sisaAyamKantong)} <span className="text-[10px] text-slate-500">Kntg</span></div>
+          </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-        <div className="xl:col-span-5 flex flex-col bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden border-t-4 border-t-red-500">
-          <div className="p-5 border-b border-slate-100 bg-slate-50 shrink-0 flex items-center gap-2">
-             <Factory size={16} className="text-red-600"/>
-             <h4 className="font-bold text-slate-800 normal-case text-xs">Laporan hasil produksi</h4>
+        <div className="xl:col-span-5 flex flex-col bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden border-t-4 border-t-red-600">
+          <div className="p-6 border-b border-slate-100 bg-slate-50 shrink-0 flex items-center gap-2">
+             <Factory size={18} className="text-red-600"/>
+             <h4 className="font-black text-slate-800 uppercase tracking-wide text-sm">Form Laporan Hasil Produksi</h4>
           </div>
           <form onSubmit={handleSubmitProduction} className="p-6 space-y-5 bg-white">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-[9px] font-bold text-slate-500 normal-case block mb-1.5">Tanggal adukan</label>
-                <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className="w-full p-2.5 border border-slate-200 rounded-xl text-xs font-bold outline-none cursor-pointer focus:border-red-400" />
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1.5">Tanggal Adukan</label>
+                <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className="w-full p-3 border border-slate-200 rounded-xl text-xs font-bold outline-none cursor-pointer bg-slate-50 focus:bg-white focus:border-red-400 shadow-sm transition-colors" />
               </div>
               <div>
-                <label className="text-[9px] font-bold text-slate-500 normal-case block mb-1.5">Kepala dapur / PIC</label>
-                <input type="text" required value={pic} onChange={(e) => setPic(e.target.value)} className="w-full p-2.5 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:border-red-400" placeholder="Nama..." />
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1.5">Kepala Dapur / PIC</label>
+                <input type="text" required value={pic} onChange={(e) => setPic(e.target.value)} className="w-full p-3 border border-slate-200 rounded-xl text-xs font-bold outline-none bg-slate-50 focus:bg-white focus:border-red-400 shadow-sm uppercase tracking-wider transition-colors" placeholder="Nama..." />
               </div>
             </div>
             <div>
-              <label className="text-[9px] font-bold text-slate-500 normal-case block mb-1.5">Varian produk jadi</label>
-              <select required value={productName} onChange={(e) => setProductName(e.target.value)} className="w-full p-3 border border-slate-200 rounded-xl text-xs font-bold bg-slate-50 focus:border-red-400 cursor-pointer">
-                <option value="">-- Pilih variant produk --</option>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1.5">Varian Produk Jadi</label>
+              <select required value={productName} onChange={(e) => setProductName(e.target.value)} className="w-full p-3 border border-slate-200 rounded-xl text-xs font-bold bg-slate-50 outline-none focus:bg-white focus:border-red-400 cursor-pointer shadow-sm uppercase tracking-wider transition-colors">
+                <option value="">-- Pilih Variant Produk --</option>
                 {activeMenus.map(m => <option key={m.id} value={m.product_name}>{m.product_name}</option>)}
               </select>
             </div>
+
             <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 shadow-inner relative">
-              <div className="absolute -top-3 left-4 bg-slate-200 border border-slate-300 text-slate-700 text-[8px] font-bold px-2 py-0.5 rounded normal-case">Langkah 1</div>
-              <label className="text-[10px] font-bold text-slate-600 normal-case block mb-2 text-center mt-1">Total adukan hari ini</label>
-              <input type="number" min="1" required value={adukan} onChange={(e) => handleAdukanChange(e.target.value)} className="w-full py-3 border-2 border-slate-300 rounded-xl text-3xl font-black text-slate-800 bg-white outline-none text-center focus:border-red-500" placeholder="0" />
+              <div className="absolute -top-3 left-5 bg-slate-800 text-white text-[9px] font-black px-3 py-0.5 rounded-md uppercase tracking-widest shadow-md">Langkah 1</div>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-2 text-center mt-2">Total Adukan Hari Ini</label>
+              <input type="number" min="1" required value={adukan} onChange={(e) => handleAdukanChange(e.target.value)} className="w-full py-4 border-2 border-slate-300 rounded-xl text-4xl font-black text-slate-800 bg-white outline-none text-center focus:border-red-500 shadow-sm transition-colors" placeholder="0" />
             </div>
-            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 shadow-inner relative">
-              <div className="absolute -top-3 left-4 bg-red-600 text-white text-[8px] font-bold px-2 py-0.5 rounded normal-case flex items-center gap-1 shadow-xs"><PackageCheck size={10}/> Langkah 2</div>
-              <label className="text-[10px] font-bold text-slate-600 normal-case block mb-3 text-center mt-1">Hasil kemasan fisik nyata</label>
-              <div className="grid grid-cols-12 gap-2 items-stretch">
+
+            <div className="bg-red-50/50 p-5 rounded-2xl border border-red-100 shadow-inner relative">
+              <div className="absolute -top-3 left-5 bg-red-600 text-white text-[9px] font-black px-3 py-0.5 rounded-md flex items-center gap-1.5 shadow-md uppercase tracking-widest"><PackageCheck size={12}/> Langkah 2</div>
+              <label className="text-[10px] font-black text-slate-600 uppercase tracking-wider block mb-3 text-center mt-2">Hasil Kemasan Fisik Nyata</label>
+              <div className="grid grid-cols-12 gap-3 items-stretch">
                 <div className="col-span-8">
-                  <input type="number" min="0" required value={actualInput} onChange={(e) => setActualInput(e.target.value)} className="w-full p-3 border-2 border-slate-300 rounded-xl text-2xl font-black text-slate-800 bg-white outline-none text-center focus:border-red-500 shadow-inner h-full" placeholder="0" />
+                  <input type="number" min="0" required value={actualInput} onChange={(e) => setActualInput(e.target.value)} className="w-full p-4 border-2 border-red-200 rounded-xl text-3xl font-black text-red-700 bg-white outline-none text-center focus:border-red-500 shadow-sm transition-colors h-full" placeholder="0" />
                 </div>
                 <div className="col-span-4">
-                  <select value={actualUnit} onChange={(e) => setActualUnit(e.target.value)} className="w-full px-1 bg-slate-800 text-white rounded-xl text-xs font-bold outline-none cursor-pointer border border-slate-700 shadow-sm text-center h-full">
+                  <select value={actualUnit} onChange={(e) => setActualUnit(e.target.value)} className="w-full px-2 bg-slate-900 text-white rounded-xl text-xs font-black outline-none cursor-pointer border-2 border-slate-800 shadow-md text-center h-full uppercase tracking-wider hover:bg-black transition-colors">
                     <option value="MIKA">Mika (50)</option>
                     <option value="PORSI">Porsi (4)</option>
                     <option value="PCS">Pcs (1)</option>
@@ -229,48 +236,51 @@ export default function TabPemalang({
                 </div>
               </div>
             </div>
+
             <div>
-              <label className="text-[9px] font-bold text-slate-500 normal-case block mb-1.5">Daging Ayam (Kg) Terpakai</label>
-              <input type="number" step="any" required value={ayamTerpakai} onChange={(e) => setAyamTerpakai(e.target.value)} className="w-full p-2.5 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:border-red-400" placeholder="Cth: 12.5" />
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1.5">Daging Ayam (Kg) Terpakai</label>
+              <input type="number" step="any" required value={ayamTerpakai} onChange={(e) => setAyamTerpakai(e.target.value)} className="w-full p-3 border border-slate-200 rounded-xl text-sm font-black bg-slate-50 outline-none focus:bg-white focus:border-red-400 shadow-sm transition-colors" placeholder="Cth: 12.5" />
             </div>
             <div>
-              <label className="text-[9px] font-bold text-slate-500 normal-case block mb-1.5">Catatan tambahan</label>
-              <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full p-2.5 border border-slate-200 rounded-xl text-xs font-semibold outline-none focus:border-red-400" placeholder="Opsional..." />
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1.5">Catatan Tambahan</label>
+              <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full p-3 border border-slate-200 rounded-xl text-xs font-medium bg-slate-50 outline-none focus:bg-white focus:border-red-400 shadow-sm normal-case transition-colors" placeholder="Opsional..." />
             </div>
-            <button type="submit" className="w-full py-3.5 rounded-xl text-xs font-bold shadow-xs flex items-center justify-center gap-2 mt-2 bg-red-600 hover:bg-red-700 text-white">
-              <CheckCircle2 size={14}/> Lapor fisik &amp; potong gudang
+
+            <button type="submit" className="w-full py-4 rounded-xl text-xs font-black shadow-md flex items-center justify-center gap-2 mt-4 bg-red-600 hover:bg-red-700 text-white uppercase tracking-wider transition-transform active:scale-95 cursor-pointer">
+              <CheckCircle2 size={16}/> Lapor Fisik &amp; Potong Gudang
             </button>
           </form>
         </div>
 
         <div className="xl:col-span-7 flex flex-col bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="p-5 bg-slate-50 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <h4 className="font-bold text-slate-800 normal-case text-xs flex items-center gap-2"><ClipboardList size={16} className="text-amber-600"/> Jurnal log rekap hasil giling</h4>
-            <div className="flex items-center gap-2 bg-white border border-slate-200 px-3 py-1.5 rounded-xl shadow-xs">
+          <div className="p-6 bg-slate-50 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <h4 className="font-black text-slate-800 uppercase tracking-wide text-sm flex items-center gap-2"><ClipboardList size={18} className="text-amber-600"/> Jurnal Log Rekap Hasil Giling</h4>
+            <div className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-xl shadow-sm">
               <Calendar size={14} className="text-amber-500 ml-0.5"/>
-              <input type="date" value={filterDateFrom} onChange={(e) => setFilterPeriodeFrom(e.target.value)} className="text-[10px] font-bold outline-none cursor-pointer" />
-              <span>-</span>
-              <input type="date" value={filterDateTo} onChange={(e) => setFilterPeriodeTo(e.target.value)} className="text-[10px] font-bold outline-none cursor-pointer" />
+              <input type="date" value={filterDateFrom} onChange={(e) => setFilterPeriodeFrom(e.target.value)} className="text-[11px] font-bold outline-none cursor-pointer text-slate-700" />
+              <span className="text-slate-400 font-bold">-</span>
+              <input type="date" value={filterDateTo} onChange={(e) => setFilterPeriodeTo(e.target.value)} className="text-[11px] font-bold outline-none cursor-pointer text-slate-700" />
             </div>
           </div>
           
           <div className="overflow-x-auto flex-1 p-2 custom-scrollbar min-h-[60vh]">
             <table className="w-full text-sm text-left border-collapse">
-              <thead className="bg-slate-50/50 text-[10px] normal-case text-slate-500 border-b border-slate-200 sticky top-0 shadow-xs bg-white">
+              <thead className="bg-slate-50/50 text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-200 sticky top-0 shadow-sm bg-white z-10">
                 <tr>
-                  <th className="px-5 py-4 font-bold">Waktu &amp; batch</th>
-                  <th className="px-5 py-4 font-bold text-center">Matriks Adukan</th>
-                  <th className="px-5 py-4 font-bold text-center">Daging Ayam</th>
-                  <th className="px-5 py-4 font-bold text-right">Yield Masuk Freezer</th>
-                  <th className="px-5 py-4 font-bold text-center">Aksi</th>
+                  <th className="px-5 py-4 font-black">Waktu &amp; Batch</th>
+                  <th className="px-5 py-4 font-black text-center">Matriks Adukan</th>
+                  <th className="px-5 py-4 font-black text-center">Daging Ayam</th>
+                  <th className="px-5 py-4 font-black text-right">Yield Masuk Freezer</th>
+                  <th className="px-5 py-4 font-black text-center">Aksi</th>
                 </tr>
               </thead>
               <tbody className="text-xs font-bold divide-y divide-slate-100 text-slate-600">
                 {filteredProductionLogs.length === 0 ? (
                   <tr>
-                    <td colSpan="5" className="text-center py-20 text-slate-400 normal-case">
-                      <div className="flex justify-center mb-2 opacity-30"><Factory size={36}/></div>
-                      Belum ada laporan produksi dapur.
+                    <td colSpan="5" className="text-center py-24 text-slate-400">
+                      <Factory size={48} className="mx-auto mb-3 opacity-20"/>
+                      <div className="text-sm font-black uppercase tracking-wider">Belum Ada Laporan</div>
+                      <div className="text-[10px] font-bold normal-case mt-1">Tidak ada rekam jejak produksi dapur di tanggal ini.</div>
                     </td>
                   </tr>
                 ) : (
@@ -290,26 +300,27 @@ export default function TabPemalang({
                     }
 
                     return (
-                      <tr key={log.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-5 py-4 whitespace-nowrap font-mono text-slate-800">
-                          {log.id}<div className="text-[9px] text-slate-400 mt-0.5">{formatDate(log.date)}</div>
+                      <tr key={log.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="px-5 py-4 whitespace-nowrap">
+                          <div className="font-mono text-slate-800 font-black">{log.id}</div>
+                          <div className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider">{formatDate(log.date)}</div>
                         </td>
-                        <td className="px-5 py-4 text-center text-slate-800">{displayAdukan} Kali</td>
-                        <td className="px-5 py-4 text-center text-slate-800">{displayAyam} Kg</td>
-                        <td className="px-5 py-4 text-right text-amber-700">{formatNumber(displayYield)} Pcs</td>
+                        <td className="px-5 py-4 text-center font-black text-slate-800 text-sm">{displayAdukan} <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Kali</span></td>
+                        <td className="px-5 py-4 text-center font-black text-slate-800 text-sm">{displayAyam} <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Kg</span></td>
+                        <td className="px-5 py-4 text-right font-black text-amber-600 text-lg tracking-tight">{formatNumber(displayYield)} <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider">Pcs</span></td>
                         <td className="px-5 py-4 text-center">
-                          <div className="flex items-center justify-center gap-1.5">
+                          <div className="flex items-center justify-center gap-2">
                             <button type="button" onClick={() => {
                                if(typeof setPrintData === 'function') {
                                   setPrintData({
-                                    title: 'Bukti Produksi', id: log.id, date: formatDate(log.date), branch_name: currentBranch,
-                                    admin_name: user?.name || 'ADMIN', customer_name: 'FREEZER',
-                                    items: [{ name: `HASIL ADUKAN\n(${displayAdukan} Adukan)`, qty: 1, subtotal: displayYield }],
-                                    amount: displayYield, paymentMethod: 'SISTEM'
+                                    type: 'INVOICE', title: 'Bukti Produksi Dapur', id: log.id, date: formatDate(log.date), branch_name: currentBranch.replace(/_/g, ' '),
+                                    admin_name: user?.name || 'ADMIN PABRIK', customer_name: 'INVENTARIS FREEZER',
+                                    items: [{ name: `HASIL ADUKAN\n(${displayAdukan} Adukan x ${displayAyam} Kg)`, qty: 1, subtotal: displayYield }],
+                                    amount: displayYield, paymentMethod: 'SISTEM STOK INTERNAL'
                                   });
                                }
-                            }} className="p-2 text-slate-400 hover:text-emerald-600 border border-slate-200 rounded-lg shadow-xs"><Printer size={14}/></button>
-                            <button type="button" onClick={() => handleVoidProduction(log.id)} className="p-2 text-slate-400 hover:text-red-600 border border-slate-200 rounded-lg shadow-xs"><Trash2 size={14}/></button>
+                            }} className="p-2.5 text-slate-400 hover:text-emerald-600 border border-slate-200 rounded-xl shadow-sm bg-white cursor-pointer transition-colors"><Printer size={16}/></button>
+                            <button type="button" onClick={() => handleVoidProduction(log.id)} className="p-2.5 text-slate-400 hover:text-red-600 border border-slate-200 rounded-xl shadow-sm bg-white cursor-pointer transition-colors"><Trash2 size={16}/></button>
                           </div>
                         </td>
                       </tr>
