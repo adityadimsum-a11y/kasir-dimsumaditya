@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { 
   TrendingUp, Wallet, Package, Users, AlertCircle, BarChart3, 
   ShieldCheck, Landmark, Globe, ArrowRightLeft, CreditCard,
-  Building2, Banknote, Activity, Factory // 🔥 FIX: Ikon Factory sudah mendarat dengan aman!
+  Building2, Banknote, Activity, Factory 
 } from 'lucide-react';
 import { getTodayStr } from '../../utils/helpers';
 
@@ -104,34 +104,35 @@ export default function TabDashboard({
   }, [orders, purchases, expenses, cashflowTransactions, inventoryCostLayers, supplierLedger, piutangPayments]);
 
   return (
-    <div className="space-y-6 pb-10 text-slate-700 normal-case animate-in fade-in duration-300">
+    <div className="space-y-6 pb-10 text-slate-700 animate-in fade-in duration-300">
       
-      {/* 🚀 HERO BANNER GLOBAL HQ RADAR */}
-      <div className="card-holo p-6 lg:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative overflow-hidden bg-slate-900 border-none shadow-xl">
-        <div className="absolute left-0 top-0 w-full h-1 bg-gradient-to-r from-red-500 via-amber-500 to-blue-500"></div>
+      {/* 🚀 HERO BANNER GLOBAL HQ RADAR (FLUID GRADIENT) */}
+      <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 p-6 lg:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative overflow-hidden rounded-3xl shadow-xl border border-slate-800">
+        <div className="absolute -top-32 -left-32 w-72 h-72 bg-blue-600/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute -bottom-32 -right-32 w-72 h-72 bg-emerald-600/10 rounded-full blur-3xl pointer-events-none"></div>
         
         <div className="relative z-10 w-full md:w-2/3">
           <div className="flex items-center gap-2 mb-2">
             <Globe className="text-blue-400" size={24} /> 
-            <h2 className="text-xl font-black normal-case text-white tracking-tight">Global HQ Command Center</h2>
+            <h2 className="text-xl font-black text-white tracking-tight">Global HQ Command Center</h2>
           </div>
-          <p className="text-[11px] font-medium text-slate-400 normal-case leading-relaxed">
+          <p className="text-[11px] font-medium text-slate-400 leading-relaxed max-w-lg">
             Ringkasan eksekutif kekayaan bersih pabrik. Memantau rasio uang kas, beban hutang logistik, tagihan agen, dan total valuasi seluruh gudang freezer secara real-time.
           </p>
-          <div className="flex items-center gap-3 mt-4">
-            <span className="bg-emerald-500/20 text-emerald-400 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border border-emerald-500/30 flex items-center gap-1.5 shadow-xs"><ShieldCheck size={12}/> Server Aktif</span>
-            <span className="text-[10px] text-slate-500 font-bold uppercase">{todayStr}</span>
+          <div className="flex flex-wrap items-center gap-3 mt-5">
+            <span className="bg-emerald-500/10 text-emerald-400 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border border-emerald-500/20 flex items-center gap-1.5 shadow-sm"><ShieldCheck size={12}/> Server Aktif</span>
+            <span className="text-[10px] text-slate-500 font-bold bg-slate-800/50 px-3 py-1.5 rounded-lg border border-slate-700/50">{formatDate(todayStr)}</span>
           </div>
         </div>
 
         {/* VALUASI KEKAYAAN BERSIH */}
-        <div className="relative z-10 w-full md:w-auto shrink-0 bg-slate-800/80 border border-slate-700 p-5 rounded-2xl shadow-inner backdrop-blur-sm">
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><Landmark size={12}/> Kekayaan Bersih Pabrik</div>
+        <div className="relative z-10 w-full md:w-auto shrink-0 bg-gradient-to-b from-slate-800/80 to-slate-900/80 border border-slate-700/60 p-6 rounded-2xl shadow-lg backdrop-blur-sm group hover:border-slate-600 transition-colors">
+          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5"><Landmark size={12}/> Estimasi Kekayaan Bersih Pabrik</div>
           <div className={`text-3xl lg:text-4xl font-black tracking-tighter ${macroStats.netWorth >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
             {formatRupiah(macroStats.netWorth)}
           </div>
-          <div className="text-[9px] font-medium text-slate-500 normal-case mt-1.5 leading-tight max-w-[200px]">
-            *(Kas Liquid + Piutang + Valuasi Aset) - Hutang Berjalan*
+          <div className="text-[9px] font-medium text-slate-500 mt-2 leading-tight max-w-[220px]">
+            *(Kas Dompet + Piutang + Nilai Barang di Gudang) - Hutang Supplier Berjalan*
           </div>
         </div>
       </div>
@@ -140,35 +141,35 @@ export default function TabDashboard({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
         {/* KAS RIIL */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs relative overflow-hidden group">
-          <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Banknote size={48} className="text-emerald-600"/></div>
-          <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Wallet size={12} className="text-emerald-500"/> Kas Liquid (Di Tangan)</div>
+        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden group hover:shadow-md transition-shadow">
+          <div className="absolute right-0 top-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity"><Banknote size={56} className="text-emerald-600"/></div>
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Wallet size={14} className="text-emerald-500"/> Total Uang Dompet (Kas Riil)</div>
           <div className="text-2xl font-black text-slate-800 tracking-tight">{formatRupiah(macroStats.kasLiquid)}</div>
-          <div className="text-[9px] font-bold text-slate-500 mt-2">Saldo gabungan Laci Kasir & Rekening Bank.</div>
+          <div className="text-[9px] font-bold text-slate-500 mt-2">Saldo riil gabungan Laci Kasir & Rekening Bank.</div>
         </div>
 
         {/* PIUTANG AGEN */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs relative overflow-hidden group">
-          <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><ArrowRightLeft size={48} className="text-blue-600"/></div>
-          <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><TrendingUp size={12} className="text-blue-500"/> Piutang Agen (Aset Luar)</div>
+        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden group hover:shadow-md transition-shadow">
+          <div className="absolute right-0 top-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity"><ArrowRightLeft size={56} className="text-blue-600"/></div>
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><TrendingUp size={14} className="text-blue-500"/> Uang di Luar (Piutang Agen)</div>
           <div className="text-2xl font-black text-slate-800 tracking-tight">{formatRupiah(macroStats.totalPiutangAgen)}</div>
-          <div className="text-[9px] font-bold text-slate-500 mt-2">Uang perusahaan yang belum dibayar agen.</div>
+          <div className="text-[9px] font-bold text-slate-500 mt-2">Tagihan nota perusahaan yang belum dibayar agen.</div>
         </div>
 
         {/* HUTANG SUPPLIER */}
-        <div className="bg-white p-5 rounded-2xl border border-rose-200 shadow-2xs relative overflow-hidden group border-t-4 border-t-rose-500 bg-rose-50/10">
-          <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><AlertCircle size={48} className="text-rose-600"/></div>
-          <div className="text-[10px] font-black text-rose-500 uppercase tracking-wider mb-2 flex items-center gap-1.5"><CreditCard size={12}/> Hutang Logistik (Kewajiban)</div>
+        <div className="bg-rose-50/30 p-5 rounded-3xl border border-rose-200 shadow-sm relative overflow-hidden group hover:shadow-md transition-shadow">
+          <div className="absolute right-0 top-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity"><AlertCircle size={56} className="text-rose-600"/></div>
+          <div className="text-[10px] font-black text-rose-500 uppercase tracking-wider mb-2 flex items-center gap-1.5"><CreditCard size={14}/> Kewajiban Berjalan (Hutang)</div>
           <div className="text-2xl font-black text-rose-700 tracking-tight">{formatRupiah(macroStats.totalHutangGlobal)}</div>
-          <div className="text-[9px] font-bold text-rose-500/70 mt-2">Tagihan supplier ayam & plastik yang harus dilunasi.</div>
+          <div className="text-[9px] font-bold text-rose-500/70 mt-2">Tagihan supplier ayam & plastik yang wajib dilunasi.</div>
         </div>
 
         {/* VALUASI BARANG FISIK */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs relative overflow-hidden group">
-          <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Package size={48} className="text-amber-600"/></div>
-          <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Building2 size={12} className="text-amber-500"/> Valuasi Aset Fisik (HPP)</div>
+        <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden group hover:shadow-md transition-shadow">
+          <div className="absolute right-0 top-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity"><Package size={56} className="text-amber-600"/></div>
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Building2 size={14} className="text-amber-500"/> Harta Mati Gudang (Valuasi)</div>
           <div className="text-2xl font-black text-slate-800 tracking-tight">{formatRupiah(macroStats.totalValuasiAset)}</div>
-          <div className="text-[9px] font-bold text-slate-500 mt-2">Nilai modal barang matang & mentah di seluruh gudang.</div>
+          <div className="text-[9px] font-bold text-slate-500 mt-2">Modal mandek berwujud barang mentah/matang di freezer.</div>
         </div>
       </div>
 
@@ -176,37 +177,37 @@ export default function TabDashboard({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         {/* RADAR GUDANG PUSAT TANGERANG */}
-        <div className="card-holo bg-white border border-slate-200 rounded-2xl shadow-2xs overflow-hidden">
-          <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
-            <Building2 size={16} className="text-blue-600"/>
-            <h3 className="font-black text-slate-800 text-xs uppercase tracking-wide">Radar Valuasi: Tangerang Pusat</h3>
+        <div className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden">
+          <div className="p-5 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
+            <Building2 size={18} className="text-blue-600"/>
+            <h3 className="font-black text-slate-800 text-sm">Radar Valuasi HPP: Tangerang Pusat</h3>
           </div>
-          <div className="p-5 flex justify-between items-center">
+          <div className="p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <div className="text-[10px] font-bold text-slate-400 normal-case mb-0.5">Nilai HPP Barang Tersimpan</div>
-              <div className="text-xl font-black text-slate-800">{formatRupiah(macroStats.valuasiGudangPusat)}</div>
+              <div className="text-[10px] font-bold text-slate-400 mb-0.5">Nilai Modal Barang Tersimpan</div>
+              <div className="text-2xl font-black text-slate-800 tracking-tight">{formatRupiah(macroStats.valuasiGudangPusat)}</div>
             </div>
-            <div className="text-right">
-              <div className="text-[10px] font-bold text-slate-400 normal-case mb-0.5">Status Lokasi</div>
-              <span className="bg-blue-50 text-blue-600 px-2 py-1 rounded text-[9px] font-black border border-blue-100">MARKAS UTAMA</span>
+            <div className="sm:text-right">
+              <div className="text-[10px] font-bold text-slate-400 mb-1.5">Status Lokasi Node</div>
+              <span className="bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg text-[10px] font-black border border-blue-200 tracking-wider">MARKAS UTAMA</span>
             </div>
           </div>
         </div>
 
         {/* RADAR GUDANG PRODUKSI PEMALANG */}
-        <div className="card-holo bg-white border border-slate-200 rounded-2xl shadow-2xs overflow-hidden">
-          <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
-            <Factory size={16} className="text-amber-600"/>
-            <h3 className="font-black text-slate-800 text-xs uppercase tracking-wide">Radar Valuasi: Produksi Pemalang</h3>
+        <div className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden">
+          <div className="p-5 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
+            <Factory size={18} className="text-amber-600"/>
+            <h3 className="font-black text-slate-800 text-sm">Radar Valuasi HPP: Produksi Pemalang</h3>
           </div>
-          <div className="p-5 flex justify-between items-center">
+          <div className="p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <div className="text-[10px] font-bold text-slate-400 normal-case mb-0.5">Nilai HPP Barang Tersimpan</div>
-              <div className="text-xl font-black text-slate-800">{formatRupiah(macroStats.valuasiGudangPemalang)}</div>
+              <div className="text-[10px] font-bold text-slate-400 mb-0.5">Nilai Modal Barang Tersimpan</div>
+              <div className="text-2xl font-black text-slate-800 tracking-tight">{formatRupiah(macroStats.valuasiGudangPemalang)}</div>
             </div>
-            <div className="text-right">
-              <div className="text-[10px] font-bold text-slate-400 normal-case mb-0.5">Kapasitas Dimsum Global</div>
-              <span className="bg-amber-50 text-amber-700 px-2 py-1 rounded text-[10px] font-black border border-amber-200">{formatNumber(macroStats.stokDimsumGlobal)} Pcs</span>
+            <div className="sm:text-right">
+              <div className="text-[10px] font-bold text-slate-400 mb-1.5">Kapasitas Dimsum Global (Semua Lokasi)</div>
+              <span className="bg-amber-50 text-amber-700 px-3 py-1.5 rounded-lg text-[11px] font-black border border-amber-200">{formatNumber(macroStats.stokDimsumGlobal)} Pcs</span>
             </div>
           </div>
         </div>
