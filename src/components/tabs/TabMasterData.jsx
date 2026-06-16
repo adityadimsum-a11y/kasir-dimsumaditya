@@ -24,18 +24,15 @@ export default function TabMasterData({
   const [isEditingSpl, setIsEditingSpl] = useState(false);
   const [isEditingItem, setIsEditingItem] = useState(false);
   
-  // STATE MODAL RIWAYAT
   const [historyModal, setHistoryModal] = useState(null);
 
-  // 🔥 STATE FILTER REKAPAN ANALISA HARGA
   const [recapStart, setRecapStart] = useState(() => {
     const d = new Date();
-    d.setDate(1); // Set default ke awal bulan
+    d.setDate(1); 
     return d.toISOString().substring(0, 10);
   });
   const [recapEnd, setRecapEnd] = useState(todayStr);
 
-  // --- SINKRONISASI DATABASE ---
   const realProducts = useMemo(() => master_products || masterProducts || [], [master_products, masterProducts]);
   const realSuppliers = useMemo(() => master_suppliers || masterSuppliers || [], [master_suppliers, masterSuppliers]);
   const realRawMaterials = useMemo(() => master_raw_materials || masterRawMaterials || [], [master_raw_materials, masterRawMaterials]);
@@ -45,7 +42,6 @@ export default function TabMasterData({
   });
 
   const [formMenu, setFormMenu] = useState({ id: '', product_name: '', category: 'FROZEN_GOODS', selling_price: '', default_hpp: '1125', min_order: '1', penalty_price: '0' });
-  // 🔥 UPDATE: Tambah default_price di state supplier
   const [formSpl, setFormSpl] = useState({ id: '', supplier_name: '', pic_name: '', phone: '', address: '', default_price: '' });
   const [formItem, setFormItem] = useState({ id: '', item_name: '', category: 'BAHAN BAKU', unit: '', default_price: '' });
 
@@ -76,10 +72,12 @@ export default function TabMasterData({
     e.preventDefault();
     if (!formSpl.supplier_name) return alert("Nama perusahaan supplier wajib diisi!");
     const splId = isEditingSpl ? formSpl.id : generateId('SPL', todayStr);
-    // 🔥 UPDATE: Menambahkan default_price ke payload database
+    
+    // 🔥 FIX BUG 2: Pengaman formSpl.address agar tidak crash saat undefined
     const payload = {
       id: splId, date: todayStr, branch_id: currentBranch, isDeleted: false,
-      supplier_name: formSpl.supplier_name.toUpperCase(), pic_name: formSpl.pic_name.toUpperCase(), phone: formSpl.phone, address: formSpl.address.toUpperCase(),
+      supplier_name: formSpl.supplier_name.toUpperCase(), pic_name: formSpl.pic_name.toUpperCase(), phone: formSpl.phone, 
+      address: (formSpl.address || '').toUpperCase(),
       default_price: Number(formSpl.default_price || 0) 
     };
     const isSuccess = await sendToSheet(isEditingSpl ? 'update' : 'insert', payload, 'master_suppliers');
@@ -130,7 +128,6 @@ export default function TabMasterData({
     setHistoryModal({ itemName: item.item_name, history: history });
   };
 
-  // 🔥 ENGINE ANALISA REKAPAN PERUBAHAN HARGA PASAR
   const priceAnalytics = useMemo(() => {
     let naikCount = 0;
     let turunCount = 0;
@@ -190,7 +187,6 @@ export default function TabMasterData({
   return (
     <div className="space-y-6 pb-10 text-slate-700 normal-case">
       
-      {/* FILTER TABS - FLAT ENTERPRISE */}
       <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-4">
         <button onClick={() => setActiveTab('ITEM_BIAYA')} className={`px-5 py-2.5 rounded-lg font-bold text-xs normal-case transition-all flex items-center gap-2 ${activeTab === 'ITEM_BIAYA' ? 'bg-white shadow-xs text-red-600 border border-slate-200' : 'bg-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-700 border border-transparent'}`}><List size={14}/> Master item &amp; biaya</button>
         <button onClick={() => setActiveTab('MENU')} className={`px-5 py-2.5 rounded-lg font-bold text-xs normal-case transition-all flex items-center gap-2 ${activeTab === 'MENU' ? 'bg-white shadow-xs text-red-600 border border-slate-200' : 'bg-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-700 border border-transparent'}`}><Box size={14}/> Master daftar menu</button>
@@ -241,7 +237,11 @@ export default function TabMasterData({
                      <td className="px-5 py-4 normal-case text-slate-800">{p.product_name}</td>
                      <td className="px-5 py-4 text-emerald-600 font-extrabold">{formatRupiah(p.selling_price)}</td>
                      <td className="px-5 py-4 text-center">
-                       <button onClick={()=> {setFormMenu(p); setIsEditing(true);}} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-slate-100 rounded-lg transition-colors border shadow-xs"><Edit2 size={14}/></button>
+                       <div className="flex items-center justify-center gap-1.5">
+                         <button onClick={()=> {setFormMenu({...p, default_hpp: String(p.default_hpp || ''), min_order: String(p.min_order || ''), penalty_price: String(p.penalty_price || '')}); setIsEditing(true);}} className="p-2 text-slate-400 hover:text-blue-600 bg-white hover:bg-blue-50 rounded-lg transition-colors border shadow-xs"><Edit2 size={14}/></button>
+                         {/* 🔥 FIX BUG 3: Tambah Tombol Karantina Menu */}
+                         <button onClick={async () => { if(window.confirm(`Karantina menu ${p.product_name}? Item tidak akan muncul lagi di kasir.`)) sendToSheet('update', {id: p.id, isDeleted: true}, 'master_products'); }} className="p-2 text-slate-400 hover:text-red-600 bg-white hover:bg-red-50 rounded-lg transition-colors border shadow-xs"><Trash2 size={14}/></button>
+                       </div>
                      </td>
                    </tr>
                  ))}
@@ -271,7 +271,6 @@ export default function TabMasterData({
                   <label className="text-[9px] font-bold text-slate-500 normal-case block mb-1">Nomor Handphone / WA</label>
                   <input type="text" required value={formSpl.phone} onChange={e=>setFormSpl({...formSpl, phone: e.target.value})} className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold outline-none focus:border-blue-500" placeholder="08xx..." />
                 </div>
-                {/* 🔥 UPDATE: Input untuk Harga Satuan Default Supplier */}
                 <div>
                   <label className="text-[9px] font-bold text-slate-500 normal-case block mb-1">Harga Satuan Default (Rp/Kg)</label>
                   <div className="relative">
@@ -286,7 +285,6 @@ export default function TabMasterData({
              <div className="p-4 bg-slate-50 border-b border-slate-100 font-extrabold text-xs normal-case text-slate-700">Database mitra supplier aktif</div>
              <table className="w-full text-sm text-left">
                <thead className="bg-white text-[10px] normal-case text-slate-400 border-b border-slate-200">
-                 {/* 🔥 UPDATE: Kolom Header Harga Default ditambahkan */}
                  <tr><th className="px-5 py-3 font-bold">Nama supplier &amp; PIC</th><th className="px-5 py-3 font-bold">Kontak</th><th className="px-5 py-3 font-bold text-right">Harga Acuan</th><th className="px-5 py-3 font-bold text-center">Aksi</th></tr>
                </thead>
                <tbody className="divide-y divide-slate-100 text-xs font-bold bg-white">
@@ -297,11 +295,13 @@ export default function TabMasterData({
                        <div className="text-[10px] font-medium text-slate-500 normal-case mt-0.5">PIC: {s.pic_name}</div>
                      </td>
                      <td className="px-5 py-4 text-slate-600">{s.phone}</td>
-                     {/* 🔥 UPDATE: Cell Menampilkan Harga Default */}
                      <td className="px-5 py-4 text-right text-emerald-600 font-extrabold">{formatRupiah(s.default_price)}</td>
                      <td className="px-5 py-4 text-center">
-                       {/* 🔥 UPDATE: Edit State menyertakan default_price */}
-                       <button onClick={() => {setFormSpl({...s, default_price: String(s.default_price || '')}); setIsEditingSpl(true);}} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-slate-100 rounded-lg transition-colors border shadow-xs"><Edit2 size={14}/></button>
+                       <div className="flex items-center justify-center gap-1.5">
+                         <button onClick={() => {setFormSpl({...s, default_price: String(s.default_price || ''), address: s.address || ''}); setIsEditingSpl(true);}} className="p-2 text-slate-400 hover:text-blue-600 bg-white hover:bg-slate-100 rounded-lg transition-colors border shadow-xs"><Edit2 size={14}/></button>
+                         {/* 🔥 FIX BUG 3: Tambah Tombol Karantina Supplier */}
+                         <button onClick={async () => { if(window.confirm(`Putus kontrak & karantina supplier ${s.supplier_name}?`)) sendToSheet('update', {id: s.id, isDeleted: true}, 'master_suppliers'); }} className="p-2 text-slate-400 hover:text-red-600 bg-white hover:bg-red-50 rounded-lg transition-colors border shadow-xs"><Trash2 size={14}/></button>
+                       </div>
                      </td>
                    </tr>
                  ))}
@@ -389,7 +389,8 @@ export default function TabMasterData({
                             <div className="flex items-center justify-center gap-1.5">
                               <button onClick={() => openHistoryModal(m)} className="p-2 text-slate-400 bg-white border border-slate-200 rounded-lg hover:text-blue-600 hover:bg-blue-50 shadow-xs transition-colors" title="Lihat riwayat perubahan harga"><History size={14}/></button>
                               <button onClick={() => { setFormItem({ id: m.id, item_name: m.item_name, category: m.category, unit: m.unit, default_price: String(m.default_price) }); setIsEditingItem(true); }} className="p-2 text-slate-400 bg-white border border-slate-200 rounded-lg hover:text-blue-600 hover:bg-blue-50 shadow-xs transition-colors"><Edit2 size={14}/></button>
-                              <button onClick={async () => { if(window.confirm("Hapus item ini dari kamus pabrik?")) sendToSheet('delete', {id: m.id}, 'master_raw_materials'); }} className="p-2 text-slate-400 bg-white border border-slate-200 rounded-lg hover:text-red-600 hover:bg-red-50 shadow-xs transition-colors"><Trash2 size={14}/></button>
+                              {/* 🔥 FIX BUG 1: Ganti Hard Delete ke Karantina (Soft Delete) */}
+                              <button onClick={async () => { if(window.confirm("Karantina item ini dari kamus pabrik?")) sendToSheet('update', {id: m.id, isDeleted: true}, 'master_raw_materials'); }} className="p-2 text-slate-400 bg-white border border-slate-200 rounded-lg hover:text-red-600 hover:bg-red-50 shadow-xs transition-colors"><Trash2 size={14}/></button>
                             </div>
                           </td>
                         </tr>
@@ -401,7 +402,6 @@ export default function TabMasterData({
             </div>
           </div>
 
-          {/* 🔥 NEW FEATURE: ANALISA REKAPAN PERUBAHAN HARGA PASAR (CLEAN ENTERPRISE) */}
           <div className="card-holo overflow-hidden mt-2">
              <div className="p-5 border-b border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-50">
                 <div className="flex items-center gap-3">
@@ -420,7 +420,6 @@ export default function TabMasterData({
              </div>
 
              <div className="p-6 bg-white">
-               {/* SCORE CARDS */}
                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                  <div className="bg-red-50/50 border border-red-100 p-4 rounded-xl flex items-center justify-between shadow-xs hover:border-red-300 transition-colors">
                    <div>
@@ -445,7 +444,6 @@ export default function TabMasterData({
                  </div>
                </div>
 
-               {/* TABLE RINCIAN */}
                <div className="overflow-x-auto border border-slate-200 rounded-xl shadow-xs">
                  <table className="w-full text-left text-sm border-collapse">
                    <thead className="bg-slate-50 text-[10px] normal-case font-bold text-slate-400 border-b border-slate-200">
