@@ -18,9 +18,9 @@ import {
   Database, 
   Scale, 
   History, 
-  UserCheck,
   Coins,
-  Contact2
+  Contact2,
+  PackageCheck
 } from 'lucide-react';
 
 export default function LayoutEngine({ children, activeTab, setActiveTab, user, handleLogout }) {
@@ -29,9 +29,7 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
   const branchType = user?.branch_type || 'HQ_FACTORY';
   const branchName = user?.branch_id === 'PUSAT' ? 'TANGERANG PUSAT' : user?.branch_id || 'PUSAT';
 
-  // HQ User (Tangerang Pusat)
   const isHQUser = branchType === 'HQ_FACTORY' || userRole === 'super_admin';
-  // Cabang Produksi (Pemalang)
   const isProductionBranch = branchType === 'PRODUCTION_BRANCH' || branchName.includes('PEMALANG');
 
   const handleTabChange = (tabId) => {
@@ -45,7 +43,6 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
       
       <aside className="w-64 bg-white border-r border-slate-200 flex flex-col h-full shrink-0 z-20 shadow-xs">
         
-        {/* AREA LOGO BRANDING */}
         <div className="p-5 border-b border-slate-200/50 flex flex-col items-center justify-center bg-white shrink-0">
           <img 
             src="https://dimsumaditya.id/wp-content/uploads/2026/06/Dimsum-Aditya-New-Logo-scaled.webp" 
@@ -57,10 +54,8 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
           </div>
         </div>
 
-        {/* AREA MENU SIDEBAR */}
         <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6 custom-scrollbar">
           
-          {/* KELOMPOK 1: KENDALI UTAMA (Hanya Pusat) */}
           {isHQUser && (
             <div className="space-y-1">
               <span className="px-3 text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">
@@ -111,7 +106,6 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
             </div>
           )}
 
-          {/* KELOMPOK 2: OPERASIONAL INTI (Pusat & Cabang Produksi/Pemalang) */}
           <div className="space-y-1">
             <span className="px-3 text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">
               Operasional Inti
@@ -124,6 +118,14 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
               <ShoppingCart size={16} /> Kasir (POS) &amp; Penjualan
             </button>
 
+            {/* 🔥 INI TOMBOL MENU BARU UNTUK ANTRIAN PO & KARANTINA */}
+            <button type="button" onClick={() => handleTabChange('antrian_po')}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all normal-case cursor-pointer ${
+                activeTab === 'antrian_po' ? 'bg-orange-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+              }`}>
+              <PackageCheck size={16} className={activeTab === 'antrian_po' ? 'text-white' : 'text-orange-500'} /> Antrian PO &amp; Karantina
+            </button>
+
             {isHQUser && (
               <button type="button" onClick={() => handleTabChange('master_customer')}
                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all normal-case cursor-pointer ${
@@ -133,7 +135,6 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
               </button>
             )}
 
-            {/* DIBUKA UNTUK PUSAT & PEMALANG */}
             {(isHQUser || isProductionBranch) && (
               <button type="button" onClick={() => handleTabChange('pemalang')}
                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all normal-case cursor-pointer ${
@@ -143,7 +144,6 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
               </button>
             )}
 
-            {/* DIBUKA UNTUK PUSAT & PEMALANG */}
             {(isHQUser || isProductionBranch) && (
               <button type="button" onClick={() => handleTabChange('purchases')}
                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all normal-case cursor-pointer ${
@@ -199,7 +199,6 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
             )}
           </div>
 
-          {/* KELOMPOK 3: PEMBUKUAN (Hanya Pusat) */}
           {isHQUser && (
             <div className="space-y-1">
               <span className="px-3 text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">
@@ -236,7 +235,6 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
             </div>
           )}
 
-          {/* KELOMPOK 4: MANAJEMEN DATA (Pusat & Pemalang) */}
           {(isHQUser || isProductionBranch) && (
             <div className="space-y-1">
               <span className="px-3 text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">
@@ -252,7 +250,6 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
                 </button>
               )}
 
-              {/* DIBUKA UNTUK PUSAT & PEMALANG */}
               <button type="button" onClick={() => handleTabChange('master_data')}
                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all normal-case cursor-pointer ${
                   activeTab === 'master_data' ? 'bg-red-50 text-red-600 border border-red-100/50' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
