@@ -4,7 +4,8 @@ import {
   ShieldCheck, Landmark, Globe, ArrowRightLeft, CreditCard,
   Building2, Banknote, Activity, Factory 
 } from 'lucide-react';
-import { getTodayStr } from '../../utils/helpers';
+// 🔥 FIX BUG: formatDate DITAMBAHKAN DI SINI!
+import { getTodayStr, formatDate } from '../../utils/helpers';
 
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
