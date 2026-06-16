@@ -6,9 +6,11 @@ import {
   TrendingUp, TrendingDown, ArrowRight, Clock, 
   Calendar, BarChart2, Filter, ArrowUpRight, ArrowDownRight, Minus, Tag
 } from 'lucide-react';
-import { getTodayStr, generateId, formatDate, formatNumber } from '../../utils/helpers';
+import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 
+// 🔥 FIX BUG: Deklarasi formatNumber & formatRupiah ditambahkan di sini!
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
+const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
 export default function TabMasterData({ 
   masterProducts = [], master_products,
@@ -26,7 +28,7 @@ export default function TabMasterData({
   
   const [historyModal, setHistoryModal] = useState(null);
 
-  // 🔥 FITUR BARU: Toggle untuk Aturan Harga Kompleks
+  // FITUR BARU: Toggle untuk Aturan Harga Kompleks
   const [useAdvancedPricing, setUseAdvancedPricing] = useState(false);
 
   const [recapStart, setRecapStart] = useState(() => {
@@ -44,7 +46,7 @@ export default function TabMasterData({
     kgPerKantong: 10, kgPerAdukan: 30, pcsPerAdukan: 1000, pcsPerPorsi: 4, pcsPerMika: 50
   });
 
-  // 🔥 UPDATE FORM MENU STATE UNTUK HARGA BERTINGKAT
+  // UPDATE FORM MENU STATE UNTUK HARGA BERTINGKAT
   const [formMenu, setFormMenu] = useState({ 
     id: '', product_name: '', category: 'FROZEN_GOODS', 
     selling_price: '',    // Harga Grosir / Base
@@ -98,7 +100,7 @@ export default function TabMasterData({
 
     const isSuccess = await sendToSheet(isEditing ? 'update' : 'insert', payload, 'master_products');
     if (isSuccess) {
-      showToast(isEditing ? 'DATA MENU BERHASIL DIPERBARUI!' : 'MENU BARU BERHASIL DITAMBAH!', 'success');
+      showToast(isEditing ? 'Data Menu berhasil diperbarui!' : 'Menu Baru berhasil ditambah!', 'success');
       setIsEditing(false); setUseAdvancedPricing(false);
       setFormMenu({ id: '', product_name: '', category: 'FROZEN_GOODS', selling_price: '', retail_price: '', min_order: '1', wholesale_qty: '1', default_hpp: '1125' });
     }
@@ -132,7 +134,7 @@ export default function TabMasterData({
     };
     const isSuccess = await sendToSheet(isEditingSpl ? 'update' : 'insert', payload, 'master_suppliers');
     if (isSuccess) {
-      showToast(isEditingSpl ? 'DATA SUPPLIER DIPERBARUI!' : 'SUPPLIER RESMI TERDAFTAR!', 'success');
+      showToast(isEditingSpl ? 'Data Supplier diperbarui!' : 'Supplier resmi terdaftar!', 'success');
       setIsEditingSpl(false); setFormSpl({ id: '', supplier_name: '', pic_name: '', phone: '', address: '', default_price: '' });
     }
   };
@@ -167,7 +169,7 @@ export default function TabMasterData({
 
     const isSuccess = await sendToSheet(isEditingItem ? 'update' : 'insert', payload, 'master_raw_materials');
     if (isSuccess) {
-      showToast(isEditingItem ? 'DATA ITEM BIAYA & HARGA DIPERBARUI!' : 'ITEM BIAYA BARU TERDAFTAR!', 'success');
+      showToast(isEditingItem ? 'Data Item Biaya & Harga diperbarui!' : 'Item Biaya Baru terdaftar!', 'success');
       setIsEditingItem(false); setFormItem({ id: '', item_name: '', category: 'BAHAN BAKU', unit: '', default_price: '' });
     }
   };
@@ -266,7 +268,7 @@ export default function TabMasterData({
                    </select>
                  </div>
 
-                 {/* 🔥 NEW: TOGGLE ATURAN HARGA KOMPLEKS */}
+                 {/* TOGGLE ATURAN HARGA KOMPLEKS */}
                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl shadow-inner mt-4">
                    <label className="flex items-center gap-2 cursor-pointer mb-3">
                      <input type="checkbox" checked={useAdvancedPricing} onChange={e => setUseAdvancedPricing(e.target.checked)} className="w-4 h-4 accent-red-600 cursor-pointer" />
