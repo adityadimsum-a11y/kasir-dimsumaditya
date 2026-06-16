@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { TrendingUp, MapPin, ShoppingBag, DollarSign, Activity, Package, Percent } from 'lucide-react';
+import { TrendingUp, MapPin, ShoppingBag, DollarSign, Activity, Package, Percent, Printer } from 'lucide-react';
 import { getTodayStr, safeJsonParse } from '../../utils/helpers';
 
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
@@ -111,39 +111,39 @@ export default function TabAnalytics({ orders = [], orders_data, masterBranches 
   }, [realOrders, realBranches, realDiscrepancy, todayStr]);
 
   return (
-    <div className="space-y-6 pb-10 text-slate-800 normal-case animate-in fade-in duration-300">
+    <div className="space-y-6 pb-10 text-slate-800 animate-in fade-in duration-300">
       
       {/* ACTION TOP HEADER */}
-      <div className="card-holo bg-slate-900 text-white p-5 rounded-2xl border border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shadow-md">
+      <div className="bg-slate-900 text-white p-6 rounded-3xl border border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shadow-md">
         <div>
-           <h3 className="text-sm font-black normal-case text-emerald-400 flex items-center gap-2"><Activity size={18}/> Executive Reporting &amp; Analytics Dashboard</h3>
-           <p className="text-[10px] font-bold text-slate-400 normal-case mt-1">Konsolidasi otomatis performa laba kotor, HPP, serta kebocoran kas 30 hari terakhir.</p>
+           <h3 className="text-sm font-black text-emerald-400 flex items-center gap-2"><Activity size={18}/> Executive Reporting &amp; Analytics Dashboard</h3>
+           <p className="text-[10px] font-bold text-slate-400 mt-1">Konsolidasi otomatis performa laba kotor, HPP, serta kebocoran kas 30 hari terakhir.</p>
         </div>
-        <button type="button" onClick={() => window.print()} className="bg-emerald-500 text-slate-900 px-4 py-2.5 rounded-lg text-xs font-black normal-case shadow-sm hover:bg-emerald-600 transition-transform active:scale-95 w-full sm:w-auto">
-          Cetak Laporan Rekap
+        <button type="button" onClick={() => window.print()} className="bg-emerald-500 text-slate-900 px-5 py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-2 shadow-sm hover:bg-emerald-400 transition-transform active:scale-95 w-full sm:w-auto">
+          <Printer size={14}/> Cetak Laporan Rekap
         </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
         {/* BRANCH PERFORMANCE MATRIX LIST */}
-        <div className="card-holo lg:col-span-7 bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden flex flex-col">
-          <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-2.5">
+        <div className="lg:col-span-7 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+          <div className="p-5 border-b border-slate-100 bg-slate-50 flex items-center gap-2.5">
             <MapPin size={18} className="text-blue-600"/>
             <div>
-              <h3 className="font-black text-slate-800 text-xs normal-case">Branch Health Matrix (Simpul Cabang)</h3>
-              <p className="text-[9px] font-bold text-slate-500 normal-case">Peringkat performa laba murni cabang setelah dikurangi penyusutan stok.</p>
+              <h3 className="font-black text-slate-800 text-xs">Branch Health Matrix (Simpul Cabang)</h3>
+              <p className="text-[9px] font-bold text-slate-500">Peringkat performa laba murni cabang setelah dikurangi penyusutan stok.</p>
             </div>
           </div>
           
-          <div className="overflow-x-auto flex-1 p-1 custom-scrollbar">
+          <div className="overflow-x-auto flex-1 p-2 custom-scrollbar">
             <table className="w-full text-sm text-left border-collapse">
-              <thead className="bg-slate-50/50 border-b border-slate-100 text-[10px] text-slate-500 normal-case">
+              <thead className="bg-slate-50/50 border-b border-slate-100 text-[10px] text-slate-500 uppercase tracking-wider">
                 <tr>
-                  <th className="px-4 py-3 font-black">Identitas Node Cabang</th>
-                  <th className="px-4 py-3 text-right font-black">Omzet (30H)</th>
-                  <th className="px-4 py-3 text-right font-black">Waste Basi/Loss</th>
-                  <th className="px-4 py-3 text-right font-black">Cuan Margin Bersih</th>
+                  <th className="px-5 py-3 font-black">Identitas Node Cabang</th>
+                  <th className="px-5 py-3 text-right font-black">Omzet (30H)</th>
+                  <th className="px-5 py-3 text-right font-black">Waste Basi/Loss</th>
+                  <th className="px-5 py-3 text-right font-black">Cuan Margin Bersih</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-bold text-xs bg-white">
@@ -151,13 +151,13 @@ export default function TabAnalytics({ orders = [], orders_data, masterBranches 
                   const isRugi = b.margin < 0;
                   return (
                     <tr key={b.id} className="hover:bg-blue-50/30 transition-colors">
-                      <td className="px-4 py-4 whitespace-nowrap">
-                        <div className="normal-case text-slate-800 font-black text-xs">{b.name}</div>
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        <div className="text-slate-800 font-black text-xs uppercase">{b.name}</div>
                         <div className="text-[9px] font-mono text-slate-400 mt-0.5">{b.id} | {b.trxCount} Transaksi</div>
                       </td>
-                      <td className="px-4 py-4 text-right whitespace-nowrap text-slate-600">{formatRupiah(b.revenue)}</td>
-                      <td className="px-4 py-4 text-right whitespace-nowrap text-rose-600">-{formatRupiah(b.wasteLoss)}</td>
-                      <td className={`px-4 py-4 text-right whitespace-nowrap text-sm ${isRugi ? 'text-rose-600 bg-rose-50 rounded-lg px-2' : 'text-emerald-600 font-black'}`}>
+                      <td className="px-5 py-4 text-right whitespace-nowrap text-slate-600">{formatRupiah(b.revenue)}</td>
+                      <td className="px-5 py-4 text-right whitespace-nowrap text-rose-600">-{formatRupiah(b.wasteLoss)}</td>
+                      <td className={`px-5 py-4 text-right whitespace-nowrap text-sm ${isRugi ? 'text-rose-600 bg-rose-50 rounded-lg px-2' : 'text-emerald-600 font-black'}`}>
                         {formatRupiah(b.margin)}
                       </td>
                     </tr>
@@ -169,35 +169,35 @@ export default function TabAnalytics({ orders = [], orders_data, masterBranches 
         </div>
 
         {/* MARKETPLACE & SALES CHANNEL PERFORMANCE */}
-        <div className="card-holo lg:col-span-5 bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden flex flex-col">
-          <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-2.5">
+        <div className="lg:col-span-5 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+          <div className="p-5 border-b border-slate-100 bg-slate-50 flex items-center gap-2.5">
             <ShoppingBag size={18} className="text-orange-600"/>
             <div>
-              <h3 className="font-black text-slate-800 text-xs normal-case">Marketplace &amp; Online Channel</h3>
-              <p className="text-[9px] font-bold text-slate-500 normal-case">Aliran omzet per platform merchant e-commerce.</p>
+              <h3 className="font-black text-slate-800 text-xs">Marketplace &amp; Online Channel</h3>
+              <p className="text-[9px] font-bold text-slate-500">Aliran omzet per platform merchant e-commerce.</p>
             </div>
           </div>
           
-          <div className="overflow-x-auto flex-1 p-1 custom-scrollbar">
+          <div className="overflow-x-auto flex-1 p-2 custom-scrollbar">
             <table className="w-full text-sm text-left border-collapse">
-              <thead className="bg-slate-50/50 border-b border-slate-100 text-[10px] text-slate-500 normal-case">
+              <thead className="bg-slate-50/50 border-b border-slate-100 text-[10px] text-slate-500 uppercase tracking-wider">
                 <tr>
-                  <th className="px-4 py-3 font-black">Sales Platform</th>
-                  <th className="px-4 py-3 text-center font-black">Volume</th>
-                  <th className="px-4 py-3 text-right font-black">Gross Sales</th>
-                  <th className="px-4 py-3 text-right font-black">Est Net Profit</th>
+                  <th className="px-5 py-3 font-black">Sales Platform</th>
+                  <th className="px-5 py-3 text-center font-black">Volume</th>
+                  <th className="px-5 py-3 text-right font-black">Gross Sales</th>
+                  <th className="px-5 py-3 text-right font-black">Est Net Profit</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-bold text-xs bg-white">
                 {analytics.marketplaceList.length === 0 ? (
-                  <tr><td colSpan="4" className="text-center py-12 text-slate-400 normal-case font-medium text-xs">Belum ada sirkulasi data penjualan online.</td></tr>
+                  <tr><td colSpan="4" className="text-center py-12 text-slate-400 font-medium text-xs">Belum ada sirkulasi data penjualan online.</td></tr>
                 ) : (
                   analytics.marketplaceList.map(m => (
                     <tr key={m.channel} className="hover:bg-orange-50/20 transition-colors">
-                      <td className="px-4 py-4 normal-case text-slate-800 font-black">{m.channel.replace('_', ' ')}</td>
-                      <td className="px-4 py-4 text-center whitespace-nowrap text-blue-600 bg-blue-50/30 rounded-lg">{formatNumber(m.qty)} PCS</td>
-                      <td className="px-4 py-4 text-right whitespace-nowrap text-slate-600">{formatRupiah(m.revenue)}</td>
-                      <td className="px-4 py-4 text-right whitespace-nowrap text-emerald-600 font-black">{formatRupiah(m.margin)}</td>
+                      <td className="px-5 py-4 text-slate-800 font-black uppercase tracking-wider">{m.channel.replace(/_/g, ' ')}</td>
+                      <td className="px-5 py-4 text-center whitespace-nowrap text-blue-600 bg-blue-50/30 rounded-lg">{formatNumber(m.qty)} Pcs</td>
+                      <td className="px-5 py-4 text-right whitespace-nowrap text-slate-600">{formatRupiah(m.revenue)}</td>
+                      <td className="px-5 py-4 text-right whitespace-nowrap text-emerald-600 font-black">{formatRupiah(m.margin)}</td>
                     </tr>
                   ))
                 )}
@@ -209,25 +209,25 @@ export default function TabAnalytics({ orders = [], orders_data, masterBranches 
       </div>
 
       {/* INVENTORY VELOCITY CONTROL RADAR CARD */}
-      <div className="card-holo bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h3 className="font-black text-slate-800 text-xs normal-case flex items-center gap-2 mb-1">
+          <h3 className="font-black text-slate-800 text-xs flex items-center gap-2 mb-1">
             <TrendingUp size={16} className="text-purple-600"/> Kecepatan Perputaran Produk (Product Velocity 30 Hari)
           </h3>
-          <p className="text-[10px] font-bold text-slate-500 normal-case">Indikator live kuantitas produk yang berhasil diserap oleh pasar ekosistem agen.</p>
+          <p className="text-[10px] font-bold text-slate-500">Indikator live kuantitas produk yang berhasil diserap oleh pasar ekosistem agen.</p>
         </div>
-        <div className="flex gap-4 sm:gap-6 text-right bg-slate-50 p-3 rounded-xl border border-slate-200 shadow-inner w-full sm:w-auto">
+        <div className="flex gap-4 sm:gap-6 text-right bg-slate-50 p-4 rounded-2xl border border-slate-200 shadow-inner w-full sm:w-auto">
           <div className="pr-4 sm:pr-6 border-r border-slate-200">
-             <div className="text-[9px] font-bold text-slate-500 normal-case mb-0.5">Dimsum Frozen</div>
-             <div className="text-xl font-black text-slate-800 tracking-tight">{formatNumber(analytics.productVelocity['DIMSUM FROZEN'])} <span className="text-[10px] text-slate-400 font-medium">Pcs</span></div>
+             <div className="text-[10px] font-bold text-slate-500 mb-0.5">Dimsum Frozen</div>
+             <div className="text-2xl font-black text-slate-800 tracking-tight">{formatNumber(analytics.productVelocity['DIMSUM FROZEN'])} <span className="text-[10px] text-slate-400 font-medium">Pcs</span></div>
           </div>
           <div className="pr-4 sm:pr-6 border-r border-slate-200">
-             <div className="text-[9px] font-bold text-slate-500 normal-case mb-0.5">Dimsum Matang</div>
-             <div className="text-xl font-black text-slate-800 tracking-tight">{formatNumber(analytics.productVelocity['DIMSUM MATANG'])} <span className="text-[10px] text-slate-400 font-medium">Pcs</span></div>
+             <div className="text-[10px] font-bold text-slate-500 mb-0.5">Dimsum Matang</div>
+             <div className="text-2xl font-black text-slate-800 tracking-tight">{formatNumber(analytics.productVelocity['DIMSUM MATANG'])} <span className="text-[10px] text-slate-400 font-medium">Pcs</span></div>
           </div>
           <div>
-             <div className="text-[9px] font-bold text-slate-500 normal-case mb-0.5">Varian Lainnya</div>
-             <div className="text-xl font-black text-slate-500 tracking-tight">{formatNumber(analytics.productVelocity['LAINNYA'] || 0)} <span className="text-[10px] text-slate-400 font-medium">Pcs</span></div>
+             <div className="text-[10px] font-bold text-slate-500 mb-0.5">Varian Lainnya</div>
+             <div className="text-2xl font-black text-slate-500 tracking-tight">{formatNumber(analytics.productVelocity['LAINNYA'] || 0)} <span className="text-[10px] text-slate-400 font-medium">Pcs</span></div>
           </div>
         </div>
       </div>
