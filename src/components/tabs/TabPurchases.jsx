@@ -40,7 +40,7 @@ export default function TabPurchases({
   const realKaryawan = useMemo(() => master_karyawan || karyawan || [], [karyawan, master_karyawan]);
   const realInventory = useMemo(() => inventory_cost_layers || inventoryCostLayers || [], [inventory_cost_layers, inventoryCostLayers]);
 
-  const [activeSubTab, setActiveTab] = useState('MANUAL'); 
+  const [activeSubTab, setActiveTab] = useState('SUPPLIER'); 
   const [tableDateFilter, setTableDateFilter] = useState(todayStr);
   const [editingPurchaseId, setEditingPurchaseId] = useState(null);
 
@@ -66,7 +66,7 @@ export default function TabPurchases({
   const [splPayCash, setSplPayCash] = useState('');
   const [splPayBCA, setSplPayBCA] = useState('');
   const [splPayBRI, setSplPayBRI] = useState('');
-  const [splSingleMethod, setSplSingleMethod] = useState('CASH'); // CASH, TF_BCA_PUSAT, TF_BRI_PUSAT, DP_PIUTANG, PIUTANG
+  const [splSingleMethod, setSplSingleMethod] = useState('PIUTANG'); // CASH, TF_BCA_PUSAT, TF_BRI_PUSAT, DP_PIUTANG, PIUTANG
   const [splDpMethod, setSplDpMethod] = useState('CASH');
   const [splSingleAmount, setSplSingleAmount] = useState('');
 
@@ -143,7 +143,7 @@ export default function TabPurchases({
     const all = [];
     realPurchases.forEach(p => {
       if (!p.isDeleted && String(p.isDeleted).toUpperCase() !== 'TRUE') {
-        all.push({ doc_type: 'PURCHASE', id: p.id, date: p.date, branch_id: p.branch_id, title: p.supplier_name || p.supplierName || 'Belanja kas / supplier', subtitle: p.item_name || p.itemName, qty: p.qty, unit: p.unit, total_amount: Number(p.total_amount || p.amount || 0), paid_amount: Number(p.paid_amount || 0), payment_status: p.payment_status, payment_method: p.payment_method, employee_name: p.employee_name, change_status: p.change_status });
+        all.push({ doc_type: 'PURCHASE', id: p.id, date: p.date, branch_id: p.branch_id, title: p.supplier_name || p.supplierName || 'Belanja kas / supplier', subtitle: p.item_name || p.itemName, qty: p.qty, unit: p.unit, price: p.price, total_amount: Number(p.total_amount || p.amount || 0), paid_amount: Number(p.paid_amount || 0), payment_status: p.payment_status, payment_method: p.payment_method, employee_name: p.employee_name, change_status: p.change_status });
       }
     });
     realExpenses.forEach(e => {
@@ -196,14 +196,17 @@ export default function TabPurchases({
     if (totalTagihanSupplier <= 0) return alert("Total tagihan nol! Masukkan volume dan harga yang benar.");
 
     const purchaseId = editingPurchaseId ? editingPurchaseId : generateId('PO-DMA', todayStr);
-    const finalPrice = hitungKantongSupplier > 0 ? (totalTagihanSupplier / hitungKantongSupplier) : 0;
+    
+    // 🔥 PERBAIKAN LOGIKA: Simpan murni dalam Kg dan Harga per Kg
+    const finalQtyKg = Number(formSupplier.qty); 
+    const finalPricePerKg = Number(formSupplier.price);
     
     if (!window.confirm(`${editingPurchaseId ? 'Revisi Nota Supplier' : 'Sahkan Nota Belanja Supplier'} senilai ${formatRupiah(totalTagihanSupplier)}? Stok Gudang akan bertambah otomatis.`)) return;
 
     const payloadPurchase = {
       id: purchaseId, date: todayStr, branch_id: currentBranch,
       supplier_name: formSupplier.supplierName.toUpperCase(), item_name: formSupplier.itemName.toUpperCase(), 
-      qty: hitungKantongSupplier, unit: 'Kantong', price: finalPrice, 
+      qty: finalQtyKg, unit: 'Kg', price: finalPricePerKg, // Simpan sbg Kg
       total_amount: totalTagihanSupplier, paid_amount: splPaymentSummary.totalMasuk, payment_status: splPaymentSummary.sisaHutang <= 0 ? 'LUNAS' : 'BELUM_LUNAS',
       payment_method: splPaymentSummary.methodStr, isDeleted: false
     };
@@ -214,7 +217,8 @@ export default function TabPurchases({
     if (isSuccess) {
       // Input inventory
       if (!editingPurchaseId) {
-         await sendToSheet('insert', { id: generateId('LAY', todayStr), date: todayStr, branch_id: currentBranch, category: 'BAHAN_BAKU', item_name: `BELANJA: ${formSupplier.itemName.toUpperCase()} (${formSupplier.supplierName.toUpperCase()})`, qty_received: hitungKantongSupplier, qty_remaining: hitungKantongSupplier, unit_cost: finalPrice, reference_id: payloadPurchase.id, isDeleted: false }, 'inventory_cost_layers');
+         // 🔥 PERBAIKAN LOGIKA: Inventory tetap simpan sebagai Kantong
+         await sendToSheet('insert', { id: generateId('LAY', todayStr), date: todayStr, branch_id: currentBranch, category: 'BAHAN_BAKU', item_name: `BELANJA: ${formSupplier.itemName.toUpperCase()} (${formSupplier.supplierName.toUpperCase()})`, qty_received: hitungKantongSupplier, qty_remaining: hitungKantongSupplier, unit_cost: finalPricePerKg * 10, reference_id: payloadPurchase.id, isDeleted: false }, 'inventory_cost_layers');
          // Input Cashflow
          for (let pay of splPaymentSummary.breakdown) {
             if (pay.amount <= 0) continue;
@@ -231,10 +235,16 @@ export default function TabPurchases({
      if (!window.confirm("Tarik nota belanja ini untuk direvisi? Pastikan Anda mengecek ulang nilai yang dimasukkan.")) return;
      setEditingPurchaseId(p.id);
      setActiveTab('SUPPLIER');
+     
+     // Logika konversi aman untuk data lama yg mungkin pakai Kantong
+     const isKg = String(p.unit).toLowerCase() === 'kg';
+     const convertedQty = isKg ? p.qty : String(Number(p.qty) * 10);
+     const convertedPrice = isKg ? p.price : String(Number(p.total_amount) / (Number(p.qty) * 10));
+
      setFormSupplier({
         supplierName: p.title, itemName: p.subtitle, 
-        qty: String(Number(p.qty) * 10), // Konversi balik ke Kg
-        price: p.qty > 0 ? String(Number(p.total_amount) / (Number(p.qty) * 10)) : '0'
+        qty: convertedQty, 
+        price: convertedPrice > 0 ? convertedPrice : '0'
      });
      setSplSingleAmount(String(p.paid_amount));
      window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -296,8 +306,17 @@ export default function TabPurchases({
   return (
     <div className="space-y-6 pb-10 text-slate-700 normal-case animate-in fade-in duration-200">
       
-      {/* 🔥 BANNER KARTU STOK GUDANG AYAM (NEW) */}
-      <div className="card-holo p-5 bg-white border border-slate-200 rounded-2xl shadow-sm border-t-4 border-t-red-500 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      {/* 🔥 BANNER KARTU STOK GUDANG AYAM (NEW) - FIXED TITLE */}
+      <div className="card-holo p-6 shadow-xs flex items-center gap-3 relative overflow-hidden bg-white border border-slate-200 rounded-2xl">
+        <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-600"></div>
+        <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center border border-blue-100 shrink-0"><Truck size={18} className="text-blue-600"/></div>
+        <div className="flex-1">
+          <h2 className="text-slate-800 font-extrabold normal-case text-base">Belanja &amp; Pembayaran Supplier</h2>
+          <p className="text-[10px] text-slate-500 font-medium normal-case mt-0.5">Satu pintu utama pengeluaran kas internal dan pembayaran nota supplier pabrik.</p>
+        </div>
+      </div>
+
+      <div className="card-holo p-5 bg-white border border-slate-200 rounded-2xl shadow-sm border-t-4 border-t-red-500 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mt-4">
         <div>
            <h2 className="text-sm font-extrabold normal-case text-slate-800 flex items-center gap-2"><Database size={16} className="text-red-600"/> Papan Monitor Sisa Stok Daging Ayam</h2>
            <p className="text-[10px] text-slate-500 font-bold mt-0.5 normal-case">Cek ketersediaan aktual di Gudang Utama sebelum melakukan belanja ke Mitra Supplier.</p>
@@ -317,7 +336,7 @@ export default function TabPurchases({
       {/* SUB TAB SELECTOR */}
       <div className="flex gap-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200 w-fit shadow-inner">
         <button onClick={() => setActiveTab('MANUAL')} className={`px-4 py-2 rounded-xl text-[10px] font-bold transition-all flex items-center gap-2 ${activeSubTab === 'MANUAL' ? 'bg-white text-red-600 shadow-xs border border-slate-200/50' : 'text-slate-500 hover:text-slate-800'}`}><Wallet size={12}/> Kas &amp; ops manual</button>
-        <button onClick={() => setActiveTab('SUPPLIER')} className={`px-4 py-2 rounded-xl text-[10px] font-bold transition-all flex items-center gap-2 ${activeSubTab === 'SUPPLIER' ? 'bg-white text-red-600 shadow-xs border border-slate-200/50' : 'text-slate-500 hover:text-slate-800'}`}><Truck size={12}/> Nota supplier besar</button>
+        <button onClick={() => setActiveTab('SUPPLIER')} className={`px-4 py-2 rounded-xl text-[10px] font-bold transition-all flex items-center gap-2 ${activeSubTab === 'SUPPLIER' ? 'bg-white text-blue-600 shadow-xs border border-slate-200/50' : 'text-slate-500 hover:text-slate-800'}`}><Truck size={12}/> Nota supplier besar</button>
       </div>
 
       {editingPurchaseId && (
@@ -589,7 +608,9 @@ export default function TabPurchases({
                     const paidAmt = Number(p.paid_amount || 0);
                     const isLunas = String(p.payment_status).toUpperCase() === 'LUNAS' || (totalBill - paidAmt) <= 0;
                     const pMethod = String(p.payment_method || 'CASH').replace(/_/g, ' ');
-                    const isAyam = String(p.unit).toLowerCase() === 'kantong';
+                    
+                    const isKantong = String(p.unit).toLowerCase() === 'kantong';
+                    const isKg = String(p.unit).toLowerCase() === 'kg';
 
                     return (
                       <tr key={p.id} className="hover:bg-slate-50 transition-colors bg-white group">
@@ -602,7 +623,7 @@ export default function TabPurchases({
                           <div className="font-bold text-slate-800 text-xs normal-case mb-0.5">{p.title}</div>
                           <div className="text-[10px] text-slate-500 normal-case font-medium">{p.subtitle}</div>
                           {p.employee_name && <div className="text-[9px] font-bold text-slate-600 mt-1">PIC: {p.employee_name} <span className={p.change_status === 'PENDING' ? 'text-amber-600' : 'text-emerald-600'}>{p.change_status === 'PENDING' ? '(⏳ sisa kembalian gantung)' : '(✅ lunas balance)'}</span></div>}
-                          <div className="text-[9px] text-blue-600 font-bold mt-0.5">Vol: {formatNumber(p.qty)} {p.unit} {isAyam && `(≈ ${formatNumber(p.qty * 10)} Kg ayam)`}</div>
+                          <div className="text-[9px] text-blue-600 font-bold mt-0.5">Vol: {formatNumber(p.qty)} {p.unit} {isKantong ? `(≈ ${formatNumber(p.qty * 10)} Kg)` : isKg ? `(≈ ${formatNumber(p.qty / 10)} Kantong)` : ''}</div>
                         </td>
                         <td className="px-5 py-4 text-right whitespace-nowrap">
                           <div className="text-slate-400 text-[10px] font-medium">Nota: {formatRupiah(totalBill)}</div>
@@ -614,17 +635,15 @@ export default function TabPurchases({
                         </td>
                         <td className="px-5 py-4 text-center whitespace-nowrap opacity-60 group-hover:opacity-100 transition-opacity">
                           <div className="flex items-center justify-center gap-1.5">
-                            
-                            {/* 🔥 UPDATE: Modifikasi Payload Print Data */}
                             <button type="button" onClick={() => {
                                if(typeof setPrintData === 'function') {
                                   setPrintData({
-                                    type: 'PURCHASE', // <--- Parameter penanda untuk mesin printer
-                                    title: 'BUKTI KAS KELUAR & PO SUPPLIER', 
+                                    type: 'PURCHASE', 
+                                    title: 'NOTA BELANJA SUPPLIER', 
                                     id: p.id, date: formatDate(p.date), branch_name: currentBranch,
                                     admin_name: user?.name || 'ADMIN', 
-                                    customer_name: p.title, // Backup fallback
-                                    supplier_name: p.title, // Info spesifik nama supplier
+                                    customer_name: p.title, 
+                                    supplier_name: p.title, 
                                     items: [{ name: p.subtitle, qty: p.qty, unit: p.unit, subtotal: totalBill }],
                                     amount: totalBill, paymentMethod: pMethod,
                                     history: { labelLama: 'Total Tagihan', nominalLama: totalBill, labelAksi: 'Total Dibayar', nominalAksi: paidAmt, labelBaru: 'Sisa Hutang', nominalBaru: Math.max(0, totalBill - paidAmt) }
@@ -632,7 +651,7 @@ export default function TabPurchases({
                                }
                             }} className="p-1.5 text-slate-400 hover:text-emerald-600 border border-slate-200 rounded-lg bg-white shadow-3xs hover:bg-emerald-50 cursor-pointer" title="Cetak Bukti"><Printer size={13}/></button>
 
-                            {isPurchase && isAyam && (
+                            {isPurchase && (isKantong || isKg) && (
                                <button type="button" onClick={() => handleEditPurchase(p)} className="p-1.5 text-slate-400 hover:text-blue-600 border border-slate-200 rounded-lg bg-white shadow-3xs hover:bg-blue-50 cursor-pointer" title="Edit / Revisi Nota"><Edit2 size={13}/></button>
                             )}
 
