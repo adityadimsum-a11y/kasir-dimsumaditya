@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Search, ChevronDown, Plus } from 'lucide-react';
 
 export default function SearchableDropdown({ 
-  options, value, onChange, placeholder, valueKey = 'id', labelKey = 'name', 
+  options = [], // Default parameter agar tidak undefined
+  value, onChange, placeholder, valueKey = 'id', labelKey = 'name', 
   canCreate = false, onCreateNew, disabled = false 
 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -20,11 +21,14 @@ export default function SearchableDropdown({
   const selectedOption = options.find(opt => String(opt[valueKey]) === String(value));
   const displayLabel = selectedOption ? selectedOption[labelKey] : '';
 
+  // Keamanan ekstra: pastikan labelKey ada sebelum diproses
   const filteredOptions = options.filter(opt => 
-    String(opt[labelKey]).toLowerCase().includes(searchTerm.toLowerCase())
+    String(opt[labelKey] || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const exactMatch = options.find(opt => String(opt[labelKey]).toLowerCase() === searchTerm.toLowerCase());
+  const exactMatch = options.find(opt => 
+    String(opt[labelKey] || '').toLowerCase() === searchTerm.toLowerCase()
+  );
 
   return (
     <div className="relative w-full" ref={wrapperRef}>
