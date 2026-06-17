@@ -5,14 +5,14 @@ import { formatDate, safeJsonParse } from '../../utils/helpers';
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 
-export default function TabKartuStok({
+export default function TabStok({ 
   masterProducts = [], masterRawMaterials = [],
-  orders = [], purchases = [], productionBatches = []
+  orders = [], purchases = [], productionBatches = [], pemalang = [] // 🔥 Tambahan props pemalang
 }) {
   const [activeTab, setActiveTab] = useState('FREEZER');
   const [searchTerm, setSearchTerm] = useState('');
 
-  // --- ENGINE FREEZER STOCK ---
+  // --- ENGINE FREEZER STOCK (BARANG MATANG) ---
   const freezerStock = useMemo(() => {
     const stockMap = {};
     
@@ -26,17 +26,18 @@ export default function TabKartuStok({
       }
     });
 
-    (productionBatches || []).forEach(batch => {
-      if (!batch.isDeleted && batch.status === 'COMPLETED') {
-        const productName = String(batch.product_name || 'DIMSUM FROZEN CORE').toUpperCase(); 
+    // Masuk dari produksi Pemalang
+    (pemalang || []).forEach(batch => {
+      if (!batch.isDeleted && String(batch.isDeleted).toUpperCase() !== 'TRUE') {
+        const productName = String(batch.item_name || 'DIMSUM FROZEN CORE').toUpperCase(); 
         if (stockMap[productName]) {
-          stockMap[productName].stockIn += Number(batch.total_yield_pcs || batch.actual_yield || batch.qty || 0);
+          stockMap[productName].stockIn += Number(batch.qty || 0);
         }
       }
     });
 
     (orders || []).forEach(o => {
-      if (!o.isDeleted && o.status !== 'BATAL') {
+      if (!o.isDeleted && String(o.isDeleted).toUpperCase() !== 'TRUE' && o.status !== 'BATAL') {
         const items = safeJsonParse(o.items, []);
         items.forEach(item => {
           const pName = String(item.name || item.product_name).toUpperCase();
@@ -52,49 +53,65 @@ export default function TabKartuStok({
       item.currentStock = item.stockIn - item.stockOut;
       return item;
     }).filter(item => (item.name || '').toLowerCase().includes(safeSearch));
-  }, [masterProducts, productionBatches, orders, searchTerm]);
+  }, [masterProducts, pemalang, orders, searchTerm]);
 
-  // --- ENGINE RAW STOCK (ANTI DOUBLE DEDUCTION) ---
+
+  // --- 🔥 FIX ENGINE RAW STOCK: BEBAS MASUK MESKI GAK ADA DI MASTER ---
   const rawStock = useMemo(() => {
     const stockMap = {};
 
+    // 1. Data dari Master (Basic Template)
     (masterRawMaterials || []).forEach(r => {
       if (!r.isDeleted && r.raw_name) {
         const key = String(r.raw_name).toUpperCase();
         stockMap[key] = {
-          id: r.id, name: r.raw_name, unit: r.unit || '', category: r.category || '',
+          id: r.id, name: r.raw_name, unit: r.unit || 'Pcs', category: r.category || 'Bahan Baku',
           stockIn: 0, stockOut: 0, currentStock: 0
         };
       }
     });
 
+    // 2. Data dari Belanja (Dinamis Nambahin Item Baru dari Nota)
     (purchases || []).forEach(p => {
-      if (!p.isDeleted) {
+      if (!p.isDeleted && String(p.isDeleted).toUpperCase() !== 'TRUE') {
+        
+        const processItem = (itemName, qty, unit, category) => {
+            if (!itemName) return;
+            const key = itemName.toUpperCase();
+            if (!stockMap[key]) {
+                // Barang baru! Bikin slot di gudang logistik otomatis
+                stockMap[key] = { id: p.id, name: key, unit: unit || 'Pcs', category: category || 'Bahan Baku', stockIn: 0, stockOut: 0, currentStock: 0 };
+            }
+            stockMap[key].stockIn += Number(qty || 0);
+        };
+
         const items = safeJsonParse(p.items, []);
         if (items.length > 0) {
-          items.forEach(item => {
-            const rName = String(item.name || item.raw_name).toUpperCase();
-            if (rName && stockMap[rName]) {
-              stockMap[rName].stockIn += Number(item.qty || 0);
-            }
-          });
-        } else if (p.raw_name) {
-           const rName = String(p.raw_name).toUpperCase();
-           if (stockMap[rName]) stockMap[rName].stockIn += Number(p.qty || 0);
+           // Belanja manual multi-item
+           items.forEach(item => processItem(item.name || item.raw_name, item.qty, item.unit, item.category));
+        } else if (p.item_name || p.raw_name) {
+           // Belanja Supplier Besar
+           processItem(p.item_name || p.raw_name, p.qty, p.unit, p.category);
         }
       }
     });
 
-    (productionBatches || []).forEach(batch => {
-      if (!batch.isDeleted && batch.status === 'COMPLETED') {
-        const ingredients = safeJsonParse(batch.ingredients_used, []);
-        ingredients.forEach(ing => {
-          const rName = String(ing.name || ing.raw_name).toUpperCase();
-          if (rName && stockMap[rName]) {
-            stockMap[rName].stockOut += Number(ing.qty || 0);
-          }
-        });
-      }
+    // 3. Data Pemakaian Dapur (Potong Stok Ayam dari Pemalang)
+    (pemalang || []).forEach(p => {
+       if (p.isDeleted || String(p.isDeleted).toUpperCase() === 'TRUE') return;
+       if (p.items) {
+           const parsed = safeJsonParse(p.items, []);
+           if (parsed.length > 0 && String(parsed[0].name).startsWith('@@PRODUCTION@@')) {
+               const parts = parsed[0].name.split('||');
+               const ayamKgUsed = Number(parts[2] || 0);
+               
+               // Cari item ayam di stockMap untuk dikurangi
+               const ayamKey = Object.keys(stockMap).find(k => k.includes('AYAM GILING') || k.includes('AYAM') || k.includes('DADA MENTAH'));
+               if (ayamKey) {
+                   stockMap[ayamKey].stockOut += ayamKgUsed;
+               }
+           }
+       }
     });
 
     const safeSearch = (searchTerm || '').toLowerCase();
@@ -102,11 +119,10 @@ export default function TabKartuStok({
       item.currentStock = item.stockIn - item.stockOut;
       return item;
     }).filter(item => (item.name || '').toLowerCase().includes(safeSearch));
-  }, [masterRawMaterials, purchases, productionBatches, searchTerm]);
+  }, [masterRawMaterials, purchases, pemalang, searchTerm]);
 
   // --- 🔥 ENGINE FORECAST AYAM NANA CHICKEN ---
   const ayamForecast = useMemo(() => {
-    // Cari sisa stok ayam dari rawStock
     const ayamData = rawStock.find(i => String(i.name).toUpperCase().includes('AYAM'));
     const currentAyamKg = ayamData ? ayamData.currentStock : 0;
     
@@ -158,32 +174,36 @@ export default function TabKartuStok({
               qty: item.qty || 0, reference: p.supplier_name || 'Supplier'
             });
           });
-        } else if (p.raw_name) {
+        } else if (p.item_name || p.raw_name) {
           timeline.push({
             id: p.id, date: p.date, type: 'IN', category: 'Belanja Logistik',
-            itemName: p.raw_name, qty: p.qty || 1, reference: p.supplier_name || 'Supplier'
+            itemName: p.item_name || p.raw_name, qty: p.qty || 1, reference: p.supplier_name || 'Supplier'
           });
         }
       }
     });
 
-    (productionBatches || []).forEach(batch => {
-      if (!batch.isDeleted && batch.status === 'COMPLETED') {
+    (pemalang || []).forEach(batch => {
+      if (!batch.isDeleted && String(batch.isDeleted).toUpperCase() !== 'TRUE') {
         timeline.push({
           id: batch.id, date: batch.date, type: 'IN', category: 'Hasil Produksi Pabrik',
-          itemName: batch.product_name || 'Dimsum Frozen Core', 
-          qty: batch.total_yield_pcs || batch.actual_yield || batch.qty || 0, 
+          itemName: batch.item_name || 'Dimsum Frozen', 
+          qty: batch.qty || 0, 
           reference: `Batch Produksi: ${batch.id}`
         });
 
-        const ingredients = safeJsonParse(batch.ingredients_used, []);
-        ingredients.forEach(ing => {
-          timeline.push({
-            id: batch.id + '-ING', date: batch.date, type: 'OUT', category: 'Pemakaian Produksi',
-            itemName: ing.name || ing.raw_name || 'Item Tidak Diketahui', 
-            qty: ing.qty || 0, reference: `Untuk Batch: ${batch.id}`
-          });
-        });
+        // Mutasi pemakaian ayam
+        if(batch.items) {
+           const parsed = safeJsonParse(batch.items, []);
+           if(parsed.length > 0 && String(parsed[0].name).startsWith('@@PRODUCTION@@')) {
+              const parts = parsed[0].name.split('||');
+              timeline.push({
+                id: batch.id + '-ING', date: batch.date, type: 'OUT', category: 'Pemakaian Produksi',
+                itemName: 'DAGING AYAM', 
+                qty: Number(parts[2] || 0), reference: `Untuk Batch: ${batch.id}`
+              });
+           }
+        }
       }
     });
 
@@ -191,7 +211,7 @@ export default function TabKartuStok({
     return timeline
       .filter(t => (t.itemName || '').toLowerCase().includes(safeSearch) || (t.category || '').toLowerCase().includes(safeSearch))
       .sort((a, b) => new Date(b.date) - new Date(a.date));
-  }, [orders, purchases, productionBatches, searchTerm]);
+  }, [orders, purchases, pemalang, searchTerm]);
 
   return (
     <div className="space-y-6 pb-10 text-slate-700 animate-in fade-in duration-300">
