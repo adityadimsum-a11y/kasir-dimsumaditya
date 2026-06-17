@@ -128,13 +128,11 @@ export default function App() {
     }
   }, []);
 
+  // 🧠 SINKRONISASI HANYA DI JALANKAN SEKALI (ENTENG & ANTI REFLESH SENDIRI)
   useEffect(() => {
     if (user) {
       fetchAllDatabase(user.branch_id); 
-      const syncInterval = setInterval(() => {
-        fetchAllDatabase(user.branch_id); 
-      }, 60000);
-      return () => clearInterval(syncInterval);
+      // Auto refresh per menit dimatikan di sini agar tidak berat dan mengganggu user interface
     }
   }, [user, fetchAllDatabase]);
 
