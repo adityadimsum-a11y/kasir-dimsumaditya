@@ -30,22 +30,27 @@ export default function TabPemalang({
   const [filterMode, setFilterMode] = useState('MINGGU_INI'); 
   const [filterMonth, setFilterMonth] = useState(todayStr.substring(0,7));
 
-  // 🔥 1 KABEL UTAMA: BACA SEMUA NOTA AYAM, KONVERSI OTOMATIS
+  // 🔥 1 KABEL UTAMA: BACA SEMUA NOTA AYAM, KONVERSI OTOMATIS (UPDATED)
   const stockAyam = useMemo(() => {
     let masukKg = 0;
     let keluarKg = 0;
 
     (purchases || []).forEach(p => {
       if (p.isDeleted || String(p.isDeleted).toUpperCase() === 'TRUE') return;
-      if (p.branch_id !== currentBranch && currentBranch !== 'TANGERANG_PUSAT') return;
       
-      const itemName = String(p.item_name || p.raw_name || '').toUpperCase();
-      const supplierName = String(p.supplier_name || '').toUpperCase();
+      // 🚨 FIX 1: Matikan filter cabang untuk stok masuk ayam (biar pembelian pusat terbaca)
+      // if (p.branch_id !== currentBranch && currentBranch !== 'TANGERANG_PUSAT') return;
+      
+      // 🚨 FIX 2: Tambah fallback (p.name / p.supplier) jaga-jaga kalau beda nama kolom
+      const itemName = String(p.name || p.item_name || p.raw_name || '').toUpperCase();
+      const supplierName = String(p.supplier || p.supplier_name || '').toUpperCase();
       
       // KABEL KONEK: Kalau ada kata AYAM, DADA, atau NANA
       if (itemName.includes('AYAM') || itemName.includes('DADA') || supplierName.includes('NANA')) {
         let qty = Number(p.qty || 0);
-        const unit = String(p.unit).toUpperCase();
+        // 🚨 FIX 3: Tambah fallback '' agar tidak error undefined
+        const unit = String(p.unit || '').toUpperCase(); 
+        
         if (unit.includes('KANT') || unit.includes('KNTG')) {
           qty = qty * 10; 
         }
@@ -55,7 +60,9 @@ export default function TabPemalang({
 
     (pemalang || []).forEach(p => {
       if (p.isDeleted || String(p.isDeleted).toUpperCase() === 'TRUE') return;
-      if (p.branch_id !== currentBranch && currentBranch !== 'TANGERANG_PUSAT') return;
+      
+      // Matikan juga filter cabang untuk pengeluaran log produksi global
+      // if (p.branch_id !== currentBranch && currentBranch !== 'TANGERANG_PUSAT') return;
       
       if (p.items) {
         const parsed = safeJsonParse(p.items, []);
@@ -72,7 +79,7 @@ export default function TabPemalang({
       keluarKantong: keluarKg / 10,
       sisaKantong: sisaKg / 10 
     };
-  }, [purchases, pemalang, currentBranch]);
+  }, [purchases, pemalang]);
 
   const kalkulasi = useMemo(() => {
     const adukanNum = Number(adukan || 0);
@@ -253,7 +260,6 @@ export default function TabPemalang({
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-2 text-center mt-2">Total Adukan Hari Ini</label>
               <input type="number" min="1" required value={adukan} onChange={(e) => handleAdukanChange(e.target.value)} className="w-full py-4 border-2 border-slate-300 rounded-xl text-4xl font-black text-slate-800 bg-white outline-none text-center focus:border-red-500 shadow-sm transition-colors" placeholder="0" />
               
-              {/* 🔥 TAMPILAN BERSIH: HINT KG AYAM DIBUANG */}
               {adukan && (
                 <div className="mt-4 pt-3 border-t border-slate-200 flex justify-center text-[10px] font-black uppercase tracking-wider text-slate-500">
                   <span>Target Standar: <b className="text-slate-800">{formatNumber(kalkulasi.stdMika)} Mika ({formatNumber(kalkulasi.stdPcs)} Pcs)</b></span>
