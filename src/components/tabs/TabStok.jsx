@@ -7,13 +7,19 @@ const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID
 
 export default function TabStok({ 
   masterProducts = [], masterRawMaterials = [],
-  orders = [], purchases = [], productionBatches = [], pemalang = [] 
+  orders = [], purchases = [], productionBatches = [], pemalang = [],
+  inventoryCostLayers = [] // 🔥 KABEL BARU: JURNAL INVENTORI
 }) {
   const [activeTab, setActiveTab] = useState('FREEZER');
   const [searchTerm, setSearchTerm] = useState('');
-  
   const [selectedItemDetail, setSelectedItemDetail] = useState(null);
 
+  // 🧠 ENGINE SMART BRIDGE: Memisahkan Transaksi V2 (Akurat) & Legacy (Lama)
+  const hasInventoryLayer = useMemo(() => {
+    return new Set((inventoryCostLayers || []).filter(l => !l.isDeleted).map(l => l.reference_id));
+  }, [inventoryCostLayers]);
+
+  // --- ENGINE FREEZER STOCK (BARANG MATANG) ---
   const freezerStock = useMemo(() => {
     const stockMap = {};
     
@@ -27,23 +33,31 @@ export default function TabStok({
       }
     });
 
+    // 1. BACA DARI JURNAL INVENTORI (SISTEM BARU - TRIPLE ENTRY)
+    (inventoryCostLayers || []).forEach(l => {
+      if (l.isDeleted || l.category !== 'PRODUK_JADI') return;
+      const key = String(l.item_name).toUpperCase();
+      if (!stockMap[key]) stockMap[key] = { id: l.id, name: key, sku: '', category: 'PRODUK_JADI', stockIn: 0, stockOut: 0, currentStock: 0 };
+      
+      const qty = Number(l.qty_remaining || 0);
+      if (qty > 0) stockMap[key].stockIn += qty;
+      else stockMap[key].stockOut += Math.abs(qty);
+    });
+
+    // 2. BACA DARI LEGACY SYSTEM (Jika belum ada di jurnal inventori)
     (pemalang || []).forEach(batch => {
-      if (!batch.isDeleted && String(batch.isDeleted).toUpperCase() !== 'TRUE') {
+      if (!batch.isDeleted && !hasInventoryLayer.has(batch.id)) {
         const productName = String(batch.item_name || 'DIMSUM FROZEN CORE').toUpperCase(); 
-        if (stockMap[productName]) {
-          stockMap[productName].stockIn += Number(batch.qty || 0);
-        }
+        if (stockMap[productName]) stockMap[productName].stockIn += Number(batch.qty || 0);
       }
     });
 
     (orders || []).forEach(o => {
-      if (!o.isDeleted && String(o.isDeleted).toUpperCase() !== 'TRUE' && o.status !== 'BATAL') {
+      if (!o.isDeleted && o.status !== 'BATAL' && !hasInventoryLayer.has(o.id)) {
         const items = safeJsonParse(o.items, []);
         items.forEach(item => {
           const pName = String(item.name || item.product_name).toUpperCase();
-          if (pName && stockMap[pName]) {
-            stockMap[pName].stockOut += Number(item.qty || 0);
-          }
+          if (pName && stockMap[pName]) stockMap[pName].stockOut += Number(item.qty || 0);
         });
       }
     });
@@ -53,10 +67,10 @@ export default function TabStok({
       item.currentStock = item.stockIn - item.stockOut;
       return item;
     }).filter(item => (item.name || '').toLowerCase().includes(safeSearch));
-  }, [masterProducts, pemalang, orders, searchTerm]);
+  }, [masterProducts, inventoryCostLayers, pemalang, orders, hasInventoryLayer, searchTerm]);
 
 
-  // 🔥 KABEL 1: PAKSA AYAM JADI KILOGRAM BIAR GAK PUSING
+  // --- ENGINE RAW STOCK (BAHAN MENTAH) ---
   const rawStock = useMemo(() => {
     const stockMap = {};
 
@@ -64,33 +78,39 @@ export default function TabStok({
       if (!r.isDeleted && r.raw_name) {
         const key = String(r.raw_name).toUpperCase();
         stockMap[key] = {
-          id: r.id, name: r.raw_name, unit: r.unit || 'Pcs', category: r.category || 'Bahan Baku',
+          id: r.id, name: r.raw_name, unit: r.unit || 'Pcs', category: r.category || 'BAHAN_BAKU',
           stockIn: 0, stockOut: 0, currentStock: 0
         };
       }
     });
 
+    // 1. BACA DARI JURNAL INVENTORI (SISTEM BARU)
+    (inventoryCostLayers || []).forEach(l => {
+      if (l.isDeleted || l.category === 'PRODUK_JADI') return; // Ambil bahan baku & packaging
+      
+      const key = String(l.item_name).toUpperCase();
+      if (!stockMap[key]) stockMap[key] = { id: l.id, name: key, unit: 'Unit', category: l.category, stockIn: 0, stockOut: 0, currentStock: 0 };
+      
+      const qty = Number(l.qty_remaining || 0);
+      if (qty > 0) stockMap[key].stockIn += qty;
+      else stockMap[key].stockOut += Math.abs(qty);
+    });
+
+    // 2. BACA DARI LEGACY PURCHASES & PEMALANG
     (purchases || []).forEach(p => {
-      if (!p.isDeleted && String(p.isDeleted).toUpperCase() !== 'TRUE') {
-        
+      if (!p.isDeleted && !hasInventoryLayer.has(p.id)) {
         const processItem = (itemName, qty, unit, category) => {
             if (!itemName) return;
             const key = itemName.toUpperCase();
-            
             let finalQty = Number(qty || 0);
             let finalUnit = String(unit || 'Pcs').trim();
 
-            // KABEL GUDANG: Kalau nemu ayam, paksa jadi Kg
             if (key.includes('AYAM') || key.includes('DADA') || String(p.supplier_name).toUpperCase().includes('NANA')) {
-               if (finalUnit.toUpperCase().includes('KANT') || finalUnit.toUpperCase().includes('KNTG')) {
-                  finalQty = finalQty * 10;
-               }
+               if (finalUnit.toUpperCase().includes('KANT') || finalUnit.toUpperCase().includes('KNTG')) finalQty = finalQty * 10;
                finalUnit = 'Kg';
             }
 
-            if (!stockMap[key]) {
-                stockMap[key] = { id: p.id, name: key, unit: finalUnit, category: category || 'Bahan Baku', stockIn: 0, stockOut: 0, currentStock: 0 };
-            }
+            if (!stockMap[key]) stockMap[key] = { id: p.id, name: key, unit: finalUnit, category: category || 'BAHAN_BAKU', stockIn: 0, stockOut: 0, currentStock: 0 };
             stockMap[key].stockIn += finalQty;
         };
 
@@ -104,18 +124,14 @@ export default function TabStok({
     });
 
     (pemalang || []).forEach(p => {
-       if (p.isDeleted || String(p.isDeleted).toUpperCase() === 'TRUE') return;
+       if (p.isDeleted || hasInventoryLayer.has(p.id)) return;
        if (p.items) {
            const parsed = safeJsonParse(p.items, []);
            if (parsed.length > 0 && String(parsed[0].name).startsWith('@@PRODUCTION@@')) {
                const parts = parsed[0].name.split('||');
                const ayamKgUsed = Number(parts[2] || 0);
-               
                const ayamKey = Object.keys(stockMap).find(k => k.includes('AYAM GILING') || k.includes('AYAM') || k.includes('DADA'));
-               if (ayamKey) {
-                   // Karena Gudang udah diubah ke Kg semua, nguranginnya pakai hitungan Kg langsung
-                   stockMap[ayamKey].stockOut += ayamKgUsed;
-               }
+               if (ayamKey) stockMap[ayamKey].stockOut += ayamKgUsed;
            }
        }
     });
@@ -125,19 +141,14 @@ export default function TabStok({
       item.currentStock = item.stockIn - item.stockOut;
       return item;
     }).filter(item => (item.name || '').toLowerCase().includes(safeSearch));
-  }, [masterRawMaterials, purchases, pemalang, searchTerm]);
+  }, [masterRawMaterials, inventoryCostLayers, purchases, pemalang, hasInventoryLayer, searchTerm]);
 
   const ayamForecast = useMemo(() => {
     let totalAyamKg = 0;
-    
     rawStock.forEach(i => {
       if (String(i.name).toUpperCase().includes('AYAM')) {
         let val = Number(i.currentStock || 0);
-        let unit = String(i.unit).toUpperCase();
-        
-        if (unit.includes('KANT') || unit.includes('KNTG')) {
-          val = val * 10;
-        }
+        if (String(i.unit).toUpperCase().includes('KANT') || String(i.unit).toUpperCase().includes('KNTG')) val = val * 10;
         totalAyamKg += val;
       }
     });
@@ -149,83 +160,48 @@ export default function TabStok({
     if (daysLeft <= 1.5) status = 'KRITIS';
     else if (daysLeft < 3) status = 'SIAGA'; 
 
-    const estDanaDibutuhkan = 37230000;
-
-    return {
-      currentAyamKg: totalAyamKg,
-      daysLeft,
-      status,
-      estDanaDibutuhkan,
-      dailyBurnRate
-    };
+    return { currentAyamKg: totalAyamKg, daysLeft, status, estDanaDibutuhkan: 37230000, dailyBurnRate };
   }, [rawStock]);
 
+  // --- ENGINE KARTU MUTASI TIMELINE (GABUNGAN V2 DAN LEGACY) ---
   const kartuMutasi = useMemo(() => {
     const timeline = [];
 
+    // 1. MUTASI DARI JURNAL INVENTORI (V2 SAKRAL)
+    (inventoryCostLayers || []).forEach(l => {
+      if (!l.isDeleted) {
+        const isMasuk = Number(l.qty_remaining) > 0;
+        timeline.push({
+          id: l.reference_id || l.id, date: l.date || l.received_date, type: isMasuk ? 'IN' : 'OUT',
+          category: l.category.replace(/_/g, ' '), itemName: l.item_name, qty: Math.abs(Number(l.qty_remaining)),
+          reference: l.notes || l.status
+        });
+      }
+    });
+
+    // 2. MUTASI LEGACY (JIKA BELUM MASUK JURNAL INVENTORI V2)
     (orders || []).forEach(o => {
-      if (!o.isDeleted && o.status !== 'BATAL') {
+      if (!o.isDeleted && o.status !== 'BATAL' && !hasInventoryLayer.has(o.id)) {
         const items = safeJsonParse(o.items, []);
         items.forEach(item => {
-          timeline.push({
-            id: o.id, date: o.date, type: 'OUT', category: 'Penjualan Kasir',
-            itemName: item.name || item.product_name || 'Item Tidak Diketahui', 
-            qty: item.qty || 0, reference: o.customer_name || 'Pelanggan Umum'
-          });
+          timeline.push({ id: o.id, date: o.date, type: 'OUT', category: 'Penjualan Kasir (Legacy)', itemName: item.name || item.product_name || 'Item Tidak Diketahui', qty: item.qty || 0, reference: o.customer_name || 'Pelanggan Umum' });
         });
       }
     });
 
     (purchases || []).forEach(p => {
-      if (!p.isDeleted) {
+      if (!p.isDeleted && !hasInventoryLayer.has(p.id)) {
         const items = safeJsonParse(p.items, []);
         if(items.length > 0) {
           items.forEach(item => {
-            let finalQty = item.qty || 0;
-            let finalName = String(item.name || item.raw_name || '').toUpperCase();
-            if (finalName.includes('AYAM')) {
-              if (String(item.unit).toUpperCase().includes('KANT')) finalQty = finalQty * 10;
-            }
-            timeline.push({
-              id: p.id, date: p.date, type: 'IN', category: 'Belanja Logistik',
-              itemName: finalName || 'Item Tidak Diketahui', 
-              qty: finalQty, reference: p.supplier_name || 'Supplier'
-            });
+            let finalQty = item.qty || 0; let finalName = String(item.name || item.raw_name || '').toUpperCase();
+            if (finalName.includes('AYAM') && String(item.unit).toUpperCase().includes('KANT')) finalQty = finalQty * 10;
+            timeline.push({ id: p.id, date: p.date, type: 'IN', category: 'Belanja Logistik (Legacy)', itemName: finalName || 'Item Tidak Diketahui', qty: finalQty, reference: p.supplier_name || 'Supplier' });
           });
-        } else if (p.item_name || p.raw_name) {
-            let finalQty = p.qty || 1;
-            let finalName = String(p.item_name || p.raw_name || '').toUpperCase();
-            if (finalName.includes('AYAM') || finalName.includes('DADA') || String(p.supplier_name).toUpperCase().includes('NANA')) {
-              if (String(p.unit).toUpperCase().includes('KANT')) finalQty = finalQty * 10;
-            }
-          timeline.push({
-            id: p.id, date: p.date, type: 'IN', category: 'Belanja Logistik',
-            itemName: finalName, qty: finalQty, reference: p.supplier_name || 'Supplier'
-          });
-        }
-      }
-    });
-
-    (pemalang || []).forEach(batch => {
-      if (!batch.isDeleted && String(batch.isDeleted).toUpperCase() !== 'TRUE') {
-        timeline.push({
-          id: batch.id, date: batch.date, type: 'IN', category: 'Hasil Produksi Pabrik',
-          itemName: batch.item_name || 'Dimsum Frozen', 
-          qty: batch.qty || 0, 
-          reference: `Batch Produksi: ${batch.id}`
-        });
-
-        if(batch.items) {
-           const parsed = safeJsonParse(batch.items, []);
-           if(parsed.length > 0 && String(parsed[0].name).startsWith('@@PRODUCTION@@')) {
-              const parts = parsed[0].name.split('||');
-              timeline.push({
-                id: batch.id + '-ING', date: batch.date, type: 'OUT', category: 'Pemakaian Produksi',
-                itemName: 'AYAM GILING', 
-                qty: Number(parts[2] || 0), // Langsung Kg
-                reference: `Untuk Batch: ${batch.id}`
-              });
-           }
+        } else if (p.raw_name) {
+          let finalQty = p.qty || 1; let finalName = String(p.item_name || p.raw_name || '').toUpperCase();
+          if ((finalName.includes('AYAM') || finalName.includes('DADA') || String(p.supplier_name).toUpperCase().includes('NANA')) && String(p.unit).toUpperCase().includes('KANT')) finalQty = finalQty * 10;
+          timeline.push({ id: p.id, date: p.date, type: 'IN', category: 'Belanja Logistik (Legacy)', itemName: finalName, qty: finalQty, reference: p.supplier_name || 'Supplier' });
         }
       }
     });
@@ -234,7 +210,7 @@ export default function TabStok({
     return timeline
       .filter(t => (t.itemName || '').toLowerCase().includes(safeSearch) || (t.category || '').toLowerCase().includes(safeSearch))
       .sort((a, b) => new Date(b.date) - new Date(a.date));
-  }, [orders, purchases, pemalang, searchTerm]);
+  }, [orders, purchases, inventoryCostLayers, hasInventoryLayer, searchTerm]);
 
   return (
     <div className="space-y-6 pb-10 text-slate-700 animate-in fade-in duration-300">
@@ -247,7 +223,7 @@ export default function TabStok({
              <h2 className="text-xl font-black text-white tracking-wide uppercase">Pusat Komando Gudang &amp; Stok</h2>
            </div>
            <p className="text-[11px] font-bold text-slate-400 mt-1 max-w-lg leading-relaxed">
-             Pantau arus keluar-masuk barang matang dan bahan baku secara real-time. Sistem otomatis menghitung saldo akhir dari setiap transaksi pabrik.
+             Pantau arus keluar-masuk barang matang dan bahan baku secara real-time. Sistem menggunakan <b className="text-slate-300">Smart Ledger</b> dari Triple-Entry Pabrik.
            </p>
         </div>
 
@@ -320,7 +296,6 @@ export default function TabStok({
 
       {activeTab === 'BAHAN_BAKU' && (
         <div className="space-y-6">
-          
           <div className={`p-6 rounded-3xl border shadow-sm relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-6 ${
             ayamForecast.status === 'AMAN' ? 'bg-emerald-50 border-emerald-200' :
             ayamForecast.status === 'SIAGA' ? 'bg-amber-50 border-amber-200' :
