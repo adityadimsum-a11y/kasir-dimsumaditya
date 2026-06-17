@@ -1,16 +1,20 @@
 import React, { useState, useMemo } from 'react';
 import { Scale, ArrowDownToLine, ArrowUpRight, TrendingUp, Calculator, Calendar, DollarSign, Percent, Building, Users, ShieldAlert, Award, Printer, Wallet, CreditCard, Banknote, Info } from 'lucide-react';
-import { getTodayStr, formatDate, safeJsonParse } from '../../utils/helpers';
+import { getTodayStr, formatDate, safeJsonParse, getLocalYMD } from '../../utils/helpers';
 
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
+
+// 🔥 PATOKAN HPP STANDAR (COST OF GOODS SOLD)
+const INTI_HPP_PER_PCS = 1125;
 
 export default function TabAccounting({ 
   orders = [], orders_data, 
   purchases = [], purchases_data, 
   expenses = [], expenses_data, 
-  cashflowTransactions = [], cashflow_transactions, // SUNTIKAN BARU BACA ARUS KAS DOMPET
-  user, setPrintData // SUNTIKAN FITUR PRINT LAPORAN
+  cashflowTransactions = [], cashflow_transactions, 
+  piutangPayments = [],
+  user, setPrintData 
 }) {
   const todayStr = getTodayStr();
   const currentBranch = (user?.branch_id === 'PUSAT' || !user?.branch_id) ? 'TANGERANG_PUSAT' : user?.branch_id;
@@ -59,10 +63,13 @@ export default function TabAccounting({
     return { bca, bri, cash };
   }, [realCashflow]);
 
-  // --- ENGINE UTAMA PROFIT & LOSS ---
+  // --- 🔥 ENGINE UTAMA PROFIT & LOSS (ACCRUAL BASIS) ---
   const profitLossMetrics = useMemo(() => {
-    let omzetJualan = 0;
-    let modalBelanjaAyam = 0;
+    let omzetJualanKotor = 0; // Angka kertas (termasuk piutang)
+    let totalUangMasukRiil = 0; // Uang yang benar-benar cair
+    let totalPcsTerjual = 0;
+    
+    let modalBelanjaAyam = 0; // Disimpan sbg info arus kas, BUKAN pemotong laba
     let operasionalLainnya = 0;
 
     const { start, end } = filteredData;
@@ -71,15 +78,30 @@ export default function TabAccounting({
     realOrders.filter(o => !o.isDeleted).forEach(o => {
       const d = new Date(o.date);
       if (d >= start && d <= end) {
-        omzetJualan += Number(o.total_amount || 0);
+        omzetJualanKotor += Number(o.total_amount || o.total || 0);
+        totalUangMasukRiil += Number(o.amount_paid || o.paidAmount || 0);
+        
+        const items = safeJsonParse(o.items, []);
+        let pcsQty = 0;
+        items.forEach(i => pcsQty += Number(i.qty || 0));
+        if (pcsQty === 0) pcsQty = Number(o.qty || 0);
+        totalPcsTerjual += pcsQty;
       }
     });
+    
+    // Tambah Piutang Lunas ke Uang Masuk Riil
+    (piutangPayments || []).filter(p => !p.isDeleted).forEach(p => {
+       const d = new Date(p.date);
+       if (d >= start && d <= end) {
+          totalUangMasukRiil += Number(p.amount || 0);
+       }
+    });
 
-    // 2. DARI NOTA KULAKAN (PURCHASES)
+    // 2. DARI NOTA KULAKAN (Hanya untuk track uang keluar beli ayam)
     realPurchases.filter(p => !p.isDeleted).forEach(p => {
       const d = new Date(p.date);
       if (d >= start && d <= end) {
-        if (p.category === 'BAHAN_BAKU') {
+        if (String(p.category).includes('BAHAN_BAKU') || String(p.item_name).includes('AYAM')) {
           modalBelanjaAyam += Number(p.total_amount || p.amount || 0);
         } else {
           operasionalLainnya += Number(p.total_amount || p.amount || 0);
@@ -87,7 +109,7 @@ export default function TabAccounting({
       }
     });
 
-    // 3. DARI BIAYA LAIN (EXPENSES)
+    // 3. DARI BIAYA LAIN (EXPENSES / GAJI / BENSIN)
     realExpenses.filter(e => !e.isDeleted).forEach(e => {
       const d = new Date(e.date);
       if (d >= start && d <= end) {
@@ -95,21 +117,24 @@ export default function TabAccounting({
       }
     });
 
-    const totalBeban = modalBelanjaAyam + operasionalLainnya;
-    const labaBersih = omzetJualan - totalBeban;
-    const marginPersen = omzetJualan > 0 ? (labaBersih / omzetJualan) * 100 : 0;
+    // 🔥 RUMUS LABA RUGI ACCRUAL SULTAN
+    const totalHPPBarangTerjual = totalPcsTerjual * INTI_HPP_PER_PCS;
+    const totalBebanRiil = totalHPPBarangTerjual + operasionalLainnya;
+    const labaBersihPabrik = omzetJualanKotor - totalBebanRiil;
+    const marginPersen = omzetJualanKotor > 0 ? (labaBersihPabrik / omzetJualanKotor) * 100 : 0;
 
-    // 🔥 DOKTRIN 4 AMPLOP VIRTUAL (MODE SURVIVAL)
-    const amplopAyam = omzetJualan * 0.55;         // 55% Beli Ayam & Selipan Hutang Lama
-    const amplopOperasional = omzetJualan * 0.25;  // 25% Ops, Bumbu, Logistik Pemalang
-    const amplopCicilan = omzetJualan * 0.15;      // 15% Leasing, Ruko, Mess, BRI
-    const amplopCuanOwner = omzetJualan * 0.05;    // 5% Laba Pribadi Bos (Berdarah dulu)
+    // 🔥 DOKTRIN 4 AMPLOP VIRTUAL MENGGUNAKAN UANG MASUK RIIL (DOMPET)
+    const amplopAyam = totalUangMasukRiil * 0.55;         
+    const amplopOperasional = totalUangMasukRiil * 0.25;  
+    const amplopCicilan = totalUangMasukRiil * 0.15;      
+    const amplopCuanOwner = totalUangMasukRiil * 0.05;    
 
     return { 
-      omzetJualan, modalBelanjaAyam, operasionalLainnya, totalBeban, labaBersih, marginPersen,
+      omzetJualanKotor, totalUangMasukRiil, totalPcsTerjual, totalHPPBarangTerjual,
+      modalBelanjaAyam, operasionalLainnya, totalBebanRiil, labaBersihPabrik, marginPersen,
       amplopAyam, amplopOperasional, amplopCicilan, amplopCuanOwner
     };
-  }, [realOrders, realPurchases, realExpenses, filteredData]);
+  }, [realOrders, realPurchases, realExpenses, piutangPayments, filteredData]);
 
   // --- AKSI: CETAK LAPORAN NERACA ---
   const handlePrintLaporan = () => {
@@ -119,24 +144,24 @@ export default function TabAccounting({
 
     setPrintData({
       type: 'INVOICE', 
-      id: `LAPORAN-${todayStr.replace(/-/g,'')}`, 
+      id: `PL-${todayStr.replace(/-/g,'')}`, 
       date: formatDate(todayStr), 
       branch_name: 'PABRIK TANGERANG PUSAT', 
       admin_name: user?.name || 'Sistem Akuntansi', 
-      customer_name: 'Laporan Internal Owner', 
+      customer_name: 'Laporan Laba Rugi Eksekutif', 
       position: 'Laporan Keuangan',
-      notes: 'Doktrin 4 Amplop: Beli Ayam (55%), Operasional (25%), Cicilan & Aset (15%), Laba Bos (5%)',
+      notes: `Periode Laporan: ${periodeLabel}`,
       items: [
-        { name: '1. Total Uang Masuk (Omset)', qty: 1, subtotal: profitLossMetrics.omzetJualan },
-        { name: '2. Modal Belanja Ayam', qty: 1, subtotal: -profitLossMetrics.modalBelanjaAyam },
-        { name: '3. Biaya Operasional & Gaji', qty: 1, subtotal: -profitLossMetrics.operasionalLainnya }
+        { name: '1. Total Uang Masuk (Kertas)', qty: 1, subtotal: profitLossMetrics.omzetJualanKotor },
+        { name: `2. Modal Pokok Terjual (${formatNumber(profitLossMetrics.totalPcsTerjual)} Pcs)`, qty: 1, subtotal: -profitLossMetrics.totalHPPBarangTerjual },
+        { name: '3. Biaya Operasional Pabrik', qty: 1, subtotal: -profitLossMetrics.operasionalLainnya }
       ], 
-      amount: profitLossMetrics.labaBersih, 
+      amount: profitLossMetrics.labaBersihPabrik, 
       paymentMethod: 'REKAP LAPORAN SISTEM',
       history: { 
-        labelLama: 'Total Uang Masuk', nominalLama: profitLossMetrics.omzetJualan, 
-        labelAksi: 'Total Modal Keluar', nominalAksi: profitLossMetrics.totalBeban, 
-        labelBaru: 'KEUNTUNGAN BERSIH PABRIK', nominalBaru: profitLossMetrics.labaBersih 
+        labelLama: 'Omset Kotor', nominalLama: profitLossMetrics.omzetJualanKotor, 
+        labelAksi: 'Total Beban Pokok & Ops', nominalAksi: profitLossMetrics.totalBebanRiil, 
+        labelBaru: 'KEUNTUNGAN BERSIH (PROFIT)', nominalBaru: profitLossMetrics.labaBersihPabrik 
       }
     });
   };
@@ -150,7 +175,7 @@ export default function TabAccounting({
           <h2 className="text-sm font-black text-slate-800 flex items-center gap-2">
             <Scale className="text-blue-600" size={18}/> Jurnal Laba Rugi &amp; Cuan Bersih
           </h2>
-          <p className="text-[10px] font-bold text-slate-500 mt-1">Rangkuman riil kesehatan uang masuk dikurangi modal operasional pabrik.</p>
+          <p className="text-[10px] font-bold text-slate-500 mt-1">Rangkuman performa pabrik (Accrual) dan alokasi uang masuk (Cash-Basis).</p>
         </div>
 
         <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
@@ -194,20 +219,20 @@ export default function TabAccounting({
 
       {/* 🔥 TIGA KARTU UTAMA FINANSIAL (FLUID GRADIENT) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 p-6 rounded-3xl border border-emerald-200 shadow-sm relative overflow-hidden">
-          <div className="text-[11px] font-black text-emerald-700 flex items-center gap-2 mb-2">
-            <ArrowDownToLine size={16}/> Total Uang Masuk (Omset)
+        <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 p-6 rounded-3xl border border-blue-200 shadow-sm relative overflow-hidden">
+          <div className="text-[11px] font-black text-blue-700 flex items-center gap-2 mb-2">
+            <ArrowDownToLine size={16}/> Total Omset Penjualan (Kertas)
           </div>
-          <div className="text-3xl font-black text-emerald-800 tracking-tight">{formatRupiah(profitLossMetrics.omzetJualan)}</div>
-          <p className="text-[10px] text-emerald-600/80 font-bold mt-2">*Murni dari total nota invoice kasir cabang/agen.</p>
+          <div className="text-3xl font-black text-blue-800 tracking-tight">{formatRupiah(profitLossMetrics.omzetJualanKotor)}</div>
+          <p className="text-[10px] text-blue-600/80 font-bold mt-2">*Akumulasi Lunas + Piutang (Barang Laku).</p>
         </div>
 
         <div className="bg-gradient-to-br from-rose-50 to-rose-100/50 p-6 rounded-3xl border border-rose-200 shadow-sm relative overflow-hidden">
           <div className="text-[11px] font-black text-rose-700 flex items-center gap-2 mb-2">
-            <ArrowUpRight size={16}/> Total Modal Keluar (HPP & Ops)
+            <ArrowUpRight size={16}/> HPP &amp; Beban Operasional Pabrik
           </div>
-          <div className="text-3xl font-black text-rose-800 tracking-tight">{formatRupiah(profitLossMetrics.totalBeban)}</div>
-          <p className="text-[10px] text-rose-600/80 font-bold mt-2">*Akumulasi kulakan ayam, mika, listrik &amp; payroll.</p>
+          <div className="text-3xl font-black text-rose-800 tracking-tight">-{formatRupiah(profitLossMetrics.totalBebanRiil)}</div>
+          <p className="text-[10px] text-rose-600/80 font-bold mt-2">*HPP Terjual + Gaji + Ops (Akurat sesuai volume).</p>
         </div>
 
         <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-6 rounded-3xl border border-slate-800 shadow-lg relative overflow-hidden">
@@ -215,9 +240,9 @@ export default function TabAccounting({
           <div className="text-[11px] font-black text-emerald-400 flex items-center gap-2 mb-2 relative z-10">
             <TrendingUp size={16}/> Keuntungan Bersih (Profit Pabrik)
           </div>
-          <div className="text-3xl font-black text-white tracking-tight relative z-10">{formatRupiah(profitLossMetrics.labaBersih)}</div>
+          <div className="text-3xl font-black text-white tracking-tight relative z-10">{formatRupiah(profitLossMetrics.labaBersihPabrik)}</div>
           <div className="mt-3 flex items-center gap-2 relative z-10">
-            <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg border ${profitLossMetrics.labaBersih >= 0 ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-300' : 'bg-rose-500/20 border-rose-500/30 text-rose-300'}`}>
+            <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg border ${profitLossMetrics.labaBersihPabrik >= 0 ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-300' : 'bg-rose-500/20 border-rose-500/30 text-rose-300'}`}>
               Sisa Margin Keuntungan: {Number(profitLossMetrics.marginPersen || 0).toFixed(1)}%
             </span>
           </div>
@@ -268,14 +293,14 @@ export default function TabAccounting({
           </div>
         </div>
 
-        {/* PANEL KANAN: KEWAJIBAN 4 AMPLOP */}
+        {/* PANEL KANAN: KEWAJIBAN 4 AMPLOP BERDASARKAN CASH RIIL */}
         <div className="lg:col-span-7 flex flex-col gap-4">
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full">
             <div className="p-5 bg-slate-50 border-b border-slate-100">
                <h3 className="font-black text-xs text-slate-800 flex items-center gap-2">
-                 <Percent size={16} className="text-amber-500"/> Kewajiban 4 Amplop (Hak Uang)
+                 <Percent size={16} className="text-amber-500"/> Kewajiban 4 Amplop (Dari Uang Masuk Riil)
                </h3>
-               <p className="text-[9px] font-bold text-slate-500 mt-1">Pembagian jatah uang berdasarkan total omset {dateFilter.replace(/_/g, ' ').toLowerCase()}. Cocokkan angkanya dengan saldo dompet di samping.</p>
+               <p className="text-[9px] font-bold text-slate-500 mt-1">Pembagian jatah mutlak dari <b className="text-slate-800">Total Uang Cair {formatRupiah(profitLossMetrics.totalUangMasukRiil)}</b> pada periode ini. Piutang tidak masuk hitungan!</p>
             </div>
             
             <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -294,7 +319,7 @@ export default function TabAccounting({
                     <span className="bg-emerald-100 text-emerald-700 font-black text-[9px] px-1.5 py-0.5 rounded shadow-sm">25%</span>
                  </div>
                  <p className="text-xl font-black text-emerald-700 mt-2 tracking-tight">{formatRupiah(profitLossMetrics.amplopOperasional)}</p>
-                 <div className="text-[9px] font-bold text-slate-400 mt-2 pt-2 border-t border-slate-100 leading-snug">Jatah untuk uang laci. Jika kurang, baru pindah buku tarik tunai dari BCA.</div>
+                 <div className="text-[9px] font-bold text-slate-400 mt-2 pt-2 border-t border-slate-100 leading-snug">Jatah untuk uang laci. Jika kurang, baru tarik tunai dari BCA.</div>
               </div>
 
               <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs relative overflow-hidden border-t-4 border-t-orange-500">
@@ -303,7 +328,7 @@ export default function TabAccounting({
                     <span className="bg-orange-100 text-orange-700 font-black text-[9px] px-1.5 py-0.5 rounded shadow-sm">15%</span>
                  </div>
                  <p className="text-xl font-black text-orange-700 mt-2 tracking-tight">{formatRupiah(profitLossMetrics.amplopCicilan)}</p>
-                 <div className="text-[9px] font-bold text-slate-400 mt-2 pt-2 border-t border-slate-100 leading-snug">Uang di transfer ke BRI untuk bayar Leasing Mobil, Motor, Mess, dan Auto-Debit.</div>
+                 <div className="text-[9px] font-bold text-slate-400 mt-2 pt-2 border-t border-slate-100 leading-snug">Transfer ke BRI untuk bayar Leasing Mobil, Motor, Mess, dan Auto-Debit.</div>
               </div>
 
               <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs relative overflow-hidden border-t-4 border-t-amber-500">
@@ -312,7 +337,7 @@ export default function TabAccounting({
                     <span className="bg-amber-100 text-amber-700 font-black text-[9px] px-1.5 py-0.5 rounded shadow-sm">5%</span>
                  </div>
                  <p className="text-xl font-black text-amber-700 mt-2 tracking-tight">{formatRupiah(profitLossMetrics.amplopCuanOwner)}</p>
-                 <div className="text-[9px] font-bold text-slate-400 mt-2 pt-2 border-t border-slate-100 leading-snug">Laba bersih Owner. Ditransfer ke BRI dan bisa dinikmati bersama keluarga.</div>
+                 <div className="text-[9px] font-bold text-slate-400 mt-2 pt-2 border-t border-slate-100 leading-snug">Laba bersih Owner. Pindahkan ke BRI untuk dinikmati bersama keluarga.</div>
               </div>
             </div>
           </div>
@@ -320,38 +345,58 @@ export default function TabAccounting({
 
       </div>
 
-      {/* LEMBAR KERJA AKUNTANSI */}
+      {/* LEMBAR KERJA AKUNTANSI (LAPORAN RUGI LABA ACCRUAL) */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8">
         <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-100">
           <h3 className="font-black text-sm text-slate-800 flex items-center gap-2">
-            <Calculator size={18} className="text-blue-500"/> Lembar Kerja Akuntansi (Sederhana Riil)
+            <Calculator size={18} className="text-blue-500"/> Laporan Laba Rugi Operasional Pabrik (P&L)
           </h3>
+          <span className="bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 rounded-lg text-[10px] font-black tracking-wider uppercase hidden sm:block">Metode Accrual (Sesuai Barang Laku)</span>
         </div>
         
         <div className="space-y-3 max-w-4xl">
           <div className="flex justify-between items-center p-4 bg-slate-50 rounded-xl border border-slate-200">
-            <div className="font-black text-xs text-slate-700">A. Total Uang Masuk Pabrik (Hanya Invoice Kasir)</div>
-            <div className="font-black text-emerald-600 text-sm">{formatRupiah(profitLossMetrics.omzetJualan)}</div>
+            <div>
+              <div className="font-black text-xs text-slate-700">A. Pendapatan Penjualan (Kertas)</div>
+              <div className="text-[9px] font-bold text-slate-500 mt-1 uppercase">Termasuk Piutang Belum Tertagih</div>
+            </div>
+            <div className="font-black text-blue-600 text-sm">{formatRupiah(profitLossMetrics.omzetJualanKotor)}</div>
           </div>
 
           <div className="pl-4 sm:pl-6 space-y-3 border-l-2 border-slate-200/60 ml-2 sm:ml-4 py-2">
             <div className="flex justify-between items-center">
-              <div className="font-bold text-[11px] text-slate-500">(-) Modal Kulakan Bahan Baku Ayam</div>
-              <div className="font-black text-rose-500 text-xs">-{formatRupiah(profitLossMetrics.modalBelanjaAyam)}</div>
+              <div>
+                 <div className="font-bold text-[11px] text-slate-600">(-) Harga Pokok Penjualan (HPP)</div>
+                 <div className="text-[9px] font-bold text-slate-400 mt-0.5">{formatNumber(profitLossMetrics.totalPcsTerjual)} Pcs x Rp 1.125 (Modal Dimsum)</div>
+              </div>
+              <div className="font-black text-rose-500 text-xs">-{formatRupiah(profitLossMetrics.totalHPPBarangTerjual)}</div>
             </div>
+            
             <div className="flex justify-between items-center pb-2 border-b border-dashed border-slate-200">
-              <div className="font-bold text-[11px] text-slate-500">(-) Biaya Operasional (Bumbu, Gaji, Listrik, Mika)</div>
+              <div>
+                 <div className="font-bold text-[11px] text-slate-600">(-) Biaya Operasional &amp; Gaji</div>
+                 <div className="text-[9px] font-bold text-slate-400 mt-0.5">Listrik, Bensin, Plastik, Gaji, Lembur</div>
+              </div>
               <div className="font-black text-rose-500 text-xs">-{formatRupiah(profitLossMetrics.operasionalLainnya)}</div>
             </div>
           </div>
 
-          <div className={`flex justify-between items-center p-4 rounded-xl border transition-all mt-2 ${profitLossMetrics.labaBersih >= 0 ? 'bg-blue-50/50 border-blue-200' : 'bg-rose-50/50 border-rose-200'}`}>
-            <div className={`font-black text-xs ${profitLossMetrics.labaBersih >= 0 ? 'text-blue-800' : 'text-rose-800'}`}>
-              KEUNTUNGAN BERSIH KASIR (PROFIT RIIL)
+          <div className={`flex justify-between items-center p-4 rounded-xl border transition-all mt-2 ${profitLossMetrics.labaBersihPabrik >= 0 ? 'bg-emerald-50/50 border-emerald-200' : 'bg-rose-50/50 border-rose-200'}`}>
+            <div className={`font-black text-xs ${profitLossMetrics.labaBersihPabrik >= 0 ? 'text-emerald-800' : 'text-rose-800'}`}>
+              B. LABA BERSIH OPERASIONAL (NET PROFIT)
             </div>
-            <div className={`font-black text-xl tracking-tight ${profitLossMetrics.labaBersih >= 0 ? 'text-blue-700' : 'text-rose-600'}`}>
-              {formatRupiah(profitLossMetrics.labaBersih)}
+            <div className={`font-black text-xl tracking-tight ${profitLossMetrics.labaBersihPabrik >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+              {formatRupiah(profitLossMetrics.labaBersihPabrik)}
             </div>
+          </div>
+          
+          <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-xl">
+             <div className="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-2">Info Arus Kas Terpisah (Tidak memotong laba pabrik):</div>
+             <div className="flex justify-between items-center">
+                 <span className="font-bold text-[11px] text-slate-600">Total Uang Dibelikan Stok Bahan Baku (Kulakan)</span>
+                 <span className="font-bold text-xs text-slate-800">{formatRupiah(profitLossMetrics.modalBelanjaAyam)}</span>
+             </div>
+             <p className="text-[9px] font-bold text-slate-400 mt-2 italic">Uang kulakan tidak memotong laba pabrik karena sifatnya memindahkan bentuk kas dompet menjadi aset fisik di freezer. Laba murni dihitung saat barang fisik tersebut terjual (HPP).</p>
           </div>
         </div>
       </div>
