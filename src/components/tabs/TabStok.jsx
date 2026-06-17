@@ -101,7 +101,6 @@ export default function TabStok({
                
                const ayamKey = Object.keys(stockMap).find(k => k.includes('AYAM GILING') || k.includes('AYAM') || k.includes('DADA MENTAH'));
                if (ayamKey) {
-                   // Karena Ayam di Gudang satuannya Kantong, kita convert dari Kg ke Kantong
                    const usedKantong = ayamKgUsed / 10;
                    stockMap[ayamKey].stockOut += usedKantong;
                }
@@ -117,17 +116,15 @@ export default function TabStok({
   }, [masterRawMaterials, purchases, pemalang, searchTerm]);
 
 
-  // --- 🔥 FIX ENGINE FORECAST: ANTI-PRANK SATUAN ---
+  // --- 🔥 FIX ENGINE FORECAST: RUMUS HIJAU DIPERBAIKI ---
   const ayamForecast = useMemo(() => {
     let totalAyamKg = 0;
     
-    // Cari semua item ayam dan pastikan satuannya dikonversi ke KG
     rawStock.forEach(i => {
       if (String(i.name).toUpperCase().includes('AYAM')) {
         let val = Number(i.currentStock || 0);
         let unit = String(i.unit).toUpperCase();
         
-        // Kalau satuannya Kantong, 1 Kantong = 10 Kg
         if (unit.includes('KANT') || unit.includes('KNTG')) {
           val = val * 10;
         }
@@ -140,7 +137,7 @@ export default function TabStok({
     
     let status = 'AMAN'; 
     if (daysLeft <= 1.5) status = 'KRITIS';
-    else if (daysLeft <= 3) status = 'SIAGA';
+    else if (daysLeft < 3) status = 'SIAGA'; // 🔥 FIX: Diganti jadi KURANG DARI 3 (Bukan <= 3). Kalau tepat 3 hari = AMAN (Hijau)
 
     const estDanaDibutuhkan = 37230000;
 
@@ -204,8 +201,8 @@ export default function TabStok({
               const parts = parsed[0].name.split('||');
               timeline.push({
                 id: batch.id + '-ING', date: batch.date, type: 'OUT', category: 'Pemakaian Produksi',
-                itemName: 'DAGING AYAM GILING', // Nama generic untuk sinkronisasi mutasi
-                qty: Number(parts[2] || 0) / 10, // Diubah jadi kantong untuk konsistensi logistik
+                itemName: 'AYAM GILING', 
+                qty: Number(parts[2] || 0) / 10,
                 reference: `Untuk Batch: ${batch.id}`
               });
            }
@@ -273,9 +270,15 @@ export default function TabStok({
                   <tr><td colSpan="4" className="text-center py-16 text-slate-400 font-medium">Data produk belum tersedia atau tidak ditemukan.</td></tr>
                 ) : (
                   freezerStock.map((item, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                    // 🔥 FITUR KLIK UNTUK MELIHAT RIWAYAT PRODUK MATANG
+                    <tr 
+                      key={idx} 
+                      onClick={() => setSelectedItemDetail(item.name)}
+                      className="hover:bg-red-50/50 transition-colors cursor-pointer group"
+                      title="Klik untuk melihat riwayat mutasi produk ini"
+                    >
                       <td className="px-5 py-4 whitespace-nowrap">
-                        <div className="text-slate-800 font-black text-sm uppercase tracking-wide">{item.name || 'Umum'}</div>
+                        <div className="text-slate-800 font-black text-sm uppercase tracking-wide group-hover:text-red-600 transition-colors">{item.name || 'Umum'}</div>
                         <div className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">{item.sku || 'Tanpa SKU'} • {item.category ? item.category.replace(/_/g, ' ') : 'Umum'}</div>
                       </td>
                       <td className="px-5 py-4 text-center font-black text-emerald-600 text-sm">+{formatNumber(item.stockIn)}</td>
@@ -289,6 +292,9 @@ export default function TabStok({
                 )}
               </tbody>
             </table>
+            <div className="p-3 text-center text-[10px] font-bold text-slate-400 bg-slate-50 uppercase tracking-widest border-t border-slate-100">
+                💡 Tip: Klik pada baris produk untuk melihat riwayat mutasi secara detail
+            </div>
           </div>
         </div>
       )}
@@ -296,7 +302,6 @@ export default function TabStok({
       {activeTab === 'BAHAN_BAKU' && (
         <div className="space-y-6">
           
-          {/* 🔥 RADAR PREDIKSI AYAM YANG SUDAH 100% AKURAT */}
           <div className={`p-6 rounded-3xl border shadow-sm relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-6 ${
             ayamForecast.status === 'AMAN' ? 'bg-emerald-50 border-emerald-200' :
             ayamForecast.status === 'SIAGA' ? 'bg-amber-50 border-amber-200' :
@@ -419,7 +424,13 @@ export default function TabStok({
                   </tr>
                 ) : (
                   kartuMutasi.map((log, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                    // 🔥 FITUR KLIK UNTUK MELIHAT HISTORI DETAIL (MEMFILTER DARI TIMELINE INI SENDIRI)
+                    <tr 
+                      key={idx} 
+                      onClick={() => setSelectedItemDetail(log.itemName)}
+                      className="hover:bg-blue-50/50 transition-colors cursor-pointer group"
+                      title="Klik untuk melihat histori lengkap item ini"
+                    >
                       <td className="px-5 py-4 whitespace-nowrap">
                         <div className="text-slate-800 font-black">{formatDate(log.date)}</div>
                         <div className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">Ref: {log.id}</div>
@@ -428,7 +439,7 @@ export default function TabStok({
                         <div className="font-black text-slate-700 uppercase tracking-wide">{log.category}</div>
                         <div className="text-[10px] text-slate-500 mt-1 uppercase truncate max-w-[200px] tracking-wider">Oleh: {log.reference}</div>
                       </td>
-                      <td className="px-5 py-4 font-black text-slate-800 uppercase tracking-wide">{log.itemName || 'Item tidak diketahui'}</td>
+                      <td className="px-5 py-4 font-black text-slate-800 uppercase tracking-wide group-hover:text-blue-600 transition-colors">{log.itemName || 'Item tidak diketahui'}</td>
                       <td className="px-5 py-4 text-center whitespace-nowrap">
                         {log.type === 'IN' ? (
                           <span className="bg-emerald-50 text-emerald-700 border border-emerald-100 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 w-max mx-auto shadow-sm"><ArrowDownRight size={14}/> Barang Masuk</span>
@@ -446,6 +457,9 @@ export default function TabStok({
                 )}
               </tbody>
             </table>
+            <div className="p-3 text-center text-[10px] font-bold text-slate-400 bg-slate-50 uppercase tracking-widest border-t border-slate-100">
+                💡 Tip: Klik pada nama barang untuk memfilter riwayat khusus barang tersebut
+            </div>
           </div>
         </div>
       )}
