@@ -7,13 +7,12 @@ const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 export default function TabPemalang({ 
   pemalang = [], masterProducts = [], master_products,
   inventoryCostLayers = [], inventory_cost_layers,
-  purchases = [], // <--- [FIX]: Menambahkan props purchases agar bisa baca Nota Belanja
+  purchases = [], // 🔥 FIX: Mengambil data nota belanja
   sendToSheet, showToast, user, requestDelete, setPrintData 
 }) {
   const todayStr = getTodayStr();
   const currentBranch = user?.branch_id || 'TANGERANG_PUSAT';
   
-  const realInventory = useMemo(() => inventory_cost_layers || inventoryCostLayers || [], [inventory_cost_layers, inventoryCostLayers]);
   const realProducts = useMemo(() => master_products || masterProducts || [], [master_products, masterProducts]);
 
   const activeMenus = useMemo(() => {
@@ -29,55 +28,50 @@ export default function TabPemalang({
   const [actualUnit, setActualUnit] = useState('MIKA');
   const [notes, setNotes] = useState('');
 
-  const [filterDateFrom, setFilterPeriodeFrom] = useState(todayStr);
-  const [filterDateTo, setFilterPeriodeTo] = useState(todayStr);
+  // 🔥 FIX: Filter Periode jadi Dropdown Praktis
+  const [filterMode, setFilterMode] = useState('HARI_INI'); 
+  const [filterMonth, setFilterMonth] = useState(todayStr.substring(0,7));
 
-  // [FIX] LOGIKA KALKULASI STOK GUDANG BARU
+  // 🔥 FIX: ALGORITMA STOK PINTAR (BELI - PAKAI = SISA)
   const stockGudang = useMemo(() => {
-    let totalAyamKantong = 0;
-
-    // 1. TAMBAH STOK DARI NOTA BELANJA (BARANG MASUK)
-    const validPurchases = purchases || [];
-    validPurchases.forEach(p => {
+    let totalAyamMasukKg = 0;
+    
+    // 1. Hitung Semua Ayam Masuk dari Nota Belanja (Purchases)
+    (purchases || []).forEach(p => {
       if (p.isDeleted || String(p.isDeleted).toUpperCase() === 'TRUE') return;
       if (p.branch_id !== currentBranch && currentBranch !== 'TANGERANG_PUSAT') return;
       
+      const supplierName = String(p.supplier_name || '').toUpperCase();
       const itemName = String(p.item_name || '').toUpperCase();
-      const category = String(p.category || '').toUpperCase();
       
-      // Deteksi jika yang dibeli adalah Ayam / Bahan Baku
-      if (itemName.includes('AYAM') || category === 'BAHAN_BAKU' || category.includes('BAHAN')) {
-        let qty = Number(p.qty || 0);
-        const unit = String(p.unit || '').toUpperCase();
-        
-        // Auto convert jika belanjanya menggunakan satuan KG (1 Kantong = 10 Kg)
-        if (unit === 'KG' || itemName.includes('KG')) {
-          qty = qty / 10;
+      if (supplierName.includes('NANA') || itemName.includes('AYAM')) {
+        let kg = Number(p.qty || 0);
+        if (String(p.unit).toUpperCase() === 'KANTONG') kg = kg * 10;
+        totalAyamMasukKg += kg;
+      }
+    });
+
+    // 2. Hitung Semua Pemakaian Ayam di Dapur (Pemalang)
+    let totalAyamKeluarKg = 0;
+    (pemalang || []).forEach(p => {
+      if (p.isDeleted || String(p.isDeleted).toUpperCase() === 'TRUE') return;
+      if (p.branch_id !== currentBranch && currentBranch !== 'TANGERANG_PUSAT') return;
+      
+      if (p.items) {
+        const parsed = safeJsonParse(p.items, []);
+        if (parsed.length > 0 && String(parsed[0].name).startsWith('@@PRODUCTION@@')) {
+          const parts = parsed[0].name.split('||');
+          totalAyamKeluarKg += Number(parts[2] || 0); // index 2 adalah ayam_kg yang dipakai
         }
-        totalAyamKantong += qty;
       }
     });
 
-    // 2. KURANGI STOK DARI PEMAKAIAN PRODUKSI (BARANG KELUAR)
-    realInventory.forEach(inv => {
-      if (inv.isDeleted || String(inv.isDeleted).toUpperCase() === 'TRUE') return;
-      if (inv.branch_id !== currentBranch && currentBranch !== 'TANGERANG_PUSAT') return;
-      
-      const category = String(inv.category || '').toUpperCase();
-      const itemName = String(inv.item_name || '').toUpperCase();
-      
-      if (category === 'BAHAN_BAKU' || itemName.includes('AYAM')) {
-        // Sistem produksi otomatis ngasih nilai minus (-) di qty_remaining
-        let qty = Number(inv.qty_remaining !== undefined ? inv.qty_remaining : (inv.qty || 0));
-        totalAyamKantong += qty;
-      }
-    });
-
+    const sisaAyamKg = totalAyamMasukKg - totalAyamKeluarKg;
     return { 
-      ayamKantong: Number(totalAyamKantong.toFixed(2)), 
-      ayamKg: Number((totalAyamKantong * 10).toFixed(2)) 
+      ayamKg: Number(sisaAyamKg.toFixed(2)), 
+      ayamKantong: Number((sisaAyamKg / 10).toFixed(2)) 
     };
-  }, [realInventory, purchases, currentBranch]);
+  }, [purchases, pemalang, currentBranch]);
 
   const totalAyamKgTerpakai = useMemo(() => {
     let totalKg = 0;
@@ -87,10 +81,7 @@ export default function TabPemalang({
         const parsed = safeJsonParse(p.items, []);
         if (parsed.length > 0 && String(parsed[0].name).startsWith('@@PRODUCTION@@')) {
           const parts = parsed[0].name.split('||');
-          const kgValue = Number(parts[2] || 0);
-          if (!isNaN(kgValue)) {
-            totalKg += kgValue;
-          }
+          totalKg += Number(parts[2] || 0);
         }
       }
     });
@@ -127,10 +118,20 @@ export default function TabPemalang({
 
   const filteredProductionLogs = useMemo(() => {
     return (pemalang || []).filter((p) => {
-      if (p.isDeleted) return false;
-      return p.date >= filterDateFrom && p.date <= filterDateTo;
+      if (p.isDeleted || String(p.isDeleted).toUpperCase() === 'TRUE') return false;
+      
+      if (filterMode === 'HARI_INI') return p.date === todayStr;
+      if (filterMode === 'BULAN_INI') return String(p.date).startsWith(todayStr.substring(0,7));
+      if (filterMode === 'PILIH_BULAN') return String(p.date).startsWith(filterMonth);
+      if (filterMode === 'MINGGU_INI') {
+         const dDate = new Date(p.date);
+         const dToday = new Date(todayStr);
+         const diff = (dToday - dDate) / (1000 * 60 * 60 * 24);
+         return diff >= 0 && diff <= 7;
+      }
+      return true;
     }).sort((a, b) => b.id.localeCompare(a.id));
-  }, [pemalang, filterDateFrom, filterDateTo]);
+  }, [pemalang, filterMode, filterMonth, todayStr]);
 
   const handleAdukanChange = (val) => {
     const adk = Number(val.replace(/\D/g, ''));
@@ -164,18 +165,8 @@ export default function TabPemalang({
       item_name: productName, pic: pic.toUpperCase() 
     };
 
-    let payloadAyam = null;
-    if (kalkulasi.butuhAyamKantong > 0) {
-      payloadAyam = {
-        id: generateId('INV', date), date: date, branch_id: currentBranch, category: 'BAHAN_BAKU', 
-        item_name: `Produksi: ${productName} (${adukan} adukan)`, 
-        qty_remaining: -kalkulasi.butuhAyamKantong, unit_cost: 0, status: 'USED', reference_id: batchId
-      };
-    }
-
     const isSuccess = await sendToSheet('insert', payloadBatch, 'pemalang');
     if (isSuccess) {
-      if (payloadAyam) sendToSheet('insert', payloadAyam, 'inventory_cost_layers');
       if (typeof showToast === 'function') showToast(`Batch Produksi ${batchId} Disahkan!`, 'success');
       setAdukan(''); setAyamTerpakai(''); setActualInput(''); setNotes(''); setProductName('');
     }
@@ -223,7 +214,7 @@ export default function TabPemalang({
           <div className={`bg-slate-900/60 border ${kalkulasi.sisaAyamKantong < 0 ? 'border-red-500 shadow-red-500/20' : 'border-slate-700/50'} rounded-2xl p-4 flex flex-col items-center justify-center text-center shadow-inner backdrop-blur-sm relative overflow-hidden`}>
             {kalkulasi.sisaAyamKantong < 0 && <div className="absolute top-0 w-full bg-red-600 text-white text-[8px] font-black uppercase tracking-widest text-center py-0.5">Minus!</div>}
             <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 mt-1">Sisa Di Gudang</div>
-            <div className={`text-xl font-black ${kalkulasi.sisaAyamKantong < 0 ? 'text-red-400' : 'text-white'}`}>{formatNumber(kalkulasi.sisaAyamKantong)} <span className="text-[10px] text-slate-500">Kntg</span></div>
+            <div className={`text-xl font-black ${kalkulasi.sisaAyamKantong < 0 ? 'text-red-400' : 'text-emerald-400'}`}>{formatNumber(kalkulasi.sisaAyamKantong)} <span className="text-[10px] text-slate-500">Kntg</span></div>
           </div>
         </div>
       </div>
@@ -294,12 +285,21 @@ export default function TabPemalang({
         <div className="xl:col-span-7 flex flex-col bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-6 bg-slate-50 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <h4 className="font-black text-slate-800 uppercase tracking-wide text-sm flex items-center gap-2"><ClipboardList size={18} className="text-amber-600"/> Jurnal Log Rekap Hasil Giling</h4>
+            
+            {/* 🔥 FIX: FILTER PERIODE DROPDOWN */}
             <div className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-xl shadow-sm">
               <Calendar size={14} className="text-amber-500 ml-0.5"/>
-              <input type="date" value={filterDateFrom} onChange={(e) => setFilterPeriodeFrom(e.target.value)} className="text-[11px] font-bold outline-none cursor-pointer text-slate-700" />
-              <span className="text-slate-400 font-bold">-</span>
-              <input type="date" value={filterDateTo} onChange={(e) => setFilterPeriodeTo(e.target.value)} className="text-[11px] font-bold outline-none cursor-pointer text-slate-700" />
+              <select value={filterMode} onChange={(e) => setFilterMode(e.target.value)} className="text-[11px] font-black outline-none cursor-pointer text-slate-700 uppercase tracking-wider bg-transparent">
+                <option value="HARI_INI">Hari Ini</option>
+                <option value="MINGGU_INI">7 Hari Terakhir</option>
+                <option value="BULAN_INI">Bulan Ini</option>
+                <option value="PILIH_BULAN">Pilih Bulan...</option>
+              </select>
+              {filterMode === 'PILIH_BULAN' && (
+                <input type="month" value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} className="text-[11px] font-bold outline-none cursor-pointer text-slate-700 border-l border-slate-200 pl-2 ml-1" />
+              )}
             </div>
+
           </div>
           
           <div className="overflow-x-auto flex-1 p-2 custom-scrollbar min-h-[60vh]">
@@ -319,7 +319,7 @@ export default function TabPemalang({
                     <td colSpan="5" className="text-center py-24 text-slate-400">
                       <Factory size={48} className="mx-auto mb-3 opacity-20"/>
                       <div className="text-sm font-black uppercase tracking-wider">Belum Ada Laporan</div>
-                      <div className="text-[10px] font-bold normal-case mt-1">Tidak ada rekam jejak produksi dapur di tanggal ini.</div>
+                      <div className="text-[10px] font-bold normal-case mt-1">Tidak ada rekam jejak produksi dapur di periode ini.</div>
                     </td>
                   </tr>
                 ) : (
