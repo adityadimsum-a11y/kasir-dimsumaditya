@@ -23,15 +23,13 @@ export default function TabPemalang({
   const [pic, setPic] = useState(user?.name || '');
   const [productName, setProductName] = useState('');
   const [adukan, setAdukan] = useState('');
-  const [ayamTerpakai, setAyamTerpakai] = useState('');
   const [actualInput, setActualInput] = useState('');
   const [actualUnit, setActualUnit] = useState('MIKA');
   const [notes, setNotes] = useState('');
 
-  // 🔥 FILTER PERIODE SIMPEL
-  const [filterMode, setFilterMode] = useState('MINGGU_INI'); // Default 7 Hari
-  
-  // 🔥 ALGORITMA STOK PINTAR: BELI DIKURANGI PAKAI
+  const [filterMode, setFilterMode] = useState('MINGGU_INI'); 
+  const [filterMonth, setFilterMonth] = useState(todayStr.substring(0,7));
+
   const stockAyam = useMemo(() => {
     let masukKg = 0;
     let keluarKg = 0;
@@ -59,7 +57,7 @@ export default function TabPemalang({
         const parsed = safeJsonParse(p.items, []);
         if (parsed.length > 0 && String(parsed[0].name).startsWith('@@PRODUCTION@@')) {
           const parts = parsed[0].name.split('||');
-          keluarKg += Number(parts[2] || 0); // index 2 adalah Kg Ayam yg dipakai
+          keluarKg += Number(parts[2] || 0); 
         }
       }
     });
@@ -88,13 +86,14 @@ export default function TabPemalang({
     const previewPorsi = Math.floor(actualTotalPcs / 4);
 
     const selisihPcs = actualTotalPcs - stdPcs;
+    const butuhAyamKg = adukanNum * 30;
     const butuhAyamKantong = adukanNum * 3; 
     
     const sisaAyamKantong = stockAyam.sisaKantong - butuhAyamKantong;
 
     return { 
       adukanNum, stdPcs, stdMika, actualTotalPcs, previewMika, previewPorsi, 
-      inputAngka, selisihPcs, butuhAyamKantong, sisaAyamKantong 
+      inputAngka, selisihPcs, butuhAyamKg, butuhAyamKantong, sisaAyamKantong 
     };
   }, [adukan, actualInput, actualUnit, stockAyam]);
 
@@ -102,20 +101,19 @@ export default function TabPemalang({
     return (pemalang || []).filter((p) => {
       if (p.isDeleted || String(p.isDeleted).toUpperCase() === 'TRUE') return false;
       
+      if (filterMode === 'HARI_INI') return p.date === todayStr;
+      if (filterMode === 'BULAN_INI') return String(p.date).startsWith(todayStr.substring(0,7));
+      if (filterMode === 'PILIH_BULAN') return String(p.date).startsWith(filterMonth);
       if (filterMode === 'MINGGU_INI') {
          const dDate = new Date(p.date);
          const dToday = new Date(todayStr);
          const diff = (dToday - dDate) / (1000 * 60 * 60 * 24);
          return diff >= 0 && diff <= 7;
       }
-      if (filterMode === 'BULAN_INI') {
-         return String(p.date).startsWith(todayStr.substring(0,7));
-      }
       return true;
     }).sort((a, b) => b.id.localeCompare(a.id));
-  }, [pemalang, filterMode, todayStr]);
+  }, [pemalang, filterMode, filterMonth, todayStr]);
 
-  // 🔥 REKAP TOTAL SESUAI RENTANG WAKTU
   const summaryFiltered = useMemo(() => {
     let totalAdukan = 0;
     let totalYieldPcs = 0;
@@ -152,9 +150,10 @@ export default function TabPemalang({
     }
 
     const batchId = generateId('PRD', date);
-    const tokenName = `@@PRODUCTION@@||${adukan}||${ayamTerpakai}||${kalkulasi.actualTotalPcs}||${notes || '-'}`;
+    // Ayam (Kg) otomatis masuk dari kalkulasi.butuhAyamKg
+    const tokenName = `@@PRODUCTION@@||${adukan}||${kalkulasi.butuhAyamKg}||${kalkulasi.actualTotalPcs}||${notes || '-'}`;
 
-    const confirmMsg = `=== KONFIRMASI PRODUKSI ADITYA ===\n\nID Batch : ${batchId}\nTanggal  : ${formatDate(date)}\nAdukan   : ${adukan} Kali\nAyam     : ${ayamTerpakai} Kg\nYield    : ${formatNumber(kalkulasi.actualTotalPcs)} Pcs\n\nSahkan data untuk update stok freezer?`;
+    const confirmMsg = `=== KONFIRMASI PRODUKSI ADITYA ===\n\nID Batch : ${batchId}\nTanggal  : ${formatDate(date)}\nAdukan   : ${adukan} Kali\nAyam     : ${kalkulasi.butuhAyamKg} Kg (Auto)\nYield    : ${formatNumber(kalkulasi.actualTotalPcs)} Pcs\n\nSahkan data untuk update stok freezer?`;
 
     if (!window.confirm(confirmMsg)) return;
 
@@ -169,7 +168,7 @@ export default function TabPemalang({
     const isSuccess = await sendToSheet('insert', payloadBatch, 'pemalang');
     if (isSuccess) {
       if (typeof showToast === 'function') showToast(`Batch Produksi ${batchId} Disahkan!`, 'success');
-      setAdukan(''); setAyamTerpakai(''); setActualInput(''); setNotes(''); setProductName('');
+      setAdukan(''); setActualInput(''); setNotes(''); setProductName('');
     }
   };
 
@@ -183,50 +182,46 @@ export default function TabPemalang({
     <div className="flex flex-col gap-6 pb-10 text-slate-700 animate-in fade-in duration-300">
       
       {/* 🚀 HEADER BANNER PABRIK */}
-      <div className="bg-gradient-to-r from-red-900 via-rose-900 to-red-900 p-6 lg:p-8 flex flex-col xl:flex-row justify-between items-start gap-6 rounded-3xl shadow-xl relative overflow-hidden border border-red-800">
+      <div className="bg-gradient-to-r from-red-900 via-rose-900 to-red-900 p-6 lg:p-8 flex flex-col xl:flex-row justify-between items-stretch gap-6 rounded-3xl shadow-xl relative overflow-hidden border border-red-800">
         <div className="absolute top-0 right-0 p-4 opacity-5"><Factory size={120} className="text-red-400"/></div>
         <div className="absolute -top-32 -left-32 w-72 h-72 bg-red-500/20 rounded-full blur-3xl pointer-events-none"></div>
 
-        <div className="relative z-10 w-full xl:w-1/3 shrink-0">
+        <div className="relative z-10 w-full xl:w-1/3 shrink-0 flex flex-col justify-center">
            <div className="flex items-center gap-2 mb-3">
              <Database size={24} className="text-red-400"/>
-             <h2 className="text-xl font-black text-white uppercase tracking-wide">Monitor Gudang &amp; Hasil Fisik Aktual</h2>
+             <h2 className="text-xl font-black text-white uppercase tracking-wide">Monitor Pabrik Utama</h2>
            </div>
            <p className="text-[11px] font-bold text-slate-300 leading-relaxed max-w-sm">
-             Pusat kendali laporan adukan pabrik. Pantau total sisa ayam di gudang dan target konversi dimsum yang masuk ke freezer.
+             Pusat kendali laporan adukan pabrik. Pantau total sisa ayam di gudang dan hasil rekap dimsum yang berhasil diproduksi.
            </p>
         </div>
         
-        {/* 🔥 FIX: MONITOR JADI 2 BARIS (PRODUKSI & AYAM) */}
-        <div className="relative z-10 w-full xl:w-2/3 flex flex-col gap-3">
+        {/* 🔥 TAMPILAN MONITOR SUPER SIMPLE (2 KOTAK RAKSASA AJA) */}
+        <div className="relative z-10 w-full xl:w-2/3 flex flex-col sm:flex-row gap-4">
            
-           {/* BARIS 1: MONITOR PRODUKSI HARI INI */}
-           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-             <div className="bg-slate-900/60 border border-slate-700/50 rounded-2xl p-4 flex flex-col items-center justify-center text-center shadow-inner backdrop-blur-sm">
-                <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Target Standar Hari Ini</div>
-                <div className="text-sm font-black text-white leading-tight">{formatNumber(kalkulasi.stdMika)} <span className="text-[9px] text-slate-500">Mika</span></div>
-                <div className="text-sm font-black text-white leading-tight">{formatNumber(kalkulasi.stdPcs)} <span className="text-[9px] text-slate-500">Pcs</span></div>
+           {/* BOX 1: STOK AYAM GUDANG (LIVE) */}
+           <div className="flex-1 bg-slate-900/60 border border-slate-700/50 rounded-2xl p-5 flex flex-col justify-center shadow-inner backdrop-blur-sm relative overflow-hidden">
+             {kalkulasi.sisaAyamKantong < 0 && <div className="absolute top-0 w-full left-0 bg-red-600 text-white text-[9px] font-black uppercase tracking-widest text-center py-0.5">Stok Minus!</div>}
+             <div className="text-[11px] font-black text-slate-400 uppercase tracking-wider mb-1">Sisa Ayam Gudang Logistik</div>
+             <div className="text-4xl font-black text-white tracking-tight my-1">
+               {formatNumber(kalkulasi.sisaAyamKantong)} <span className="text-sm text-slate-500 font-bold">Kntg</span>
              </div>
-             <div className="bg-slate-900/60 border border-slate-700/50 rounded-2xl p-4 flex flex-col items-center justify-center text-center shadow-inner backdrop-blur-sm md:col-span-2">
-                <div className="text-[10px] font-black text-emerald-400 uppercase tracking-wider mb-1">Hasil Fisik Produksi (Hari Ini)</div>
-                <div className="text-3xl font-black text-emerald-500 tracking-tight my-1">{formatNumber(kalkulasi.actualTotalPcs)} <span className="text-[10px] text-emerald-600/50 font-bold">Pcs</span></div>
+             <div className="text-[10px] font-bold text-slate-400 mt-2 flex gap-3">
+               <span>Beli Masuk: <b className="text-slate-300">{formatNumber(stockAyam.masukKantong)}</b></span>
+               <span>Dipakai: <b className="text-amber-500">{formatNumber(stockAyam.keluarKantong)}</b></span>
              </div>
            </div>
 
-           {/* BARIS 2: MONITOR STOK AYAM GLOBAL */}
-           <div className="grid grid-cols-3 gap-3">
-             <div className="bg-slate-900/60 border border-slate-700/50 rounded-2xl p-3 flex flex-col items-center justify-center text-center shadow-inner backdrop-blur-sm">
-                <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">Total Beli Masuk</div>
-                <div className="text-lg font-black text-slate-300 leading-tight">{formatNumber(stockAyam.masukKantong)} <span className="text-[8px] text-slate-500">Kntg</span></div>
+           {/* BOX 2: TOTAL PRODUKSI (DARI FILTER TABEL) */}
+           <div className="flex-1 bg-slate-900/60 border border-slate-700/50 rounded-2xl p-5 flex flex-col justify-center shadow-inner backdrop-blur-sm">
+             <div className="text-[11px] font-black text-emerald-400 uppercase tracking-wider mb-1">
+               Hasil Produksi ({filterMode.replace('_', ' ')})
              </div>
-             <div className="bg-slate-900/60 border border-slate-700/50 rounded-2xl p-3 flex flex-col items-center justify-center text-center shadow-inner backdrop-blur-sm">
-                <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">Dipakai Dapur</div>
-                <div className="text-lg font-black text-amber-500 leading-tight">{formatNumber(stockAyam.keluarKantong)} <span className="text-[8px] text-amber-600/50">Kntg</span></div>
+             <div className="text-4xl font-black text-emerald-500 tracking-tight my-1">
+               {formatNumber(summaryFiltered.totalYieldPcs)} <span className="text-sm text-emerald-700 font-bold">Pcs</span>
              </div>
-             <div className={`bg-slate-900/60 border ${kalkulasi.sisaAyamKantong < 0 ? 'border-red-500 shadow-red-500/20' : 'border-slate-700/50'} rounded-2xl p-3 flex flex-col items-center justify-center text-center shadow-inner backdrop-blur-sm relative overflow-hidden`}>
-                {kalkulasi.sisaAyamKantong < 0 && <div className="absolute top-0 w-full bg-red-600 text-white text-[8px] font-black uppercase tracking-widest text-center py-0.5">Minus!</div>}
-                <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1 mt-1">Sisa Di Gudang</div>
-                <div className={`text-xl font-black ${kalkulasi.sisaAyamKantong < 0 ? 'text-red-400' : 'text-white'}`}>{formatNumber(kalkulasi.sisaAyamKantong)} <span className="text-[9px] text-slate-500">Kntg</span></div>
+             <div className="text-[10px] font-bold text-emerald-600 mt-2">
+               Total Putaran Mesin: <b className="text-emerald-400">{formatNumber(summaryFiltered.totalAdukan)} Adukan</b>
              </div>
            </div>
 
@@ -262,6 +257,14 @@ export default function TabPemalang({
               <div className="absolute -top-3 left-5 bg-slate-800 text-white text-[9px] font-black px-3 py-0.5 rounded-md uppercase tracking-widest shadow-md">Langkah 1</div>
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-2 text-center mt-2">Total Adukan Hari Ini</label>
               <input type="number" min="1" required value={adukan} onChange={(e) => handleAdukanChange(e.target.value)} className="w-full py-4 border-2 border-slate-300 rounded-xl text-4xl font-black text-slate-800 bg-white outline-none text-center focus:border-red-500 shadow-sm transition-colors" placeholder="0" />
+              
+              {/* 🔥 BOCORAN TARGET DAN POTONGAN AYAM PINDAH KE SINI */}
+              {adukan && (
+                <div className="mt-4 pt-3 border-t border-slate-200 flex justify-between text-[9px] font-black uppercase tracking-wider text-slate-500">
+                  <span>Target: <b className="text-slate-800">{formatNumber(kalkulasi.stdMika)} Mika ({formatNumber(kalkulasi.stdPcs)} Pcs)</b></span>
+                  <span>Ayam Terpakai: <b className="text-red-600">{formatNumber(kalkulasi.butuhAyamKantong)} Kntg ({formatNumber(kalkulasi.butuhAyamKg)} Kg)</b></span>
+                </div>
+              )}
             </div>
 
             <div className="bg-red-50/50 p-5 rounded-2xl border border-red-100 shadow-inner relative">
@@ -282,15 +285,11 @@ export default function TabPemalang({
             </div>
 
             <div>
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1.5">Daging Ayam (Kg) Terpakai</label>
-              <input type="number" step="any" required value={ayamTerpakai} onChange={(e) => setAyamTerpakai(e.target.value)} className="w-full p-3 border border-slate-200 rounded-xl text-sm font-black bg-slate-50 outline-none focus:bg-white focus:border-red-400 shadow-sm transition-colors" placeholder="Cth: 12.5" />
-            </div>
-            <div>
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1.5">Catatan Tambahan</label>
               <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full p-3 border border-slate-200 rounded-xl text-xs font-medium bg-slate-50 outline-none focus:bg-white focus:border-red-400 shadow-sm normal-case transition-colors" placeholder="Opsional..." />
             </div>
 
-            <button type="submit" className="w-full py-4 rounded-xl text-xs font-black shadow-md flex items-center justify-center gap-2 mt-4 bg-red-600 hover:bg-red-700 text-white uppercase tracking-wider transition-transform active:scale-95 cursor-pointer">
+            <button type="submit" className="w-full py-4 rounded-xl text-xs font-black shadow-md flex items-center justify-center gap-2 mt-2 bg-red-600 hover:bg-red-700 text-white uppercase tracking-wider transition-transform active:scale-95 cursor-pointer">
               <CheckCircle2 size={16}/> Lapor Fisik &amp; Potong Gudang
             </button>
           </form>
@@ -300,24 +299,19 @@ export default function TabPemalang({
           <div className="p-6 bg-slate-50 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start gap-4">
             <div>
                <h4 className="font-black text-slate-800 uppercase tracking-wide text-sm flex items-center gap-2"><ClipboardList size={18} className="text-amber-600"/> Jurnal Log Rekap Hasil Giling</h4>
-               {/* 🔥 FIX: REKAP TOTAL SESUAI PERIODE */}
-               <div className="mt-3 flex flex-wrap gap-2">
-                 <div className="bg-red-50 text-red-700 border border-red-100 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider shadow-3xs">
-                   Total: {formatNumber(summaryFiltered.totalAdukan)} Adukan
-                 </div>
-                 <div className="bg-amber-50 text-amber-700 border border-amber-100 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider shadow-3xs">
-                   Yield: {formatNumber(summaryFiltered.totalYieldPcs)} Pcs
-                 </div>
-               </div>
             </div>
             
-            {/* 🔥 FIX: FILTER PERIODE SIMPEL */}
             <div className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-xl shadow-sm">
               <Calendar size={14} className="text-amber-500 ml-0.5"/>
               <select value={filterMode} onChange={(e) => setFilterMode(e.target.value)} className="text-[11px] font-black outline-none cursor-pointer text-slate-700 uppercase tracking-wider bg-transparent">
+                <option value="HARI_INI">Hari Ini</option>
                 <option value="MINGGU_INI">7 Hari Terakhir</option>
                 <option value="BULAN_INI">Bulan Ini</option>
+                <option value="PILIH_BULAN">Pilih Bulan...</option>
               </select>
+              {filterMode === 'PILIH_BULAN' && (
+                <input type="month" value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} className="text-[11px] font-bold outline-none cursor-pointer text-slate-700 border-l border-slate-200 pl-2 ml-1" />
+              )}
             </div>
           </div>
           
