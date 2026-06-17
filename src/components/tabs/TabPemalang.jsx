@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Factory, PlusCircle, Trash2, Calendar, ClipboardList, Info, CheckCircle2, Printer, Database, PackageCheck } from 'lucide-react';
+import { Factory, PlusCircle, Trash2, Calendar, ClipboardList, Info, CheckCircle2, Printer, Database, PackageCheck, Target } from 'lucide-react';
 import { getTodayStr, generateId, formatDate, safeJsonParse } from '../../utils/helpers';
 
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
@@ -7,7 +7,7 @@ const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 export default function TabPemalang({ 
   pemalang = [], masterProducts = [], master_products,
   inventoryCostLayers = [], inventory_cost_layers,
-  purchases = [], // 🔥 FIX: Mengambil data nota belanja
+  purchases = [], 
   sendToSheet, showToast, user, requestDelete, setPrintData 
 }) {
   const todayStr = getTodayStr();
@@ -28,31 +28,29 @@ export default function TabPemalang({
   const [actualUnit, setActualUnit] = useState('MIKA');
   const [notes, setNotes] = useState('');
 
-  // 🔥 FIX: Filter Periode jadi Dropdown Praktis
-  const [filterMode, setFilterMode] = useState('HARI_INI'); 
-  const [filterMonth, setFilterMonth] = useState(todayStr.substring(0,7));
+  // 🔥 FILTER PERIODE SIMPEL
+  const [filterMode, setFilterMode] = useState('MINGGU_INI'); // Default 7 Hari
+  
+  // 🔥 ALGORITMA STOK PINTAR: BELI DIKURANGI PAKAI
+  const stockAyam = useMemo(() => {
+    let masukKg = 0;
+    let keluarKg = 0;
 
-  // 🔥 FIX: ALGORITMA STOK PINTAR (BELI - PAKAI = SISA)
-  const stockGudang = useMemo(() => {
-    let totalAyamMasukKg = 0;
-    
-    // 1. Hitung Semua Ayam Masuk dari Nota Belanja (Purchases)
     (purchases || []).forEach(p => {
       if (p.isDeleted || String(p.isDeleted).toUpperCase() === 'TRUE') return;
       if (p.branch_id !== currentBranch && currentBranch !== 'TANGERANG_PUSAT') return;
       
-      const supplierName = String(p.supplier_name || '').toUpperCase();
-      const itemName = String(p.item_name || '').toUpperCase();
-      
-      if (supplierName.includes('NANA') || itemName.includes('AYAM')) {
-        let kg = Number(p.qty || 0);
-        if (String(p.unit).toUpperCase() === 'KANTONG') kg = kg * 10;
-        totalAyamMasukKg += kg;
+      const itemName = String(p.item_name || p.raw_name || '').toUpperCase();
+      if (itemName.includes('AYAM')) {
+        let qty = Number(p.qty || 0);
+        const unit = String(p.unit).toUpperCase();
+        if (unit.includes('KANT') || unit.includes('KNTG')) {
+          qty = qty * 10; 
+        }
+        masukKg += qty;
       }
     });
 
-    // 2. Hitung Semua Pemakaian Ayam di Dapur (Pemalang)
-    let totalAyamKeluarKg = 0;
     (pemalang || []).forEach(p => {
       if (p.isDeleted || String(p.isDeleted).toUpperCase() === 'TRUE') return;
       if (p.branch_id !== currentBranch && currentBranch !== 'TANGERANG_PUSAT') return;
@@ -61,32 +59,18 @@ export default function TabPemalang({
         const parsed = safeJsonParse(p.items, []);
         if (parsed.length > 0 && String(parsed[0].name).startsWith('@@PRODUCTION@@')) {
           const parts = parsed[0].name.split('||');
-          totalAyamKeluarKg += Number(parts[2] || 0); // index 2 adalah ayam_kg yang dipakai
+          keluarKg += Number(parts[2] || 0); // index 2 adalah Kg Ayam yg dipakai
         }
       }
     });
 
-    const sisaAyamKg = totalAyamMasukKg - totalAyamKeluarKg;
+    const sisaKg = masukKg - keluarKg;
     return { 
-      ayamKg: Number(sisaAyamKg.toFixed(2)), 
-      ayamKantong: Number((sisaAyamKg / 10).toFixed(2)) 
+      masukKantong: masukKg / 10,
+      keluarKantong: keluarKg / 10,
+      sisaKantong: sisaKg / 10 
     };
   }, [purchases, pemalang, currentBranch]);
-
-  const totalAyamKgTerpakai = useMemo(() => {
-    let totalKg = 0;
-    (pemalang || []).forEach((p) => {
-      if (p.isDeleted || p.date !== date) return;
-      if (p.items) {
-        const parsed = safeJsonParse(p.items, []);
-        if (parsed.length > 0 && String(parsed[0].name).startsWith('@@PRODUCTION@@')) {
-          const parts = parsed[0].name.split('||');
-          totalKg += Number(parts[2] || 0);
-        }
-      }
-    });
-    return totalKg;
-  }, [pemalang, date]);
 
   const kalkulasi = useMemo(() => {
     const adukanNum = Number(adukan || 0);
@@ -104,34 +88,51 @@ export default function TabPemalang({
     const previewPorsi = Math.floor(actualTotalPcs / 4);
 
     const selisihPcs = actualTotalPcs - stdPcs;
-    const butuhAyamKg = adukanNum * 30;
     const butuhAyamKantong = adukanNum * 3; 
     
-    const sisaAyamKantong = stockGudang.ayamKantong - butuhAyamKantong;
-    const sisaAyamKg = stockGudang.ayamKg - butuhAyamKg;
+    const sisaAyamKantong = stockAyam.sisaKantong - butuhAyamKantong;
 
     return { 
       adukanNum, stdPcs, stdMika, actualTotalPcs, previewMika, previewPorsi, 
-      inputAngka, selisihPcs, butuhAyamKg, butuhAyamKantong, sisaAyamKantong, sisaAyamKg 
+      inputAngka, selisihPcs, butuhAyamKantong, sisaAyamKantong 
     };
-  }, [adukan, actualInput, actualUnit, stockGudang]);
+  }, [adukan, actualInput, actualUnit, stockAyam]);
 
   const filteredProductionLogs = useMemo(() => {
     return (pemalang || []).filter((p) => {
       if (p.isDeleted || String(p.isDeleted).toUpperCase() === 'TRUE') return false;
       
-      if (filterMode === 'HARI_INI') return p.date === todayStr;
-      if (filterMode === 'BULAN_INI') return String(p.date).startsWith(todayStr.substring(0,7));
-      if (filterMode === 'PILIH_BULAN') return String(p.date).startsWith(filterMonth);
       if (filterMode === 'MINGGU_INI') {
          const dDate = new Date(p.date);
          const dToday = new Date(todayStr);
          const diff = (dToday - dDate) / (1000 * 60 * 60 * 24);
          return diff >= 0 && diff <= 7;
       }
+      if (filterMode === 'BULAN_INI') {
+         return String(p.date).startsWith(todayStr.substring(0,7));
+      }
       return true;
     }).sort((a, b) => b.id.localeCompare(a.id));
-  }, [pemalang, filterMode, filterMonth, todayStr]);
+  }, [pemalang, filterMode, todayStr]);
+
+  // 🔥 REKAP TOTAL SESUAI RENTANG WAKTU
+  const summaryFiltered = useMemo(() => {
+    let totalAdukan = 0;
+    let totalYieldPcs = 0;
+    
+    filteredProductionLogs.forEach(log => {
+       totalYieldPcs += Number(log.qty || 0);
+       if (log.items) {
+          const parsed = safeJsonParse(log.items, []);
+          if (parsed.length > 0 && String(parsed[0].name).startsWith('@@PRODUCTION@@')) {
+             const parts = parsed[0].name.split('||');
+             totalAdukan += Number(parts[1] || 0);
+          }
+       }
+    });
+    
+    return { totalAdukan, totalYieldPcs };
+  }, [filteredProductionLogs]);
 
   const handleAdukanChange = (val) => {
     const adk = Number(val.replace(/\D/g, ''));
@@ -146,8 +147,8 @@ export default function TabPemalang({
     if (kalkulasi.actualTotalPcs <= 0) return alert("Hasil fisik tidak boleh kosong!");
     if (!productName) return alert("Pilih variant produk!");
 
-    if (kalkulasi.butuhAyamKantong > stockGudang.ayamKantong) {
-      if (!window.confirm(`⚠️ Stok ayam minus!\nDapur butuh ${kalkulasi.butuhAyamKantong} Kantong, sistem sisa ${stockGudang.ayamKantong} Kantong.\nLanjutkan pencatatan minus?`)) return;
+    if (kalkulasi.butuhAyamKantong > stockAyam.sisaKantong) {
+      if (!window.confirm(`⚠️ Stok ayam minus!\nDapur butuh ${kalkulasi.butuhAyamKantong} Kantong, sistem sisa ${stockAyam.sisaKantong} Kantong.\nLanjutkan pencatatan minus?`)) return;
     }
 
     const batchId = generateId('PRD', date);
@@ -181,46 +182,59 @@ export default function TabPemalang({
   return (
     <div className="flex flex-col gap-6 pb-10 text-slate-700 animate-in fade-in duration-300">
       
-      {/* 🚀 HEADER BANNER PABRIK - FLUID GRADIENT */}
-      <div className="bg-gradient-to-r from-red-900 via-rose-900 to-red-900 p-6 lg:p-8 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 rounded-3xl shadow-xl relative overflow-hidden border border-red-800">
+      {/* 🚀 HEADER BANNER PABRIK */}
+      <div className="bg-gradient-to-r from-red-900 via-rose-900 to-red-900 p-6 lg:p-8 flex flex-col xl:flex-row justify-between items-start gap-6 rounded-3xl shadow-xl relative overflow-hidden border border-red-800">
         <div className="absolute top-0 right-0 p-4 opacity-5"><Factory size={120} className="text-red-400"/></div>
         <div className="absolute -top-32 -left-32 w-72 h-72 bg-red-500/20 rounded-full blur-3xl pointer-events-none"></div>
 
-        <div className="relative z-10 w-full xl:w-1/3">
+        <div className="relative z-10 w-full xl:w-1/3 shrink-0">
            <div className="flex items-center gap-2 mb-3">
              <Database size={24} className="text-red-400"/>
              <h2 className="text-xl font-black text-white uppercase tracking-wide">Monitor Gudang &amp; Hasil Fisik Aktual</h2>
            </div>
            <p className="text-[11px] font-bold text-slate-300 leading-relaxed max-w-sm">
-             Pusat kendali laporan adukan pabrik. Catat pemakaian ayam mentah dan hasil jadi dimsum yang masuk ke dalam freezer.
+             Pusat kendali laporan adukan pabrik. Pantau total sisa ayam di gudang dan target konversi dimsum yang masuk ke freezer.
            </p>
         </div>
         
-        <div className="relative z-10 grid grid-cols-2 sm:grid-cols-4 gap-4 w-full xl:w-2/3">
-          <div className="bg-slate-900/60 border border-slate-700/50 rounded-2xl p-4 flex flex-col items-center justify-center text-center shadow-inner backdrop-blur-sm">
-            <div className="text-[10px] font-black text-red-400 uppercase tracking-wider mb-1">Total Aktual Masuk POS</div>
-            <div className="text-3xl font-black text-white tracking-tight my-1">{formatNumber(kalkulasi.actualTotalPcs)} <span className="text-[10px] text-slate-400 font-bold">Pcs</span></div>
-          </div>
-          <div className="bg-slate-900/60 border border-slate-700/50 rounded-2xl p-4 flex flex-col items-center justify-center text-center shadow-inner backdrop-blur-sm">
-            <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Target Standar</div>
-            <div className="text-sm font-black text-white leading-tight">{formatNumber(kalkulasi.stdMika)} <span className="text-[9px] text-slate-500">Mika</span></div>
-            <div className="text-sm font-black text-white leading-tight">{formatNumber(kalkulasi.stdPcs)} <span className="text-[9px] text-slate-500">Pcs</span></div>
-          </div>
-          <div className="bg-slate-900/60 border border-slate-700/50 rounded-2xl p-4 flex flex-col items-center justify-center text-center shadow-inner backdrop-blur-sm">
-            <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Ayam Dipakai</div>
-            <div className="text-sm font-black text-white leading-tight">{formatNumber(kalkulasi.butuhAyamKantong)} <span className="text-[9px] text-slate-500">Kantong</span></div>
-            <div className="text-sm font-black text-white leading-tight">{formatNumber(kalkulasi.butuhAyamKg)} <span className="text-[9px] text-slate-500">Kg</span></div>
-          </div>
-          <div className={`bg-slate-900/60 border ${kalkulasi.sisaAyamKantong < 0 ? 'border-red-500 shadow-red-500/20' : 'border-slate-700/50'} rounded-2xl p-4 flex flex-col items-center justify-center text-center shadow-inner backdrop-blur-sm relative overflow-hidden`}>
-            {kalkulasi.sisaAyamKantong < 0 && <div className="absolute top-0 w-full bg-red-600 text-white text-[8px] font-black uppercase tracking-widest text-center py-0.5">Minus!</div>}
-            <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 mt-1">Sisa Di Gudang</div>
-            <div className={`text-xl font-black ${kalkulasi.sisaAyamKantong < 0 ? 'text-red-400' : 'text-emerald-400'}`}>{formatNumber(kalkulasi.sisaAyamKantong)} <span className="text-[10px] text-slate-500">Kntg</span></div>
-          </div>
+        {/* 🔥 FIX: MONITOR JADI 2 BARIS (PRODUKSI & AYAM) */}
+        <div className="relative z-10 w-full xl:w-2/3 flex flex-col gap-3">
+           
+           {/* BARIS 1: MONITOR PRODUKSI HARI INI */}
+           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+             <div className="bg-slate-900/60 border border-slate-700/50 rounded-2xl p-4 flex flex-col items-center justify-center text-center shadow-inner backdrop-blur-sm">
+                <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Target Standar Hari Ini</div>
+                <div className="text-sm font-black text-white leading-tight">{formatNumber(kalkulasi.stdMika)} <span className="text-[9px] text-slate-500">Mika</span></div>
+                <div className="text-sm font-black text-white leading-tight">{formatNumber(kalkulasi.stdPcs)} <span className="text-[9px] text-slate-500">Pcs</span></div>
+             </div>
+             <div className="bg-slate-900/60 border border-slate-700/50 rounded-2xl p-4 flex flex-col items-center justify-center text-center shadow-inner backdrop-blur-sm md:col-span-2">
+                <div className="text-[10px] font-black text-emerald-400 uppercase tracking-wider mb-1">Hasil Fisik Produksi (Hari Ini)</div>
+                <div className="text-3xl font-black text-emerald-500 tracking-tight my-1">{formatNumber(kalkulasi.actualTotalPcs)} <span className="text-[10px] text-emerald-600/50 font-bold">Pcs</span></div>
+             </div>
+           </div>
+
+           {/* BARIS 2: MONITOR STOK AYAM GLOBAL */}
+           <div className="grid grid-cols-3 gap-3">
+             <div className="bg-slate-900/60 border border-slate-700/50 rounded-2xl p-3 flex flex-col items-center justify-center text-center shadow-inner backdrop-blur-sm">
+                <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">Total Beli Masuk</div>
+                <div className="text-lg font-black text-slate-300 leading-tight">{formatNumber(stockAyam.masukKantong)} <span className="text-[8px] text-slate-500">Kntg</span></div>
+             </div>
+             <div className="bg-slate-900/60 border border-slate-700/50 rounded-2xl p-3 flex flex-col items-center justify-center text-center shadow-inner backdrop-blur-sm">
+                <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">Dipakai Dapur</div>
+                <div className="text-lg font-black text-amber-500 leading-tight">{formatNumber(stockAyam.keluarKantong)} <span className="text-[8px] text-amber-600/50">Kntg</span></div>
+             </div>
+             <div className={`bg-slate-900/60 border ${kalkulasi.sisaAyamKantong < 0 ? 'border-red-500 shadow-red-500/20' : 'border-slate-700/50'} rounded-2xl p-3 flex flex-col items-center justify-center text-center shadow-inner backdrop-blur-sm relative overflow-hidden`}>
+                {kalkulasi.sisaAyamKantong < 0 && <div className="absolute top-0 w-full bg-red-600 text-white text-[8px] font-black uppercase tracking-widest text-center py-0.5">Minus!</div>}
+                <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1 mt-1">Sisa Di Gudang</div>
+                <div className={`text-xl font-black ${kalkulasi.sisaAyamKantong < 0 ? 'text-red-400' : 'text-white'}`}>{formatNumber(kalkulasi.sisaAyamKantong)} <span className="text-[9px] text-slate-500">Kntg</span></div>
+             </div>
+           </div>
+
         </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-        <div className="xl:col-span-5 flex flex-col bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden border-t-4 border-t-red-600">
+        <div className="xl:col-span-5 flex flex-col bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden border-t-4 border-t-red-600 h-max">
           <div className="p-6 border-b border-slate-100 bg-slate-50 shrink-0 flex items-center gap-2">
              <Factory size={18} className="text-red-600"/>
              <h4 className="font-black text-slate-800 uppercase tracking-wide text-sm">Form Laporan Hasil Produksi</h4>
@@ -283,23 +297,28 @@ export default function TabPemalang({
         </div>
 
         <div className="xl:col-span-7 flex flex-col bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="p-6 bg-slate-50 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <h4 className="font-black text-slate-800 uppercase tracking-wide text-sm flex items-center gap-2"><ClipboardList size={18} className="text-amber-600"/> Jurnal Log Rekap Hasil Giling</h4>
+          <div className="p-6 bg-slate-50 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start gap-4">
+            <div>
+               <h4 className="font-black text-slate-800 uppercase tracking-wide text-sm flex items-center gap-2"><ClipboardList size={18} className="text-amber-600"/> Jurnal Log Rekap Hasil Giling</h4>
+               {/* 🔥 FIX: REKAP TOTAL SESUAI PERIODE */}
+               <div className="mt-3 flex flex-wrap gap-2">
+                 <div className="bg-red-50 text-red-700 border border-red-100 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider shadow-3xs">
+                   Total: {formatNumber(summaryFiltered.totalAdukan)} Adukan
+                 </div>
+                 <div className="bg-amber-50 text-amber-700 border border-amber-100 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider shadow-3xs">
+                   Yield: {formatNumber(summaryFiltered.totalYieldPcs)} Pcs
+                 </div>
+               </div>
+            </div>
             
-            {/* 🔥 FIX: FILTER PERIODE DROPDOWN */}
+            {/* 🔥 FIX: FILTER PERIODE SIMPEL */}
             <div className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-xl shadow-sm">
               <Calendar size={14} className="text-amber-500 ml-0.5"/>
               <select value={filterMode} onChange={(e) => setFilterMode(e.target.value)} className="text-[11px] font-black outline-none cursor-pointer text-slate-700 uppercase tracking-wider bg-transparent">
-                <option value="HARI_INI">Hari Ini</option>
                 <option value="MINGGU_INI">7 Hari Terakhir</option>
                 <option value="BULAN_INI">Bulan Ini</option>
-                <option value="PILIH_BULAN">Pilih Bulan...</option>
               </select>
-              {filterMode === 'PILIH_BULAN' && (
-                <input type="month" value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} className="text-[11px] font-bold outline-none cursor-pointer text-slate-700 border-l border-slate-200 pl-2 ml-1" />
-              )}
             </div>
-
           </div>
           
           <div className="overflow-x-auto flex-1 p-2 custom-scrollbar min-h-[60vh]">
