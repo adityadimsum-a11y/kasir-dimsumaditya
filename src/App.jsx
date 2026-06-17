@@ -336,10 +336,6 @@ export default function App() {
                by Dnamic Network
              </div>
           </div>
-        <ToastNotification toast={toast} onClose={() => setToast(null)} />
-      </div>
-    );
-  }
 
   return (
     <div className="fixed inset-0 w-full h-screen overflow-hidden bg-transparent select-none">
