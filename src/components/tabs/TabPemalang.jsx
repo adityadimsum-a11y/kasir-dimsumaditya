@@ -30,6 +30,7 @@ export default function TabPemalang({
   const [filterMode, setFilterMode] = useState('MINGGU_INI'); 
   const [filterMonth, setFilterMonth] = useState(todayStr.substring(0,7));
 
+  // 🔥 FIX ALGORITMA STOK: SEKARANG MEMBACA AKUMULASI GLOBAL (TANPA FILTER TANGGAL)
   const stockAyam = useMemo(() => {
     let masukKg = 0;
     let keluarKg = 0;
@@ -39,7 +40,8 @@ export default function TabPemalang({
       if (p.branch_id !== currentBranch && currentBranch !== 'TANGERANG_PUSAT') return;
       
       const itemName = String(p.item_name || p.raw_name || '').toUpperCase();
-      if (itemName.includes('AYAM')) {
+      // Tarik semua data yang mengandung kata AYAM
+      if (itemName.includes('AYAM') || itemName.includes('DADA FILLET')) {
         let qty = Number(p.qty || 0);
         const unit = String(p.unit).toUpperCase();
         if (unit.includes('KANT') || unit.includes('KNTG')) {
@@ -196,15 +198,14 @@ export default function TabPemalang({
            </p>
         </div>
         
-        {/* 🔥 TAMPILAN MONITOR SUPER SIMPLE (2 KOTAK RAKSASA AJA) */}
         <div className="relative z-10 w-full xl:w-2/3 flex flex-col sm:flex-row gap-4">
            
-           {/* BOX 1: STOK AYAM GUDANG (LIVE) */}
+           {/* BOX 1: STOK AYAM GUDANG (LIVE GLOBAL) */}
            <div className="flex-1 bg-slate-900/60 border border-slate-700/50 rounded-2xl p-5 flex flex-col justify-center shadow-inner backdrop-blur-sm relative overflow-hidden">
              {kalkulasi.sisaAyamKantong < 0 && <div className="absolute top-0 w-full left-0 bg-red-600 text-white text-[9px] font-black uppercase tracking-widest text-center py-0.5">Stok Minus!</div>}
              <div className="text-[11px] font-black text-slate-400 uppercase tracking-wider mb-1">Sisa Ayam Gudang Logistik</div>
              <div className="text-4xl font-black text-white tracking-tight my-1">
-               {formatNumber(kalkulasi.sisaAyamKantong)} <span className="text-sm text-slate-500 font-bold">Kntg</span>
+               {formatNumber(stockAyam.sisaKantong)} <span className="text-sm text-slate-500 font-bold">Kntg</span>
              </div>
              <div className="text-[10px] font-bold text-slate-400 mt-2 flex gap-3">
                <span>Beli Masuk: <b className="text-slate-300">{formatNumber(stockAyam.masukKantong)}</b></span>
@@ -258,7 +259,6 @@ export default function TabPemalang({
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-2 text-center mt-2">Total Adukan Hari Ini</label>
               <input type="number" min="1" required value={adukan} onChange={(e) => handleAdukanChange(e.target.value)} className="w-full py-4 border-2 border-slate-300 rounded-xl text-4xl font-black text-slate-800 bg-white outline-none text-center focus:border-red-500 shadow-sm transition-colors" placeholder="0" />
               
-              {/* 🔥 BOCORAN TARGET DAN POTONGAN AYAM PINDAH KE SINI */}
               {adukan && (
                 <div className="mt-4 pt-3 border-t border-slate-200 flex justify-between text-[9px] font-black uppercase tracking-wider text-slate-500">
                   <span>Target: <b className="text-slate-800">{formatNumber(kalkulasi.stdMika)} Mika ({formatNumber(kalkulasi.stdPcs)} Pcs)</b></span>
