@@ -330,8 +330,12 @@ export default function App() {
                Dimsum Aditya
              </a>
              <div className="text-[8px] font-bold text-slate-300 mt-1">Supplier Dimsum Ayam Tangerang.</div>
+             
+             {/* ✨ CREDIT DEVELOPER: Dnamic Network */}
+             <div className="text-[9px] font-black text-red-600 mt-2 tracking-widest uppercase">
+               by Dnamic Network
+             </div>
           </div>
-        </div>
         <ToastNotification toast={toast} onClose={() => setToast(null)} />
       </div>
     );
