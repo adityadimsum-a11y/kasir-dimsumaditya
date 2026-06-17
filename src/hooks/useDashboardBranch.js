@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { getLocalYMD } from '../utils/helpers'; // 🔥 JALUR IMPORT DIKUNCI SESUAI STRUKTUR UTILS ENTE
+import { getLocalYMD, safeJsonParse } from '../utils/helpers'; // 🔥 Ditambah safeJsonParse
 
 export default function useDashboardBranch(dbData, dateFrom, dateTo) {
   return useMemo(() => {
@@ -73,13 +73,10 @@ export default function useDashboardBranch(dbData, dateFrom, dateTo) {
         else if (o.statusProduksi === 'Sudah Diambil') status = 'PIUTANG';
         else if (terbayar > 0) status = 'DP';
 
-        let allPayments = [];
-        try { 
-          if(o.paymentMethod || o.payment_method) {
-            allPayments = JSON.parse(o.paymentMethod || o.payment_method); 
-          }
-        } catch(e) { 
-          if(basePaid > 0) allPayments = [{ method: o.paymentMethod || o.payment_method, amount: basePaid }]; 
+        // 🔥 FIX: Menggunakan helper aman daripada try-catch yang lambat
+        let allPayments = safeJsonParse(o.paymentMethod || o.payment_method, []);
+        if (allPayments.length === 0 && basePaid > 0) {
+            allPayments = [{ method: o.paymentMethod || o.payment_method, amount: basePaid }];
         }
         allPayments.push(...cicilanData.map(c => ({ method: c.paymentMethod, amount: c.amount })));
 
