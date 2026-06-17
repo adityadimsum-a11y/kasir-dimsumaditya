@@ -18,7 +18,8 @@ export const formatRp = (angka) => {
 
 export const parseRp = (str) => {
   if (typeof str === 'number') return str;
-  const num = Number(String(str || '').replace(/[^0-9]/g, ''));
+  // 🔥 FIX: Regex sekarang mengizinkan tanda minus (-) agar perhitungan akuntansi tidak kacau
+  const num = Number(String(str || '').replace(/[^0-9-]/g, ''));
   return isNaN(num) ? 0 : num;
 };
 
@@ -80,7 +81,8 @@ export const generateId = (prefix, date) => {
 };
 
 export const generateRequestId = () => {
-  return `REQ-${Math.random().toString(36).substr(2, 9)}-${Date.now()}`;
+  // 🔥 FIX: Menggunakan substring menggantikan method usang substr
+  return `REQ-${Math.random().toString(36).substring(2, 11)}-${Date.now()}`;
 };
 
 export const safeSort = (a, b) => {
