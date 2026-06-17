@@ -13,8 +13,14 @@ export default function TabSupplierAyam({
   const todayStr = getTodayStr();
   const currentBranch = (user?.branch_id === 'PUSAT' || !user?.branch_id) ? 'TANGERANG_PUSAT' : user?.branch_id;
 
-  // Nama Supplier Patokan Jantung Pabrik
-  const CORE_SUPPLIER = 'NANA AYAM';
+  // 🔥 FIX: Nama Supplier Patokan diperluas (Bisa deteksi NANA AYAM & NANA CHICKEN)
+  const CORE_SUPPLIER_TITLE = 'NANA AYAM';
+  
+  // Fungsi Helper pendeteksi supplier
+  const isNanaSupplier = (name) => {
+    const upName = String(name || '').toUpperCase();
+    return upName.includes('NANA CHICKEN') || upName.includes('NANA AYAM');
+  };
 
   const [formBayar, setFormBayar] = useState({ 
     date: todayStr, method: 'TF_BCA_PUSAT', notes: '' 
@@ -23,7 +29,6 @@ export default function TabSupplierAyam({
   const [showInjectModal, setShowInjectModal] = useState(false);
   const [injectForm, setInjectForm] = useState({ date: todayStr, notes: 'Saldo hutang masa lalu (Excel)' });
 
-  // 🔥 FIX: STATE RAW INPUT UNTUK MENCEGAH KURSOR LOMPAT
   const [rawBayarAmount, setRawBayarAmount] = useState('');
   const [displayBayarAmount, setDisplayBayarAmount] = useState('');
   const [rawInjectAmount, setRawInjectAmount] = useState('');
@@ -52,7 +57,8 @@ export default function TabSupplierAyam({
     // 1. TARIK SEMUA DATA AYAM TURUN (Menambah Hutang / DEBIT)
     realOrders.forEach(p => {
       if (p.isDeleted) return;
-      if (p.category === 'BAHAN_BAKU' || String(p.supplier_name).toUpperCase().includes(CORE_SUPPLIER)) {
+      // 🔥 FIX: Pengecekan pakai fungsi isNanaSupplier
+      if (isNanaSupplier(p.supplier_name)) {
         ledger.push({
           id: p.id,
           date: p.date,
@@ -68,7 +74,10 @@ export default function TabSupplierAyam({
     // 2. TARIK SEMUA DATA PEMBAYARAN & SELIPAN CICILAN (Mengurangi Hutang / KREDIT)
     realCashflow.forEach(c => {
       if (c.isDeleted || c.type !== 'OUT') return;
-      if (c.category === 'PELUNASAN HUTANG AYAM' || c.category === 'SALDO_AWAL_HUTANG_AYAM' || (c.category === 'PEMBELIAN BAHAN_BAKU' && c.description.includes(CORE_SUPPLIER))) {
+      // 🔥 FIX: Deteksi pembayaran "BELANJA LOGISTIK" dengan kata kunci NANA
+      const isPaymentNana = c.category === 'BELANJA LOGISTIK' && isNanaSupplier(c.description);
+
+      if (c.category === 'PELUNASAN HUTANG AYAM' || c.category === 'SALDO_AWAL_HUTANG_AYAM' || isPaymentNana) {
         
         if (c.category === 'SALDO_AWAL_HUTANG_AYAM') {
            ledger.push({
@@ -122,7 +131,7 @@ export default function TabSupplierAyam({
     const nominal = Number(rawBayarAmount);
     if (nominal <= 0) return alert("Nominal transfer tidak boleh kosong!");
 
-    if (window.confirm(`Konfirmasi Transfer & Potong Saldo ${formBayar.method.replace(/_/g, ' ')}:\n\nNominal: ${formatRupiah(nominal)}\n\nLanjutkan pembayaran ke Supplier ${CORE_SUPPLIER}?`)) {
+    if (window.confirm(`Konfirmasi Transfer & Potong Saldo ${formBayar.method.replace(/_/g, ' ')}:\n\nNominal: ${formatRupiah(nominal)}\n\nLanjutkan pembayaran ke Supplier ${CORE_SUPPLIER_TITLE}?`)) {
       
       const trxId = generateId('CFO', formBayar.date);
       const payload = {
@@ -173,7 +182,7 @@ export default function TabSupplierAyam({
         <div className="relative z-10 w-full md:w-1/2">
           <h2 className="text-white text-xl lg:text-2xl font-black uppercase tracking-tight flex items-center gap-3 mb-2">
             <ShieldAlert className="text-red-400" size={28}/> 
-            Buku Hutang {CORE_SUPPLIER}
+            Buku Hutang {CORE_SUPPLIER_TITLE}
           </h2>
           <p className="text-[11px] font-bold text-slate-300 leading-relaxed normal-case max-w-sm">
             Rekening koran akumulasi hutang khusus daging ayam &amp; histori pembayaran cicilan lintas waktu (Running Balance).
@@ -280,7 +289,7 @@ export default function TabSupplierAyam({
                   <tr>
                     <td colSpan="5" className="text-center py-24 text-slate-400 normal-case font-bold">
                        <div className="flex justify-center mb-3 opacity-20"><ShieldAlert size={40}/></div>
-                       Belum ada riwayat transaksi dengan supplier {CORE_SUPPLIER}.
+                       Belum ada riwayat transaksi dengan supplier {CORE_SUPPLIER_TITLE}.
                     </td>
                   </tr>
                 ) : (
