@@ -7,6 +7,7 @@ const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 export default function TabPemalang({ 
   pemalang = [], masterProducts = [], master_products,
   inventoryCostLayers = [], inventory_cost_layers,
+  purchases = [], // <--- [FIX]: Menambahkan props purchases agar bisa baca Nota Belanja
   sendToSheet, showToast, user, requestDelete, setPrintData 
 }) {
   const todayStr = getTodayStr();
@@ -31,14 +32,52 @@ export default function TabPemalang({
   const [filterDateFrom, setFilterPeriodeFrom] = useState(todayStr);
   const [filterDateTo, setFilterPeriodeTo] = useState(todayStr);
 
+  // [FIX] LOGIKA KALKULASI STOK GUDANG BARU
   const stockGudang = useMemo(() => {
-    let ayamKantong = 0;
-    realInventory.forEach(inv => {
-      if (inv.isDeleted || (inv.branch_id !== currentBranch && currentBranch !== 'TANGERANG_PUSAT')) return;
-      if (inv.category === 'BAHAN_BAKU') ayamKantong += Number(inv.qty_remaining || 0);
+    let totalAyamKantong = 0;
+
+    // 1. TAMBAH STOK DARI NOTA BELANJA (BARANG MASUK)
+    const validPurchases = purchases || [];
+    validPurchases.forEach(p => {
+      if (p.isDeleted || String(p.isDeleted).toUpperCase() === 'TRUE') return;
+      if (p.branch_id !== currentBranch && currentBranch !== 'TANGERANG_PUSAT') return;
+      
+      const itemName = String(p.item_name || '').toUpperCase();
+      const category = String(p.category || '').toUpperCase();
+      
+      // Deteksi jika yang dibeli adalah Ayam / Bahan Baku
+      if (itemName.includes('AYAM') || category === 'BAHAN_BAKU' || category.includes('BAHAN')) {
+        let qty = Number(p.qty || 0);
+        const unit = String(p.unit || '').toUpperCase();
+        
+        // Auto convert jika belanjanya menggunakan satuan KG (1 Kantong = 10 Kg)
+        if (unit === 'KG' || itemName.includes('KG')) {
+          qty = qty / 10;
+        }
+        totalAyamKantong += qty;
+      }
     });
-    return { ayamKantong, ayamKg: ayamKantong * 10 };
-  }, [realInventory, currentBranch]);
+
+    // 2. KURANGI STOK DARI PEMAKAIAN PRODUKSI (BARANG KELUAR)
+    realInventory.forEach(inv => {
+      if (inv.isDeleted || String(inv.isDeleted).toUpperCase() === 'TRUE') return;
+      if (inv.branch_id !== currentBranch && currentBranch !== 'TANGERANG_PUSAT') return;
+      
+      const category = String(inv.category || '').toUpperCase();
+      const itemName = String(inv.item_name || '').toUpperCase();
+      
+      if (category === 'BAHAN_BAKU' || itemName.includes('AYAM')) {
+        // Sistem produksi otomatis ngasih nilai minus (-) di qty_remaining
+        let qty = Number(inv.qty_remaining !== undefined ? inv.qty_remaining : (inv.qty || 0));
+        totalAyamKantong += qty;
+      }
+    });
+
+    return { 
+      ayamKantong: Number(totalAyamKantong.toFixed(2)), 
+      ayamKg: Number((totalAyamKantong * 10).toFixed(2)) 
+    };
+  }, [realInventory, purchases, currentBranch]);
 
   const totalAyamKgTerpakai = useMemo(() => {
     let totalKg = 0;
