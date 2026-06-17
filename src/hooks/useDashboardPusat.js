@@ -141,8 +141,9 @@ export default function useDashboardPusat(dbData) {
       .sort((a, b) => b.total_bon_gantung - a.total_bon_gantung);
 
     // --- 3. AUTOMATIC RATIO SPLITTER 5 AMPLOP SAKRAL ---
+    // 🔥 FIX: Menggunakan getLocalYMD sebelum pengecekan tanggal untuk Omset Hari Ini
     let totalOmsetHariIni = (orders || []).reduce((sum, o) => {
-      if(!o.isDeleted && o.date === todayStr) return sum + (Number(o.total_amount || o.total || 0));
+      if(!o.isDeleted && getLocalYMD(o.date) === todayStr) return sum + (Number(o.total_amount || o.total || 0));
       return sum;
     }, 0);
 
@@ -178,9 +179,11 @@ export default function useDashboardPusat(dbData) {
         if(o.isDeleted) return;
         const brId = o.branch_id;
         const netSales = Number(o.total_amount || o.total || 0);
+        const safeOrderDate = getLocalYMD(o.date);
+        
         if(branchSales[brId]) {
-            if(o.date === todayStr) branchSales[brId].omzetHariIni += netSales;
-            if(String(o.date).startsWith(curMonth)) branchSales[brId].omzetBulanIni += netSales;
+            if(safeOrderDate === todayStr) branchSales[brId].omzetHariIni += netSales;
+            if(String(safeOrderDate).startsWith(curMonth)) branchSales[brId].omzetBulanIni += netSales;
         }
     });
 
@@ -222,11 +225,15 @@ export default function useDashboardPusat(dbData) {
         const ds = d.toISOString().split('T')[0];
         trendDataMap[ds] = 0;
     }
+    
+    // 🔥 FIX: Mapping tanggal menggunakan helper agar selaras dengan object keys
     (orders || []).forEach(o => {
-        if(!o.isDeleted && trendDataMap[o.date] !== undefined) {
-            trendDataMap[o.date] += Number(o.total_amount || o.total || 0);
+        const safeDate = getLocalYMD(o.date);
+        if(!o.isDeleted && trendDataMap[safeDate] !== undefined) {
+            trendDataMap[safeDate] += Number(o.total_amount || o.total || 0);
         }
     });
+    
     const trendData = Object.keys(trendDataMap).sort().map(k => ({ label: k.substring(5), value: trendDataMap[k] }));
 
     return { 
