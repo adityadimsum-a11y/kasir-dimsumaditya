@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { 
   ShoppingBag, Calendar, FileText, Trash2, Printer, 
   Wallet, Truck, CheckCircle2, Plus, ShoppingCart, User,
-  Database, Edit2
+  Database, Edit2, AlertTriangle
 } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 
@@ -41,19 +41,16 @@ export default function TabPurchases({
   const realInventory = useMemo(() => inventory_cost_layers || inventoryCostLayers || [], [inventory_cost_layers, inventoryCostLayers]);
 
   const [activeSubTab, setActiveTab] = useState('SUPPLIER'); 
-  const [tableDateFilter, setTableDateFilter] = useState(todayStr);
+  // 🔥 FIX: Filter tanggal sekarang menggunakan format Bulan (YYYY-MM)
+  const [tableDateFilter, setTableDateFilter] = useState(todayStr.substring(0, 7));
   const [editingPurchaseId, setEditingPurchaseId] = useState(null);
 
-  // HELPER INPUT UANG ANTI-KURSOR LOMPAT
   const handleMoneyInput = (val, setRaw, setDisplay) => {
     const rawVal = val.replace(/\D/g, '');
     setRaw(rawVal);
     setDisplay(rawVal ? Number(rawVal).toLocaleString('id-ID') : '');
   };
 
-  // ==========================================
-  // MONITOR STOK GUDANG (LIVE)
-  // ==========================================
   const stockGudang = useMemo(() => {
     let ayamKantong = 0;
     realInventory.forEach(inv => {
@@ -63,13 +60,9 @@ export default function TabPurchases({
     return { ayamKantong, ayamKg: ayamKantong * 10 };
   }, [realInventory, currentBranch]);
 
-  // ==========================================
-  // FORM SUPPLIER AYAM BESAR
-  // ==========================================
   const [formSupplier, setFormSupplier] = useState({ supplierName: '', itemName: '', qty: '', price: '' });
   const [displaySupplierPrice, setDisplaySupplierPrice] = useState('');
   
-  // LOGIKA PEMBAYARAN MIX / SPLIT ALA KASIR
   const [splIsSplit, setSplIsSplit] = useState(false);
   
   const [splPayCash, setSplPayCash] = useState(''); const [displaySplPayCash, setDisplaySplPayCash] = useState('');
@@ -81,9 +74,6 @@ export default function TabPurchases({
   
   const [splSingleAmount, setSplSingleAmount] = useState(''); const [displaySplSingleAmount, setDisplaySplSingleAmount] = useState('');
 
-  // ==========================================
-  // STATE MULTI-ITEM KAS & OPS MANUAL
-  // ==========================================
   const [selectedEmployee, setSelectedEmployee] = useState('');
   const [storeName, setStoreName] = useState('');
   
@@ -105,11 +95,9 @@ export default function TabPurchases({
     return cats;
   }, [realRawMaterials]);
 
-  // KALKULASI SUPPLIER
   const hitungKantongSupplier = useMemo(() => Number(formSupplier.qty || 0) / 10, [formSupplier.qty]);
   const totalTagihanSupplier = useMemo(() => Number(formSupplier.qty || 0) * Number(formSupplier.price || 0), [formSupplier.qty, formSupplier.price]);
   
-  // PEMBAYARAN SUPPLIER SUMMARY
   const splPaymentSummary = useMemo(() => {
     let cash = 0, bca = 0, bri = 0;
     if (splIsSplit) {
@@ -149,7 +137,6 @@ export default function TabPurchases({
     else handleMoneyInput(String(totalTagihanSupplier), setSplSingleAmount, setDisplaySplSingleAmount);
   };
 
-  // KALKULASI CART MANUAL
   const totalTagihanCart = useMemo(() => cart.reduce((sum, item) => sum + item.total, 0), [cart]);
   const estimasiKembalian = useMemo(() => {
     const cash = Number(cashGiven || 0);
@@ -157,7 +144,7 @@ export default function TabPurchases({
     return cash - totalTagihanCart;
   }, [cashGiven, totalTagihanCart]);
 
-  // JURNAL BUKU KAS GABUNGAN
+  // 🔥 FIX: Jurnal Buku Kas sekarang memfilter berdasarkan Bulan
   const historyCombined = useMemo(() => {
     const all = [];
     realPurchases.forEach(p => {
@@ -170,12 +157,15 @@ export default function TabPurchases({
         all.push({ doc_type: 'EXPENSE', id: e.id, date: e.date, branch_id: e.branch_id, title: e.category || 'Biaya operasional', subtitle: e.description || e.item_name || 'Beban kas', qty: 1, unit: 'Lot', total_amount: Number(e.amount || 0), paid_amount: Number(e.amount || 0), payment_status: 'LUNAS', payment_method: e.payment_method || 'CASH', employee_name: e.employee_name, change_status: e.change_status });
       }
     });
-    return all.filter(x => normalizeDateStr(x.date) === tableDateFilter && (currentBranch === 'TANGERANG_PUSAT' ? String(x.branch_id || '').toUpperCase().includes('TANGERANG') : String(x.branch_id || '').toUpperCase() === currentBranch.toUpperCase())).sort((a, b) => new Date(normalizeDateStr(b.date)) - new Date(normalizeDateStr(a.date)));
+    
+    return all.filter(x => {
+      const itemDate = normalizeDateStr(x.date);
+      const isDateMatch = tableDateFilter ? itemDate.startsWith(tableDateFilter) : true;
+      const isBranchMatch = currentBranch === 'TANGERANG_PUSAT' ? String(x.branch_id || '').toUpperCase().includes('TANGERANG') : String(x.branch_id || '').toUpperCase() === currentBranch.toUpperCase();
+      return isDateMatch && isBranchMatch;
+    }).sort((a, b) => new Date(normalizeDateStr(b.date)) - new Date(normalizeDateStr(a.date)));
   }, [realPurchases, realExpenses, tableDateFilter, currentBranch]);
 
-  // ==========================================
-  // HANDLERS
-  // ==========================================
   const handleSupplierSelect = (e) => {
     const splName = e.target.value;
     const splData = supplierOptions.find(s => s.supplier_name === splName);
@@ -215,7 +205,6 @@ export default function TabPurchases({
     }
   };
 
-  // SUBMIT FORM SUPPLIER BESAR (AYAM)
   const handleSubmitSupplier = async (e) => {
     e.preventDefault();
     if (!formSupplier.supplierName) return alert("Pilih nama Supplier rekanan resmi terlebih dahulu!");
@@ -240,10 +229,8 @@ export default function TabPurchases({
     const isSuccess = await sendToSheet(actionType, payloadPurchase, 'purchases');
     
     if (isSuccess) {
-      // Input inventory
       if (!editingPurchaseId) {
          await sendToSheet('insert', { id: generateId('LAY', todayStr), date: todayStr, branch_id: currentBranch, category: 'BAHAN_BAKU', item_name: `BELANJA: ${formSupplier.itemName.toUpperCase()} (${formSupplier.supplierName.toUpperCase()})`, qty_received: hitungKantongSupplier, qty_remaining: hitungKantongSupplier, unit_cost: finalPricePerKg * 10, reference_id: payloadPurchase.id, isDeleted: false }, 'inventory_cost_layers');
-         // Input Cashflow
          for (let pay of splPaymentSummary.breakdown) {
             if (pay.amount <= 0) continue;
             await sendToSheet('insert', { id: generateId('CFO', todayStr), date: todayStr, branch_id: currentBranch, type: 'OUT', category: 'BELANJA LOGISTIK', description: `Pembayaran ${formSupplier.itemName.toUpperCase()} ke ${formSupplier.supplierName.toUpperCase()}`, amount: pay.amount, method: pay.method, reference_id: payloadPurchase.id }, 'cashflow_transactions');
@@ -388,7 +375,6 @@ export default function TabPurchases({
               </div>
               <div className="p-6 space-y-5">
                 
-                {/* PIC KARYAWAN & WARUNG */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 border border-slate-200 p-4 rounded-2xl shadow-inner">
                   <div>
                     <label className="text-[10px] font-black text-slate-500 block mb-1.5 uppercase tracking-wider flex items-center gap-1"><User size={12}/> PIC Bawa Uang</label>
@@ -403,7 +389,6 @@ export default function TabPurchases({
                   </div>
                 </div>
 
-                {/* SELECTOR ITEM */}
                 <div className="border border-slate-200 p-5 rounded-3xl bg-slate-50/80 space-y-4 shadow-sm">
                   <div className="text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-slate-200 pb-2 flex items-center gap-1">Input Item Belanja</div>
                   <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
@@ -626,9 +611,10 @@ export default function TabPurchases({
               <h4 className="font-black text-sm uppercase tracking-wide text-slate-800 flex items-center gap-2"><FileText size={18} className="text-blue-600"/> Jurnal Buku Kas &amp; Belanja Aktual</h4>
               <p className="text-[11px] font-bold text-slate-400 normal-case mt-1 max-w-sm leading-relaxed">Rekam jejak belanja harian dan operasional manual yang memotong saldo fisik secara real-time.</p>
             </div>
+            {/* 🔥 FIX: Input filter berubah menjadi BULAN */}
             <div className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-xl shadow-sm shrink-0">
               <Calendar size={14} className="text-blue-500"/>
-              <input type="date" value={tableDateFilter} onChange={e => setTableDateFilter(e.target.value || todayStr)} className="text-[11px] font-bold text-slate-700 outline-none cursor-pointer bg-transparent" />
+              <input type="month" value={tableDateFilter} onChange={e => setTableDateFilter(e.target.value)} className="text-[11px] font-bold text-slate-700 outline-none cursor-pointer bg-transparent uppercase tracking-wider" />
             </div>
           </div>
           <div className="overflow-x-auto flex-1 p-2 custom-scrollbar min-h-[50vh]">
@@ -638,7 +624,7 @@ export default function TabPurchases({
               </thead>
               <tbody className="text-xs font-bold divide-y divide-slate-100 bg-white">
                 {historyCombined.length === 0 ? (
-                  <tr><td colSpan="5" className="text-center py-24 text-slate-400 normal-case font-bold"><Wallet size={48} className="mx-auto mb-4 opacity-20"/><div className="text-sm font-black uppercase tracking-wider">Aman Terkendali</div>Tidak ada catatan kas keluar pada tanggal ini.</td></tr>
+                  <tr><td colSpan="5" className="text-center py-24 text-slate-400 normal-case font-bold"><Wallet size={48} className="mx-auto mb-4 opacity-20"/><div className="text-sm font-black uppercase tracking-wider">Aman Terkendali</div>Tidak ada catatan kas keluar pada periode ini.</td></tr>
                 ) : (
                   historyCombined.map(p => {
                     const isPurchase = p.doc_type === 'PURCHASE';
