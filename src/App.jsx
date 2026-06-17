@@ -33,7 +33,7 @@ import TabAntrianPO from './components/tabs/TabAntrianPO';
 import TabMonitoringCabangUniversal from './components/tabs/TabMonitoringCabangUniversal';
 import PrintDotMatrix from './components/PrintDotMatrix';
 
-const API_URL_GAS = 'https://script.google.com/macros/s/AKfycbyqCaTepk_duXguiOqSM572mbUIGozcghhh8LHNMNw2e83O7Wkyu-SkjdVTO3zpTb64PA/exec';
+const API_URL_GAS = 'https://script.google.com/macros/s/AKfycbybKUYeFHFZ7pV7AvHlbJwUp_RqjSCdO71i2arQ9fAQODKr3AEOJ_m0CCY-X7IkGNg98Q/exec';
 
 const ToastNotification = ({ toast, onClose }) => {
   if (!toast) return null;
