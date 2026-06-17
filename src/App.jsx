@@ -255,7 +255,7 @@ export default function App() {
     }
   };
 
-  // 🎨 TAMPILAN LOGIN (Dikembalikan ke mode Fluid Gradient nan Estetik)
+// 🎨 TAMPILAN LOGIN (Revisi Estetik & Profesional)
   if (!user) {
     return (
       <div 
@@ -267,13 +267,15 @@ export default function App() {
       >
         <div className="w-full max-w-sm bg-white/90 backdrop-blur-md rounded-3xl shadow-2xl shadow-rose-900/10 border border-white/50 p-7 space-y-6 animate-in zoom-in-95 duration-300">
           <div className="flex flex-col items-center text-center">
+            {/* 1. LOGO DIPERBESAR (h-24) */}
             <img 
               src="https://dimsumaditya.id/wp-content/uploads/2026/06/Dimsum-Aditya-New-Logo-scaled.webp" 
               alt="Logo Dimsum Aditya" 
-              className="h-16 w-auto object-contain mb-3 drop-shadow-sm"
+              className="h-24 w-auto object-contain mb-4 drop-shadow-sm"
             />
-            <h2 className="text-lg font-black text-slate-800 tracking-tight">Otentikasi Sistem</h2>
-            <p className="text-[11px] font-bold text-slate-400 mt-1">Silakan masukkan kredensial resmi Anda</p>
+            {/* 2. TEKS LEBIH LUWES TAPI PROFESIONAL */}
+            <h2 className="text-xl font-black text-slate-800 tracking-tight">Selamat Datang</h2>
+            <p className="text-xs font-bold text-slate-400 mt-1">Silakan login ke akun Anda</p>
           </div>
 
           {loginError && (
@@ -292,7 +294,7 @@ export default function App() {
                 value={loginForm.username}
                 onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
                 className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl font-bold text-sm outline-none focus:bg-white focus:border-red-500 focus:ring-4 focus:ring-red-500/10 transition-all normal-case"
-                placeholder="Masukkan ID Anda"
+                placeholder="Masukkan username"
               />
             </div>
             <div>
@@ -307,18 +309,27 @@ export default function App() {
               />
             </div>
 
+            {/* 3. BUTTON DIKECILIN & GANTI TEKS */}
             <button 
               type="submit"
               disabled={isSaving}
-              className="w-full py-4 mt-2 bg-red-600 hover:bg-red-700 text-white rounded-xl font-black shadow-lg shadow-red-600/30 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full py-2.5 mt-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold shadow-md shadow-red-600/20 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
             >
-              {isSaving ? <Loader2 size={18} className="animate-spin" /> : 'Masuk Sistem'}
+              {isSaving ? <Loader2 size={18} className="animate-spin" /> : 'Login'}
             </button>
           </form>
           
-          <div className="text-center mt-6 pt-4 border-t border-slate-100">
-             <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Dimsum Aditya</div>
-             <div className="text-[8px] font-bold text-slate-300 mt-0.5">Supplier Dimsum Ayam Tangerang.</div>
+          <div className="text-center mt-6 pt-4 border-t border-slate-100 flex flex-col items-center">
+             {/* 4. LINK ANCHOR KE WEBSITE */}
+             <a 
+               href="https://dimsumaditya.id" 
+               target="_blank" 
+               rel="noopener noreferrer" 
+               className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-red-600 transition-colors cursor-pointer"
+             >
+               Dimsum Aditya
+             </a>
+             <div className="text-[8px] font-bold text-slate-300 mt-1">Supplier Dimsum Ayam Tangerang.</div>
           </div>
         </div>
         <ToastNotification toast={toast} onClose={() => setToast(null)} />
