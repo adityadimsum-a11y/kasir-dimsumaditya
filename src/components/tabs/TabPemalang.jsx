@@ -20,17 +20,17 @@ export default function TabPemalang({
   }, [realProducts]);
 
   const [date, setDate] = useState(todayStr);
-  const [pic, setPic] = useState(user?.name || '');
+  const [pic, setPic] = useState(''); // Request 4: PIC Kosong Default
   const [productName, setProductName] = useState('');
   const [adukan, setAdukan] = useState('');
   const [actualInput, setActualInput] = useState('');
-  const [actualUnit, setActualUnit] = useState('MIKA');
+  const [actualUnit, setActualUnit] = useState('PORSI'); // Request 6: Default Porsi
   const [notes, setNotes] = useState('');
 
   const [filterMode, setFilterMode] = useState('MINGGU_INI'); 
   const [filterMonth, setFilterMonth] = useState(todayStr.substring(0,7));
 
-  // 🔥 1 KABEL UTAMA: BACA SEMUA NOTA AYAM, KONVERSI OTOMATIS (UPDATED)
+  // 🔥 BACA SEMUA NOTA AYAM, KONVERSI OTOMATIS (1 Kantong = 10 Kg)
   const stockAyam = useMemo(() => {
     let masukKg = 0;
     let keluarKg = 0;
@@ -38,17 +38,11 @@ export default function TabPemalang({
     (purchases || []).forEach(p => {
       if (p.isDeleted || String(p.isDeleted).toUpperCase() === 'TRUE') return;
       
-      // 🚨 FIX 1: Matikan filter cabang untuk stok masuk ayam (biar pembelian pusat terbaca)
-      // if (p.branch_id !== currentBranch && currentBranch !== 'TANGERANG_PUSAT') return;
-      
-      // 🚨 FIX 2: Tambah fallback (p.name / p.supplier) jaga-jaga kalau beda nama kolom
       const itemName = String(p.name || p.item_name || p.raw_name || '').toUpperCase();
       const supplierName = String(p.supplier || p.supplier_name || '').toUpperCase();
       
-      // KABEL KONEK: Kalau ada kata AYAM, DADA, atau NANA
       if (itemName.includes('AYAM') || itemName.includes('DADA') || supplierName.includes('NANA')) {
         let qty = Number(p.qty || 0);
-        // 🚨 FIX 3: Tambah fallback '' agar tidak error undefined
         const unit = String(p.unit || '').toUpperCase(); 
         
         if (unit.includes('KANT') || unit.includes('KNTG')) {
@@ -60,9 +54,6 @@ export default function TabPemalang({
 
     (pemalang || []).forEach(p => {
       if (p.isDeleted || String(p.isDeleted).toUpperCase() === 'TRUE') return;
-      
-      // Matikan juga filter cabang untuk pengeluaran log produksi global
-      // if (p.branch_id !== currentBranch && currentBranch !== 'TANGERANG_PUSAT') return;
       
       if (p.items) {
         const parsed = safeJsonParse(p.items, []);
@@ -87,6 +78,7 @@ export default function TabPemalang({
     
     const stdPcs = adukanNum * 1000;
     const stdMika = adukanNum * 20;
+    const stdPorsi = adukanNum * 250;
 
     let actualTotalPcs = 0;
     if (actualUnit === 'MIKA') actualTotalPcs = inputAngka * 50;     
@@ -98,7 +90,7 @@ export default function TabPemalang({
     const sisaAyamKantong = stockAyam.sisaKantong - butuhAyamKantong;
 
     return { 
-      adukanNum, stdPcs, stdMika, actualTotalPcs, 
+      adukanNum, stdPcs, stdMika, stdPorsi, actualTotalPcs, 
       inputAngka, butuhAyamKg, butuhAyamKantong, sisaAyamKantong 
     };
   }, [adukan, actualInput, actualUnit, stockAyam]);
@@ -141,8 +133,8 @@ export default function TabPemalang({
   const handleAdukanChange = (val) => {
     const adk = Number(val.replace(/\D/g, ''));
     setAdukan(String(adk));
-    setActualInput(String(adk * 20)); 
-    setActualUnit('MIKA');
+    setActualInput(String(adk * 250)); // 1 Adukan = 1000 Pcs = 250 Porsi
+    setActualUnit('PORSI');
   };
 
   const handleSubmitProduction = async (e) => {
@@ -150,6 +142,7 @@ export default function TabPemalang({
     if (kalkulasi.adukanNum <= 0) return alert("Jumlah adukan tidak boleh kosong!");
     if (kalkulasi.actualTotalPcs <= 0) return alert("Hasil fisik tidak boleh kosong!");
     if (!productName) return alert("Pilih variant produk!");
+    if (!pic) return alert("Kepala Dapur/PIC wajib diisi!");
 
     if (kalkulasi.butuhAyamKantong > stockAyam.sisaKantong) {
       if (!window.confirm(`⚠️ Stok ayam minus!\nDapur butuh ${kalkulasi.butuhAyamKantong} Kantong, sistem sisa ${stockAyam.sisaKantong} Kantong.\nLanjutkan pencatatan minus?`)) return;
@@ -158,7 +151,7 @@ export default function TabPemalang({
     const batchId = generateId('PRD', date);
     const tokenName = `@@PRODUCTION@@||${adukan}||${kalkulasi.butuhAyamKg}||${kalkulasi.actualTotalPcs}||${notes || '-'}`;
 
-    const confirmMsg = `=== KONFIRMASI PRODUKSI ADITYA ===\n\nID Batch : ${batchId}\nTanggal  : ${formatDate(date)}\nAdukan   : ${adukan} Kali\nYIELD    : ${formatNumber(kalkulasi.actualTotalPcs)} Pcs\n\nSahkan data untuk update stok freezer?`;
+    const confirmMsg = `=== KONFIRMASI PRODUKSI ADITYA ===\n\nID Batch : ${batchId}\nTanggal  : ${formatDate(date)}\nPIC      : ${pic.toUpperCase()}\nAdukan   : ${adukan} Kali\nYIELD    : ${formatNumber(kalkulasi.actualTotalPcs)} Pcs\n\nSahkan data untuk update stok freezer?`;
 
     if (!window.confirm(confirmMsg)) return;
 
@@ -173,7 +166,7 @@ export default function TabPemalang({
     const isSuccess = await sendToSheet('insert', payloadBatch, 'pemalang');
     if (isSuccess) {
       if (typeof showToast === 'function') showToast(`Batch Produksi ${batchId} Disahkan!`, 'success');
-      setAdukan(''); setActualInput(''); setNotes(''); setProductName('');
+      setAdukan(''); setActualInput(''); setNotes(''); setProductName(''); setPic('');
     }
   };
 
@@ -182,6 +175,9 @@ export default function TabPemalang({
     const isSuccess = await sendToSheet('update', { id, isDeleted: true }, 'pemalang');
     if (isSuccess && typeof showToast === 'function') showToast(`Batch ${id} berhasil di-void!`, 'success');
   };
+
+  // Kalkulasi Potensi dari sisa kantong
+  const potensiAdukan = Math.floor(stockAyam.sisaKantong / 3);
 
   return (
     <div className="flex flex-col gap-6 pb-10 text-slate-700 animate-in fade-in duration-300">
@@ -203,28 +199,57 @@ export default function TabPemalang({
         
         <div className="relative z-10 w-full xl:w-2/3 flex flex-col sm:flex-row gap-4">
            {/* BOX 1: STOK AYAM GUDANG (LIVE GLOBAL) */}
-           <div className="flex-1 bg-slate-900/60 border border-slate-700/50 rounded-2xl p-5 flex flex-col justify-center shadow-inner backdrop-blur-sm relative overflow-hidden">
+           <div className="flex-1 bg-slate-900/60 border border-slate-700/50 rounded-2xl p-5 flex flex-col justify-between shadow-inner backdrop-blur-sm relative overflow-hidden">
              {kalkulasi.sisaAyamKantong < 0 && <div className="absolute top-0 w-full left-0 bg-red-600 text-white text-[9px] font-black uppercase tracking-widest text-center py-0.5">Stok Minus!</div>}
-             <div className="text-[11px] font-black text-slate-400 uppercase tracking-wider mb-1">Sisa Ayam Gudang Logistik</div>
-             <div className="text-4xl font-black text-white tracking-tight my-1">
-               {formatNumber(stockAyam.sisaKantong)} <span className="text-sm text-slate-500 font-bold">Kntg</span>
+             <div>
+               <div className="text-[11px] font-black text-slate-400 uppercase tracking-wider mb-1">Sisa Ayam Gudang Logistik</div>
+               <div className="text-4xl font-black text-white tracking-tight my-1">
+                 {formatNumber(stockAyam.sisaKantong)} <span className="text-sm text-slate-500 font-bold">Kntg</span>
+               </div>
              </div>
-             <div className="text-[10px] font-bold text-slate-400 mt-2 flex gap-3">
-               <span>Beli Masuk: <b className="text-slate-300">{formatNumber(stockAyam.masukKantong)}</b></span>
-               <span>Dipakai: <b className="text-amber-500">{formatNumber(stockAyam.keluarKantong)}</b></span>
+             {/* Request 1: Info Potensi Produksi di bawah Stok */}
+             <div className="text-[10px] font-bold text-slate-400 mt-2 border-t border-slate-700/50 pt-2 flex flex-col gap-1">
+               <div className="flex justify-between">
+                 <span>Masuk: <b className="text-slate-300">{formatNumber(stockAyam.masukKantong)}</b></span>
+                 <span>Dipakai: <b className="text-amber-500">{formatNumber(stockAyam.keluarKantong)}</b></span>
+               </div>
+               <div className="text-emerald-400 bg-emerald-950/30 px-2 py-1 rounded-md mt-1 inline-block border border-emerald-900/50">
+                 Potensi: <b>{potensiAdukan} Adukan</b> (~{formatNumber(potensiAdukan * 250)} Porsi)
+               </div>
              </div>
            </div>
 
-           {/* BOX 2: TOTAL PRODUKSI (DARI FILTER TABEL) */}
-           <div className="flex-1 bg-slate-900/60 border border-slate-700/50 rounded-2xl p-5 flex flex-col justify-center shadow-inner backdrop-blur-sm">
-             <div className="text-[11px] font-black text-emerald-400 uppercase tracking-wider mb-1">
+           {/* BOX 2: TOTAL PRODUKSI (Request 2 & 3: Angka Pcs & Porsi Diperbesar) */}
+           <div className="flex-[1.5] bg-slate-900/60 border border-slate-700/50 rounded-2xl p-5 flex flex-col justify-center shadow-inner backdrop-blur-sm">
+             <div className="text-[11px] font-black text-emerald-400 uppercase tracking-wider mb-3">
                Hasil Produksi ({filterMode.replace('_', ' ')})
              </div>
-             <div className="text-4xl font-black text-emerald-500 tracking-tight my-1">
-               {formatNumber(summaryFiltered.totalYieldPcs)} <span className="text-sm text-emerald-700 font-bold">Pcs</span>
+             
+             <div className="flex flex-row items-end gap-6 mb-2">
+               <div>
+                 <div className="text-5xl font-black text-emerald-500 tracking-tighter leading-none drop-shadow-md">
+                   {formatNumber(summaryFiltered.totalYieldPcs)}
+                 </div>
+                 <div className="text-[10px] text-emerald-600 font-black uppercase tracking-widest mt-1.5 flex items-center gap-1">
+                   <span>TOTAL PCS</span> <span className="px-1.5 py-0.5 bg-emerald-900/40 rounded text-emerald-400 text-[8px]">PELANGGAN</span>
+                 </div>
+               </div>
+               
+               <div className="h-12 w-px bg-slate-700/60 hidden sm:block"></div>
+               
+               <div>
+                 <div className="text-4xl font-black text-emerald-400 tracking-tighter leading-none drop-shadow-md">
+                   {formatNumber(summaryFiltered.totalYieldPcs / 4)}
+                 </div>
+                 <div className="text-[10px] text-emerald-600 font-black uppercase tracking-widest mt-1.5 flex items-center gap-1">
+                   <span>TOTAL PORSI</span> <span className="px-1.5 py-0.5 bg-amber-900/40 rounded text-amber-500 text-[8px]">DAPUR</span>
+                 </div>
+               </div>
              </div>
-             <div className="text-[10px] font-bold text-emerald-600 mt-2">
-               Total Putaran Mesin: <b className="text-emerald-400">{formatNumber(summaryFiltered.totalAdukan)} Adukan</b>
+
+             <div className="text-[10px] font-bold text-emerald-600 mt-2 pt-3 border-t border-slate-700/50 flex justify-between">
+               <span>Putaran Mesin: <b className="text-emerald-400 text-[11px]">{formatNumber(summaryFiltered.totalAdukan)} Adukan</b></span>
+               <span>Setara Mika: <b className="text-emerald-400 text-[11px]">{formatNumber(summaryFiltered.totalYieldPcs / 50)} Mika</b></span>
              </div>
            </div>
         </div>
@@ -244,7 +269,7 @@ export default function TabPemalang({
               </div>
               <div>
                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1.5">Kepala Dapur / PIC</label>
-                <input type="text" required value={pic} onChange={(e) => setPic(e.target.value)} className="w-full p-3 border border-slate-200 rounded-xl text-xs font-bold outline-none bg-slate-50 focus:bg-white focus:border-red-400 shadow-sm uppercase tracking-wider transition-colors" placeholder="Nama..." />
+                <input type="text" required value={pic} onChange={(e) => setPic(e.target.value)} className="w-full p-3 border border-slate-200 rounded-xl text-xs font-bold outline-none bg-slate-50 focus:bg-white focus:border-red-400 shadow-sm uppercase tracking-wider transition-colors" placeholder="Nama Kepala Dapur..." />
               </div>
             </div>
             <div>
@@ -262,7 +287,7 @@ export default function TabPemalang({
               
               {adukan && (
                 <div className="mt-4 pt-3 border-t border-slate-200 flex justify-center text-[10px] font-black uppercase tracking-wider text-slate-500">
-                  <span>Target Standar: <b className="text-slate-800">{formatNumber(kalkulasi.stdMika)} Mika ({formatNumber(kalkulasi.stdPcs)} Pcs)</b></span>
+                  <span>Target Standar: <b className="text-slate-800">{formatNumber(kalkulasi.stdPcs)} Pcs / {formatNumber(kalkulasi.stdPorsi)} Porsi</b></span>
                 </div>
               )}
             </div>
@@ -276,8 +301,8 @@ export default function TabPemalang({
                 </div>
                 <div className="col-span-4">
                   <select value={actualUnit} onChange={(e) => setActualUnit(e.target.value)} className="w-full px-2 bg-slate-900 text-white rounded-xl text-xs font-black outline-none cursor-pointer border-2 border-slate-800 shadow-md text-center h-full uppercase tracking-wider hover:bg-black transition-colors">
-                    <option value="MIKA">Mika (50)</option>
                     <option value="PORSI">Porsi (4)</option>
+                    <option value="MIKA">Mika (50)</option>
                     <option value="PCS">Pcs (1)</option>
                   </select>
                 </div>
@@ -298,7 +323,8 @@ export default function TabPemalang({
         <div className="xl:col-span-7 flex flex-col bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-6 bg-slate-50 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start gap-4">
             <div>
-               <h4 className="font-black text-slate-800 uppercase tracking-wide text-sm flex items-center gap-2"><ClipboardList size={18} className="text-amber-600"/> Jurnal Log Rekap Hasil Giling</h4>
+               {/* Request 5: Judul History Diubah */}
+               <h4 className="font-black text-slate-800 uppercase tracking-wide text-sm flex items-center gap-2"><ClipboardList size={18} className="text-amber-600"/> Riwayat Produksi &amp; Adukan Dapur</h4>
             </div>
             
             <div className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-xl shadow-sm">
