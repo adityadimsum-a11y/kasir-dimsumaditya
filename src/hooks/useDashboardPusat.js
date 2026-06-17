@@ -1,9 +1,8 @@
 import { useMemo } from 'react';
-import { getLocalYMD, getTodayStr } from '../utils/helpers';
+import { getLocalYMD, getTodayStr, safeJsonParse } from '../utils/helpers';
 
 export default function useDashboardPusat(dbData) {
   return useMemo(() => {
-    // 🔥 AMBIL SELURUH DATA UTAMA DARI ACCORDING DATABASE CLOUD
     const {
       orders = [], expenses = [], purchases = [], piutangPayments = [], 
       supplierLedger = [], cashflowTransactions = [], marketplaceSettlement = [], 
@@ -29,21 +28,21 @@ export default function useDashboardPusat(dbData) {
     let totalCairLemburKaryawan = 0; 
     
     (marketplaceSettlement || []).forEach(m => { if (m.status === 'PENDING' && !m.isDeleted) pendingMarketplace += (Number(m.net) || 0); });
+    
     (supplierLedger || []).forEach(l => { 
         if(l.isDeleted) return;
         const amt = Number(l.amount) || 0; 
         if (l.transaction_type === 'PURCHASE') hutangAyamAktif += amt; 
         if (l.transaction_type === 'PAYMENT') hutangAyamAktif -= amt; 
     });
-    
+
     (cashflowTransactions || []).forEach(c => { 
         if(c.isDeleted) return;
         if(c.transaction_type === 'INFLOW' || c.type === 'CASH_IN') inCash += Number(c.amount); 
         if(c.transaction_type === 'OUTFLOW' || c.type === 'CASH_OUT') outCash += Number(c.amount); 
         
-        // Melacak pengeluaran kas riil untuk komponen lembur/bonus harian karyawan
         if((c.type === 'OUT' || c.transaction_type === 'OUTFLOW') && c.category === 'UANG LEMBUR & BONUS') {
-          totalCairLemburKaryawan += Number(c.amount || 0);
+           totalCairLemburKaryawan += Number(c.amount || 0);
         }
     });
 
@@ -104,7 +103,7 @@ export default function useDashboardPusat(dbData) {
     let totalPiutangPelanggan = 0;
     Object.values(groupOrders).forEach(go => {
         const sisaHutang = go.tagihan - go.bayar;
-        if(sisaHutang > 0 && (go.method === 'PIUTANG' || go.method === 'TEMPO' || go.status === 'BELUM_LUNAS')) {
+        if(sisaHutang > 0 && (go.method === 'PIUTANG' || go.method === 'TEMPO' || go.status === 'BELUM_LUNAS' || go.method === 'COD_PO' || String(go.method).includes('DP_'))) {
             totalPiutangPelanggan += sisaHutang;
             const cName = go.customer;
 
@@ -116,7 +115,7 @@ export default function useDashboardPusat(dbData) {
               });
 
               if (!customerPiutangMap[cName].tanggal_bon_terlama || new Date(go.date) < new Date(customerPiutangMap[cName].tanggal_bon_terlama)) {
-                customerPiutangMap[cName].tanggal_bon_terlama = go.date;
+                 customerPiutangMap[cName].tanggal_bon_terlama = go.date;
               }
             }
         }
@@ -140,22 +139,34 @@ export default function useDashboardPusat(dbData) {
       .filter(c => c.total_bon_gantung > 0 || c.frequency_order > 0)
       .sort((a, b) => b.total_bon_gantung - a.total_bon_gantung);
 
-    // --- 3. AUTOMATIC RATIO SPLITTER 5 AMPLOP SAKRAL ---
-    // 🔥 FIX: Menggunakan getLocalYMD sebelum pengecekan tanggal untuk Omset Hari Ini
-    let totalOmsetHariIni = (orders || []).reduce((sum, o) => {
-      if(!o.isDeleted && getLocalYMD(o.date) === todayStr) return sum + (Number(o.total_amount || o.total || 0));
-      return sum;
-    }, 0);
-
-    const amplop1_bahanBaku = totalOmsetHariIni * 0.55;
-    const amplop2_operasional = totalOmsetHariIni * 0.20;
-    const amplop3_jagaJaga = totalOmsetHariIni * 0.10;
-    const amplop4_profitMurni = totalOmsetHariIni * 0.10; 
+    // --- 3. 🔥 FIX KRITIS: 4 AMPLOP BERDASARKAN CASH RIIL (BUKAN OMSET KOTOR) ---
+    let totalOmsetHariIni = 0; // Uang Kertas (Termasuk Piutang)
+    let totalCashMasukHariIni = 0; // Uang Dompet Nyata
     
-    // 🔥 AMPLOP 5 (5% Total Cadangan Kesejahteraan Bersama)
-    const amplop5_totalKesejahteraan = totalOmsetHariIni * 0.05; 
-    const porsiThrAgenPabrik = amplop5_totalKesejahteraan * 0.60;     // 60% Alokasi Paket Dimsum Agen
-    const porsiThrKaryawanDapur = amplop5_totalKesejahteraan * 0.40;  // 40% Alokasi UANG TUNAI Karyawan
+    (orders || []).forEach(o => {
+      if(!o.isDeleted && getLocalYMD(o.date) === todayStr) {
+         totalOmsetHariIni += Number(o.total_amount || o.total || 0);
+         totalCashMasukHariIni += Number(o.amount_paid || o.paidAmount || 0);
+      }
+    });
+    
+    // Tambah pelunasan piutang lama yang masuk hari ini
+    (piutangPayments || []).forEach(p => {
+       if(!p.isDeleted && getLocalYMD(p.date) === todayStr) {
+           totalCashMasukHariIni += Number(p.amount || 0);
+       }
+    });
+
+    // 💰 Eksekusi 4 Amplop Survival Mode (Berdasarkan Cash Riil)
+    const amplop1_bahanBaku = totalCashMasukHariIni * 0.55;
+    const amplop2_operasional = totalCashMasukHariIni * 0.25; 
+    const amplop3_jagaJaga = totalCashMasukHariIni * 0.15; 
+    const amplop4_profitMurni = totalCashMasukHariIni * 0.05; 
+    
+    // Alokasi kesejahteraan 5% dari Cash Riil
+    const amplop5_totalKesejahteraan = totalCashMasukHariIni * 0.05;
+    const porsiThrAgenPabrik = amplop5_totalKesejahteraan * 0.60;     
+    const porsiThrKaryawanDapur = amplop5_totalKesejahteraan * 0.40;
 
     // --- 4. VALUASI STOK GUDANG ---
     let ayamGudangQty = 0, totalStokDimsumPcs = 0, totalValuasiGudang = 0;
@@ -164,8 +175,8 @@ export default function useDashboardPusat(dbData) {
       const qty = Number(l.qty_remaining || 0);
       const cost = Number(l.unit_cost || 0);
       totalValuasiGudang += (qty * cost);
-      if (String(l.item_name).toUpperCase() === 'AYAM') ayamGudangQty += qty;
-      else if (String(l.item_name).toUpperCase().includes('DIMSUM')) totalStokDimsumPcs += qty;
+      if (String(l.item_name).toUpperCase() === 'AYAM' || String(l.category).toUpperCase() === 'BAHAN_BAKU') ayamGudangQty += qty;
+      else if (String(l.item_name).toUpperCase().includes('DIMSUM') || String(l.category).toUpperCase() === 'PRODUK_JADI') totalStokDimsumPcs += qty;
     });
 
     // --- 5. LEADERBOARD LINTAS CABANG ---
@@ -173,11 +184,11 @@ export default function useDashboardPusat(dbData) {
     (masterBranches || []).forEach(br => {
         branchSales[br.branch_id] = { branch_id: br.branch_id, name: br.branch_name || br.branch_id, type: br.branch_type, omzetHariIni: 0, omzetBulanIni: 0 };
     });
-
+    
     const curMonth = todayStr.substring(0, 7);
     (orders || []).forEach(o => {
         if(o.isDeleted) return;
-        const brId = o.branch_id;
+        const brId = o.branch_id || 'TANGERANG_PUSAT';
         const netSales = Number(o.total_amount || o.total || 0);
         const safeOrderDate = getLocalYMD(o.date);
         
@@ -186,34 +197,20 @@ export default function useDashboardPusat(dbData) {
             if(String(safeOrderDate).startsWith(curMonth)) branchSales[brId].omzetBulanIni += netSales;
         }
     });
-
     const leaderboardArr = Object.values(branchSales).sort((a,b) => b.omzetBulanIni - a.omzetBulanIni);
 
-    // --- 6. AUTO TASK PROCUREMENT ---
-    let ayamUsed30d = 0;
-    (stockMovements || []).forEach(m => {
-        if(m.isDeleted) return;
-        const qty = Number(m.qty) || 0;
-        const dateObj = getLocalYMD(m.date);
-        const thirtyAgo = new Date(); thirtyAgo.setDate(todayObj.getDate() - 30);
-        const limitDateStr = thirtyAgo.toISOString().split('T')[0];
-        if (m.item_name === 'AYAM' && m.movement_type === 'PRODUCTION_USAGE' && dateObj >= limitDateStr) {
-            ayamUsed30d += qty;
-        }
-    });
-
-    const avgAyamPerDay = Math.max((ayamUsed30d / 30), 1);
-    const ayamDaysRemaining = Math.max(0, ayamGudangQty / avgAyamPerDay);
+    // --- 6. AUTO TASK PROCUREMENT (FIX BACA DARI INVENTORY COST LAYERS BUKAN STOCKMOVEMENTS) ---
+    // Logika Sederhana: Kalau Ayam di Gudang sisa < 300 Kg, suruh beli.
+    const ayamDaysRemaining = Math.max(0, ayamGudangQty / 340); // Asumsi 340kg/hari per doc
     const operationTasks = [];
-
-    if (ayamDaysRemaining <= 4) {
+    if (ayamGudangQty < 300) {
         const taskId = 'TASK-PURCHASE-' + todayStr;
         const targetAyam = 1020; 
         const estCost = targetAyam * 37500;
         operationTasks.push({ 
-            id: taskId, type: 'PURCHASE', priority: ayamDaysRemaining <= 2 ? 'CRITICAL' : 'HIGH',
+            id: taskId, type: 'PURCHASE', priority: 'CRITICAL',
             title: `Jadwalkan Turun Ayam SCM (1.020 KG)`, 
-            desc: `Sisa gudang ${ayamGudangQty.toLocaleString('id-ID')} KG (Tahan ${ayamDaysRemaining.toFixed(1)} hari). Dana Est: Rp ${estCost.toLocaleString('id-ID')}`, 
+            desc: `Sisa gudang ayam kritis. Dana Est: Rp ${estCost.toLocaleString('id-ID')}`, 
             actionLabel: 'Buat PO Belanja Ayam'
         });
     }
@@ -226,7 +223,6 @@ export default function useDashboardPusat(dbData) {
         trendDataMap[ds] = 0;
     }
     
-    // 🔥 FIX: Mapping tanggal menggunakan helper agar selaras dengan object keys
     (orders || []).forEach(o => {
         const safeDate = getLocalYMD(o.date);
         if(!o.isDeleted && trendDataMap[safeDate] !== undefined) {
@@ -240,6 +236,7 @@ export default function useDashboardPusat(dbData) {
         cashReadyTotal, hutangAyamAktif, totalPiutangPelanggan, pendingMarketplace,
         ayamGudangQty, totalStokDimsumPcs, totalValuasiGudang, ayamDaysRemaining,
         operationTasks, leaderboardArr, trendData, totalOmsetHariIni,
+        totalCashMasukHariIni, // EXPOSE INI UNTUK UI
         amplopKeuangan: {
           bahanBaku: amplop1_bahanBaku, operasional: amplop2_operasional, jagaJaga: amplop3_jagaJaga, profitMurni: amplop4_profitMurni,
           totalKesejahteraanGlobal: amplop5_totalKesejahteraan, subThrAgen: porsiThrAgenPabrik, subThrKaryawan: porsiThrKaryawanDapur,
