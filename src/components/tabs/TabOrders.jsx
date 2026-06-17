@@ -2,9 +2,9 @@ import React, { useState, useMemo } from 'react';
 import { 
   ShoppingCart, Plus, Minus, Trash2, Search, 
   UserCheck, Tag, Receipt, CheckCircle2, Gift, Package, 
-  PlusCircle, Printer, Eye, Edit, ChefHat, AlertTriangle, Unlock, TrendingUp, Info, Calendar // 🔥 FIX: Ikon Calendar udah masuk!
+  PlusCircle, Printer, Eye, Edit, ChefHat, AlertTriangle, Unlock, TrendingUp, Info, Calendar 
 } from 'lucide-react';
-import { getTodayStr, generateId, formatDate, safeJsonParse } from '../../utils/helpers';
+import { getTodayStr, generateId, formatDate, safeJsonParse, getLocalYMD } from '../../utils/helpers';
 
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
@@ -39,7 +39,6 @@ export default function TabOrders({
   const [notes, setNotes] = useState('');
   const [targetDate, setTargetDate] = useState(''); 
 
-  // 🔥 FIX: STATE INPUT UANG ANTI-KURSOR LONCAT
   const [payCash, setPayCash] = useState(''); const [displayPayCash, setDisplayPayCash] = useState('');
   const [payBCA, setPayBCA] = useState(''); const [displayPayBCA, setDisplayPayBCA] = useState('');
   const [payBRI, setPayBRI] = useState(''); const [displayPayBRI, setDisplayPayBRI] = useState('');
@@ -60,7 +59,6 @@ export default function TabOrders({
   const [showBorrowModal, setShowBorrowModal] = useState(false);
   const [borrowForm, setBorrowForm] = useState({ product: null, poId: '', qty: '', maxQty: 0 });
 
-  // HELPER INPUT UANG
   const handleMoneyInput = (val, setRaw, setDisplay) => {
     const rawVal = val.replace(/\D/g, '');
     setRaw(rawVal);
@@ -109,11 +107,9 @@ export default function TabOrders({
     const wholesalePrice = Number(product.selling_price || 0);
     const retailPrice = Number(product.retail_price || product.penalty_price || product.selling_price || 0);
 
-    // Jika qty pesanan di bawah syarat grosir, berikan harga Eceran (Lebih mahal)
     if (wholesaleQty > 1 && currentQty < wholesaleQty) {
         return retailPrice;
     }
-    // Jika qty memenuhi, berikan harga Grosir/Selling standar
     return wholesalePrice;
   };
 
@@ -121,8 +117,6 @@ export default function TabOrders({
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
       const newTotalQty = existing ? existing.qty + forcedQty : forcedQty;
-      
-      // Auto-hitung harga dinamis setiap ada penambahan Qty
       const dynamicPrice = getProductPriceForCustomer(product, selectedCustomerId, newTotalQty);
 
       if (existing) {
@@ -155,7 +149,6 @@ export default function TabOrders({
       if (cart.length > 0) {
           setCart(prev => prev.map(item => {
               const productMaster = activeProducts.find(p => p.id === item.id);
-              // Hitung ulang seluruh harga keranjang saat pelanggan berubah
               if (productMaster) return { ...item, price: getProductPriceForCustomer(productMaster, newCustId, item.qty) };
               return item;
           }));
@@ -172,7 +165,6 @@ export default function TabOrders({
        return;
     }
 
-    // Peringatan Batas Minimal Pembelian
     if (newQty > 0 && newQty < Number(product.min_order || 1)) {
        showToast(`Peringatan: Minimal pembelian ${product.product_name} adalah ${product.min_order} Pcs!`, 'warning');
     }
@@ -180,7 +172,6 @@ export default function TabOrders({
     setCart(prev => prev.map(item => {
        if (item.id === id) {
            const finalQty = Math.max(0, newQty);
-           // Auto-hitung harga mundur/maju berdasarkan Qty aktual di keranjang
            const dynamicPrice = getProductPriceForCustomer(product, selectedCustomerId, finalQty);
            return { ...item, qty: finalQty, price: dynamicPrice };
        }
@@ -264,9 +255,6 @@ export default function TabOrders({
     }
   };
 
-  // =========================================================================
-  // EKSEKUSI PEMINJAMAN STOK KARANTINA KETIKA KASIR TERDESAK
-  // =========================================================================
   const poOptionsForBorrow = useMemo(() => {
     if (!borrowForm.product) return [];
     const opts = [];
@@ -287,7 +275,6 @@ export default function TabOrders({
     if (borrowQtyNum <= 0 || borrowQtyNum > borrowForm.maxQty) return alert("Angka pinjaman tidak valid!");
     if (!window.confirm(`Pinjam ${borrowQtyNum} Pcs dari PO ${borrowForm.poId}? Tindakan ini akan tercatat di sistem.`)) return;
 
-    // 1. Kurangi Karantina, 2. Jadikan Stok Bebas
     const p1 = { id: generateId('INV', todayStr) + '-QOUT', date: todayStr, branch_id: currentBranch, category: 'BONGKAR_KARANTINA', item_name: borrowForm.product.product_name, qty_remaining: -borrowQtyNum, unit_cost: 0, status: 'KARANTINA', reference_id: borrowForm.poId, notes: `Dibongkar paksa Kasir POS`, isDeleted: false };
     const p2 = { id: generateId('INV', todayStr) + '-FREE', date: todayStr, branch_id: currentBranch, category: 'STOK_PINJAMAN', item_name: borrowForm.product.product_name, qty_remaining: borrowQtyNum, unit_cost: 0, status: 'ACTIVE', reference_id: 'PINJAMAN', notes: `Bongkaran dari PO ${borrowForm.poId}`, isDeleted: false };
     
@@ -297,7 +284,6 @@ export default function TabOrders({
           const addNote = `[PINJAM KARANTINA] ${borrowQtyNum} Pcs ${borrowForm.product.product_name} dari PO ${borrowForm.poId}`;
           return prev ? prev + ' | ' + addNote : addNote;
        });
-       
        addToCart(borrowForm.product, borrowQtyNum);
        setShowBorrowModal(false);
        showToast('Stok berhasil dipinjam & masuk keranjang otomatis!', 'success');
@@ -321,6 +307,7 @@ export default function TabOrders({
     const confirmMsg = `${editingOrderId ? '⚡ REVISI NOTA PENJUALAN' : 'Konfirmasi Transaksi Grosir Aditya'}:\n\nNo Invoice: ${orderId}\nPelanggan: ${custName}\nTotal Belanja Aktual: ${formatRupiah(cartTotal)}\nTotal Uang Masuk: ${formatRupiah(paymentSummary.totalDibayar)}\nSisa Bon Gantung: ${formatRupiah(paymentSummary.sisaBon)}\n\nSahkan & Kirim ke Cloud?`;
     if (!window.confirm(confirmMsg)) return;
 
+    // 🔥 JANTUNG KASIR: TRIPLE-ENTRY PADA CHECKOUT
     const orderPayload = {
       id: orderId, date: todayStr, branch_id: currentBranch, customer_name: custName, sales_channel: custCategory,
       items: JSON.stringify(cart), qty: totalItemQty, total_amount: cartTotal, amount_paid: paymentSummary.totalDibayar,
@@ -335,15 +322,26 @@ export default function TabOrders({
         showToast(`Invoice ${orderId} Berhasil Diperbarui! (Keuangan tidak diubah otomatis)`, 'warning'); 
         setEditingOrderId(null);
       } else {
+        
+        // 🔥 TRIGGER AUTO-POTONG STOK BARANG JADI (FREEZER) UNTUK SETIAP ITEM DI KERANJANG
+        const inventoryPayloads = cart.map((item, idx) => ({
+           id: `${orderId}-OUT-${idx}`, date: todayStr, branch_id: currentBranch, category: 'PRODUK_JADI',
+           item_name: item.name.toUpperCase(), qty_received: 0, qty_remaining: -item.qty, unit_cost: item.hpp || 1125,
+           status: 'SOLD', reference_id: orderId, isDeleted: false
+        }));
+
+        await sendToSheet('insert', inventoryPayloads, 'inventory_cost_layers');
+
+        // PENCATATAN UANG MASUK (CASHFLOW)
         if (orderMode === 'INFLUENCER') {
-          await sendToSheet('insert', { id: generateId('EXP', todayStr), date: todayStr, branch_id: currentBranch, category: 'BIAYA_PROPOSI', expense_name: `Beban Promo: ${custName}`, amount: cartHPP, payment_method: 'SISTEM', isDeleted: false, description: `Beban gratis menu ${totalItemQty} Pcs Nota ${orderId}.` }, 'expenses');
+          await sendToSheet('insert', { id: generateId('EXP', todayStr), date: todayStr, branch_id: currentBranch, category: 'BIAYA_PROMOSI', description: `Beban gratis menu ${totalItemQty} Pcs Nota ${orderId}.`, amount: cartHPP, payment_method: 'SISTEM', employee_name: 'SISTEM', isDeleted: false }, 'expenses');
         } else if (paymentSummary.totalDibayar > 0) {
           for (let pay of paymentSummary.breakdown) {
             if (pay.amount <= 0) continue;
             await sendToSheet('insert', { id: generateId('CFI', todayStr), date: todayStr, branch_id: currentBranch, type: 'IN', category: 'PENJUALAN POS', amount: pay.amount, method: pay.method, reference_id: orderId, description: `Pelunasan POS ${orderId} - Klien: ${custName} (${pay.method})`, isDeleted: false }, 'cashflow_transactions');
           }
         }
-        showToast(`Invoice ${orderId} Berhasil Diproses!`, 'success');
+        showToast(`Invoice ${orderId} Berhasil Diproses & Stok Berkurang!`, 'success');
       }
 
       setPrintData({
@@ -390,7 +388,7 @@ export default function TabOrders({
   };
 
   const handleTriggerVoidOrder = async (orderId) => {
-    if (!window.confirm(`🔥 PERINGATAN OWNER:\nHapus permanen (Void) nota ${orderId} dari sistem cloud?\nTindakan ini akan membatalkan potongan stok dan menghapus transaksi dari buku.`)) return;
+    if (!window.confirm(`🔥 PERINGATAN OWNER:\nHapus permanen (Void) nota ${orderId} dari sistem cloud?\nTindakan ini HANYA akan mengubah status nota, TIDAK MENGEMBALIKAN STOK FISIK YANG SUDAH DIPOTONG. Gunakan Opname jika barang kembali ke gudang.`)) return;
     const isSuccess = await sendToSheet('update', { id: orderId, isDeleted: true }, 'orders');
     if (isSuccess) showToast(`Nota ${orderId} berhasil dihapus permanen!`, 'success');
   };
@@ -398,8 +396,9 @@ export default function TabOrders({
   const historyOrdersData = useMemo(() => {
     return (orders || []).filter(o => {
       if (o.isDeleted || o.branch_id !== currentBranch) return false;
-      return o.date >= historyDateFrom && o.date <= historyDateTo;
-    }).sort((a, b) => b.id.localeCompare(a.id));
+      const oDate = getLocalYMD(o.date);
+      return oDate >= historyDateFrom && oDate <= historyDateTo;
+    }).sort((a, b) => new Date(b.date) - new Date(a.date));
   }, [orders, currentBranch, historyDateFrom, historyDateTo]);
 
   const filteredHistoryOrders = useMemo(() => {
@@ -624,13 +623,11 @@ export default function TabOrders({
             </div>
           </div>
 
-          {/* DAFTAR MENU DENGAN INFORMASI HARGA BERTINGKAT & KONVERSI */}
           <div className="grid grid-cols-2 xl:grid-cols-3 gap-4 overflow-y-auto custom-scrollbar max-h-[70vh] pb-2 pr-1">
             {filteredProducts.map(product => {
               const freeStock = stockData.free[product.product_name] || 0;
               const qStock = stockData.quarantine[product.product_name] || 0;
               
-              // Tarik harga normal untuk display awal (Grosir)
               const wholesalePrice = Number(product.selling_price || 0);
               const retailPrice = Number(product.retail_price || product.penalty_price || product.selling_price || 0);
               const wholesaleQty = Number(product.wholesale_qty || 1);
@@ -638,7 +635,6 @@ export default function TabOrders({
               return (
                 <div key={product.id} onClick={() => handleProductClick(product)} className={`bg-white border rounded-3xl p-4 cursor-pointer hover:shadow-md transition-all flex flex-col justify-between h-full group relative shadow-sm overflow-hidden ${freeStock <= 0 && qStock > 0 ? 'border-orange-300 hover:border-orange-500 bg-orange-50/30' : 'border-slate-200 hover:border-blue-400'}`}>
                   
-                  {/* BADGE STOK PECAH DUA (BEBAS & KARANTINA) */}
                   <div className="absolute top-0 right-0 flex flex-col items-end">
                     <div className={`px-2.5 py-0.5 text-[9px] font-black rounded-bl-xl uppercase tracking-wider shadow-sm ${freeStock > 500 ? 'bg-emerald-100 text-emerald-800' : freeStock > 0 ? 'bg-blue-100 text-blue-800' : 'bg-rose-100 text-rose-800'}`}>
                       Bebas: {formatNumber(freeStock)}
@@ -655,7 +651,6 @@ export default function TabOrders({
                   </div>
                   
                   <div className="space-y-2 mt-auto">
-                    {/* INFO HARGA BERTINGKAT */}
                     {wholesaleQty > 1 ? (
                       <div className="space-y-1.5">
                         <div className="text-[9px] font-black text-slate-500 bg-slate-50 border border-slate-100 px-2.5 py-1 rounded-md flex justify-between uppercase tracking-wider shadow-inner">
@@ -670,7 +665,6 @@ export default function TabOrders({
                     )}
 
                     <div className="flex justify-between items-end pt-1">
-                      {/* BANTUAN KONVERSI UNTUK KASIR */}
                       <div className="flex items-center gap-1.5">
                          <span className="text-[8px] font-black bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200 shadow-3xs" title="1 Mika = 50 Pcs">1 MK = 50</span>
                          <span className="text-[8px] font-black bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200 shadow-3xs" title="1 Porsi = 4 Pcs">1 PR = 4</span>
