@@ -4,6 +4,10 @@ import { getTodayStr, generateId, formatDate, safeJsonParse } from '../../utils/
 
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
+// PATOKAN SAKRAL PABRIK ADITYA
+const INTI_HPP_DIMSUM = 1125;
+const INTI_HPP_AYAM = 37500;
+
 export default function TabPemalang({ 
   pemalang = [], masterProducts = [], master_products,
   inventoryCostLayers = [], inventory_cost_layers,
@@ -20,17 +24,17 @@ export default function TabPemalang({
   }, [realProducts]);
 
   const [date, setDate] = useState(todayStr);
-  const [pic, setPic] = useState(''); // Request 4: PIC Kosong Default
+  const [pic, setPic] = useState(''); 
   const [productName, setProductName] = useState('');
   const [adukan, setAdukan] = useState('');
   const [actualInput, setActualInput] = useState('');
-  const [actualUnit, setActualUnit] = useState('PORSI'); // Request 6: Default Porsi
+  const [actualUnit, setActualUnit] = useState('PORSI'); 
   const [notes, setNotes] = useState('');
 
   const [filterMode, setFilterMode] = useState('MINGGU_INI'); 
   const [filterMonth, setFilterMonth] = useState(todayStr.substring(0,7));
 
-  // 🔥 BACA SEMUA NOTA AYAM, KONVERSI OTOMATIS (1 Kantong = 10 Kg)
+  // 🔥 ENGINE BACKWARD COMPATIBLE: Tetap bisa baca nota ayam masa lalu
   const stockAyam = useMemo(() => {
     let masukKg = 0;
     let keluarKg = 0;
@@ -44,10 +48,7 @@ export default function TabPemalang({
       if (itemName.includes('AYAM') || itemName.includes('DADA') || supplierName.includes('NANA')) {
         let qty = Number(p.qty || 0);
         const unit = String(p.unit || '').toUpperCase(); 
-        
-        if (unit.includes('KANT') || unit.includes('KNTG')) {
-          qty = qty * 10; 
-        }
+        if (unit.includes('KANT') || unit.includes('KNTG')) qty = qty * 10; 
         masukKg += qty;
       }
     });
@@ -57,19 +58,21 @@ export default function TabPemalang({
       
       if (p.items) {
         const parsed = safeJsonParse(p.items, []);
-        if (parsed.length > 0 && String(parsed[0].name).startsWith('@@PRODUCTION@@')) {
-          const parts = parsed[0].name.split('||');
-          keluarKg += Number(parts[2] || 0); 
+        if (parsed.length > 0) {
+          const fItem = parsed[0];
+          // Deteksi JSON V2 vs Token Lama
+          if (fItem.is_v2) {
+            keluarKg += Number(fItem.ayam_kg || 0);
+          } else if (String(fItem.name).startsWith('@@PRODUCTION@@')) {
+            const parts = fItem.name.split('||');
+            keluarKg += Number(parts[2] || 0); 
+          }
         }
       }
     });
 
     const sisaKg = masukKg - keluarKg;
-    return { 
-      masukKantong: masukKg / 10,
-      keluarKantong: keluarKg / 10,
-      sisaKantong: sisaKg / 10 
-    };
+    return { masukKantong: masukKg / 10, keluarKantong: keluarKg / 10, sisaKantong: sisaKg / 10, sisaKg };
   }, [purchases, pemalang]);
 
   const kalkulasi = useMemo(() => {
@@ -113,20 +116,22 @@ export default function TabPemalang({
   }, [pemalang, filterMode, filterMonth, todayStr]);
 
   const summaryFiltered = useMemo(() => {
-    let totalAdukan = 0;
-    let totalYieldPcs = 0;
-    
+    let totalAdukan = 0; let totalYieldPcs = 0;
     filteredProductionLogs.forEach(log => {
        totalYieldPcs += Number(log.qty || 0);
        if (log.items) {
           const parsed = safeJsonParse(log.items, []);
-          if (parsed.length > 0 && String(parsed[0].name).startsWith('@@PRODUCTION@@')) {
-             const parts = parsed[0].name.split('||');
-             totalAdukan += Number(parts[1] || 0);
+          if (parsed.length > 0) {
+             const fItem = parsed[0];
+             if (fItem.is_v2) {
+               totalAdukan += Number(fItem.adukan || 0);
+             } else if (String(fItem.name).startsWith('@@PRODUCTION@@')) {
+               const parts = fItem.name.split('||');
+               totalAdukan += Number(parts[1] || 0);
+             }
           }
        }
     });
-    
     return { totalAdukan, totalYieldPcs };
   }, [filteredProductionLogs]);
 
@@ -149,34 +154,54 @@ export default function TabPemalang({
     }
 
     const batchId = generateId('PRD', date);
-    const tokenName = `@@PRODUCTION@@||${adukan}||${kalkulasi.butuhAyamKg}||${kalkulasi.actualTotalPcs}||${notes || '-'}`;
 
-    const confirmMsg = `=== KONFIRMASI PRODUKSI ADITYA ===\n\nID Batch : ${batchId}\nTanggal  : ${formatDate(date)}\nPIC      : ${pic.toUpperCase()}\nAdukan   : ${adukan} Kali\nYIELD    : ${formatNumber(kalkulasi.actualTotalPcs)} Pcs\n\nSahkan data untuk update stok freezer?`;
+    // 🔥 V2 DATA FORMAT (Bebas dari Bom Waktu Split Teks)
+    const secureItemsData = [{
+      name: productName, qty: kalkulasi.actualTotalPcs, adukan: adukan, ayam_kg: kalkulasi.butuhAyamKg,
+      notes: notes || '-', is_v2: true
+    }];
+
+    const confirmMsg = `=== TRIPLE ENTRY: PABRIK ADITYA ===\n\nTanggal  : ${formatDate(date)}\nPIC      : ${pic.toUpperCase()}\nAdukan   : ${adukan} Kali\nFisik Dimsum : ${formatNumber(kalkulasi.actualTotalPcs)} Pcs\nPotong Ayam : ${kalkulasi.butuhAyamKg} Kg\n\nSistem akan memotong stok ayam di gudang dan mengisi freezer. Lanjutkan?`;
 
     if (!window.confirm(confirmMsg)) return;
 
+    // 1. ENTRY LOG BUKU PRODUKSI (PEMALANG)
     const payloadBatch = {
       id: batchId, date: date, branch_id: currentBranch, customer_name: 'PABRIK_PEMALANG', sales_channel: 'PRODUCTION_YIELD',
-      items: JSON.stringify([{ name: tokenName, qty: kalkulasi.actualTotalPcs, subtotal: 0 }]),
-      qty: kalkulasi.actualTotalPcs, total_amount: 0, amount_paid: 0, payment_method: 'SISTEM_PRODUKSI',
+      items: JSON.stringify(secureItemsData), qty: kalkulasi.actualTotalPcs, total_amount: 0, amount_paid: 0, payment_method: 'SISTEM_PRODUKSI',
       status: 'LUNAS', notes: `${notes.toUpperCase()} (Asal: ${adukan} adukan, fisik: ${actualInput} ${actualUnit})`, isDeleted: false,
       item_name: productName, pic: pic.toUpperCase() 
     };
 
+    // 2. ENTRY KELUAR BAHAN MENTAH
+    const payloadInventoryOut = {
+      id: generateId('INV', date) + '-OUT', date: date, branch_id: currentBranch, category: 'BAHAN_BAKU',
+      item_name: 'AYAM MENTAH FILLET', qty_remaining: -kalkulasi.butuhAyamKg, unit_cost: INTI_HPP_AYAM,
+      status: 'USED_IN_PRODUCTION', reference_id: batchId, isDeleted: false
+    };
+
+    // 3. ENTRY MASUK BARANG MATANG
+    const payloadInventoryIn = {
+      id: generateId('INV', date) + '-IN', date: date, branch_id: currentBranch, category: 'PRODUK_JADI',
+      item_name: productName.toUpperCase(), qty_remaining: kalkulasi.actualTotalPcs, unit_cost: INTI_HPP_DIMSUM,
+      status: 'ACTIVE', reference_id: batchId, isDeleted: false
+    };
+
     const isSuccess = await sendToSheet('insert', payloadBatch, 'pemalang');
     if (isSuccess) {
-      if (typeof showToast === 'function') showToast(`Batch Produksi ${batchId} Disahkan!`, 'success');
+      await sendToSheet('insert', [payloadInventoryOut, payloadInventoryIn], 'inventory_cost_layers');
+      
+      if (typeof showToast === 'function') showToast(`Triple-Entry Sukses! Stok freezer bertambah, stok ayam berkurang.`, 'success');
       setAdukan(''); setActualInput(''); setNotes(''); setProductName(''); setPic('');
     }
   };
 
   const handleVoidProduction = async (id) => {
-    if (!window.confirm(`🔥 PERINGATAN: Void laporan produksi ${id}? Ini akan membatalkan akumulasi stok.`)) return;
+    if (!window.confirm(`🔥 PERINGATAN: Void laporan produksi ${id}?\nIni HANYA membatalkan log catatannya. Stok fisik freezer & bahan baku harus Anda sesuaikan manual melalui menu Discrepancy (Stok Basi/Hilang).`)) return;
     const isSuccess = await sendToSheet('update', { id, isDeleted: true }, 'pemalang');
-    if (isSuccess && typeof showToast === 'function') showToast(`Batch ${id} berhasil di-void!`, 'success');
+    if (isSuccess && typeof showToast === 'function') showToast(`Log Batch ${id} berhasil di-void!`, 'success');
   };
 
-  // Kalkulasi Potensi dari sisa kantong
   const potensiAdukan = Math.floor(stockAyam.sisaKantong / 3);
 
   return (
@@ -185,20 +210,19 @@ export default function TabPemalang({
       {/* 🚀 HEADER BANNER PABRIK */}
       <div className="bg-gradient-to-r from-red-900 via-rose-900 to-red-900 p-6 lg:p-8 flex flex-col xl:flex-row justify-between items-stretch gap-6 rounded-3xl shadow-xl relative overflow-hidden border border-red-800">
         <div className="absolute top-0 right-0 p-4 opacity-5"><Factory size={120} className="text-red-400"/></div>
-        <div className="absolute -top-32 -left-32 w-72 h-72 bg-red-500/20 rounded-full blur-3xl pointer-events-none"></div>
-
+        
         <div className="relative z-10 w-full xl:w-1/3 shrink-0 flex flex-col justify-center">
            <div className="flex items-center gap-2 mb-3">
              <Database size={24} className="text-red-400"/>
              <h2 className="text-xl font-black text-white uppercase tracking-wide">Monitor Pabrik Utama</h2>
            </div>
            <p className="text-[11px] font-bold text-slate-300 leading-relaxed max-w-sm">
-             Pusat kendali laporan adukan pabrik. Pantau total sisa ayam di gudang dan hasil rekap dimsum yang berhasil diproduksi.
+             Pusat kendali laporan adukan pabrik. Sistem cerdas Triple-Entry: Memotong stok ayam di gudang dan otomatis mengisi stok Freezer.
            </p>
         </div>
         
         <div className="relative z-10 w-full xl:w-2/3 flex flex-col sm:flex-row gap-4">
-           {/* BOX 1: STOK AYAM GUDANG (LIVE GLOBAL) */}
+           {/* BOX 1: STOK AYAM GUDANG */}
            <div className="flex-1 bg-slate-900/60 border border-slate-700/50 rounded-2xl p-5 flex flex-col justify-between shadow-inner backdrop-blur-sm relative overflow-hidden">
              {kalkulasi.sisaAyamKantong < 0 && <div className="absolute top-0 w-full left-0 bg-red-600 text-white text-[9px] font-black uppercase tracking-widest text-center py-0.5">Stok Minus!</div>}
              <div>
@@ -207,46 +231,35 @@ export default function TabPemalang({
                  {formatNumber(stockAyam.sisaKantong)} <span className="text-sm text-slate-500 font-bold">Kntg</span>
                </div>
              </div>
-             {/* Request 1: Info Potensi Produksi di bawah Stok */}
              <div className="text-[10px] font-bold text-slate-400 mt-2 border-t border-slate-700/50 pt-2 flex flex-col gap-1">
                <div className="flex justify-between">
                  <span>Masuk: <b className="text-slate-300">{formatNumber(stockAyam.masukKantong)}</b></span>
                  <span>Dipakai: <b className="text-amber-500">{formatNumber(stockAyam.keluarKantong)}</b></span>
                </div>
-               <div className="text-emerald-400 bg-emerald-950/30 px-2 py-1 rounded-md mt-1 inline-block border border-emerald-900/50">
+               <div className="text-emerald-400 bg-emerald-950/30 px-2 py-1 rounded-md mt-1 inline-block border border-emerald-900/50 w-max">
                  Potensi: <b>{potensiAdukan} Adukan</b> (~{formatNumber(potensiAdukan * 250)} Porsi)
                </div>
              </div>
            </div>
 
-           {/* BOX 2: TOTAL PRODUKSI (Request 2 & 3: Angka Pcs & Porsi Diperbesar) */}
+           {/* BOX 2: TOTAL PRODUKSI */}
            <div className="flex-[1.5] bg-slate-900/60 border border-slate-700/50 rounded-2xl p-5 flex flex-col justify-center shadow-inner backdrop-blur-sm">
-             <div className="text-[11px] font-black text-emerald-400 uppercase tracking-wider mb-3">
-               Hasil Produksi ({filterMode.replace('_', ' ')})
-             </div>
-             
+             <div className="text-[11px] font-black text-emerald-400 uppercase tracking-wider mb-3">Hasil Produksi ({filterMode.replace('_', ' ')})</div>
              <div className="flex flex-row items-end gap-6 mb-2">
                <div>
-                 <div className="text-5xl font-black text-emerald-500 tracking-tighter leading-none drop-shadow-md">
-                   {formatNumber(summaryFiltered.totalYieldPcs)}
-                 </div>
+                 <div className="text-5xl font-black text-emerald-500 tracking-tighter leading-none drop-shadow-md">{formatNumber(summaryFiltered.totalYieldPcs)}</div>
                  <div className="text-[10px] text-emerald-600 font-black uppercase tracking-widest mt-1.5 flex items-center gap-1">
                    <span>TOTAL PCS</span> <span className="px-1.5 py-0.5 bg-emerald-900/40 rounded text-emerald-400 text-[8px]">PELANGGAN</span>
                  </div>
                </div>
-               
                <div className="h-12 w-px bg-slate-700/60 hidden sm:block"></div>
-               
                <div>
-                 <div className="text-4xl font-black text-emerald-400 tracking-tighter leading-none drop-shadow-md">
-                   {formatNumber(summaryFiltered.totalYieldPcs / 4)}
-                 </div>
+                 <div className="text-4xl font-black text-emerald-400 tracking-tighter leading-none drop-shadow-md">{formatNumber(summaryFiltered.totalYieldPcs / 4)}</div>
                  <div className="text-[10px] text-emerald-600 font-black uppercase tracking-widest mt-1.5 flex items-center gap-1">
                    <span>TOTAL PORSI</span> <span className="px-1.5 py-0.5 bg-amber-900/40 rounded text-amber-500 text-[8px]">DAPUR</span>
                  </div>
                </div>
              </div>
-
              <div className="text-[10px] font-bold text-emerald-600 mt-2 pt-3 border-t border-slate-700/50 flex justify-between">
                <span>Putaran Mesin: <b className="text-emerald-400 text-[11px]">{formatNumber(summaryFiltered.totalAdukan)} Adukan</b></span>
                <span>Setara Mika: <b className="text-emerald-400 text-[11px]">{formatNumber(summaryFiltered.totalYieldPcs / 50)} Mika</b></span>
@@ -315,7 +328,7 @@ export default function TabPemalang({
             </div>
 
             <button type="submit" className="w-full py-4 rounded-xl text-xs font-black shadow-md flex items-center justify-center gap-2 mt-2 bg-red-600 hover:bg-red-700 text-white uppercase tracking-wider transition-transform active:scale-95 cursor-pointer">
-              <CheckCircle2 size={16}/> Lapor Fisik &amp; Masukkan Freezer
+              <CheckCircle2 size={16}/> Lapor Fisik, Potong Gudang &amp; Bekukan Freezer
             </button>
           </form>
         </div>
@@ -323,10 +336,8 @@ export default function TabPemalang({
         <div className="xl:col-span-7 flex flex-col bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="p-6 bg-slate-50 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start gap-4">
             <div>
-               {/* Request 5: Judul History Diubah */}
                <h4 className="font-black text-slate-800 uppercase tracking-wide text-sm flex items-center gap-2"><ClipboardList size={18} className="text-amber-600"/> Riwayat Produksi &amp; Adukan Dapur</h4>
             </div>
-            
             <div className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-xl shadow-sm">
               <Calendar size={14} className="text-amber-500 ml-0.5"/>
               <select value={filterMode} onChange={(e) => setFilterMode(e.target.value)} className="text-[11px] font-black outline-none cursor-pointer text-slate-700 uppercase tracking-wider bg-transparent">
@@ -363,17 +374,18 @@ export default function TabPemalang({
                   </tr>
                 ) : (
                   filteredProductionLogs.map((log) => {
-                    let displayAdukan = '-';
-                    let displayAyam = '-';
-                    let displayYield = log.qty || 0;
+                    let displayAdukan = '-'; let displayAyam = '-'; let displayYield = log.qty || 0;
 
                     if (log.items) {
                       const parsed = safeJsonParse(log.items, []);
-                      if (parsed.length > 0 && String(parsed[0].name).startsWith('@@PRODUCTION@@')) {
-                        const parts = parsed[0].name.split('||');
-                        displayAdukan = parts[1] || '-';
-                        displayAyam = parts[2] || '-';
-                        displayYield = parts[3] || log.qty;
+                      if (parsed.length > 0) {
+                        const fItem = parsed[0];
+                        if (fItem.is_v2) {
+                           displayAdukan = fItem.adukan; displayAyam = fItem.ayam_kg; displayYield = fItem.qty;
+                        } else if (String(fItem.name).startsWith('@@PRODUCTION@@')) {
+                           const parts = fItem.name.split('||');
+                           displayAdukan = parts[1] || '-'; displayAyam = parts[2] || '-'; displayYield = parts[3] || log.qty;
+                        }
                       }
                     }
 
