@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Factory, PlusCircle, Trash2, Calendar, ClipboardList, Info, CheckCircle2, Printer, Database, PackageCheck, Target } from 'lucide-react';
+import { Factory, Trash2, Calendar, ClipboardList, CheckCircle2, Printer, Database, PackageCheck } from 'lucide-react';
 import { getTodayStr, generateId, formatDate, safeJsonParse } from '../../utils/helpers';
 
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
@@ -30,7 +30,7 @@ export default function TabPemalang({
   const [filterMode, setFilterMode] = useState('MINGGU_INI'); 
   const [filterMonth, setFilterMonth] = useState(todayStr.substring(0,7));
 
-  // 🔥 FIX ALGORITMA STOK: SEKARANG MEMBACA AKUMULASI GLOBAL (TANPA FILTER TANGGAL)
+  // 🔥 1 KABEL UTAMA: BACA SEMUA NOTA AYAM, KONVERSI OTOMATIS
   const stockAyam = useMemo(() => {
     let masukKg = 0;
     let keluarKg = 0;
@@ -40,8 +40,10 @@ export default function TabPemalang({
       if (p.branch_id !== currentBranch && currentBranch !== 'TANGERANG_PUSAT') return;
       
       const itemName = String(p.item_name || p.raw_name || '').toUpperCase();
-      // Tarik semua data yang mengandung kata AYAM
-      if (itemName.includes('AYAM') || itemName.includes('DADA FILLET')) {
+      const supplierName = String(p.supplier_name || '').toUpperCase();
+      
+      // KABEL KONEK: Kalau ada kata AYAM, DADA, atau NANA
+      if (itemName.includes('AYAM') || itemName.includes('DADA') || supplierName.includes('NANA')) {
         let qty = Number(p.qty || 0);
         const unit = String(p.unit).toUpperCase();
         if (unit.includes('KANT') || unit.includes('KNTG')) {
@@ -84,18 +86,13 @@ export default function TabPemalang({
     if (actualUnit === 'PORSI') actualTotalPcs = inputAngka * 4;     
     if (actualUnit === 'PCS') actualTotalPcs = inputAngka;
 
-    const previewMika = (actualTotalPcs / 50).toFixed(1);
-    const previewPorsi = Math.floor(actualTotalPcs / 4);
-
-    const selisihPcs = actualTotalPcs - stdPcs;
     const butuhAyamKg = adukanNum * 30;
     const butuhAyamKantong = adukanNum * 3; 
-    
     const sisaAyamKantong = stockAyam.sisaKantong - butuhAyamKantong;
 
     return { 
-      adukanNum, stdPcs, stdMika, actualTotalPcs, previewMika, previewPorsi, 
-      inputAngka, selisihPcs, butuhAyamKg, butuhAyamKantong, sisaAyamKantong 
+      adukanNum, stdPcs, stdMika, actualTotalPcs, 
+      inputAngka, butuhAyamKg, butuhAyamKantong, sisaAyamKantong 
     };
   }, [adukan, actualInput, actualUnit, stockAyam]);
 
@@ -152,10 +149,9 @@ export default function TabPemalang({
     }
 
     const batchId = generateId('PRD', date);
-    // Ayam (Kg) otomatis masuk dari kalkulasi.butuhAyamKg
     const tokenName = `@@PRODUCTION@@||${adukan}||${kalkulasi.butuhAyamKg}||${kalkulasi.actualTotalPcs}||${notes || '-'}`;
 
-    const confirmMsg = `=== KONFIRMASI PRODUKSI ADITYA ===\n\nID Batch : ${batchId}\nTanggal  : ${formatDate(date)}\nAdukan   : ${adukan} Kali\nAyam     : ${kalkulasi.butuhAyamKg} Kg (Auto)\nYield    : ${formatNumber(kalkulasi.actualTotalPcs)} Pcs\n\nSahkan data untuk update stok freezer?`;
+    const confirmMsg = `=== KONFIRMASI PRODUKSI ADITYA ===\n\nID Batch : ${batchId}\nTanggal  : ${formatDate(date)}\nAdukan   : ${adukan} Kali\nYIELD    : ${formatNumber(kalkulasi.actualTotalPcs)} Pcs\n\nSahkan data untuk update stok freezer?`;
 
     if (!window.confirm(confirmMsg)) return;
 
@@ -199,7 +195,6 @@ export default function TabPemalang({
         </div>
         
         <div className="relative z-10 w-full xl:w-2/3 flex flex-col sm:flex-row gap-4">
-           
            {/* BOX 1: STOK AYAM GUDANG (LIVE GLOBAL) */}
            <div className="flex-1 bg-slate-900/60 border border-slate-700/50 rounded-2xl p-5 flex flex-col justify-center shadow-inner backdrop-blur-sm relative overflow-hidden">
              {kalkulasi.sisaAyamKantong < 0 && <div className="absolute top-0 w-full left-0 bg-red-600 text-white text-[9px] font-black uppercase tracking-widest text-center py-0.5">Stok Minus!</div>}
@@ -225,7 +220,6 @@ export default function TabPemalang({
                Total Putaran Mesin: <b className="text-emerald-400">{formatNumber(summaryFiltered.totalAdukan)} Adukan</b>
              </div>
            </div>
-
         </div>
       </div>
 
@@ -259,10 +253,10 @@ export default function TabPemalang({
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-2 text-center mt-2">Total Adukan Hari Ini</label>
               <input type="number" min="1" required value={adukan} onChange={(e) => handleAdukanChange(e.target.value)} className="w-full py-4 border-2 border-slate-300 rounded-xl text-4xl font-black text-slate-800 bg-white outline-none text-center focus:border-red-500 shadow-sm transition-colors" placeholder="0" />
               
+              {/* 🔥 TAMPILAN BERSIH: HINT KG AYAM DIBUANG */}
               {adukan && (
-                <div className="mt-4 pt-3 border-t border-slate-200 flex justify-between text-[9px] font-black uppercase tracking-wider text-slate-500">
-                  <span>Target: <b className="text-slate-800">{formatNumber(kalkulasi.stdMika)} Mika ({formatNumber(kalkulasi.stdPcs)} Pcs)</b></span>
-                  <span>Ayam Terpakai: <b className="text-red-600">{formatNumber(kalkulasi.butuhAyamKantong)} Kntg ({formatNumber(kalkulasi.butuhAyamKg)} Kg)</b></span>
+                <div className="mt-4 pt-3 border-t border-slate-200 flex justify-center text-[10px] font-black uppercase tracking-wider text-slate-500">
+                  <span>Target Standar: <b className="text-slate-800">{formatNumber(kalkulasi.stdMika)} Mika ({formatNumber(kalkulasi.stdPcs)} Pcs)</b></span>
                 </div>
               )}
             </div>
@@ -290,7 +284,7 @@ export default function TabPemalang({
             </div>
 
             <button type="submit" className="w-full py-4 rounded-xl text-xs font-black shadow-md flex items-center justify-center gap-2 mt-2 bg-red-600 hover:bg-red-700 text-white uppercase tracking-wider transition-transform active:scale-95 cursor-pointer">
-              <CheckCircle2 size={16}/> Lapor Fisik &amp; Potong Gudang
+              <CheckCircle2 size={16}/> Lapor Fisik &amp; Masukkan Freezer
             </button>
           </form>
         </div>
