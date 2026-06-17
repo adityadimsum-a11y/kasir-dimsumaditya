@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { AlertCircle, Loader2, Trash2 } from 'lucide-react';
 
+// 🔥 IMPORT HELPER ANDALAN KITA
+import { safeJsonParse, generateRequestId } from './utils/helpers';
+
 import LayoutEngine from './layouts/LayoutEngine';
 import TabDashboard from './components/tabs/TabDashboard';
 import TabOrders from './components/tabs/TabOrders';
@@ -13,7 +16,6 @@ import TabStok from './components/tabs/TabStok';
 import TabDistribusi from './components/tabs/TabDistribusi';
 import TabKaryawan from './components/tabs/TabKaryawan';
 import TabDashboardBranch from './components/tabs/TabDashboardBranch';
-// 🔥 TabCashWarRoom SUDAH DIHAPUS DARI IMPORT!
 import TabSCMWarRoom from './components/tabs/TabSCMWarRoom';
 import TabAnalytics from './components/tabs/TabAnalytics';
 import TabBusinessRadar from './components/tabs/TabBusinessRadar';
@@ -44,15 +46,16 @@ const ToastNotification = ({ toast, onClose }) => {
 };
 
 export default function App() {
+  // ✅ FIX: Menggunakan safeJsonParse agar aplikasi tidak crash kalau localStorage corrupt
   const [user, setUser] = useState(() => {
     const savedUser = localStorage.getItem('dimsum_user');
-    return savedUser ? JSON.parse(savedUser) : null;
+    return safeJsonParse(savedUser, null);
   });
 
   const [activeTab, setActiveTab] = useState(() => {
     const savedUser = localStorage.getItem('dimsum_user');
-    if (savedUser) {
-      const parsed = JSON.parse(savedUser);
+    const parsed = safeJsonParse(savedUser, null);
+    if (parsed) {
       return parsed.branch_type === 'HQ_FACTORY' ? 'dashboard' : 'dashboard_branch';
     }
     return 'dashboard';
@@ -82,7 +85,8 @@ export default function App() {
     setTimeout(() => setToast(null), 3500);
   }, []);
 
-  const fetchAllDatabase = async (currentBranchId, isBackground = false) => {
+  // ✅ FIX: Dibungkus useCallback untuk mencegah re-render memori yang tidak perlu
+  const fetchAllDatabase = useCallback(async (currentBranchId, isBackground = false) => {
     if (!API_URL_GAS || API_URL_GAS.includes('URL_WEBAPP_')) return;
     if (!isBackground) setIsLoading(true); 
     
@@ -97,7 +101,7 @@ export default function App() {
     } finally {
       if (!isBackground) setIsLoading(false);
     }
-  };
+  }, [showToast]);
 
   useEffect(() => {
     if (user) {
@@ -107,7 +111,7 @@ export default function App() {
       }, 60000);
       return () => clearInterval(syncInterval);
     }
-  }, [user]);
+  }, [user, fetchAllDatabase]);
 
   const sendToSheet = async (action, payload, tableName) => {
     if (!API_URL_GAS || API_URL_GAS.includes('URL_WEBAPP_')) {
@@ -123,7 +127,7 @@ export default function App() {
           table: tableName, 
           data: payload,
           executor: { name: user?.name || 'SYSTEM', branch_id: user?.branch_id || 'PUSAT' },
-          request_id: 'REQ-' + new Date().getTime() + Math.floor(Math.random() * 1000)
+          request_id: generateRequestId() // ✅ FIX: Pakai fungsi helper yang lebih rapi & solid
         })
       });
       const resJson = await response.json();
