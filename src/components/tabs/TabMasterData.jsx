@@ -8,14 +8,14 @@ import {
 } from 'lucide-react';
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 
-// 🔥 FIX BUG: Deklarasi formatNumber & formatRupiah ditambahkan di sini!
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
 export default function TabMasterData({ 
   masterProducts = [], master_products,
   masterSuppliers = [], master_suppliers,
-  masterRawMaterials = [], master_raw_materials, 
+  masterRawMaterials = [], master_raw_materials,
+  masterConversionRules = [], master_conversion_rules, // 🔥 KABEL BARU
   sendToSheet, showToast, user 
 }) {
   const todayStr = getTodayStr();
@@ -25,37 +25,35 @@ export default function TabMasterData({
   const [isEditing, setIsEditing] = useState(false);
   const [isEditingSpl, setIsEditingSpl] = useState(false);
   const [isEditingItem, setIsEditingItem] = useState(false);
-  
   const [historyModal, setHistoryModal] = useState(null);
-
-  // FITUR BARU: Toggle untuk Aturan Harga Kompleks
   const [useAdvancedPricing, setUseAdvancedPricing] = useState(false);
-
-  const [recapStart, setRecapStart] = useState(() => {
-    const d = new Date();
-    d.setDate(1); 
-    return d.toISOString().substring(0, 10);
-  });
+  const [recapStart, setRecapStart] = useState(() => { const d = new Date(); d.setDate(1); return d.toISOString().substring(0, 10); });
   const [recapEnd, setRecapEnd] = useState(todayStr);
 
   const realProducts = useMemo(() => master_products || masterProducts || [], [master_products, masterProducts]);
   const realSuppliers = useMemo(() => master_suppliers || masterSuppliers || [], [master_suppliers, masterSuppliers]);
   const realRawMaterials = useMemo(() => master_raw_materials || masterRawMaterials || [], [master_raw_materials, masterRawMaterials]);
+  const realRules = useMemo(() => master_conversion_rules || masterConversionRules || [], [master_conversion_rules, masterConversionRules]);
   
+  // 🔥 AUTO-LOAD ATURAN DARI DATABASE SULTAN
   const [rules, setRules] = useState({
     kgPerKantong: 10, kgPerAdukan: 30, pcsPerAdukan: 1000, pcsPerPorsi: 4, pcsPerMika: 50
   });
 
-  // UPDATE FORM MENU STATE UNTUK HARGA BERTINGKAT
-  const [formMenu, setFormMenu] = useState({ 
-    id: '', product_name: '', category: 'FROZEN_GOODS', 
-    selling_price: '',    // Harga Grosir / Base
-    retail_price: '',     // Harga Ecer (Penalty Price)
-    min_order: '1',       // Minimal Order Mutlak (Misal: 50)
-    wholesale_qty: '1',   // Batas Qty Grosir (Misal: 100)
-    default_hpp: '1125' 
-  });
-  
+  useEffect(() => {
+    const dbRule = realRules.find(r => r.id === 'RULE-GLOBAL' && !r.isDeleted);
+    if (dbRule) {
+      setRules({
+        kgPerKantong: Number(dbRule.kg_per_kantong || 10),
+        kgPerAdukan: Number(dbRule.kg_per_adukan || 30),
+        pcsPerAdukan: Number(dbRule.pcs_per_adukan || 1000),
+        pcsPerPorsi: Number(dbRule.pcs_per_porsi || 4),
+        pcsPerMika: Number(dbRule.pcs_per_mika || 50)
+      });
+    }
+  }, [realRules]);
+
+  const [formMenu, setFormMenu] = useState({ id: '', product_name: '', category: 'FROZEN_GOODS', selling_price: '', retail_price: '', min_order: '1', wholesale_qty: '1', default_hpp: '1125' });
   const [formSpl, setFormSpl] = useState({ id: '', supplier_name: '', pic_name: '', phone: '', address: '', default_price: '' });
   const [formItem, setFormItem] = useState({ id: '', item_name: '', category: 'BAHAN BAKU', unit: '', default_price: '' });
 
@@ -63,39 +61,35 @@ export default function TabMasterData({
   const activeSuppliers = useMemo(() => realSuppliers.filter(s => !s.isDeleted && String(s.isDeleted).toUpperCase() !== 'TRUE').reverse(), [realSuppliers]);
   const activeRawMaterials = useMemo(() => realRawMaterials.filter(m => !m.isDeleted && String(m.isDeleted).toUpperCase() !== 'TRUE').reverse(), [realRawMaterials]);
 
-  // --- ACTIONS: SAVE MASTER RULES ---
+  // --- ACTIONS: SAVE MASTER RULES (BENAR-BENAR MENYIMPAN KE CLOUD) ---
   const handleSaveRules = async () => {
-    if (typeof showToast === 'function') {
-      showToast('Konfigurasi Master Engine berhasil diperbarui ke seluruh sistem!', 'success');
-    } else {
-      alert('Konfigurasi Master Engine berhasil diperbarui ke seluruh sistem!');
-    }
+    if(!window.confirm("Simpan perubahan Konfigurasi Master Pabrik? Perhitungan dashboard dan dapur akan langsung mengikuti angka baru ini.")) return;
+    const payload = {
+      id: 'RULE-GLOBAL', date: todayStr, branch_id: currentBranch,
+      kg_per_kantong: rules.kgPerKantong, kg_per_adukan: rules.kgPerAdukan,
+      pcs_per_adukan: rules.pcsPerAdukan, pcs_per_porsi: rules.pcsPerPorsi,
+      pcs_per_mika: rules.pcsPerMika, isDeleted: false
+    };
+    
+    // Gunakan update, jika belum ada biarkan backend yang otomatis handle insert (karena id-nya kita kunci di 'RULE-GLOBAL')
+    const isSuccess = await sendToSheet('update', payload, 'master_conversion_rules');
+    if (isSuccess) showToast('Konfigurasi Master Engine berhasil diperbarui ke seluruh sistem!', 'success');
   };
 
-  // --- ACTIONS: SUBMIT MENU (WITH ADVANCED PRICING) ---
   const handleSubmitMenu = async (e) => {
     e.preventDefault();
     if (!formMenu.product_name) return alert("Nama menu tidak boleh kosong!");
     const productId = isEditing ? formMenu.id : generateId('PRD', todayStr);
-    
-    // Logika pengamanan nilai (jika toggle mati, nilai disamakan)
     const finalWholesalePrice = Number(formMenu.selling_price || 0);
     const finalRetailPrice = useAdvancedPricing ? Number(formMenu.retail_price || finalWholesalePrice) : finalWholesalePrice;
     const finalMinOrder = useAdvancedPricing ? Number(formMenu.min_order || 1) : 1;
     const finalWholesaleQty = useAdvancedPricing ? Number(formMenu.wholesale_qty || 1) : 1;
 
     const payload = {
-      id: productId, date: todayStr, branch_id: currentBranch, isDeleted: false, 
-      product_name: formMenu.product_name.toUpperCase(),
+      id: productId, date: todayStr, branch_id: currentBranch, isDeleted: false, product_name: formMenu.product_name.toUpperCase(),
       sku: formMenu.product_name.substring(0, 3).toUpperCase() + '-' + Math.floor(Math.random() * 1000),
-      category: formMenu.category, unit: 'PCS', status_active: true,
-      default_hpp: Number(formMenu.default_hpp || 1125), 
-      // Mapping harga bertingkat ke database
-      selling_price: finalWholesalePrice, 
-      retail_price: finalRetailPrice,
-      min_order: finalMinOrder, 
-      wholesale_qty: finalWholesaleQty,
-      penalty_price: finalRetailPrice // Backward compatibility
+      category: formMenu.category, unit: 'PCS', status_active: true, default_hpp: Number(formMenu.default_hpp || 1125), 
+      selling_price: finalWholesalePrice, retail_price: finalRetailPrice, min_order: finalMinOrder, wholesale_qty: finalWholesaleQty, penalty_price: finalRetailPrice 
     };
 
     const isSuccess = await sendToSheet(isEditing ? 'update' : 'insert', payload, 'master_products');
@@ -110,27 +104,20 @@ export default function TabMasterData({
     const isAdvanced = Number(p.wholesale_qty || 1) > 1 || Number(p.min_order || 1) > 1 || Number(p.retail_price || p.penalty_price || p.selling_price) !== Number(p.selling_price);
     setUseAdvancedPricing(isAdvanced);
     setFormMenu({
-      id: p.id, product_name: p.product_name, category: p.category || 'FROZEN_GOODS', 
-      default_hpp: String(p.default_hpp || ''), 
-      selling_price: String(p.selling_price || ''),
-      retail_price: String(p.retail_price || p.penalty_price || p.selling_price || ''),
-      min_order: String(p.min_order || '1'),
-      wholesale_qty: String(p.wholesale_qty || '1')
+      id: p.id, product_name: p.product_name, category: p.category || 'FROZEN_GOODS', default_hpp: String(p.default_hpp || ''), selling_price: String(p.selling_price || ''),
+      retail_price: String(p.retail_price || p.penalty_price || p.selling_price || ''), min_order: String(p.min_order || '1'), wholesale_qty: String(p.wholesale_qty || '1')
     });
     setIsEditing(true);
   };
 
-  // --- ACTIONS: SUBMIT SUPPLIER ---
   const handleSubmitSupplier = async (e) => {
     e.preventDefault();
     if (!formSpl.supplier_name) return alert("Nama perusahaan supplier wajib diisi!");
     const splId = isEditingSpl ? formSpl.id : generateId('SPL', todayStr);
-    
     const payload = {
       id: splId, date: todayStr, branch_id: currentBranch, isDeleted: false,
       supplier_name: formSpl.supplier_name.toUpperCase(), pic_name: formSpl.pic_name.toUpperCase(), phone: formSpl.phone, 
-      address: (formSpl.address || '').toUpperCase(),
-      default_price: Number(formSpl.default_price || 0) 
+      address: (formSpl.address || '').toUpperCase(), default_price: Number(formSpl.default_price || 0) 
     };
     const isSuccess = await sendToSheet(isEditingSpl ? 'update' : 'insert', payload, 'master_suppliers');
     if (isSuccess) {
@@ -139,11 +126,9 @@ export default function TabMasterData({
     }
   };
 
-  // --- ACTIONS: SUBMIT MASTER ITEM & TRACK PRICE CHANGES ---
   const handleSubmitItem = async (e) => {
     e.preventDefault();
     if (!formItem.item_name) return alert("Nama item wajib diisi!");
-    
     const itemId = isEditingItem ? formItem.id : generateId('RAW', todayStr);
     const newPrice = Number(formItem.default_price || 0);
     let newHistoryStr = "";
@@ -154,9 +139,7 @@ export default function TabMasterData({
       let parsedHistory = [];
       if (oldItem && oldItem.price_history) { try { parsedHistory = JSON.parse(oldItem.price_history); } catch(e) {} }
 
-      if (newPrice !== oldPrice) {
-        parsedHistory.push({ date: todayStr, old_price: oldPrice, new_price: newPrice, type: newPrice > oldPrice ? 'NAIK' : 'TURUN' });
-      }
+      if (newPrice !== oldPrice) { parsedHistory.push({ date: todayStr, old_price: oldPrice, new_price: newPrice, type: newPrice > oldPrice ? 'NAIK' : 'TURUN' }); }
       newHistoryStr = JSON.stringify(parsedHistory);
     } else {
        newHistoryStr = JSON.stringify([{ date: todayStr, old_price: 0, new_price: newPrice, type: 'BARU' }]);
@@ -181,58 +164,31 @@ export default function TabMasterData({
   };
 
   const priceAnalytics = useMemo(() => {
-    let naikCount = 0;
-    let turunCount = 0;
-    let stabilCount = 0;
-    let details = [];
-
+    let naikCount = 0; let turunCount = 0; let stabilCount = 0; let details = [];
     activeRawMaterials.forEach(item => {
       let history = [];
       try { history = JSON.parse(item.price_history || '[]'); } catch(e) {}
       
       const sDate = new Date(recapStart).setHours(0,0,0,0);
       const eDate = new Date(recapEnd).setHours(23,59,59,999);
-      
-      const rangeHistory = history.filter(h => {
-        const hDate = new Date(h.date).getTime();
-        return hDate >= sDate && hDate <= eDate;
-      });
+      const rangeHistory = history.filter(h => { const hDate = new Date(h.date).getTime(); return hDate >= sDate && hDate <= eDate; });
 
       const historyBeforeStart = history.filter(h => new Date(h.date).getTime() < sDate);
       let startingPrice = item.default_price; 
-      if (historyBeforeStart.length > 0) {
-        startingPrice = historyBeforeStart[historyBeforeStart.length - 1].new_price;
-      } else if (rangeHistory.length > 0 && rangeHistory[0].type !== 'BARU') {
-        startingPrice = rangeHistory[0].old_price;
-      } else if (rangeHistory.length > 0 && rangeHistory[0].type === 'BARU') {
-        startingPrice = rangeHistory[0].new_price; 
-      }
+      if (historyBeforeStart.length > 0) startingPrice = historyBeforeStart[historyBeforeStart.length - 1].new_price;
+      else if (rangeHistory.length > 0 && rangeHistory[0].type !== 'BARU') startingPrice = rangeHistory[0].old_price;
+      else if (rangeHistory.length > 0 && rangeHistory[0].type === 'BARU') startingPrice = rangeHistory[0].new_price; 
 
       let endPrice = rangeHistory.length > 0 ? rangeHistory[rangeHistory.length - 1].new_price : startingPrice;
       let selisih = endPrice - startingPrice;
 
-      if (rangeHistory.length === 1 && rangeHistory[0].type === 'BARU') {
-        selisih = 0;
-      }
+      if (rangeHistory.length === 1 && rangeHistory[0].type === 'BARU') selisih = 0;
 
-      if (selisih > 0) {
-        naikCount++;
-        details.push({ item, status: 'Naik', change: selisih, latestPrice: endPrice, oldPrice: startingPrice });
-      } else if (selisih < 0) {
-        turunCount++;
-        details.push({ item, status: 'Turun', change: selisih, latestPrice: endPrice, oldPrice: startingPrice });
-      } else {
-        stabilCount++;
-        details.push({ item, status: 'Stabil', change: 0, latestPrice: endPrice, oldPrice: startingPrice });
-      }
+      if (selisih > 0) { naikCount++; details.push({ item, status: 'Naik', change: selisih, latestPrice: endPrice, oldPrice: startingPrice }); } 
+      else if (selisih < 0) { turunCount++; details.push({ item, status: 'Turun', change: selisih, latestPrice: endPrice, oldPrice: startingPrice }); } 
+      else { stabilCount++; details.push({ item, status: 'Stabil', change: 0, latestPrice: endPrice, oldPrice: startingPrice }); }
     });
-
-    details.sort((a, b) => {
-      if (a.status === 'Naik' && b.status !== 'Naik') return -1;
-      if (a.status === 'Turun' && b.status === 'Stabil') return -1;
-      return 0;
-    });
-
+    details.sort((a, b) => { if (a.status === 'Naik' && b.status !== 'Naik') return -1; if (a.status === 'Turun' && b.status === 'Stabil') return -1; return 0; });
     return { naikCount, turunCount, stabilCount, details };
   }, [activeRawMaterials, recapStart, recapEnd]);
 
@@ -268,7 +224,6 @@ export default function TabMasterData({
                    </select>
                  </div>
 
-                 {/* TOGGLE ATURAN HARGA KOMPLEKS */}
                  <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl shadow-inner mt-4">
                    <label className="flex items-center gap-2 cursor-pointer mb-3">
                      <input type="checkbox" checked={useAdvancedPricing} onChange={e => setUseAdvancedPricing(e.target.checked)} className="w-4 h-4 accent-red-600 cursor-pointer" />
@@ -314,7 +269,6 @@ export default function TabMasterData({
                      </div>
                    )}
                  </div>
-
                  <button type="submit" className="w-full btn-holo py-3 rounded-lg text-xs font-bold shadow-xs mt-2 uppercase tracking-widest">{isEditing ? 'Update Menu' : 'Simpan Menu'}</button>
                </form>
              </div>
@@ -417,10 +371,8 @@ export default function TabMasterData({
          </div>
       )}
 
-      {/* --- TAB SAKTI: MASTER ITEM & BIAYA --- */}
       {activeTab === 'ITEM_BIAYA' && (
         <div className="flex flex-col gap-6 animate-in fade-in">
-          
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
             <div className="xl:col-span-4">
               <div className="card-holo p-6 transition-all border-t-4 border-t-red-500">
@@ -692,17 +644,15 @@ export default function TabMasterData({
                <CheckCircle2 size={14} className="text-amber-500"/> Pastikan klik simpan setelah mengubah angka konfigurasi di atas.
             </div>
             <button onClick={handleSaveRules} className="w-full md:w-auto px-6 py-3 bg-amber-500 hover:bg-amber-600 text-slate-900 font-black rounded-xl text-xs flex items-center justify-center gap-2 transition-colors shadow-lg cursor-pointer uppercase tracking-widest">
-              <Save size={16}/> SIMPAN KONFIGURASI
+              <Save size={16}/> SIMPAN KONFIGURASI PABRIK
             </button>
           </div>
         </div>
       )}
 
-      {/* 🔥 MODAL POPUP RIWAYAT PERUBAHAN HARGA */}
       {historyModal && (
         <div className="fixed inset-0 bg-slate-900/40 z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg border border-slate-200 overflow-hidden flex flex-col max-h-[80vh]">
-            
             <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center shrink-0">
               <div className="flex items-center gap-3">
                 <div className="bg-white p-2 rounded-lg border border-slate-200 text-blue-600 shadow-xs"><History size={16}/></div>
@@ -713,18 +663,13 @@ export default function TabMasterData({
               </div>
               <button onClick={() => setHistoryModal(null)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><X size={18}/></button>
             </div>
-
             <div className="p-6 overflow-y-auto custom-scrollbar bg-white">
               {historyModal.history.length === 0 ? (
-                <div className="text-center py-10 opacity-60">
-                  <Clock size={36} className="mx-auto mb-3 text-slate-300"/>
-                  <p className="font-bold text-xs text-slate-400">Belum ada riwayat perubahan harga.</p>
-                </div>
+                <div className="text-center py-10 opacity-60"><Clock size={36} className="mx-auto mb-3 text-slate-300"/><p className="font-bold text-xs text-slate-400">Belum ada riwayat perubahan harga.</p></div>
               ) : (
                 <div className="space-y-4 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-[1px] before:bg-slate-200">
                   {historyModal.history.map((hist, idx) => {
                     const selisih = Math.abs(hist.new_price - hist.old_price);
-                    
                     return (
                       <div key={idx} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
                         <div className="flex items-center justify-center w-8 h-8 rounded-full border-4 border-white bg-slate-100 text-slate-500 shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 shadow-xs z-10">
@@ -743,9 +688,7 @@ export default function TabMasterData({
                               <ArrowRight size={12} className="text-slate-300"/>
                               <span className={hist.type === 'NAIK' ? 'text-red-600' : 'text-emerald-600'}>
                                 {formatRupiah(hist.new_price)}
-                                <span className={`text-[9px] px-1.5 py-0.5 rounded-md ml-1.5 font-bold border ${hist.type === 'NAIK' ? 'bg-red-50 border-red-100' : 'bg-emerald-50 border-emerald-100'}`}>
-                                  ({hist.type === 'NAIK' ? '+' : '-'}{formatRupiah(selisih)})
-                                </span>
+                                <span className={`text-[9px] px-1.5 py-0.5 rounded-md ml-1.5 font-bold border ${hist.type === 'NAIK' ? 'bg-red-50 border-red-100' : 'bg-emerald-50 border-emerald-100'}`}>({hist.type === 'NAIK' ? '+' : '-'}{formatRupiah(selisih)})</span>
                               </span>
                             </div>
                           )}
