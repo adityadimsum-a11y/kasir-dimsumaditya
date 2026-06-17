@@ -136,12 +136,13 @@ export default function App() {
     }
   }, [user, fetchAllDatabase]);
 
+  // 🧠 JURUS OPTIMISTIC UPDATE: Anti Data Gaib
   const sendToSheet = async (action, payload, tableName) => {
     if (!API_URL_GAS || API_URL_GAS.includes('URL_WEBAPP_')) {
       showToast('URL Google Apps Script belum terkonfigurasi!', 'error'); return false;
     }
     
-    setIsSaving(true); // Munculin layar loading putih yang ngeblok
+    setIsSaving(true); // Layar loading ngeblok
     try {
       const response = await fetch(API_URL_GAS, {
         method: 'POST',
@@ -154,9 +155,61 @@ export default function App() {
         })
       });
       const resJson = await response.json();
+
       if (resJson.status === 'success') {
         showToast('Data berhasil diamankan ke cloud database!', 'success');
-        fetchAllDatabase(user?.branch_id); 
+        
+        // 🔥 SUNTIK DATA LANGSUNG KE LAYAR (TANPA NUNGGU GOOGLE SHEETS)
+        if (action === 'insert' && tableName && tableName !== 'auto') {
+          setDbData(prev => {
+            const currentTableData = prev[tableName] || [];
+            const payloadArray = Array.isArray(payload) ? payload : [payload];
+            
+            // Format data biar nyambung dengan state React
+            const newDataInjected = payloadArray.map(item => ({
+              ...item,
+              id: item.id || resJson.data?.data?.id || `TEMP-${Date.now()}`,
+              isDeleted: false
+            }));
+
+            const updatedState = {
+              ...prev,
+              [tableName]: [...newDataInjected, ...currentTableData] // Taro di paling atas
+            };
+            
+            // Simpan sementara ke ingatan HP
+            localStorage.setItem('dimsum_db_cache', JSON.stringify(updatedState));
+            return updatedState;
+          });
+        } 
+        else if (action === 'update' && tableName && tableName !== 'auto') {
+          setDbData(prev => {
+            const currentTableData = prev[tableName] || [];
+            const payloadArray = Array.isArray(payload) ? payload : [payload];
+            
+            const updatedTableData = currentTableData.map(row => {
+              const updatedRow = payloadArray.find(p => (p.id === row.id || p.customer_id === row.customer_id || p.do_id === row.do_id));
+              return updatedRow ? { ...row, ...updatedRow } : row;
+            });
+
+            const updatedState = { ...prev, [tableName]: updatedTableData };
+            localStorage.setItem('dimsum_db_cache', JSON.stringify(updatedState));
+            return updatedState;
+          });
+        }
+
+        // ⏱️ KASIH NAFAS GOOGLE SHEETS: Delay 3 detik baru background sync buat mastiin data permanen
+        setTimeout(() => {
+          // Jangan pakai isSyncing=true di sini biar user ga ngerasa nge-lag
+          fetch(`${API_URL_GAS}?branch_id=${user?.branch_id || 'ALL'}&table=${tableName}`)
+            .then(res => res.json())
+            .then(silentRes => {
+               if(silentRes.status === 'success' && silentRes.data && silentRes.data[tableName]) {
+                  setDbData(prev => ({ ...prev, [tableName]: silentRes.data[tableName] }));
+               }
+            }).catch(e => console.log("Silent sync failed", e));
+        }, 3000);
+
         return true;
       } else {
         showToast(`Ditolak sistem: ${resJson.message}`, 'error'); return false;
