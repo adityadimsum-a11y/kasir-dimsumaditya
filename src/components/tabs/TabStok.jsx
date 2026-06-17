@@ -12,7 +12,6 @@ export default function TabStok({
   const [activeTab, setActiveTab] = useState('FREEZER');
   const [searchTerm, setSearchTerm] = useState('');
   
-  // 🔥 STATE UNTUK MODAL RIWAYAT KLIK BARANG
   const [selectedItemDetail, setSelectedItemDetail] = useState(null);
 
   const freezerStock = useMemo(() => {
@@ -57,6 +56,7 @@ export default function TabStok({
   }, [masterProducts, pemalang, orders, searchTerm]);
 
 
+  // 🔥 KABEL 1: PAKSA AYAM JADI KILOGRAM BIAR GAK PUSING
   const rawStock = useMemo(() => {
     const stockMap = {};
 
@@ -76,10 +76,22 @@ export default function TabStok({
         const processItem = (itemName, qty, unit, category) => {
             if (!itemName) return;
             const key = itemName.toUpperCase();
-            if (!stockMap[key]) {
-                stockMap[key] = { id: p.id, name: key, unit: unit || 'Pcs', category: category || 'Bahan Baku', stockIn: 0, stockOut: 0, currentStock: 0 };
+            
+            let finalQty = Number(qty || 0);
+            let finalUnit = String(unit || 'Pcs').trim();
+
+            // KABEL GUDANG: Kalau nemu ayam, paksa jadi Kg
+            if (key.includes('AYAM') || key.includes('DADA') || String(p.supplier_name).toUpperCase().includes('NANA')) {
+               if (finalUnit.toUpperCase().includes('KANT') || finalUnit.toUpperCase().includes('KNTG')) {
+                  finalQty = finalQty * 10;
+               }
+               finalUnit = 'Kg';
             }
-            stockMap[key].stockIn += Number(qty || 0);
+
+            if (!stockMap[key]) {
+                stockMap[key] = { id: p.id, name: key, unit: finalUnit, category: category || 'Bahan Baku', stockIn: 0, stockOut: 0, currentStock: 0 };
+            }
+            stockMap[key].stockIn += finalQty;
         };
 
         const items = safeJsonParse(p.items, []);
@@ -99,10 +111,10 @@ export default function TabStok({
                const parts = parsed[0].name.split('||');
                const ayamKgUsed = Number(parts[2] || 0);
                
-               const ayamKey = Object.keys(stockMap).find(k => k.includes('AYAM GILING') || k.includes('AYAM') || k.includes('DADA MENTAH'));
+               const ayamKey = Object.keys(stockMap).find(k => k.includes('AYAM GILING') || k.includes('AYAM') || k.includes('DADA'));
                if (ayamKey) {
-                   const usedKantong = ayamKgUsed / 10;
-                   stockMap[ayamKey].stockOut += usedKantong;
+                   // Karena Gudang udah diubah ke Kg semua, nguranginnya pakai hitungan Kg langsung
+                   stockMap[ayamKey].stockOut += ayamKgUsed;
                }
            }
        }
@@ -115,8 +127,6 @@ export default function TabStok({
     }).filter(item => (item.name || '').toLowerCase().includes(safeSearch));
   }, [masterRawMaterials, purchases, pemalang, searchTerm]);
 
-
-  // --- 🔥 FIX ENGINE FORECAST: RUMUS HIJAU DIPERBAIKI ---
   const ayamForecast = useMemo(() => {
     let totalAyamKg = 0;
     
@@ -137,7 +147,7 @@ export default function TabStok({
     
     let status = 'AMAN'; 
     if (daysLeft <= 1.5) status = 'KRITIS';
-    else if (daysLeft < 3) status = 'SIAGA'; // 🔥 FIX: Diganti jadi KURANG DARI 3 (Bukan <= 3). Kalau tepat 3 hari = AMAN (Hijau)
+    else if (daysLeft < 3) status = 'SIAGA'; 
 
     const estDanaDibutuhkan = 37230000;
 
@@ -171,16 +181,26 @@ export default function TabStok({
         const items = safeJsonParse(p.items, []);
         if(items.length > 0) {
           items.forEach(item => {
+            let finalQty = item.qty || 0;
+            let finalName = String(item.name || item.raw_name || '').toUpperCase();
+            if (finalName.includes('AYAM')) {
+              if (String(item.unit).toUpperCase().includes('KANT')) finalQty = finalQty * 10;
+            }
             timeline.push({
               id: p.id, date: p.date, type: 'IN', category: 'Belanja Logistik',
-              itemName: item.name || item.raw_name || 'Item Tidak Diketahui', 
-              qty: item.qty || 0, reference: p.supplier_name || 'Supplier'
+              itemName: finalName || 'Item Tidak Diketahui', 
+              qty: finalQty, reference: p.supplier_name || 'Supplier'
             });
           });
         } else if (p.item_name || p.raw_name) {
+            let finalQty = p.qty || 1;
+            let finalName = String(p.item_name || p.raw_name || '').toUpperCase();
+            if (finalName.includes('AYAM') || finalName.includes('DADA') || String(p.supplier_name).toUpperCase().includes('NANA')) {
+              if (String(p.unit).toUpperCase().includes('KANT')) finalQty = finalQty * 10;
+            }
           timeline.push({
             id: p.id, date: p.date, type: 'IN', category: 'Belanja Logistik',
-            itemName: p.item_name || p.raw_name, qty: p.qty || 1, reference: p.supplier_name || 'Supplier'
+            itemName: finalName, qty: finalQty, reference: p.supplier_name || 'Supplier'
           });
         }
       }
@@ -202,7 +222,7 @@ export default function TabStok({
               timeline.push({
                 id: batch.id + '-ING', date: batch.date, type: 'OUT', category: 'Pemakaian Produksi',
                 itemName: 'AYAM GILING', 
-                qty: Number(parts[2] || 0) / 10,
+                qty: Number(parts[2] || 0), // Langsung Kg
                 reference: `Untuk Batch: ${batch.id}`
               });
            }
@@ -270,7 +290,6 @@ export default function TabStok({
                   <tr><td colSpan="4" className="text-center py-16 text-slate-400 font-medium">Data produk belum tersedia atau tidak ditemukan.</td></tr>
                 ) : (
                   freezerStock.map((item, idx) => (
-                    // 🔥 FITUR KLIK UNTUK MELIHAT RIWAYAT PRODUK MATANG
                     <tr 
                       key={idx} 
                       onClick={() => setSelectedItemDetail(item.name)}
@@ -379,8 +398,8 @@ export default function TabStok({
                           <span className={`px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-md border ${item.category === 'PACKAGING' || item.category === 'KEMASAN' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>{item.category ? item.category.replace(/_/g, ' ') : 'Umum'}</span>
                           <div className="text-[10px] text-slate-400 mt-2 font-bold uppercase tracking-wider">Satuan: {item.unit || 'Pcs'}</div>
                         </td>
-                        <td className="px-5 py-4 text-center font-black text-emerald-600 text-sm">+{formatNumber(item.stockIn)}</td>
-                        <td className="px-5 py-4 text-center font-black text-red-500 text-sm">-{formatNumber(item.stockOut)}</td>
+                        <td className="px-5 py-4 text-center font-black text-emerald-600 text-sm">+{formatNumber(item.stockIn)} <span className="text-[9px] text-slate-400 font-bold">{item.unit}</span></td>
+                        <td className="px-5 py-4 text-center font-black text-red-500 text-sm">-{formatNumber(item.stockOut)} <span className="text-[9px] text-slate-400 font-bold">{item.unit}</span></td>
                         <td className="px-5 py-4 text-right">
                           <div className={`text-xl font-black tracking-tight ${item.currentStock <= 5 ? 'text-red-600' : 'text-slate-800'}`}>{formatNumber(item.currentStock)} <span className="text-[10px] text-slate-400 font-semibold ml-0.5 normal-case">{item.unit || ''}</span></div>
                         </td>
@@ -424,7 +443,6 @@ export default function TabStok({
                   </tr>
                 ) : (
                   kartuMutasi.map((log, idx) => (
-                    // 🔥 FITUR KLIK UNTUK MELIHAT HISTORI DETAIL (MEMFILTER DARI TIMELINE INI SENDIRI)
                     <tr 
                       key={idx} 
                       onClick={() => setSelectedItemDetail(log.itemName)}
@@ -464,7 +482,6 @@ export default function TabStok({
         </div>
       )}
 
-      {/* 🔥 MODAL POP-UP DETAIL RIWAYAT BARANG YANG DIKLIK */}
       {selectedItemDetail && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[99999] flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden border border-slate-200">
