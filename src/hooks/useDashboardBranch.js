@@ -1,22 +1,22 @@
 import { useMemo } from 'react';
-import { getLocalYMD, safeJsonParse } from '../utils/helpers'; // 🔥 Ditambah safeJsonParse
+import { getLocalYMD, safeJsonParse } from '../utils/helpers'; 
 
 export default function useDashboardBranch(dbData, dateFrom, dateTo) {
   return useMemo(() => {
-    // 🎛️ Bongkar data mentah dari state terpusat App.jsx
     const { 
       orders = [], 
       pemalangReports = [], 
       piutangPayments = [], 
-      stokData = [] 
+      stokData = [],
+      masterConversionRules = [] // 🔥 KABEL BARU
     } = dbData || {};
 
-    // 📏 Parameter Konversi Sakral Cabang Pemalang
-    const MASTER_AYAM_KG = 30; 
-    const MASTER_PCS = 1000; 
-    const KG_PER_KANTONG = 10;
+    // 🔥 TARIK ATURAN DINAMIS DARI DATABASE (TIDAK LAGI HARDCODE)
+    const activeRule = masterConversionRules.find(r => r.id === 'RULE-GLOBAL' && !r.isDeleted);
+    const MASTER_AYAM_KG = Number(activeRule?.kg_per_adukan || 30); 
+    const MASTER_PCS = Number(activeRule?.pcs_per_adukan || 1000); 
+    const KG_PER_KANTONG = Number(activeRule?.kg_per_kantong || 10);
 
-    // Fungsi pencocokan rentang tanggal operasional harian
     const isPeriod = (d) => {
       const ymd = getLocalYMD(d);
       return ymd >= dateFrom && ymd <= dateTo;
@@ -33,16 +33,11 @@ export default function useDashboardBranch(dbData, dateFrom, dateTo) {
     const totalPcs = branchOrdersPeriod.reduce((sum, o) => sum + (Number(o.qty || 0)), 0);
     const setoranKePusat = branchReportsPeriod.reduce((sum, r) => sum + (Number(r.nominal || r.amount || 0)), 0);
     
-    // Tracing Piutang / Bon Gantung Agen lokal Pemalang (Yang barangnya sudah diambil supir)
     const piutangBerjalan = branchOrdersAll.map(o => {
         const cicilan = (piutangPayments || []).filter(p => p.orderId === o.id).reduce((s, p) => s + (Number(p.amount) || 0), 0);
         const baseTotal = Number(o.total || o.total_amount || 0);
         const basePaid = Number(o.amount_paid || o.paidAmount || 0);
-        return { 
-          ...o, 
-          sisaTagihan: baseTotal - basePaid - cicilan, 
-          statusProduksi: o.statusProduksi || 'Menunggu Produksi' 
-        };
+        return { ...o, sisaTagihan: baseTotal - basePaid - cicilan, statusProduksi: o.statusProduksi || 'Menunggu Produksi' };
     }).filter(o => o.sisaTagihan > 0 && o.statusProduksi === 'Sudah Diambil');
     
     const totalPiutangBaru = piutangBerjalan.reduce((sum, o) => sum + o.sisaTagihan, 0);
@@ -73,7 +68,6 @@ export default function useDashboardBranch(dbData, dateFrom, dateTo) {
         else if (o.statusProduksi === 'Sudah Diambil') status = 'PIUTANG';
         else if (terbayar > 0) status = 'DP';
 
-        // 🔥 FIX: Menggunakan helper aman daripada try-catch yang lambat
         let allPayments = safeJsonParse(o.paymentMethod || o.payment_method, []);
         if (allPayments.length === 0 && basePaid > 0) {
             allPayments = [{ method: o.paymentMethod || o.payment_method, amount: basePaid }];
@@ -83,8 +77,7 @@ export default function useDashboardBranch(dbData, dateFrom, dateTo) {
         if(!groupedOrders[o.id]) {
           groupedOrders[o.id] = { ...o, items: [`${o.qty || 0} Pcs`], totalTagihan: baseTotal, totalTerbayar: terbayar, sisaTagihan: sisa, status, allPayments };
         } else { 
-          groupedOrders[o.id].items.push(`${o.qty || 0} Pcs`); 
-          groupedOrders[o.id].totalTagihan += baseTotal; 
+          groupedOrders[o.id].items.push(`${o.qty || 0} Pcs`); groupedOrders[o.id].totalTagihan += baseTotal; 
         }
     });
 
@@ -96,12 +89,8 @@ export default function useDashboardBranch(dbData, dateFrom, dateTo) {
     const mutasiAyamAll = (stokData || []).filter(s => s.type === 'MUTASI_AYAM_PEMALANG').reduce((sum, s) => sum + Number(s.qty || 0), 0);
     const prodPemalangAll = (stokData || []).filter(s => s.type === 'PRODUKSI_PEMALANG').reduce((sum, s) => sum + Number(s.qty || 0), 0);
     
-    // Kalkulasi stok sisa kilogram ayam di gudang dapur Pemalang
     const sisaAyam = mutasiAyamAll - (prodPemalangAll * MASTER_AYAM_KG);
-    
     const terjualPcsAll = branchOrdersAll.reduce((sum, o) => sum + Number(o.qty || 0), 0);
-    
-    // Kalkulasi sisa kapasitas unit freezer live Pemalang
     const sisaFreezer = (prodPemalangAll * MASTER_PCS) - terjualPcsAll;
 
     const adukanHariIni = (stokData || []).filter(s => s.type === 'PRODUKSI_PEMALANG' && isPeriod(s.date)).reduce((sum, s) => sum + Number(s.qty || 0), 0);
@@ -116,16 +105,9 @@ export default function useDashboardBranch(dbData, dateFrom, dateTo) {
     };
 
     return {
-        totalPenjualanKotor, 
-        totalPcs, 
-        setoranKePusat, 
-        totalPiutangBaru, 
-        totalTerbayarPeriode,
-        listOrders: Object.values(groupedOrders),
-        listPiutangBerjalan: piutangBerjalan,
-        listReports: branchReportsPeriod,
-        topCustomersList, 
-        ops
+        totalPenjualanKotor, totalPcs, setoranKePusat, totalPiutangBaru, totalTerbayarPeriode,
+        listOrders: Object.values(groupedOrders), listPiutangBerjalan: piutangBerjalan,
+        listReports: branchReportsPeriod, topCustomersList, ops
     };
   }, [dbData, dateFrom, dateTo]);
 }
