@@ -27,7 +27,8 @@ export default function TabPurchases({
   expenses = [], expenses_data, 
   masterSuppliers = [], master_suppliers, 
   masterRawMaterials = [], master_raw_materials, 
-  karyawan = [], master_karyawan, 
+  karyawan = [], master_karyawan,
+  masterConversionRules = [], // 🔥 KABEL BARU
   sendToSheet, showToast, user, requestDelete, setPrintData
 }) {
   const todayStr = getTodayStr();
@@ -40,8 +41,11 @@ export default function TabPurchases({
   const realKaryawan = useMemo(() => master_karyawan || karyawan || [], [karyawan, master_karyawan]);
   const realInventory = useMemo(() => inventory_cost_layers || inventoryCostLayers || [], [inventory_cost_layers, inventoryCostLayers]);
 
+  // 🔥 TARIK ATURAN DINAMIS DARI CLOUD SULTAN
+  const activeRule = useMemo(() => masterConversionRules.find(r => r.id === 'RULE-GLOBAL' && !r.isDeleted), [masterConversionRules]);
+  const kgPerKantong = Number(activeRule?.kg_per_kantong || 10);
+
   const [activeSubTab, setActiveTab] = useState('SUPPLIER'); 
-  // 🔥 FIX: Filter tanggal sekarang menggunakan format Bulan (YYYY-MM)
   const [tableDateFilter, setTableDateFilter] = useState(todayStr.substring(0, 7));
   const [editingPurchaseId, setEditingPurchaseId] = useState(null);
 
@@ -52,36 +56,31 @@ export default function TabPurchases({
   };
 
   const stockGudang = useMemo(() => {
-    let ayamKantong = 0;
+    let ayamKg = 0;
     realInventory.forEach(inv => {
       if (inv.isDeleted || (inv.branch_id !== currentBranch && currentBranch !== 'TANGERANG_PUSAT')) return;
-      if (inv.category === 'BAHAN_BAKU') ayamKantong += Number(inv.qty_remaining || 0);
+      if (inv.category === 'BAHAN_BAKU' && String(inv.item_name).toUpperCase().includes('AYAM')) {
+        ayamKg += Number(inv.qty_remaining || 0);
+      }
     });
-    return { ayamKantong, ayamKg: ayamKantong * 10 };
-  }, [realInventory, currentBranch]);
+    return { ayamKg, ayamKantong: ayamKg / kgPerKantong };
+  }, [realInventory, currentBranch, kgPerKantong]);
 
   const [formSupplier, setFormSupplier] = useState({ supplierName: '', itemName: '', qty: '', price: '' });
   const [displaySupplierPrice, setDisplaySupplierPrice] = useState('');
-  
   const [splIsSplit, setSplIsSplit] = useState(false);
-  
   const [splPayCash, setSplPayCash] = useState(''); const [displaySplPayCash, setDisplaySplPayCash] = useState('');
   const [splPayBCA, setSplPayBCA] = useState(''); const [displaySplPayBCA, setDisplaySplPayBCA] = useState('');
   const [splPayBRI, setSplPayBRI] = useState(''); const [displaySplPayBRI, setDisplaySplPayBRI] = useState('');
-  
   const [splSingleMethod, setSplSingleMethod] = useState('PIUTANG'); 
   const [splDpMethod, setSplDpMethod] = useState('CASH');
-  
   const [splSingleAmount, setSplSingleAmount] = useState(''); const [displaySplSingleAmount, setDisplaySplSingleAmount] = useState('');
 
   const [selectedEmployee, setSelectedEmployee] = useState('');
   const [storeName, setStoreName] = useState('');
-  
   const [cashGiven, setCashGiven] = useState(''); const [displayCashGiven, setDisplayCashGiven] = useState('');
-  
   const [paymentMethod, setPaymentMethod] = useState('CASH');
   const [cart, setCart] = useState([]);
-  
   const [itemSelector, setItemSelector] = useState({ category: 'Bahan Baku', itemName: '', unit: '', qty: '1', price: '' });
   const [displayItemPrice, setDisplayItemPrice] = useState('');
 
@@ -95,7 +94,8 @@ export default function TabPurchases({
     return cats;
   }, [realRawMaterials]);
 
-  const hitungKantongSupplier = useMemo(() => Number(formSupplier.qty || 0) / 10, [formSupplier.qty]);
+  // 🔥 KONVERSI KANTONG DINAMIS (Anti Hardcode)
+  const hitungKantongSupplier = useMemo(() => Number(formSupplier.qty || 0) / kgPerKantong, [formSupplier.qty, kgPerKantong]);
   const totalTagihanSupplier = useMemo(() => Number(formSupplier.qty || 0) * Number(formSupplier.price || 0), [formSupplier.qty, formSupplier.price]);
   
   const splPaymentSummary = useMemo(() => {
@@ -144,7 +144,6 @@ export default function TabPurchases({
     return cash - totalTagihanCart;
   }, [cashGiven, totalTagihanCart]);
 
-  // 🔥 FIX: Jurnal Buku Kas sekarang memfilter berdasarkan Bulan
   const historyCombined = useMemo(() => {
     const all = [];
     realPurchases.forEach(p => {
@@ -169,11 +168,7 @@ export default function TabPurchases({
   const handleSupplierSelect = (e) => {
     const splName = e.target.value;
     const splData = supplierOptions.find(s => s.supplier_name === splName);
-    setFormSupplier(prev => ({ 
-       ...prev, 
-       supplierName: splName, 
-       price: splData && splData.default_price ? String(splData.default_price) : '' 
-    }));
+    setFormSupplier(prev => ({ ...prev, supplierName: splName, price: splData && splData.default_price ? String(splData.default_price) : '' }));
     if(splData && splData.default_price) setDisplaySupplierPrice(Number(splData.default_price).toLocaleString('id-ID'));
     else setDisplaySupplierPrice('');
   };
@@ -211,7 +206,6 @@ export default function TabPurchases({
     if (totalTagihanSupplier <= 0) return alert("Total tagihan nol! Masukkan volume dan harga yang benar.");
 
     const purchaseId = editingPurchaseId ? editingPurchaseId : generateId('PO-DMA', todayStr);
-    
     const finalQtyKg = Number(formSupplier.qty); 
     const finalPricePerKg = Number(formSupplier.price);
     
@@ -230,7 +224,8 @@ export default function TabPurchases({
     
     if (isSuccess) {
       if (!editingPurchaseId) {
-         await sendToSheet('insert', { id: generateId('LAY', todayStr), date: todayStr, branch_id: currentBranch, category: 'BAHAN_BAKU', item_name: `BELANJA: ${formSupplier.itemName.toUpperCase()} (${formSupplier.supplierName.toUpperCase()})`, qty_received: hitungKantongSupplier, qty_remaining: hitungKantongSupplier, unit_cost: finalPricePerKg * 10, reference_id: payloadPurchase.id, isDeleted: false }, 'inventory_cost_layers');
+         // 🔥 TRIPLE-ENTRY: INJECT STOK MASUK KE GUDANG DARI TRANSAKSI PEMBELIAN INI
+         await sendToSheet('insert', { id: generateId('LAY', todayStr), date: todayStr, branch_id: currentBranch, category: 'BAHAN_BAKU', item_name: formSupplier.itemName.toUpperCase(), qty_received: finalQtyKg, qty_remaining: finalQtyKg, unit_cost: finalPricePerKg, reference_id: payloadPurchase.id, status: 'ACTIVE', notes: `Belanja dari: ${formSupplier.supplierName.toUpperCase()}`, isDeleted: false }, 'inventory_cost_layers');
          for (let pay of splPaymentSummary.breakdown) {
             if (pay.amount <= 0) continue;
             await sendToSheet('insert', { id: generateId('CFO', todayStr), date: todayStr, branch_id: currentBranch, type: 'OUT', category: 'BELANJA LOGISTIK', description: `Pembayaran ${formSupplier.itemName.toUpperCase()} ke ${formSupplier.supplierName.toUpperCase()}`, amount: pay.amount, method: pay.method, reference_id: payloadPurchase.id }, 'cashflow_transactions');
@@ -253,13 +248,13 @@ export default function TabPurchases({
      setActiveTab('SUPPLIER');
      
      const isKg = String(p.unit).toLowerCase() === 'kg';
-     const convertedQty = isKg ? p.qty : String(Number(p.qty) * 10);
-     const convertedPrice = isKg ? p.price : String(Number(p.total_amount) / (Number(p.qty) * 10));
+     const convertedQty = isKg ? p.qty : String(Number(p.qty) * kgPerKantong);
+     const convertedPrice = isKg ? p.price : String(Number(p.total_amount) / (Number(p.qty) * kgPerKantong));
 
      setFormSupplier({
-        supplierName: p.title, itemName: p.subtitle, 
-        qty: convertedQty, 
-        price: convertedPrice > 0 ? convertedPrice : '0'
+       supplierName: p.title, itemName: p.subtitle, 
+       qty: convertedQty, 
+       price: convertedPrice > 0 ? convertedPrice : '0'
      });
      setDisplaySupplierPrice(convertedPrice > 0 ? Number(convertedPrice).toLocaleString('id-ID') : '0');
      handleMoneyInput(String(p.paid_amount), setSplSingleAmount, setDisplaySplSingleAmount);
@@ -295,7 +290,7 @@ export default function TabPurchases({
 
         await sendToSheet('insert', { 
           id: generateId('LAY', todayStr), date: todayStr, branch_id: currentBranch, category: item.category.toUpperCase().replace(' ', '_'), 
-          item_name: item.itemName.toUpperCase(), qty_received: item.qty, qty_remaining: item.qty, unit_cost: item.price, 
+          item_name: item.itemName.toUpperCase(), qty_received: item.qty, qty_remaining: item.qty, unit_cost: item.price, status: 'ACTIVE',
           reference_id: itemTrxId, isDeleted: false 
         }, 'inventory_cost_layers');
       } else {
@@ -328,8 +323,7 @@ export default function TabPurchases({
         
         <div className="relative z-10 w-full md:w-1/2">
           <h2 className="text-white text-xl lg:text-2xl font-black uppercase tracking-tight flex items-center gap-3 mb-2">
-            <Truck className="text-blue-400" size={28}/> 
-            Belanja &amp; Pembayaran Supplier
+            <Truck className="text-blue-400" size={28}/> Belanja &amp; Pembayaran Supplier
           </h2>
           <p className="text-[11px] font-bold text-slate-300 leading-relaxed normal-case max-w-sm">
             Satu pintu utama pengeluaran kas internal dan pembayaran nota belanja supplier pabrik. Stok gudang akan otomatis bertambah saat disahkan.
@@ -611,7 +605,6 @@ export default function TabPurchases({
               <h4 className="font-black text-sm uppercase tracking-wide text-slate-800 flex items-center gap-2"><FileText size={18} className="text-blue-600"/> Jurnal Buku Kas &amp; Belanja Aktual</h4>
               <p className="text-[11px] font-bold text-slate-400 normal-case mt-1 max-w-sm leading-relaxed">Rekam jejak belanja harian dan operasional manual yang memotong saldo fisik secara real-time.</p>
             </div>
-            {/* 🔥 FIX: Input filter berubah menjadi BULAN */}
             <div className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-xl shadow-sm shrink-0">
               <Calendar size={14} className="text-blue-500"/>
               <input type="month" value={tableDateFilter} onChange={e => setTableDateFilter(e.target.value)} className="text-[11px] font-bold text-slate-700 outline-none cursor-pointer bg-transparent uppercase tracking-wider" />
@@ -647,7 +640,7 @@ export default function TabPurchases({
                           <div className="font-black text-slate-800 text-sm uppercase tracking-wide mb-1 line-clamp-1">{p.title}</div>
                           <div className="text-[11px] text-slate-500 normal-case font-bold leading-relaxed">{p.subtitle}</div>
                           {p.employee_name && <div className="text-[10px] font-black text-slate-600 mt-2 uppercase tracking-wider border-t border-slate-100 pt-2">PIC: {p.employee_name} <span className={p.change_status === 'PENDING' ? 'text-amber-600' : 'text-emerald-600'}>{p.change_status === 'PENDING' ? '(⏳ Sisa Kembalian)' : '(✅ Lunas Balance)'}</span></div>}
-                          <div className="text-[10px] text-blue-600 font-black mt-1 uppercase tracking-wider">Vol: {formatNumber(p.qty)} {p.unit} {isKantong ? `(≈ ${formatNumber(p.qty * 10)} Kg)` : isKg ? `(≈ ${formatNumber(p.qty / 10)} Kantong)` : ''}</div>
+                          <div className="text-[10px] text-blue-600 font-black mt-1 uppercase tracking-wider">Vol: {formatNumber(p.qty)} {p.unit} {isKantong ? `(≈ ${formatNumber(p.qty * kgPerKantong)} Kg)` : isKg ? `(≈ ${formatNumber(p.qty / kgPerKantong)} Kantong)` : ''}</div>
                         </td>
                         <td className="px-5 py-4 text-right whitespace-nowrap">
                           <div className="text-slate-500 text-[11px] font-black uppercase tracking-wider mb-0.5">Nota: {formatRupiah(totalBill)}</div>
@@ -666,8 +659,7 @@ export default function TabPurchases({
                                     title: 'NOTA BELANJA', 
                                     id: p.id, date: formatDate(p.date), branch_name: currentBranch.replace(/_/g, ' '),
                                     admin_name: user?.name || 'ADMIN', 
-                                    customer_name: p.title, 
-                                    supplier_name: p.title, 
+                                    customer_name: p.title, supplier_name: p.title, 
                                     items: [{ name: p.subtitle, qty: p.qty, unit: p.unit, subtotal: totalBill }],
                                     amount: totalBill, paymentMethod: pMethod,
                                     history: { labelLama: 'Total Tagihan', nominalLama: totalBill, labelAksi: 'Total Dibayar', nominalAksi: paidAmt, labelBaru: 'Sisa Hutang', nominalBaru: Math.max(0, totalBill - paidAmt) }
