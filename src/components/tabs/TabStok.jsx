@@ -338,10 +338,10 @@ export default function TabKartuStok({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs font-bold bg-white">
-                  {RawStock.length === 0 ? (
+                  {rawStock.length === 0 ? (
                     <tr><td colSpan="5" className="text-center py-16 text-slate-400 font-medium">Data logistik belum tersedia atau tidak ditemukan.</td></tr>
                   ) : (
-                    RawStock.map((item, idx) => (
+                    rawStock.map((item, idx) => (
                       <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
                         <td className="px-5 py-4 whitespace-nowrap font-black text-slate-800 text-sm uppercase tracking-wide">{item.name || 'Umum'}</td>
                         <td className="px-5 py-4 text-center">
