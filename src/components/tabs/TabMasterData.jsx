@@ -15,7 +15,7 @@ export default function TabMasterData({
   masterProducts = [], master_products,
   masterSuppliers = [], master_suppliers,
   masterRawMaterials = [], master_raw_materials,
-  masterConversionRules = [], master_conversion_rules, // 🔥 KABEL BARU
+  masterConversionRules = [], master_conversion_rules, 
   sendToSheet, showToast, user 
 }) {
   const todayStr = getTodayStr();
@@ -35,9 +35,9 @@ export default function TabMasterData({
   const realRawMaterials = useMemo(() => master_raw_materials || masterRawMaterials || [], [master_raw_materials, masterRawMaterials]);
   const realRules = useMemo(() => master_conversion_rules || masterConversionRules || [], [master_conversion_rules, masterConversionRules]);
   
-  // 🔥 AUTO-LOAD ATURAN DARI DATABASE SULTAN
+  // 🔥 AUTO-LOAD ATURAN DARI DATABASE SULTAN TERCETAK TANGGAL GAJIAN
   const [rules, setRules] = useState({
-    kgPerKantong: 10, kgPerAdukan: 30, pcsPerAdukan: 1000, pcsPerPorsi: 4, pcsPerMika: 50
+    kgPerKantong: 10, kgPerAdukan: 30, pcsPerAdukan: 1000, pcsPerPorsi: 4, pcsPerMika: 50, tanggalGajian: 25
   });
 
   useEffect(() => {
@@ -48,7 +48,8 @@ export default function TabMasterData({
         kgPerAdukan: Number(dbRule.kg_per_adukan || 30),
         pcsPerAdukan: Number(dbRule.pcs_per_adukan || 1000),
         pcsPerPorsi: Number(dbRule.pcs_per_porsi || 4),
-        pcsPerMika: Number(dbRule.pcs_per_mika || 50)
+        pcsPerMika: Number(dbRule.pcs_per_mika || 50),
+        tanggalGajian: Number(dbRule.tanggal_gajian || 25)
       });
     }
   }, [realRules]);
@@ -68,10 +69,10 @@ export default function TabMasterData({
       id: 'RULE-GLOBAL', date: todayStr, branch_id: currentBranch,
       kg_per_kantong: rules.kgPerKantong, kg_per_adukan: rules.kgPerAdukan,
       pcs_per_adukan: rules.pcsPerAdukan, pcs_per_porsi: rules.pcsPerPorsi,
-      pcs_per_mika: rules.pcsPerMika, isDeleted: false
+      pcs_per_mika: rules.pcsPerMika, tanggal_gajian: rules.tanggalGajian, 
+      isDeleted: false
     };
     
-    // Gunakan update, jika belum ada biarkan backend yang otomatis handle insert (karena id-nya kita kunci di 'RULE-GLOBAL')
     const isSuccess = await sendToSheet('update', payload, 'master_conversion_rules');
     if (isSuccess) showToast('Konfigurasi Master Engine berhasil diperbarui ke seluruh sistem!', 'success');
   };
@@ -618,8 +619,8 @@ export default function TabMasterData({
               </div>
             </div>
 
-            <div className="bg-[#1f242c] border border-[#30363d] rounded-xl p-5 shadow-inner lg:col-span-2">
-              <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #5: Konversi Packaging / Mika Frozen</div>
+            <div className="bg-[#1f242c] border border-[#30363d] rounded-xl p-5 shadow-inner">
+              <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #5: Konversi Mika Frozen</div>
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-xl font-black text-white">1 <span className="text-sm text-slate-400">Mika</span></div>
@@ -630,13 +631,25 @@ export default function TabMasterData({
                   <input type="number" value={rules.pcsPerMika} onChange={e => setRules({...rules, pcsPerMika: Number(e.target.value)})} className="w-20 bg-[#0d1117] border border-[#30363d] text-pink-500 text-2xl font-black rounded-lg p-2 text-center outline-none focus:border-pink-500 transition-colors" />
                   <span className="text-xs font-bold text-slate-500 pb-2">PCS</span>
                 </div>
+              </div>
+            </div>
+            
+            {/* 🔥 FITUR BARU: TANGGAL GAJIAN PUKUL RATA */}
+            <div className="bg-[#1f242c] border border-blue-500/30 rounded-xl p-5 shadow-inner">
+              <div className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-4 flex items-center gap-1.5"><Calendar size={12}/> Rule #6: Tanggal Gaji Pukul Rata</div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xl font-black text-white">Cut-Off</div>
+                  <div className="text-[9px] font-bold text-slate-500 mt-1 uppercase tracking-wider">Gaji Bulanan</div>
+                </div>
                 <div className="text-slate-500 font-black text-xl">=</div>
-                <div className="text-right">
-                  <div className="text-2xl font-black text-emerald-400">{(rules.pcsPerAdukan / (rules.pcsPerMika || 1)).toFixed(0)} <span className="text-sm text-emerald-500/70">Mika</span></div>
-                  <div className="text-[9px] font-bold text-slate-500 mt-1 uppercase tracking-wider">Per Adukan (Auto)</div>
+                <div className="flex items-end gap-2">
+                  <span className="text-xs font-bold text-slate-500 pb-2">Tgl</span>
+                  <input type="number" min="1" max="31" value={rules.tanggalGajian} onChange={e => setRules({...rules, tanggalGajian: Number(e.target.value)})} className="w-20 bg-[#0d1117] border border-[#30363d] text-blue-400 text-2xl font-black rounded-lg p-2 text-center outline-none focus:border-blue-500 transition-colors" />
                 </div>
               </div>
             </div>
+            
           </div>
 
           <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-6 border-t border-[#30363d]">
@@ -650,6 +663,7 @@ export default function TabMasterData({
         </div>
       )}
 
+      {/* POPUP HISTORY HARGA */}
       {historyModal && (
         <div className="fixed inset-0 bg-slate-900/40 z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg border border-slate-200 overflow-hidden flex flex-col max-h-[80vh]">
