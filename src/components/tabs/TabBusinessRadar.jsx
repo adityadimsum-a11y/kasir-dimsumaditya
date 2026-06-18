@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { 
   TrendingUp, Wallet, ArrowUpRight, ArrowDownRight, 
   ShieldAlert, Users, Gift, Activity, ArrowRight, 
-  User, Calendar, FileText, CheckCircle2, Percent
+  User, Calendar, FileText, CheckCircle2, Percent, Info
 } from 'lucide-react';
 import { formatDate, getTodayStr, getLocalYMD } from '../../utils/helpers'; 
 
@@ -14,12 +14,25 @@ export default function TabBusinessRadar({
   cashflowTransactions = [], 
   piutangPayments = [],
   master_customers = [],
+  karyawan = [], // 🔥 KABEL BARU
+  master_conversion_rules = [], // 🔥 KABEL BARU
   user
 }) {
   const [selectedCustomerDetail, setSelectedCustomerDetail] = useState(null);
-  const [filterPeriode, setFilterPeriode] = useState('7_HARI');
-
   const todayStr = getTodayStr(); 
+
+  // 🔥 TARIK ATURAN GAJIAN & BEBAN GAJI TOTAL
+  const { estimasiBebanGaji, tanggalGajian } = useMemo(() => {
+    const activeRule = (master_conversion_rules || []).find(r => r.id === 'RULE-GLOBAL' && !r.isDeleted);
+    const tgl = Number(activeRule?.tanggal_gajian || 25);
+    
+    let totalGaji = 0;
+    (karyawan || []).forEach(k => {
+       if (k.status === 'AKTIF' && !k.isDeleted) totalGaji += Number(k.baseSalary || 0);
+    });
+    
+    return { estimasiBebanGaji: totalGaji, tanggalGajian: tgl };
+  }, [master_conversion_rules, karyawan]);
 
   const rekapMading = useMemo(() => {
     const getDaysDifference = (d1, d2) => {
@@ -34,18 +47,24 @@ export default function TabBusinessRadar({
     const fourteenDaysAgo = new Date(todayObj); fourteenDaysAgo.setDate(todayObj.getDate() - 14);
     const limitFourteenDaysStr = fourteenDaysAgo.toISOString().split('T')[0];
 
-    let totalOmsetHariIni = 0; // Kertas
-    let totalUangMasukRiil = 0; // Dompet Fisik
-    let totalPengeluaranRiil = 0;
+    let totalOmsetHariIni = 0; 
+    let totalUangMasukRiilBulanIni = 0; // 🔥 Uang real masuk dihitung per bulan untuk akumulasi amplop
+    let totalUangMasukRiilHariIni = 0;
+    let totalPengeluaranRiilHariIni = 0;
+    
+    const curMonth = todayStr.substring(0, 7);
 
     (cashflowTransactions || []).forEach(c => {
       if (c.isDeleted) return;
       const cYMD = getLocalYMD(c.date);
-      if ((c.type === 'IN' || c.transaction_type === 'INFLOW') && cYMD === todayStr) {
-        totalUangMasukRiil += Number(c.amount || 0);
+      const amt = Number(c.amount || 0);
+      
+      if (c.type === 'IN' || c.transaction_type === 'INFLOW') {
+        if (cYMD === todayStr) totalUangMasukRiilHariIni += amt;
+        if (cYMD.startsWith(curMonth)) totalUangMasukRiilBulanIni += amt;
       }
       if ((c.transaction_type === 'OUTFLOW' || c.type === 'CASH_OUT' || c.type === 'OUT') && cYMD === todayStr) {
-        totalPengeluaranRiil += Number(c.amount || 0);
+        totalPengeluaranRiilHariIni += amt;
       }
     });
 
@@ -54,19 +73,9 @@ export default function TabBusinessRadar({
 
     (master_customers || []).forEach(cust => {
       customerPiutangMap[cust.customer_name.toUpperCase()] = {
-        customer_id: cust.id,
-        customer_name: cust.customer_name.toUpperCase(),
-        phone: cust.phone || '-',
-        address: cust.address || '-',
-        notes_crm: cust.notes || '-',
-        total_bon_gantung: 0,
-        tanggal_bon_terlama: null,
-        last_order_date: null,
-        qty_order_minggu_ini: 0,
-        qty_order_minggu_lalu: 0,
-        total_belanja_akumulasi: 0,
-        frequency_order: 0,
-        nota_details: []
+        customer_id: cust.id, customer_name: cust.customer_name.toUpperCase(), phone: cust.phone || '-', address: cust.address || '-',
+        notes_crm: cust.notes || '-', total_bon_gantung: 0, tanggal_bon_terlama: null, last_order_date: null,
+        qty_order_minggu_ini: 0, qty_order_minggu_lalu: 0, total_belanja_akumulasi: 0, frequency_order: 0, nota_details: []
       };
     });
 
@@ -76,16 +85,10 @@ export default function TabBusinessRadar({
       const cName = String(o.customer_name || o.customer || 'UMUM').toUpperCase();
       const oYMD = getLocalYMD(o.date);
 
-      if (oYMD === todayStr) {
-        totalOmsetHariIni += Number(o.total_amount || o.total || 0);
-      }
+      if (oYMD === todayStr) totalOmsetHariIni += Number(o.total_amount || o.total || 0);
 
       if (!groupOrders[oId]) {
-        groupOrders[oId] = { 
-          id: oId, date: o.date, customer: cName, tagihan: 0, 
-          bayar: Number(o.amount_paid || o.paidAmount || 0), 
-          method: o.payment_method || o.paymentMethod, status: o.status 
-        };
+        groupOrders[oId] = { id: oId, date: o.date, customer: cName, tagihan: 0, bayar: Number(o.amount_paid || o.paidAmount || 0), method: o.payment_method || o.paymentMethod, status: o.status };
       }
       groupOrders[oId].tagihan += Number(o.total_amount || o.total || 0);
 
@@ -98,18 +101,13 @@ export default function TabBusinessRadar({
           customerPiutangMap[cName].last_order_date = o.date;
         }
 
-        if (oYMD >= limitSevenDaysStr && oYMD <= todayStr) {
-          customerPiutangMap[cName].qty_order_minggu_ini += qtyOrder;
-        } else if (oYMD >= limitFourteenDaysStr && oYMD < limitSevenDaysStr) {
-          customerPiutangMap[cName].qty_order_minggu_lalu += qtyOrder;
-        }
+        if (oYMD >= limitSevenDaysStr && oYMD <= todayStr) customerPiutangMap[cName].qty_order_minggu_ini += qtyOrder;
+        else if (oYMD >= limitFourteenDaysStr && oYMD < limitSevenDaysStr) customerPiutangMap[cName].qty_order_minggu_lalu += qtyOrder;
       }
     });
 
     (piutangPayments || []).forEach(p => {
-        if(!p.isDeleted && groupOrders[p.orderId]) {
-          groupOrders[p.orderId].bayar += Number(p.amount || p.amount_paid || 0);
-        }
+        if(!p.isDeleted && groupOrders[p.orderId]) groupOrders[p.orderId].bayar += Number(p.amount || p.amount_paid || 0);
     });
 
     let totalPiutangGlobal = 0;
@@ -117,18 +115,9 @@ export default function TabBusinessRadar({
       const sisaHutang = go.tagihan - go.bayar;
       if (sisaHutang > 0 && (go.method === 'PIUTANG' || go.method === 'TEMPO' || go.status === 'BELUM_LUNAS' || go.method === 'COD_PO' || String(go.method).includes('DP_'))) {
         totalPiutangGlobal += sisaHutang;
-        const cName = go.customer;
-
-        if (customerPiutangMap[cName]) {
-          customerPiutangMap[cName].total_bon_gantung += sisaHutang;
-          customerPiutangMap[cName].nota_details.push({
-            invoice_id: go.id, date: go.date, total_tagihan: go.tagihan,
-            sudah_dibayar: go.bayar, sisa_hutang: sisaHutang, metode_asal: go.method
-          });
-
-          if (!customerPiutangMap[cName].tanggal_bon_terlama || new Date(go.date) < new Date(customerPiutangMap[cName].tanggal_bon_terlama)) {
-            customerPiutangMap[cName].tanggal_bon_terlama = go.date;
-          }
+        if (customerPiutangMap[go.customer]) {
+          customerPiutangMap[go.customer].total_bon_gantung += sisaHutang;
+          customerPiutangMap[go.customer].nota_details.push({ invoice_id: go.id, date: go.date, total_tagihan: go.tagihan, sudah_dibayar: go.bayar, sisa_hutang: sisaHutang, metode_asal: go.method });
         }
       }
     });
@@ -136,42 +125,33 @@ export default function TabBusinessRadar({
     const listMadingPiutang = Object.values(customerPiutangMap)
       .map(cust => {
         let harianAbsen = cust.last_order_date ? getDaysDifference(todayStr, cust.last_order_date) : 999;
-        let statusNotifMerah = harianAbsen > 7; 
-        
-        let trenFluktuasi = 'STABIL';
         let selisihPcs = cust.qty_order_minggu_ini - cust.qty_order_minggu_lalu;
-        if (selisihPcs > 0) trenFluktuasi = 'NAIK';
-        if (selisihPcs < 0) trenFluktuasi = 'TURUN';
-
-        return {
-          ...cust,
-          hari_absen: harianAbsen,
-          is_notif_merah: statusNotifMerah,
-          tren_fluktuasi: trenFluktuasi,
-          selisih_pcs_mingguan: Math.abs(selisihPcs)
-        };
+        return { ...cust, hari_absen: harianAbsen, is_notif_merah: harianAbsen > 7, tren_fluktuasi: selisihPcs > 0 ? 'NAIK' : selisihPcs < 0 ? 'TURUN' : 'STABIL', selisih_pcs_mingguan: Math.abs(selisihPcs) };
       })
       .filter(c => c.total_bon_gantung > 0 || c.frequency_order > 0)
       .sort((a, b) => b.total_bon_gantung - a.total_bon_gantung);
 
-    // 🔥 DOKTRIN 4 AMPLOP VIRTUAL (MODE SURVIVAL) BACA DARI TOTAL UANG MASUK RIIL
-    const amplopBahanBaku = totalUangMasukRiil * 0.55;
-    const amplopOperasional = totalUangMasukRiil * 0.25;
-    const amplopJagaJaga = totalUangMasukRiil * 0.15;
-    const amplopProfitMurni = totalUangMasukRiil * 0.05;
+    // 🔥 4 AMPLOP BERDASARKAN TOTAL CASH MASUK BULAN INI (AKUMULASI)
+    const amplopBahanBaku = totalUangMasukRiilBulanIni * 0.55;
+    const amplopOperasional = totalUangMasukRiilBulanIni * 0.25;
+    const amplopJagaJaga = totalUangMasukRiilBulanIni * 0.15;
+    const amplopProfitMurni = totalUangMasukRiilBulanIni * 0.05;
 
     return {
-      totalOmsetHariIni, totalUangMasukRiil, totalPengeluaranRiil, totalPiutangGlobal,
+      totalOmsetHariIni, totalUangMasukRiilHariIni, totalUangMasukRiilBulanIni, totalPengeluaranRiilHariIni, totalPiutangGlobal,
       amplop: { bahanBaku: amplopBahanBaku, operasional: amplopOperasional, jagaJaga: amplopJagaJaga, profitMurni: amplopProfitMurni },
       listMadingPiutang
     };
   }, [orders, cashflowTransactions, piutangPayments, master_customers, todayStr]);
 
   const { amplop, listMadingPiutang } = rekapMading;
+  const piutangMacetMading = useMemo(() => listMadingPiutang.filter(c => c.total_bon_gantung > 0), [listMadingPiutang]);
 
-  const piutangMacetMading = useMemo(() => {
-    return listMadingPiutang.filter(c => c.total_bon_gantung > 0);
-  }, [listMadingPiutang]);
+  // 🔥 KALKULASI PROGRESS GAJI UNTUK AMPLOP 2
+  const persenGaji = Math.min((amplop.operasional / estimasiBebanGaji) * 100, 100) || 0;
+  const tglSekarang = new Date(todayStr).getDate();
+  const sisaHariGajian = tanggalGajian - tglSekarang;
+  const statusGajiAman = amplop.operasional >= estimasiBebanGaji;
 
   return (
     <div className="space-y-6 pb-10 text-slate-700 animate-in fade-in duration-200">
@@ -188,14 +168,14 @@ export default function TabBusinessRadar({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="p-6 bg-white border border-slate-200 rounded-3xl shadow-sm flex items-center justify-between">
           <div>
-             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Aliran Masuk Riil (Dompet)</div>
-             <div className="text-2xl font-black text-emerald-600 tracking-tight">{formatRupiah(rekapMading.totalUangMasukRiil)}</div>
+             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Aliran Masuk Riil (Hari Ini)</div>
+             <div className="text-2xl font-black text-emerald-600 tracking-tight">{formatRupiah(rekapMading.totalUangMasukRiilHariIni)}</div>
              <div className="text-[9px] font-bold text-slate-400 mt-1.5 line-through">Omzet Kertas: {formatRupiah(rekapMading.totalOmsetHariIni)}</div>
           </div>
           <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100 shadow-sm"><ArrowUpRight size={24}/></div>
         </div>
         <div className="p-6 bg-white border border-slate-200 rounded-3xl shadow-sm flex items-center justify-between">
-          <div><div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Pengeluaran Kas (Hari ini)</div><div className="text-2xl font-black text-slate-800 tracking-tight">{formatRupiah(rekapMading.totalPengeluaranRiil)}</div></div>
+          <div><div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Pengeluaran Kas (Hari ini)</div><div className="text-2xl font-black text-slate-800 tracking-tight">{formatRupiah(rekapMading.totalPengeluaranRiilHariIni)}</div></div>
           <div className="p-3 bg-rose-50 text-rose-600 rounded-xl"><ArrowDownRight size={24}/></div>
         </div>
         <div className="p-6 bg-slate-900 border border-slate-800 rounded-3xl shadow-md flex items-center justify-between">
@@ -210,8 +190,10 @@ export default function TabBusinessRadar({
       {/* 🔥 PAPAN 4 AMPLOP MASA KRITIS (SURVIVAL MODE) */}
       <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
         <div className="flex justify-between items-start mb-5">
-           <h3 className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5"><Percent size={16} className="text-blue-600" /> Papan Alokasi 4 Amplop Hak Uang (Real-Time)</h3>
-           <span className="bg-blue-50 border border-blue-200 px-3 py-1 rounded-lg text-[9px] font-black text-blue-700 uppercase tracking-wider shadow-sm hidden sm:block">Basis: Uang Fisik Riil</span>
+           <div>
+             <h3 className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5"><Percent size={16} className="text-blue-600" /> Papan Alokasi 4 Amplop Hak Uang (Akumulasi Bulan Ini)</h3>
+             <p className="text-[9px] font-bold text-slate-500 mt-1">Dibagi dari total uang masuk riil bulan ini sebesar: <b className="text-slate-700">{formatRupiah(rekapMading.totalUangMasukRiilBulanIni)}</b></p>
+           </div>
         </div>
         
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -219,10 +201,27 @@ export default function TabBusinessRadar({
              <div className="text-[10px] font-black text-blue-700 uppercase tracking-wider mb-1">📦 Amplop 1 (Ayam 55%)</div>
              <div className="text-lg font-black text-slate-800 tracking-tight">{formatRupiah(amplop.bahanBaku)}</div>
           </div>
-          <div className="p-5 bg-gradient-to-br from-emerald-50 to-white border border-emerald-100 rounded-2xl text-center shadow-sm relative overflow-hidden border-t-4 border-t-emerald-500 hover:shadow-md transition-shadow">
-             <div className="text-[10px] font-black text-emerald-700 uppercase tracking-wider mb-1">⚙️ Amplop 2 (Ops 25%)</div>
-             <div className="text-lg font-black text-slate-800 tracking-tight">{formatRupiah(amplop.operasional)}</div>
+
+          {/* 🔥 AMPLOP 2 DENGAN INDIKATOR GAJI */}
+          <div className="p-5 bg-gradient-to-br from-emerald-50 to-white border border-emerald-100 rounded-2xl shadow-sm relative overflow-hidden border-t-4 border-t-emerald-500 hover:shadow-md transition-shadow">
+             <div className="text-[10px] font-black text-emerald-700 uppercase tracking-wider mb-1 text-center">⚙️ Amplop 2 (Ops 25%)</div>
+             <div className="text-lg font-black text-slate-800 tracking-tight text-center">{formatRupiah(amplop.operasional)}</div>
+             
+             <div className="mt-4 pt-3 border-t border-emerald-100/50">
+               <div className="flex justify-between text-[8px] font-black uppercase tracking-wider text-slate-500 mb-1.5">
+                 <span>Progress Gaji Tgl {tanggalGajian}</span>
+                 <span className={statusGajiAman ? 'text-emerald-600' : 'text-rose-600'}>{formatRupiah(estimasiBebanGaji)}</span>
+               </div>
+               <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden shadow-inner flex items-center">
+                 <div className={`h-full transition-all duration-500 ${statusGajiAman ? 'bg-emerald-500' : 'bg-rose-500'}`} style={{ width: `${persenGaji}%` }}></div>
+               </div>
+               <div className="text-[8px] font-bold text-slate-500 mt-2 leading-tight flex items-center justify-between">
+                 <span>{statusGajiAman ? '✅ Dana Gaji Terkumpul!' : `⚠️ Kurang ${formatRupiah(estimasiBebanGaji - amplop.operasional)}`}</span>
+                 {sisaHariGajian > 0 && <span className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">H-{sisaHariGajian}</span>}
+               </div>
+             </div>
           </div>
+
           <div className="p-5 bg-gradient-to-br from-orange-50 to-white border border-orange-100 rounded-2xl text-center shadow-sm relative overflow-hidden border-t-4 border-t-orange-500 hover:shadow-md transition-shadow">
              <div className="text-[10px] font-black text-orange-700 uppercase tracking-wider mb-1">⚡ Amplop 3 (Cicilan 15%)</div>
              <div className="text-lg font-black text-slate-800 tracking-tight">{formatRupiah(amplop.jagaJaga)}</div>
