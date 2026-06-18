@@ -27,6 +27,10 @@ import TabSetoranCabang from './components/tabs/TabSetoranCabang';
 import TabDiscrepancy from './components/tabs/TabDiscrepancy';
 import TabKartuStok from './components/tabs/TabKartuStok';
 
+// 🔥 IMPORT MODUL BARU KITA
+import TabProfitOwner from './components/tabs/TabProfitOwner';
+import TabKewajiban from './components/tabs/TabKewajiban';
+
 // CONNECTED CORE CRM & PO
 import TabMasterCustomer from './components/tabs/TabMasterCustomer';
 import TabAntrianPO from './components/tabs/TabAntrianPO';
@@ -96,7 +100,9 @@ export default function App() {
       financialClosings: [], systemTasks: [], masterProducts: [], masterRawMaterials: [],
       masterRecipeBom: [], masterSuppliers: [], masterConversionRules: [], marketplaceInvoices: [],
       master_branch_types: [], master_branch_capabilities: [], interbranch_treasury: [], 
-      branch_settlements: [], master_customers: [], master_locations: []
+      branch_settlements: [], master_customers: [], master_locations: [],
+      // 🔥 TAMBAHAN 2 TABEL BARU UNTUK FIX COST TRACKER
+      master_kewajiban: [], trx_pembayaran_kewajiban: [] 
     };
   });
 
@@ -302,6 +308,11 @@ export default function App() {
       case 'karyawan': return <TabKaryawan user={user} sendToSheet={sendToSheet} setPrintData={setPrintData} showToast={showToast} {...dbData} />;
       case 'master_data': return <TabMasterData user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
       case 'kartu_stok': return <TabKartuStok user={user} {...dbData} />;
+      
+      // 🔥 ROUTE BARU KITA!
+      case 'profit_owner': return <TabProfitOwner user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
+      case 'kewajiban': return <TabKewajiban user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
+      
       default: return <TabDashboardBranch user={user} {...dbData} />;
     }
   };
