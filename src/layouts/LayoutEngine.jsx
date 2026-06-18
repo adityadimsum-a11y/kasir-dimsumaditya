@@ -20,7 +20,9 @@ import {
   History, 
   Coins,
   Contact2,
-  PackageCheck
+  PackageCheck,
+  Crown,  // 🔥 ICON BARU UNTUK PROFIT OWNER
+  Target  // 🔥 ICON BARU UNTUK PUSAT KEWAJIBAN
 } from 'lucide-react';
 
 export default function LayoutEngine({ children, activeTab, setActiveTab, user, handleLogout }) {
@@ -192,11 +194,34 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
             )}
           </div>
 
+          {/* 🔥 MODUL BARU: AREA PRIBADI OWNER */}
+          {isHQUser && (
+            <div className="space-y-1">
+              <span className="px-3 text-[9px] font-black text-amber-500 uppercase tracking-widest block mb-2">
+                Area Pribadi Owner
+              </span>
+              <button type="button" onClick={() => handleTabChange('profit_owner')}
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all normal-case cursor-pointer ${
+                  activeTab === 'profit_owner' ? 'bg-amber-100 text-amber-700 border border-amber-200 shadow-sm' : 'text-slate-500 hover:text-amber-600 hover:bg-amber-50 border border-transparent'
+                }`}>
+                <Crown size={16} /> Brankas Profit 5%
+              </button>
+            </div>
+          )}
+
           {isHQUser && (
             <div className="space-y-1">
               <span className="px-3 text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">
                 Pembukuan &amp; Keuangan
               </span>
+
+              {/* 🔥 MODUL BARU: PUSAT KEWAJIBAN */}
+              <button type="button" onClick={() => handleTabChange('kewajiban')}
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all normal-case cursor-pointer ${
+                  activeTab === 'kewajiban' ? 'bg-blue-100 text-blue-700 border border-blue-200 shadow-sm' : 'text-slate-500 hover:text-blue-600 hover:bg-blue-50 border border-transparent'
+                }`}>
+                <Target size={16} /> Pusat Kewajiban
+              </button>
 
               <button type="button" onClick={() => handleTabChange('accounting')}
                 className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all normal-case cursor-pointer ${
