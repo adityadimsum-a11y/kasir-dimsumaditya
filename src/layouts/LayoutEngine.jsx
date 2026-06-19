@@ -21,8 +21,9 @@ import {
   Coins,
   Contact2,
   PackageCheck,
-  Crown,  // 🔥 ICON BARU UNTUK PROFIT OWNER
-  Target  // 🔥 ICON BARU UNTUK PUSAT KEWAJIBAN
+  Crown,  // 👑 ICON BARU UNTUK PROFIT OWNER
+  Target, // 🎯 ICON BARU UNTUK PUSAT KEWAJIBAN
+  Calculator // 🧮 ICON BARU UNTUK MASTER KONVERSI
 } from 'lucide-react';
 
 export default function LayoutEngine({ children, activeTab, setActiveTab, user, handleLogout }) {
@@ -194,7 +195,7 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
             )}
           </div>
 
-          {/* 🔥 MODUL BARU: AREA PRIBADI OWNER */}
+          {/* 👑 MODUL BARU: AREA PRIBADI OWNER */}
           {isHQUser && (
             <div className="space-y-1">
               <span className="px-3 text-[9px] font-black text-amber-500 uppercase tracking-widest block mb-2">
@@ -215,7 +216,7 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
                 Pembukuan &amp; Keuangan
               </span>
 
-              {/* 🔥 MODUL BARU: PUSAT KEWAJIBAN */}
+              {/* 🎯 MODUL BARU: PUSAT KEWAJIBAN */}
               <button type="button" onClick={() => handleTabChange('kewajiban')}
                 className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all normal-case cursor-pointer ${
                   activeTab === 'kewajiban' ? 'bg-blue-100 text-blue-700 border border-blue-200 shadow-sm' : 'text-slate-500 hover:text-blue-600 hover:bg-blue-50 border border-transparent'
@@ -267,6 +268,14 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
                   <Users size={16} /> Manajemen Karyawan
                 </button>
               )}
+
+              {/* 🧮 ROUTE MENU BARU: MASTER KONVERSI PABRIK */}
+              <button type="button" onClick={() => handleTabChange('master_konversi')}
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all normal-case cursor-pointer ${
+                  activeTab === 'master_konversi' ? 'bg-red-50 text-red-600 border border-red-100/50 shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50 border border-transparent'
+                }`}>
+                <Calculator size={16} className={activeTab === 'master_konversi' ? "text-[#CE1722]" : "text-slate-500"} /> Master Aturan Konversi
+              </button>
 
               <button type="button" onClick={() => handleTabChange('master_data')}
                 className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all normal-case cursor-pointer ${
