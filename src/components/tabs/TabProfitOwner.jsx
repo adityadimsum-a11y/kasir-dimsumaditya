@@ -11,6 +11,7 @@ export default function TabProfitOwner({
   orders = [], 
   piutangPayments = [], 
   cashflowTransactions = [], 
+  masterConversionRules = [], // 🔥 SSOT DIHUBUNGKAN
   sendToSheet, 
   showToast, 
   user 
@@ -37,7 +38,14 @@ export default function TabProfitOwner({
     setDisplayAmount(val ? Number(val).toLocaleString('id-ID') : '');
   };
 
-  // 🔥 ENGINE AKUMULATOR PROFIT 5% (ALL-TIME)
+  // 🔥 DETEKSI PERSENTASE PROFIT DARI SSOT
+  const profitMargin = useMemo(() => {
+    // Mencari rule untuk profit (misal dari Rule 6 yang akan kita buat atau default fallback 5)
+    const rule = masterConversionRules?.find(r => r.id === 'RULE-PROFIT' || String(r.rule_name).toLowerCase().includes('profit'));
+    return rule ? Number(rule.output_val || 5) : 5; // Default aman 5%
+  }, [masterConversionRules]);
+
+  // 🧠 ENGINE AKUMULATOR PROFIT (ALL-TIME) TERHUBUNG SSOT
   const profitData = useMemo(() => {
     let totalCashInAllTime = 0;
 
@@ -55,8 +63,8 @@ export default function TabProfitOwner({
       }
     });
 
-    // 3. Kalkulasi Plafon Hak Profit 5% (Diset statis sesuai Undang-Undang Pabrik)
-    const totalJatahProfit = totalCashInAllTime * 0.05;
+    // 3. Kalkulasi Plafon Hak Profit (DINAMIS DARI SSOT)
+    const totalJatahProfit = totalCashInAllTime * (profitMargin / 100);
 
     // 4. Hitung uang profit yang SUDAH DITARIK oleh Bos
     let totalSudahDitarik = 0;
@@ -82,7 +90,7 @@ export default function TabProfitOwner({
       sisaBisaDitarik,
       historyPenarikan
     };
-  }, [orders, piutangPayments, cashflowTransactions]);
+  }, [orders, piutangPayments, cashflowTransactions, profitMargin]);
 
   // --- ACTIONS: TARIK PROFIT KE REKENING PRIBADI ---
   const handleWithdraw = async (e) => {
@@ -133,7 +141,7 @@ export default function TabProfitOwner({
   return (
     <div className="space-y-6 pb-10 text-slate-700 animate-in fade-in duration-300">
       
-      {/* 👑 HERO BANNER - BRANKAS SULTAN */}
+      {/* 🚀 HERO BANNER - BRANKAS SULTAN */}
       <div className="bg-gradient-to-r from-amber-900 via-amber-800 to-amber-900 p-6 lg:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 rounded-3xl shadow-xl relative overflow-hidden border border-amber-800">
         <div className="absolute top-0 right-0 p-4 opacity-10"><Crown size={120} className="text-amber-300"/></div>
         <div className="relative z-10 w-full md:w-2/3">
@@ -141,7 +149,7 @@ export default function TabProfitOwner({
             <Crown className="text-amber-400" size={28}/> Brankas Profit Owner (Prive)
           </h2>
           <p className="text-[11px] font-bold text-amber-200/80 leading-relaxed max-w-md normal-case">
-            Halaman khusus Owner. Sistem otomatis menabung 5% dari setiap uang riil yang masuk ke pabrik (Amplop 4) untuk Anda nikmati tanpa mengganggu perputaran modal ayam dan gaji karyawan.
+            Halaman khusus Owner. Sistem otomatis menabung {profitMargin}% dari setiap uang riil yang masuk ke pabrik (Amplop 4) untuk Anda nikmati tanpa mengganggu perputaran modal ayam dan gaji karyawan.
           </p>
         </div>
       </div>
@@ -151,7 +159,7 @@ export default function TabProfitOwner({
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm border-t-4 border-t-slate-400 relative overflow-hidden">
           <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Total Plafon Profit (All-Time)</div>
           <div className="text-3xl font-black text-slate-800 tracking-tight">{formatRupiah(profitData.totalJatahProfit)}</div>
-          <div className="text-[9px] font-bold text-slate-400 mt-2">Dihitung otomatis 5% dari total omset cair riil: {formatRupiah(profitData.totalCashInAllTime)}</div>
+          <div className="text-[9px] font-bold text-slate-400 mt-2">Dihitung otomatis {profitMargin}% dari total omset cair riil: {formatRupiah(profitData.totalCashInAllTime)}</div>
         </div>
 
         <div className="bg-rose-50/50 p-6 rounded-3xl border border-rose-200 shadow-sm border-t-4 border-t-rose-500 relative overflow-hidden">
@@ -174,7 +182,7 @@ export default function TabProfitOwner({
         </div>
       </div>
 
-      {/* 💸 FORM PENARIKAN (TOGGLE) */}
+      {/* 💳 FORM PENARIKAN (TOGGLE) */}
       {showWithdrawForm && (
         <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-200 shadow-sm border-t-4 border-t-amber-500 animate-in slide-in-from-top-4 duration-300">
           <h3 className="font-black text-slate-800 text-sm uppercase tracking-wider flex items-center gap-2 mb-6 border-b border-slate-100 pb-4">
