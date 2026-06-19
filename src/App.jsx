@@ -30,6 +30,7 @@ import TabKartuStok from './components/tabs/TabKartuStok';
 // 🔥 IMPORT MODUL BARU KITA
 import TabProfitOwner from './components/tabs/TabProfitOwner';
 import TabKewajiban from './components/tabs/TabKewajiban';
+import TabMasterKonversi from './components/tabs/TabMasterKonversi'; // 🧮 DIINTEGRASIKAN KEBENARAN TUNGGAL PHASE 1
 
 // CONNECTED CORE CRM & PO
 import TabMasterCustomer from './components/tabs/TabMasterCustomer';
@@ -312,6 +313,7 @@ export default function App() {
       // 🔥 ROUTE BARU KITA!
       case 'profit_owner': return <TabProfitOwner user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
       case 'kewajiban': return <TabKewajiban user={user} sendToSheet={sendToSheet} showToast={showToast} {...dbData} />;
+      case 'master_konversi': return <TabMasterKonversi user={user} sendToSheet={sendToSheet} showToast={showToast} masterConversionRules={dbData.masterConversionRules} {...dbData} />; // 🧮 DEPLOYMENT OK PHASE 1
       
       default: return <TabDashboardBranch user={user} {...dbData} />;
     }
