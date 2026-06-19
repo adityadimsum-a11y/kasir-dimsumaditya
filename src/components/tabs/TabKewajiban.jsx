@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Target, Calendar, Wallet, CheckCircle2, AlertTriangle, 
   Plus, History, BarChart3, ShieldAlert, ArrowRight,
@@ -10,7 +10,7 @@ const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
 // =========================================================================
-// 🔒 CONSTANTS & ENUMS (CATATAN FINAL #2)
+// 🔒 CONSTANTS & ENUMS
 // =========================================================================
 const KEWAJIBAN_STATUS = {
   ACTIVE: 'ACTIVE',
@@ -27,6 +27,7 @@ export default function TabKewajiban({
   master_kewajiban = [], 
   trx_pembayaran_kewajiban = [], 
   cashflowTransactions = [], 
+  masterConversionRules = [], // 🔥 SSOT DIHUBUNGKAN
   sendToSheet, showToast, user 
 }) {
   const todayStr = getTodayStr();
@@ -43,7 +44,7 @@ export default function TabKewajiban({
   const [detailHistory, setDetailHistory] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // State Form Master Kewajiban (Catatan Final #1)
+  // State Form Master Kewajiban
   const [formMaster, setFormMaster] = useState({
     id: '', nama_kewajiban: '', kategori: 'CICILAN', 
     target_bulanan: '', jatuh_tempo: '15',
@@ -55,7 +56,17 @@ export default function TabKewajiban({
     nominal: '', dompet: 'TF_BRI_PUSAT', keterangan: ''
   });
 
+  // 🔥 DETEKSI PERSENTASE PROFIT DARI SSOT
+  const profitMargin = useMemo(() => {
+    const rule = masterConversionRules?.find(r => r.id === 'RULE-PROFIT' || String(r.rule_name).toLowerCase().includes('profit'));
+    return rule ? Number(rule.output_val || 5) : 5;
+  }, [masterConversionRules]);
+
+  // 🔥 DINAMISASI NILAI DEFAULT SIMULATOR
   const [simSlider, setSimSlider] = useState({ ayam: 55, ops: 25, komitmen: 15, profit: 5 });
+  useEffect(() => {
+    setSimSlider(prev => ({ ...prev, profit: profitMargin }));
+  }, [profitMargin]);
 
   // =========================================================================
   // 🧠 ENGINE 1: DATA KEWAJIBAN & PROGRESS
@@ -137,7 +148,6 @@ export default function TabKewajiban({
     setIsSubmitting(true);
     const isEdit = !!formMaster.id;
     
-    // Konversi nilai null sesuai mode tracking (Catatan Final #1)
     const finalTenor = formMaster.mode_tracking === TRACKING_MODE.TENOR ? Number(formMaster.sisa_tenor) : null;
     const finalPokok = formMaster.mode_tracking === TRACKING_MODE.POKOK ? Number(formMaster.sisa_pokok.replace(/\D/g, '')) : null;
 
@@ -170,7 +180,6 @@ export default function TabKewajiban({
     const nominalBayar = Number(formBayar.nominal.replace(/\D/g, ''));
     if (nominalBayar <= 0) return alert("Nominal tidak valid!");
 
-    // Health Check Kas Riil
     const dompetVal = formBayar.dompet === 'TF_BRI_PUSAT' ? kasRiil.bri : formBayar.dompet === 'TF_BCA_PUSAT' ? kasRiil.bca : kasRiil.cash;
     if (nominalBayar > dompetVal) {
       if (!window.confirm(`⚠️ KAS FISIK TIDAK CUKUP!\nSaldo ${formBayar.dompet.replace(/_/g, ' ')} Anda hanya ${formatRupiah(dompetVal)}.\nSistem akan mencatat minus jika dipaksa. Lanjutkan?`)) return;
@@ -181,7 +190,6 @@ export default function TabKewajiban({
     setIsSubmitting(true);
     const trxId = generateId('PKW', todayStr);
     
-    // 1. Log Pembayaran Kewajiban
     const payloadTrx = {
       id: trxId, 
       id_kewajiban: selectedKewajiban.id, 
@@ -194,7 +202,6 @@ export default function TabKewajiban({
       isDeleted: false
     };
 
-    // 2. Log Arus Kas dengan Reference Table (Catatan Final #3)
     const payloadCfo = {
       id: generateId('CFO', todayStr), 
       date: todayStr, 
@@ -209,11 +216,9 @@ export default function TabKewajiban({
       isDeleted: false
     };
 
-    // 3. Kalkulasi Logika Lunas (Update Master)
     let payloadUpdateMaster = null;
     let isFullLunas = false;
     
-    // Asumsi: Target bulanan terpenuhi secara akumulatif bulan ini
     if (selectedKewajiban.sisaBulanIni - nominalBayar <= 0) {
        if (selectedKewajiban.mode_tracking === TRACKING_MODE.TENOR) {
           const newTenor = Number(selectedKewajiban.sisa_tenor || 0) - 1;
@@ -537,7 +542,7 @@ export default function TabKewajiban({
             <div className="p-6 flex-1 overflow-y-auto custom-scrollbar bg-slate-50 space-y-6">
                <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl shadow-inner text-[10px] font-bold text-amber-800 uppercase tracking-wider flex items-start gap-2">
                  <AlertTriangle size={16} className="shrink-0 text-amber-600"/>
-                 <div>Layar ini hanya untuk visualisasi prediksi (Sandbox). Angka di sini tidak akan otomatis merubah sistem. Gunakan layar ini untuk mengambil keputusan sebelum mengubah pengaturan di Master Aturan Pabrik.</div>
+                 <div>Layar ini hanya untuk visualisasi prediksi (Sandbox). Angka di sini tidak akan otomatis merubah sistem. Gunakan layar ini untuk mengambil keputusan sebelum mengubah pengaturan di Master Aturan Konversi.</div>
                </div>
 
                <div className="space-y-4">
@@ -580,7 +585,7 @@ export default function TabKewajiban({
                </div>
             </div>
             <div className="p-5 bg-white border-t border-slate-200 shrink-0 text-center">
-              <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-3">Jika simulasi sudah ideal, ubah aturan secara permanen di menu Master Data.</div>
+              <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-3">Jika simulasi sudah ideal, ubah aturan secara permanen di menu Master Konversi (SSOT).</div>
               <button onClick={() => setShowSimulator(false)} className="px-8 py-3 bg-slate-900 text-white font-black text-[11px] uppercase tracking-wider rounded-xl shadow-md transition-transform active:scale-95 cursor-pointer">Tutup Simulator</button>
             </div>
           </div>
