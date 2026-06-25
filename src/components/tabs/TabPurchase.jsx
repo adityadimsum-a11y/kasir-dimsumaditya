@@ -5,7 +5,6 @@ import {
   Save,
   X,
   Edit2,
-  Trash2,
   Search,
   Filter,
   Building2,
@@ -13,11 +12,9 @@ import {
   Truck,
   ShieldCheck,
   CheckCircle,
-  AlertCircle,
   AlertTriangle,
   CalendarClock,
   ReceiptText,
-  BadgeDollarSign,
   WalletCards,
   Package,
   Scale,
@@ -27,7 +24,6 @@ import {
   History,
   Crown,
   TrendingUp,
-  Layers,
   Undo2,
   Send,
   FileText,
@@ -35,17 +31,6 @@ import {
 
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 import erpOrchestrator from '../../services/erpOrchestrator';
-import {
-  createPurchaseOrder,
-  receivePurchase,
-  createInventoryLayerFromPurchase,
-  calculatePurchaseSummary,
-  reversePurchase,
-} from '../../utils/purchaseEngine';
-import { createCostLayer } from '../../utils/inventoryLayerEngine';
-import { createPurchaseJournal, reverseJournal } from '../../utils/accountingEngine';
-import { createTransactionSnapshot } from '../../utils/snapshotEngine';
-import { calculateBranchProfit } from '../../utils/profitEngine';
 
 const PURCHASE_TABLE_NAME = 'purchase_transactions';
 
@@ -182,19 +167,31 @@ const isSoftDeleted = (row) => {
   return value === true || String(value || '').toUpperCase() === 'TRUE';
 };
 
-const normalizeStatus = (row) => {
+const normalizeMasterStatus = (row) => {
   if (isSoftDeleted(row)) return 'SOFT_DELETED';
 
-  const value = row?.status ?? row?.purchase_status ?? row?.transaction_status ?? row?.status_active ?? row?.is_active;
+  const value = row?.status ?? row?.status_active ?? row?.is_active;
 
-  if (value === false) return 'CANCELLED';
-  if (value === true) return 'POSTED';
+  if (value === false) return 'NON_ACTIVE';
+  if (value === true) return 'ACTIVE';
+
+  const normalized = normalizeCode(value || 'ACTIVE');
+
+  if (['NON_ACTIVE', 'NONAKTIF', 'INACTIVE', 'DISABLED', 'FALSE', 'NO', 'N', '0'].includes(normalized)) {
+    return 'NON_ACTIVE';
+  }
+
+  return 'ACTIVE';
+};
+
+const normalizePurchaseStatus = (row) => {
+  const value = row?.status ?? row?.purchase_status ?? row?.transaction_status;
 
   const normalized = normalizeCode(value || 'DRAFT');
 
   if (['VOIDED', 'VOID'].includes(normalized)) return 'VOID';
   if (['CANCELLED', 'CANCELED', 'BATAL'].includes(normalized)) return 'CANCELLED';
-  if (['POSTED', 'RECEIVED', 'PAID', 'PARTIAL_PAYMENT', 'PAYABLE'].includes(normalized)) return 'POSTED';
+  if (['POSTED', 'RECEIVED', 'FINAL', 'LOCKED'].includes(normalized)) return 'POSTED';
   if (['DRAFT', 'OPEN'].includes(normalized)) return 'DRAFT';
 
   return normalized || 'DRAFT';
@@ -224,6 +221,10 @@ const parseJson = (value, fallback = null) => {
   }
 };
 
+const safeArray = (value) => {
+  return Array.isArray(value) ? value : [];
+};
+
 const getRawPurchaseRows = ({
   purchases,
   purchaseTransactions,
@@ -232,21 +233,18 @@ const getRawPurchaseRows = ({
   purchase_packages,
   dbData,
 }) => {
-  const rows = [];
-
-  if (Array.isArray(purchases)) rows.push(...purchases);
-  if (Array.isArray(purchaseTransactions)) rows.push(...purchaseTransactions);
-  if (Array.isArray(purchase_transactions)) rows.push(...purchase_transactions);
-  if (Array.isArray(purchasePackages)) rows.push(...purchasePackages);
-  if (Array.isArray(purchase_packages)) rows.push(...purchase_packages);
-
-  if (Array.isArray(dbData?.purchases)) rows.push(...dbData.purchases);
-  if (Array.isArray(dbData?.purchaseTransactions)) rows.push(...dbData.purchaseTransactions);
-  if (Array.isArray(dbData?.purchase_transactions)) rows.push(...dbData.purchase_transactions);
-  if (Array.isArray(dbData?.purchasePackages)) rows.push(...dbData.purchasePackages);
-  if (Array.isArray(dbData?.purchase_packages)) rows.push(...dbData.purchase_packages);
-
-  return rows;
+  return [
+    ...safeArray(purchases),
+    ...safeArray(purchaseTransactions),
+    ...safeArray(purchase_transactions),
+    ...safeArray(purchasePackages),
+    ...safeArray(purchase_packages),
+    ...safeArray(dbData?.purchases),
+    ...safeArray(dbData?.purchaseTransactions),
+    ...safeArray(dbData?.purchase_transactions),
+    ...safeArray(dbData?.purchasePackages),
+    ...safeArray(dbData?.purchase_packages),
+  ];
 };
 
 const getRawSupplierRows = ({
@@ -338,7 +336,7 @@ const getRawWarehouseRows = ({
   return [];
 };
 
-const getRawConversionRules = ({
+const getRawConversionRuleRows = ({
   masterConversionRules,
   master_conversion_rules,
   conversionRules,
@@ -375,7 +373,7 @@ const normalizeBranchDisplay = (record) => {
     branch_code: String(raw.branch_code || raw.branchCode || raw.code || branchId || '').trim(),
     branch_name: String(raw.branch_name || raw.branchName || raw.nama_cabang || raw.name || record?.name || branchId || '').trim(),
     branch_type: normalizeCode(raw.branch_type || raw.branchType || raw.type || ''),
-    status: normalizeStatus({
+    status: normalizeMasterStatus({
       status: raw.branch_status || raw.status,
       is_active: raw.is_active,
       isDeleted: raw.isDeleted,
@@ -405,7 +403,7 @@ const normalizeWarehouseDisplay = (record) => {
     warehouse_name: String(raw.warehouse_name || raw.location_name || raw.nama_gudang || raw.name || record?.name || '').trim(),
     warehouse_type: normalizeCode(raw.warehouse_type || raw.location_type || raw.type || 'RAW_MATERIAL'),
     branch_id: String(raw.branch_id || raw.branchId || raw.scope_branch_id || record?.branch_id || '').trim(),
-    status: normalizeStatus(raw),
+    status: normalizeMasterStatus(raw),
     isDeleted: isSoftDeleted(raw),
     raw,
   };
@@ -439,10 +437,9 @@ const normalizeSupplierDisplay = (record) => {
     supplier_name: supplierName,
     supplier_type: normalizeCode(raw.supplier_type || raw.type || raw.category || 'UMUM'),
     branch_id: String(raw.branch_id || raw.branchId || record?.branch_id || '').trim(),
-    nomor_telepon: String(raw.nomor_telepon || raw.phone || raw.whatsapp || '').trim(),
     termin_hari: toNumber(raw.termin_hari || raw.term_days || raw.due_days || 0),
     metode_pembayaran_default: normalizeCode(raw.metode_pembayaran_default || raw.default_payment_method || raw.payment_method || 'TRANSFER'),
-    status: normalizeStatus(raw),
+    status: normalizeMasterStatus(raw),
     isDeleted: isSoftDeleted(raw),
     raw,
   };
@@ -477,7 +474,7 @@ const normalizeMaterialDisplay = (record) => {
     preferred_supplier_id: String(raw.preferred_supplier_id || raw.supplier_id || '').trim(),
     latest_cost: roundMoney(raw.latest_cost || raw.last_cost || raw.harga_terakhir || raw.average_cost || raw.avg_cost || 0),
     average_cost: roundMoney(raw.average_cost || raw.avg_cost || 0),
-    status: normalizeStatus(raw),
+    status: normalizeMasterStatus(raw),
     isDeleted: isSoftDeleted(raw),
     raw,
   };
@@ -508,7 +505,7 @@ const normalizeConversionRuleDisplay = (record) => {
     to_unit: toUnit,
     factor: toNumber(raw.factor || raw.conversion_factor || raw.ratio || raw.nilai || 0),
     branch_id: String(raw.branch_id || raw.branchId || '').trim(),
-    status: normalizeStatus(raw),
+    status: normalizeMasterStatus(raw),
     isDeleted: isSoftDeleted(raw),
     raw,
   };
@@ -533,8 +530,8 @@ const normalizePurchaseLine = (line = {}, index = 0) => {
 
 const normalizePurchaseRecord = (row) => {
   const packageInput = row?.purchase_transaction_package || row?.purchaseTransactionPackage || row || {};
-  const header = packageInput.purchase_header || row?.purchase_header || row || {};
-  const snapshot = packageInput.purchase_snapshot || parseJson(header.purchase_snapshot_json, null) || null;
+  const header = packageInput.purchase_header || packageInput.header || row?.purchase_header || row || {};
+  const snapshot = packageInput.purchase_snapshot || packageInput.snapshot_package || parseJson(header.purchase_snapshot_json, null) || null;
   const snapshotPayload = snapshot?.payload?.purchase_snapshot || snapshot?.payload || null;
   const snapshotHeader = snapshotPayload?.purchase_header || snapshotPayload?.transaction_header || {};
 
@@ -572,11 +569,14 @@ const normalizePurchaseRecord = (row) => {
     0,
   );
 
-  return {
-    id: String(finalHeader.id || finalHeader.purchase_id || row?.id || '').trim(),
+  const purchaseId = String(finalHeader.purchase_id || finalHeader.id || row?.purchase_id || row?.id || '').trim();
+  const purchaseCode = String(finalHeader.purchase_code || finalHeader.purchaseCode || finalHeader.code || finalHeader.invoice_number || purchaseId || '').trim();
 
-    purchase_id: String(finalHeader.purchase_id || finalHeader.id || row?.id || '').trim(),
-    purchase_code: String(finalHeader.purchase_code || finalHeader.purchaseCode || finalHeader.code || finalHeader.invoice_number || '').trim(),
+  return {
+    id: String(finalHeader.id || purchaseId).trim(),
+
+    purchase_id: purchaseId,
+    purchase_code: purchaseCode,
     purchase_date: normalizeDate(finalHeader.purchase_date || finalHeader.date || finalHeader.created_at || row?.date || ''),
 
     supplier_id: String(finalHeader.supplier_id || finalHeader.supplierId || row?.supplier_id || '').trim(),
@@ -592,7 +592,7 @@ const normalizePurchaseRecord = (row) => {
     invoice_number: String(finalHeader.invoice_number || finalHeader.no_invoice || finalHeader.nota || '').trim(),
 
     notes: String(finalHeader.notes || finalHeader.keterangan || '').trim(),
-    status: normalizeStatus(finalHeader),
+    status: normalizePurchaseStatus(finalHeader),
 
     amount_paid: amountPaid,
     total_amount: totalAmount,
@@ -607,12 +607,12 @@ const normalizePurchaseRecord = (row) => {
 
     created_at: finalHeader.created_at || row?.created_at || '',
     updated_at: finalHeader.updated_at || row?.updated_at || '',
-    posted_at: finalHeader.posted_at || '',
-    voided_at: finalHeader.voided_at || '',
+    posted_at: finalHeader.posted_at || row?.posted_at || '',
+    voided_at: finalHeader.voided_at || row?.voided_at || '',
 
     search_text: normalizeText([
-      finalHeader.purchase_id,
-      finalHeader.purchase_code,
+      purchaseId,
+      purchaseCode,
       finalHeader.invoice_number,
       finalHeader.supplier_id,
       finalHeader.supplier_name,
@@ -627,349 +627,215 @@ const normalizePurchaseRecord = (row) => {
   };
 };
 
+const buildMasterSource = ({
+  dbData,
+  rawSupplierRows,
+  rawMaterialRows,
+  rawBranchRows,
+  rawWarehouseRows,
+  rawConversionRuleRows,
+  rawPurchaseRows,
+}) => {
+  return {
+    ...(dbData || {}),
+
+    master_suppliers: rawSupplierRows,
+    masterSuppliers: rawSupplierRows,
+    suppliers: rawSupplierRows,
+
+    master_raw_materials: rawMaterialRows,
+    masterRawMaterials: rawMaterialRows,
+    raw_materials: rawMaterialRows,
+    rawMaterials: rawMaterialRows,
+
+    master_branches: rawBranchRows,
+    masterBranches: rawBranchRows,
+    master_branch: rawBranchRows,
+
+    master_warehouses: rawWarehouseRows,
+    masterWarehouses: rawWarehouseRows,
+    master_locations: rawWarehouseRows,
+    masterLocations: rawWarehouseRows,
+    warehouses: rawWarehouseRows,
+    locations: rawWarehouseRows,
+
+    master_conversion_rules: rawConversionRuleRows,
+    masterConversionRules: rawConversionRuleRows,
+    conversion_rules: rawConversionRuleRows,
+    conversionRules: rawConversionRuleRows,
+
+    purchases: rawPurchaseRows,
+    purchase_transactions: rawPurchaseRows,
+  };
+};
+
 const calculateDraftSummary = (lines, form) => {
   const totalAmount = roundMoney((lines || []).reduce((sum, line) => sum + toNumber(line.subtotal), 0));
-  const amountPaid = roundMoney(form.payment_method === 'HUTANG' ? 0 : form.payment_status === 'UNPAID' ? 0 : form.payment_status === 'PARTIAL' ? form.amount_paid : totalAmount);
-  const remainingAmount = roundMoney(Math.max(totalAmount - amountPaid, 0));
-  const paymentStatus = normalizePaymentStatus(form.payment_status, totalAmount, amountPaid);
 
-  let engineSummary = null;
+  let amountPaid = 0;
 
-  try {
-    engineSummary = calculatePurchaseSummary({
-      total_amount: totalAmount,
-      amount_paid: amountPaid,
-      payment_status: paymentStatus,
-      purchase_items: lines,
-    });
-  } catch (error) {
-    engineSummary = null;
+  if (form.payment_method === 'HUTANG' || form.payment_status === 'UNPAID') {
+    amountPaid = 0;
+  } else if (form.payment_status === 'PARTIAL') {
+    amountPaid = roundMoney(form.amount_paid);
+  } else {
+    amountPaid = totalAmount;
   }
 
   return {
     total_amount: totalAmount,
     amount_paid: amountPaid,
-    remaining_amount: remainingAmount,
-    payment_status: paymentStatus,
+    remaining_amount: roundMoney(Math.max(totalAmount - amountPaid, 0)),
+    payment_status: normalizePaymentStatus(form.payment_status, totalAmount, amountPaid),
     total_lines: lines.length,
-    engine_summary: engineSummary,
   };
 };
 
-const createPurchaseInput = (form, lines, summary, executor = 'SYSTEM') => {
+const createPurchaseCommand = ({
+  form,
+  lines,
+  summary,
+  executor,
+  mode,
+  masterSource,
+}) => {
   const normalizedLines = lines.map(normalizePurchaseLine);
 
   return {
-    purchase_id: form.purchase_id,
-    purchase_code: form.purchase_code,
-    purchase_date: form.purchase_date,
+    transaction_type: 'PURCHASE',
+    action: mode,
+    mode,
 
-    supplier_id: form.supplier_id,
-    supplier_name: form.supplier_name,
+    purchase_header: {
+      purchase_id: form.purchase_id,
+      purchase_code: form.purchase_code,
+      purchase_date: form.purchase_date,
 
-    branch_id: form.branch_id,
-    warehouse_id: form.warehouse_id,
+      supplier_id: form.supplier_id,
+      supplier_name: form.supplier_name,
 
-    payment_method: form.payment_method,
-    payment_status: summary.payment_status,
-    due_date: form.due_date,
-    invoice_number: form.invoice_number,
-    notes: form.notes,
-    status: form.status,
+      branch_id: form.branch_id,
+      warehouse_id: form.warehouse_id,
 
-    amount_paid: summary.amount_paid,
-    total_amount: summary.total_amount,
-    remaining_amount: summary.remaining_amount,
+      payment_method: form.payment_method,
+      payment_status: summary.payment_status,
+      due_date: form.due_date,
+      invoice_number: form.invoice_number,
+      notes: form.notes,
+      status: mode === 'POST' ? 'POSTED' : 'DRAFT',
+
+      amount_paid: summary.amount_paid,
+      total_amount: summary.total_amount,
+      remaining_amount: summary.remaining_amount,
+
+      created_by: executor,
+      updated_by: executor,
+    },
 
     purchase_items: normalizedLines,
-    items: normalizedLines,
 
-    created_by: executor,
-    updated_by: executor,
+    source: masterSource,
+    dbData: masterSource,
+    masterData: masterSource,
   };
 };
 
-const runPurchasePosting = (purchaseInput, masterSource, executor) => {
-  const warnings = [];
-  let orchestratorResult = null;
-
-  if (erpOrchestrator && typeof erpOrchestrator.processPurchase === 'function') {
-    try {
-      orchestratorResult = erpOrchestrator.processPurchase({
-        ...purchaseInput,
-        status: 'POSTED',
-        source: masterSource,
-        dbData: masterSource,
-        masterData: masterSource,
-      }, {
-        source: masterSource,
-        dbData: masterSource,
-        masterData: masterSource,
-        executor,
-      });
-
-      if (orchestratorResult?.ok !== false) {
-        return {
-          ok: true,
-          source: 'erpOrchestrator.processPurchase',
-          package: orchestratorResult,
-          warnings,
-        };
-      }
-
-      warnings.push('erpOrchestrator.processPurchase mengembalikan status tidak OK. Fallback engine dijalankan.');
-    } catch (error) {
-      warnings.push(`erpOrchestrator.processPurchase gagal: ${error.message}`);
-    }
-  }
-
-  let purchaseResult = null;
-
-  try {
-    purchaseResult = receivePurchase({
-      ...purchaseInput,
-      status: 'POSTED',
-      source: masterSource,
-      dbData: masterSource,
-    }, {
-      source: masterSource,
-      dbData: masterSource,
-      inventorySource: masterSource,
-      rulesSource: masterSource,
-      executor,
-    });
-  } catch (error) {
-    warnings.push(`receivePurchase fallback gagal: ${error.message}`);
-
-    try {
-      purchaseResult = createPurchaseOrder({
-        ...purchaseInput,
-        status: 'POSTED',
-        source: masterSource,
-        dbData: masterSource,
-      }, {
-        source: masterSource,
-        dbData: masterSource,
-        executor,
-      });
-    } catch (secondError) {
-      warnings.push(`createPurchaseOrder fallback gagal: ${secondError.message}`);
-      purchaseResult = null;
-    }
-  }
-
-  let inventoryLayerResult = null;
-
-  try {
-    inventoryLayerResult = createInventoryLayerFromPurchase(
-      purchaseResult?.purchase_transaction_package || purchaseResult || purchaseInput,
-      {
-        source: masterSource,
-        dbData: masterSource,
-        rulesSource: masterSource,
-        executor,
-      },
-    );
-  } catch (error) {
-    warnings.push(`createInventoryLayerFromPurchase fallback gagal: ${error.message}`);
-
-    inventoryLayerResult = {
-      ok: true,
-      inventory_layers: (purchaseInput.purchase_items || []).map((line) => {
-        try {
-          return createCostLayer({
-            branch_id: purchaseInput.branch_id,
-            warehouse_id: purchaseInput.warehouse_id,
-            item_id: line.raw_material_id,
-            item_name: line.raw_material_name,
-            qty: line.qty,
-            unit: line.unit,
-            unit_cost: line.unit_price,
-            source_transaction_id: purchaseInput.purchase_id,
-            source_transaction_type: 'PURCHASE',
-            received_date: purchaseInput.purchase_date,
-            created_by: executor,
-          }, {
-            source: masterSource,
-            rulesSource: masterSource,
-          });
-        } catch (layerError) {
-          warnings.push(`createCostLayer fallback gagal untuk ${line.raw_material_name}: ${layerError.message}`);
-
-          return {
-            layer_id: generateId('LAYER', getTodayStr()),
-            branch_id: purchaseInput.branch_id,
-            warehouse_id: purchaseInput.warehouse_id,
-            item_id: line.raw_material_id,
-            item_name: line.raw_material_name,
-            qty_original: line.qty,
-            qty_remaining: line.qty,
-            unit: line.unit,
-            unit_cost: line.unit_price,
-            source_transaction_id: purchaseInput.purchase_id,
-            source_transaction_type: 'PURCHASE',
-            received_date: purchaseInput.purchase_date,
-          };
-        }
-      }),
-    };
-  }
-
-  let accountingResult = null;
-
-  try {
-    accountingResult = createPurchaseJournal(
-      purchaseResult?.purchase_transaction_package || purchaseResult || purchaseInput,
-      {
-        source: masterSource,
-        dbData: masterSource,
-        executor,
-      },
-    );
-  } catch (error) {
-    warnings.push(`createPurchaseJournal fallback gagal: ${error.message}`);
-    accountingResult = null;
-  }
-
-  let snapshotResult = null;
-
-  try {
-    snapshotResult = createTransactionSnapshot({
-      snapshot_type: 'TRANSACTION',
-      transaction_id: purchaseInput.purchase_id,
-      transaction_type: 'PURCHASE',
-      branch_id: purchaseInput.branch_id,
-      created_by: executor,
-      engine_versions: {
-        erpOrchestrator: 'UI_TAB_PURCHASE',
-      },
-      payload: {
-        purchase_input: purchaseInput,
-        purchase_result: purchaseResult,
-        inventory_layer_result: inventoryLayerResult,
-        accounting_result: accountingResult,
-      },
-      warnings,
-    });
-  } catch (error) {
-    warnings.push(`createTransactionSnapshot fallback gagal: ${error.message}`);
-    snapshotResult = null;
-  }
-
-  let profitImpact = null;
-
-  try {
-    profitImpact = calculateBranchProfit({
-      branch_id: purchaseInput.branch_id,
-      expenses: [{
-        expense_type: 'PURCHASE_COST',
-        amount: purchaseInput.total_amount,
-        source_transaction_id: purchaseInput.purchase_id,
-      }],
-      source: masterSource,
-    }, {
-      source: masterSource,
-      dbData: masterSource,
-      executor,
-    });
-  } catch (error) {
-    warnings.push(`profitEngine cost impact preview gagal: ${error.message}`);
-    profitImpact = null;
-  }
+const normalizePurchasePackageFromOrchestrator = (result) => {
+  const base = result?.transaction_package || result?.package || result?.data || result || {};
 
   return {
-    ok: Boolean(purchaseResult),
-    source: 'fallback_engines',
-    package: {
-      purchase_transaction_package: purchaseResult?.purchase_transaction_package || purchaseResult || null,
-      inventory_layer_package: inventoryLayerResult,
-      accounting_package: accountingResult,
-      purchase_snapshot: snapshotResult,
-      profit_cost_impact: profitImpact,
-      warnings,
-    },
-    warnings,
+    purchase_transaction_package:
+      base.purchase_transaction_package ||
+      base.purchasePackage ||
+      base.purchase_package ||
+      base.purchase ||
+      null,
+
+    inventory_layer_package:
+      base.inventory_layer_package ||
+      base.inventoryLayerPackage ||
+      base.inventory_package ||
+      base.fifo_layer_package ||
+      null,
+
+    accounting_package:
+      base.accounting_package ||
+      base.accountingPackage ||
+      base.journal_package ||
+      base.journal ||
+      null,
+
+    snapshot_package:
+      base.snapshot_package ||
+      base.snapshotPackage ||
+      base.purchase_snapshot ||
+      base.snapshot ||
+      null,
+
+    warnings:
+      base.warnings ||
+      result?.warnings ||
+      [],
+
+    raw_orchestrator_response: result,
   };
 };
 
-const runPurchaseVoid = (purchaseRecord, masterSource, executor) => {
-  const warnings = [];
-
-  if (erpOrchestrator && typeof erpOrchestrator.processVoidTransaction === 'function') {
-    try {
-      const result = erpOrchestrator.processVoidTransaction({
-        transaction_type: 'PURCHASE',
-        transaction_id: purchaseRecord.purchase_id,
-        original_transaction: purchaseRecord.raw,
-        reason: 'VOID_PURCHASE_FROM_UI',
-        source: masterSource,
-      }, {
-        source: masterSource,
-        dbData: masterSource,
-        executor,
-      });
-
-      if (result?.ok !== false) {
-        return {
-          ok: true,
-          source: 'erpOrchestrator.processVoidTransaction',
-          package: result,
-          warnings,
-        };
-      }
-
-      warnings.push('processVoidTransaction mengembalikan status tidak OK. Fallback void engine dijalankan.');
-    } catch (error) {
-      warnings.push(`processVoidTransaction gagal: ${error.message}`);
-    }
-  }
-
-  let reversalResult = null;
-
-  try {
-    reversalResult = reversePurchase({
-      purchase_transaction_package: purchaseRecord.raw?.purchase_transaction_package || purchaseRecord.raw,
-      purchase_id: purchaseRecord.purchase_id,
-      reason: 'VOID_PURCHASE_FROM_UI',
-      reversed_by: executor,
-    }, {
-      source: masterSource,
-      dbData: masterSource,
-      executor,
-    });
-  } catch (error) {
-    warnings.push(`reversePurchase fallback gagal: ${error.message}`);
-    reversalResult = null;
-  }
-
-  let accountingReversal = null;
-
-  try {
-    accountingReversal = reverseJournal({
-      source_transaction_id: purchaseRecord.purchase_id,
-      source_transaction_type: 'PURCHASE',
-      original_transaction: purchaseRecord.raw,
-      reason: 'VOID_PURCHASE_FROM_UI',
-    }, {
-      source: masterSource,
-      dbData: masterSource,
-      executor,
-    });
-  } catch (error) {
-    warnings.push(`reverseJournal fallback gagal: ${error.message}`);
-    accountingReversal = null;
-  }
+const normalizeVoidPackageFromOrchestrator = (result) => {
+  const base = result?.transaction_package || result?.package || result?.data || result || {};
 
   return {
-    ok: true,
-    source: 'fallback_void_engines',
-    package: {
-      purchase_reversal_package: reversalResult,
-      accounting_reversal_package: accountingReversal,
-      warnings,
-    },
-    warnings,
+    reversal_package:
+      base.reversal_package ||
+      base.reversalPackage ||
+      base.void_package ||
+      base.voidPackage ||
+      base.purchase_reversal_package ||
+      null,
+
+    snapshot_package:
+      base.snapshot_package ||
+      base.snapshotPackage ||
+      base.void_snapshot ||
+      base.snapshot ||
+      null,
+
+    warnings:
+      base.warnings ||
+      result?.warnings ||
+      [],
+
+    raw_orchestrator_response: result,
   };
+};
+
+const validatePostedOrchestratorPackage = (packageResult) => {
+  const missing = [];
+
+  if (!packageResult.purchase_transaction_package) missing.push('purchase_transaction_package');
+  if (!packageResult.inventory_layer_package) missing.push('inventory_layer_package');
+  if (!packageResult.accounting_package) missing.push('accounting_package');
+  if (!packageResult.snapshot_package) missing.push('snapshot_package');
+
+  return missing;
+};
+
+const validateVoidOrchestratorPackage = (packageResult) => {
+  const missing = [];
+
+  if (!packageResult.reversal_package) missing.push('reversal_package');
+
+  return missing;
+};
+
+const getPaymentIcon = (method) => {
+  const normalized = normalizeCode(method);
+
+  if (normalized === 'CASH') return <Banknote size={14} className="text-emerald-600" />;
+  if (normalized === 'TRANSFER') return <CreditCard size={14} className="text-slate-500" />;
+  if (normalized === 'QRIS') return <QrCode size={14} className="text-purple-600" />;
+
+  return <WalletCards size={14} className="text-amber-700" />;
 };
 
 const Badge = ({ children, tone = 'slate' }) => {
@@ -1067,6 +933,7 @@ export default function TabPurchase({
   user,
 }) {
   const todayStr = getTodayStr();
+  const executor = user?.name || user?.email || 'SYSTEM';
 
   const isOwnerMode = useMemo(() => {
     const role = normalizeCode(user?.role || user?.user_role || '');
@@ -1087,7 +954,6 @@ export default function TabPurchase({
   }, [user]);
 
   const userBranchId = String(user?.branch_id || user?.branchId || '').trim();
-  const executor = user?.name || user?.email || 'SYSTEM';
 
   const [form, setForm] = useState({
     ...DEFAULT_FORM,
@@ -1164,8 +1030,8 @@ export default function TabPurchase({
     });
   }, [masterWarehouses, master_warehouses, masterLocations, master_locations, warehouses, locations, dbData]);
 
-  const rawRuleRows = useMemo(() => {
-    return getRawConversionRules({
+  const rawConversionRuleRows = useMemo(() => {
+    return getRawConversionRuleRows({
       masterConversionRules,
       master_conversion_rules,
       conversionRules,
@@ -1174,96 +1040,111 @@ export default function TabPurchase({
     });
   }, [masterConversionRules, master_conversion_rules, conversionRules, conversion_rules, dbData]);
 
-  const masterSource = useMemo(() => ({
-    ...(dbData || {}),
+  const masterSource = useMemo(() => {
+    return buildMasterSource({
+      dbData,
+      rawSupplierRows,
+      rawMaterialRows,
+      rawBranchRows,
+      rawWarehouseRows,
+      rawConversionRuleRows,
+      rawPurchaseRows,
+    });
+  }, [
+    dbData,
+    rawSupplierRows,
+    rawMaterialRows,
+    rawBranchRows,
+    rawWarehouseRows,
+    rawConversionRuleRows,
+    rawPurchaseRows,
+  ]);
 
-    master_suppliers: rawSupplierRows,
-    masterSuppliers: rawSupplierRows,
-    suppliers: rawSupplierRows,
-
-    master_raw_materials: rawMaterialRows,
-    masterRawMaterials: rawMaterialRows,
-    raw_materials: rawMaterialRows,
-    rawMaterials: rawMaterialRows,
-
-    master_branches: rawBranchRows,
-    masterBranches: rawBranchRows,
-    master_branch: rawBranchRows,
-
-    master_warehouses: rawWarehouseRows,
-    masterWarehouses: rawWarehouseRows,
-    master_locations: rawWarehouseRows,
-    masterLocations: rawWarehouseRows,
-    warehouses: rawWarehouseRows,
-    locations: rawWarehouseRows,
-
-    master_conversion_rules: rawRuleRows,
-    masterConversionRules: rawRuleRows,
-    conversion_rules: rawRuleRows,
-    conversionRules: rawRuleRows,
-
-    purchases: rawPurchaseRows,
-    purchase_transactions: rawPurchaseRows,
-  }), [dbData, rawSupplierRows, rawMaterialRows, rawBranchRows, rawWarehouseRows, rawRuleRows, rawPurchaseRows]);
+  const masterDataApi = erpOrchestrator?.masterData || {};
 
   const branchRecords = useMemo(() => {
-    const result = erpOrchestrator.masterData.getBranches(masterSource, {
+    const result = masterDataApi.getBranches?.(masterSource, {
       includeInactive: true,
       includeDeleted: true,
       validate: false,
-    });
+    }) || { records: [] };
 
     return (result.records || [])
       .map(normalizeBranchDisplay)
       .filter((branch) => !branch.isDeleted)
       .sort((a, b) => String(a.branch_name).localeCompare(String(b.branch_name)));
-  }, [masterSource]);
+  }, [masterDataApi, masterSource]);
 
   const supplierRecords = useMemo(() => {
-    const result = erpOrchestrator.masterData.getSuppliers(masterSource, {
+    const result = masterDataApi.getSuppliers?.(masterSource, {
       includeInactive: true,
       includeDeleted: true,
       validate: false,
-    });
+    }) || { records: [] };
 
     return (result.records || [])
       .map(normalizeSupplierDisplay)
       .filter((supplier) => !supplier.isDeleted)
       .sort((a, b) => String(a.supplier_name).localeCompare(String(b.supplier_name)));
-  }, [masterSource]);
+  }, [masterDataApi, masterSource]);
 
   const materialRecords = useMemo(() => {
-    const result = erpOrchestrator.masterData.getRawMaterials(masterSource, {
+    const result = masterDataApi.getRawMaterials?.(masterSource, {
       includeInactive: true,
       includeDeleted: true,
       validate: false,
-    });
+    }) || { records: [] };
 
     return (result.records || [])
       .map(normalizeMaterialDisplay)
       .filter((material) => !material.isDeleted)
       .sort((a, b) => String(a.raw_material_name).localeCompare(String(b.raw_material_name)));
-  }, [masterSource]);
+  }, [masterDataApi, masterSource]);
 
   const warehouseRecords = useMemo(() => {
-    const result = erpOrchestrator.masterData.getWarehouses(masterSource, {
+    const result = masterDataApi.getWarehouses?.(masterSource, {
       includeInactive: true,
       includeDeleted: true,
       validate: false,
-    });
+    }) || { records: [] };
 
     return (result.records || [])
       .map(normalizeWarehouseDisplay)
       .filter((warehouse) => !warehouse.isDeleted)
       .sort((a, b) => String(a.warehouse_name).localeCompare(String(b.warehouse_name)));
-  }, [masterSource]);
+  }, [masterDataApi, masterSource]);
 
   const conversionRuleRecords = useMemo(() => {
-    return rawRuleRows
-      .map(normalizeConversionRuleDisplay)
+    const extractedRows = typeof masterDataApi.extractMasterRows === 'function'
+      ? masterDataApi.extractMasterRows(masterSource, 'CONVERSION_RULE')
+      : rawConversionRuleRows;
+
+    const searchResult = typeof masterDataApi.searchMaster === 'function'
+      ? masterDataApi.searchMaster(masterSource, {
+          masterType: 'CONVERSION_RULE',
+          includeInactive: true,
+          includeDeleted: true,
+        }, {
+          validate: false,
+        })
+      : { records: [] };
+
+    const merged = [
+      ...safeArray(extractedRows),
+      ...safeArray(searchResult.records),
+    ];
+
+    const map = new Map();
+
+    merged.map(normalizeConversionRuleDisplay).forEach((rule) => {
+      if (!rule.rule_id) return;
+      map.set(rule.rule_id, rule);
+    });
+
+    return Array.from(map.values())
       .filter((rule) => !rule.isDeleted && rule.status === 'ACTIVE')
       .sort((a, b) => String(a.name).localeCompare(String(b.name)));
-  }, [rawRuleRows]);
+  }, [masterDataApi, masterSource, rawConversionRuleRows]);
 
   const unitOptions = useMemo(() => {
     return Array.from(new Set([
@@ -1392,6 +1273,7 @@ export default function TabPurchase({
     const averagePrice = totalQty > 0 ? totalLineAmount / totalQty : 0;
 
     const supplierMap = new Map();
+
     posted.forEach((purchase) => {
       const key = purchase.supplier_id || purchase.supplier_name || 'UNKNOWN';
 
@@ -1413,6 +1295,7 @@ export default function TabPurchase({
       .sort((a, b) => b.total_amount - a.total_amount)[0] || null;
 
     const branchMap = new Map();
+
     posted.forEach((purchase) => {
       const key = purchase.branch_id || 'UNKNOWN';
 
@@ -1627,7 +1510,6 @@ export default function TabPurchase({
     if (!form.warehouse_id.trim()) warnings.push('Warehouse ID wajib dipilih.');
     if (!form.payment_method.trim()) warnings.push('Payment method wajib dipilih.');
     if (!form.payment_status.trim()) warnings.push('Payment status wajib dipilih.');
-    if (!form.status.trim()) warnings.push('Status wajib diisi.');
     if (purchaseLines.length === 0) warnings.push('Detail pembelian wajib minimal 1 item.');
 
     const supplierExists = supplierRecords.some((supplier) => {
@@ -1689,54 +1571,88 @@ export default function TabPurchase({
     return warnings;
   };
 
-  const createPayload = (statusOverride = form.status) => {
-    const summary = calculateDraftSummary(purchaseLines, {
-      ...form,
-      status: statusOverride,
-    });
-
-    const purchaseInput = createPurchaseInput({
-      ...form,
-      status: statusOverride,
-    }, purchaseLines, summary, executor);
+  const createLocalPayload = ({
+    status,
+    packageResult = null,
+    voidPackageResult = null,
+  }) => {
+    const summary = calculateDraftSummary(purchaseLines, form);
+    const normalizedLines = purchaseLines.map(normalizePurchaseLine);
 
     return {
       ...(selectedPurchase?.raw || {}),
 
-      id: selectedPurchase?.id || purchaseInput.purchase_id,
+      id: selectedPurchase?.id || form.purchase_id,
       date: selectedPurchase?.raw?.date || todayStr,
 
-      purchase_id: purchaseInput.purchase_id,
-      purchase_code: purchaseInput.purchase_code,
-      purchase_date: purchaseInput.purchase_date,
+      purchase_id: form.purchase_id,
+      purchase_code: form.purchase_code,
+      purchase_date: form.purchase_date,
 
-      supplier_id: purchaseInput.supplier_id,
-      supplier_name: purchaseInput.supplier_name,
+      supplier_id: form.supplier_id,
+      supplier_name: form.supplier_name,
 
-      branch_id: purchaseInput.branch_id,
-      warehouse_id: purchaseInput.warehouse_id,
+      branch_id: form.branch_id,
+      warehouse_id: form.warehouse_id,
 
-      payment_method: purchaseInput.payment_method,
-      payment_status: purchaseInput.payment_status,
-      due_date: purchaseInput.due_date,
-      invoice_number: purchaseInput.invoice_number,
+      payment_method: form.payment_method,
+      payment_status: summary.payment_status,
+      due_date: form.due_date,
+      invoice_number: form.invoice_number,
 
-      notes: purchaseInput.notes,
+      notes: form.notes,
 
-      status: statusOverride,
-      purchase_status: statusOverride,
+      status,
+      purchase_status: status,
 
-      amount_paid: purchaseInput.amount_paid,
-      total_amount: purchaseInput.total_amount,
-      remaining_amount: purchaseInput.remaining_amount,
+      amount_paid: summary.amount_paid,
+      total_amount: summary.total_amount,
+      remaining_amount: summary.remaining_amount,
 
-      purchase_items: purchaseInput.purchase_items,
-      purchase_items_json: JSON.stringify(purchaseInput.purchase_items),
+      purchase_items: normalizedLines,
+      purchase_items_json: JSON.stringify(normalizedLines),
+
+      purchase_transaction_package: packageResult?.purchase_transaction_package || selectedPurchase?.raw?.purchase_transaction_package || null,
+      purchase_transaction_package_json: packageResult?.purchase_transaction_package ? JSON.stringify(packageResult.purchase_transaction_package) : selectedPurchase?.raw?.purchase_transaction_package_json || '',
+
+      inventory_layer_package: packageResult?.inventory_layer_package || selectedPurchase?.raw?.inventory_layer_package || null,
+      inventory_layer_package_json: packageResult?.inventory_layer_package ? JSON.stringify(packageResult.inventory_layer_package) : selectedPurchase?.raw?.inventory_layer_package_json || '',
+
+      accounting_package: packageResult?.accounting_package || selectedPurchase?.raw?.accounting_package || null,
+      accounting_package_json: packageResult?.accounting_package ? JSON.stringify(packageResult.accounting_package) : selectedPurchase?.raw?.accounting_package_json || '',
+
+      snapshot_package: packageResult?.snapshot_package || voidPackageResult?.snapshot_package || selectedPurchase?.raw?.snapshot_package || null,
+      snapshot_package_json: packageResult?.snapshot_package
+        ? JSON.stringify(packageResult.snapshot_package)
+        : voidPackageResult?.snapshot_package
+          ? JSON.stringify(voidPackageResult.snapshot_package)
+          : selectedPurchase?.raw?.snapshot_package_json || '',
+
+      reversal_package: voidPackageResult?.reversal_package || selectedPurchase?.raw?.reversal_package || null,
+      reversal_package_json: voidPackageResult?.reversal_package ? JSON.stringify(voidPackageResult.reversal_package) : selectedPurchase?.raw?.reversal_package_json || '',
+
+      orchestrator_response_json: packageResult?.raw_orchestrator_response
+        ? JSON.stringify(packageResult.raw_orchestrator_response)
+        : voidPackageResult?.raw_orchestrator_response
+          ? JSON.stringify(voidPackageResult.raw_orchestrator_response)
+          : selectedPurchase?.raw?.orchestrator_response_json || '',
+
+      engine_warnings_json: packageResult?.warnings
+        ? JSON.stringify(packageResult.warnings)
+        : voidPackageResult?.warnings
+          ? JSON.stringify(voidPackageResult.warnings)
+          : selectedPurchase?.raw?.engine_warnings_json || '',
 
       created_at: selectedPurchase?.raw?.created_at || new Date().toISOString(),
       created_by: selectedPurchase?.raw?.created_by || executor,
       updated_at: new Date().toISOString(),
       updated_by: executor,
+
+      posted_at: status === 'POSTED' ? selectedPurchase?.raw?.posted_at || new Date().toISOString() : selectedPurchase?.raw?.posted_at || '',
+      posted_by: status === 'POSTED' ? selectedPurchase?.raw?.posted_by || executor : selectedPurchase?.raw?.posted_by || '',
+
+      voided_at: status === 'VOID' ? new Date().toISOString() : selectedPurchase?.raw?.voided_at || '',
+      voided_by: status === 'VOID' ? executor : selectedPurchase?.raw?.voided_by || '',
     };
   };
 
@@ -1765,6 +1681,67 @@ export default function TabPurchase({
     return Boolean(isSuccess);
   };
 
+  const runProcessPurchase = async ({ mode }) => {
+    if (!erpOrchestrator || typeof erpOrchestrator.processPurchase !== 'function') {
+      return {
+        ok: false,
+        message: 'erpOrchestrator.processPurchase() belum tersedia. Revisi harus dilakukan di src/services/erpOrchestrator.js.',
+      };
+    }
+
+    const summary = calculateDraftSummary(purchaseLines, form);
+    const command = createPurchaseCommand({
+      form,
+      lines: purchaseLines,
+      summary,
+      executor,
+      mode,
+      masterSource,
+    });
+
+    try {
+      const result = await Promise.resolve(
+        erpOrchestrator.processPurchase(command, {
+          source: masterSource,
+          dbData: masterSource,
+          masterData: masterSource,
+          executor,
+          mode,
+        }),
+      );
+
+      if (result?.ok === false) {
+        return {
+          ok: false,
+          message: result.message || result.error || 'erpOrchestrator.processPurchase() mengembalikan status tidak OK.',
+        };
+      }
+
+      const packageResult = normalizePurchasePackageFromOrchestrator(result);
+
+      if (mode === 'POST') {
+        const missing = validatePostedOrchestratorPackage(packageResult);
+
+        if (missing.length > 0) {
+          return {
+            ok: false,
+            message: `Package orchestrator belum lengkap: ${missing.join(', ')}. Revisi alur di src/services/erpOrchestrator.js, bukan di UI.`,
+          };
+        }
+      }
+
+      return {
+        ok: true,
+        packageResult,
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        message: error.message || 'erpOrchestrator.processPurchase() gagal dijalankan.',
+      };
+    }
+  };
+
   const handleSaveDraft = async () => {
     const warnings = validatePurchaseForm({ posting: false });
 
@@ -1773,7 +1750,18 @@ export default function TabPurchase({
       return;
     }
 
-    const payload = createPayload('DRAFT');
+    const orchestratorResult = await runProcessPurchase({ mode: 'DRAFT' });
+
+    if (!orchestratorResult.ok) {
+      notify(orchestratorResult.message, 'error');
+      return;
+    }
+
+    const payload = createLocalPayload({
+      status: 'DRAFT',
+      packageResult: orchestratorResult.packageResult,
+    });
+
     const action = isEditingDraft ? 'update' : 'insert';
     const isSuccess = await persistPurchase(action, payload);
 
@@ -1797,39 +1785,23 @@ export default function TabPurchase({
 
     if (!confirmed) return;
 
-    const basePayload = createPayload('POSTED');
-    const purchaseInput = createPurchaseInput({
-      ...form,
-      status: 'POSTED',
-    }, purchaseLines, calculateDraftSummary(purchaseLines, form), executor);
+    const orchestratorResult = await runProcessPurchase({ mode: 'POST' });
 
-    const engineResult = runPurchasePosting({
-      ...purchaseInput,
-      status: 'POSTED',
-    }, masterSource, executor);
-
-    if (!engineResult.ok) {
-      notify(`Posting gagal dijalankan.\n${engineResult.warnings.join('\n')}`, 'error');
+    if (!orchestratorResult.ok) {
+      notify(orchestratorResult.message, 'error');
       return;
     }
 
-    const payload = {
-      ...basePayload,
+    const payload = createLocalPayload({
       status: 'POSTED',
-      purchase_status: 'POSTED',
-      posted_at: new Date().toISOString(),
-      posted_by: executor,
-      engine_source: engineResult.source,
-      purchase_transaction_package: engineResult.package,
-      purchase_transaction_package_json: JSON.stringify(engineResult.package),
-      engine_warnings_json: JSON.stringify(engineResult.warnings || []),
-    };
+      packageResult: orchestratorResult.packageResult,
+    });
 
     const action = isEditingDraft ? 'update' : 'insert';
     const isSuccess = await persistPurchase(action, payload);
 
     if (isSuccess) {
-      notify('Pembelian berhasil diposting. FIFO Layer, jurnal, snapshot, dan cost impact telah disiapkan.', 'success');
+      notify('Pembelian berhasil diposting melalui erpOrchestrator. FIFO Layer, jurnal, snapshot, dan purchase package dibuat oleh orchestrator.', 'success');
       resetForm();
     }
   };
@@ -1866,6 +1838,63 @@ export default function TabPurchase({
     setEditingLineId('');
   };
 
+  const runProcessVoidTransaction = async (purchase) => {
+    if (!erpOrchestrator || typeof erpOrchestrator.processVoidTransaction !== 'function') {
+      return {
+        ok: false,
+        message: 'erpOrchestrator.processVoidTransaction() belum tersedia. Revisi harus dilakukan di src/services/erpOrchestrator.js.',
+      };
+    }
+
+    try {
+      const result = await Promise.resolve(
+        erpOrchestrator.processVoidTransaction({
+          transaction_type: 'PURCHASE',
+          transaction_id: purchase.purchase_id,
+          transaction_code: purchase.purchase_code,
+          branch_id: purchase.branch_id,
+          original_transaction: purchase.raw,
+          reason: 'VOID_PURCHASE_FROM_UI',
+          source: masterSource,
+          dbData: masterSource,
+          masterData: masterSource,
+        }, {
+          source: masterSource,
+          dbData: masterSource,
+          masterData: masterSource,
+          executor,
+        }),
+      );
+
+      if (result?.ok === false) {
+        return {
+          ok: false,
+          message: result.message || result.error || 'erpOrchestrator.processVoidTransaction() mengembalikan status tidak OK.',
+        };
+      }
+
+      const packageResult = normalizeVoidPackageFromOrchestrator(result);
+      const missing = validateVoidOrchestratorPackage(packageResult);
+
+      if (missing.length > 0) {
+        return {
+          ok: false,
+          message: `Package void orchestrator belum lengkap: ${missing.join(', ')}. Revisi alur di src/services/erpOrchestrator.js, bukan di UI.`,
+        };
+      }
+
+      return {
+        ok: true,
+        packageResult,
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        message: error.message || 'erpOrchestrator.processVoidTransaction() gagal dijalankan.',
+      };
+    }
+  };
+
   const handleVoidPurchase = async (purchase) => {
     if (purchase.status !== 'POSTED') {
       notify('Hanya transaksi POSTED yang bisa di-void.', 'error');
@@ -1873,15 +1902,15 @@ export default function TabPurchase({
     }
 
     const confirmed = window.confirm(
-      `Void transaksi ${purchase.purchase_code || purchase.purchase_id}? Histori tidak dihapus, akan dibuat reversal package.`,
+      `Void transaksi ${purchase.purchase_code || purchase.purchase_id}? Histori tidak dihapus, orchestrator akan membuat reversal package.`,
     );
 
     if (!confirmed) return;
 
-    const voidResult = runPurchaseVoid(purchase, masterSource, executor);
+    const voidResult = await runProcessVoidTransaction(purchase);
 
     if (!voidResult.ok) {
-      notify(`Void gagal dijalankan.\n${voidResult.warnings.join('\n')}`, 'error');
+      notify(voidResult.message, 'error');
       return;
     }
 
@@ -1891,10 +1920,14 @@ export default function TabPurchase({
       purchase_id: purchase.purchase_id,
       status: 'VOID',
       purchase_status: 'VOID',
+      reversal_package: voidResult.packageResult.reversal_package,
+      reversal_package_json: JSON.stringify(voidResult.packageResult.reversal_package),
+      void_snapshot_package: voidResult.packageResult.snapshot_package || null,
+      void_snapshot_package_json: voidResult.packageResult.snapshot_package ? JSON.stringify(voidResult.packageResult.snapshot_package) : '',
+      void_orchestrator_response_json: JSON.stringify(voidResult.packageResult.raw_orchestrator_response),
+      void_engine_warnings_json: JSON.stringify(voidResult.packageResult.warnings || []),
       voided_at: new Date().toISOString(),
       voided_by: executor,
-      void_package: voidResult.package,
-      void_package_json: JSON.stringify(voidResult.package),
       updated_at: new Date().toISOString(),
       updated_by: executor,
     };
@@ -1902,7 +1935,7 @@ export default function TabPurchase({
     const isSuccess = await persistPurchase('update', payload);
 
     if (isSuccess) {
-      notify('Transaksi pembelian berhasil di-void. Reversal package telah dibuat.', 'success');
+      notify('Transaksi pembelian berhasil di-void melalui erpOrchestrator. Reversal package dibuat oleh orchestrator.', 'success');
       if (selectedPurchase?.purchase_id === purchase.purchase_id) resetForm();
     }
   };
@@ -1957,14 +1990,14 @@ export default function TabPurchase({
               Pembelian Resmi Dimsum Aditya
             </h1>
             <p className="mt-2 max-w-2xl text-sm font-medium leading-relaxed text-slate-300">
-              Semua pembelian wajib dari supplier resmi dan menambah stok lewat FIFO Layer. Tidak ada stok masuk manual.
+              Thin UI purchase. Semua posting, FIFO Layer, jurnal, snapshot, dan void reversal wajib dibuat oleh erpOrchestrator.
             </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
             <Badge tone="dark">{isOwnerMode ? 'Owner Mode Lintas Cabang' : 'Branch Mode'}</Badge>
-            <Badge tone="amber">FIFO Layer</Badge>
-            <Badge tone="green">Auto Journal</Badge>
+            <Badge tone="amber">Thin UI</Badge>
+            <Badge tone="green">Orchestrator Only</Badge>
           </div>
         </div>
       </div>
@@ -2059,7 +2092,7 @@ export default function TabPurchase({
                   {isEditingDraft ? 'Edit Draft Pembelian' : 'Tambah Pembelian'}
                 </h2>
                 <p className="mt-1 text-[11px] font-semibold text-slate-400">
-                  Draft bisa diedit. Posted hanya bisa VOID.
+                  DRAFT editable. POSTED locked. VOID via reversal package.
                 </p>
               </div>
 
@@ -2366,7 +2399,7 @@ export default function TabPurchase({
                               onClick={() => handleRemoveLine(line.line_id)}
                               className="rounded-xl border border-red-100 bg-red-50 p-2 text-red-600 transition-all hover:bg-red-100"
                             >
-                              <Trash2 size={14} />
+                              <X size={14} />
                             </button>
                           </div>
                         </div>
@@ -2422,7 +2455,7 @@ export default function TabPurchase({
                     Daftar Pembelian Resmi
                   </h2>
                   <p className="mt-1 text-[11px] font-semibold text-slate-400">
-                    Purchase, FIFO Layer, Journal, Snapshot, dan Cost Impact.
+                    Data transaksi terkunci: DRAFT editable, POSTED locked, VOID reversal.
                   </p>
                 </div>
 
@@ -2533,6 +2566,8 @@ export default function TabPurchase({
                     const isDraft = purchase.status === 'DRAFT';
                     const isPosted = purchase.status === 'POSTED';
                     const isVoid = purchase.status === 'VOID';
+                    const isCancelled = purchase.status === 'CANCELLED';
+
                     const branchName = branchNameById.get(purchase.branch_id) || 'Branch tidak ditemukan';
                     const supplierName = supplierNameById.get(purchase.supplier_id) || purchase.supplier_name || 'Supplier tidak ditemukan';
                     const warehouseName = warehouseNameById.get(purchase.warehouse_id) || 'Gudang tidak ditemukan';
@@ -2594,10 +2629,7 @@ export default function TabPurchase({
 
                         <td className="px-5 py-4 align-top">
                           <div className="flex items-center gap-2 text-xs font-black text-slate-900">
-                            {purchase.payment_method === 'CASH' && <Banknote size={14} className="text-emerald-600" />}
-                            {purchase.payment_method === 'TRANSFER' && <CreditCard size={14} className="text-slate-500" />}
-                            {purchase.payment_method === 'QRIS' && <QrCode size={14} className="text-purple-600" />}
-                            {purchase.payment_method === 'HUTANG' && <WalletCards size={14} className="text-amber-700" />}
+                            {getPaymentIcon(purchase.payment_method)}
                             {purchase.payment_method || '-'}
                           </div>
                           <div className="mt-2">
@@ -2649,7 +2681,7 @@ export default function TabPurchase({
                           </div>
                           {isPosted && (
                             <div className="mt-2">
-                              <Badge tone="red">FIFO POSTED</Badge>
+                              <Badge tone="red">ORCHESTRATOR POSTED</Badge>
                             </div>
                           )}
                         </td>
@@ -2689,7 +2721,7 @@ export default function TabPurchase({
                               </button>
                             )}
 
-                            {(isVoid || purchase.status === 'CANCELLED') && (
+                            {(isVoid || isCancelled) && (
                               <Badge tone="dark">Locked</Badge>
                             )}
 
@@ -2715,7 +2747,7 @@ export default function TabPurchase({
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <Badge tone="red">Merah = Posted FIFO</Badge>
+                <Badge tone="red">Merah = Posted via Orchestrator</Badge>
                 <Badge tone="amber">Gold = Draft / Hutang</Badge>
                 <Badge tone="dark">Dark = Void / Locked</Badge>
               </div>
