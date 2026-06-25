@@ -628,16 +628,29 @@ export default function TabDashboardProfitOwner({
     );
   }
 
-  const analytics = analyticsState.analytics || {};
-  const summary = analytics.summary || {};
-  const branchAnalytics = analytics.branchAnalytics || {};
-  const productAnalytics = analytics.productAnalytics || {};
-  const customerAnalytics = analytics.customerAnalytics || {};
-  const channelAnalytics = analytics.channelAnalytics || {};
-  const cashflowAnalytics = analytics.cashflowAnalytics || {};
-  const inventoryAnalytics = analytics.inventoryAnalytics || {};
-  const warningCards = safeArray(analytics.warningCards);
-  const trendAnalytics = analytics.trendAnalytics || {};
+const analytics = analyticsState.analytics || {
+  summary: {},
+  branchAnalytics: {},
+  productAnalytics: {},
+  customerAnalytics: {},
+  channelAnalytics: {},
+  cashflowAnalytics: {},
+  receivableAnalytics: {},
+  payableAnalytics: {},
+  inventoryAnalytics: {},
+  warningCards: [],
+  trendAnalytics: {},
+};
+
+const summary = analytics.summary || {};
+const branchAnalytics = analytics.branchAnalytics || {};
+const productAnalytics = analytics.productAnalytics || {};
+const customerAnalytics = analytics.customerAnalytics || {};
+const channelAnalytics = analytics.channelAnalytics || {};
+const cashflowAnalytics = analytics.cashflowAnalytics || {};
+const inventoryAnalytics = analytics.inventoryAnalytics || {};
+const warningCards = safeArray(analytics.warningCards);
+const trendAnalytics = analytics.trendAnalytics || {};
 
   const channelRows = CHANNELS.map((channel) => {
     const row = channelAnalytics[channel.key] || channelAnalytics[channel.code] || {};
