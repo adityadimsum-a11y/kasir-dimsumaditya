@@ -362,18 +362,17 @@ const createFallbackRiskCard = ({
 const buildBusinessRadarFromOwnerAnalytics = (ownerAnalyticsInput = {}) => {
   const ownerAnalytics = mergeAnalyticsDefaults(ownerAnalyticsInput);
 
-  const {
-    summary,
-    branchAnalytics,
-    productAnalytics,
-    channelAnalytics,
-    cashflowAnalytics,
-    receivableAnalytics,
-    payableAnalytics,
-    inventoryAnalytics,
-    warningCards,
-    trendAnalytics,
-  } = ownerAnalytics;
+const {
+  branchAnalytics,
+  productAnalytics,
+  channelAnalytics,
+  cashflowAnalytics,
+  receivableAnalytics,
+  payableAnalytics,
+  inventoryAnalytics,
+  warningCards,
+  trendAnalytics,
+} = ownerAnalytics;
 
   const criticalWarnings = warningCards.filter((warning) => normalizeCode(warning?.severity) === 'CRITICAL');
   const mediumWarnings = warningCards.filter((warning) => normalizeCode(warning?.severity) === 'WARNING');
@@ -1076,8 +1075,8 @@ export default function TabBusinessRadar({
       };
 
       const ownerAnalytics = mergeAnalyticsDefaults(
-        erpOrchestrator.getOwnerAnalytics(input, context),
-      );
+  erpOrchestrator.getOwnerAnalytics(input, context) || {},
+);
 
       const businessRadarPayload = typeof erpOrchestrator?.getBusinessRadar === 'function'
         ? erpOrchestrator.getBusinessRadar(input, context)
@@ -1132,8 +1131,6 @@ export default function TabBusinessRadar({
   const warningCards = safeArray(radar.warningCards);
   const ownerActions = safeArray(radar.ownerActionCenter);
 
-  const businessTone = getScoreTone(radar.businessHealthScore);
-  const cashTone = getScoreTone(radar.cashDisciplineScore);
 
   return (
     <div className="space-y-6 pb-10 text-slate-700 normal-case">
