@@ -4,7 +4,6 @@ import {
   AlertTriangle,
   Award,
   BarChart3,
-  Building2,
   CheckCircle2,
   Clock3,
   Crown,
@@ -12,16 +11,14 @@ import {
   Eye,
   FileText,
   Filter,
+  Gauge,
   LockKeyhole,
   RefreshCw,
   Search,
-  Tag,
+  ShieldAlert,
   TrendingDown,
-  TrendingUp,
   UserCheck,
   Users,
-  UserX,
-  WalletCards,
   X,
 } from 'lucide-react';
 
@@ -36,50 +33,35 @@ const PERIOD_OPTIONS = [
   'THIS_YEAR',
 ];
 
-const CATEGORY_OPTIONS = [
-  'ALL',
-  'RESELLER',
-  'DISTRIBUTOR',
-  'FRANCHISE',
-  'RETAIL',
-  'CAFE',
-  'RESTO',
-];
-
-const REQUIRED_CATEGORIES = [
-  'RESELLER',
-  'DISTRIBUTOR',
-  'FRANCHISE',
-  'RETAIL',
-  'CAFE',
-  'RESTO',
-];
-
 const DEFAULT_SUMMARY = {
   totalCustomer: 0,
   totalCustomers: 0,
+  customerCount: 0,
   activeCustomer: 0,
   activeCustomers: 0,
-  inactiveCustomer: 0,
-  inactiveCustomers: 0,
+  activeCustomerCount: 0,
   totalRevenueCustomer: 0,
   customerRevenue: 0,
-  totalRevenue: 0,
-  customerRetentionRate: 0,
-  retentionRate: 0,
+  totalCustomerRevenue: 0,
+  repeatCustomer: 0,
+  repeatCustomers: 0,
+  repeatCustomerCount: 0,
 };
 
 const DEFAULT_CUSTOMER_ANALYTICS = {
   customerRanking: [],
   topCustomers: [],
-  loyalCustomers: [],
-  frequentCustomers: [],
-  inactiveCustomers: [],
-  customerCategoryAnalytics: [],
-  categoryAnalytics: [],
-  topResellers: [],
-  topDistributors: [],
+  topCustomerRevenue: [],
+  riskCustomers: [],
   highRiskCustomers: [],
+  churnRiskCustomers: [],
+  overdueCustomers: [],
+  inactiveCustomers: [],
+  customerComparisonAnalytics: [],
+  customerComparison: [],
+  warningCards: [],
+  bestCustomer: null,
+  riskCustomer: null,
 };
 
 const DEFAULT_RESULT = {
@@ -141,11 +123,6 @@ const formatMoney = (value) => {
 
 const formatNumber = (value) => {
   return Math.round(safeNumber(value, 0)).toLocaleString('id-ID');
-};
-
-const formatPercent = (value) => {
-  const number = safeNumber(value, 0);
-  return `${Math.round(number * 100) / 100}%`;
 };
 
 const formatDateLabel = (value) => {
@@ -222,14 +199,17 @@ const mergeOwnerAnalyticsDefaults = (result) => {
       ...customerAnalytics,
       customerRanking: safeArray(customerAnalytics.customerRanking || customerAnalytics.customer_ranking || customerAnalytics.ranking),
       topCustomers: safeArray(customerAnalytics.topCustomers || customerAnalytics.top_customers),
-      loyalCustomers: safeArray(customerAnalytics.loyalCustomers || customerAnalytics.loyal_customers),
-      frequentCustomers: safeArray(customerAnalytics.frequentCustomers || customerAnalytics.frequent_customers),
-      inactiveCustomers: safeArray(customerAnalytics.inactiveCustomers || customerAnalytics.inactive_customers),
-      customerCategoryAnalytics: safeArray(customerAnalytics.customerCategoryAnalytics || customerAnalytics.customer_category_analytics),
-      categoryAnalytics: safeArray(customerAnalytics.categoryAnalytics || customerAnalytics.category_analytics),
-      topResellers: safeArray(customerAnalytics.topResellers || customerAnalytics.top_resellers),
-      topDistributors: safeArray(customerAnalytics.topDistributors || customerAnalytics.top_distributors),
+      topCustomerRevenue: safeArray(customerAnalytics.topCustomerRevenue || customerAnalytics.top_customer_revenue),
+      riskCustomers: safeArray(customerAnalytics.riskCustomers || customerAnalytics.risk_customers),
       highRiskCustomers: safeArray(customerAnalytics.highRiskCustomers || customerAnalytics.high_risk_customers),
+      churnRiskCustomers: safeArray(customerAnalytics.churnRiskCustomers || customerAnalytics.churn_risk_customers),
+      overdueCustomers: safeArray(customerAnalytics.overdueCustomers || customerAnalytics.overdue_customers),
+      inactiveCustomers: safeArray(customerAnalytics.inactiveCustomers || customerAnalytics.inactive_customers),
+      customerComparisonAnalytics: safeArray(customerAnalytics.customerComparisonAnalytics || customerAnalytics.customer_comparison_analytics),
+      customerComparison: safeArray(customerAnalytics.customerComparison || customerAnalytics.customer_comparison),
+      warningCards: safeArray(customerAnalytics.warningCards || customerAnalytics.warning_cards),
+      bestCustomer: customerAnalytics.bestCustomer || customerAnalytics.best_customer || null,
+      riskCustomer: customerAnalytics.riskCustomer || customerAnalytics.risk_customer || null,
     },
     warningCards: safeArray(source.warningCards),
     warnings: safeArray(source.warnings),
@@ -268,20 +248,28 @@ const normalizeCustomerRow = (row = {}, index = 0) => {
     rank: row.rank || row.ranking || index + 1,
     customer_id: customerId,
     customer_name: customerName,
-    category: normalizeCode(row.customer_type || row.customerType || row.category || row.type || 'RETAIL'),
-    branch: row.branch || row.branch_name || row.branchName || row.branch_id || row.branchId || '',
+    totalRevenue: row.totalRevenue ?? row.total_revenue ?? row.customerRevenue ?? row.customer_revenue ?? row.revenue ?? row.omzet ?? 0,
     totalOrder: row.totalOrder ?? row.total_order ?? row.orderCount ?? row.order_count ?? row.transactionCount ?? row.transaction_count ?? 0,
-    totalRevenue: row.totalRevenue ?? row.total_revenue ?? row.revenue ?? row.omzet ?? 0,
-    totalProfit: row.totalProfit ?? row.total_profit ?? row.netProfit ?? row.net_profit ?? row.grossProfit ?? row.gross_profit ?? 0,
-    profitMargin: row.profitMargin ?? row.profit_margin ?? row.margin ?? row.marginPercent ?? row.margin_percent ?? 0,
-    frequency: row.frequency ?? row.orderFrequency ?? row.order_frequency ?? row.totalOrder ?? row.total_order ?? 0,
-    lastOrderDate: row.lastOrderDate || row.last_order_date || row.lastTransactionDate || row.last_transaction_date || row.last_order_at || '',
-    inactiveDays: row.inactiveDays ?? row.inactive_days ?? row.daysInactive ?? row.days_inactive ?? row.daysNoOrder ?? row.days_no_order ?? 0,
-    retentionRate: row.retentionRate ?? row.retention_rate ?? row.customerRetentionRate ?? row.customer_retention_rate ?? 0,
-    riskStatus: row.riskStatus || row.risk_status || row.status || '',
+    averageOrderValue: row.averageOrderValue ?? row.average_order_value ?? row.avgOrderValue ?? row.avg_order_value ?? row.aov ?? 0,
+    lifetimeValue: row.lifetimeValue ?? row.lifetime_value ?? row.ltv ?? row.totalLifetimeValue ?? row.total_lifetime_value ?? 0,
+    totalPiutang: row.totalPiutang ?? row.total_piutang ?? row.receivable ?? row.totalReceivable ?? row.total_receivable ?? 0,
+    overdueAmount: row.overdueAmount ?? row.overdue_amount ?? row.overdueReceivable ?? row.overdue_receivable ?? 0,
+    margin: row.profitMargin ?? row.profit_margin ?? row.margin ?? row.marginPercent ?? row.margin_percent ?? 0,
+    lastOrderDate: row.lastOrderDate || row.last_order_date || row.lastTransactionDate || row.last_transaction_date || '',
+    inactiveDays: row.inactiveDays ?? row.inactive_days ?? row.daysInactive ?? row.days_inactive ?? 0,
+    churnRiskScore: row.churnRiskScore ?? row.churn_risk_score ?? row.riskScore ?? row.risk_score ?? 0,
+    status: row.status || row.customerStatus || row.customer_status || row.riskStatus || row.risk_status || '',
     metadata: safeObject(row.metadata || row.meta || row),
     raw: row,
   };
+};
+
+const normalizeNamedCustomer = (value) => {
+  if (!value) return '-';
+  if (typeof value === 'string') return value;
+
+  const row = normalizeCustomerRow(value);
+  return row.customer_name || '-';
 };
 
 const getCustomerRankingRows = (customerAnalytics = {}) => {
@@ -300,24 +288,27 @@ const getCustomerRankingRows = (customerAnalytics = {}) => {
 };
 
 const getTopCustomerRows = (customerAnalytics = {}) => {
-  const sourceRows = safeArray(customerAnalytics.topCustomers).length > 0
-    ? safeArray(customerAnalytics.topCustomers)
-    : safeArray(customerAnalytics.customerRanking);
-
-  return sourceRows.slice(0, 10).map((row, index) => normalizeCustomerRow(row, index));
-};
-
-const getLoyalCustomerRows = (customerAnalytics = {}) => {
   const sourceRows = [
-    ...safeArray(customerAnalytics.loyalCustomers),
-    ...safeArray(customerAnalytics.frequentCustomers),
+    ...safeArray(customerAnalytics.topCustomers),
+    ...safeArray(customerAnalytics.topCustomerRevenue),
   ];
 
   const finalRows = sourceRows.length > 0
     ? sourceRows
-    : safeArray(customerAnalytics.topCustomers);
+    : safeArray(customerAnalytics.customerRanking);
 
-  return finalRows.map((row, index) => normalizeCustomerRow(row, index));
+  return finalRows.slice(0, 10).map((row, index) => normalizeCustomerRow(row, index));
+};
+
+const getRiskCustomerRows = (customerAnalytics = {}) => {
+  const sourceRows = [
+    ...safeArray(customerAnalytics.riskCustomers),
+    ...safeArray(customerAnalytics.highRiskCustomers),
+    ...safeArray(customerAnalytics.churnRiskCustomers),
+    ...safeArray(customerAnalytics.overdueCustomers),
+  ];
+
+  return sourceRows.map((row, index) => normalizeCustomerRow(row, index));
 };
 
 const getInactiveCustomerRows = (customerAnalytics = {}) => {
@@ -325,47 +316,26 @@ const getInactiveCustomerRows = (customerAnalytics = {}) => {
     .map((row, index) => normalizeCustomerRow(row, index));
 };
 
-const getCategoryRows = (customerAnalytics = {}) => {
+const getComparisonRows = (customerAnalytics = {}) => {
   const explicitRows = [
-    ...safeArray(customerAnalytics.customerCategoryAnalytics),
-    ...safeArray(customerAnalytics.categoryAnalytics),
+    ...safeArray(customerAnalytics.customerComparisonAnalytics),
+    ...safeArray(customerAnalytics.customerComparison),
   ];
 
-  const categoryMap = new Map();
+  const finalRows = explicitRows.length > 0
+    ? explicitRows
+    : safeArray(customerAnalytics.customerRanking);
 
-  explicitRows.forEach((row) => {
-    const category = normalizeCode(row.category || row.customer_type || row.customerType || row.type || row.name || '');
-    if (!category) return;
-
-    categoryMap.set(category, {
-      category,
-      customerCount: row.customerCount ?? row.customer_count ?? row.totalCustomer ?? row.total_customer ?? row.count ?? 0,
-      revenue: row.revenue ?? row.totalRevenue ?? row.total_revenue ?? row.omzet ?? 0,
-      profit: row.profit ?? row.totalProfit ?? row.total_profit ?? row.netProfit ?? row.net_profit ?? 0,
-      metadata: safeObject(row.metadata || row.meta || row),
-      raw: row,
-    });
-  });
-
-  return REQUIRED_CATEGORIES.map((category) => {
-    const row = categoryMap.get(category);
-
-    return row || {
-      category,
-      customerCount: 0,
-      revenue: 0,
-      profit: 0,
-      metadata: {},
-      raw: {},
-    };
-  });
+  return finalRows.map((row, index) => normalizeCustomerRow(row, index));
 };
 
 const getWarningRows = (result = {}) => {
   const rows = [
     ...safeArray(result.warningCards),
     ...safeArray(result.warnings),
+    ...safeArray(result.customerAnalytics?.warningCards),
     ...safeArray(result.customerAnalytics?.highRiskCustomers),
+    ...safeArray(result.customerAnalytics?.riskCustomers),
   ];
 
   return rows.map((row, index) => ({
@@ -374,7 +344,7 @@ const getWarningRows = (result = {}) => {
     title: row.title || row.customer_name || row.customerName || row.message || row.code || 'Customer Warning',
     message: row.message || row.description || row.notes || '',
     actionHint: row.action_hint || row.actionHint || row.recommendation || '',
-    amount: row.amount || row.value || row.outstandingReceivable || row.outstanding_receivable || 0,
+    amount: row.amount || row.value || row.totalPiutang || row.total_piutang || row.overdueAmount || row.overdue_amount || 0,
     metadata: safeObject(row.metadata || row.meta || row),
     raw: row,
   }));
@@ -391,6 +361,25 @@ const getSeverityTone = (severity) => {
     LOW: 'border-emerald-200 bg-emerald-50 text-emerald-700',
     INFO: 'border-blue-200 bg-blue-50 text-blue-700',
     RISK: 'border-red-200 bg-red-50 text-red-700',
+    CHURN_RISK: 'border-red-200 bg-red-50 text-red-700',
+  };
+
+  return toneMap[normalized] || 'border-slate-200 bg-slate-50 text-slate-600';
+};
+
+const getStatusTone = (status) => {
+  const normalized = normalizeCode(status || 'MONITOR');
+
+  const toneMap = {
+    ACTIVE: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    GOOD: 'border-blue-200 bg-blue-50 text-blue-700',
+    HEALTHY: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    WARNING: 'border-amber-200 bg-amber-50 text-amber-700',
+    RISK: 'border-red-200 bg-red-50 text-red-700',
+    CHURN_RISK: 'border-red-200 bg-red-50 text-red-700',
+    OVERDUE: 'border-red-200 bg-red-50 text-red-700',
+    INACTIVE: 'border-red-200 bg-red-50 text-red-700',
+    CRITICAL: 'border-red-200 bg-red-50 text-red-700',
   };
 
   return toneMap[normalized] || 'border-slate-200 bg-slate-50 text-slate-600';
@@ -402,13 +391,13 @@ const SeverityBadge = ({ severity }) => (
   </span>
 );
 
-const CategoryBadge = ({ category }) => (
-  <span className="inline-flex items-center rounded-full border border-slate-100 bg-slate-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
-    {normalizeCode(category || 'RETAIL')}
+const StatusBadge = ({ status }) => (
+  <span className={`inline-flex items-center rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${getStatusTone(status)}`}>
+    {normalizeCode(status || 'MONITOR')}
   </span>
 );
 
-const KpiCard = ({ title, value, icon, tone = 'white', isMoney = false, isPercent = false }) => {
+const KpiCard = ({ title, value, icon, tone = 'white', isMoney = false }) => {
   const toneMap = {
     red: 'bg-red-600 text-white',
     dark: 'bg-slate-950 text-white',
@@ -421,11 +410,9 @@ const KpiCard = ({ title, value, icon, tone = 'white', isMoney = false, isPercen
 
   const displayValue = isMoney
     ? formatMoney(value)
-    : isPercent
-      ? formatPercent(value)
-      : value || value === 0
-        ? String(value)
-        : '-';
+    : value || value === 0
+      ? String(value)
+      : '-';
 
   return (
     <div className={`rounded-2xl p-5 shadow-sm ${toneMap[tone] || toneMap.white}`}>
@@ -554,7 +541,7 @@ const DetailModal = ({ item, onClose }) => {
               <span className="rounded-full border border-slate-100 bg-slate-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
                 {item.type || 'CUSTOMER_ANALYTICS'}
               </span>
-              <CategoryBadge category={item.category} />
+              <StatusBadge status={item.status || 'MONITOR'} />
             </div>
 
             <h2 className="mt-4 text-xl font-black text-slate-950">
@@ -562,15 +549,6 @@ const DetailModal = ({ item, onClose }) => {
             </h2>
 
             <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
-              <div className="rounded-2xl bg-slate-50 p-4">
-                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
-                  Total Order
-                </div>
-                <div className="mt-1 text-sm font-black text-slate-900">
-                  {formatNumber(item.totalOrder)}
-                </div>
-              </div>
-
               <div className="rounded-2xl bg-slate-50 p-4">
                 <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
                   Revenue
@@ -582,10 +560,19 @@ const DetailModal = ({ item, onClose }) => {
 
               <div className="rounded-2xl bg-slate-50 p-4">
                 <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
-                  Profit
+                  Order Count
                 </div>
                 <div className="mt-1 text-sm font-black text-slate-900">
-                  {formatMoney(item.totalProfit)}
+                  {formatNumber(item.totalOrder)}
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                  Average Order Value
+                </div>
+                <div className="mt-1 text-sm font-black text-slate-900">
+                  {formatMoney(item.averageOrderValue)}
                 </div>
               </div>
 
@@ -643,20 +630,17 @@ const CustomerRankingTable = ({ rows, onSelect }) => (
             <th className="px-5 py-4 text-left text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
               Nama Customer
             </th>
-            <th className="px-5 py-4 text-left text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
-              Kategori
+            <th className="px-5 py-4 text-right text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+              Total Revenue
             </th>
             <th className="px-5 py-4 text-right text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
               Total Order
             </th>
             <th className="px-5 py-4 text-right text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
-              Revenue
-            </th>
-            <th className="px-5 py-4 text-right text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
-              Profit
+              Average Order Value
             </th>
             <th className="px-5 py-4 text-left text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
-              Last Order
+              Last Order Date
             </th>
             <th className="px-5 py-4 text-center text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
               Detail
@@ -667,7 +651,7 @@ const CustomerRankingTable = ({ rows, onSelect }) => (
         <tbody className="divide-y divide-slate-100 bg-white">
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={8} className="px-5 py-8 text-center text-sm font-bold text-slate-400">
+              <td colSpan={7} className="px-5 py-8 text-center text-sm font-bold text-slate-400">
                 Customer ranking belum tersedia dari orchestrator.
               </td>
             </tr>
@@ -682,20 +666,17 @@ const CustomerRankingTable = ({ rows, onSelect }) => (
                     {row.customer_name}
                   </div>
                   <div className="mt-1 text-xs font-semibold text-slate-400">
-                    {row.branch || '-'}
+                    {row.customer_id || '-'}
                   </div>
-                </td>
-                <td className="px-5 py-4">
-                  <CategoryBadge category={row.category} />
-                </td>
-                <td className="px-5 py-4 text-right text-sm font-bold text-slate-900">
-                  {formatNumber(row.totalOrder)}
                 </td>
                 <td className="px-5 py-4 text-right text-sm font-bold text-emerald-700">
                   {formatMoney(row.totalRevenue)}
                 </td>
+                <td className="px-5 py-4 text-right text-sm font-bold text-slate-900">
+                  {formatNumber(row.totalOrder)}
+                </td>
                 <td className="px-5 py-4 text-right text-sm font-bold text-blue-700">
-                  {formatMoney(row.totalProfit)}
+                  {formatMoney(row.averageOrderValue)}
                 </td>
                 <td className="px-5 py-4 text-sm font-bold text-slate-600">
                   {formatDateLabel(row.lastOrderDate)}
@@ -730,7 +711,7 @@ const TopCustomerPanel = ({ rows, onSelect }) => (
         Top Customer
       </div>
       <p className="mt-1 text-[11px] font-semibold text-slate-400">
-        Top 10 customer berdasarkan revenue dari orchestrator.
+        Top customer berdasarkan revenue dari orchestrator.
       </p>
     </div>
 
@@ -759,7 +740,7 @@ const TopCustomerPanel = ({ rows, onSelect }) => (
                   </div>
                 </div>
                 <div className="mt-2 text-xs font-semibold text-slate-500">
-                  Revenue {formatMoney(row.totalRevenue)} · Profit {formatMoney(row.totalProfit)}
+                  Revenue {formatMoney(row.totalRevenue)} · Order {formatNumber(row.totalOrder)}
                 </div>
               </div>
 
@@ -774,38 +755,38 @@ const TopCustomerPanel = ({ rows, onSelect }) => (
   </div>
 );
 
-const LoyalCustomerPanel = ({ rows, onSelect }) => (
+const RiskCustomerPanel = ({ rows, onSelect }) => (
   <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
     <div className="border-b border-slate-100 p-5">
       <div className="flex items-center gap-2 text-sm font-black text-slate-900">
-        <UserCheck size={17} className="text-red-600" />
-        Loyal Customer
+        <ShieldAlert size={17} className="text-red-600" />
+        Risk Customer
       </div>
       <p className="mt-1 text-[11px] font-semibold text-slate-400">
-        Customer dengan frekuensi order tertinggi dari orchestrator.
+        Piutang tinggi, lama tidak order, overdue, margin negatif, atau churn risk dari orchestrator.
       </p>
     </div>
 
     <div className="max-h-[680px] space-y-3 overflow-y-auto p-5">
       {rows.length === 0 ? (
-        <div className="rounded-2xl border border-amber-100 bg-amber-50 p-5 text-sm font-bold leading-relaxed text-amber-700">
-          Loyal customer belum tersedia.
+        <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-5 text-sm font-bold leading-relaxed text-emerald-700">
+          Tidak ada risk customer dari orchestrator.
         </div>
       ) : (
         rows.map((row) => (
           <button
-            key={`LOYAL-${row.id}-${row.rank}`}
+            key={`RISK-${row.id}-${row.rank}`}
             type="button"
             onClick={() => onSelect({
               ...row,
-              type: 'LOYAL_CUSTOMER',
+              type: 'RISK_CUSTOMER',
             })}
             className="w-full rounded-2xl border border-slate-100 bg-slate-50 p-4 text-left transition-all hover:border-red-100 hover:bg-red-50"
           >
             <div className="flex flex-wrap items-center gap-2">
-              <CategoryBadge category={row.category} />
-              <span className="rounded-full border border-slate-100 bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
-                Order {formatNumber(row.frequency)}
+              <StatusBadge status={row.status || 'RISK'} />
+              <span className="rounded-full border border-red-100 bg-red-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-red-700">
+                Piutang {formatMoney(row.totalPiutang)}
               </span>
             </div>
 
@@ -813,8 +794,19 @@ const LoyalCustomerPanel = ({ rows, onSelect }) => (
               {row.customer_name}
             </div>
 
-            <div className="mt-2 text-xs font-semibold text-slate-500">
-              Last order {formatDateLabel(row.lastOrderDate)}
+            <div className="mt-2 grid grid-cols-3 gap-2 text-xs font-bold">
+              <div className="rounded-xl bg-white p-3 text-slate-600">
+                Overdue<br />
+                <span className="text-slate-950">{formatMoney(row.overdueAmount)}</span>
+              </div>
+              <div className="rounded-xl bg-white p-3 text-slate-600">
+                Churn Risk<br />
+                <span className="text-slate-950">{formatNumber(row.churnRiskScore)}</span>
+              </div>
+              <div className="rounded-xl bg-white p-3 text-slate-600">
+                Inactive<br />
+                <span className="text-slate-950">{formatNumber(row.inactiveDays)} hari</span>
+              </div>
             </div>
           </button>
         ))
@@ -827,11 +819,11 @@ const InactiveCustomerPanel = ({ rows, onSelect }) => (
   <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
     <div className="border-b border-slate-100 p-5">
       <div className="flex items-center gap-2 text-sm font-black text-slate-900">
-        <UserX size={17} className="text-red-600" />
+        <Clock3 size={17} className="text-red-600" />
         Inactive Customer
       </div>
       <p className="mt-1 text-[11px] font-semibold text-slate-400">
-        Customer yang lama tidak order dari orchestrator.
+        Customer lama tidak order dari orchestrator.
       </p>
     </div>
 
@@ -852,7 +844,7 @@ const InactiveCustomerPanel = ({ rows, onSelect }) => (
             className="w-full rounded-2xl border border-slate-100 bg-slate-50 p-4 text-left transition-all hover:border-red-100 hover:bg-red-50"
           >
             <div className="flex flex-wrap items-center gap-2">
-              <CategoryBadge category={row.category} />
+              <StatusBadge status={row.status || 'INACTIVE'} />
               <span className="rounded-full border border-red-100 bg-red-50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-red-700">
                 {formatNumber(row.inactiveDays)} hari
               </span>
@@ -873,83 +865,93 @@ const InactiveCustomerPanel = ({ rows, onSelect }) => (
   </div>
 );
 
-const CategoryAnalyticsPanel = ({ rows, onSelect }) => (
+const CustomerComparisonPanel = ({ rows, onSelect }) => (
   <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
     <div className="flex items-center justify-between gap-3 border-b border-slate-100 p-5">
       <div>
         <div className="flex items-center gap-2 text-sm font-black text-slate-900">
-          <Tag size={17} className="text-red-600" />
-          Customer Category Analytics
+          <Gauge size={17} className="text-red-600" />
+          Customer Comparison Analytics
         </div>
         <p className="mt-1 text-[11px] font-semibold text-slate-400">
-          Category analytics berasal dari orchestrator.
+          Revenue, Order Count, Average Order Value, dan Lifetime Value berasal dari orchestrator.
         </p>
       </div>
 
       <span className="rounded-full border border-slate-100 bg-slate-50 px-4 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
-        {formatNumber(rows.length)} category
+        {formatNumber(rows.length)} rows
       </span>
     </div>
 
-    <div className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
-      {rows.map((row) => (
-        <button
-          key={`CATEGORY-${row.category}`}
-          type="button"
-          onClick={() => onSelect({
-            ...row,
-            customer_name: row.category,
-            category: row.category,
-            type: 'CUSTOMER_CATEGORY_ANALYTICS',
-            totalRevenue: row.revenue,
-            totalProfit: row.profit,
-            raw: row.raw,
-          })}
-          className="rounded-2xl border border-slate-100 bg-slate-50 p-5 text-left transition-all hover:border-red-100 hover:bg-red-50"
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <CategoryBadge category={row.category} />
-              <div className="mt-3 text-sm font-black text-slate-950">
-                {row.category}
+    <div className="grid grid-cols-1 gap-4 p-5 xl:grid-cols-2">
+      {rows.length === 0 ? (
+        <div className="rounded-2xl border border-amber-100 bg-amber-50 p-5 text-sm font-bold leading-relaxed text-amber-700 xl:col-span-2">
+          Customer comparison analytics belum tersedia dari orchestrator.
+        </div>
+      ) : (
+        rows.map((row) => (
+          <button
+            key={`COMPARE-${row.id}-${row.rank}`}
+            type="button"
+            onClick={() => onSelect({
+              ...row,
+              type: 'CUSTOMER_COMPARISON_ANALYTICS',
+            })}
+            className="rounded-2xl border border-slate-100 bg-slate-50 p-5 text-left transition-all hover:border-red-100 hover:bg-red-50"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-sm font-black text-slate-950">
+                  {row.customer_name}
+                </div>
+                <div className="mt-1 text-xs font-semibold text-slate-400">
+                  Comparison Analytics
+                </div>
               </div>
+
+              <StatusBadge status={row.status || 'MONITOR'} />
             </div>
 
-            <div className="rounded-2xl bg-white p-3 text-red-600 shadow-sm">
-              <Users size={18} />
-            </div>
-          </div>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="rounded-2xl bg-white p-4">
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                  Revenue
+                </div>
+                <div className="mt-1 text-sm font-black text-emerald-700">
+                  {formatMoney(row.totalRevenue)}
+                </div>
+              </div>
 
-          <div className="mt-4 grid grid-cols-1 gap-3">
-            <div className="rounded-2xl bg-white p-4">
-              <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
-                Jumlah Customer
+              <div className="rounded-2xl bg-white p-4">
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                  Order Count
+                </div>
+                <div className="mt-1 text-sm font-black text-slate-950">
+                  {formatNumber(row.totalOrder)}
+                </div>
               </div>
-              <div className="mt-1 text-sm font-black text-slate-950">
-                {formatNumber(row.customerCount)}
-              </div>
-            </div>
 
-            <div className="rounded-2xl bg-white p-4">
-              <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
-                Revenue
+              <div className="rounded-2xl bg-white p-4">
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                  Average Order Value
+                </div>
+                <div className="mt-1 text-sm font-black text-blue-700">
+                  {formatMoney(row.averageOrderValue)}
+                </div>
               </div>
-              <div className="mt-1 text-sm font-black text-emerald-700">
-                {formatMoney(row.revenue)}
-              </div>
-            </div>
 
-            <div className="rounded-2xl bg-white p-4">
-              <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
-                Profit
-              </div>
-              <div className="mt-1 text-sm font-black text-blue-700">
-                {formatMoney(row.profit)}
+              <div className="rounded-2xl bg-white p-4">
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                  Lifetime Value
+                </div>
+                <div className="mt-1 text-sm font-black text-red-700">
+                  {formatMoney(row.lifetimeValue)}
+                </div>
               </div>
             </div>
-          </div>
-        </button>
-      ))}
+          </button>
+        ))
+      )}
     </div>
   </div>
 );
@@ -1028,16 +1030,12 @@ function TabCustomerAnalyticsDashboard(props = {}) {
 
   const [filters, setFilters] = useState({
     customer: '',
-    category: 'ALL',
-    branch: '',
     period: 'THIS_MONTH',
     search: '',
   });
 
   const [appliedFilters, setAppliedFilters] = useState({
     customer: '',
-    category: 'ALL',
-    branch: '',
     period: 'THIS_MONTH',
     search: '',
   });
@@ -1053,15 +1051,10 @@ function TabCustomerAnalyticsDashboard(props = {}) {
   const requestInput = useMemo(() => ({
     customer: appliedFilters.customer,
     customer_id: appliedFilters.customer,
-    category: appliedFilters.category === 'ALL' ? '' : appliedFilters.category,
-    branch: appliedFilters.branch,
-    branch_id: appliedFilters.branch,
     period: appliedFilters.period,
     search: appliedFilters.search,
     readonly: true,
   }), [
-    appliedFilters.branch,
-    appliedFilters.category,
     appliedFilters.customer,
     appliedFilters.period,
     appliedFilters.search,
@@ -1143,9 +1136,9 @@ function TabCustomerAnalyticsDashboard(props = {}) {
 
   const rankingRows = getCustomerRankingRows(customerAnalytics);
   const topCustomerRows = getTopCustomerRows(customerAnalytics);
-  const loyalCustomerRows = getLoyalCustomerRows(customerAnalytics);
+  const riskCustomerRows = getRiskCustomerRows(customerAnalytics);
   const inactiveCustomerRows = getInactiveCustomerRows(customerAnalytics);
-  const categoryRows = getCategoryRows(customerAnalytics);
+  const comparisonRows = getComparisonRows(customerAnalytics);
   const warningRows = getWarningRows(result);
 
   const totalCustomer = getSummaryValue(summary, customerAnalytics, [
@@ -1162,13 +1155,6 @@ function TabCustomerAnalyticsDashboard(props = {}) {
     'active_customer_count',
   ]);
 
-  const inactiveCustomer = getSummaryValue(summary, customerAnalytics, [
-    'inactiveCustomer',
-    'inactiveCustomers',
-    'inactiveCustomerCount',
-    'inactive_customer_count',
-  ]);
-
   const totalRevenueCustomer = getSummaryValue(summary, customerAnalytics, [
     'totalRevenueCustomer',
     'customerRevenue',
@@ -1178,14 +1164,15 @@ function TabCustomerAnalyticsDashboard(props = {}) {
     'total_revenue',
   ]);
 
-  const customerRetentionRate = getSummaryValue(summary, customerAnalytics, [
-    'customerRetentionRate',
-    'customer_retention_rate',
-    'retentionRate',
-    'retention_rate',
+  const repeatCustomer = getSummaryValue(summary, customerAnalytics, [
+    'repeatCustomer',
+    'repeatCustomers',
+    'repeatCustomerCount',
+    'repeat_customer_count',
   ]);
 
-  const bestCustomer = topCustomerRows[0]?.customer_name || '-';
+  const bestCustomer = normalizeNamedCustomer(customerAnalytics.bestCustomer) || topCustomerRows[0]?.customer_name || '-';
+  const riskCustomer = normalizeNamedCustomer(customerAnalytics.riskCustomer) || riskCustomerRows[0]?.customer_name || '-';
 
   const handleFilterChange = (key, value) => {
     setFilters((prev) => ({
@@ -1201,8 +1188,6 @@ function TabCustomerAnalyticsDashboard(props = {}) {
   const handleReset = () => {
     const resetFilters = {
       customer: '',
-      category: 'ALL',
-      branch: '',
       period: 'THIS_MONTH',
       search: '',
     };
@@ -1266,10 +1251,10 @@ function TabCustomerAnalyticsDashboard(props = {}) {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6">
         <KpiCard title="Total Customer" value={formatNumber(totalCustomer)} icon={<Users size={18} />} tone="red" />
         <KpiCard title="Active Customer" value={formatNumber(activeCustomer)} icon={<UserCheck size={18} />} tone="green" />
-        <KpiCard title="Inactive Customer" value={formatNumber(inactiveCustomer)} icon={<UserX size={18} />} tone="orange" />
         <KpiCard title="Total Revenue Customer" value={totalRevenueCustomer} icon={<DollarSign size={18} />} tone="blue" isMoney />
+        <KpiCard title="Repeat Customer" value={formatNumber(repeatCustomer)} icon={<CheckCircle2 size={18} />} tone="amber" />
         <KpiCard title="Best Customer" value={bestCustomer} icon={<Crown size={18} />} tone="white" />
-        <KpiCard title="Customer Retention Rate" value={customerRetentionRate} icon={<Activity size={18} />} tone="amber" isPercent />
+        <KpiCard title="Risk Customer" value={riskCustomer} icon={<ShieldAlert size={18} />} tone="orange" />
       </div>
 
       <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
@@ -1280,7 +1265,7 @@ function TabCustomerAnalyticsDashboard(props = {}) {
               Filter Customer Analytics
             </div>
             <p className="mt-1 text-[11px] font-semibold text-slate-400">
-              Filter dikirim ke orchestrator. UI tidak menghitung ranking customer sendiri.
+              Filter dikirim ke orchestrator. UI tidak menghitung analytics customer sendiri.
             </p>
           </div>
 
@@ -1294,7 +1279,7 @@ function TabCustomerAnalyticsDashboard(props = {}) {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <label className="block">
             <span className="mb-1 flex items-center gap-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
               <Users size={12} />
@@ -1305,38 +1290,6 @@ function TabCustomerAnalyticsDashboard(props = {}) {
               value={filters.customer}
               onChange={(event) => handleFilterChange('customer', event.target.value)}
               placeholder="Customer"
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 outline-none transition-all focus:border-red-500 focus:ring-4 focus:ring-red-50"
-            />
-          </label>
-
-          <label className="block">
-            <span className="mb-1 flex items-center gap-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
-              <Tag size={12} />
-              Category
-            </span>
-            <select
-              value={filters.category}
-              onChange={(event) => handleFilterChange('category', event.target.value)}
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 outline-none transition-all focus:border-red-500 focus:ring-4 focus:ring-red-50"
-            >
-              {CATEGORY_OPTIONS.map((category) => (
-                <option key={category} value={category}>
-                  {category}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block">
-            <span className="mb-1 flex items-center gap-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
-              <Building2 size={12} />
-              Branch
-            </span>
-            <input
-              type="text"
-              value={filters.branch}
-              onChange={(event) => handleFilterChange('branch', event.target.value)}
-              placeholder="Cabang"
               className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 outline-none transition-all focus:border-red-500 focus:ring-4 focus:ring-red-50"
             />
           </label>
@@ -1401,7 +1354,7 @@ function TabCustomerAnalyticsDashboard(props = {}) {
 
       {analyticsState.loading ? (
         <LoadingSkeleton />
-      ) : rankingRows.length === 0 && topCustomerRows.length === 0 && loyalCustomerRows.length === 0 ? (
+      ) : rankingRows.length === 0 && topCustomerRows.length === 0 && riskCustomerRows.length === 0 ? (
         <EmptyState />
       ) : (
         <>
@@ -1419,8 +1372,8 @@ function TabCustomerAnalyticsDashboard(props = {}) {
             </div>
 
             <div className="xl:col-span-4">
-              <LoyalCustomerPanel
-                rows={loyalCustomerRows}
+              <RiskCustomerPanel
+                rows={riskCustomerRows}
                 onSelect={setSelectedItem}
               />
             </div>
@@ -1435,8 +1388,8 @@ function TabCustomerAnalyticsDashboard(props = {}) {
 
           <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
             <div className="xl:col-span-8">
-              <CategoryAnalyticsPanel
-                rows={categoryRows}
+              <CustomerComparisonPanel
+                rows={comparisonRows}
                 onSelect={setSelectedItem}
               />
             </div>
