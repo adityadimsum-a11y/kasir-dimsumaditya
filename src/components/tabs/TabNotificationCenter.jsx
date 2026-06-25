@@ -573,6 +573,14 @@ function TabNotificationCenter(props = {}) {
     search: '',
   });
 
+  const [appliedFilters, setAppliedFilters] = useState({
+  priority: 'ALL',
+  module: 'ALL',
+  branch: '',
+  status: 'ALL',
+  search: '',
+});
+
   const [refreshKey, setRefreshKey] = useState(0);
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [notificationState, setNotificationState] = useState({
@@ -581,19 +589,19 @@ function TabNotificationCenter(props = {}) {
     result: DEFAULT_RESULT,
   });
 
-  const requestInput = useMemo(() => ({
-    priority: filters.priority === 'ALL' ? '' : filters.priority,
-    module: filters.module === 'ALL' ? '' : filters.module,
-    branch: filters.branch,
-    status: filters.status === 'ALL' ? '' : filters.status,
-    search: filters.search,
-  }), [
-    filters.priority,
-    filters.module,
-    filters.branch,
-    filters.status,
-    filters.search,
-  ]);
+const requestInput = useMemo(() => ({
+  priority: appliedFilters.priority === 'ALL' ? '' : appliedFilters.priority,
+  module: appliedFilters.module === 'ALL' ? '' : appliedFilters.module,
+  branch: appliedFilters.branch,
+  status: appliedFilters.status === 'ALL' ? '' : appliedFilters.status,
+  search: appliedFilters.search,
+}), [
+  appliedFilters.priority,
+  appliedFilters.module,
+  appliedFilters.branch,
+  appliedFilters.status,
+  appliedFilters.search,
+]);
 
   useEffect(() => {
     if (!ownerAllowed) {
@@ -680,15 +688,22 @@ function TabNotificationCenter(props = {}) {
     }));
   };
 
-  const handleReset = () => {
-    setFilters({
-      priority: 'ALL',
-      module: 'ALL',
-      branch: '',
-      status: 'ALL',
-      search: '',
-    });
+  const handleApplyFilter = () => {
+  setAppliedFilters(filters);
+};
+
+const handleReset = () => {
+  const resetFilters = {
+    priority: 'ALL',
+    module: 'ALL',
+    branch: '',
+    status: 'ALL',
+    search: '',
   };
+
+  setFilters(resetFilters);
+  setAppliedFilters(resetFilters);
+};
 
   const handleRefresh = () => {
     setRefreshKey((prev) => prev + 1);
@@ -862,7 +877,7 @@ function TabNotificationCenter(props = {}) {
         <div className="mt-5 flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={handleRefresh}
+            onClick={handleApplyFilter}
             className="inline-flex items-center gap-2 rounded-2xl bg-red-600 px-4 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-white shadow-sm transition-all hover:bg-red-700"
           >
             <Filter size={14} />
