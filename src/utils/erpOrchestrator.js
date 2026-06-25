@@ -3943,6 +3943,1518 @@ export const getAuditTrail = (input = {}, context = {}) => {
 };
 
 /* =========================================================================
+   INTELLIGENCE API HELPERS - READ ONLY
+   ========================================================================= */
+
+const INTELLIGENCE_NOTIFICATION_PRIORITIES = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
+const INTELLIGENCE_NOTIFICATION_STATUSES = ['OPEN', 'READ', 'RESOLVED'];
+
+const INTELLIGENCE_DEFAULT_OWNER_ANALYTICS = Object.freeze({
+  summary: {},
+  branchAnalytics: {
+    topBranchRevenue: [],
+    topBranchProfit: [],
+    worstBranch: [],
+  },
+  productAnalytics: {
+    topProducts: [],
+    topProfitProducts: [],
+    lowMarginProducts: [],
+  },
+  customerAnalytics: {
+    topCustomers: [],
+    topResellers: [],
+    topDistributors: [],
+  },
+  channelAnalytics: {},
+  cashflowAnalytics: {},
+  receivableAnalytics: {},
+  payableAnalytics: {},
+  inventoryAnalytics: {
+    criticalStock: [],
+    lowStock: [],
+    deadStock: [],
+  },
+  warningCards: [],
+  trendAnalytics: {},
+});
+
+const mergeOwnerAnalyticsDefaults = (analytics = {}) => {
+  const source = isObject(analytics) ? analytics : {};
+  const branchAnalytics = isObject(source.branchAnalytics) ? source.branchAnalytics : {};
+  const productAnalytics = isObject(source.productAnalytics) ? source.productAnalytics : {};
+  const customerAnalytics = isObject(source.customerAnalytics) ? source.customerAnalytics : {};
+  const inventoryAnalytics = isObject(source.inventoryAnalytics) ? source.inventoryAnalytics : {};
+
+  return {
+    ...INTELLIGENCE_DEFAULT_OWNER_ANALYTICS,
+    ...source,
+    summary: isObject(source.summary) ? source.summary : {},
+    branchAnalytics: {
+      ...INTELLIGENCE_DEFAULT_OWNER_ANALYTICS.branchAnalytics,
+      ...branchAnalytics,
+      topBranchRevenue: safeArray(branchAnalytics.topBranchRevenue),
+      topBranchProfit: safeArray(branchAnalytics.topBranchProfit),
+      worstBranch: safeArray(branchAnalytics.worstBranch),
+    },
+    productAnalytics: {
+      ...INTELLIGENCE_DEFAULT_OWNER_ANALYTICS.productAnalytics,
+      ...productAnalytics,
+      topProducts: safeArray(productAnalytics.topProducts),
+      topProfitProducts: safeArray(productAnalytics.topProfitProducts),
+      lowMarginProducts: safeArray(productAnalytics.lowMarginProducts),
+    },
+    customerAnalytics: {
+      ...INTELLIGENCE_DEFAULT_OWNER_ANALYTICS.customerAnalytics,
+      ...customerAnalytics,
+      topCustomers: safeArray(customerAnalytics.topCustomers),
+      topResellers: safeArray(customerAnalytics.topResellers),
+      topDistributors: safeArray(customerAnalytics.topDistributors),
+    },
+    channelAnalytics: isObject(source.channelAnalytics) ? source.channelAnalytics : {},
+    cashflowAnalytics: isObject(source.cashflowAnalytics) ? source.cashflowAnalytics : {},
+    receivableAnalytics: isObject(source.receivableAnalytics) ? source.receivableAnalytics : {},
+    payableAnalytics: isObject(source.payableAnalytics) ? source.payableAnalytics : {},
+    inventoryAnalytics: {
+      ...INTELLIGENCE_DEFAULT_OWNER_ANALYTICS.inventoryAnalytics,
+      ...inventoryAnalytics,
+      criticalStock: safeArray(inventoryAnalytics.criticalStock),
+      lowStock: safeArray(inventoryAnalytics.lowStock),
+      deadStock: safeArray(inventoryAnalytics.deadStock),
+    },
+    warningCards: safeArray(source.warningCards),
+    trendAnalytics: isObject(source.trendAnalytics) ? source.trendAnalytics : {},
+  };
+};
+
+const resolveReadOnlySource = (input = {}, context = {}) => {
+  const ctx = buildContext(context);
+  return input.source || input.dbData || input.db_data || ctx.source || ctx.dbData || {};
+};
+
+const normalizeFilterValue = (value = '') => {
+  const normalized = normalizeCode(value);
+  return normalized === 'ALL' ? '' : normalized;
+};
+
+const getIntelligenceDateFilters = (input = {}) => ({
+  startDate: normalizeDateString(input.startDate || input.start_date || input.dateFrom || input.date_from || ''),
+  endDate: normalizeDateString(input.endDate || input.end_date || input.dateTo || input.date_to || ''),
+});
+
+const matchesDateFilter = (dateValue, startDate = '', endDate = '') => {
+  const date = normalizeDateString(dateValue);
+  if (!date) return false;
+  if (startDate && date < startDate) return false;
+  if (endDate && date > endDate) return false;
+  return true;
+};
+
+const matchesTextFilter = (value, filterValue) => {
+  const normalizedFilter = normalizeText(filterValue || '');
+  if (!normalizedFilter) return true;
+  return normalizeText(value || '').includes(normalizedFilter);
+};
+
+const normalizePriority = (value = 'LOW') => {
+  const normalized = normalizeCode(value || 'LOW');
+  if (INTELLIGENCE_NOTIFICATION_PRIORITIES.includes(normalized)) return normalized;
+  if (['URGENT', 'DANGER', 'DANGEROUS', 'KRITIS'].includes(normalized)) return 'CRITICAL';
+  if (['WARNING', 'WARN', 'BAHAYA'].includes(normalized)) return 'HIGH';
+  if (['WASPADA', 'MED'].includes(normalized)) return 'MEDIUM';
+  return 'LOW';
+};
+
+const normalizeNotificationStatus = (value = 'OPEN') => {
+  const normalized = normalizeCode(value || 'OPEN');
+  if (INTELLIGENCE_NOTIFICATION_STATUSES.includes(normalized)) return normalized;
+  if (['DONE', 'CLOSED', 'CLOSE', 'SOLVED'].includes(normalized)) return 'RESOLVED';
+  if (['SEEN', 'VIEWED'].includes(normalized)) return 'READ';
+  return 'OPEN';
+};
+
+const getHealthCategoryFromScore = (score) => {
+  const value = Math.max(0, Math.min(100, Math.round(safeNumber(score, 0))));
+
+  if (value >= 85) return 'Sangat Sehat';
+  if (value >= 70) return 'Sehat';
+  if (value >= 55) return 'Waspada';
+  if (value >= 35) return 'Bahaya';
+
+  return 'Kritis';
+};
+
+const resolveCashflowDirection = (record = {}) => {
+  const type = normalizeCode(record.transaction_type || record.type || record.payment_type || '');
+  const sourceModule = normalizeCode(record.source_module || record.module || record.category || '');
+
+  if (type === 'TRANSFER' || sourceModule === 'TRANSFER') return 'TRANSFER';
+
+  if (
+    ['MONEY_IN', 'IN', 'INFLOW', 'CASH_IN', 'RECEIVABLE', 'OWNER_DEPOSIT'].includes(type) ||
+    ['SALES', 'OWNER_DEPOSIT', 'PIUTANG_CUSTOMER', 'RECEIVABLE'].includes(sourceModule)
+  ) {
+    return 'IN';
+  }
+
+  if (
+    ['MONEY_OUT', 'OUT', 'OUTFLOW', 'CASH_OUT', 'PAYABLE', 'OWNER_WITHDRAW'].includes(type) ||
+    ['PURCHASE', 'EXPENSE', 'OWNER_WITHDRAW', 'HUTANG_SUPPLIER', 'PAYABLE'].includes(sourceModule)
+  ) {
+    return 'OUT';
+  }
+
+  return safeNumber(record.amount, 0) < 0 ? 'OUT' : 'IN';
+};
+
+const getTrendPeriodKey = (dateValue, granularity = 'DAILY') => {
+  const date = normalizeDateString(dateValue);
+  if (!date) return '';
+
+  const normalizedGranularity = normalizeCode(granularity || 'DAILY');
+  if (normalizedGranularity === 'MONTHLY') return date.substring(0, 7);
+
+  if (normalizedGranularity === 'WEEKLY') {
+    const parsed = new Date(`${date}T00:00:00`);
+    if (Number.isNaN(parsed.getTime())) return date;
+    const start = new Date(parsed);
+    const day = start.getDay();
+    const mondayOffset = day === 0 ? -6 : 1 - day;
+    start.setDate(start.getDate() + mondayOffset);
+    return normalizeDateString(start);
+  }
+
+  return date;
+};
+
+const makeIntelligenceRecord = ({
+  id,
+  timestamp,
+  category = 'INTELLIGENCE',
+  module = 'SYSTEM',
+  severity = 'INFO',
+  status = 'PASSED',
+  title = '',
+  message = '',
+  action_hint = '',
+  reference_key = '',
+  metadata = {},
+}) => ({
+  id: id || generateId('INTEL'),
+  timestamp: timestamp || new Date().toISOString(),
+  category: normalizeCode(category || 'INTELLIGENCE'),
+  module: normalizeCode(module || 'SYSTEM'),
+  severity: normalizeCode(severity || 'INFO'),
+  status: normalizeCode(status || 'PASSED'),
+  title,
+  message,
+  action_hint,
+  reference_key,
+  metadata: isObject(metadata) ? metadata : {},
+});
+
+const makeNotificationRecord = ({
+  id,
+  timestamp,
+  priority = 'LOW',
+  status = 'OPEN',
+  module = 'SYSTEM',
+  branch = '',
+  type = 'SYSTEM',
+  title = '',
+  message = '',
+  reference_number = '',
+  entity_type = '',
+  entity_id = '',
+  action_hint = '',
+  amount = 0,
+  due_date = '',
+  metadata = {},
+}) => ({
+  id: id || generateId('NTF'),
+  timestamp: timestamp || new Date().toISOString(),
+  priority: normalizePriority(priority),
+  status: normalizeNotificationStatus(status),
+  module: normalizeCode(module || 'SYSTEM'),
+  branch: branch || '',
+  type: normalizeCode(type || 'SYSTEM'),
+  title,
+  message,
+  reference_number,
+  entity_type,
+  entity_id,
+  action_hint,
+  amount: roundMoney(amount),
+  due_date: normalizeDateString(due_date || ''),
+  metadata: isObject(metadata) ? metadata : {},
+});
+
+const getSourceNotificationRows = (source = {}) => {
+  return getSourceRows(source, [
+    'notifications',
+    'notification_center',
+    'notificationCenter',
+    'erp_notifications',
+    'erpNotifications',
+    'system_notifications',
+    'systemNotifications',
+  ]);
+};
+
+const normalizeExistingNotificationRow = (row = {}, index = 0) => {
+  return makeNotificationRecord({
+    id: row.id || row.notification_id || row.notificationId || `NTF-SRC-${index + 1}`,
+    timestamp: row.timestamp || row.created_at || row.createdAt || row.date || getTodayISO(),
+    priority: row.priority || row.severity || 'LOW',
+    status: row.status || 'OPEN',
+    module: row.module || row.source_module || row.sourceModule || 'SYSTEM',
+    branch: row.branch || row.branch_id || row.branchId || row.branch_name || '',
+    type: row.type || row.notification_type || row.notificationType || row.category || 'SYSTEM',
+    title: row.title || row.subject || row.type || 'ERP Notification',
+    message: row.message || row.description || row.notes || '',
+    reference_number: row.reference_number || row.referenceNumber || row.ref_number || row.refNumber || '',
+    entity_type: row.entity_type || row.entityType || row.source_table || row.sourceTable || '',
+    entity_id: row.entity_id || row.entityId || row.source_id || row.sourceId || row.transaction_id || '',
+    action_hint: row.action_hint || row.actionHint || row.recommendation || '',
+    amount: row.amount || row.nominal || 0,
+    due_date: row.due_date || row.dueDate || '',
+    metadata: row.metadata || row.meta || row,
+  });
+};
+
+const notificationMatchesFilters = (record = {}, filters = {}) => {
+  const filterPriority = normalizeFilterValue(filters.priority || '');
+  const filterModule = normalizeFilterValue(filters.module || '');
+  const filterBranch = normalizeText(filters.branch || '');
+  const filterStatus = normalizeFilterValue(filters.status || '');
+  const filterType = normalizeFilterValue(filters.type || '');
+  const search = normalizeText(filters.search || '');
+
+  if (filterPriority && normalizePriority(record.priority) !== filterPriority) return false;
+  if (filterModule && normalizeCode(record.module) !== filterModule) return false;
+  if (filterStatus && normalizeNotificationStatus(record.status) !== filterStatus) return false;
+  if (filterType && normalizeCode(record.type) !== filterType) return false;
+  if (filterBranch && !normalizeText(record.branch).includes(filterBranch)) return false;
+  if (filters.startDate || filters.endDate) {
+    const dateValue = record.timestamp || record.due_date || '';
+    if (!matchesDateFilter(dateValue, filters.startDate, filters.endDate)) return false;
+  }
+
+  if (search) {
+    const searchable = normalizeText([
+      record.title,
+      record.message,
+      record.reference_number,
+      record.entity_type,
+      record.entity_id,
+      record.branch,
+      record.module,
+      record.action_hint,
+    ].filter(Boolean).join(' '));
+
+    if (!searchable.includes(search)) return false;
+  }
+
+  return true;
+};
+
+const buildNotificationSummary = (records = []) => {
+  const summary = {
+    totalNotifications: safeArray(records).length,
+    totalCritical: 0,
+    totalHigh: 0,
+    totalMedium: 0,
+    totalLow: 0,
+    totalOpen: 0,
+    totalRead: 0,
+    totalResolved: 0,
+  };
+
+  safeArray(records).forEach((record) => {
+    const priority = normalizePriority(record.priority);
+    const status = normalizeNotificationStatus(record.status);
+
+    if (priority === 'CRITICAL') summary.totalCritical += 1;
+    if (priority === 'HIGH') summary.totalHigh += 1;
+    if (priority === 'MEDIUM') summary.totalMedium += 1;
+    if (priority === 'LOW') summary.totalLow += 1;
+    if (status === 'OPEN') summary.totalOpen += 1;
+    if (status === 'READ') summary.totalRead += 1;
+    if (status === 'RESOLVED') summary.totalResolved += 1;
+  });
+
+  return summary;
+};
+
+const getIntelligenceOwnerAnalytics = (input = {}, context = {}) => {
+  try {
+    return mergeOwnerAnalyticsDefaults(getOwnerAnalytics({
+      ...(input || {}),
+      period: input.period || 'CUSTOM',
+      start_date: input.startDate || input.start_date || input.dateFrom || input.date_from || input.start_date,
+      end_date: input.endDate || input.end_date || input.dateTo || input.date_to || input.end_date,
+      readonly: true,
+    }, {
+      ...(context || {}),
+      readonly: true,
+    }) || {});
+  } catch (error) {
+    return mergeOwnerAnalyticsDefaults({
+      warnings: [
+        makeWarning('OWNER_ANALYTICS_READ_FAILED', error?.message || 'Gagal membaca owner analytics untuk intelligence API.'),
+      ],
+    });
+  }
+};
+
+/* =========================================================================
+   CASHFLOW DASHBOARD API - READ ONLY
+   ========================================================================= */
+
+export const getCashflowDashboard = (input = {}, context = {}) => {
+  const source = resolveReadOnlySource(input, context);
+  const dateFilters = getIntelligenceDateFilters(input);
+  const filters = {
+    ...dateFilters,
+    branch: input.branch || input.branch_id || input.branchId || '',
+    account: input.account || input.account_id || input.accountId || '',
+    module: input.module || input.source_module || input.sourceModule || '',
+    transactionType: input.transactionType || input.transaction_type || input.type || '',
+    status: input.status || '',
+    granularity: normalizeCode(input.granularity || 'DAILY') || 'DAILY',
+    search: input.search || input.keyword || input.q || '',
+  };
+
+  const warnings = [];
+  const ownerAnalytics = getIntelligenceOwnerAnalytics({
+    ...input,
+    startDate: filters.startDate,
+    endDate: filters.endDate,
+  }, context);
+  warnings.push(...safeArray(ownerAnalytics.warnings));
+
+  const sourceRows = extractOwnerAnalyticsSourceRows(source);
+  const cashRows = sourceRows.cashRows
+    .filter((row) => !isDeletedRow(row))
+    .map(normalizeCashRowForAnalytics)
+    .map((row) => ({
+      ...row,
+      direction: resolveCashflowDirection(row),
+    }));
+
+  const accountRows = sourceRows.accountRows
+    .filter((row) => !isDeletedRow(row))
+    .map(normalizeAccountRowForAnalytics);
+
+  const filterBranch = normalizeText(filters.branch || '');
+  const filterAccount = normalizeText(filters.account || '');
+  const filterModule = normalizeFilterValue(filters.module || '');
+  const filterType = normalizeFilterValue(filters.transactionType || '');
+  const filterStatus = normalizeFilterValue(filters.status || '');
+  const search = normalizeText(filters.search || '');
+
+  const filteredCashRows = cashRows.filter((row) => {
+    if ((filters.startDate || filters.endDate) && !matchesDateFilter(row.date, filters.startDate, filters.endDate)) return false;
+    if (filterBranch && !normalizeText(row.branch_id).includes(filterBranch)) return false;
+    if (filterAccount && !normalizeText(`${row.account_id} ${row.target_account_id}`).includes(filterAccount)) return false;
+    if (filterModule && normalizeCode(row.source_module) !== filterModule) return false;
+    if (filterType && normalizeCode(row.transaction_type) !== filterType) return false;
+    if (filterStatus && normalizeCode(row.status) !== filterStatus) return false;
+
+    if (search) {
+      const searchable = normalizeText([
+        row.transaction_id,
+        row.branch_id,
+        row.account_id,
+        row.target_account_id,
+        row.transaction_type,
+        row.source_module,
+      ].filter(Boolean).join(' '));
+
+      if (!searchable.includes(search)) return false;
+    }
+
+    return true;
+  });
+
+  const records = filteredCashRows.map((row, index) => ({
+    id: row.transaction_id || `CASHFLOW-${index + 1}`,
+    timestamp: row.date || getTodayISO(),
+    date: row.date || '',
+    branch: row.branch_id || '',
+    account_id: row.account_id || '',
+    account_name: row.account_name || row.account_id || '',
+    module: row.source_module || '',
+    transaction_type: row.transaction_type || '',
+    direction: row.direction,
+    amount: roundMoney(row.amount),
+    reference_number: row.transaction_id || '',
+    entity_type: 'CASHFLOW_TRANSACTION',
+    entity_id: row.transaction_id || '',
+    notes: row.notes || row.description || '',
+    metadata: {
+      raw: row.raw || null,
+      target_account_id: row.target_account_id || '',
+      status: row.status || '',
+    },
+  }));
+
+  const summaryFromRecords = records.reduce((acc, record) => {
+    const amount = safeNumber(record.amount, 0);
+    if (record.direction === 'IN') acc.cashIn += amount;
+    if (record.direction === 'OUT') acc.cashOut += amount;
+    return acc;
+  }, {
+    cashIn: 0,
+    cashOut: 0,
+  });
+
+  const cashflowAnalytics = ownerAnalytics.cashflowAnalytics || {};
+  const summary = {
+    cashIn: roundMoney(summaryFromRecords.cashIn || ownerAnalytics.summary?.cashIn || 0),
+    cashOut: roundMoney(summaryFromRecords.cashOut || ownerAnalytics.summary?.cashOut || 0),
+    netCashflow: roundMoney(summaryFromRecords.cashIn - summaryFromRecords.cashOut || ownerAnalytics.summary?.netCashflow || 0),
+    cashBalance: roundMoney(cashflowAnalytics.cashBalance || 0),
+    bankBalance: roundMoney(cashflowAnalytics.bankBalance || 0),
+    receivableBalance: roundMoney(cashflowAnalytics.receivableBalance || ownerAnalytics.receivableAnalytics?.totalReceivable || 0),
+    payableBalance: roundMoney(cashflowAnalytics.payableBalance || ownerAnalytics.payableAnalytics?.totalPayable || 0),
+    cashPosition: roundMoney(cashflowAnalytics.cashPosition || 0),
+    totalTransactions: records.length,
+  };
+
+  const accountMovementMap = new Map();
+  accountRows.forEach((account) => {
+    const key = account.account_id || account.account_code || 'UNKNOWN_ACCOUNT';
+    accountMovementMap.set(key, {
+      account_id: key,
+      account_name: account.account_name || key,
+      account_type: account.account_type || 'CASH',
+      branch: account.branch_id || '',
+      current_balance: roundMoney(account.current_balance || 0),
+      cash_in: 0,
+      cash_out: 0,
+      net_movement: 0,
+    });
+  });
+
+  records.forEach((record) => {
+    const key = record.account_id || 'UNKNOWN_ACCOUNT';
+    if (!accountMovementMap.has(key)) {
+      accountMovementMap.set(key, {
+        account_id: key,
+        account_name: key,
+        account_type: 'UNKNOWN',
+        branch: record.branch || '',
+        current_balance: 0,
+        cash_in: 0,
+        cash_out: 0,
+        net_movement: 0,
+      });
+    }
+
+    const account = accountMovementMap.get(key);
+    const amount = safeNumber(record.amount, 0);
+    if (record.direction === 'IN') account.cash_in += amount;
+    if (record.direction === 'OUT') account.cash_out += amount;
+    account.net_movement = account.cash_in - account.cash_out;
+  });
+
+  const accountBalances = Array.from(accountMovementMap.values()).map((row) => ({
+    ...row,
+    cash_in: roundMoney(row.cash_in),
+    cash_out: roundMoney(row.cash_out),
+    net_movement: roundMoney(row.net_movement),
+  }));
+
+  const trendMap = new Map();
+  records.forEach((record) => {
+    const key = getTrendPeriodKey(record.date || record.timestamp, filters.granularity);
+    if (!key) return;
+    if (!trendMap.has(key)) {
+      trendMap.set(key, {
+        period: key,
+        cashIn: 0,
+        cashOut: 0,
+        netCashflow: 0,
+      });
+    }
+
+    const trend = trendMap.get(key);
+    const amount = safeNumber(record.amount, 0);
+    if (record.direction === 'IN') trend.cashIn += amount;
+    if (record.direction === 'OUT') trend.cashOut += amount;
+    trend.netCashflow = trend.cashIn - trend.cashOut;
+  });
+
+  const trends = Array.from(trendMap.values())
+    .map((trend) => ({
+      ...trend,
+      cashIn: roundMoney(trend.cashIn),
+      cashOut: roundMoney(trend.cashOut),
+      netCashflow: roundMoney(trend.netCashflow),
+    }))
+    .sort((a, b) => String(a.period).localeCompare(String(b.period)));
+
+  const riskCards = [];
+  if (summary.cashPosition < 0) {
+    riskCards.push({
+      id: 'CASH_DEFICIT_RISK',
+      severity: 'CRITICAL',
+      title: 'Cash Deficit Risk',
+      message: 'Cash position berada di bawah nol.',
+      amount: summary.cashPosition,
+      action_hint: 'Prioritaskan cash in, penagihan piutang, dan tahan pengeluaran non-esensial.',
+      metadata: { source: 'cashflowAnalytics' },
+    });
+  }
+
+  if (summary.netCashflow < 0) {
+    riskCards.push({
+      id: 'NEGATIVE_NET_CASHFLOW',
+      severity: 'HIGH',
+      title: 'Net Cashflow Negatif',
+      message: 'Cash out lebih besar daripada cash in pada periode ini.',
+      amount: summary.netCashflow,
+      action_hint: 'Review pengeluaran dan percepat collection.',
+      metadata: { source: 'records' },
+    });
+  }
+
+  if (riskCards.length === 0) {
+    riskCards.push({
+      id: 'CASHFLOW_SAFE',
+      severity: 'LOW',
+      title: 'Cashflow Aman',
+      message: 'Tidak ada risiko cashflow kritis pada periode ini.',
+      amount: summary.netCashflow,
+      action_hint: 'Lanjutkan monitoring rutin.',
+      metadata: { source: 'cashflowDashboard' },
+    });
+  }
+
+  if (records.length === 0) {
+    warnings.push(makeWarning('CASHFLOW_EMPTY', 'Tidak ada record cashflow untuk filter aktif.'));
+  }
+
+  return {
+    summary,
+    records,
+    accountBalances,
+    trends,
+    riskCards,
+    filters,
+    metadata: {
+      generated_at: new Date().toISOString(),
+      readonly: true,
+      source_api: 'getCashflowDashboard',
+      orchestrator_version: ORCHESTRATOR_VERSION,
+      total_before_filter: cashRows.length,
+      total_after_filter: filteredCashRows.length,
+      account_count: accountBalances.length,
+      granularity: filters.granularity,
+    },
+    warnings,
+  };
+};
+
+/* =========================================================================
+   BUSINESS RADAR API - READ ONLY
+   ========================================================================= */
+
+export const getBusinessRadar = (input = {}, context = {}) => {
+  const dateFilters = getIntelligenceDateFilters(input);
+  const filters = {
+    ...dateFilters,
+    period: input.period || 'CUSTOM',
+    branch: input.branch || input.branch_id || input.branchId || '',
+    module: input.module || '',
+    severity: input.severity || '',
+    search: input.search || input.keyword || input.q || '',
+  };
+
+  const warnings = [];
+  const ownerAnalytics = getIntelligenceOwnerAnalytics({
+    ...input,
+    startDate: filters.startDate,
+    endDate: filters.endDate,
+    period: filters.period,
+  }, context);
+  warnings.push(...safeArray(ownerAnalytics.warnings));
+
+  const cashflowDashboard = getCashflowDashboard({
+    ...input,
+    startDate: filters.startDate,
+    endDate: filters.endDate,
+    branch: filters.branch,
+  }, context);
+  warnings.push(...safeArray(cashflowDashboard.warnings));
+
+  const summaryData = ownerAnalytics.summary || {};
+  const branchAnalytics = ownerAnalytics.branchAnalytics || {};
+  const productAnalytics = ownerAnalytics.productAnalytics || {};
+  const cashflowAnalytics = ownerAnalytics.cashflowAnalytics || {};
+  const receivableAnalytics = ownerAnalytics.receivableAnalytics || {};
+  const payableAnalytics = ownerAnalytics.payableAnalytics || {};
+  const inventoryAnalytics = ownerAnalytics.inventoryAnalytics || {};
+  const trendAnalytics = ownerAnalytics.trendAnalytics || {};
+  const warningCards = safeArray(ownerAnalytics.warningCards);
+
+  const criticalWarnings = warningCards.filter((warning) => normalizeCode(warning?.severity) === 'CRITICAL');
+  const mediumWarnings = warningCards.filter((warning) => normalizeCode(warning?.severity) === 'WARNING');
+  const criticalStock = safeArray(inventoryAnalytics.criticalStock);
+  const lowStock = safeArray(inventoryAnalytics.lowStock);
+  const deadStock = safeArray(inventoryAnalytics.deadStock);
+  const lowMarginProducts = safeArray(productAnalytics.lowMarginProducts);
+  const worstBranches = safeArray(branchAnalytics.worstBranch);
+  const lossBranches = worstBranches.filter((branch) => safeNumber(branch.netProfit || branch.grossProfit || branch.totalProfit, 0) < 0);
+
+  const revenueTrend = trendAnalytics.revenueTrend || {};
+  const profitTrend = trendAnalytics.profitTrend || {};
+  const cashflowTrend = trendAnalytics.cashflowTrend || {};
+  const salesDropPercent = Math.abs(safeNumber(revenueTrend.changePercent, 0));
+  const salesDrop = normalizeCode(revenueTrend.direction) === 'DOWN' && salesDropPercent >= 20;
+  const marginTooSmall = lowMarginProducts.some((product) => safeNumber(product.profitMargin, 0) < 10);
+
+  let businessHealthScore = 100;
+  businessHealthScore -= criticalWarnings.length * 12;
+  businessHealthScore -= mediumWarnings.length * 6;
+  if (safeNumber(cashflowAnalytics.cashPosition, 0) < 0) businessHealthScore -= 18;
+  if (safeNumber(summaryData.netProfit, 0) < 0) businessHealthScore -= 18;
+  if (safeNumber(receivableAnalytics.overdueReceivable, 0) > 0) businessHealthScore -= 8;
+  if (safeNumber(payableAnalytics.overduePayable, 0) > 0) businessHealthScore -= 8;
+  if (criticalStock.length > 0) businessHealthScore -= 8;
+  if (marginTooSmall) businessHealthScore -= 6;
+  if (salesDrop) businessHealthScore -= 10;
+  if (lossBranches.length > 0) businessHealthScore -= 8;
+  businessHealthScore = Math.max(0, Math.min(100, Math.round(businessHealthScore)));
+
+  let cashDisciplineScore = 100;
+  if (safeNumber(cashflowAnalytics.cashPosition, 0) < 0) cashDisciplineScore -= 30;
+  if (safeNumber(cashflowAnalytics.cashBalance, 0) < 0) cashDisciplineScore -= 20;
+  if (safeNumber(receivableAnalytics.overdueReceivable, 0) > 0) cashDisciplineScore -= 15;
+  if (safeNumber(payableAnalytics.overduePayable, 0) > 0) cashDisciplineScore -= 15;
+  if (normalizeCode(cashflowTrend.direction) === 'DOWN' && safeNumber(cashflowTrend.changePercent, 0) < 0) cashDisciplineScore -= 10;
+  cashDisciplineScore = Math.max(0, Math.min(100, Math.round(cashDisciplineScore)));
+
+  const records = [];
+
+  if (safeNumber(cashflowAnalytics.cashPosition, 0) < 0) {
+    records.push({
+      id: 'RADAR-CASH-DEFICIT',
+      timestamp: new Date().toISOString(),
+      radar_type: 'FINANCIAL',
+      severity: 'CRITICAL',
+      module: 'CASHFLOW',
+      branch: filters.branch || 'ALL',
+      title: 'Cash Deficit Risk',
+      message: 'Cash position negatif dan perlu tindakan owner.',
+      metric_name: 'cashPosition',
+      metric_value: roundMoney(cashflowAnalytics.cashPosition),
+      threshold: 0,
+      reference_number: '',
+      entity_type: 'CASHFLOW',
+      entity_id: 'CASH_POSITION',
+      action_hint: 'Prioritaskan penagihan piutang dan tahan pengeluaran non-esensial.',
+      metadata: { cashflowAnalytics },
+    });
+  }
+
+  if (safeNumber(summaryData.netProfit, 0) < 0) {
+    records.push({
+      id: 'RADAR-NEGATIVE-PROFIT',
+      timestamp: new Date().toISOString(),
+      radar_type: 'PROFIT',
+      severity: 'CRITICAL',
+      module: 'SALES',
+      branch: filters.branch || 'ALL',
+      title: 'Profit Negatif',
+      message: 'Net profit periode ini negatif.',
+      metric_name: 'netProfit',
+      metric_value: roundMoney(summaryData.netProfit),
+      threshold: 0,
+      reference_number: '',
+      entity_type: 'PROFIT',
+      entity_id: 'NET_PROFIT',
+      action_hint: 'Evaluasi HPP, diskon, biaya operasional, dan channel rugi.',
+      metadata: { summary: summaryData },
+    });
+  }
+
+  if (safeNumber(receivableAnalytics.overdueReceivable, 0) > 0) {
+    records.push({
+      id: 'RADAR-RECEIVABLE-RISK',
+      timestamp: new Date().toISOString(),
+      radar_type: 'FINANCIAL',
+      severity: 'HIGH',
+      module: 'RECEIVABLE',
+      branch: filters.branch || 'ALL',
+      title: 'Receivable Risk',
+      message: 'Ada piutang overdue yang menekan cashflow.',
+      metric_name: 'overdueReceivable',
+      metric_value: roundMoney(receivableAnalytics.overdueReceivable),
+      threshold: 0,
+      reference_number: '',
+      entity_type: 'RECEIVABLE',
+      entity_id: 'OVERDUE_RECEIVABLE',
+      action_hint: 'Prioritaskan penagihan customer dengan aging tertua.',
+      metadata: { receivableAnalytics },
+    });
+  }
+
+  if (safeNumber(payableAnalytics.overduePayable, 0) > 0) {
+    records.push({
+      id: 'RADAR-PAYABLE-RISK',
+      timestamp: new Date().toISOString(),
+      radar_type: 'FINANCIAL',
+      severity: 'HIGH',
+      module: 'PAYABLE',
+      branch: filters.branch || 'ALL',
+      title: 'Debt Risk',
+      message: 'Ada hutang overdue yang perlu diprioritaskan.',
+      metric_name: 'overduePayable',
+      metric_value: roundMoney(payableAnalytics.overduePayable),
+      threshold: 0,
+      reference_number: '',
+      entity_type: 'PAYABLE',
+      entity_id: 'OVERDUE_PAYABLE',
+      action_hint: 'Atur pembayaran supplier berdasarkan prioritas jatuh tempo.',
+      metadata: { payableAnalytics },
+    });
+  }
+
+  if (criticalStock.length > 0) {
+    records.push({
+      id: 'RADAR-STOCK-OUT-RISK',
+      timestamp: new Date().toISOString(),
+      radar_type: 'INVENTORY',
+      severity: 'HIGH',
+      module: 'INVENTORY',
+      branch: filters.branch || 'ALL',
+      title: 'Stock Out Risk',
+      message: `${criticalStock.length} item berada pada stok kritis.`,
+      metric_name: 'criticalStockCount',
+      metric_value: criticalStock.length,
+      threshold: 0,
+      reference_number: '',
+      entity_type: 'INVENTORY',
+      entity_id: 'CRITICAL_STOCK',
+      action_hint: 'Cek purchasing, produksi, dan transfer stok.',
+      metadata: { criticalStock },
+    });
+  }
+
+  if (marginTooSmall) {
+    records.push({
+      id: 'RADAR-LOW-MARGIN',
+      timestamp: new Date().toISOString(),
+      radar_type: 'SALES',
+      severity: 'HIGH',
+      module: 'SALES',
+      branch: filters.branch || 'ALL',
+      title: 'Margin Terlalu Kecil',
+      message: 'Ada produk dengan margin di bawah batas aman.',
+      metric_name: 'lowMarginProducts',
+      metric_value: lowMarginProducts.length,
+      threshold: 10,
+      reference_number: '',
+      entity_type: 'PRODUCT',
+      entity_id: 'LOW_MARGIN',
+      action_hint: 'Evaluasi harga jual, HPP, dan promo produk margin rendah.',
+      metadata: { lowMarginProducts },
+    });
+  }
+
+  if (salesDrop) {
+    records.push({
+      id: 'RADAR-SALES-DROP',
+      timestamp: new Date().toISOString(),
+      radar_type: 'SALES',
+      severity: 'HIGH',
+      module: 'SALES',
+      branch: filters.branch || 'ALL',
+      title: 'Penjualan Turun Drastis',
+      message: `Revenue turun ${roundPercent(salesDropPercent)}% dibanding periode sebelumnya.`,
+      metric_name: 'revenueTrend.changePercent',
+      metric_value: roundPercent(salesDropPercent),
+      threshold: 20,
+      reference_number: '',
+      entity_type: 'SALES_TREND',
+      entity_id: 'REVENUE_DROP',
+      action_hint: 'Cek channel, cabang, dan produk yang mengalami penurunan.',
+      metadata: { revenueTrend },
+    });
+  }
+
+  if (lossBranches.length > 0) {
+    records.push({
+      id: 'RADAR-BRANCH-LOSS',
+      timestamp: new Date().toISOString(),
+      radar_type: 'BRANCH',
+      severity: 'HIGH',
+      module: 'BRANCH',
+      branch: filters.branch || 'ALL',
+      title: 'Cabang Merugi',
+      message: `${lossBranches.length} cabang memiliki profit negatif.`,
+      metric_name: 'lossBranches',
+      metric_value: lossBranches.length,
+      threshold: 0,
+      reference_number: '',
+      entity_type: 'BRANCH',
+      entity_id: 'LOSS_BRANCHES',
+      action_hint: 'Audit biaya, omzet, dan HPP cabang yang merugi.',
+      metadata: { lossBranches },
+    });
+  }
+
+  const financialRiskCards = [
+    {
+      id: 'cashDeficitRisk',
+      severity: safeNumber(cashflowAnalytics.cashPosition, 0) < 0 ? 'CRITICAL' : 'LOW',
+      title: 'Cash Deficit Risk',
+      message: safeNumber(cashflowAnalytics.cashPosition, 0) < 0
+        ? 'Cash position negatif. Perlu kontrol kas dan prioritas penagihan.'
+        : 'Cash position masih aman berdasarkan analytics orchestrator.',
+      amount: roundMoney(cashflowAnalytics.cashPosition || 0),
+      action_hint: safeNumber(cashflowAnalytics.cashPosition, 0) < 0
+        ? 'Prioritaskan cash in dan tahan pengeluaran non-esensial.'
+        : 'Pertahankan disiplin cashflow.',
+      metadata: { source: 'cashflowAnalytics' },
+    },
+    {
+      id: 'debtRisk',
+      severity: safeNumber(payableAnalytics.overduePayable, 0) > 0 ? 'HIGH' : 'LOW',
+      title: 'Debt Risk',
+      message: safeNumber(payableAnalytics.overduePayable, 0) > 0
+        ? 'Ada hutang overdue yang perlu diprioritaskan.'
+        : 'Tidak ada hutang overdue signifikan.',
+      amount: roundMoney(payableAnalytics.overduePayable || payableAnalytics.totalPayable || 0),
+      action_hint: safeNumber(payableAnalytics.overduePayable, 0) > 0
+        ? 'Atur pembayaran supplier berdasarkan prioritas jatuh tempo.'
+        : 'Pantau hutang supplier secara rutin.',
+      metadata: { payableAnalytics },
+    },
+    {
+      id: 'receivableRisk',
+      severity: safeNumber(receivableAnalytics.overdueReceivable, 0) > 0 ? 'HIGH' : 'LOW',
+      title: 'Receivable Risk',
+      message: safeNumber(receivableAnalytics.overdueReceivable, 0) > 0
+        ? 'Ada piutang overdue yang menekan cashflow.'
+        : 'Piutang overdue masih aman.',
+      amount: roundMoney(receivableAnalytics.overdueReceivable || receivableAnalytics.totalReceivable || 0),
+      action_hint: safeNumber(receivableAnalytics.overdueReceivable, 0) > 0
+        ? 'Prioritaskan penagihan customer dengan aging tertua.'
+        : 'Pertahankan ritme penagihan.',
+      metadata: { receivableAnalytics },
+    },
+  ];
+
+  const requiredChannels = ['Offline', 'GoFood', 'GrabFood', 'ShopeeFood', 'TikTok', 'Franchise'];
+  const problematicChannels = requiredChannels
+    .map((key) => ({ key, ...(ownerAnalytics.channelAnalytics?.[key] || {}) }))
+    .filter((channel) => safeNumber(channel.totalRevenue, 0) <= 0 || safeNumber(channel.netProfit, 0) < 0);
+
+  const salesRiskCards = [
+    {
+      id: 'salesDropRisk',
+      severity: salesDrop ? 'HIGH' : 'LOW',
+      title: 'Penjualan Turun',
+      message: salesDrop
+        ? `Revenue turun ${roundPercent(salesDropPercent)}% dibanding periode sebelumnya.`
+        : 'Tidak ada penurunan penjualan drastis dari trend analytics.',
+      amount: roundMoney(revenueTrend.changeValue || 0),
+      action_hint: salesDrop
+        ? 'Cek channel, cabang, dan produk dengan performa menurun.'
+        : 'Lanjutkan monitoring trend revenue.',
+      metadata: { revenueTrend },
+    },
+    {
+      id: 'channelRisk',
+      severity: problematicChannels.length > 0 ? 'HIGH' : 'LOW',
+      title: 'Channel Bermasalah',
+      message: problematicChannels.length > 0
+        ? `${problematicChannels.length} channel butuh perhatian.`
+        : 'Tidak ada channel bermasalah signifikan.',
+      count: problematicChannels.length,
+      action_hint: problematicChannels.length > 0
+        ? 'Evaluasi promo, komisi, dan performa channel bermasalah.'
+        : 'Pertahankan performa channel aktif.',
+      metadata: { problematicChannels },
+    },
+    {
+      id: 'unsoldProductRisk',
+      severity: safeArray(productAnalytics.topProducts).length === 0 ? 'HIGH' : 'LOW',
+      title: 'Produk Tidak Laku',
+      message: safeArray(productAnalytics.topProducts).length === 0
+        ? 'Belum ada produk terlaris pada periode ini.'
+        : 'Produk terlaris tersedia dari analytics orchestrator.',
+      action_hint: safeArray(productAnalytics.topProducts).length === 0
+        ? 'Cek traffic penjualan dan promosi produk.'
+        : 'Pantau produk dengan margin rendah.',
+      metadata: { topProducts: productAnalytics.topProducts },
+    },
+  ];
+
+  const ownerActionCenter = records
+    .filter((record) => ['CRITICAL', 'HIGH'].includes(normalizePriority(record.severity)))
+    .map((record, index) => ({
+      id: `ACTION-${index + 1}-${record.id}`,
+      severity: record.severity,
+      title: record.title,
+      description: record.message,
+      source: record.radar_type,
+      action_hint: record.action_hint,
+      metadata: record.metadata,
+    }));
+
+  if (ownerActionCenter.length === 0) {
+    ownerActionCenter.push({
+      id: 'NO_ACTION_REQUIRED',
+      severity: 'LOW',
+      title: 'Tidak ada aksi kritis',
+      description: 'Tidak ada rekomendasi kritis dari Business Radar pada periode ini.',
+      source: 'BUSINESS_RADAR',
+      action_hint: 'Lanjutkan monitoring rutin.',
+      metadata: {},
+    });
+  }
+
+  const filteredRecords = records.filter((record) => {
+    const filterModule = normalizeFilterValue(filters.module || '');
+    const filterSeverity = normalizeFilterValue(filters.severity || '');
+    const filterBranch = normalizeText(filters.branch || '');
+    const search = normalizeText(filters.search || '');
+
+    if (filterModule && normalizeCode(record.module) !== filterModule) return false;
+    if (filterSeverity && normalizePriority(record.severity) !== filterSeverity) return false;
+    if (filterBranch && !normalizeText(record.branch).includes(filterBranch)) return false;
+    if (search) {
+      const searchable = normalizeText([
+        record.title,
+        record.message,
+        record.entity_id,
+        record.entity_type,
+        record.action_hint,
+      ].filter(Boolean).join(' '));
+      if (!searchable.includes(search)) return false;
+    }
+    return true;
+  });
+
+  const totalCriticalRisk = filteredRecords.filter((record) => normalizePriority(record.severity) === 'CRITICAL').length;
+  const totalWarningRisk = filteredRecords.filter((record) => normalizePriority(record.severity) === 'HIGH').length;
+
+  return {
+    summary: {
+      businessHealthScore,
+      businessHealthCategory: getHealthCategoryFromScore(businessHealthScore),
+      cashDisciplineScore,
+      cashDisciplineCategory: getHealthCategoryFromScore(cashDisciplineScore),
+      totalRisk: filteredRecords.length,
+      totalCriticalRisk,
+      totalWarningRisk,
+      totalActionRequired: ownerActionCenter.filter((action) => ['CRITICAL', 'HIGH'].includes(normalizePriority(action.severity))).length,
+    },
+    records: filteredRecords,
+    branchRadar: {
+      topBranches: safeArray(branchAnalytics.topBranchRevenue),
+      problemBranches: worstBranches,
+      lossBranches,
+    },
+    inventoryRadar: {
+      stockOutRisk: criticalStock,
+      deadStockRisk: deadStock,
+      slowMovingProduct: lowStock,
+    },
+    financialRadar: {
+      cashDeficitRisk: financialRiskCards[0],
+      debtRisk: financialRiskCards[1],
+      receivableRisk: financialRiskCards[2],
+      riskCards: financialRiskCards,
+    },
+    salesRadar: {
+      salesDropRisk: salesRiskCards[0],
+      channelRisk: salesRiskCards[1],
+      unsoldProductRisk: salesRiskCards[2],
+      riskCards: salesRiskCards,
+      problematicChannels,
+    },
+    ownerActionCenter,
+    filters,
+    metadata: {
+      generated_at: new Date().toISOString(),
+      readonly: true,
+      source_api: 'getBusinessRadar',
+      orchestrator_version: ORCHESTRATOR_VERSION,
+      owner_analytics_source: 'getOwnerAnalytics',
+      cashflow_source: 'getCashflowDashboard',
+      total_before_filter: records.length,
+      total_after_filter: filteredRecords.length,
+    },
+    warnings,
+  };
+};
+
+/* =========================================================================
+   SYSTEM HEALTH API - READ ONLY
+   ========================================================================= */
+
+export const getSystemHealth = (input = {}, context = {}) => {
+  const source = resolveReadOnlySource(input, context);
+  const filters = {
+    branch: input.branch || input.branch_id || input.branchId || '',
+    module: input.module || '',
+    severity: input.severity || '',
+    search: input.search || input.keyword || input.q || '',
+    includeApiHealth: input.includeApiHealth !== false,
+    includeDataQuality: input.includeDataQuality !== false,
+    includeMasterHealth: input.includeMasterHealth !== false,
+    includeAuditHealth: input.includeAuditHealth !== false,
+  };
+
+  const warnings = [];
+  const records = [];
+
+  const engineStatus = {
+    getOwnerAnalytics: typeof getOwnerAnalytics === 'function',
+    getAuditTrail: typeof getAuditTrail === 'function',
+    getNotifications: typeof getNotifications === 'function',
+    getSystemHealth: typeof getSystemHealth === 'function',
+    getCashflowDashboard: typeof getCashflowDashboard === 'function',
+    getBusinessRadar: typeof getBusinessRadar === 'function',
+  };
+
+  if (filters.includeApiHealth) {
+    Object.entries(engineStatus).forEach(([apiName, available]) => {
+      records.push(makeIntelligenceRecord({
+        id: `API-${normalizeCode(apiName)}`,
+        category: 'API_HEALTH',
+        module: 'SYSTEM',
+        severity: available ? 'INFO' : 'CRITICAL',
+        status: available ? 'PASSED' : 'FAILED',
+        title: available ? `${apiName} tersedia` : `${apiName} belum tersedia`,
+        message: available
+          ? `Public API ${apiName} sudah dapat dipanggil dari orchestrator.`
+          : `Public API ${apiName} belum tersedia di orchestrator.`,
+        action_hint: available ? 'Tidak ada aksi.' : 'Tambahkan API ke orchestrator dan default export.',
+        reference_key: apiName,
+        metadata: { apiName, available },
+      }));
+    });
+  }
+
+  const branchesResult = getBranches(source, { includeInactive: true, includeDeleted: false });
+  const productsResult = getProducts(source, { includeInactive: true, includeDeleted: false });
+  const customersResult = getCustomers(source, { includeInactive: true, includeDeleted: false });
+  const suppliersResult = getSuppliers(source, { includeInactive: true, includeDeleted: false });
+  const warehousesResult = getWarehouses(source, { includeInactive: true, includeDeleted: false });
+  const accountsResult = getChartOfAccounts(source, { includeInactive: true, includeDeleted: false });
+
+  warnings.push(
+    ...safeArray(branchesResult.warnings),
+    ...safeArray(productsResult.warnings),
+    ...safeArray(customersResult.warnings),
+    ...safeArray(suppliersResult.warnings),
+    ...safeArray(warehousesResult.warnings),
+    ...safeArray(accountsResult.warnings),
+  );
+
+  const sourceRows = extractOwnerAnalyticsSourceRows(source);
+  const dataQuality = {
+    branches: safeArray(branchesResult.records).length,
+    products: safeArray(productsResult.records).length,
+    customers: safeArray(customersResult.records).length,
+    suppliers: safeArray(suppliersResult.records).length,
+    warehouses: safeArray(warehousesResult.records).length,
+    chartOfAccounts: safeArray(accountsResult.records).length,
+    inventory: safeArray(sourceRows.inventoryRows).length,
+    sales: safeArray(sourceRows.salesRows).length,
+    purchases: safeArray(sourceRows.purchaseRows).length,
+    cashflow: safeArray(sourceRows.cashRows).length,
+    auditTrail: 0,
+  };
+
+  if (filters.includeMasterHealth || filters.includeDataQuality) {
+    [
+      ['branches', dataQuality.branches, 'MASTER_BRANCH', 'Master cabang kosong.'],
+      ['products', dataQuality.products, 'MASTER_PRODUCT', 'Master produk kosong.'],
+      ['customers', dataQuality.customers, 'MASTER_CUSTOMER', 'Master customer kosong.'],
+      ['suppliers', dataQuality.suppliers, 'MASTER_SUPPLIER', 'Master supplier kosong.'],
+      ['warehouses', dataQuality.warehouses, 'MASTER_WAREHOUSE', 'Master gudang kosong.'],
+      ['chartOfAccounts', dataQuality.chartOfAccounts, 'ACCOUNTING', 'Chart of accounts kosong.'],
+    ].forEach(([key, count, moduleName, emptyMessage]) => {
+      const isEmpty = safeNumber(count, 0) === 0;
+      records.push(makeIntelligenceRecord({
+        id: `DATA-${normalizeCode(key)}`,
+        category: 'DATA_QUALITY',
+        module: moduleName,
+        severity: isEmpty ? 'WARNING' : 'INFO',
+        status: isEmpty ? 'WARNING' : 'PASSED',
+        title: `${key} count: ${count}`,
+        message: isEmpty ? emptyMessage : `${key} tersedia dan terbaca.`,
+        action_hint: isEmpty ? 'Lengkapi master data terkait.' : 'Tidak ada aksi.',
+        reference_key: key,
+        metadata: { count },
+      }));
+    });
+  }
+
+  let auditTrail = null;
+  if (filters.includeAuditHealth && typeof getAuditTrail === 'function') {
+    try {
+      auditTrail = getAuditTrail({}, {
+        ...context,
+        source,
+        dbData: source,
+        readonly: true,
+      });
+      dataQuality.auditTrail = safeArray(auditTrail.records).length;
+      warnings.push(...safeArray(auditTrail.warnings));
+
+      records.push(makeIntelligenceRecord({
+        id: 'AUDIT-TRAIL-READINESS',
+        category: 'AUDIT_HEALTH',
+        module: 'AUDIT',
+        severity: dataQuality.auditTrail === 0 ? 'WARNING' : 'INFO',
+        status: dataQuality.auditTrail === 0 ? 'WARNING' : 'PASSED',
+        title: 'Audit Trail Readiness',
+        message: dataQuality.auditTrail === 0
+          ? 'Audit trail belum memiliki record.'
+          : `Audit trail terbaca dengan ${dataQuality.auditTrail} record.`,
+        action_hint: dataQuality.auditTrail === 0
+          ? 'Pastikan setiap modul transaksi menyimpan audit log/snapshot.'
+          : 'Lanjutkan governance monitoring.',
+        reference_key: 'getAuditTrail',
+        metadata: {
+          audit_summary: auditTrail.summary || {},
+        },
+      }));
+    } catch (error) {
+      records.push(makeIntelligenceRecord({
+        id: 'AUDIT-TRAIL-ERROR',
+        category: 'AUDIT_HEALTH',
+        module: 'AUDIT',
+        severity: 'CRITICAL',
+        status: 'FAILED',
+        title: 'Audit Trail Error',
+        message: error?.message || 'getAuditTrail gagal dibaca.',
+        action_hint: 'Audit implementasi getAuditTrail di orchestrator.',
+        reference_key: 'getAuditTrail',
+        metadata: {},
+      }));
+    }
+  }
+
+  const filterModule = normalizeFilterValue(filters.module || '');
+  const filterSeverity = normalizeFilterValue(filters.severity || '');
+  const search = normalizeText(filters.search || '');
+
+  const filteredRecords = records.filter((record) => {
+    if (filterModule && normalizeCode(record.module) !== filterModule) return false;
+    if (filterSeverity && normalizeCode(record.severity) !== filterSeverity) return false;
+    if (search) {
+      const searchable = normalizeText([
+        record.title,
+        record.message,
+        record.action_hint,
+        record.reference_key,
+        record.module,
+        record.category,
+      ].filter(Boolean).join(' '));
+      if (!searchable.includes(search)) return false;
+    }
+    return true;
+  });
+
+  const totalChecks = filteredRecords.length;
+  const totalPassed = filteredRecords.filter((record) => normalizeCode(record.status) === 'PASSED').length;
+  const totalWarning = filteredRecords.filter((record) => ['WARNING', 'HIGH'].includes(normalizeCode(record.severity))).length;
+  const totalCritical = filteredRecords.filter((record) => normalizeCode(record.severity) === 'CRITICAL').length;
+  const totalMissingApi = Object.values(engineStatus).filter((available) => !available).length;
+  const totalDataIssue = filteredRecords.filter((record) => normalizeCode(record.category) === 'DATA_QUALITY' && normalizeCode(record.status) !== 'PASSED').length;
+
+  let healthScore = 100;
+  healthScore -= totalCritical * 20;
+  healthScore -= totalWarning * 8;
+  healthScore -= totalMissingApi * 15;
+  healthScore -= totalDataIssue * 5;
+  healthScore = Math.max(0, Math.min(100, Math.round(healthScore)));
+
+  const healthStatus = totalCritical > 0
+    ? 'CRITICAL'
+    : totalWarning > 0 || totalMissingApi > 0 || totalDataIssue > 0
+      ? 'WARNING'
+      : 'HEALTHY';
+
+  return {
+    summary: {
+      healthScore,
+      healthStatus,
+      totalChecks,
+      totalPassed,
+      totalWarning,
+      totalCritical,
+      totalMissingApi,
+      totalDataIssue,
+    },
+    records: filteredRecords,
+    engineStatus,
+    dataQuality,
+    filters,
+    metadata: {
+      generated_at: new Date().toISOString(),
+      readonly: true,
+      source_api: 'getSystemHealth',
+      orchestrator_version: ORCHESTRATOR_VERSION,
+      total_before_filter: records.length,
+      total_after_filter: filteredRecords.length,
+    },
+    warnings,
+  };
+};
+
+/* =========================================================================
+   NOTIFICATION CENTER API - READ ONLY
+   ========================================================================= */
+
+export const getNotifications = (input = {}, context = {}) => {
+  const source = resolveReadOnlySource(input, context);
+  const dateFilters = getIntelligenceDateFilters(input);
+  const filters = {
+    ...dateFilters,
+    priority: input.priority || '',
+    module: input.module || '',
+    branch: input.branch || input.branch_id || input.branchId || '',
+    status: input.status || '',
+    type: input.type || input.notification_type || input.notificationType || '',
+    search: input.search || input.keyword || input.q || '',
+    includeResolved: input.includeResolved === true,
+  };
+
+  const warnings = [];
+  const records = [];
+
+  const ownerAnalytics = getIntelligenceOwnerAnalytics(input, context);
+  warnings.push(...safeArray(ownerAnalytics.warnings));
+
+  const businessRadar = getBusinessRadar(input, context);
+  warnings.push(...safeArray(businessRadar.warnings));
+
+  const systemHealth = getSystemHealth({
+    ...input,
+    includeAuditHealth: false,
+  }, context);
+  warnings.push(...safeArray(systemHealth.warnings));
+
+  getSourceNotificationRows(source)
+    .filter((row) => !isDeletedRow(row))
+    .forEach((row, index) => {
+      records.push(normalizeExistingNotificationRow(row, index));
+    });
+
+  safeArray(ownerAnalytics.inventoryAnalytics?.criticalStock).forEach((item, index) => {
+    records.push(makeNotificationRecord({
+      id: `NTF-STOCK-KRITIS-${item.item_id || index}`,
+      priority: 'HIGH',
+      module: 'INVENTORY',
+      branch: item.branch_id || '',
+      type: 'STOK_KRITIS',
+      title: 'Stok Kritis',
+      message: `${item.item_name || item.item_id || 'Item'} berada pada stok kritis.`,
+      entity_type: 'INVENTORY_ITEM',
+      entity_id: item.item_id || item.item_name || '',
+      action_hint: 'Cek purchasing, produksi, atau transfer stok.',
+      metadata: item,
+    }));
+  });
+
+  if (safeNumber(ownerAnalytics.payableAnalytics?.overduePayable, 0) > 0) {
+    records.push(makeNotificationRecord({
+      id: 'NTF-HUTANG-JATUH-TEMPO',
+      priority: 'HIGH',
+      module: 'PAYABLE',
+      type: 'HUTANG_JATUH_TEMPO',
+      title: 'Hutang Jatuh Tempo',
+      message: 'Ada hutang supplier yang sudah melewati jatuh tempo.',
+      amount: ownerAnalytics.payableAnalytics.overduePayable,
+      entity_type: 'PAYABLE',
+      entity_id: 'OVERDUE_PAYABLE',
+      action_hint: 'Prioritaskan pembayaran supplier penting dan negosiasi tempo.',
+      metadata: ownerAnalytics.payableAnalytics,
+    }));
+  }
+
+  if (safeNumber(ownerAnalytics.receivableAnalytics?.overdueReceivable, 0) > 0) {
+    records.push(makeNotificationRecord({
+      id: 'NTF-PIUTANG-OVERDUE',
+      priority: 'HIGH',
+      module: 'RECEIVABLE',
+      type: 'PIUTANG_OVERDUE',
+      title: 'Piutang Overdue',
+      message: 'Ada piutang customer yang melewati jatuh tempo.',
+      amount: ownerAnalytics.receivableAnalytics.overdueReceivable,
+      entity_type: 'RECEIVABLE',
+      entity_id: 'OVERDUE_RECEIVABLE',
+      action_hint: 'Segera tagih top debtor dan invoice aging tertua.',
+      metadata: ownerAnalytics.receivableAnalytics,
+    }));
+  }
+
+  if (safeNumber(ownerAnalytics.cashflowAnalytics?.cashPosition, 0) < 0) {
+    records.push(makeNotificationRecord({
+      id: 'NTF-KAS-RENDAH',
+      priority: 'CRITICAL',
+      module: 'CASHFLOW',
+      type: 'KAS_RENDAH',
+      title: 'Kas Rendah',
+      message: 'Cash position negatif atau di bawah batas aman.',
+      amount: ownerAnalytics.cashflowAnalytics.cashPosition,
+      entity_type: 'CASHFLOW',
+      entity_id: 'CASH_POSITION',
+      action_hint: 'Tahan pengeluaran non-esensial dan percepat collection.',
+      metadata: ownerAnalytics.cashflowAnalytics,
+    }));
+  }
+
+  if (safeNumber(ownerAnalytics.summary?.netProfit, 0) < 0) {
+    records.push(makeNotificationRecord({
+      id: 'NTF-MARGIN-NEGATIF',
+      priority: 'CRITICAL',
+      module: 'PROFIT',
+      type: 'MARGIN_NEGATIF',
+      title: 'Margin Negatif',
+      message: 'Net profit periode ini negatif.',
+      amount: ownerAnalytics.summary.netProfit,
+      entity_type: 'PROFIT',
+      entity_id: 'NET_PROFIT',
+      action_hint: 'Evaluasi HPP, diskon, biaya operasional, dan channel rugi.',
+      metadata: ownerAnalytics.summary,
+    }));
+  }
+
+  const lowMarginProducts = safeArray(ownerAnalytics.productAnalytics?.lowMarginProducts);
+  if (lowMarginProducts.some((product) => safeNumber(product.profitMargin, 0) < 10)) {
+    records.push(makeNotificationRecord({
+      id: 'NTF-HPP-NAIK-DRASTIS',
+      priority: 'MEDIUM',
+      module: 'HPP',
+      type: 'HPP_NAIK_DRASTIS',
+      title: 'HPP / Margin Perlu Dicek',
+      message: 'Ada produk dengan margin terlalu kecil. Bisa disebabkan HPP naik atau harga jual terlalu rendah.',
+      entity_type: 'PRODUCT',
+      entity_id: 'LOW_MARGIN_PRODUCTS',
+      action_hint: 'Cek BOM, FIFO layer, harga bahan baku, dan harga jual.',
+      metadata: { lowMarginProducts },
+    }));
+  }
+
+  if (safeArray(ownerAnalytics.productAnalytics?.topProducts).length === 0) {
+    records.push(makeNotificationRecord({
+      id: 'NTF-PRODUK-TIDAK-LAKU',
+      priority: 'MEDIUM',
+      module: 'SALES',
+      type: 'PRODUK_TIDAK_LAKU',
+      title: 'Produk Tidak Laku',
+      message: 'Belum ada produk terjual pada periode aktif.',
+      entity_type: 'PRODUCT',
+      entity_id: 'NO_TOP_PRODUCT',
+      action_hint: 'Cek traffic penjualan, promo, dan visibility produk.',
+      metadata: { productAnalytics: ownerAnalytics.productAnalytics },
+    }));
+  }
+
+  safeArray(businessRadar.records).forEach((radarRecord) => {
+    records.push(makeNotificationRecord({
+      id: `NTF-RADAR-${radarRecord.id}`,
+      priority: radarRecord.severity || 'MEDIUM',
+      module: radarRecord.module || 'BUSINESS_RADAR',
+      branch: radarRecord.branch || '',
+      type: radarRecord.radar_type || 'BUSINESS_RADAR',
+      title: radarRecord.title,
+      message: radarRecord.message,
+      amount: radarRecord.metric_value || 0,
+      reference_number: radarRecord.reference_number || '',
+      entity_type: radarRecord.entity_type || '',
+      entity_id: radarRecord.entity_id || '',
+      action_hint: radarRecord.action_hint || '',
+      metadata: radarRecord.metadata || {},
+    }));
+  });
+
+  safeArray(systemHealth.records)
+    .filter((record) => ['CRITICAL', 'WARNING'].includes(normalizeCode(record.severity)))
+    .forEach((healthRecord) => {
+      records.push(makeNotificationRecord({
+        id: `NTF-SYSTEM-${healthRecord.id}`,
+        priority: normalizeCode(healthRecord.severity) === 'CRITICAL' ? 'CRITICAL' : 'MEDIUM',
+        module: healthRecord.module || 'SYSTEM',
+        type: 'SYSTEM_HEALTH',
+        title: healthRecord.title,
+        message: healthRecord.message,
+        reference_number: healthRecord.reference_key || '',
+        entity_type: healthRecord.category || 'SYSTEM_HEALTH',
+        entity_id: healthRecord.reference_key || healthRecord.id,
+        action_hint: healthRecord.action_hint || '',
+        metadata: healthRecord.metadata || {},
+      }));
+    });
+
+  const dedupeMap = new Map();
+  records.forEach((record) => {
+    const key = [record.id, record.type, record.entity_type, record.entity_id, record.title].map(normalizeCode).join('|');
+    if (!dedupeMap.has(key)) dedupeMap.set(key, record);
+  });
+
+  const allRecords = Array.from(dedupeMap.values()).sort((a, b) => {
+    const priorityScore = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1 };
+    const aPriority = priorityScore[normalizePriority(a.priority)] || 0;
+    const bPriority = priorityScore[normalizePriority(b.priority)] || 0;
+    if (aPriority !== bPriority) return bPriority - aPriority;
+    return String(b.timestamp).localeCompare(String(a.timestamp));
+  });
+
+  const filteredRecords = allRecords.filter((record) => {
+    if (!filters.includeResolved && normalizeNotificationStatus(record.status) === 'RESOLVED') return false;
+    return notificationMatchesFilters(record, filters);
+  });
+
+  const limit = safeNumber(input.limit || input.max_results || input.maxResults, 0);
+  const finalRecords = limit > 0 ? filteredRecords.slice(0, limit) : filteredRecords;
+
+  if (finalRecords.length === 0) {
+    warnings.push(makeWarning('NOTIFICATIONS_EMPTY', 'Tidak ada notifikasi untuk filter aktif.'));
+  }
+
+  return {
+    summary: buildNotificationSummary(finalRecords),
+    records: finalRecords,
+    filters: {
+      active: filters,
+      options: {
+        priorities: INTELLIGENCE_NOTIFICATION_PRIORITIES,
+        statuses: INTELLIGENCE_NOTIFICATION_STATUSES,
+        modules: uniqueSortedValues(allRecords, 'module'),
+        types: uniqueSortedValues(allRecords, 'type'),
+        branches: uniqueSortedValues(allRecords, 'branch'),
+      },
+    },
+    metadata: {
+      generated_at: new Date().toISOString(),
+      readonly: true,
+      source_api: 'getNotifications',
+      orchestrator_version: ORCHESTRATOR_VERSION,
+      total_before_filter: allRecords.length,
+      total_after_filter: filteredRecords.length,
+      total_returned: finalRecords.length,
+      source_rows_count: getSourceNotificationRows(source).length,
+      owner_analytics_source: 'getOwnerAnalytics',
+      business_radar_source: 'getBusinessRadar',
+      system_health_source: 'getSystemHealth',
+    },
+    warnings,
+  };
+};
+
+/* =========================================================================
    MASTER DATA ORCHESTRATION API
    ========================================================================= */
 
@@ -4061,6 +5573,10 @@ export default {
   processVoidTransaction,
 
   getAuditTrail,
+  getCashflowDashboard,
+  getBusinessRadar,
+  getSystemHealth,
+  getNotifications,
   getOwnerAnalytics,
   getDashboardSummary,
   getBranchDashboard,
