@@ -4050,12 +4050,6 @@ const matchesDateFilter = (dateValue, startDate = '', endDate = '') => {
   return true;
 };
 
-const matchesTextFilter = (value, filterValue) => {
-  const normalizedFilter = normalizeText(filterValue || '');
-  if (!normalizedFilter) return true;
-  return normalizeText(value || '').includes(normalizedFilter);
-};
-
 const normalizePriority = (value = 'LOW') => {
   const normalized = normalizeCode(value || 'LOW');
   if (INTELLIGENCE_NOTIFICATION_PRIORITIES.includes(normalized)) return normalized;
@@ -4609,7 +4603,6 @@ export const getBusinessRadar = (input = {}, context = {}) => {
   const lossBranches = worstBranches.filter((branch) => safeNumber(branch.netProfit || branch.grossProfit || branch.totalProfit, 0) < 0);
 
   const revenueTrend = trendAnalytics.revenueTrend || {};
-  const profitTrend = trendAnalytics.profitTrend || {};
   const cashflowTrend = trendAnalytics.cashflowTrend || {};
   const salesDropPercent = Math.abs(safeNumber(revenueTrend.changePercent, 0));
   const salesDrop = normalizeCode(revenueTrend.direction) === 'DOWN' && salesDropPercent >= 20;
