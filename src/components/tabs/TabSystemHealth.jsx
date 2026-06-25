@@ -8,7 +8,6 @@ import {
   RefreshCw,
   X,
   Eye,
-  Building2,
   Layers,
   LockKeyhole,
   FileText,
@@ -87,13 +86,6 @@ const normalizeCode = (value) => {
     .replace(/[^\w./-]+/g, '_')
     .replace(/_+/g, '_')
     .replace(/^_+|_+$/g, '');
-};
-
-const normalizeText = (value) => {
-  return String(value || '')
-    .trim()
-    .toUpperCase()
-    .replace(/\s+/g, ' ');
 };
 
 const safeArray = (value) => {
