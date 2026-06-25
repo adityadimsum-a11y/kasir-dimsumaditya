@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -7,18 +7,16 @@ import {
   BadgeDollarSign,
   Banknote,
   BarChart3,
+  Boxes,
   Building2,
   CalendarClock,
   CheckCircle,
   Crown,
-  Filter,
   Landmark,
   LockKeyhole,
   Package,
   PieChart,
-  ReceiptText,
   RefreshCw,
-  Search,
   ShieldCheck,
   ShoppingBag,
   Store,
@@ -30,8 +28,7 @@ import {
   WalletCards,
 } from 'lucide-react';
 
-import { getTodayStr, formatDate } from '../../utils/helpers';
-import erpOrchestrator from '../../services/erpOrchestrator';
+import erpOrchestrator from '../../utils/erpOrchestrator';
 
 const PERIOD_OPTIONS = [
   { id: 'TODAY', label: 'Hari Ini' },
@@ -41,13 +38,13 @@ const PERIOD_OPTIONS = [
   { id: 'CUSTOM', label: 'Custom Date' },
 ];
 
-const CHANNEL_ORDER = [
-  'GOFOOD',
-  'GRABFOOD',
-  'SHOPEEFOOD',
-  'OFFLINE_RESTO',
-  'RESELLER',
-  'FRANCHISE',
+const CHANNELS = [
+  { key: 'Offline', code: 'OFFLINE_RESTO', label: 'Offline', icon: Store },
+  { key: 'GoFood', code: 'GOFOOD', label: 'GoFood', icon: ShoppingBag },
+  { key: 'GrabFood', code: 'GRABFOOD', label: 'GrabFood', icon: ShoppingBag },
+  { key: 'ShopeeFood', code: 'SHOPEEFOOD', label: 'ShopeeFood', icon: ShoppingBag },
+  { key: 'TikTok', code: 'TIKTOK', label: 'TikTok', icon: ShoppingBag },
+  { key: 'Franchise', code: 'FRANCHISE', label: 'Franchise', icon: Building2 },
 ];
 
 const normalizeCode = (value) => {
@@ -59,28 +56,17 @@ const normalizeCode = (value) => {
     .replace(/^_+|_+$/g, '');
 };
 
-const normalizeText = (value) => {
-  return String(value || '')
-    .trim()
-    .toUpperCase()
-    .replace(/\s+/g, ' ');
-};
-
-const safeArray = (value) => {
-  if (Array.isArray(value)) return value;
-  if (Array.isArray(value?.records)) return value.records;
-  if (Array.isArray(value?.items)) return value.items;
-  if (Array.isArray(value?.data)) return value.data;
-  if (value && typeof value === 'object') return Object.values(value).filter((item) => item && typeof item === 'object');
-  return [];
+const hasValue = (value) => {
+  return value !== undefined && value !== null && value !== '';
 };
 
 const toNumber = (value) => {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
-  if (value === undefined || value === null || value === '') return 0;
+  if (!hasValue(value)) return 0;
 
   const parsed = Number(
     String(value)
+      .trim()
       .replace(/[^\d,.-]/g, '')
       .replace(/\.(?=\d{3}(\D|$))/g, '')
       .replace(',', '.'),
@@ -89,67 +75,70 @@ const toNumber = (value) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const roundMoney = (value) => {
-  return Math.round(toNumber(value) * 100) / 100;
+const safeArray = (value) => {
+  return Array.isArray(value) ? value : [];
 };
 
-const roundPercent = (value) => {
-  return Math.round(toNumber(value) * 100) / 100;
+const pickValue = (row = {}, keys = []) => {
+  for (const key of keys) {
+    if (hasValue(row?.[key])) return row[key];
+  }
+
+  return undefined;
 };
 
 const formatMoney = (value) => {
-  return `Rp${roundMoney(value).toLocaleString('id-ID')}`;
+  if (!hasValue(value)) return '-';
+  return `Rp${Math.round(toNumber(value)).toLocaleString('id-ID')}`;
 };
 
 const formatPercent = (value) => {
-  return `${roundPercent(value).toLocaleString('id-ID')}%`;
+  if (!hasValue(value)) return '-';
+  return `${Number(toNumber(value).toFixed(2)).toLocaleString('id-ID')}%`;
 };
 
-const normalizeDate = (value) => {
-  if (!value) return '';
-
-  const raw = String(value).trim();
-
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return raw.substring(0, 10);
-
-  return parsed.toISOString().substring(0, 10);
+const formatNumber = (value) => {
+  if (!hasValue(value)) return '-';
+  return Number(toNumber(value).toFixed(2)).toLocaleString('id-ID');
 };
 
-const toDateInput = (date) => {
-  const parsed = date instanceof Date ? date : new Date(date);
-
-  if (Number.isNaN(parsed.getTime())) return getTodayStr();
-
-  return parsed.toISOString().substring(0, 10);
+const getTodayStr = () => {
+  const date = new Date();
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().slice(0, 10);
 };
 
-const getFirstValue = (...values) => {
-  return values.find((value) => value !== undefined && value !== null && value !== '');
+const toDateInput = (value) => {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return getTodayStr();
+
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().slice(0, 10);
 };
 
-const getFirstNumber = (...values) => {
-  const found = getFirstValue(...values);
-  return roundMoney(found || 0);
+const formatDate = (value) => {
+  if (!value) return '-';
+
+  const date = new Date(`${String(value).slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return String(value);
+
+  return date.toLocaleDateString('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
 };
 
-const getFirstPercent = (...values) => {
-  const found = getFirstValue(...values);
-  return roundPercent(found || 0);
-};
-
-const resolveDateRange = ({ period, customStart, customEnd, todayStr }) => {
+const resolveDateRange = (period, customStart, customEnd) => {
+  const todayStr = getTodayStr();
   const today = new Date(`${todayStr}T00:00:00`);
   const year = today.getFullYear();
   const month = today.getMonth();
 
   if (period === 'CUSTOM') {
     return {
-      start_date: customStart || todayStr,
-      end_date: customEnd || todayStr,
-      label: `${customStart || todayStr} sampai ${customEnd || todayStr}`,
+      startDate: customStart || todayStr,
+      endDate: customEnd || todayStr,
     };
   }
 
@@ -164,517 +153,126 @@ const resolveDateRange = ({ period, customStart, customEnd, todayStr }) => {
     end.setDate(start.getDate() + 6);
 
     return {
-      start_date: toDateInput(start),
-      end_date: toDateInput(end),
-      label: 'Minggu ini',
+      startDate: toDateInput(start),
+      endDate: toDateInput(end),
     };
   }
 
   if (period === 'THIS_MONTH') {
     return {
-      start_date: toDateInput(new Date(year, month, 1)),
-      end_date: toDateInput(new Date(year, month + 1, 0)),
-      label: 'Bulan ini',
+      startDate: toDateInput(new Date(year, month, 1)),
+      endDate: toDateInput(new Date(year, month + 1, 0)),
     };
   }
 
   if (period === 'THIS_YEAR') {
     return {
-      start_date: `${year}-01-01`,
-      end_date: `${year}-12-31`,
-      label: 'Tahun ini',
+      startDate: `${year}-01-01`,
+      endDate: `${year}-12-31`,
     };
   }
 
   return {
-    start_date: todayStr,
-    end_date: todayStr,
-    label: 'Hari ini',
+    startDate: todayStr,
+    endDate: todayStr,
   };
 };
 
-const normalizeRankRows = (source, config = {}) => {
-  const {
-    nameKeys = ['name', 'label', 'title'],
-    valueKeys = ['value', 'amount', 'total', 'omzet', 'profit', 'margin', 'qty'],
-    subtitleKeys = ['subtitle', 'description', 'code', 'id'],
-    limit = 5,
-    valueType = 'money',
-  } = config;
-
-  return safeArray(source)
-    .map((row, index) => {
-      const name = getFirstValue(
-        ...nameKeys.map((key) => row?.[key]),
-        row?.branch_name,
-        row?.product_name,
-        row?.customer_name,
-        row?.supplier_name,
-        row?.sales_channel,
-        row?.channel,
-        row?.branch_id,
-        row?.product_id,
-        row?.customer_id,
-        row?.id,
-        `Data ${index + 1}`,
-      );
-
-      const value = getFirstNumber(
-        ...valueKeys.map((key) => row?.[key]),
-        row?.total_amount,
-        row?.total_omzet,
-        row?.total_profit,
-        row?.net_profit,
-        row?.gross_profit,
-        row?.outstanding_balance,
-        row?.qty,
-      );
-
-      const subtitle = getFirstValue(
-        ...subtitleKeys.map((key) => row?.[key]),
-        row?.branch_id,
-        row?.product_id,
-        row?.customer_id,
-        row?.sales_channel,
-        row?.channel,
-        '',
-      );
-
-      const marginPercent = getFirstPercent(
-        row?.margin_percent,
-        row?.profit_margin_percent,
-        row?.margin,
-      );
-
-      return {
-        id: String(row?.id || row?.code || row?.branch_id || row?.product_id || row?.customer_id || row?.sales_channel || index),
-        name: String(name || `Data ${index + 1}`),
-        subtitle: String(subtitle || ''),
-        value,
-        value_type: valueType,
-        margin_percent: marginPercent,
-        raw: row,
-      };
-    })
-    .filter((row) => row.name)
-    .slice(0, limit);
+const isOwnerRole = (user = {}) => {
+  const role = normalizeCode(user.role || user.user_role || user.access_role || user.position || '');
+  return ['OWNER', 'DEWA'].includes(role);
 };
 
-const normalizeChannelRows = (source) => {
-  const rows = normalizeRankRows(source, {
-    nameKeys: ['sales_channel', 'channel', 'name', 'label'],
-    valueKeys: ['omzet', 'total_omzet', 'sales', 'value', 'amount', 'total_amount'],
-    subtitleKeys: ['total_transactions', 'transactions', 'count', 'subtitle'],
-    limit: 20,
-  });
-
-  const map = new Map();
-
-  rows.forEach((row) => {
-    map.set(normalizeCode(row.name), row);
-  });
-
-  return CHANNEL_ORDER.map((channel) => {
-    const row = map.get(channel);
-
-    return row || {
-      id: channel,
-      name: channel,
-      subtitle: 'Belum ada data dari orchestrator',
-      value: 0,
-      value_type: 'money',
-      margin_percent: 0,
-      raw: null,
-    };
-  });
+const getRowTitle = (row = {}, keys = []) => {
+  return String(
+    pickValue(row, keys) ||
+      row.name ||
+      row.label ||
+      row.branch_name ||
+      row.product_name ||
+      row.customer_name ||
+      row.supplier_name ||
+      row.channel ||
+      row.item_name ||
+      row.id ||
+      '-',
+  );
 };
 
-const normalizeWarnings = ({ rawWarnings, metrics }) => {
-  const orchestratorWarnings = safeArray(rawWarnings).map((warning, index) => {
-    const type = normalizeCode(warning?.type || warning?.code || warning?.warning_type || `WARNING_${index + 1}`);
-
-    return {
-      id: String(warning?.id || type || index),
-      type,
-      title: String(warning?.title || warning?.message || type.replaceAll('_', ' ')),
-      message: String(warning?.message || warning?.description || warning?.notes || ''),
-      severity: normalizeCode(warning?.severity || warning?.level || 'WARNING'),
-      amount: roundMoney(warning?.amount || warning?.value || 0),
-      raw: warning,
-    };
-  });
-
-  if (orchestratorWarnings.length > 0) return orchestratorWarnings;
-
-  const derived = [];
-
-  if (metrics.cashflow.cash_position < 0) {
-    derived.push({
-      id: 'CASH_NEGATIF',
-      type: 'CASH_NEGATIF',
-      title: 'Cash negatif',
-      message: 'Cash position dari orchestrator berada di bawah nol.',
-      severity: 'CRITICAL',
-      amount: metrics.cashflow.cash_position,
-    });
-  }
-
-  if (metrics.cashflow.total_piutang_overdue > 0) {
-    derived.push({
-      id: 'PIUTANG_OVERDUE_TINGGI',
-      type: 'PIUTANG_OVERDUE_TINGGI',
-      title: 'Piutang overdue tinggi',
-      message: 'Ada piutang overdue yang perlu ditagih.',
-      severity: 'WARNING',
-      amount: metrics.cashflow.total_piutang_overdue,
-    });
-  }
-
-  if (metrics.cashflow.total_hutang_due > 0) {
-    derived.push({
-      id: 'HUTANG_JATUH_TEMPO',
-      type: 'HUTANG_JATUH_TEMPO',
-      title: 'Hutang jatuh tempo',
-      message: 'Ada hutang supplier yang perlu diprioritaskan.',
-      severity: 'WARNING',
-      amount: metrics.cashflow.total_hutang_due,
-    });
-  }
-
-  if (metrics.inventory.critical_stock_count > 0) {
-    derived.push({
-      id: 'STOK_KRITIS',
-      type: 'STOK_KRITIS',
-      title: 'Stok kritis',
-      message: `${metrics.inventory.critical_stock_count} item stok kritis menurut orchestrator.`,
-      severity: 'WARNING',
-      amount: metrics.inventory.critical_stock_count,
-    });
-  }
-
-  if (metrics.kpi.net_profit < 0) {
-    derived.push({
-      id: 'PROFIT_NEGATIF',
-      type: 'PROFIT_NEGATIF',
-      title: 'Profit negatif',
-      message: 'Net profit periode ini negatif.',
-      severity: 'CRITICAL',
-      amount: metrics.kpi.net_profit,
-    });
-  }
-
-  if (derived.length === 0) {
-    derived.push({
-      id: 'BUSINESS_HEALTH_OK',
-      type: 'BUSINESS_HEALTH_OK',
-      title: 'Tidak ada warning kritis',
-      message: 'Tidak ada warning kritis yang dikirim dari orchestrator untuk periode ini.',
-      severity: 'INFO',
-      amount: 0,
-    });
-  }
-
-  return derived;
+const getRowSubtitle = (row = {}, keys = []) => {
+  return String(
+    pickValue(row, keys) ||
+      row.branch_id ||
+      row.product_id ||
+      row.customer_id ||
+      row.supplier_id ||
+      row.item_id ||
+      row.status ||
+      '',
+  );
 };
 
-const normalizeMetricsResponse = ({ response, apiName, dateRange }) => {
-  const base = response?.owner_analytics ||
-    response?.dashboard_metrics ||
-    response?.metrics ||
-    response?.data ||
-    response?.dashboard ||
-    response ||
-    {};
-
-  const kpiSource = base.kpi || base.financial || base.profit || base.summary || {};
-  const cashflowSource = base.cashflow || base.cash_flow || base.cash || {};
-  const analyticsSource = base.analytics || base.owner_analytics || base.breakdown || {};
-  const branchSource = analyticsSource.cabang || analyticsSource.branch || analyticsSource.branches || base.branch_analytics || {};
-  const productSource = analyticsSource.produk || analyticsSource.product || analyticsSource.products || base.product_analytics || {};
-  const customerSource = analyticsSource.customer || analyticsSource.customers || base.customer_analytics || {};
-  const channelSource = analyticsSource.channel || analyticsSource.channels || base.channel_analytics || {};
-  const inventorySource = base.inventory || base.stock || base.inventory_analytics || {};
-
-  const totalOmzet = getFirstNumber(
-    kpiSource.total_omzet,
-    kpiSource.omzet,
-    kpiSource.revenue,
-    kpiSource.sales,
-    base.total_omzet,
-  );
-
-  const totalHpp = getFirstNumber(
-    kpiSource.total_hpp,
-    kpiSource.hpp,
-    kpiSource.cogs,
-    kpiSource.total_cogs,
-    base.total_hpp,
-  );
-
-  const grossProfit = getFirstNumber(
-    kpiSource.gross_profit,
-    kpiSource.laba_kotor,
-    totalOmzet - totalHpp,
-  );
-
-  const netProfit = getFirstNumber(
-    kpiSource.net_profit,
-    kpiSource.laba_bersih,
-    kpiSource.operating_profit,
-    base.net_profit,
-    grossProfit,
-  );
-
-  const profitMarginPercent = getFirstPercent(
-    kpiSource.profit_margin_percent,
-    kpiSource.margin_percent,
-    totalOmzet > 0 ? (netProfit / totalOmzet) * 100 : 0,
-  );
-
-  const cashIn = getFirstNumber(
-    kpiSource.cash_in,
-    cashflowSource.cash_in,
-    cashflowSource.money_in,
-    base.cash_in,
-  );
-
-  const cashOut = getFirstNumber(
-    kpiSource.cash_out,
-    cashflowSource.cash_out,
-    cashflowSource.money_out,
-    base.cash_out,
-  );
-
-  const cashflowBersih = getFirstNumber(
-    kpiSource.cashflow_bersih,
-    cashflowSource.cashflow_bersih,
-    cashflowSource.net_cashflow,
-    cashIn - cashOut,
-  );
-
-  const saldoKas = getFirstNumber(
-    cashflowSource.saldo_kas,
-    cashflowSource.cash_balance,
-    cashflowSource.total_cash,
-  );
-
-  const saldoBank = getFirstNumber(
-    cashflowSource.saldo_bank,
-    cashflowSource.bank_balance,
-    cashflowSource.total_bank,
-  );
-
-  const totalPiutang = getFirstNumber(
-    cashflowSource.total_piutang,
-    cashflowSource.receivable,
-    cashflowSource.account_receivable,
-    base.total_piutang,
-  );
-
-  const totalHutang = getFirstNumber(
-    cashflowSource.total_hutang,
-    cashflowSource.payable,
-    cashflowSource.account_payable,
-    base.total_hutang,
-  );
-
-  const cashPosition = getFirstNumber(
-    cashflowSource.cash_position,
-    cashflowSource.net_cash_position,
-    saldoKas + saldoBank + totalPiutang - totalHutang,
-  );
-
-  const metrics = {
-    api_name: apiName,
-    generated_at: response?.generated_at || base.generated_at || new Date().toISOString(),
-    date_range: dateRange,
-
-    kpi: {
-      total_omzet: totalOmzet,
-      total_hpp: totalHpp,
-      gross_profit: grossProfit,
-      net_profit: netProfit,
-      profit_margin_percent: profitMarginPercent,
-      cash_in: cashIn,
-      cash_out: cashOut,
-      cashflow_bersih: cashflowBersih,
-      trends: {
-        total_omzet: getFirstPercent(kpiSource?.trends?.total_omzet, kpiSource?.trend_total_omzet),
-        net_profit: getFirstPercent(kpiSource?.trends?.net_profit, kpiSource?.trend_net_profit),
-        cashflow_bersih: getFirstPercent(kpiSource?.trends?.cashflow_bersih, kpiSource?.trend_cashflow_bersih),
-      },
-    },
-
-    cashflow: {
-      saldo_kas: saldoKas,
-      saldo_bank: saldoBank,
-      total_piutang: totalPiutang,
-      total_hutang: totalHutang,
-      cash_position: cashPosition,
-      total_piutang_overdue: getFirstNumber(
-        cashflowSource.total_piutang_overdue,
-        cashflowSource.overdue_receivable,
-        cashflowSource.overdue_receivable_amount,
-      ),
-      total_hutang_due: getFirstNumber(
-        cashflowSource.total_hutang_due,
-        cashflowSource.payable_due,
-        cashflowSource.due_payable_amount,
-      ),
-    },
-
-    inventory: {
-      critical_stock_count: toNumber(
-        getFirstValue(
-          inventorySource.critical_stock_count,
-          inventorySource.stok_kritis,
-          inventorySource.critical_count,
-          0,
-        ),
-      ),
-    },
-
-    analytics: {
-      branches: {
-        top_omzet: normalizeRankRows(branchSource.top_omzet || branchSource.top_revenue || branchSource.omzet, {
-          nameKeys: ['branch_name', 'name', 'branch_id'],
-          valueKeys: ['total_omzet', 'omzet', 'revenue', 'value'],
-          subtitleKeys: ['branch_id', 'branch_code'],
-        }),
-        top_profit: normalizeRankRows(branchSource.top_profit || branchSource.profit, {
-          nameKeys: ['branch_name', 'name', 'branch_id'],
-          valueKeys: ['net_profit', 'gross_profit', 'profit', 'value'],
-          subtitleKeys: ['branch_id', 'branch_code'],
-        }),
-        cabang_rugi: normalizeRankRows(branchSource.cabang_rugi || branchSource.loss_branches || branchSource.loss, {
-          nameKeys: ['branch_name', 'name', 'branch_id'],
-          valueKeys: ['loss', 'net_profit', 'profit', 'value'],
-          subtitleKeys: ['branch_id', 'branch_code'],
-        }),
-      },
-
-      products: {
-        produk_terlaris: normalizeRankRows(productSource.produk_terlaris || productSource.best_selling || productSource.top_qty, {
-          nameKeys: ['product_name', 'name', 'product_id'],
-          valueKeys: ['qty', 'total_qty', 'sold_qty', 'value'],
-          subtitleKeys: ['product_id', 'product_code'],
-          valueType: 'qty',
-        }),
-        produk_profit_tertinggi: normalizeRankRows(productSource.produk_profit_tertinggi || productSource.top_profit || productSource.profit, {
-          nameKeys: ['product_name', 'name', 'product_id'],
-          valueKeys: ['profit', 'gross_profit', 'net_profit', 'value'],
-          subtitleKeys: ['product_id', 'product_code'],
-        }),
-        produk_margin_terendah: normalizeRankRows(productSource.produk_margin_terendah || productSource.lowest_margin || productSource.margin_low, {
-          nameKeys: ['product_name', 'name', 'product_id'],
-          valueKeys: ['margin_percent', 'profit_margin_percent', 'margin', 'value'],
-          subtitleKeys: ['product_id', 'product_code'],
-          valueType: 'percent',
-        }),
-      },
-
-      customers: {
-        top_customer: normalizeRankRows(customerSource.top_customer || customerSource.customer || customerSource.top, {
-          nameKeys: ['customer_name', 'name', 'customer_id'],
-          valueKeys: ['total_omzet', 'omzet', 'revenue', 'value'],
-          subtitleKeys: ['customer_id', 'customer_type'],
-        }),
-        top_reseller: normalizeRankRows(customerSource.top_reseller || customerSource.reseller, {
-          nameKeys: ['customer_name', 'name', 'customer_id'],
-          valueKeys: ['total_omzet', 'omzet', 'revenue', 'value'],
-          subtitleKeys: ['customer_id', 'customer_type'],
-        }),
-        top_distributor: normalizeRankRows(customerSource.top_distributor || customerSource.distributor, {
-          nameKeys: ['customer_name', 'name', 'customer_id'],
-          valueKeys: ['total_omzet', 'omzet', 'revenue', 'value'],
-          subtitleKeys: ['customer_id', 'customer_type'],
-        }),
-      },
-
-      channels: normalizeChannelRows(
-        channelSource.channel_breakdown ||
-        channelSource.breakdown ||
-        channelSource.sales_channel ||
-        channelSource,
-      ),
-    },
-  };
-
-  return {
-    ...metrics,
-    warnings: normalizeWarnings({
-      rawWarnings: base.warnings || base.alerts || base.warning_system || response?.warnings,
-      metrics,
-    }),
-    raw_response: response,
-  };
+const getRowMetric = (row = {}, keys = []) => {
+  return pickValue(row, keys);
 };
 
-const getMaxValue = (rows) => {
-  return Math.max(...safeArray(rows).map((row) => Math.abs(toNumber(row.value))), 1);
-};
+const getTrendTone = (direction) => {
+  const normalized = normalizeCode(direction);
 
-const getDisplayValue = (row) => {
-  if (row.value_type === 'percent') return formatPercent(row.value);
-  if (row.value_type === 'qty') return toNumber(row.value).toLocaleString('id-ID');
-  return formatMoney(row.value);
+  if (normalized === 'UP') return 'text-emerald-700 bg-emerald-50 border-emerald-100';
+  if (normalized === 'DOWN') return 'text-red-700 bg-red-50 border-red-100';
+
+  return 'text-slate-600 bg-slate-50 border-slate-100';
 };
 
 const Badge = ({ children, tone = 'slate' }) => {
-  const toneMap = {
-    red: 'bg-red-50 text-red-700 border-red-100',
-    green: 'bg-emerald-50 text-emerald-700 border-emerald-100',
-    amber: 'bg-amber-50 text-amber-700 border-amber-100',
-    slate: 'bg-slate-50 text-slate-600 border-slate-100',
-    dark: 'bg-slate-900 text-white border-slate-900',
-    purple: 'bg-purple-50 text-purple-700 border-purple-100',
+  const toneClass = {
+    red: 'border-red-100 bg-red-50 text-red-700',
+    green: 'border-emerald-100 bg-emerald-50 text-emerald-700',
+    gold: 'border-amber-100 bg-amber-50 text-amber-700',
+    slate: 'border-slate-100 bg-slate-50 text-slate-600',
+    dark: 'border-slate-800 bg-slate-950 text-white',
   };
 
   return (
-    <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-black ${toneMap[tone] || toneMap.slate}`}>
+    <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${toneClass[tone] || toneClass.slate}`}>
       {children}
     </span>
   );
 };
 
-const TrendBadge = ({ value }) => {
-  const numeric = roundPercent(value);
-  const isPositive = numeric >= 0;
-
-  return (
-    <div className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-black ${
-      isPositive ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
-    }`}>
-      {isPositive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-      {formatPercent(numeric)}
-    </div>
-  );
-};
-
 const KpiCard = ({ title, value, icon, tone = 'white', subtitle = '', trend = null }) => {
-  const toneMap = {
+  const toneClass = {
     red: 'bg-red-600 text-white',
-    white: 'bg-white text-slate-800 border border-slate-100',
-    gold: 'bg-amber-50 text-amber-800 border border-amber-100',
     dark: 'bg-slate-950 text-white',
+    gold: 'border border-amber-100 bg-amber-50 text-amber-900',
+    white: 'border border-slate-100 bg-white text-slate-900',
   };
 
   return (
-    <div className={`rounded-[2rem] p-5 shadow-sm ${toneMap[tone] || toneMap.white}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-[10px] font-black uppercase tracking-[0.18em] opacity-70">{title}</div>
-          <div className="mt-2 text-2xl font-black tracking-tight">{value}</div>
+    <div className={`rounded-[2rem] p-5 shadow-sm ${toneClass[tone] || toneClass.white}`}>
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="text-[10px] font-black uppercase tracking-[0.18em] opacity-70">
+            {title}
+          </div>
+          <div className="mt-2 break-words text-2xl font-black tracking-tight">
+            {value}
+          </div>
           {subtitle && (
-            <div className="mt-1 text-[11px] font-bold opacity-70">{subtitle}</div>
+            <div className="mt-1 text-[11px] font-bold opacity-70">
+              {subtitle}
+            </div>
           )}
-          {trend !== null && (
-            <div className="mt-3">
-              <TrendBadge value={trend} />
+          {trend && (
+            <div className={`mt-3 inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-black ${getTrendTone(trend.direction)}`}>
+              {normalizeCode(trend.direction) === 'DOWN' ? <TrendingDown size={12} /> : <TrendingUp size={12} />}
+              {formatPercent(trend.changePercent)}
             </div>
           )}
         </div>
-        <div className="rounded-2xl border border-white/50 bg-white/80 p-3 text-red-600 shadow-sm">
+
+        <div className="rounded-2xl border border-white/60 bg-white/80 p-3 text-red-600 shadow-sm">
           {icon}
         </div>
       </div>
@@ -686,50 +284,75 @@ const SectionCard = ({ title, subtitle, icon, children }) => (
   <div className="rounded-[2rem] border border-slate-100 bg-white shadow-sm">
     <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-5">
       <div>
-        <h2 className="flex items-center gap-2 text-sm font-black text-slate-900">
+        <div className="flex items-center gap-2 text-sm font-black text-slate-900">
           <span className="text-red-600">{icon}</span>
           {title}
-        </h2>
+        </div>
         {subtitle && (
-          <p className="mt-1 text-[11px] font-semibold text-slate-400">{subtitle}</p>
+          <p className="mt-1 text-[11px] font-semibold leading-relaxed text-slate-400">
+            {subtitle}
+          </p>
         )}
       </div>
     </div>
-    <div className="p-5">{children}</div>
+    <div className="p-5">
+      {children}
+    </div>
   </div>
 );
 
-const RankList = ({ rows, emptyText = 'Belum ada data dari orchestrator.' }) => {
-  const maxValue = getMaxValue(rows);
+const EmptyState = ({ text = 'Belum ada data dari orchestrator.' }) => (
+  <div className="rounded-3xl border border-amber-100 bg-amber-50 p-5 text-sm font-bold leading-relaxed text-amber-800">
+    {text}
+  </div>
+);
 
-  if (!rows || rows.length === 0) {
-    return (
-      <div className="rounded-3xl border border-amber-100 bg-amber-50 p-5 text-sm font-bold text-amber-800">
-        {emptyText}
-      </div>
-    );
-  }
+const RankList = ({
+  rows,
+  titleKeys = [],
+  subtitleKeys = [],
+  valueKeys = [],
+  valueType = 'money',
+}) => {
+  const list = safeArray(rows);
+  const maxValue = Math.max(
+    1,
+    ...list.map((row) => Math.abs(toNumber(getRowMetric(row, valueKeys)))),
+  );
+
+  if (list.length === 0) return <EmptyState />;
 
   return (
     <div className="space-y-3">
-      {rows.map((row, index) => {
-        const width = Math.max((Math.abs(toNumber(row.value)) / maxValue) * 100, 4);
+      {list.map((row, index) => {
+        const metric = getRowMetric(row, valueKeys);
+        const width = Math.max((Math.abs(toNumber(metric)) / maxValue) * 100, 4);
+        const valueLabel = valueType === 'percent'
+          ? formatPercent(metric)
+          : valueType === 'number'
+            ? formatNumber(metric)
+            : formatMoney(metric);
 
         return (
-          <div key={`${row.id}-${index}`} className="rounded-3xl border border-slate-100 bg-slate-50/70 p-4">
+          <div key={`${getRowTitle(row, titleKeys)}-${index}`} className="rounded-3xl border border-slate-100 bg-slate-50/70 p-4">
             <div className="mb-3 flex items-start justify-between gap-3">
-              <div>
+              <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-[10px] font-black text-white">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-600 text-[10px] font-black text-white">
                     {index + 1}
                   </span>
-                  <div className="text-sm font-black text-slate-900">{row.name}</div>
+                  <div className="truncate text-sm font-black text-slate-900">
+                    {getRowTitle(row, titleKeys)}
+                  </div>
                 </div>
-                {row.subtitle && (
-                  <div className="mt-1 pl-8 text-[11px] font-bold text-slate-400">{row.subtitle}</div>
-                )}
+                <div className="mt-1 truncate pl-8 text-[11px] font-bold text-slate-400">
+                  {getRowSubtitle(row, subtitleKeys)}
+                </div>
               </div>
-              <div className="text-right text-sm font-black text-slate-900">{getDisplayValue(row)}</div>
+
+              <div className="shrink-0 text-right text-sm font-black text-slate-900">
+                {valueLabel}
+              </div>
             </div>
 
             <div className="h-2 overflow-hidden rounded-full bg-white">
@@ -738,12 +361,6 @@ const RankList = ({ rows, emptyText = 'Belum ada data dari orchestrator.' }) => 
                 style={{ width: `${width}%` }}
               />
             </div>
-
-            {row.margin_percent !== 0 && row.value_type !== 'percent' && (
-              <div className="mt-2 text-right text-[11px] font-bold text-slate-400">
-                Margin {formatPercent(row.margin_percent)}
-              </div>
-            )}
           </div>
         );
       })}
@@ -751,39 +368,173 @@ const RankList = ({ rows, emptyText = 'Belum ada data dari orchestrator.' }) => 
   );
 };
 
-const WarningCard = ({ warning }) => {
-  const severity = normalizeCode(warning.severity);
-  const isCritical = severity === 'CRITICAL' || warning.type === 'PROFIT_NEGATIF' || warning.type === 'CASH_NEGATIF';
-  const isInfo = severity === 'INFO';
+const MiniMetricCard = ({ title, value, icon, tone = 'white' }) => {
+  const toneClass = {
+    red: 'border-red-100 bg-red-50 text-red-900',
+    gold: 'border-amber-100 bg-amber-50 text-amber-900',
+    green: 'border-emerald-100 bg-emerald-50 text-emerald-900',
+    white: 'border-slate-100 bg-white text-slate-900',
+    dark: 'border-slate-800 bg-slate-950 text-white',
+  };
 
   return (
-    <div className={`rounded-[2rem] border p-5 shadow-sm ${
-      isCritical
-        ? 'border-red-100 bg-red-50'
-        : isInfo
-          ? 'border-emerald-100 bg-emerald-50'
-          : 'border-amber-100 bg-amber-50'
-    }`}>
-      <div className="flex items-start gap-4">
-        <div className={`rounded-2xl bg-white p-3 shadow-sm ${
-          isCritical ? 'text-red-600' : isInfo ? 'text-emerald-700' : 'text-amber-700'
-        }`}>
-          {isInfo ? <CheckCircle size={20} /> : <AlertTriangle size={20} />}
+    <div className={`rounded-3xl border p-5 shadow-sm ${toneClass[tone] || toneClass.white}`}>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="text-[10px] font-black uppercase tracking-[0.16em] opacity-60">
+            {title}
+          </div>
+          <div className="mt-2 text-xl font-black">
+            {value}
+          </div>
         </div>
-        <div className="min-w-0 flex-1">
-          <div className={`text-sm font-black ${isCritical ? 'text-red-900' : isInfo ? 'text-emerald-900' : 'text-amber-900'}`}>
-            {warning.title}
-          </div>
-          <div className={`mt-1 text-xs font-bold ${isCritical ? 'text-red-700' : isInfo ? 'text-emerald-700' : 'text-amber-700'}`}>
-            {warning.message || warning.type}
-          </div>
-          {toNumber(warning.amount) !== 0 && (
-            <div className="mt-3">
-              <Badge tone={isCritical ? 'red' : 'amber'}>{formatMoney(warning.amount)}</Badge>
-            </div>
-          )}
+        <div className="rounded-2xl bg-white/80 p-3 text-red-600 shadow-sm">
+          {icon}
         </div>
       </div>
+    </div>
+  );
+};
+
+const WarningCard = ({ warning }) => {
+  const severity = normalizeCode(warning?.severity || '');
+  const type = normalizeCode(warning?.type || warning?.id || '');
+  const isCritical = severity === 'CRITICAL' || ['NEGATIVECASH', 'NEGATIVEPROFIT'].includes(type);
+  const isInfo = severity === 'INFO' || type === 'BUSINESSHEALTHOK';
+
+  const wrapperClass = isCritical
+    ? 'border-red-100 bg-red-50'
+    : isInfo
+      ? 'border-emerald-100 bg-emerald-50'
+      : 'border-amber-100 bg-amber-50';
+
+  const textClass = isCritical
+    ? 'text-red-900'
+    : isInfo
+      ? 'text-emerald-900'
+      : 'text-amber-900';
+
+  const Icon = isInfo ? CheckCircle : AlertTriangle;
+
+  return (
+    <div className={`rounded-[2rem] border p-5 shadow-sm ${wrapperClass}`}>
+      <div className="flex items-start gap-4">
+        <div className="rounded-2xl bg-white p-3 text-red-600 shadow-sm">
+          <Icon size={20} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className={`text-sm font-black ${textClass}`}>
+            {warning?.title || warning?.type || 'Warning'}
+          </div>
+          <div className={`mt-1 text-xs font-bold leading-relaxed ${textClass} opacity-80`}>
+            {warning?.message || warning?.action_hint || '-'}
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Badge tone={isCritical ? 'red' : isInfo ? 'green' : 'gold'}>
+              {warning?.severity || 'INFO'}
+            </Badge>
+            {hasValue(warning?.amount) && toNumber(warning.amount) !== 0 && (
+              <Badge tone={isCritical ? 'red' : 'gold'}>
+                {formatMoney(warning.amount)}
+              </Badge>
+            )}
+            {hasValue(warning?.count) && toNumber(warning.count) > 0 && (
+              <Badge tone="slate">
+                {formatNumber(warning.count)} item
+              </Badge>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const TrendCard = ({ title, trend, icon }) => {
+  if (!trend) {
+    return (
+      <div className="rounded-3xl border border-slate-100 bg-slate-50/70 p-5">
+        <div className="text-sm font-black text-slate-900">{title}</div>
+        <div className="mt-2 text-xs font-bold text-slate-400">Belum ada trend dari orchestrator.</div>
+      </div>
+    );
+  }
+
+  const direction = normalizeCode(trend.direction);
+  const Icon = direction === 'DOWN' ? TrendingDown : TrendingUp;
+
+  return (
+    <div className="rounded-3xl border border-slate-100 bg-slate-50/70 p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+            {title}
+          </div>
+          <div className="mt-2 text-xl font-black text-slate-900">
+            {formatMoney(trend.currentValue)}
+          </div>
+          <div className="mt-1 text-[11px] font-bold text-slate-400">
+            Previous: {formatMoney(trend.previousValue)}
+          </div>
+        </div>
+
+        <div className="rounded-2xl bg-white p-3 text-red-600 shadow-sm">
+          {icon}
+        </div>
+      </div>
+
+      <div className={`mt-4 inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-[11px] font-black ${getTrendTone(trend.direction)}`}>
+        <Icon size={14} />
+        {formatPercent(trend.changePercent)}
+      </div>
+    </div>
+  );
+};
+
+const InventoryList = ({ rows, emptyText }) => {
+  const list = safeArray(rows);
+
+  if (list.length === 0) {
+    return <EmptyState text={emptyText} />;
+  }
+
+  return (
+    <div className="space-y-3">
+      {list.slice(0, 8).map((item, index) => (
+        <div key={`${item.item_id || item.item_name || index}`} className="rounded-3xl border border-slate-100 bg-slate-50/70 p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="truncate text-sm font-black text-slate-900">
+                {item.item_name || item.item_id || '-'}
+              </div>
+              <div className="mt-1 text-[11px] font-bold text-slate-400">
+                {item.branch_id || '-'} · {item.warehouse_id || '-'}
+              </div>
+            </div>
+
+            <div className="shrink-0 text-right">
+              <div className="text-sm font-black text-slate-900">
+                {formatNumber(item.current_qty)}
+              </div>
+              <div className="mt-1 text-[10px] font-bold text-slate-400">
+                Min: {formatNumber(item.minimum_qty)}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Badge tone={normalizeCode(item.status) === 'CRITICAL' ? 'red' : normalizeCode(item.status) === 'LOW' ? 'gold' : 'slate'}>
+              {item.status || 'STOCK'}
+            </Badge>
+            {item.last_movement_date && (
+              <Badge tone="slate">
+                Last: {formatDate(item.last_movement_date)}
+              </Badge>
+            )}
+          </div>
+        </div>
+      ))}
     </div>
   );
 };
@@ -793,179 +544,111 @@ const AccessDenied = () => (
     <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-white text-red-600 shadow-sm">
       <LockKeyhole size={28} />
     </div>
-    <h2 className="mt-4 text-xl font-black text-red-900">Akses Owner Dashboard Ditolak</h2>
+    <h2 className="mt-4 text-2xl font-black text-red-900">
+      ACCESS DENIED
+    </h2>
     <p className="mx-auto mt-2 max-w-xl text-sm font-bold leading-relaxed text-red-700">
-      Dashboard Profit Owner hanya dapat diakses oleh role OWNER atau DEWA. Modul ini bersifat read only dan khusus Owner Command Center.
+      Dashboard ini hanya bisa diakses oleh OWNER atau DEWA.
     </p>
   </div>
 );
 
 export default function TabDashboardProfitOwner({
   dbData = {},
-  user,
-  showToast,
+  source = null,
+  user = {},
 }) {
-  const todayStr = getTodayStr();
-
   const [period, setPeriod] = useState('TODAY');
-  const [customStart, setCustomStart] = useState(todayStr);
-  const [customEnd, setCustomEnd] = useState(todayStr);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [customStart, setCustomStart] = useState(getTodayStr());
+  const [customEnd, setCustomEnd] = useState(getTodayStr());
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const [isLoading, setIsLoading] = useState(false);
-  const [dashboardState, setDashboardState] = useState({
-    status: 'IDLE',
-    dependencyMissing: false,
-    apiName: '',
-    message: '',
-    metrics: null,
-  });
+  const ownerAllowed = isOwnerRole(user);
+  const dateRange = useMemo(() => resolveDateRange(period, customStart, customEnd), [period, customStart, customEnd]);
+  const sourceData = source || dbData || {};
 
-  const role = normalizeCode(user?.role || user?.user_role || user?.access_role || '');
-  const isOwnerAllowed = ['OWNER', 'DEWA', 'AKUN_DEWA'].includes(role);
-
-  const dateRange = useMemo(() => {
-    return resolveDateRange({
-      period,
-      customStart,
-      customEnd,
-      todayStr,
-    });
-  }, [period, customStart, customEnd, todayStr]);
-
-  const notify = (message, type = 'success') => {
-    if (typeof showToast === 'function') {
-      showToast(message, type);
+  const analyticsState = useMemo(() => {
+    if (!ownerAllowed) {
+      return {
+        ok: false,
+        status: 'ACCESS_DENIED',
+        analytics: null,
+        message: 'ACCESS DENIED',
+      };
     }
-  };
 
-  useEffect(() => {
-    if (!isOwnerAllowed) return;
+    if (typeof erpOrchestrator?.getOwnerAnalytics !== 'function') {
+      return {
+        ok: false,
+        status: 'MISSING_API',
+        analytics: null,
+        message: 'erpOrchestrator.getOwnerAnalytics() belum tersedia.',
+      };
+    }
 
-    let isMounted = true;
-
-    const loadMetrics = async () => {
-      const hasOwnerAnalytics = typeof erpOrchestrator?.getOwnerAnalytics === 'function';
-      const hasDashboardMetrics = typeof erpOrchestrator?.getDashboardMetrics === 'function';
-
-      if (!hasOwnerAnalytics && !hasDashboardMetrics) {
-        if (!isMounted) return;
-
-        setDashboardState({
-          status: 'DEPENDENCY_MISSING',
-          dependencyMissing: true,
-          apiName: '',
-          message: 'Dependency belum tersedia: erpOrchestrator.getOwnerAnalytics() atau erpOrchestrator.getDashboardMetrics().',
-          metrics: null,
-        });
-
-        return;
-      }
-
-      const apiName = hasOwnerAnalytics ? 'getOwnerAnalytics' : 'getDashboardMetrics';
-      const api = hasOwnerAnalytics ? erpOrchestrator.getOwnerAnalytics : erpOrchestrator.getDashboardMetrics;
-
-      setIsLoading(true);
-
-      try {
-        const input = {
-          scope: 'OWNER',
-          readonly: true,
+    try {
+      const analytics = erpOrchestrator.getOwnerAnalytics(
+        {
           period,
-          start_date: dateRange.start_date,
-          end_date: dateRange.end_date,
-          requested_kpi: [
-            'TOTAL_OMZET',
-            'TOTAL_HPP',
-            'GROSS_PROFIT',
-            'NET_PROFIT',
-            'PROFIT_MARGIN_PERCENT',
-            'CASH_IN',
-            'CASH_OUT',
-            'CASHFLOW_BERSIH',
-          ],
-          requested_analytics: [
-            'CABANG',
-            'PRODUK',
-            'CUSTOMER',
-            'CHANNEL',
-            'CASHFLOW',
-            'WARNING_SYSTEM',
-          ],
-        };
-
-        const context = {
-          source: dbData,
-          dbData,
-          masterData: dbData,
-          user,
-          executor: user?.email || user?.name || 'OWNER_DASHBOARD',
+          start_date: dateRange.startDate,
+          end_date: dateRange.endDate,
           readonly: true,
-        };
+          scope: 'OWNER_COMMAND_CENTER',
+        },
+        {
+          source: sourceData,
+          dbData: sourceData,
+          user,
+          readonly: true,
+          executor: user?.email || user?.name || user?.username || 'OWNER_COMMAND_CENTER',
+        },
+      );
 
-        const response = await Promise.resolve(api(input, context));
+      return {
+        ok: true,
+        status: 'READY',
+        analytics,
+        message: '',
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        status: 'ERROR',
+        analytics: null,
+        message: error?.message || 'Gagal membaca Owner Analytics dari erpOrchestrator.',
+      };
+    }
+  }, [ownerAllowed, period, dateRange.startDate, dateRange.endDate, sourceData, user, refreshKey]);
 
-        if (!isMounted) return;
-
-        const metrics = normalizeMetricsResponse({
-          response,
-          apiName,
-          dateRange,
-        });
-
-        setDashboardState({
-          status: 'READY',
-          dependencyMissing: false,
-          apiName,
-          message: '',
-          metrics,
-        });
-      } catch (error) {
-        if (!isMounted) return;
-
-        setDashboardState({
-          status: 'ERROR',
-          dependencyMissing: false,
-          apiName,
-          message: error?.message || 'Gagal mengambil Owner Analytics dari erpOrchestrator.',
-          metrics: null,
-        });
-
-        notify(error?.message || 'Gagal mengambil Owner Analytics.', 'error');
-      } finally {
-        if (isMounted) setIsLoading(false);
-      }
-    };
-
-    loadMetrics();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [isOwnerAllowed, period, dateRange, refreshKey, dbData, user]);
-
-  const metrics = dashboardState.metrics;
-
-  const filteredChannelRows = useMemo(() => {
-    const keyword = normalizeText(searchQuery);
-
-    if (!metrics?.analytics?.channels) return [];
-
-    if (!keyword) return metrics.analytics.channels;
-
-    return metrics.analytics.channels.filter((row) => {
-      return normalizeText(`${row.name} ${row.subtitle}`).includes(keyword);
-    });
-  }, [metrics, searchQuery]);
-
-  if (!isOwnerAllowed) {
+  if (!ownerAllowed) {
     return (
       <div className="space-y-6 pb-10 text-slate-700 normal-case">
         <AccessDenied />
       </div>
     );
   }
+
+  const analytics = analyticsState.analytics || {};
+  const summary = analytics.summary || {};
+  const branchAnalytics = analytics.branchAnalytics || {};
+  const productAnalytics = analytics.productAnalytics || {};
+  const customerAnalytics = analytics.customerAnalytics || {};
+  const channelAnalytics = analytics.channelAnalytics || {};
+  const cashflowAnalytics = analytics.cashflowAnalytics || {};
+  const inventoryAnalytics = analytics.inventoryAnalytics || {};
+  const warningCards = safeArray(analytics.warningCards);
+  const trendAnalytics = analytics.trendAnalytics || {};
+
+  const channelRows = CHANNELS.map((channel) => {
+    const row = channelAnalytics[channel.key] || channelAnalytics[channel.code] || {};
+
+    return {
+      ...row,
+      channel: row.channel || channel.code,
+      label: channel.label,
+      icon: channel.icon,
+    };
+  });
 
   return (
     <div className="space-y-6 pb-10 text-slate-700 normal-case">
@@ -975,7 +658,7 @@ export default function TabDashboardProfitOwner({
 
         <div className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
           <div>
-            <div className="mb-2 flex items-center gap-2">
+            <div className="mb-3 flex items-center gap-2">
               <div className="rounded-2xl bg-red-600 p-2 shadow-sm">
                 <Crown size={20} />
               </div>
@@ -987,14 +670,14 @@ export default function TabDashboardProfitOwner({
               Dashboard Profit Owner
             </h1>
             <p className="mt-2 max-w-3xl text-sm font-medium leading-relaxed text-slate-300">
-              Pusat kontrol keuntungan dan kesehatan bisnis Dimsum Aditya. Dashboard ini read only dan seluruh data berasal dari erpOrchestrator.
+              Thin UI read only untuk membaca profit, cashflow, inventory, customer, channel, dan warning bisnis dari erpOrchestrator.
             </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Badge tone="dark">OWNER ONLY</Badge>
-            <Badge tone="amber">READ ONLY</Badge>
-            <Badge tone="green">{dashboardState.apiName || 'ORCHESTRATOR API'}</Badge>
+            <Badge tone="dark">ONE ERP HEART</Badge>
+            <Badge tone="gold">READ ONLY</Badge>
+            <Badge tone="green">getOwnerAnalytics()</Badge>
           </div>
         </div>
       </div>
@@ -1002,12 +685,12 @@ export default function TabDashboardProfitOwner({
       <div className="rounded-[2rem] border border-slate-100 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div>
-            <h2 className="flex items-center gap-2 text-sm font-black text-slate-900">
-              <Filter size={17} className="text-red-600" />
+            <div className="flex items-center gap-2 text-sm font-black text-slate-900">
+              <CalendarClock size={17} className="text-red-600" />
               Filter Periode
-            </h2>
+            </div>
             <p className="mt-1 text-[11px] font-semibold text-slate-400">
-              Periode dikirim sebagai parameter ke orchestrator. UI tidak membaca tabel transaksi langsung.
+              Periode hanya dikirim ke orchestrator. UI tidak menghitung KPI sendiri.
             </p>
           </div>
 
@@ -1018,7 +701,7 @@ export default function TabDashboardProfitOwner({
                   key={item.id}
                   type="button"
                   onClick={() => setPeriod(item.id)}
-                  className={`rounded-2xl px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] transition-all ${
+                  className={`rounded-2xl px-4 py-3 text-[10px] font-black uppercase tracking-[0.14em] transition-all ${
                     period === item.id
                       ? 'bg-red-600 text-white shadow-sm'
                       : 'border border-slate-200 bg-white text-slate-500 hover:bg-red-50 hover:text-red-600'
@@ -1035,13 +718,13 @@ export default function TabDashboardProfitOwner({
                   type="date"
                   value={customStart}
                   onChange={(event) => setCustomStart(event.target.value)}
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-black text-slate-600 outline-none focus:border-red-500"
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-black text-slate-600 outline-none transition-all focus:border-red-500 focus:ring-4 focus:ring-red-50"
                 />
                 <input
                   type="date"
                   value={customEnd}
                   onChange={(event) => setCustomEnd(event.target.value)}
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-black text-slate-600 outline-none focus:border-red-500"
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-black text-slate-600 outline-none transition-all focus:border-red-500 focus:ring-4 focus:ring-red-50"
                 />
               </div>
             )}
@@ -1049,298 +732,438 @@ export default function TabDashboardProfitOwner({
             <button
               type="button"
               onClick={() => setRefreshKey((prev) => prev + 1)}
-              className="flex items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-amber-700 transition-all hover:bg-amber-100"
+              className="flex items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-amber-700 transition-all hover:bg-amber-100"
             >
-              <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
+              <RefreshCw size={14} />
               Refresh
             </button>
           </div>
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-2">
+        <div className="mt-4 flex flex-wrap gap-2">
           <Badge tone="slate">
-            <CalendarClock size={12} className="mr-1" />
-            {dateRange.start_date ? formatDate(dateRange.start_date) : '-'} — {dateRange.end_date ? formatDate(dateRange.end_date) : '-'}
+            {formatDate(dateRange.startDate)} — {formatDate(dateRange.endDate)}
           </Badge>
-          <Badge tone="dark">Generated: {metrics?.generated_at ? formatDate(metrics.generated_at) : '-'}</Badge>
+          <Badge tone={analyticsState.ok ? 'green' : 'red'}>
+            {analyticsState.status}
+          </Badge>
+          {analytics?.generated_at && (
+            <Badge tone="dark">
+              Generated: {formatDate(analytics.generated_at)}
+            </Badge>
+          )}
         </div>
       </div>
 
-      {dashboardState.dependencyMissing && (
+      {!analyticsState.ok && (
         <div className="rounded-[2rem] border border-red-100 bg-red-50 p-6 shadow-sm">
           <div className="flex items-start gap-4">
             <div className="rounded-2xl bg-white p-3 text-red-600 shadow-sm">
               <AlertTriangle size={22} />
             </div>
             <div>
-              <h2 className="text-sm font-black text-red-900">Dependency Orchestrator Belum Tersedia</h2>
-              <p className="mt-1 text-sm font-bold leading-relaxed text-red-700">
-                {dashboardState.message}
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Badge tone="red">Tambahkan di src/services/erpOrchestrator.js</Badge>
-                <Badge tone="dark">UI tidak boleh fallback baca tabel langsung</Badge>
+              <div className="text-sm font-black text-red-900">
+                Dashboard belum bisa dimuat
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {dashboardState.status === 'ERROR' && (
-        <div className="rounded-[2rem] border border-red-100 bg-red-50 p-6 shadow-sm">
-          <div className="flex items-start gap-4">
-            <div className="rounded-2xl bg-white p-3 text-red-600 shadow-sm">
-              <AlertTriangle size={22} />
-            </div>
-            <div>
-              <h2 className="text-sm font-black text-red-900">Gagal Memuat Dashboard</h2>
               <p className="mt-1 text-sm font-bold leading-relaxed text-red-700">
-                {dashboardState.message}
+                {analyticsState.message}
               </p>
             </div>
           </div>
         </div>
       )}
 
-      {metrics && (
+      {analyticsState.ok && (
         <>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             <KpiCard
               title="Total Omzet"
-              value={formatMoney(metrics.kpi.total_omzet)}
-              icon={<ReceiptText size={18} />}
+              value={formatMoney(summary.totalRevenue)}
+              icon={<BadgeDollarSign size={18} />}
               tone="red"
-              trend={metrics.kpi.trends.total_omzet}
+              trend={trendAnalytics.revenueTrend}
             />
             <KpiCard
               title="Total HPP"
-              value={formatMoney(metrics.kpi.total_hpp)}
+              value={formatMoney(summary.totalCOGS)}
               icon={<Package size={18} />}
               tone="white"
-              subtitle="COGS aktual dari orchestrator"
+              subtitle="Dari orchestrator"
             />
             <KpiCard
               title="Gross Profit"
-              value={formatMoney(metrics.kpi.gross_profit)}
-              icon={<BadgeDollarSign size={18} />}
+              value={formatMoney(summary.grossProfit)}
+              icon={<Trophy size={18} />}
               tone="gold"
             />
             <KpiCard
               title="Net Profit"
-              value={formatMoney(metrics.kpi.net_profit)}
+              value={formatMoney(summary.netProfit)}
               icon={<TrendingUp size={18} />}
-              tone={metrics.kpi.net_profit < 0 ? 'dark' : 'white'}
-              trend={metrics.kpi.trends.net_profit}
+              tone={toNumber(summary.netProfit) < 0 ? 'dark' : 'white'}
+              trend={trendAnalytics.profitTrend}
             />
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             <KpiCard
               title="Profit Margin"
-              value={formatPercent(metrics.kpi.profit_margin_percent)}
+              value={formatPercent(summary.profitMargin)}
               icon={<Target size={18} />}
-              tone={metrics.kpi.profit_margin_percent < 0 ? 'dark' : 'white'}
+              tone={toNumber(summary.profitMargin) < 0 ? 'dark' : 'white'}
             />
             <KpiCard
               title="Cash In"
-              value={formatMoney(metrics.kpi.cash_in)}
+              value={formatMoney(summary.cashIn)}
               icon={<ArrowDownCircle size={18} />}
               tone="white"
             />
             <KpiCard
               title="Cash Out"
-              value={formatMoney(metrics.kpi.cash_out)}
+              value={formatMoney(summary.cashOut)}
               icon={<ArrowUpCircle size={18} />}
               tone="white"
             />
             <KpiCard
-              title="Cashflow Bersih"
-              value={formatMoney(metrics.kpi.cashflow_bersih)}
+              title="Net Cashflow"
+              value={formatMoney(summary.netCashflow)}
               icon={<Activity size={18} />}
-              tone={metrics.kpi.cashflow_bersih < 0 ? 'dark' : 'gold'}
-              trend={metrics.kpi.trends.cashflow_bersih}
+              tone={toNumber(summary.netCashflow) < 0 ? 'dark' : 'gold'}
+              trend={trendAnalytics.cashflowTrend}
             />
           </div>
 
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+            <SectionCard
+              title="Branch Analytics — Top Omzet"
+              subtitle="Urutan sesuai hasil dari erpOrchestrator."
+              icon={<Building2 size={17} />}
+            >
+              <RankList
+                rows={branchAnalytics.topBranchRevenue}
+                titleKeys={['branch_name', 'branch_id']}
+                subtitleKeys={['branch_id']}
+                valueKeys={['totalRevenue']}
+              />
+            </SectionCard>
+
+            <SectionCard
+              title="Branch Analytics — Top Profit"
+              subtitle="Cabang dengan profit terbaik."
+              icon={<Trophy size={17} />}
+            >
+              <RankList
+                rows={branchAnalytics.topBranchProfit}
+                titleKeys={['branch_name', 'branch_id']}
+                subtitleKeys={['branch_id']}
+                valueKeys={['netProfit', 'grossProfit']}
+              />
+            </SectionCard>
+
+            <SectionCard
+              title="Branch Analytics — Worst Branch"
+              subtitle="Cabang dengan performa profit terendah."
+              icon={<TrendingDown size={17} />}
+            >
+              <RankList
+                rows={branchAnalytics.worstBranch}
+                titleKeys={['branch_name', 'branch_id']}
+                subtitleKeys={['branch_id']}
+                valueKeys={['netProfit', 'grossProfit']}
+              />
+            </SectionCard>
+          </div>
+
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+            <SectionCard
+              title="Product Analytics — Produk Terlaris"
+              subtitle="Berdasarkan qty sold dari orchestrator."
+              icon={<ShoppingBag size={17} />}
+            >
+              <RankList
+                rows={productAnalytics.topProducts}
+                titleKeys={['product_name', 'product_id']}
+                subtitleKeys={['product_id']}
+                valueKeys={['qtySold']}
+                valueType="number"
+              />
+            </SectionCard>
+
+            <SectionCard
+              title="Product Analytics — Profit Tertinggi"
+              subtitle="Produk dengan kontribusi profit tertinggi."
+              icon={<Trophy size={17} />}
+            >
+              <RankList
+                rows={productAnalytics.topProfitProducts}
+                titleKeys={['product_name', 'product_id']}
+                subtitleKeys={['product_id']}
+                valueKeys={['grossProfit', 'netProfit']}
+              />
+            </SectionCard>
+
+            <SectionCard
+              title="Product Analytics — Margin Terendah"
+              subtitle="Produk yang perlu dievaluasi margin-nya."
+              icon={<Target size={17} />}
+            >
+              <RankList
+                rows={productAnalytics.lowMarginProducts}
+                titleKeys={['product_name', 'product_id']}
+                subtitleKeys={['product_id']}
+                valueKeys={['profitMargin']}
+                valueType="percent"
+              />
+            </SectionCard>
+          </div>
+
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+            <SectionCard
+              title="Customer Analytics — Top Customer"
+              subtitle="Customer dengan omzet tertinggi."
+              icon={<Users size={17} />}
+            >
+              <RankList
+                rows={customerAnalytics.topCustomers}
+                titleKeys={['customer_name', 'customer_id']}
+                subtitleKeys={['customer_type', 'customer_id']}
+                valueKeys={['totalRevenue']}
+              />
+            </SectionCard>
+
+            <SectionCard
+              title="Customer Analytics — Top Reseller"
+              subtitle="Reseller terbaik dari master customer."
+              icon={<Users size={17} />}
+            >
+              <RankList
+                rows={customerAnalytics.topResellers}
+                titleKeys={['customer_name', 'customer_id']}
+                subtitleKeys={['customer_type', 'customer_id']}
+                valueKeys={['totalRevenue']}
+              />
+            </SectionCard>
+
+            <SectionCard
+              title="Customer Analytics — Top Distributor"
+              subtitle="Distributor terbaik dari master customer."
+              icon={<Building2 size={17} />}
+            >
+              <RankList
+                rows={customerAnalytics.topDistributors}
+                titleKeys={['customer_name', 'customer_id']}
+                subtitleKeys={['customer_type', 'customer_id']}
+                valueKeys={['totalRevenue']}
+              />
+            </SectionCard>
+          </div>
+
           <SectionCard
-            title="Cashflow & Cash Position"
+            title="Channel Analytics"
+            subtitle="Offline, GoFood, GrabFood, ShopeeFood, TikTok, dan Franchise."
+            icon={<PieChart size={17} />}
+          >
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {channelRows.map((channel) => {
+                const Icon = channel.icon;
+
+                return (
+                  <div key={channel.key || channel.label} className="rounded-3xl border border-slate-100 bg-slate-50/70 p-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className="rounded-2xl bg-white p-3 text-red-600 shadow-sm">
+                          <Icon size={18} />
+                        </div>
+                        <div>
+                          <div className="text-sm font-black text-slate-900">
+                            {channel.label}
+                          </div>
+                          <div className="mt-1 text-[11px] font-bold text-slate-400">
+                            {channel.channel || channel.code}
+                          </div>
+                        </div>
+                      </div>
+
+                      <Badge tone={toNumber(channel.totalRevenue) > 0 ? 'green' : 'slate'}>
+                        {toNumber(channel.totalRevenue) > 0 ? 'ACTIVE' : 'NO DATA'}
+                      </Badge>
+                    </div>
+
+                    <div className="mt-5 grid grid-cols-2 gap-3">
+                      <div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+                          Revenue
+                        </div>
+                        <div className="mt-1 text-sm font-black text-slate-900">
+                          {formatMoney(channel.totalRevenue)}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+                          Profit
+                        </div>
+                        <div className="mt-1 text-sm font-black text-slate-900">
+                          {formatMoney(channel.netProfit)}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+                          Margin
+                        </div>
+                        <div className="mt-1 text-sm font-black text-slate-900">
+                          {formatPercent(channel.profitMargin)}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+                          Trx
+                        </div>
+                        <div className="mt-1 text-sm font-black text-slate-900">
+                          {formatNumber(channel.transactionCount)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            title="Cashflow Analytics"
             subtitle="Saldo kas, bank, piutang, hutang, dan cash position dari orchestrator."
             icon={<WalletCards size={17} />}
           >
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
-              <KpiCard title="Saldo Kas" value={formatMoney(metrics.cashflow.saldo_kas)} icon={<Banknote size={18} />} tone="white" />
-              <KpiCard title="Saldo Bank" value={formatMoney(metrics.cashflow.saldo_bank)} icon={<Landmark size={18} />} tone="white" />
-              <KpiCard title="Total Piutang" value={formatMoney(metrics.cashflow.total_piutang)} icon={<Users size={18} />} tone="gold" />
-              <KpiCard title="Total Hutang" value={formatMoney(metrics.cashflow.total_hutang)} icon={<WalletCards size={18} />} tone="white" />
-              <KpiCard title="Cash Position" value={formatMoney(metrics.cashflow.cash_position)} icon={<ShieldCheck size={18} />} tone={metrics.cashflow.cash_position < 0 ? 'dark' : 'red'} />
+              <MiniMetricCard
+                title="Cash Balance"
+                value={formatMoney(cashflowAnalytics.cashBalance)}
+                icon={<Banknote size={18} />}
+              />
+              <MiniMetricCard
+                title="Bank Balance"
+                value={formatMoney(cashflowAnalytics.bankBalance)}
+                icon={<Landmark size={18} />}
+              />
+              <MiniMetricCard
+                title="Receivable"
+                value={formatMoney(cashflowAnalytics.receivableBalance)}
+                icon={<Users size={18} />}
+                tone="gold"
+              />
+              <MiniMetricCard
+                title="Payable"
+                value={formatMoney(cashflowAnalytics.payableBalance)}
+                icon={<WalletCards size={18} />}
+              />
+              <MiniMetricCard
+                title="Cash Position"
+                value={formatMoney(cashflowAnalytics.cashPosition)}
+                icon={<ShieldCheck size={18} />}
+                tone={toNumber(cashflowAnalytics.cashPosition) < 0 ? 'dark' : 'red'}
+              />
             </div>
           </SectionCard>
 
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-            <SectionCard
-              title="Cabang — Top Omzet"
-              subtitle="Cabang dengan omzet tertinggi."
-              icon={<Building2 size={17} />}
-            >
-              <RankList rows={metrics.analytics.branches.top_omzet} />
-            </SectionCard>
-
-            <SectionCard
-              title="Cabang — Top Profit"
-              subtitle="Cabang dengan profit tertinggi."
-              icon={<Trophy size={17} />}
-            >
-              <RankList rows={metrics.analytics.branches.top_profit} />
-            </SectionCard>
-
-            <SectionCard
-              title="Cabang Rugi"
-              subtitle="Cabang dengan profit negatif."
-              icon={<TrendingDown size={17} />}
-            >
-              <RankList rows={metrics.analytics.branches.cabang_rugi} />
-            </SectionCard>
-          </div>
-
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-            <SectionCard
-              title="Produk Terlaris"
-              subtitle="Produk dengan kuantitas penjualan tertinggi."
-              icon={<ShoppingBag size={17} />}
-            >
-              <RankList rows={metrics.analytics.products.produk_terlaris} />
-            </SectionCard>
-
-            <SectionCard
-              title="Produk Profit Tertinggi"
-              subtitle="Produk dengan kontribusi profit terbesar."
-              icon={<Trophy size={17} />}
-            >
-              <RankList rows={metrics.analytics.products.produk_profit_tertinggi} />
-            </SectionCard>
-
-            <SectionCard
-              title="Produk Margin Terendah"
-              subtitle="Produk yang margin-nya perlu dievaluasi."
-              icon={<Target size={17} />}
-            >
-              <RankList rows={metrics.analytics.products.produk_margin_terendah} />
-            </SectionCard>
-          </div>
-
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-            <SectionCard
-              title="Top Customer"
-              subtitle="Customer dengan omzet tertinggi."
-              icon={<Users size={17} />}
-            >
-              <RankList rows={metrics.analytics.customers.top_customer} />
-            </SectionCard>
-
-            <SectionCard
-              title="Top Reseller"
-              subtitle="Reseller dengan performa tertinggi."
-              icon={<Users size={17} />}
-            >
-              <RankList rows={metrics.analytics.customers.top_reseller} />
-            </SectionCard>
-
-            <SectionCard
-              title="Top Distributor"
-              subtitle="Distributor dengan kontribusi omzet tertinggi."
-              icon={<Building2 size={17} />}
-            >
-              <RankList rows={metrics.analytics.customers.top_distributor} />
-            </SectionCard>
-          </div>
-
           <SectionCard
-            title="Channel Performance"
-            subtitle="GoFood, GrabFood, ShopeeFood, Offline, Reseller, dan Franchise."
-            icon={<PieChart size={17} />}
+            title="Inventory Analytics"
+            subtitle="Critical stock, low stock, dan dead stock dari orchestrator."
+            icon={<Boxes size={17} />}
           >
-            <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div className="relative w-full md:w-80">
-                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-9 pr-4 text-xs font-bold outline-none transition-all placeholder:text-slate-300 focus:border-red-500 focus:ring-4 focus:ring-red-50"
-                  placeholder="Cari channel..."
-                />
-              </div>
-              <Badge tone="amber">Channel data dari orchestrator</Badge>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {filteredChannelRows.map((row) => (
-                <div key={row.id} className="rounded-3xl border border-slate-100 bg-slate-50/70 p-5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="rounded-2xl bg-white p-3 text-red-600 shadow-sm">
-                        {row.name === 'OFFLINE_RESTO' ? <Store size={17} /> : <ShoppingBag size={17} />}
-                      </div>
-                      <div>
-                        <div className="text-sm font-black text-slate-900">{row.name}</div>
-                        <div className="mt-1 text-[11px] font-bold text-slate-400">{row.subtitle || 'Sales channel'}</div>
-                      </div>
-                    </div>
-                    <Badge tone={row.value > 0 ? 'green' : 'slate'}>{row.value > 0 ? 'ACTIVE' : 'NO DATA'}</Badge>
-                  </div>
-
-                  <div className="mt-4 text-xl font-black text-slate-900">
-                    {formatMoney(row.value)}
-                  </div>
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+              <div>
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div className="text-sm font-black text-slate-900">Critical Stock</div>
+                  <Badge tone="red">{safeArray(inventoryAnalytics.criticalStock).length} item</Badge>
                 </div>
-              ))}
+                <InventoryList rows={inventoryAnalytics.criticalStock} emptyText="Tidak ada stok kritis." />
+              </div>
+
+              <div>
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div className="text-sm font-black text-slate-900">Low Stock</div>
+                  <Badge tone="gold">{safeArray(inventoryAnalytics.lowStock).length} item</Badge>
+                </div>
+                <InventoryList rows={inventoryAnalytics.lowStock} emptyText="Tidak ada low stock." />
+              </div>
+
+              <div>
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div className="text-sm font-black text-slate-900">Dead Stock</div>
+                  <Badge tone="slate">{safeArray(inventoryAnalytics.deadStock).length} item</Badge>
+                </div>
+                <InventoryList rows={inventoryAnalytics.deadStock} emptyText="Tidak ada dead stock." />
+              </div>
             </div>
           </SectionCard>
 
           <SectionCard
-            title="Warning System"
-            subtitle="Alert kesehatan bisnis dari orchestrator dan indikator dari metrics orchestrator."
+            title="Warning Cards"
+            subtitle="Cash negatif, piutang overdue, hutang overdue, stok kritis, dan profit negatif."
             icon={<AlertTriangle size={17} />}
           >
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-              {metrics.warnings.map((warning) => (
-                <WarningCard key={warning.id} warning={warning} />
-              ))}
+              {warningCards.length > 0 ? (
+                warningCards.map((warning, index) => (
+                  <WarningCard key={`${warning.id || warning.type || index}`} warning={warning} />
+                ))
+              ) : (
+                <EmptyState text="Tidak ada warning dari orchestrator." />
+              )}
             </div>
           </SectionCard>
 
           <SectionCard
-            title="Read Only Audit"
-            subtitle="Dashboard ini tidak memiliki write action."
+            title="Trend Analytics"
+            subtitle="Trend revenue, profit, cashflow, dan transaksi dari orchestrator."
             icon={<BarChart3 size={17} />}
+          >
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <TrendCard
+                title="Revenue Trend"
+                trend={trendAnalytics.revenueTrend}
+                icon={<TrendingUp size={18} />}
+              />
+              <TrendCard
+                title="Profit Trend"
+                trend={trendAnalytics.profitTrend}
+                icon={<Trophy size={18} />}
+              />
+              <TrendCard
+                title="Cashflow Trend"
+                trend={trendAnalytics.cashflowTrend}
+                icon={<Activity size={18} />}
+              />
+              <TrendCard
+                title="Transaction Trend"
+                trend={trendAnalytics.transactionTrend}
+                icon={<BarChart3 size={18} />}
+              />
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            title="Read Only Compliance"
+            subtitle="Dashboard ini tidak memiliki write action."
+            icon={<CheckCircle size={17} />}
           >
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <div className="rounded-3xl border border-emerald-100 bg-emerald-50 p-5">
-                <div className="flex items-center gap-3">
-                  <CheckCircle size={20} className="text-emerald-700" />
-                  <div>
-                    <div className="text-sm font-black text-emerald-900">No Insert</div>
-                    <div className="mt-1 text-[11px] font-bold text-emerald-700">Tidak ada create transaksi.</div>
-                  </div>
+                <div className="text-sm font-black text-emerald-900">No Insert</div>
+                <div className="mt-1 text-[11px] font-bold text-emerald-700">
+                  Tidak ada create transaksi.
                 </div>
               </div>
-
               <div className="rounded-3xl border border-emerald-100 bg-emerald-50 p-5">
-                <div className="flex items-center gap-3">
-                  <CheckCircle size={20} className="text-emerald-700" />
-                  <div>
-                    <div className="text-sm font-black text-emerald-900">No Update</div>
-                    <div className="mt-1 text-[11px] font-bold text-emerald-700">Tidak ada edit transaksi.</div>
-                  </div>
+                <div className="text-sm font-black text-emerald-900">No Update</div>
+                <div className="mt-1 text-[11px] font-bold text-emerald-700">
+                  Tidak ada edit transaksi.
                 </div>
               </div>
-
               <div className="rounded-3xl border border-emerald-100 bg-emerald-50 p-5">
-                <div className="flex items-center gap-3">
-                  <CheckCircle size={20} className="text-emerald-700" />
-                  <div>
-                    <div className="text-sm font-black text-emerald-900">No Delete</div>
-                    <div className="mt-1 text-[11px] font-bold text-emerald-700">Tidak ada hapus transaksi.</div>
-                  </div>
+                <div className="text-sm font-black text-emerald-900">No Delete</div>
+                <div className="mt-1 text-[11px] font-bold text-emerald-700">
+                  Tidak ada hapus transaksi.
                 </div>
               </div>
             </div>
