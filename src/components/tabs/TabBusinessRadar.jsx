@@ -1,313 +1,1646 @@
-import React, { useState, useMemo } from 'react'; 
-import { 
-  TrendingUp, Wallet, ArrowUpRight, ArrowDownRight, 
-  ShieldAlert, Users, Gift, Activity, ArrowRight, 
-  User, Calendar, FileText, CheckCircle2, Percent, Info
+import React, { useMemo, useState } from 'react';
+import {
+  Activity,
+  AlertTriangle,
+  BadgeDollarSign,
+  Banknote,
+  BarChart3,
+  Boxes,
+  Building2,
+  CalendarClock,
+  CheckCircle,
+  Crown,
+  Gauge,
+  Landmark,
+  LockKeyhole,
+  Package,
+  PieChart,
+  RefreshCw,
+  ShieldAlert,
+  ShieldCheck,
+  ShoppingBag,
+  Target,
+  TrendingDown,
+  TrendingUp,
+  Trophy,
+  Users,
+  WalletCards,
+  Zap,
 } from 'lucide-react';
-import { formatDate, getTodayStr, getLocalYMD } from '../../utils/helpers'; 
 
-const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
-const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
+import erpOrchestrator from '../../utils/erpOrchestrator';
 
-export default function TabBusinessRadar({ 
-  orders = [], 
-  cashflowTransactions = [], 
-  piutangPayments = [],
-  master_customers = [],
-  karyawan = [], // 🔥 KABEL BARU
-  master_conversion_rules = [], // 🔥 KABEL BARU
-  user
-}) {
-  const [selectedCustomerDetail, setSelectedCustomerDetail] = useState(null);
-  const todayStr = getTodayStr(); 
+const PERIOD_OPTIONS = [
+  { id: 'TODAY', label: 'Hari Ini' },
+  { id: 'THIS_WEEK', label: 'Minggu Ini' },
+  { id: 'THIS_MONTH', label: 'Bulan Ini' },
+  { id: 'THIS_YEAR', label: 'Tahun Ini' },
+  { id: 'CUSTOM', label: 'Custom Date' },
+];
 
-  // 🔥 TARIK ATURAN GAJIAN & BEBAN GAJI TOTAL
-  const { estimasiBebanGaji, tanggalGajian } = useMemo(() => {
-    const activeRule = (master_conversion_rules || []).find(r => r.id === 'RULE-GLOBAL' && !r.isDeleted);
-    const tgl = Number(activeRule?.tanggal_gajian || 25);
-    
-    let totalGaji = 0;
-    (karyawan || []).forEach(k => {
-       if (k.status === 'AKTIF' && !k.isDeleted) totalGaji += Number(k.baseSalary || 0);
-    });
-    
-    return { estimasiBebanGaji: totalGaji, tanggalGajian: tgl };
-  }, [master_conversion_rules, karyawan]);
+const DEFAULT_ANALYTICS = {
+  summary: {},
+  branchAnalytics: {
+    topBranchRevenue: [],
+    topBranchProfit: [],
+    worstBranch: [],
+  },
+  productAnalytics: {
+    topProducts: [],
+    topProfitProducts: [],
+    lowMarginProducts: [],
+  },
+  customerAnalytics: {
+    topCustomers: [],
+    topResellers: [],
+    topDistributors: [],
+  },
+  channelAnalytics: {},
+  cashflowAnalytics: {},
+  receivableAnalytics: {},
+  payableAnalytics: {},
+  inventoryAnalytics: {
+    criticalStock: [],
+    lowStock: [],
+    deadStock: [],
+  },
+  warningCards: [],
+  trendAnalytics: {},
+};
 
-  const rekapMading = useMemo(() => {
-    const getDaysDifference = (d1, d2) => {
-      const diffTime = Math.abs(new Date(d1) - new Date(d2));
-      return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+const CHANNEL_KEYS = [
+  { key: 'Offline', label: 'Offline', icon: ShoppingBag },
+  { key: 'GoFood', label: 'GoFood', icon: ShoppingBag },
+  { key: 'GrabFood', label: 'GrabFood', icon: ShoppingBag },
+  { key: 'ShopeeFood', label: 'ShopeeFood', icon: ShoppingBag },
+  { key: 'TikTok', label: 'TikTok', icon: ShoppingBag },
+  { key: 'Franchise', label: 'Franchise', icon: Building2 },
+];
+
+const normalizeCode = (value) => {
+  return String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^\w./-]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '');
+};
+
+const hasValue = (value) => {
+  return value !== undefined && value !== null && value !== '';
+};
+
+const toNumber = (value) => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (!hasValue(value)) return 0;
+
+  const parsed = Number(
+    String(value)
+      .trim()
+      .replace(/[^\d,.-]/g, '')
+      .replace(/\.(?=\d{3}(\D|$))/g, '')
+      .replace(',', '.'),
+  );
+
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const clampScore = (value) => {
+  return Math.max(0, Math.min(100, Math.round(toNumber(value))));
+};
+
+const safeArray = (value) => {
+  return Array.isArray(value) ? value : [];
+};
+
+const pickValue = (row = {}, keys = []) => {
+  for (const key of keys) {
+    if (hasValue(row?.[key])) return row[key];
+  }
+
+  return undefined;
+};
+
+const formatMoney = (value) => {
+  if (!hasValue(value)) return '-';
+  return `Rp${Math.round(toNumber(value)).toLocaleString('id-ID')}`;
+};
+
+const formatPercent = (value) => {
+  if (!hasValue(value)) return '-';
+  return `${Number(toNumber(value).toFixed(2)).toLocaleString('id-ID')}%`;
+};
+
+const formatNumber = (value) => {
+  if (!hasValue(value)) return '-';
+  return Number(toNumber(value).toFixed(2)).toLocaleString('id-ID');
+};
+
+const getTodayStr = () => {
+  const date = new Date();
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().slice(0, 10);
+};
+
+const toDateInput = (value) => {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return getTodayStr();
+
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().slice(0, 10);
+};
+
+const formatDate = (value) => {
+  if (!value) return '-';
+
+  const date = new Date(`${String(value).slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return String(value);
+
+  return date.toLocaleDateString('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+};
+
+const resolveDateRange = (period, customStart, customEnd) => {
+  const todayStr = getTodayStr();
+  const today = new Date(`${todayStr}T00:00:00`);
+  const year = today.getFullYear();
+  const month = today.getMonth();
+
+  if (period === 'CUSTOM') {
+    return {
+      startDate: customStart || todayStr,
+      endDate: customEnd || todayStr,
     };
+  }
 
-    const todayObj = new Date(todayStr);
-    const sevenDaysAgo = new Date(todayObj); sevenDaysAgo.setDate(todayObj.getDate() - 7);
-    const limitSevenDaysStr = sevenDaysAgo.toISOString().split('T')[0];
+  if (period === 'THIS_WEEK') {
+    const day = today.getDay();
+    const mondayOffset = day === 0 ? -6 : 1 - day;
 
-    const fourteenDaysAgo = new Date(todayObj); fourteenDaysAgo.setDate(todayObj.getDate() - 14);
-    const limitFourteenDaysStr = fourteenDaysAgo.toISOString().split('T')[0];
+    const start = new Date(today);
+    start.setDate(today.getDate() + mondayOffset);
 
-    let totalOmsetHariIni = 0; 
-    let totalUangMasukRiilBulanIni = 0; // 🔥 Uang real masuk dihitung per bulan untuk akumulasi amplop
-    let totalUangMasukRiilHariIni = 0;
-    let totalPengeluaranRiilHariIni = 0;
-    
-    const curMonth = todayStr.substring(0, 7);
-
-    (cashflowTransactions || []).forEach(c => {
-      if (c.isDeleted) return;
-      const cYMD = getLocalYMD(c.date);
-      const amt = Number(c.amount || 0);
-      
-      if (c.type === 'IN' || c.transaction_type === 'INFLOW') {
-        if (cYMD === todayStr) totalUangMasukRiilHariIni += amt;
-        if (cYMD.startsWith(curMonth)) totalUangMasukRiilBulanIni += amt;
-      }
-      if ((c.transaction_type === 'OUTFLOW' || c.type === 'CASH_OUT' || c.type === 'OUT') && cYMD === todayStr) {
-        totalPengeluaranRiilHariIni += amt;
-      }
-    });
-
-    const customerPiutangMap = {};
-    const groupOrders = {};
-
-    (master_customers || []).forEach(cust => {
-      customerPiutangMap[cust.customer_name.toUpperCase()] = {
-        customer_id: cust.id, customer_name: cust.customer_name.toUpperCase(), phone: cust.phone || '-', address: cust.address || '-',
-        notes_crm: cust.notes || '-', total_bon_gantung: 0, tanggal_bon_terlama: null, last_order_date: null,
-        qty_order_minggu_ini: 0, qty_order_minggu_lalu: 0, total_belanja_akumulasi: 0, frequency_order: 0, nota_details: []
-      };
-    });
-
-    (orders || []).forEach(o => {
-      if (o.isDeleted) return;
-      const oId = o.id;
-      const cName = String(o.customer_name || o.customer || 'UMUM').toUpperCase();
-      const oYMD = getLocalYMD(o.date);
-
-      if (oYMD === todayStr) totalOmsetHariIni += Number(o.total_amount || o.total || 0);
-
-      if (!groupOrders[oId]) {
-        groupOrders[oId] = { id: oId, date: o.date, customer: cName, tagihan: 0, bayar: Number(o.amount_paid || o.paidAmount || 0), method: o.payment_method || o.paymentMethod, status: o.status };
-      }
-      groupOrders[oId].tagihan += Number(o.total_amount || o.total || 0);
-
-      if (customerPiutangMap[cName]) {
-        const qtyOrder = Number(o.qty || 0);
-        customerPiutangMap[cName].total_belanja_akumulasi += Number(o.total_amount || o.total || 0);
-        customerPiutangMap[cName].frequency_order += 1;
-        
-        if (!customerPiutangMap[cName].last_order_date || new Date(o.date) > new Date(customerPiutangMap[cName].last_order_date)) {
-          customerPiutangMap[cName].last_order_date = o.date;
-        }
-
-        if (oYMD >= limitSevenDaysStr && oYMD <= todayStr) customerPiutangMap[cName].qty_order_minggu_ini += qtyOrder;
-        else if (oYMD >= limitFourteenDaysStr && oYMD < limitSevenDaysStr) customerPiutangMap[cName].qty_order_minggu_lalu += qtyOrder;
-      }
-    });
-
-    (piutangPayments || []).forEach(p => {
-        if(!p.isDeleted && groupOrders[p.orderId]) groupOrders[p.orderId].bayar += Number(p.amount || p.amount_paid || 0);
-    });
-
-    let totalPiutangGlobal = 0;
-    Object.values(groupOrders).forEach(go => {
-      const sisaHutang = go.tagihan - go.bayar;
-      if (sisaHutang > 0 && (go.method === 'PIUTANG' || go.method === 'TEMPO' || go.status === 'BELUM_LUNAS' || go.method === 'COD_PO' || String(go.method).includes('DP_'))) {
-        totalPiutangGlobal += sisaHutang;
-        if (customerPiutangMap[go.customer]) {
-          customerPiutangMap[go.customer].total_bon_gantung += sisaHutang;
-          customerPiutangMap[go.customer].nota_details.push({ invoice_id: go.id, date: go.date, total_tagihan: go.tagihan, sudah_dibayar: go.bayar, sisa_hutang: sisaHutang, metode_asal: go.method });
-        }
-      }
-    });
-
-    const listMadingPiutang = Object.values(customerPiutangMap)
-      .map(cust => {
-        let harianAbsen = cust.last_order_date ? getDaysDifference(todayStr, cust.last_order_date) : 999;
-        let selisihPcs = cust.qty_order_minggu_ini - cust.qty_order_minggu_lalu;
-        return { ...cust, hari_absen: harianAbsen, is_notif_merah: harianAbsen > 7, tren_fluktuasi: selisihPcs > 0 ? 'NAIK' : selisihPcs < 0 ? 'TURUN' : 'STABIL', selisih_pcs_mingguan: Math.abs(selisihPcs) };
-      })
-      .filter(c => c.total_bon_gantung > 0 || c.frequency_order > 0)
-      .sort((a, b) => b.total_bon_gantung - a.total_bon_gantung);
-
-    // 🔥 4 AMPLOP BERDASARKAN TOTAL CASH MASUK BULAN INI (AKUMULASI)
-    const amplopBahanBaku = totalUangMasukRiilBulanIni * 0.55;
-    const amplopOperasional = totalUangMasukRiilBulanIni * 0.25;
-    const amplopJagaJaga = totalUangMasukRiilBulanIni * 0.15;
-    const amplopProfitMurni = totalUangMasukRiilBulanIni * 0.05;
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
 
     return {
-      totalOmsetHariIni, totalUangMasukRiilHariIni, totalUangMasukRiilBulanIni, totalPengeluaranRiilHariIni, totalPiutangGlobal,
-      amplop: { bahanBaku: amplopBahanBaku, operasional: amplopOperasional, jagaJaga: amplopJagaJaga, profitMurni: amplopProfitMurni },
-      listMadingPiutang
+      startDate: toDateInput(start),
+      endDate: toDateInput(end),
     };
-  }, [orders, cashflowTransactions, piutangPayments, master_customers, todayStr]);
+  }
 
-  const { amplop, listMadingPiutang } = rekapMading;
-  const piutangMacetMading = useMemo(() => listMadingPiutang.filter(c => c.total_bon_gantung > 0), [listMadingPiutang]);
+  if (period === 'THIS_MONTH') {
+    return {
+      startDate: toDateInput(new Date(year, month, 1)),
+      endDate: toDateInput(new Date(year, month + 1, 0)),
+    };
+  }
 
-  // 🔥 KALKULASI PROGRESS GAJI UNTUK AMPLOP 2
-  const persenGaji = Math.min((amplop.operasional / estimasiBebanGaji) * 100, 100) || 0;
-  const tglSekarang = new Date(todayStr).getDate();
-  const sisaHariGajian = tanggalGajian - tglSekarang;
-  const statusGajiAman = amplop.operasional >= estimasiBebanGaji;
+  if (period === 'THIS_YEAR') {
+    return {
+      startDate: `${year}-01-01`,
+      endDate: `${year}-12-31`,
+    };
+  }
+
+  return {
+    startDate: todayStr,
+    endDate: todayStr,
+  };
+};
+
+const isOwnerRole = (user = {}) => {
+  const role = normalizeCode(user.role || user.user_role || user.access_role || user.position || '');
+  return ['OWNER', 'DEWA'].includes(role);
+};
+
+const mergeAnalyticsDefaults = (analytics) => {
+  const source = analytics || {};
+
+  return {
+    ...DEFAULT_ANALYTICS,
+    ...source,
+    summary: source.summary || {},
+    branchAnalytics: {
+      ...DEFAULT_ANALYTICS.branchAnalytics,
+      ...(source.branchAnalytics || {}),
+    },
+    productAnalytics: {
+      ...DEFAULT_ANALYTICS.productAnalytics,
+      ...(source.productAnalytics || {}),
+    },
+    customerAnalytics: {
+      ...DEFAULT_ANALYTICS.customerAnalytics,
+      ...(source.customerAnalytics || {}),
+    },
+    channelAnalytics: source.channelAnalytics || {},
+    cashflowAnalytics: source.cashflowAnalytics || {},
+    receivableAnalytics: source.receivableAnalytics || {},
+    payableAnalytics: source.payableAnalytics || {},
+    inventoryAnalytics: {
+      ...DEFAULT_ANALYTICS.inventoryAnalytics,
+      ...(source.inventoryAnalytics || {}),
+    },
+    warningCards: safeArray(source.warningCards),
+    trendAnalytics: source.trendAnalytics || {},
+  };
+};
+
+const getHealthCategory = (score) => {
+  const value = clampScore(score);
+
+  if (value >= 85) return 'Sangat Sehat';
+  if (value >= 70) return 'Sehat';
+  if (value >= 55) return 'Waspada';
+  if (value >= 35) return 'Bahaya';
+
+  return 'Kritis';
+};
+
+const getScoreTone = (score) => {
+  const value = clampScore(score);
+
+  if (value >= 85) return 'green';
+  if (value >= 70) return 'gold';
+  if (value >= 55) return 'amber';
+  if (value >= 35) return 'red';
+
+  return 'dark';
+};
+
+const getRiskTone = (severity) => {
+  const normalized = normalizeCode(severity);
+
+  if (normalized === 'CRITICAL' || normalized === 'HIGH' || normalized === 'BAHAYA' || normalized === 'KRITIS') {
+    return 'red';
+  }
+
+  if (normalized === 'WARNING' || normalized === 'MEDIUM' || normalized === 'WASPADA') {
+    return 'gold';
+  }
+
+  if (normalized === 'INFO' || normalized === 'LOW' || normalized === 'AMAN') {
+    return 'green';
+  }
+
+  return 'slate';
+};
+
+const getTrendDirection = (trend = {}) => {
+  return normalizeCode(trend.direction || '');
+};
+
+const isTrendDown = (trend = {}) => {
+  return getTrendDirection(trend) === 'DOWN' && toNumber(trend.changePercent) < 0;
+};
+
+const getMetric = (row = {}, keys = []) => {
+  return pickValue(row, keys);
+};
+
+const getRowTitle = (row = {}, keys = []) => {
+  return String(
+    pickValue(row, keys) ||
+      row.name ||
+      row.label ||
+      row.branch_name ||
+      row.product_name ||
+      row.customer_name ||
+      row.supplier_name ||
+      row.channel ||
+      row.item_name ||
+      row.id ||
+      '-',
+  );
+};
+
+const getRowSubtitle = (row = {}, keys = []) => {
+  return String(
+    pickValue(row, keys) ||
+      row.branch_id ||
+      row.product_id ||
+      row.customer_id ||
+      row.supplier_id ||
+      row.item_id ||
+      row.status ||
+      '',
+  );
+};
+
+const hasWarningType = (warningCards = [], types = []) => {
+  const normalizedTypes = types.map(normalizeCode);
+
+  return safeArray(warningCards).some((warning) => {
+    const warningType = normalizeCode(warning?.type || warning?.id || warning?.code || '');
+    return normalizedTypes.includes(warningType);
+  });
+};
+
+const createFallbackRiskCard = ({
+  id,
+  title,
+  message,
+  severity = 'INFO',
+  amount = 0,
+  count = 0,
+  action = '',
+  icon = AlertTriangle,
+}) => ({
+  id,
+  title,
+  message,
+  severity,
+  amount,
+  count,
+  action_hint: action,
+  icon,
+});
+
+const buildBusinessRadarFromOwnerAnalytics = (ownerAnalyticsInput = {}) => {
+  const ownerAnalytics = mergeAnalyticsDefaults(ownerAnalyticsInput);
+
+  const {
+    summary,
+    branchAnalytics,
+    productAnalytics,
+    channelAnalytics,
+    cashflowAnalytics,
+    receivableAnalytics,
+    payableAnalytics,
+    inventoryAnalytics,
+    warningCards,
+    trendAnalytics,
+  } = ownerAnalytics;
+
+  const criticalWarnings = warningCards.filter((warning) => normalizeCode(warning?.severity) === 'CRITICAL');
+  const mediumWarnings = warningCards.filter((warning) => normalizeCode(warning?.severity) === 'WARNING');
+
+  const negativeCash = hasWarningType(warningCards, ['negativeCash', 'CASH_NEGATIF']);
+  const negativeProfit = hasWarningType(warningCards, ['negativeProfit', 'PROFIT_NEGATIF']);
+  const overdueReceivable = hasWarningType(warningCards, ['overdueReceivable', 'PIUTANG_OVERDUE']);
+  const overduePayable = hasWarningType(warningCards, ['overduePayable', 'HUTANG_OVERDUE']);
+  const criticalStockWarning = hasWarningType(warningCards, ['criticalStock', 'STOK_KRITIS']);
+
+  const worstBranches = safeArray(branchAnalytics.worstBranch);
+  const lossBranches = worstBranches.filter((branch) => toNumber(branch.netProfit || branch.grossProfit || branch.totalProfit) < 0);
+  const lowMarginProducts = safeArray(productAnalytics.lowMarginProducts);
+  const criticalStock = safeArray(inventoryAnalytics.criticalStock);
+  const lowStock = safeArray(inventoryAnalytics.lowStock);
+  const deadStock = safeArray(inventoryAnalytics.deadStock);
+
+  const revenueTrendDown = isTrendDown(trendAnalytics.revenueTrend);
+  const profitTrendDown = isTrendDown(trendAnalytics.profitTrend);
+  const cashflowTrendDown = isTrendDown(trendAnalytics.cashflowTrend);
+
+  const marginTooSmall = lowMarginProducts.some((product) => {
+    return hasValue(product.profitMargin) && toNumber(product.profitMargin) < 10;
+  });
+
+  const salesDrop = revenueTrendDown && Math.abs(toNumber(trendAnalytics.revenueTrend?.changePercent)) >= 20;
+
+  let businessHealthScore = 100;
+  businessHealthScore -= criticalWarnings.length * 12;
+  businessHealthScore -= mediumWarnings.length * 6;
+  if (negativeCash) businessHealthScore -= 18;
+  if (negativeProfit) businessHealthScore -= 18;
+  if (overdueReceivable) businessHealthScore -= 8;
+  if (overduePayable) businessHealthScore -= 8;
+  if (criticalStockWarning || criticalStock.length > 0) businessHealthScore -= 8;
+  if (marginTooSmall) businessHealthScore -= 6;
+  if (salesDrop) businessHealthScore -= 10;
+  if (lossBranches.length > 0) businessHealthScore -= 8;
+
+  businessHealthScore = clampScore(businessHealthScore);
+
+  let cashDisciplineScore = 100;
+  if (toNumber(cashflowAnalytics.cashPosition) < 0) cashDisciplineScore -= 30;
+  if (toNumber(cashflowAnalytics.cashBalance) < 0) cashDisciplineScore -= 20;
+  if (toNumber(receivableAnalytics.overdueReceivable) > 0) cashDisciplineScore -= 15;
+  if (toNumber(payableAnalytics.overduePayable) > 0) cashDisciplineScore -= 15;
+  if (cashflowTrendDown) cashDisciplineScore -= 10;
+
+  cashDisciplineScore = clampScore(cashDisciplineScore);
+
+  const financialRiskCards = [
+    createFallbackRiskCard({
+      id: 'cashDeficitRisk',
+      title: 'Cash Deficit Risk',
+      message: toNumber(cashflowAnalytics.cashPosition) < 0
+        ? 'Cash position negatif. Perlu kontrol kas dan prioritas penagihan.'
+        : 'Cash position masih aman berdasarkan analytics orchestrator.',
+      severity: toNumber(cashflowAnalytics.cashPosition) < 0 ? 'CRITICAL' : 'INFO',
+      amount: cashflowAnalytics.cashPosition,
+      action: toNumber(cashflowAnalytics.cashPosition) < 0
+        ? 'Prioritaskan cash in dan tahan pengeluaran non-esensial.'
+        : 'Pertahankan disiplin cashflow.',
+      icon: Banknote,
+    }),
+    createFallbackRiskCard({
+      id: 'debtRisk',
+      title: 'Debt Risk',
+      message: toNumber(payableAnalytics.overduePayable) > 0
+        ? 'Ada hutang overdue yang perlu diprioritaskan.'
+        : 'Tidak ada hutang overdue signifikan dari orchestrator.',
+      severity: toNumber(payableAnalytics.overduePayable) > 0 ? 'WARNING' : 'INFO',
+      amount: payableAnalytics.overduePayable || payableAnalytics.totalPayable,
+      action: toNumber(payableAnalytics.overduePayable) > 0
+        ? 'Atur pembayaran supplier berdasarkan prioritas jatuh tempo.'
+        : 'Pantau hutang supplier secara rutin.',
+      icon: WalletCards,
+    }),
+    createFallbackRiskCard({
+      id: 'receivableRisk',
+      title: 'Receivable Risk',
+      message: toNumber(receivableAnalytics.overdueReceivable) > 0
+        ? 'Ada piutang overdue yang menekan cashflow.'
+        : 'Piutang overdue masih aman berdasarkan analytics orchestrator.',
+      severity: toNumber(receivableAnalytics.overdueReceivable) > 0 ? 'WARNING' : 'INFO',
+      amount: receivableAnalytics.overdueReceivable || receivableAnalytics.totalReceivable,
+      action: toNumber(receivableAnalytics.overdueReceivable) > 0
+        ? 'Prioritaskan penagihan customer dengan aging tertua.'
+        : 'Pertahankan ritme penagihan.',
+      icon: Users,
+    }),
+  ];
+
+  const channelRows = CHANNEL_KEYS.map((channel) => ({
+    ...channel,
+    data: channelAnalytics[channel.key] || {},
+  }));
+
+  const problematicChannels = channelRows.filter((channel) => {
+    const data = channel.data || {};
+    return toNumber(data.totalRevenue) <= 0 || toNumber(data.netProfit) < 0;
+  });
+
+  const salesRiskCards = [
+    createFallbackRiskCard({
+      id: 'salesDropRisk',
+      title: 'Penjualan Turun',
+      message: salesDrop
+        ? `Revenue turun ${formatPercent(Math.abs(toNumber(trendAnalytics.revenueTrend?.changePercent)))} dibanding periode sebelumnya.`
+        : 'Tidak ada penurunan penjualan drastis dari trend analytics.',
+      severity: salesDrop ? 'WARNING' : 'INFO',
+      amount: trendAnalytics.revenueTrend?.changeValue,
+      action: salesDrop
+        ? 'Cek channel, cabang, dan produk dengan performa menurun.'
+        : 'Lanjutkan monitoring trend revenue.',
+      icon: TrendingDown,
+    }),
+    createFallbackRiskCard({
+      id: 'channelRisk',
+      title: 'Channel Bermasalah',
+      message: problematicChannels.length > 0
+        ? `${problematicChannels.length} channel butuh perhatian.`
+        : 'Tidak ada channel bermasalah signifikan.',
+      severity: problematicChannels.length > 0 ? 'WARNING' : 'INFO',
+      count: problematicChannels.length,
+      action: problematicChannels.length > 0
+        ? 'Evaluasi promo, komisi, dan performa channel bermasalah.'
+        : 'Pertahankan performa channel aktif.',
+      icon: PieChart,
+    }),
+    createFallbackRiskCard({
+      id: 'unsoldProductRisk',
+      title: 'Produk Tidak Laku',
+      message: safeArray(productAnalytics.topProducts).length === 0
+        ? 'Belum ada produk terlaris pada periode ini.'
+        : 'Produk terlaris tersedia dari analytics orchestrator.',
+      severity: safeArray(productAnalytics.topProducts).length === 0 ? 'WARNING' : 'INFO',
+      action: safeArray(productAnalytics.topProducts).length === 0
+        ? 'Cek traffic penjualan dan promosi produk.'
+        : 'Pantau produk dengan margin rendah.',
+      icon: ShoppingBag,
+    }),
+  ];
+
+  const radarWarningCards = [
+    ...warningCards,
+    ...(marginTooSmall
+      ? [
+          createFallbackRiskCard({
+            id: 'marginTooSmall',
+            title: 'Margin terlalu kecil',
+            message: 'Ada produk dengan margin di bawah batas aman.',
+            severity: 'WARNING',
+            count: lowMarginProducts.length,
+            action: 'Evaluasi harga jual, HPP, dan promo produk margin rendah.',
+            icon: Target,
+          }),
+        ]
+      : []),
+    ...(salesDrop
+      ? [
+          createFallbackRiskCard({
+            id: 'salesDrop',
+            title: 'Penjualan turun drastis',
+            message: `Revenue turun ${formatPercent(Math.abs(toNumber(trendAnalytics.revenueTrend?.changePercent)))} dibanding periode sebelumnya.`,
+            severity: 'WARNING',
+            amount: trendAnalytics.revenueTrend?.changeValue,
+            action: 'Cek channel, cabang, dan produk yang mengalami penurunan.',
+            icon: TrendingDown,
+          }),
+        ]
+      : []),
+    ...(lossBranches.length > 0
+      ? [
+          createFallbackRiskCard({
+            id: 'branchLoss',
+            title: 'Cabang merugi',
+            message: `${lossBranches.length} cabang memiliki profit negatif.`,
+            severity: 'WARNING',
+            count: lossBranches.length,
+            action: 'Audit biaya, omzet, dan HPP cabang yang merugi.',
+            icon: Building2,
+          }),
+        ]
+      : []),
+  ];
+
+  const actionCenter = radarWarningCards
+    .filter((warning) => normalizeCode(warning?.severity) !== 'INFO')
+    .map((warning, index) => ({
+      id: warning.id || warning.type || `ACTION-${index + 1}`,
+      title: warning.title || 'Action Required',
+      description: warning.action_hint || warning.message || 'Perlu tindakan owner.',
+      severity: warning.severity || 'WARNING',
+      source: warning.type || warning.id || 'BUSINESS_RADAR',
+    }));
+
+  if (actionCenter.length === 0) {
+    actionCenter.push({
+      id: 'NO_ACTION_REQUIRED',
+      title: 'Tidak ada aksi kritis',
+      description: 'Tidak ada rekomendasi kritis dari Business Radar pada periode ini.',
+      severity: 'INFO',
+      source: 'BUSINESS_RADAR',
+    });
+  }
+
+  return {
+    businessHealthScore,
+    businessHealthCategory: getHealthCategory(businessHealthScore),
+    cashDisciplineScore,
+    cashDisciplineCategory: getHealthCategory(cashDisciplineScore),
+
+    warningCards: radarWarningCards,
+
+    branchRadar: {
+      topBranch: safeArray(branchAnalytics.topBranchProfit)[0] || safeArray(branchAnalytics.topBranchRevenue)[0] || null,
+      topBranches: safeArray(branchAnalytics.topBranchRevenue),
+      problemBranches: worstBranches,
+      lossBranches,
+    },
+
+    inventoryRadar: {
+      stockOutRisk: criticalStock,
+      deadStockRisk: deadStock,
+      slowMovingProduct: lowStock,
+    },
+
+    financialRadar: {
+      cashDeficitRisk: financialRiskCards[0],
+      debtRisk: financialRiskCards[1],
+      receivableRisk: financialRiskCards[2],
+      riskCards: financialRiskCards,
+    },
+
+    salesRadar: {
+      salesDropRisk: salesRiskCards[0],
+      channelRisk: salesRiskCards[1],
+      unsoldProductRisk: salesRiskCards[2],
+      riskCards: salesRiskCards,
+      problematicChannels,
+    },
+
+    ownerActionCenter: actionCenter,
+
+    source: 'getOwnerAnalytics',
+  };
+};
+
+const normalizeBusinessRadarPayload = (payload = {}, ownerAnalytics = {}) => {
+  const derived = buildBusinessRadarFromOwnerAnalytics(ownerAnalytics);
+  const source = payload?.businessRadar || payload?.radar || payload?.data || payload || {};
+
+  return {
+    ...derived,
+    ...source,
+    businessHealthScore: clampScore(source.businessHealthScore ?? source.healthScore ?? derived.businessHealthScore),
+    businessHealthCategory: source.businessHealthCategory || source.healthCategory || derived.businessHealthCategory,
+    cashDisciplineScore: clampScore(source.cashDisciplineScore ?? derived.cashDisciplineScore),
+    cashDisciplineCategory: source.cashDisciplineCategory || derived.cashDisciplineCategory,
+    warningCards: safeArray(source.warningCards).length > 0 ? safeArray(source.warningCards) : derived.warningCards,
+    branchRadar: source.branchRadar || derived.branchRadar,
+    inventoryRadar: source.inventoryRadar || derived.inventoryRadar,
+    financialRadar: source.financialRadar || derived.financialRadar,
+    salesRadar: source.salesRadar || derived.salesRadar,
+    ownerActionCenter: safeArray(source.ownerActionCenter).length > 0 ? safeArray(source.ownerActionCenter) : derived.ownerActionCenter,
+    source: payload ? 'getBusinessRadar/getOwnerAnalytics' : 'getOwnerAnalytics',
+  };
+};
+
+const Badge = ({ children, tone = 'slate' }) => {
+  const toneClass = {
+    red: 'border-red-100 bg-red-50 text-red-700',
+    green: 'border-emerald-100 bg-emerald-50 text-emerald-700',
+    gold: 'border-amber-100 bg-amber-50 text-amber-700',
+    amber: 'border-orange-100 bg-orange-50 text-orange-700',
+    slate: 'border-slate-100 bg-slate-50 text-slate-600',
+    dark: 'border-slate-800 bg-slate-950 text-white',
+  };
 
   return (
-    <div className="space-y-6 pb-10 text-slate-700 animate-in fade-in duration-200">
-      <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative overflow-hidden">
-        <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-red-600"></div>
-        <div className="pl-2">
-          <h2 className="text-sm font-black flex items-center gap-2 text-slate-800 uppercase tracking-wide">
-            <TrendingUp className="text-red-600" size={18}/> Radar Bisnis &amp; Analitik Sultan Core
-          </h2>
-          <p className="text-[10px] font-bold text-slate-500 mt-1">Pemantauan otomatis rasio 4 amplop kas laci, kontrol HPP, serta alarm radar pengawasan piutang jatuh tempo.</p>
-        </div>
-      </div>
+    <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${toneClass[tone] || toneClass.slate}`}>
+      {children}
+    </span>
+  );
+};
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="p-6 bg-white border border-slate-200 rounded-3xl shadow-sm flex items-center justify-between">
-          <div>
-             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Aliran Masuk Riil (Hari Ini)</div>
-             <div className="text-2xl font-black text-emerald-600 tracking-tight">{formatRupiah(rekapMading.totalUangMasukRiilHariIni)}</div>
-             <div className="text-[9px] font-bold text-slate-400 mt-1.5 line-through">Omzet Kertas: {formatRupiah(rekapMading.totalOmsetHariIni)}</div>
-          </div>
-          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100 shadow-sm"><ArrowUpRight size={24}/></div>
-        </div>
-        <div className="p-6 bg-white border border-slate-200 rounded-3xl shadow-sm flex items-center justify-between">
-          <div><div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Pengeluaran Kas (Hari ini)</div><div className="text-2xl font-black text-slate-800 tracking-tight">{formatRupiah(rekapMading.totalPengeluaranRiilHariIni)}</div></div>
-          <div className="p-3 bg-rose-50 text-rose-600 rounded-xl"><ArrowDownRight size={24}/></div>
-        </div>
-        <div className="p-6 bg-slate-900 border border-slate-800 rounded-3xl shadow-md flex items-center justify-between">
-          <div>
-             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 text-blue-400">Total Piutang Berjalan Agen</div>
-             <div className="text-2xl font-black tracking-tight text-white">{formatRupiah(rekapMading.totalPiutangGlobal)}</div>
-          </div>
-          <div className="p-3 bg-blue-900/50 text-blue-400 rounded-xl border border-blue-800"><Wallet size={24}/></div>
-        </div>
-      </div>
+const HealthGauge = ({ score, label, subtitle, icon }) => {
+  const safeScore = clampScore(score);
+  const tone = getScoreTone(safeScore);
+  const toneClass = {
+    green: 'text-emerald-700',
+    gold: 'text-amber-700',
+    amber: 'text-orange-700',
+    red: 'text-red-700',
+    dark: 'text-slate-950',
+  };
 
-      {/* 🔥 PAPAN 4 AMPLOP MASA KRITIS (SURVIVAL MODE) */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-        <div className="flex justify-between items-start mb-5">
-           <div>
-             <h3 className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5"><Percent size={16} className="text-blue-600" /> Papan Alokasi 4 Amplop Hak Uang (Akumulasi Bulan Ini)</h3>
-             <p className="text-[9px] font-bold text-slate-500 mt-1">Dibagi dari total uang masuk riil bulan ini sebesar: <b className="text-slate-700">{formatRupiah(rekapMading.totalUangMasukRiilBulanIni)}</b></p>
-           </div>
-        </div>
-        
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="p-5 bg-gradient-to-br from-blue-50 to-white border border-blue-100 rounded-2xl text-center shadow-sm relative overflow-hidden border-t-4 border-t-blue-500 hover:shadow-md transition-shadow">
-             <div className="text-[10px] font-black text-blue-700 uppercase tracking-wider mb-1">📦 Amplop 1 (Ayam 55%)</div>
-             <div className="text-lg font-black text-slate-800 tracking-tight">{formatRupiah(amplop.bahanBaku)}</div>
-          </div>
+  const gaugeColor = {
+    green: '#059669',
+    gold: '#D97706',
+    amber: '#EA580C',
+    red: '#DC2626',
+    dark: '#111827',
+  }[tone] || '#DC2626';
 
-          {/* 🔥 AMPLOP 2 DENGAN INDIKATOR GAJI */}
-          <div className="p-5 bg-gradient-to-br from-emerald-50 to-white border border-emerald-100 rounded-2xl shadow-sm relative overflow-hidden border-t-4 border-t-emerald-500 hover:shadow-md transition-shadow">
-             <div className="text-[10px] font-black text-emerald-700 uppercase tracking-wider mb-1 text-center">⚙️ Amplop 2 (Ops 25%)</div>
-             <div className="text-lg font-black text-slate-800 tracking-tight text-center">{formatRupiah(amplop.operasional)}</div>
-             
-             <div className="mt-4 pt-3 border-t border-emerald-100/50">
-               <div className="flex justify-between text-[8px] font-black uppercase tracking-wider text-slate-500 mb-1.5">
-                 <span>Progress Gaji Tgl {tanggalGajian}</span>
-                 <span className={statusGajiAman ? 'text-emerald-600' : 'text-rose-600'}>{formatRupiah(estimasiBebanGaji)}</span>
-               </div>
-               <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden shadow-inner flex items-center">
-                 <div className={`h-full transition-all duration-500 ${statusGajiAman ? 'bg-emerald-500' : 'bg-rose-500'}`} style={{ width: `${persenGaji}%` }}></div>
-               </div>
-               <div className="text-[8px] font-bold text-slate-500 mt-2 leading-tight flex items-center justify-between">
-                 <span>{statusGajiAman ? '✅ Dana Gaji Terkumpul!' : `⚠️ Kurang ${formatRupiah(estimasiBebanGaji - amplop.operasional)}`}</span>
-                 {sisaHariGajian > 0 && <span className="bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">H-{sisaHariGajian}</span>}
-               </div>
-             </div>
-          </div>
-
-          <div className="p-5 bg-gradient-to-br from-orange-50 to-white border border-orange-100 rounded-2xl text-center shadow-sm relative overflow-hidden border-t-4 border-t-orange-500 hover:shadow-md transition-shadow">
-             <div className="text-[10px] font-black text-orange-700 uppercase tracking-wider mb-1">⚡ Amplop 3 (Cicilan 15%)</div>
-             <div className="text-lg font-black text-slate-800 tracking-tight">{formatRupiah(amplop.jagaJaga)}</div>
-          </div>
-          <div className="p-5 bg-gradient-to-br from-amber-50 to-white border border-amber-100 rounded-2xl text-center shadow-sm relative overflow-hidden border-t-4 border-t-amber-500 hover:shadow-md transition-shadow">
-             <div className="text-[10px] font-black text-amber-700 uppercase tracking-wider mb-1">💰 Amplop 4 (Profit 5%)</div>
-             <div className="text-lg font-black text-slate-800 tracking-tight">{formatRupiah(amplop.profitMurni)}</div>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-white border border-slate-200 rounded-3xl shadow-sm flex flex-col overflow-hidden">
-        <div className="p-5 bg-slate-900 border-b border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-          <div><h4 className="font-black text-xs text-white uppercase tracking-wider flex items-center gap-2"><ShieldAlert size={16} className="text-yellow-400 animate-pulse"/> Radar Pengawasan Tagihan Macet &amp; Bon Gantung Agen</h4></div>
-        </div>
-        <div className="overflow-x-auto p-2 custom-scrollbar">
-          <table className="w-full text-sm text-left border-collapse">
-            <thead className="text-[10px] text-slate-500 bg-slate-50 border-b border-slate-100 uppercase tracking-wider">
-              <tr><th className="px-5 py-3 font-black">Nama Agen / Pelanggan</th><th className="px-5 py-3 font-black text-center">Status Absen Order</th><th className="px-5 py-3 font-black text-center">Tren Kuantitas</th><th className="px-5 py-3 font-black text-right">Bon Gantung Aktif</th><th className="px-5 py-3 font-black text-center">Aksi Tracing</th></tr>
-            </thead>
-            <tbody className="text-xs font-bold divide-y divide-slate-100 bg-white">
-              {piutangMacetMading.length === 0 ? (
-                <tr><td colSpan="5" className="text-center py-16 text-slate-400 font-bold bg-white"><div className="flex flex-col items-center justify-center"><CheckCircle2 size={40} className="mb-3 text-emerald-500 opacity-30"/><span>BERSIH TOTAL! Tidak ada tagihan gantung yang menunggak saat ini.</span></div></td></tr>
-              ) : (
-                piutangMacetMading.map((cust, i) => (
-                  <tr key={i} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="px-5 py-4 whitespace-nowrap"><div className="text-slate-800 font-black text-[13px] uppercase flex items-center gap-2">👤 {cust.customer_name} {cust.is_notif_merah && <span className="px-2 py-0.5 rounded text-[8px] font-black bg-rose-100 text-rose-700 border border-rose-200 animate-pulse uppercase tracking-wider shadow-sm">⚠️ Macet Belanja</span>}</div></td>
-                    <td className="px-5 py-4 text-center whitespace-nowrap"><div className={`text-[11px] font-extrabold ${cust.is_notif_merah ? 'text-rose-600' : 'text-slate-700'}`}>{cust.hari_absen === 999 ? 'Belum Pernah Order' : `${cust.hari_absen} Hari Absen`}</div></td>
-                    <td className="px-5 py-4 text-center whitespace-nowrap">
-                      {cust.tren_fluktuasi === 'NAIK' && <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-100 shadow-sm">🔼 Naik +{formatNumber(cust.selisih_pcs_mingguan)}</span>}
-                      {cust.tren_fluktuasi === 'TURUN' && <span className="text-[10px] font-black text-rose-600 bg-rose-50 px-2.5 py-1 rounded-md border border-rose-100 shadow-sm">🔽 Turun -{formatNumber(cust.selisih_pcs_mingguan)}</span>}
-                      {cust.tren_fluktuasi === 'STABIL' && <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200 shadow-sm">Stabil (0)</span>}
-                    </td>
-                    <td className="px-5 py-4 text-right whitespace-nowrap"><div className="font-black text-rose-600 text-sm tracking-tight">{formatRupiah(cust.total_bon_gantung)}</div></td>
-                    <td className="px-5 py-4 text-center whitespace-nowrap"><button onClick={() => setSelectedCustomerDetail(cust)} className="px-4 py-2 bg-white text-slate-700 border border-slate-200 hover:border-blue-400 hover:text-blue-600 font-black text-[10px] uppercase tracking-wider rounded-lg shadow-sm cursor-pointer flex items-center justify-center mx-auto gap-1">Buka Mading <ArrowRight size={14}/></button></td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-        <h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5 mb-5 uppercase tracking-wide border-b border-slate-100 pb-3"><Users size={16} className="text-purple-600" /> Klasemen Loyalitas &amp; Kelayakan Bonus THR Agen</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[350px] overflow-y-auto custom-scrollbar pr-1">
-          {listMadingPiutang.map((cust, idx) => (
-            <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-purple-300 hover:bg-purple-50/20 transition-all shadow-sm group">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-sm shadow-sm shrink-0 border border-slate-200 ${idx === 0 ? 'bg-amber-400 text-white' : idx === 1 ? 'bg-slate-300 text-slate-800' : idx === 2 ? 'bg-orange-400 text-white' : 'bg-white text-slate-400'}`}>#{idx + 1}</div>
-                <div className="min-w-0"><div className="font-black text-slate-800 text-xs uppercase truncate group-hover:text-purple-700 transition-colors">{cust.customer_name}</div><div className="text-[10px] text-slate-500 font-bold mt-0.5 uppercase tracking-wider">{cust.frequency_order}x Transaksi • Omset: <span className="text-slate-800 font-black">{formatRupiah(cust.total_belanja_akumulasi)}</span></div></div>
-              </div>
-              <div className="text-right shrink-0"><span className={`px-2.5 py-1 rounded text-[9px] font-black uppercase tracking-wider shadow-sm ${cust.total_belanja_akumulasi > 10000000 ? 'bg-purple-100 text-purple-700 border border-purple-200' : cust.total_belanja_akumulasi > 3000000 ? 'bg-blue-100 text-blue-700 border border-blue-200' : 'bg-slate-100 text-slate-500 border border-slate-200'}`}>{cust.total_belanja_akumulasi > 10000000 ? '⭐ VIP' : cust.total_belanja_akumulasi > 3000000 ? 'MITRA' : 'REGULER'}</span></div>
+  return (
+    <div className="rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm">
+      <div className="flex flex-col items-center text-center">
+        <div
+          className="flex h-44 w-44 items-center justify-center rounded-full"
+          style={{
+            background: `conic-gradient(${gaugeColor} ${safeScore * 3.6}deg, #F1F5F9 0deg)`,
+          }}
+        >
+          <div className="flex h-32 w-32 flex-col items-center justify-center rounded-full bg-white shadow-inner">
+            <div className={`text-4xl font-black ${toneClass[tone] || toneClass.red}`}>
+              {safeScore}
             </div>
-          ))}
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+              / 100
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-5 flex items-center gap-2 text-sm font-black text-slate-900">
+          <span className="text-red-600">{icon}</span>
+          {label}
+        </div>
+        <div className="mt-2 text-xl font-black text-slate-900">
+          {subtitle}
         </div>
       </div>
+    </div>
+  );
+};
 
-      {selectedCustomerDetail && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-[2px] z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl border border-slate-200 overflow-hidden flex flex-col h-[75vh]">
-            <div className="p-5 bg-slate-900 text-white flex justify-between items-center shrink-0">
-              <div><h3 className="font-black text-sm uppercase flex items-center gap-2 tracking-wider"><User size={18} className="text-yellow-400"/> Mading Tracing: {selectedCustomerDetail.customer_name}</h3><p className="text-[10px] text-slate-400 font-medium mt-1">Alamat: {selectedCustomerDetail.address} | Telp: {selectedCustomerDetail.phone}</p></div>
-              <button onClick={() => setSelectedCustomerDetail(null)} className="text-slate-400 hover:text-white text-xl font-bold cursor-pointer">✕</button>
+const ScoreCard = ({ title, value, subtitle, icon, tone = 'white' }) => {
+  const toneClass = {
+    red: 'bg-red-600 text-white',
+    dark: 'bg-slate-950 text-white',
+    gold: 'border border-amber-100 bg-amber-50 text-amber-900',
+    green: 'border border-emerald-100 bg-emerald-50 text-emerald-900',
+    white: 'border border-slate-100 bg-white text-slate-900',
+  };
+
+  return (
+    <div className={`rounded-[2rem] p-5 shadow-sm ${toneClass[tone] || toneClass.white}`}>
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="text-[10px] font-black uppercase tracking-[0.18em] opacity-70">
+            {title}
+          </div>
+          <div className="mt-2 text-2xl font-black tracking-tight">
+            {value}
+          </div>
+          {subtitle && (
+            <div className="mt-1 text-[11px] font-bold opacity-70">
+              {subtitle}
             </div>
-            <div className="p-5 flex-1 overflow-y-auto custom-scrollbar space-y-5 bg-slate-50">
-              <div className="grid grid-cols-2 gap-4 shrink-0">
-                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-center"><div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Total Bon Gantung</div><div className="text-xl font-black text-rose-600 tracking-tight">{formatRupiah(selectedCustomerDetail.total_bon_gantung)}</div></div>
-                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm text-center"><div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Akumulasi Belanja Historis</div><div className="text-xl font-black text-slate-800 tracking-tight">{formatRupiah(selectedCustomerDetail.total_belanja_akumulasi)}</div></div>
-              </div>
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="px-4 py-3 bg-slate-100 border-b border-slate-200 text-[10px] font-black text-slate-700 uppercase flex items-center gap-1.5 tracking-wider"><FileText size={14}/> Daftar Nota Yang Belum Lunas</div>
-                <div className="divide-y divide-slate-100 text-xs font-bold">
-                  {selectedCustomerDetail.nota_details.map((nota, nIdx) => (
-                    <div key={nIdx} className="p-4 flex justify-between items-center hover:bg-slate-50 transition-colors">
-                      <div><div className="text-[10px] font-mono text-slate-400">{nota.invoice_id}</div><div className="text-[11px] font-bold text-slate-600 mt-1 flex items-center gap-1"><Calendar size={12}/> {formatDate(nota.date)}</div><div className="text-[9px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded w-max mt-1.5 uppercase border border-blue-100 shadow-3xs">METODE ASAL: {nota.metode_asal}</div></div>
-                      <div className="text-right"><div className="text-slate-800 font-medium text-[11px]">Tagihan: {formatRupiah(nota.total_tagihan)}</div><div className="text-slate-400 font-medium text-[11px] mt-0.5">Di-DP: {formatRupiah(nota.sudah_dibayar)}</div><div className="font-black text-rose-600 text-sm mt-1">Sisa: {formatRupiah(nota.sisa_hutang)}</div></div>
-                    </div>
-                  ))}
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-white/60 bg-white/80 p-3 text-red-600 shadow-sm">
+          {icon}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const SectionCard = ({ title, subtitle, icon, children }) => (
+  <div className="rounded-[2rem] border border-slate-100 bg-white shadow-sm">
+    <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-5">
+      <div>
+        <div className="flex items-center gap-2 text-sm font-black text-slate-900">
+          <span className="text-red-600">{icon}</span>
+          {title}
+        </div>
+        {subtitle && (
+          <p className="mt-1 text-[11px] font-semibold leading-relaxed text-slate-400">
+            {subtitle}
+          </p>
+        )}
+      </div>
+    </div>
+    <div className="p-5">
+      {children}
+    </div>
+  </div>
+);
+
+const EmptyState = ({ text = 'Belum ada data dari orchestrator.' }) => (
+  <div className="rounded-3xl border border-amber-100 bg-amber-50 p-5 text-sm font-bold leading-relaxed text-amber-800">
+    {text}
+  </div>
+);
+
+const RiskCard = ({ risk, fallbackIcon: FallbackIcon = ShieldAlert }) => {
+  const Icon = risk?.icon || FallbackIcon;
+  const severity = risk?.severity || 'INFO';
+  const tone = getRiskTone(severity);
+  const toneClass = {
+    red: 'border-red-100 bg-red-50 text-red-900',
+    gold: 'border-amber-100 bg-amber-50 text-amber-900',
+    green: 'border-emerald-100 bg-emerald-50 text-emerald-900',
+    slate: 'border-slate-100 bg-slate-50 text-slate-900',
+  };
+
+  return (
+    <div className={`rounded-[2rem] border p-5 shadow-sm ${toneClass[tone] || toneClass.slate}`}>
+      <div className="flex items-start gap-4">
+        <div className="rounded-2xl bg-white p-3 text-red-600 shadow-sm">
+          <Icon size={20} />
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-black">
+            {risk?.title || 'Risk Alert'}
+          </div>
+          <div className="mt-1 text-xs font-bold leading-relaxed opacity-80">
+            {risk?.message || risk?.description || risk?.action_hint || '-'}
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Badge tone={tone}>
+              {severity}
+            </Badge>
+            {hasValue(risk?.amount) && toNumber(risk.amount) !== 0 && (
+              <Badge tone={tone}>
+                {formatMoney(risk.amount)}
+              </Badge>
+            )}
+            {hasValue(risk?.count) && toNumber(risk.count) > 0 && (
+              <Badge tone="slate">
+                {formatNumber(risk.count)} item
+              </Badge>
+            )}
+          </div>
+
+          {risk?.action_hint && (
+            <div className="mt-3 rounded-2xl bg-white/70 p-3 text-xs font-bold leading-relaxed">
+              {risk.action_hint}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const RankList = ({
+  rows,
+  titleKeys = [],
+  subtitleKeys = [],
+  valueKeys = [],
+  valueType = 'money',
+  emptyText = 'Belum ada data dari orchestrator.',
+}) => {
+  const list = safeArray(rows);
+  const maxValue = Math.max(
+    1,
+    ...list.map((row) => Math.abs(toNumber(getMetric(row, valueKeys)))),
+  );
+
+  if (list.length === 0) return <EmptyState text={emptyText} />;
+
+  return (
+    <div className="space-y-3">
+      {list.slice(0, 8).map((row, index) => {
+        const metric = getMetric(row, valueKeys);
+        const width = Math.max((Math.abs(toNumber(metric)) / maxValue) * 100, 4);
+        const valueLabel = valueType === 'percent'
+          ? formatPercent(metric)
+          : valueType === 'number'
+            ? formatNumber(metric)
+            : formatMoney(metric);
+
+        return (
+          <div key={`${getRowTitle(row, titleKeys)}-${index}`} className="rounded-3xl border border-slate-100 bg-slate-50/70 p-4">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-600 text-[10px] font-black text-white">
+                    {index + 1}
+                  </span>
+                  <div className="truncate text-sm font-black text-slate-900">
+                    {getRowTitle(row, titleKeys)}
+                  </div>
+                </div>
+                <div className="mt-1 truncate pl-8 text-[11px] font-bold text-slate-400">
+                  {getRowSubtitle(row, subtitleKeys)}
                 </div>
               </div>
-              <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-4 text-[11px] font-bold text-amber-800 leading-relaxed shadow-inner"><span className="text-amber-600 font-black uppercase tracking-wider mb-1 block flex items-center gap-1.5"><AlertTriangle size={14}/> Catatan Internal CRM:</span> "{selectedCustomerDetail.notes_crm}"</div>
+
+              <div className="shrink-0 text-right text-sm font-black text-slate-900">
+                {valueLabel}
+              </div>
             </div>
-            <div className="p-4 bg-slate-50 border-t border-slate-100 text-right shrink-0"><button onClick={() => setSelectedCustomerDetail(null)} className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-black text-[11px] uppercase tracking-wider rounded-xl shadow-md cursor-pointer transition-transform active:scale-95">Tutup Mading</button></div>
+
+            <div className="h-2 overflow-hidden rounded-full bg-white">
+              <div
+                className="h-full rounded-full bg-red-600"
+                style={{ width: `${width}%` }}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+const InventoryRiskList = ({ rows, emptyText }) => {
+  const list = safeArray(rows);
+
+  if (list.length === 0) return <EmptyState text={emptyText} />;
+
+  return (
+    <div className="space-y-3">
+      {list.slice(0, 8).map((item, index) => (
+        <div key={`${item.item_id || item.item_name || index}`} className="rounded-3xl border border-slate-100 bg-slate-50/70 p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="truncate text-sm font-black text-slate-900">
+                {item.item_name || item.item_id || '-'}
+              </div>
+              <div className="mt-1 text-[11px] font-bold text-slate-400">
+                {item.branch_id || '-'} · {item.warehouse_id || '-'}
+              </div>
+            </div>
+
+            <div className="shrink-0 text-right">
+              <div className="text-sm font-black text-slate-900">
+                {formatNumber(item.current_qty)}
+              </div>
+              <div className="mt-1 text-[10px] font-bold text-slate-400">
+                Min: {formatNumber(item.minimum_qty)}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Badge tone={normalizeCode(item.status) === 'CRITICAL' ? 'red' : normalizeCode(item.status) === 'LOW' ? 'gold' : 'slate'}>
+              {item.status || 'STOCK'}
+            </Badge>
+            {item.last_movement_date && (
+              <Badge tone="slate">
+                Last: {formatDate(item.last_movement_date)}
+              </Badge>
+            )}
           </div>
         </div>
+      ))}
+    </div>
+  );
+};
+
+const TrendMiniCard = ({ title, trend, icon }) => {
+  const direction = getTrendDirection(trend);
+  const isDown = direction === 'DOWN';
+
+  return (
+    <div className="rounded-3xl border border-slate-100 bg-slate-50/70 p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+            {title}
+          </div>
+          <div className="mt-2 text-xl font-black text-slate-900">
+            {formatMoney(trend?.currentValue)}
+          </div>
+          <div className="mt-1 text-[11px] font-bold text-slate-400">
+            Previous: {formatMoney(trend?.previousValue)}
+          </div>
+        </div>
+
+        <div className="rounded-2xl bg-white p-3 text-red-600 shadow-sm">
+          {icon}
+        </div>
+      </div>
+
+      <div className={`mt-4 inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-[11px] font-black ${
+        isDown
+          ? 'border-red-100 bg-red-50 text-red-700'
+          : 'border-emerald-100 bg-emerald-50 text-emerald-700'
+      }`}>
+        {isDown ? <TrendingDown size={14} /> : <TrendingUp size={14} />}
+        {formatPercent(trend?.changePercent)}
+      </div>
+    </div>
+  );
+};
+
+const OwnerActionCenter = ({ actions }) => {
+  const list = safeArray(actions);
+
+  if (list.length === 0) {
+    return <EmptyState text="Tidak ada rekomendasi action dari orchestrator." />;
+  }
+
+  return (
+    <div className="space-y-3">
+      {list.slice(0, 10).map((action, index) => (
+        <div key={`${action.id || action.title || index}`} className="rounded-3xl border border-slate-100 bg-slate-50/70 p-5">
+          <div className="flex items-start gap-4">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-red-600 text-sm font-black text-white">
+              {index + 1}
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-black text-slate-900">
+                {action.title || 'Owner Action'}
+              </div>
+              <div className="mt-1 text-xs font-bold leading-relaxed text-slate-500">
+                {action.description || action.action_hint || '-'}
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Badge tone={getRiskTone(action.severity)}>
+                  {action.severity || 'INFO'}
+                </Badge>
+                {action.source && (
+                  <Badge tone="slate">
+                    {action.source}
+                  </Badge>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const AccessDenied = () => (
+  <div className="rounded-[2rem] border border-red-100 bg-red-50 p-8 text-center shadow-sm">
+    <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-white text-red-600 shadow-sm">
+      <LockKeyhole size={28} />
+    </div>
+    <h2 className="mt-4 text-2xl font-black text-red-900">
+      ACCESS DENIED
+    </h2>
+    <p className="mx-auto mt-2 max-w-xl text-sm font-bold leading-relaxed text-red-700">
+      Business Radar hanya bisa diakses oleh OWNER atau DEWA.
+    </p>
+  </div>
+);
+
+export default function TabBusinessRadar({
+  dbData = {},
+  source = null,
+  user = {},
+}) {
+  const [period, setPeriod] = useState('TODAY');
+  const [customStart, setCustomStart] = useState(getTodayStr());
+  const [customEnd, setCustomEnd] = useState(getTodayStr());
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const ownerAllowed = isOwnerRole(user);
+  const dateRange = useMemo(() => resolveDateRange(period, customStart, customEnd), [period, customStart, customEnd]);
+  const sourceData = source || dbData || {};
+
+  const radarState = useMemo(() => {
+    if (!ownerAllowed) {
+      return {
+        ok: false,
+        status: 'ACCESS_DENIED',
+        analytics: mergeAnalyticsDefaults(null),
+        radar: buildBusinessRadarFromOwnerAnalytics(null),
+        message: 'ACCESS DENIED',
+      };
+    }
+
+    if (typeof erpOrchestrator?.getOwnerAnalytics !== 'function') {
+      return {
+        ok: false,
+        status: 'MISSING_API',
+        analytics: mergeAnalyticsDefaults(null),
+        radar: buildBusinessRadarFromOwnerAnalytics(null),
+        message: 'erpOrchestrator.getOwnerAnalytics() belum tersedia.',
+      };
+    }
+
+    try {
+      const input = {
+        period,
+        start_date: dateRange.startDate,
+        end_date: dateRange.endDate,
+        readonly: true,
+        scope: 'BUSINESS_RADAR',
+      };
+
+      const context = {
+        source: sourceData,
+        dbData: sourceData,
+        user,
+        readonly: true,
+        executor: user?.email || user?.name || user?.username || 'BUSINESS_RADAR',
+      };
+
+      const ownerAnalytics = mergeAnalyticsDefaults(
+        erpOrchestrator.getOwnerAnalytics(input, context),
+      );
+
+      const businessRadarPayload = typeof erpOrchestrator?.getBusinessRadar === 'function'
+        ? erpOrchestrator.getBusinessRadar(input, context)
+        : null;
+
+      const radar = normalizeBusinessRadarPayload(businessRadarPayload, ownerAnalytics);
+
+      return {
+        ok: true,
+        status: 'READY',
+        analytics: ownerAnalytics,
+        radar,
+        message: '',
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        status: 'ERROR',
+        analytics: mergeAnalyticsDefaults(null),
+        radar: buildBusinessRadarFromOwnerAnalytics(null),
+        message: error?.message || 'Gagal membaca Business Radar dari erpOrchestrator.',
+      };
+    }
+  }, [ownerAllowed, period, dateRange.startDate, dateRange.endDate, sourceData, user, refreshKey]);
+
+  if (!ownerAllowed) {
+    return (
+      <div className="space-y-6 pb-10 text-slate-700 normal-case">
+        <AccessDenied />
+      </div>
+    );
+  }
+
+  const analytics = radarState.analytics || mergeAnalyticsDefaults(null);
+  const radar = radarState.radar || buildBusinessRadarFromOwnerAnalytics(analytics);
+
+  const summary = analytics.summary || {};
+  const branchAnalytics = analytics.branchAnalytics || {};
+  const productAnalytics = analytics.productAnalytics || {};
+  const customerAnalytics = analytics.customerAnalytics || {};
+  const channelAnalytics = analytics.channelAnalytics || {};
+  const cashflowAnalytics = analytics.cashflowAnalytics || {};
+  const receivableAnalytics = analytics.receivableAnalytics || {};
+  const payableAnalytics = analytics.payableAnalytics || {};
+  const inventoryAnalytics = analytics.inventoryAnalytics || {};
+  const trendAnalytics = analytics.trendAnalytics || {};
+
+  const branchRadar = radar.branchRadar || {};
+  const inventoryRadar = radar.inventoryRadar || {};
+  const financialRadar = radar.financialRadar || {};
+  const salesRadar = radar.salesRadar || {};
+  const warningCards = safeArray(radar.warningCards);
+  const ownerActions = safeArray(radar.ownerActionCenter);
+
+  const businessTone = getScoreTone(radar.businessHealthScore);
+  const cashTone = getScoreTone(radar.cashDisciplineScore);
+
+  return (
+    <div className="space-y-6 pb-10 text-slate-700 normal-case">
+      <div className="relative overflow-hidden rounded-[2rem] bg-slate-950 p-6 text-white shadow-sm">
+        <div className="absolute -right-16 -top-16 h-52 w-52 rounded-full bg-red-600/30 blur-2xl" />
+        <div className="absolute -bottom-20 left-1/3 h-48 w-48 rounded-full bg-amber-400/20 blur-2xl" />
+
+        <div className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+          <div>
+            <div className="mb-3 flex items-center gap-2">
+              <div className="rounded-2xl bg-red-600 p-2 shadow-sm">
+                <Crown size={20} />
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-[0.24em] text-amber-200">
+                Enterprise Intelligence Layer
+              </span>
+            </div>
+            <h1 className="text-2xl font-black tracking-tight lg:text-3xl">
+              Business Radar
+            </h1>
+            <p className="mt-2 max-w-3xl text-sm font-medium leading-relaxed text-slate-300">
+              Sistem early warning dan business intelligence untuk owner. Thin UI, read only, dan seluruh sumber data berasal dari erpOrchestrator.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Badge tone="dark">OWNER ONLY</Badge>
+            <Badge tone="gold">READ ONLY</Badge>
+            <Badge tone="green">{radar.source || 'getOwnerAnalytics'}</Badge>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-[2rem] border border-slate-100 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-sm font-black text-slate-900">
+              <CalendarClock size={17} className="text-red-600" />
+              Filter Periode
+            </div>
+            <p className="mt-1 text-[11px] font-semibold text-slate-400">
+              Periode dikirim ke orchestrator. UI tidak membuat transaksi dan tidak mengubah data.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <div className="flex flex-wrap gap-2">
+              {PERIOD_OPTIONS.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setPeriod(item.id)}
+                  className={`rounded-2xl px-4 py-3 text-[10px] font-black uppercase tracking-[0.14em] transition-all ${
+                    period === item.id
+                      ? 'bg-red-600 text-white shadow-sm'
+                      : 'border border-slate-200 bg-white text-slate-500 hover:bg-red-50 hover:text-red-600'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+
+            {period === 'CUSTOM' && (
+              <div className="flex flex-wrap gap-2">
+                <input
+                  type="date"
+                  value={customStart}
+                  onChange={(event) => setCustomStart(event.target.value)}
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-black text-slate-600 outline-none transition-all focus:border-red-500 focus:ring-4 focus:ring-red-50"
+                />
+                <input
+                  type="date"
+                  value={customEnd}
+                  onChange={(event) => setCustomEnd(event.target.value)}
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-black text-slate-600 outline-none transition-all focus:border-red-500 focus:ring-4 focus:ring-red-50"
+                />
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setRefreshKey((prev) => prev + 1)}
+              className="flex items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-amber-700 transition-all hover:bg-amber-100"
+            >
+              <RefreshCw size={14} />
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Badge tone="slate">
+            {formatDate(dateRange.startDate)} — {formatDate(dateRange.endDate)}
+          </Badge>
+          <Badge tone={radarState.ok ? 'green' : 'red'}>
+            {radarState.status}
+          </Badge>
+          <Badge tone="dark">
+            Thin UI
+          </Badge>
+        </div>
+      </div>
+
+      {!radarState.ok && (
+        <div className="rounded-[2rem] border border-red-100 bg-red-50 p-6 shadow-sm">
+          <div className="flex items-start gap-4">
+            <div className="rounded-2xl bg-white p-3 text-red-600 shadow-sm">
+              <AlertTriangle size={22} />
+            </div>
+            <div>
+              <div className="text-sm font-black text-red-900">
+                Business Radar belum bisa dimuat
+              </div>
+              <p className="mt-1 text-sm font-bold leading-relaxed text-red-700">
+                {radarState.message}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {radarState.ok && (
+        <>
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+            <HealthGauge
+              score={radar.businessHealthScore}
+              label="Business Health Score"
+              subtitle={radar.businessHealthCategory}
+              icon={<Gauge size={18} />}
+            />
+
+            <HealthGauge
+              score={radar.cashDisciplineScore}
+              label="Cash Discipline Score"
+              subtitle={radar.cashDisciplineCategory}
+              icon={<ShieldCheck size={18} />}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <ScoreCard
+              title="Net Profit"
+              value={formatMoney(summary.netProfit)}
+              subtitle="Dari owner analytics"
+              icon={<BadgeDollarSign size={18} />}
+              tone={toNumber(summary.netProfit) < 0 ? 'dark' : 'white'}
+            />
+            <ScoreCard
+              title="Cash Position"
+              value={formatMoney(cashflowAnalytics.cashPosition)}
+              subtitle="Cash + Bank + Piutang - Hutang"
+              icon={<Banknote size={18} />}
+              tone={toNumber(cashflowAnalytics.cashPosition) < 0 ? 'dark' : 'gold'}
+            />
+            <ScoreCard
+              title="Overdue Piutang"
+              value={formatMoney(receivableAnalytics.overdueReceivable)}
+              subtitle={`${formatNumber(receivableAnalytics.overdueCustomerCount)} customer`}
+              icon={<Users size={18} />}
+              tone={toNumber(receivableAnalytics.overdueReceivable) > 0 ? 'gold' : 'white'}
+            />
+            <ScoreCard
+              title="Overdue Hutang"
+              value={formatMoney(payableAnalytics.overduePayable)}
+              subtitle={`${formatNumber(payableAnalytics.overdueSupplierCount)} supplier`}
+              icon={<WalletCards size={18} />}
+              tone={toNumber(payableAnalytics.overduePayable) > 0 ? 'gold' : 'white'}
+            />
+          </div>
+
+          <SectionCard
+            title="Warning System"
+            subtitle="Cash negatif, profit negatif, piutang overdue, hutang overdue, stok kritis, margin kecil, penjualan turun, dan cabang rugi."
+            icon={<ShieldAlert size={17} />}
+          >
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+              {warningCards.length > 0 ? (
+                warningCards.map((warning, index) => (
+                  <RiskCard
+                    key={`${warning.id || warning.type || warning.title || index}`}
+                    risk={warning}
+                    fallbackIcon={AlertTriangle}
+                  />
+                ))
+              ) : (
+                <EmptyState text="Tidak ada warning dari orchestrator." />
+              )}
+            </div>
+          </SectionCard>
+
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+            <SectionCard
+              title="Branch Radar — Top Cabang"
+              subtitle="Cabang dengan performa omzet/profit terbaik."
+              icon={<Trophy size={17} />}
+            >
+              <RankList
+                rows={branchRadar.topBranches || branchAnalytics.topBranchRevenue}
+                titleKeys={['branch_name', 'branch_id']}
+                subtitleKeys={['branch_id']}
+                valueKeys={['totalRevenue', 'netProfit']}
+              />
+            </SectionCard>
+
+            <SectionCard
+              title="Branch Radar — Cabang Bermasalah"
+              subtitle="Cabang dengan performa terendah."
+              icon={<Building2 size={17} />}
+            >
+              <RankList
+                rows={branchRadar.problemBranches || branchAnalytics.worstBranch}
+                titleKeys={['branch_name', 'branch_id']}
+                subtitleKeys={['branch_id']}
+                valueKeys={['netProfit', 'grossProfit']}
+              />
+            </SectionCard>
+
+            <SectionCard
+              title="Branch Radar — Cabang Rugi"
+              subtitle="Cabang dengan profit negatif."
+              icon={<TrendingDown size={17} />}
+            >
+              <RankList
+                rows={branchRadar.lossBranches}
+                titleKeys={['branch_name', 'branch_id']}
+                subtitleKeys={['branch_id']}
+                valueKeys={['netProfit', 'grossProfit']}
+                emptyText="Tidak ada cabang rugi pada periode ini."
+              />
+            </SectionCard>
+          </div>
+
+          <SectionCard
+            title="Inventory Radar"
+            subtitle="Stock out risk, dead stock risk, dan slow moving product."
+            icon={<Boxes size={17} />}
+          >
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+              <div>
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div className="text-sm font-black text-slate-900">Stock Out Risk</div>
+                  <Badge tone="red">{safeArray(inventoryRadar.stockOutRisk).length} item</Badge>
+                </div>
+                <InventoryRiskList
+                  rows={inventoryRadar.stockOutRisk || inventoryAnalytics.criticalStock}
+                  emptyText="Tidak ada stock out risk."
+                />
+              </div>
+
+              <div>
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div className="text-sm font-black text-slate-900">Dead Stock Risk</div>
+                  <Badge tone="slate">{safeArray(inventoryRadar.deadStockRisk).length} item</Badge>
+                </div>
+                <InventoryRiskList
+                  rows={inventoryRadar.deadStockRisk || inventoryAnalytics.deadStock}
+                  emptyText="Tidak ada dead stock risk."
+                />
+              </div>
+
+              <div>
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div className="text-sm font-black text-slate-900">Slow Moving Product</div>
+                  <Badge tone="gold">{safeArray(inventoryRadar.slowMovingProduct).length} item</Badge>
+                </div>
+                <InventoryRiskList
+                  rows={inventoryRadar.slowMovingProduct || inventoryAnalytics.lowStock}
+                  emptyText="Tidak ada slow moving product."
+                />
+              </div>
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            title="Financial Radar"
+            subtitle="Cash deficit risk, debt risk, dan receivable risk."
+            icon={<Landmark size={17} />}
+          >
+            <div className="mb-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <ScoreCard
+                title="Cash Balance"
+                value={formatMoney(cashflowAnalytics.cashBalance)}
+                icon={<Banknote size={18} />}
+                tone="white"
+              />
+              <ScoreCard
+                title="Bank Balance"
+                value={formatMoney(cashflowAnalytics.bankBalance)}
+                icon={<Landmark size={18} />}
+                tone="white"
+              />
+              <ScoreCard
+                title="Receivable"
+                value={formatMoney(cashflowAnalytics.receivableBalance)}
+                icon={<Users size={18} />}
+                tone="gold"
+              />
+              <ScoreCard
+                title="Payable"
+                value={formatMoney(cashflowAnalytics.payableBalance)}
+                icon={<WalletCards size={18} />}
+                tone="white"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+              {safeArray(financialRadar.riskCards).map((risk, index) => (
+                <RiskCard
+                  key={`${risk.id || risk.title || index}`}
+                  risk={risk}
+                  fallbackIcon={WalletCards}
+                />
+              ))}
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            title="Sales Radar"
+            subtitle="Penjualan turun, channel bermasalah, dan produk tidak laku."
+            icon={<ShoppingBag size={17} />}
+          >
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+              {safeArray(salesRadar.riskCards).map((risk, index) => (
+                <RiskCard
+                  key={`${risk.id || risk.title || index}`}
+                  risk={risk}
+                  fallbackIcon={ShoppingBag}
+                />
+              ))}
+            </div>
+
+            <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {CHANNEL_KEYS.map((channel) => {
+                const channelData = channelAnalytics[channel.key] || {};
+                const Icon = channel.icon;
+
+                return (
+                  <div key={channel.key} className="rounded-3xl border border-slate-100 bg-slate-50/70 p-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="rounded-2xl bg-white p-3 text-red-600 shadow-sm">
+                          <Icon size={18} />
+                        </div>
+                        <div>
+                          <div className="text-sm font-black text-slate-900">
+                            {channel.label}
+                          </div>
+                          <div className="mt-1 text-[11px] font-bold text-slate-400">
+                            Channel Radar
+                          </div>
+                        </div>
+                      </div>
+
+                      <Badge tone={toNumber(channelData.totalRevenue) > 0 ? 'green' : 'gold'}>
+                        {toNumber(channelData.totalRevenue) > 0 ? 'ACTIVE' : 'WATCH'}
+                      </Badge>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-2 gap-3">
+                      <div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+                          Revenue
+                        </div>
+                        <div className="mt-1 text-sm font-black text-slate-900">
+                          {formatMoney(channelData.totalRevenue)}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+                          Profit
+                        </div>
+                        <div className="mt-1 text-sm font-black text-slate-900">
+                          {formatMoney(channelData.netProfit)}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+                          Margin
+                        </div>
+                        <div className="mt-1 text-sm font-black text-slate-900">
+                          {formatPercent(channelData.profitMargin)}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+                          Trx
+                        </div>
+                        <div className="mt-1 text-sm font-black text-slate-900">
+                          {formatNumber(channelData.transactionCount)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </SectionCard>
+
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+            <SectionCard
+              title="Produk Margin Rendah"
+              subtitle="Produk yang berpotensi menekan profit."
+              icon={<Target size={17} />}
+            >
+              <RankList
+                rows={productAnalytics.lowMarginProducts}
+                titleKeys={['product_name', 'product_id']}
+                subtitleKeys={['product_id']}
+                valueKeys={['profitMargin']}
+                valueType="percent"
+              />
+            </SectionCard>
+
+            <SectionCard
+              title="Produk Tidak Laku / Lemah"
+              subtitle="Pantau produk dengan performa rendah."
+              icon={<Package size={17} />}
+            >
+              <RankList
+                rows={productAnalytics.topProducts}
+                titleKeys={['product_name', 'product_id']}
+                subtitleKeys={['product_id']}
+                valueKeys={['qtySold']}
+                valueType="number"
+                emptyText="Belum ada produk terjual pada periode ini."
+              />
+            </SectionCard>
+
+            <SectionCard
+              title="Top Customer"
+              subtitle="Customer utama yang mempengaruhi performa bisnis."
+              icon={<Users size={17} />}
+            >
+              <RankList
+                rows={customerAnalytics.topCustomers}
+                titleKeys={['customer_name', 'customer_id']}
+                subtitleKeys={['customer_type', 'customer_id']}
+                valueKeys={['totalRevenue']}
+              />
+            </SectionCard>
+          </div>
+
+          <SectionCard
+            title="Trend Analytics"
+            subtitle="Revenue, profit, cashflow, dan transaksi dari orchestrator."
+            icon={<BarChart3 size={17} />}
+          >
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <TrendMiniCard
+                title="Revenue Trend"
+                trend={trendAnalytics.revenueTrend}
+                icon={<TrendingUp size={18} />}
+              />
+              <TrendMiniCard
+                title="Profit Trend"
+                trend={trendAnalytics.profitTrend}
+                icon={<Trophy size={18} />}
+              />
+              <TrendMiniCard
+                title="Cashflow Trend"
+                trend={trendAnalytics.cashflowTrend}
+                icon={<Activity size={18} />}
+              />
+              <TrendMiniCard
+                title="Transaction Trend"
+                trend={trendAnalytics.transactionTrend}
+                icon={<BarChart3 size={18} />}
+              />
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            title="Owner Action Center"
+            subtitle="Rekomendasi aksi berdasarkan warning dan analytics dari orchestrator."
+            icon={<Zap size={17} />}
+          >
+            <OwnerActionCenter actions={ownerActions} />
+          </SectionCard>
+
+          <SectionCard
+            title="Read Only Compliance"
+            subtitle="Business Radar tidak memiliki write action."
+            icon={<CheckCircle size={17} />}
+          >
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="rounded-3xl border border-emerald-100 bg-emerald-50 p-5">
+                <div className="text-sm font-black text-emerald-900">No Insert</div>
+                <div className="mt-1 text-[11px] font-bold text-emerald-700">
+                  Tidak ada create transaksi.
+                </div>
+              </div>
+              <div className="rounded-3xl border border-emerald-100 bg-emerald-50 p-5">
+                <div className="text-sm font-black text-emerald-900">No Update</div>
+                <div className="mt-1 text-[11px] font-bold text-emerald-700">
+                  Tidak ada edit transaksi.
+                </div>
+              </div>
+              <div className="rounded-3xl border border-emerald-100 bg-emerald-50 p-5">
+                <div className="text-sm font-black text-emerald-900">No Delete</div>
+                <div className="mt-1 text-[11px] font-bold text-emerald-700">
+                  Tidak ada hapus transaksi.
+                </div>
+              </div>
+            </div>
+          </SectionCard>
+        </>
       )}
     </div>
   );
