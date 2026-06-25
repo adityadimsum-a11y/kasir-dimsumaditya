@@ -55,13 +55,11 @@ import {
 
 import {
   getActiveBom,
-  createBomSnapshot,
 } from './bomEngine';
 
 import {
   getLayerBalance,
   listLayerItems,
-  calculateConsumptionCost,
 } from './inventoryLayerEngine';
 
 import {
@@ -3268,6 +3266,682 @@ export const getOwnerAnalytics = (input = {}, context = {}) => {
   };
 };
 
+
+/* =========================================================================
+   AUDIT TRAIL READ ONLY HELPERS
+   ========================================================================= */
+
+const AUDIT_ACTION_TYPES = Object.freeze([
+  'CREATE',
+  'UPDATE',
+  'DELETE',
+  'VOID',
+  'APPROVE',
+  'REJECT',
+  'LOGIN',
+  'LOGOUT',
+  'POST',
+]);
+
+const AUDIT_SOURCE_KEYS = Object.freeze([
+  'audit_logs',
+  'auditLogs',
+  'audit_trails',
+  'auditTrails',
+  'erp_audit_trail',
+  'erpAuditTrail',
+  'activity_logs',
+  'activityLogs',
+  'system_logs',
+  'systemLogs',
+  'transaction_logs',
+  'transactionLogs',
+  'snapshot_logs',
+  'snapshotLogs',
+]);
+
+const AUDIT_SNAPSHOT_SOURCE_KEYS = Object.freeze([
+  'purchase_transactions',
+  'purchaseTransactions',
+  'purchases',
+  'production_batches',
+  'productionBatches',
+  'sales_transactions',
+  'salesTransactions',
+  'sales_orders',
+  'salesOrders',
+  'cash_bank_transactions',
+  'cashBankTransactions',
+  'payments',
+  'receivable_payments',
+  'receivablePayments',
+  'payable_payments',
+  'payablePayments',
+  'expenses',
+  'adjustments',
+  'journals',
+  'journal_entries',
+  'journalEntries',
+]);
+
+const normalizeAuditAction = (value) => {
+  const action = normalizeCode(value || '');
+
+  if (['CREATE', 'CREATED', 'ADD', 'ADDED', 'INSERT', 'NEW'].includes(action)) return 'CREATE';
+  if (['UPDATE', 'UPDATED', 'EDIT', 'EDITED', 'MODIFY', 'MODIFIED', 'CHANGE', 'CHANGED'].includes(action)) return 'UPDATE';
+  if (['DELETE', 'DELETED', 'REMOVE', 'REMOVED', 'SOFT_DELETE', 'HARD_DELETE'].includes(action)) return 'DELETE';
+  if (['VOID', 'VOIDED', 'CANCEL', 'CANCELLED', 'CANCELED', 'REVERSAL', 'REVERSE', 'REVERSED'].includes(action)) return 'VOID';
+  if (['APPROVE', 'APPROVED', 'ACCEPT', 'ACCEPTED'].includes(action)) return 'APPROVE';
+  if (['REJECT', 'REJECTED', 'DECLINE', 'DECLINED'].includes(action)) return 'REJECT';
+  if (['LOGIN', 'LOG_IN', 'SIGNIN', 'SIGN_IN'].includes(action)) return 'LOGIN';
+  if (['LOGOUT', 'LOG_OUT', 'SIGNOUT', 'SIGN_OUT'].includes(action)) return 'LOGOUT';
+  if (['POST', 'POSTED', 'FINAL', 'FINALIZE', 'FINALIZED', 'LOCK', 'LOCKED'].includes(action)) return 'POST';
+
+  return action || 'UNKNOWN';
+};
+
+const normalizeAuditDate = (value) => {
+  const normalized = normalizeDateString(value);
+  return normalized;
+};
+
+const normalizeAuditTimestamp = (value) => {
+  if (!value) return '';
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return String(value);
+
+  return parsed.toISOString();
+};
+
+const readAuditSnapshotValue = (value) => {
+  if (!value) return null;
+
+  const parsed = parseJson(value, value);
+
+  if (!parsed) return null;
+
+  try {
+    const readResult = readSnapshot(parsed, {
+      allowInvalid: true,
+      readonly: true,
+    });
+
+    if (readResult?.payload) return readResult.payload;
+    if (readResult?.snapshot) return readResult.snapshot;
+    if (readResult?.data) return readResult.data;
+
+    return parsed;
+  } catch (error) {
+    return parsed;
+  }
+};
+
+const pickAuditValue = (row = {}, keys = []) => {
+  for (const key of keys) {
+    if (row?.[key] !== undefined && row?.[key] !== null && row?.[key] !== '') {
+      return row[key];
+    }
+  }
+
+  return '';
+};
+
+const buildAuditRecordId = (sourceKey, row = {}, index = 0) => {
+  const existingId = pickAuditValue(row, [
+    'id',
+    'audit_id',
+    'auditId',
+    'log_id',
+    'logId',
+    'event_id',
+    'eventId',
+  ]);
+
+  if (existingId) return String(existingId);
+
+  const ref = pickAuditValue(row, [
+    'reference_number',
+    'referenceNumber',
+    'reference_no',
+    'referenceNo',
+    'ref_number',
+    'refNumber',
+    'transaction_code',
+    'transactionCode',
+    'transaction_id',
+    'transactionId',
+  ]);
+
+  const action = normalizeAuditAction(pickAuditValue(row, ['action', 'action_type', 'actionType', 'event', 'event_type', 'eventType', 'status']));
+  const timestamp = normalizeAuditTimestamp(pickAuditValue(row, ['timestamp', 'action_at', 'actionAt', 'created_at', 'createdAt', 'updated_at', 'updatedAt', 'date'])) || 'NO_TIME';
+
+  return `${normalizeCode(sourceKey || 'AUDIT')}-${index + 1}-${normalizeCode(action)}-${normalizeCode(ref || timestamp)}`;
+};
+
+const normalizeAuditRecord = (row = {}, options = {}) => {
+  const sourceKey = options.sourceKey || options.source_key || 'audit_logs';
+  const index = safeNumber(options.index, 0);
+  const metadataSource = parseJson(row.metadata || row.meta || row.additional_metadata || row.additionalMetadata, {}) || {};
+
+  const timestamp = normalizeAuditTimestamp(pickAuditValue(row, [
+    'timestamp',
+    'action_at',
+    'actionAt',
+    'event_at',
+    'eventAt',
+    'created_at',
+    'createdAt',
+    'updated_at',
+    'updatedAt',
+    'date',
+    'transaction_date',
+    'transactionDate',
+  ]));
+
+  const action = normalizeAuditAction(pickAuditValue(row, [
+    'action',
+    'action_type',
+    'actionType',
+    'event',
+    'event_type',
+    'eventType',
+    'activity',
+    'status',
+  ]));
+
+  const beforeSnapshot = readAuditSnapshotValue(pickAuditValue(row, [
+    'before_snapshot',
+    'beforeSnapshot',
+    'before_snapshot_json',
+    'beforeSnapshotJson',
+    'before',
+    'previous_snapshot',
+    'previousSnapshot',
+    'old_value',
+    'oldValue',
+  ]));
+
+  const afterSnapshot = readAuditSnapshotValue(pickAuditValue(row, [
+    'after_snapshot',
+    'afterSnapshot',
+    'after_snapshot_json',
+    'afterSnapshotJson',
+    'after',
+    'current_snapshot',
+    'currentSnapshot',
+    'new_value',
+    'newValue',
+    'snapshot_package',
+    'snapshotPackage',
+    'orchestrator_snapshot',
+    'orchestratorSnapshot',
+  ]));
+
+  const user = String(pickAuditValue(row, [
+    'user',
+    'user_name',
+    'userName',
+    'username',
+    'created_by',
+    'createdBy',
+    'updated_by',
+    'updatedBy',
+    'operator',
+    'executor',
+    'executor_name',
+    'executorName',
+  ]) || metadataSource.user || metadataSource.user_name || metadataSource.created_by || '').trim();
+
+  const role = String(pickAuditValue(row, [
+    'role',
+    'user_role',
+    'userRole',
+    'access_role',
+    'accessRole',
+    'position',
+  ]) || metadataSource.role || metadataSource.user_role || '').trim();
+
+  const branch = String(pickAuditValue(row, [
+    'branch',
+    'branch_name',
+    'branchName',
+    'branch_id',
+    'branchId',
+    'cabang',
+  ]) || metadataSource.branch || metadataSource.branch_id || '').trim();
+
+  const moduleName = normalizeCode(pickAuditValue(row, [
+    'module',
+    'module_name',
+    'moduleName',
+    'source_module',
+    'sourceModule',
+    'transaction_type',
+    'transactionType',
+    'entity_type',
+    'entityType',
+    'table_name',
+    'tableName',
+    'source_table',
+    'sourceTable',
+  ]) || metadataSource.module || metadataSource.source_module || sourceKey);
+
+  const referenceNumber = String(pickAuditValue(row, [
+    'reference_number',
+    'referenceNumber',
+    'reference_no',
+    'referenceNo',
+    'ref_number',
+    'refNumber',
+    'invoice_number',
+    'invoiceNumber',
+    'transaction_code',
+    'transactionCode',
+    'code',
+    'payment_code',
+    'paymentCode',
+    'purchase_code',
+    'purchaseCode',
+    'sales_code',
+    'salesCode',
+    'order_code',
+    'orderCode',
+  ]) || '').trim();
+
+  const entityType = normalizeCode(pickAuditValue(row, [
+    'entity_type',
+    'entityType',
+    'table_name',
+    'tableName',
+    'source_table',
+    'sourceTable',
+    'module',
+    'source_module',
+    'transaction_type',
+  ]) || sourceKey);
+
+  const entityId = String(pickAuditValue(row, [
+    'entity_id',
+    'entityId',
+    'source_id',
+    'sourceId',
+    'transaction_id',
+    'transactionId',
+    'id',
+    'purchase_id',
+    'purchaseId',
+    'sales_id',
+    'salesId',
+    'order_id',
+    'orderId',
+    'batch_id',
+    'batchId',
+    'payment_id',
+    'paymentId',
+    'journal_id',
+    'journalId',
+  ]) || '').trim();
+
+  const notes = String(pickAuditValue(row, [
+    'notes',
+    'note',
+    'description',
+    'reason',
+    'message',
+    'keterangan',
+  ]) || '').trim();
+
+  return {
+    id: buildAuditRecordId(sourceKey, row, index),
+    timestamp,
+    user,
+    role,
+    branch,
+    module: moduleName,
+    action,
+    reference_number: referenceNumber,
+    entity_type: entityType,
+    entity_id: entityId,
+    before_snapshot: beforeSnapshot,
+    after_snapshot: afterSnapshot,
+    notes,
+    metadata: {
+      ...metadataSource,
+      source_key: sourceKey,
+      raw_action: pickAuditValue(row, ['action', 'action_type', 'actionType', 'event', 'event_type', 'eventType', 'status']),
+      normalized_action: action,
+      readonly: true,
+    },
+  };
+};
+
+const getNestedSnapshotValue = (row = {}) => {
+  const direct = pickAuditValue(row, [
+    'snapshot_package',
+    'snapshotPackage',
+    'composite_snapshot',
+    'compositeSnapshot',
+    'orchestrator_snapshot',
+    'orchestratorSnapshot',
+    'transaction_snapshot',
+    'transactionSnapshot',
+    'purchase_snapshot',
+    'purchaseSnapshot',
+    'production_snapshot',
+    'productionSnapshot',
+    'sales_snapshot',
+    'salesSnapshot',
+    'payment_snapshot',
+    'paymentSnapshot',
+    'void_snapshot',
+    'voidSnapshot',
+    'accounting_snapshot',
+    'accountingSnapshot',
+  ]);
+
+  if (direct) return direct;
+
+  const packageKeys = [
+    'transaction_package',
+    'purchase_transaction_package',
+    'production_batch_package',
+    'sales_transaction_package',
+    'payment_package',
+    'cash_transaction_package',
+    'receivable_payment_package',
+    'payable_payment_package',
+    'transfer_transaction_package',
+    'journal_package',
+    'accounting_package',
+    'reversal_package',
+  ];
+
+  for (const key of packageKeys) {
+    const pkg = row[key];
+    if (!isObject(pkg)) continue;
+
+    const nested = getNestedSnapshotValue(pkg);
+    if (nested) return nested;
+  }
+
+  const headerKeys = [
+    'purchase_header',
+    'batch_header',
+    'order_header',
+    'sales_header',
+    'payment_header',
+    'cash_header',
+    'transfer_header',
+    'journal_header',
+    'reversal_header',
+    'transaction_header',
+    'header',
+  ];
+
+  for (const key of headerKeys) {
+    const header = row[key];
+    if (!isObject(header)) continue;
+
+    const snapshotJson = pickAuditValue(header, [
+      'snapshot_json',
+      'snapshotJson',
+      'transaction_snapshot_json',
+      'transactionSnapshotJson',
+      'purchase_snapshot_json',
+      'purchaseSnapshotJson',
+      'production_snapshot_json',
+      'productionSnapshotJson',
+      'sales_snapshot_json',
+      'salesSnapshotJson',
+      'payment_snapshot_json',
+      'paymentSnapshotJson',
+    ]);
+
+    if (snapshotJson) return snapshotJson;
+  }
+
+  return null;
+};
+
+const inferAuditActionFromSnapshotRow = (row = {}) => {
+  const explicitAction = pickAuditValue(row, ['action', 'action_type', 'actionType', 'event', 'event_type', 'eventType']);
+  if (explicitAction) return normalizeAuditAction(explicitAction);
+
+  const status = normalizeCode(pickAuditValue(row, ['status', 'transaction_status', 'transactionStatus', 'payment_status', 'paymentStatus', 'order_status', 'orderStatus']));
+
+  if (['VOID', 'VOIDED', 'CANCELLED', 'CANCELED', 'REVERSED'].includes(status)) return 'VOID';
+  if (['POSTED', 'FINAL', 'LOCKED', 'PAID', 'COMPLETED', 'DONE'].includes(status)) return 'POST';
+  if (['APPROVED'].includes(status)) return 'APPROVE';
+  if (['REJECTED'].includes(status)) return 'REJECT';
+  if (isDeletedRow(row)) return 'DELETE';
+
+  return 'CREATE';
+};
+
+const normalizeSnapshotAuditRecord = (row = {}, options = {}) => {
+  const sourceKey = options.sourceKey || options.source_key || 'snapshot_source';
+  const index = safeNumber(options.index, 0);
+  const normalized = normalizeAuditRecord({
+    ...row,
+    action: inferAuditActionFromSnapshotRow(row),
+    module: pickAuditValue(row, ['module', 'source_module', 'sourceModule', 'transaction_type', 'transactionType']) || sourceKey,
+    entity_type: pickAuditValue(row, ['entity_type', 'entityType', 'source_table', 'sourceTable', 'table_name', 'tableName']) || sourceKey,
+    after_snapshot: getNestedSnapshotValue(row),
+  }, {
+    sourceKey,
+    index,
+  });
+
+  return {
+    ...normalized,
+    metadata: {
+      ...normalized.metadata,
+      derived_from_snapshot_source: true,
+      source_key: sourceKey,
+    },
+  };
+};
+
+const extractAuditSourceRows = (source = {}) => {
+  return AUDIT_SOURCE_KEYS.flatMap((key) => {
+    return safeArray(source[key]).map((row, index) => ({
+      row,
+      sourceKey: key,
+      index,
+      sourceType: 'AUDIT_LOG',
+    }));
+  });
+};
+
+const extractSnapshotAuditSourceRows = (source = {}) => {
+  return AUDIT_SNAPSHOT_SOURCE_KEYS.flatMap((key) => {
+    return safeArray(source[key]).map((row, index) => ({
+      row,
+      sourceKey: key,
+      index,
+      sourceType: 'SNAPSHOT_SOURCE',
+    }));
+  });
+};
+
+const auditRecordMatchesFilters = (record = {}, filters = {}) => {
+  const recordDate = normalizeAuditDate(record.timestamp);
+  const startDate = normalizeAuditDate(filters.startDate || filters.start_date || '');
+  const endDate = normalizeAuditDate(filters.endDate || filters.end_date || '');
+
+  if (startDate && recordDate && recordDate < startDate) return false;
+  if (endDate && recordDate && recordDate > endDate) return false;
+
+  const filterUser = normalizeText(filters.user || '');
+  const filterBranch = normalizeCode(filters.branch || '');
+  const filterModule = normalizeCode(filters.module || '');
+  const filterAction = normalizeAuditAction(filters.action || '');
+  const search = normalizeText(filters.search || '');
+
+  if (filterUser && !normalizeText(record.user).includes(filterUser)) return false;
+  if (filterBranch && normalizeCode(record.branch) !== filterBranch) return false;
+  if (filterModule && normalizeCode(record.module) !== filterModule) return false;
+  if (filters.action && filterAction !== 'UNKNOWN' && normalizeCode(record.action) !== filterAction) return false;
+
+  if (search) {
+    const searchableText = normalizeText([
+      record.reference_number,
+      record.user,
+      record.entity_id,
+      record.entity_type,
+      record.module,
+      record.notes,
+    ].filter(Boolean).join(' '));
+
+    if (!searchableText.includes(search)) return false;
+  }
+
+  return true;
+};
+
+const buildAuditSummary = (records = []) => {
+  const summary = {
+    totalRecords: safeArray(records).length,
+    totalCreate: 0,
+    totalUpdate: 0,
+    totalDelete: 0,
+    totalVoid: 0,
+    totalApprove: 0,
+    totalReject: 0,
+    totalLogin: 0,
+    totalLogout: 0,
+    totalPost: 0,
+  };
+
+  safeArray(records).forEach((record) => {
+    const action = normalizeAuditAction(record.action);
+
+    if (action === 'CREATE') summary.totalCreate += 1;
+    if (action === 'UPDATE') summary.totalUpdate += 1;
+    if (action === 'DELETE') summary.totalDelete += 1;
+    if (action === 'VOID') summary.totalVoid += 1;
+    if (action === 'APPROVE') summary.totalApprove += 1;
+    if (action === 'REJECT') summary.totalReject += 1;
+    if (action === 'LOGIN') summary.totalLogin += 1;
+    if (action === 'LOGOUT') summary.totalLogout += 1;
+    if (action === 'POST') summary.totalPost += 1;
+  });
+
+  return summary;
+};
+
+const uniqueSortedValues = (records = [], key = '') => {
+  return Array.from(new Set(
+    safeArray(records)
+      .map((record) => record?.[key])
+      .filter((value) => value !== undefined && value !== null && value !== '')
+      .map(String),
+  )).sort((a, b) => a.localeCompare(b));
+};
+
+/* =========================================================================
+   AUDIT TRAIL API - READ ONLY
+   ========================================================================= */
+
+export const getAuditTrail = (input = {}, context = {}) => {
+  const ctx = buildContext(context);
+  const source = input.source || input.dbData || input.db_data || ctx.source || ctx.dbData || {};
+  const warnings = [];
+
+  const activeFilters = {
+    startDate: input.startDate || input.start_date || input.dateFrom || input.date_from || '',
+    endDate: input.endDate || input.end_date || input.dateTo || input.date_to || '',
+    user: input.user || input.username || input.created_by || input.createdBy || '',
+    branch: input.branch || input.branch_id || input.branchId || '',
+    module: input.module || input.source_module || input.sourceModule || '',
+    action: input.action || input.action_type || input.actionType || '',
+    search: input.search || input.keyword || input.q || '',
+  };
+
+  const auditRows = extractAuditSourceRows(source);
+  const snapshotRows = extractSnapshotAuditSourceRows(source);
+
+  const explicitAuditRecords = auditRows.map((item) => normalizeAuditRecord(item.row, {
+    sourceKey: item.sourceKey,
+    index: item.index,
+  }));
+
+  const snapshotAuditRecords = snapshotRows
+    .filter((item) => getNestedSnapshotValue(item.row) || pickAuditValue(item.row, ['status', 'action', 'action_type', 'actionType', 'created_at', 'createdAt', 'updated_at', 'updatedAt']))
+    .map((item) => normalizeSnapshotAuditRecord(item.row, {
+      sourceKey: item.sourceKey,
+      index: item.index,
+    }));
+
+  const dedupeMap = new Map();
+
+  [...explicitAuditRecords, ...snapshotAuditRecords]
+    .filter((record) => record && !isDeletedRow(record))
+    .forEach((record) => {
+      const dedupeKey = [
+        normalizeAuditTimestamp(record.timestamp),
+        normalizeCode(record.action),
+        normalizeCode(record.reference_number),
+        normalizeCode(record.entity_type),
+        normalizeCode(record.entity_id),
+      ].join('|');
+
+      if (!dedupeMap.has(dedupeKey)) {
+        dedupeMap.set(dedupeKey, record);
+      }
+    });
+
+  const allRecords = Array.from(dedupeMap.values()).sort((a, b) => {
+    const aTime = new Date(a.timestamp).getTime();
+    const bTime = new Date(b.timestamp).getTime();
+
+    if (Number.isNaN(aTime) && Number.isNaN(bTime)) return String(b.timestamp).localeCompare(String(a.timestamp));
+    if (Number.isNaN(aTime)) return 1;
+    if (Number.isNaN(bTime)) return -1;
+
+    return bTime - aTime;
+  });
+
+  const filteredRecords = allRecords.filter((record) => auditRecordMatchesFilters(record, activeFilters));
+
+  const limit = safeNumber(input.limit || input.max_results || input.maxResults, 0);
+  const records = limit > 0 ? filteredRecords.slice(0, limit) : filteredRecords;
+
+  if (allRecords.length === 0) {
+    warnings.push(makeWarning('AUDIT_TRAIL_EMPTY', 'Audit trail belum memiliki record pada source yang diberikan.'));
+  }
+
+  const filters = {
+    active: activeFilters,
+    options: {
+      users: uniqueSortedValues(allRecords, 'user'),
+      branches: uniqueSortedValues(allRecords, 'branch'),
+      modules: uniqueSortedValues(allRecords, 'module'),
+      actions: AUDIT_ACTION_TYPES,
+    },
+  };
+
+  return {
+    summary: buildAuditSummary(records),
+    records,
+    filters,
+    metadata: {
+      generated_at: new Date().toISOString(),
+      readonly: true,
+      orchestrator_version: ORCHESTRATOR_VERSION,
+      source: 'erpOrchestrator.getAuditTrail',
+      total_before_filter: allRecords.length,
+      total_after_filter: filteredRecords.length,
+      total_returned: records.length,
+      explicit_audit_source_count: auditRows.length,
+      snapshot_source_count: snapshotRows.length,
+      action_types: AUDIT_ACTION_TYPES,
+    },
+    warnings,
+  };
+};
+
 /* =========================================================================
    MASTER DATA ORCHESTRATION API
    ========================================================================= */
@@ -3386,6 +4060,7 @@ export default {
   processAdjustment,
   processVoidTransaction,
 
+  getAuditTrail,
   getOwnerAnalytics,
   getDashboardSummary,
   getBranchDashboard,
