@@ -1,409 +1,159 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { AlertCircle, Loader2, Trash2 } from 'lucide-react';
 
 import { safeJsonParse, generateRequestId } from './utils/helpers';
 
 import LayoutEngine from './layouts/LayoutEngine';
-import PrintDotMatrix from './components/PrintDotMatrix';
-
 import TabDashboard from './components/tabs/TabDashboard';
-import TabDashboardBranch from './components/tabs/TabDashboardBranch';
-
-import TabMasterCabang from './components/tabs/TabMasterCabang';
-import TabMasterGudang from './components/tabs/TabMasterGudang';
-import TabMasterProduk from './components/tabs/TabMasterProduk';
-import TabMasterSupplier from './components/tabs/TabMasterSupplier';
-import TabMasterBahanBaku from './components/tabs/TabMasterBahanBaku';
-import TabMasterKonversi from './components/tabs/TabMasterKonversi';
-import TabMasterResepBOM from './components/tabs/TabMasterResepBOM';
-import TabMasterPelanggan from './components/tabs/TabMasterPelanggan';
-
-import TabPurchase from './components/tabs/TabPurchase';
-import TabProduction from './components/tabs/TabProduction';
-import TabSales from './components/tabs/TabSales';
-
+import TabOrders from './components/tabs/TabOrders';
+import TabPurchases from './components/tabs/TabPurchases';
+import TabSupplierAyam from './components/tabs/TabSupplierAyam';
+import TabExpenses from './components/tabs/TabExpenses';
+import TabPiutang from './components/tabs/TabPiutang';
+import TabPemalang from './components/tabs/TabPemalang';
 import TabStok from './components/tabs/TabStok';
+import TabDistribusi from './components/tabs/TabDistribusi';
+import TabKaryawan from './components/tabs/TabKaryawan';
+import TabDashboardBranch from './components/tabs/TabDashboardBranch';
+import TabSCMWarRoom from './components/tabs/TabSCMWarRoom';
+import TabAnalytics from './components/tabs/TabAnalytics';
+import TabBusinessRadar from './components/tabs/TabBusinessRadar';
+import TabAccounting from './components/tabs/TabAccounting';
+import TabAccountingAudit from './components/tabs/TabAccountingAudit';
+import TabMasterData from './components/tabs/TabMasterData';
+import TabStokOutlet from './components/tabs/TabStokOutlet';
+import TabSetoranCabang from './components/tabs/TabSetoranCabang';
+import TabDiscrepancy from './components/tabs/TabDiscrepancy';
 import TabKartuStok from './components/tabs/TabKartuStok';
 
-import TabKasBank from './components/tabs/TabKasBank';
-import TabPiutang from './components/tabs/TabPiutang';
-import TabHutangSupplier from './components/tabs/TabHutangSupplier';
-import TabAccounting from './components/tabs/TabAccounting';
-import TabKewajiban from './components/tabs/TabKewajiban';
-
-import TabKaryawan from './components/tabs/TabKaryawan';
-
-import TabDashboardProfitOwner from './components/tabs/TabDashboardProfitOwner';
-import TabExecutiveDashboard from './components/tabs/TabExecutiveDashboard';
-import TabBusinessRadar from './components/tabs/TabBusinessRadar';
-import TabNotificationCenter from './components/tabs/TabNotificationCenter';
-
-import TabAccountingAudit from './components/tabs/TabAccountingAudit';
-
-// HIDE + LEGACY. Tidak tampil di menu. Dipertahankan untuk pembanding/testing.
 import TabProfitOwner from './components/tabs/TabProfitOwner';
-import TabOrders from './components/tabs/TabOrders';
+import TabKewajiban from './components/tabs/TabKewajiban';
+import TabMasterKonversi from './components/tabs/TabMasterKonversi';
+
+import TabMasterCustomer from './components/tabs/TabMasterCustomer';
 import TabAntrianPO from './components/tabs/TabAntrianPO';
-import TabPurchases from './components/tabs/TabPurchases';
+import TabMonitoringCabangUniversal from './components/tabs/TabMonitoringCabangUniversal';
+import PrintDotMatrix from './components/PrintDotMatrix';
 
 const API_URL_GAS = 'https://script.google.com/macros/s/AKfycbybKUYeFHFZ7pV7AvHlbJwUp_RqjSCdO71i2arQ9fAQODKr3AEOJ_m0CCY-X7IkGNg98Q/exec';
 
-const FINAL_TAB_KEYS = new Set([
-  'dashboard',
-  'dashboard_branch',
+const DEFAULT_DB_DATA = {
+  orders: [],
+  orders_data: [],
 
-  'master_cabang',
-  'master_gudang',
-  'master_produk',
-  'master_supplier',
-  'master_bahan_baku',
-  'master_konversi',
-  'master_resep_bom',
-  'master_pelanggan',
+  purchases: [],
+  purchases_data: [],
 
-  'purchase',
-  'production',
-  'sales',
+  expenses: [],
+  expenses_data: [],
 
-  'stok',
-  'kartu_stok',
+  payments: [],
+  pemalang: [],
+  pemalangReports: [],
 
-  'kas_bank',
-  'piutang',
-  'hutang_supplier',
-  'accounting',
-  'kewajiban',
+  karyawan: [],
+  stockMovements: [],
+  stock_movements: [],
 
-  'karyawan',
-  'hrd_master_sdm',
-  'hrd_payroll',
-  'hrd_lembur',
-  'hrd_kasbon',
+  stokData: [],
+  stok_data: [],
 
-  'dashboard_profit_owner',
-  'executive_dashboard',
-  'business_radar',
-  'notification_center',
+  productionBatches: [],
+  production_batches: [],
 
-  'accounting_audit',
-]);
+  supplierLedger: [],
+  supplier_ledger: [],
 
-const HIDDEN_LEGACY_TAB_KEYS = new Set([
-  'profit_owner_legacy',
-  'orders_legacy',
-  'antrian_po_legacy',
-  'purchases_legacy',
-]);
+  cashflowTransactions: [],
+  cashflow_transactions: [],
 
-const HIDDEN_BACKLOG_TAB_KEYS = new Set([
-  'analytics',
-  'scm_war_room',
-  'supplier_ayam',
-  'stok_outlet',
-  'discrepancy',
-  'distribusi',
-  'monitoring_pemalang',
-  'monitoring_cabang',
-  'expenses',
+  marketplaceSettlement: [],
+  marketplace_settlement: [],
 
-  'profit_analytics',
-  'financial_analytics',
-  'cashflow_dashboard',
-  'sales_analytics',
-  'production_analytics',
-  'purchasing_analytics',
-  'inventory_analytics',
-  'customer_analytics',
-  'product_analytics',
-  'supplier_analytics',
-  'branch_analytics',
-  'branch_performance',
-  'profit_leakage',
-]);
+  masterBranches: [],
+  master_branches: [],
 
-const LEGACY_TAB_ALIASES = Object.freeze({
-  orders: 'sales',
-  antrian_po: 'sales',
-  purchases: 'purchase',
-  pemalang: 'production',
-  master_customer: 'master_pelanggan',
-  master_data: 'master_produk',
-  profit_owner: 'dashboard_profit_owner',
-  expenses: 'kas_bank',
-  setoran_cabang: 'kas_bank',
-});
+  distributionOrders: [],
+  distribution_orders: [],
 
-const OWNER_ROLE_GROUP = new Set([
-  'OWNER',
-  'DEWA',
-  'MONITOR_DEWA',
-  'HO_TANGERANG',
-  'SUPER_ADMIN',
-  'SUPERADMIN',
-]);
+  inventoryCostLayers: [],
+  inventory_cost_layers: [],
 
-const HQ_ROLE_GROUP = new Set([
-  'OWNER',
-  'DEWA',
-  'MONITOR_DEWA',
-  'HO_TANGERANG',
-  'SUPER_ADMIN',
-  'SUPERADMIN',
-  'ADMIN_PUSAT',
-  'HQ',
-  'HQ_ADMIN',
-  'FINANCE',
-  'ACCOUNTING',
-]);
+  marketplaceFeeRules: [],
+  marketplace_fee_rules: [],
 
-const FINANCE_ROLE_GROUP = new Set([
-  'OWNER',
-  'DEWA',
-  'HO_TANGERANG',
-  'SUPER_ADMIN',
-  'SUPERADMIN',
-  'FINANCE',
-  'ACCOUNTING',
-  'KASIR_HQ',
-  'ADMIN_PUSAT',
-]);
+  auditLogs: [],
+  audit_logs: [],
 
-const WAREHOUSE_ROLE_GROUP = new Set([
-  'OWNER',
-  'DEWA',
-  'HO_TANGERANG',
-  'SUPER_ADMIN',
-  'SUPERADMIN',
-  'GUDANG',
-  'WAREHOUSE',
-  'STOCK',
-  'STOK',
-  'ADMIN_GUDANG',
-]);
+  discrepancyLogs: [],
+  discrepancy_logs: [],
 
-const PRODUCTION_ROLE_GROUP = new Set([
-  'OWNER',
-  'DEWA',
-  'HO_TANGERANG',
-  'SUPER_ADMIN',
-  'SUPERADMIN',
-  'PRODUCTION',
-  'PRODUKSI',
-  'DAPUR',
-  'ADMIN_PRODUKSI',
-]);
+  chartOfAccounts: [],
+  chart_of_accounts: [],
 
-const SALES_ROLE_GROUP = new Set([
-  'OWNER',
-  'DEWA',
-  'HO_TANGERANG',
-  'SUPER_ADMIN',
-  'SUPERADMIN',
-  'SALES',
-  'KASIR',
-  'CASHIER',
-  'ADMIN_SALES',
-  'CABANG',
-]);
+  generalLedger: [],
+  general_ledger: [],
 
-const HRD_ROLE_GROUP = new Set([
-  'OWNER',
-  'DEWA',
-  'HO_TANGERANG',
-  'SUPER_ADMIN',
-  'SUPERADMIN',
-  'HRD',
-  'HR',
-  'ADMIN_HRD',
-  'ADMIN_SDM',
-]);
+  financialClosings: [],
+  financial_closings: [],
 
-const MASTER_TABS = new Set([
-  'master_cabang',
-  'master_gudang',
-  'master_produk',
-  'master_supplier',
-  'master_bahan_baku',
-  'master_konversi',
-  'master_resep_bom',
-  'master_pelanggan',
-]);
+  systemTasks: [],
+  system_tasks: [],
 
-const OWNER_TABS = new Set([
-  'dashboard_profit_owner',
-  'executive_dashboard',
-  'business_radar',
-  'notification_center',
-  'profit_owner_legacy',
-]);
+  masterProducts: [],
+  master_products: [],
 
-const HRD_HQ_TABS = new Set([
-  'karyawan',
-  'hrd_master_sdm',
-  'hrd_payroll',
-]);
+  masterRawMaterials: [],
+  master_raw_materials: [],
 
-const HRD_BRANCH_TABS = new Set([
-  'hrd_lembur',
-  'hrd_kasbon',
-]);
+  masterRecipeBom: [],
+  master_recipe_bom: [],
 
-const normalizeCode = (value) => {
-  return String(value || '')
-    .trim()
-    .toUpperCase()
-    .replace(/[^\w./-]+/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_+|_+$/g, '');
-};
+  masterSuppliers: [],
+  master_suppliers: [],
 
-const getRoleCode = (user = {}) => {
-  return normalizeCode(
-    user.role ||
-    user.user_role ||
-    user.userRole ||
-    user.access_role ||
-    user.accessRole ||
-    user.position ||
-    user.level ||
-    '',
-  );
-};
+  masterConversionRules: [],
+  master_conversion_rules: [],
 
-const getBranchTypeCode = (user = {}) => {
-  return normalizeCode(user.branch_type || user.branchType || '');
-};
+  masterAmplopRules: [],
+  master_amplop_rules: [],
 
-const getBranchIdCode = (user = {}) => {
-  return normalizeCode(user.branch_id || user.branchId || '');
-};
+  marketplaceInvoices: [],
+  marketplace_invoices: [],
 
-const isOwnerUser = (user = {}) => {
-  const role = getRoleCode(user);
-  const branchId = getBranchIdCode(user);
-  return OWNER_ROLE_GROUP.has(role) || branchId === 'HO_TANGERANG';
-};
+  master_branch_types: [],
+  master_branch_capabilities: [],
 
-const isHQUser = (user = {}) => {
-  const role = getRoleCode(user);
-  const branchType = getBranchTypeCode(user);
-  const branchId = getBranchIdCode(user);
+  interbranch_treasury: [],
+  branch_settlements: [],
 
-  return (
-    isOwnerUser(user) ||
-    HQ_ROLE_GROUP.has(role) ||
-    branchType === 'HQ_FACTORY' ||
-    branchType === 'HQ' ||
-    branchId === 'PUSAT' ||
-    branchId === 'TANGERANG_PUSAT'
-  );
-};
+  master_customers: [],
+  masterCustomers: [],
 
-const isBranchUser = (user = {}) => {
-  return Boolean(user) && !isHQUser(user);
-};
+  master_locations: [],
 
-const isFinanceUser = (user = {}) => {
-  const role = getRoleCode(user);
-  return isHQUser(user) || FINANCE_ROLE_GROUP.has(role);
-};
+  piutangPayments: [],
+  piutang_payments: [],
 
-const isWarehouseUser = (user = {}) => {
-  const role = getRoleCode(user);
-  return isHQUser(user) || WAREHOUSE_ROLE_GROUP.has(role);
-};
-
-const isProductionUser = (user = {}) => {
-  const role = getRoleCode(user);
-  const branchType = getBranchTypeCode(user);
-  const branchId = getBranchIdCode(user);
-
-  return (
-    isHQUser(user) ||
-    PRODUCTION_ROLE_GROUP.has(role) ||
-    branchType === 'PRODUCTION_BRANCH' ||
-    branchId.includes('PEMALANG')
-  );
-};
-
-const isSalesUser = (user = {}) => {
-  const role = getRoleCode(user);
-  return isHQUser(user) || isBranchUser(user) || SALES_ROLE_GROUP.has(role);
-};
-
-const isHrdUser = (user = {}) => {
-  const role = getRoleCode(user);
-  return isHQUser(user) || HRD_ROLE_GROUP.has(role);
-};
-
-const getDefaultTabForUser = (user = {}) => {
-  return isHQUser(user) || isOwnerUser(user) ? 'dashboard' : 'dashboard_branch';
-};
-
-const normalizeTabKey = (tabKey) => {
-  const key = String(tabKey || '').trim();
-  return LEGACY_TAB_ALIASES[key] || key;
-};
-
-const canAccessTab = (tabKey, user = {}) => {
-  if (!user) return false;
-
-  if (tabKey === 'dashboard') return isHQUser(user) || isOwnerUser(user);
-  if (tabKey === 'dashboard_branch') return true;
-
-  if (MASTER_TABS.has(tabKey)) return isHQUser(user) || isOwnerUser(user);
-  if (OWNER_TABS.has(tabKey)) return isOwnerUser(user);
-
-  if (tabKey === 'purchase') return isHQUser(user) || isOwnerUser(user);
-  if (tabKey === 'production') return isProductionUser(user);
-  if (tabKey === 'sales') return isSalesUser(user);
-
-  if (tabKey === 'stok') return isWarehouseUser(user) || isProductionUser(user);
-  if (tabKey === 'kartu_stok') return isWarehouseUser(user) || isProductionUser(user) || isOwnerUser(user);
-
-  if (tabKey === 'kas_bank') return isFinanceUser(user);
-  if (tabKey === 'piutang') return isFinanceUser(user) || isSalesUser(user);
-  if (tabKey === 'hutang_supplier') return isFinanceUser(user);
-  if (tabKey === 'accounting') return isFinanceUser(user);
-  if (tabKey === 'kewajiban') return isFinanceUser(user) || isOwnerUser(user);
-
-  if (HRD_HQ_TABS.has(tabKey)) return isHrdUser(user);
-  if (HRD_BRANCH_TABS.has(tabKey)) return isHrdUser(user) || isBranchUser(user);
-
-  if (tabKey === 'accounting_audit') return isOwnerUser(user) || isHQUser(user);
-
-  if (tabKey === 'orders_legacy') return isOwnerUser(user) || isHQUser(user);
-  if (tabKey === 'antrian_po_legacy') return isOwnerUser(user) || isHQUser(user);
-  if (tabKey === 'purchases_legacy') return isOwnerUser(user) || isHQUser(user);
-
-  return false;
-};
-
-const resolveAuthorizedTab = (tabKey, user = {}) => {
-  const defaultTab = getDefaultTabForUser(user);
-  const normalizedTab = normalizeTabKey(tabKey);
-
-  if (HIDDEN_BACKLOG_TAB_KEYS.has(normalizedTab)) return defaultTab;
-
-  const isFinalTab = FINAL_TAB_KEYS.has(normalizedTab);
-  const isHiddenLegacyTab = HIDDEN_LEGACY_TAB_KEYS.has(normalizedTab);
-
-  if (!isFinalTab && !isHiddenLegacyTab) return defaultTab;
-  if (!canAccessTab(normalizedTab, user)) return defaultTab;
-
-  return normalizedTab;
+  master_kewajiban: [],
+  trx_pembayaran_kewajiban: [],
 };
 
 const ToastNotification = ({ toast, onClose }) => {
   if (!toast) return null;
 
   return (
-    <div className={`fixed right-4 top-4 z-[9999] flex items-center gap-3 rounded-xl border px-5 py-3.5 text-xs font-bold shadow-lg duration-200 animate-in slide-in-from-top-5 normal-case ${toast.type === 'error' ? 'border-red-700 bg-red-600 text-white shadow-red-600/20' : 'border-emerald-700 bg-emerald-600 text-white shadow-emerald-600/20'}`}>
+    <div className={`fixed top-4 right-4 z-[9999] px-5 py-3.5 rounded-xl shadow-lg font-bold text-xs normal-case flex items-center gap-3 animate-in slide-in-from-top-5 border duration-200 ${
+      toast.type === 'error'
+        ? 'bg-red-600 text-white border-red-700 shadow-red-600/20'
+        : 'bg-emerald-600 text-white border-emerald-700 shadow-emerald-600/20'
+    }`}
+    >
       <span>{toast.message}</span>
       <button
         type="button"
         onClick={onClose}
-        className="cursor-pointer text-base font-bold opacity-70 transition-opacity hover:opacity-100"
+        className="opacity-70 hover:opacity-100 transition-opacity font-bold text-base cursor-pointer"
       >
         ✕
       </button>
@@ -412,17 +162,19 @@ const ToastNotification = ({ toast, onClose }) => {
 };
 
 const ContentSkeleton = () => (
-  <div className="w-full space-y-6 duration-500 animate-in fade-in">
-    <div className="mb-6 flex gap-4">
+  <div className="space-y-6 w-full animate-in fade-in duration-500">
+    <div className="flex gap-4 mb-6">
       <div className="skeleton h-10 w-48 rounded-xl" />
       <div className="skeleton h-10 w-32 rounded-xl" />
     </div>
-    <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-      <div className="skeleton h-32 w-full rounded-2xl" />
-      <div className="skeleton h-32 w-full rounded-2xl" />
-      <div className="skeleton h-32 w-full rounded-2xl" />
+
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="skeleton h-32 rounded-2xl w-full" />
+      <div className="skeleton h-32 rounded-2xl w-full" />
+      <div className="skeleton h-32 rounded-2xl w-full" />
     </div>
-    <div className="skeleton mt-6 h-80 w-full rounded-2xl" />
+
+    <div className="skeleton h-80 rounded-2xl w-full mt-6" />
   </div>
 );
 
@@ -435,7 +187,10 @@ export default function App() {
   const [activeTab, setActiveTab] = useState(() => {
     const savedUser = localStorage.getItem('dimsum_user');
     const parsed = safeJsonParse(savedUser, null);
-    return parsed ? getDefaultTabForUser(parsed) : 'dashboard';
+
+    if (parsed) return parsed.branch_type === 'HQ_FACTORY' ? 'dashboard' : 'dashboard_branch';
+
+    return 'dashboard';
   });
 
   const [isSyncing, setIsSyncing] = useState(false);
@@ -450,73 +205,9 @@ export default function App() {
     const cachedData = localStorage.getItem('dimsum_db_cache');
     const parsedCache = safeJsonParse(cachedData, null);
 
-    return parsedCache || {
-      orders: [],
-      purchases: [],
-      expenses: [],
-      payments: [],
-      pemalang: [],
-      karyawan: [],
-
-      stockMovements: [],
-      productionBatches: [],
-      supplierLedger: [],
-      cashflowTransactions: [],
-      marketplaceSettlement: [],
-      masterBranches: [],
-      distributionOrders: [],
-      inventoryCostLayers: [],
-      marketplaceFeeRules: [],
-      auditLogs: [],
-      discrepancyLogs: [],
-      chartOfAccounts: [],
-      generalLedger: [],
-      financialClosings: [],
-      systemTasks: [],
-      masterProducts: [],
-      masterRawMaterials: [],
-      masterRecipeBom: [],
-      masterSuppliers: [],
-      masterConversionRules: [],
-      marketplaceInvoices: [],
-      master_branch_types: [],
-      master_branch_capabilities: [],
-      interbranch_treasury: [],
-      branch_settlements: [],
-      master_customers: [],
-      master_locations: [],
-      master_kewajiban: [],
-      trx_pembayaran_kewajiban: [],
-      master_conversion_rules: [],
-
-      master_branches: [],
-      master_products: [],
-      master_raw_materials: [],
-      master_recipe_bom: [],
-      master_suppliers: [],
-      master_pelanggan: [],
-      master_warehouses: [],
-      master_gudang: [],
-
-      purchase_orders: [],
-      purchase_items: [],
-      production_orders: [],
-      production_items: [],
-      sales_orders: [],
-      sales_items: [],
-      cash_bank_transactions: [],
-      receivables: [],
-      receivable_payments: [],
-      payables: [],
-      payable_payments: [],
-      accounting_journals: [],
-      accounting_entries: [],
-
-      payroll_records: [],
-      lembur_records: [],
-      kasbon_records: [],
-      employee_loans: [],
-      employee_payments: [],
+    return {
+      ...DEFAULT_DB_DATA,
+      ...(parsedCache || {}),
     };
   });
 
@@ -536,8 +227,14 @@ export default function App() {
 
       if (resJson.status === 'success' && resJson.data) {
         setDbData((prev) => {
-          const newData = { ...prev, ...resJson.data };
+          const newData = {
+            ...DEFAULT_DB_DATA,
+            ...prev,
+            ...resJson.data,
+          };
+
           localStorage.setItem('dimsum_db_cache', JSON.stringify(newData));
+
           return newData;
         });
       }
@@ -553,15 +250,6 @@ export default function App() {
       fetchAllDatabase(user.branch_id);
     }
   }, [user, fetchAllDatabase]);
-
-  useEffect(() => {
-    if (!user) return;
-
-    const safeTab = resolveAuthorizedTab(activeTab, user);
-    if (safeTab !== activeTab) {
-      setActiveTab(safeTab);
-    }
-  }, [activeTab, user]);
 
   const sendToSheet = async (action, payload, tableName) => {
     if (!API_URL_GAS || API_URL_GAS.includes('URL_WEBAPP_')) {
@@ -603,11 +291,13 @@ export default function App() {
             }));
 
             const updatedState = {
+              ...DEFAULT_DB_DATA,
               ...prev,
               [tableName]: [...newDataInjected, ...currentTableData],
             };
 
             localStorage.setItem('dimsum_db_cache', JSON.stringify(updatedState));
+
             return updatedState;
           });
         } else if (action === 'update' && tableName && tableName !== 'auto') {
@@ -625,8 +315,14 @@ export default function App() {
               return updatedRow ? { ...row, ...updatedRow } : row;
             });
 
-            const updatedState = { ...prev, [tableName]: updatedTableData };
+            const updatedState = {
+              ...DEFAULT_DB_DATA,
+              ...prev,
+              [tableName]: updatedTableData,
+            };
+
             localStorage.setItem('dimsum_db_cache', JSON.stringify(updatedState));
+
             return updatedState;
           });
         }
@@ -636,7 +332,11 @@ export default function App() {
             .then((res) => res.json())
             .then((silentRes) => {
               if (silentRes.status === 'success' && silentRes.data && silentRes.data[tableName]) {
-                setDbData((prev) => ({ ...prev, [tableName]: silentRes.data[tableName] }));
+                setDbData((prev) => ({
+                  ...DEFAULT_DB_DATA,
+                  ...prev,
+                  [tableName]: silentRes.data[tableName],
+                }));
               }
             })
             .catch((error) => console.log('Silent sync failed', error));
@@ -658,6 +358,7 @@ export default function App() {
 
   const handleLoginSubmit = async (event) => {
     event.preventDefault();
+
     setIsSaving(true);
     setLoginError('');
 
@@ -677,9 +378,11 @@ export default function App() {
 
       if (resJson.status === 'success' && resJson.data?.success) {
         const activeUser = resJson.data.user;
+
         localStorage.setItem('dimsum_user', JSON.stringify(activeUser));
+
         setUser(activeUser);
-        setActiveTab(getDefaultTabForUser(activeUser));
+        setActiveTab(activeUser.branch_type === 'HQ_FACTORY' ? 'dashboard' : 'dashboard_branch');
       } else {
         setLoginError(resJson.data?.message || 'Identitas otentikasi salah.');
       }
@@ -694,203 +397,316 @@ export default function App() {
     if (window.confirm('Apakah Anda yakin ingin keluar dari sistem?')) {
       localStorage.removeItem('dimsum_user');
       localStorage.removeItem('dimsum_db_cache');
+
       setUser(null);
       setLoginForm({ username: '', password: '' });
       setActiveTab('dashboard');
     }
   };
 
-  const requestDelete = (id) => {
-    setConfirmDialog({ id });
-  };
+  const requestDelete = (id) => setConfirmDialog({ id });
 
   const handleExecuteDelete = async () => {
     if (!confirmDialog) return;
 
     const isSuccess = await sendToSheet('delete', { id: confirmDialog.id }, 'auto');
+
     if (isSuccess) setConfirmDialog(null);
   };
 
-  const renderHrd = (initialSubTab) => (
-    <TabKaryawan
-      {...dbData}
-      user={user}
-      sendToSheet={sendToSheet}
-      showToast={showToast}
-      setPrintData={setPrintData}
-      initialSubTab={initialSubTab}
-      defaultSubTab={initialSubTab}
-    />
-  );
-
   const renderContent = () => {
-    const safeTab = resolveAuthorizedTab(activeTab, user);
-    const hasCache = Array.isArray(dbData.orders) && dbData.orders.length > 0;
+    let safeTab = activeTab;
+
+    if (activeTab === 'dashboard' && user?.branch_type !== 'HQ_FACTORY') {
+      safeTab = 'dashboard_branch';
+    }
+
+    const hasCache = (dbData.orders || []).length > 0 || (dbData.orders_data || []).length > 0;
 
     if (isSyncing && !hasCache) {
       return <ContentSkeleton />;
     }
 
-    const readOnlyProps = {
-      user,
-      source: dbData,
-      dbData,
-      setPrintData,
-      showToast,
-      ...dbData,
-    };
-
-    const writeProps = {
-      ...readOnlyProps,
-      sendToSheet,
-      requestDelete,
-    };
-
     switch (safeTab) {
       case 'dashboard':
-        return <TabDashboard {...readOnlyProps} setActiveTab={setActiveTab} />;
+        return (
+          <TabDashboard
+            user={user}
+            setActiveTab={setActiveTab}
+            showToast={showToast}
+            {...dbData}
+          />
+        );
+
+      case 'monitoring_cabang':
+        return (
+          <TabMonitoringCabangUniversal
+            user={user}
+            setPrintData={setPrintData}
+            {...dbData}
+          />
+        );
 
       case 'dashboard_branch':
-        return <TabDashboardBranch {...readOnlyProps} setActiveTab={setActiveTab} />;
+        return (
+          <TabDashboardBranch
+            user={user}
+            setPrintData={setPrintData}
+            {...dbData}
+          />
+        );
 
-      case 'master_cabang':
-        return <TabMasterCabang {...writeProps} />;
+      case 'pemalang':
+        return (
+          <TabPemalang
+            user={user}
+            sendToSheet={sendToSheet}
+            requestDelete={requestDelete}
+            setPrintData={setPrintData}
+            showToast={showToast}
+            {...dbData}
+          />
+        );
 
-      case 'master_gudang':
-        return <TabMasterGudang {...writeProps} />;
+      case 'setoran_cabang':
+        return (
+          <TabSetoranCabang
+            user={user}
+            sendToSheet={sendToSheet}
+            showToast={showToast}
+            {...dbData}
+          />
+        );
 
-      case 'master_produk':
-        return <TabMasterProduk {...writeProps} />;
+      case 'scm_war_room':
+        return <TabSCMWarRoom user={user} {...dbData} />;
 
-      case 'master_supplier':
-        return <TabMasterSupplier {...writeProps} />;
+      case 'business_radar':
+        return <TabBusinessRadar user={user} {...dbData} />;
 
-      case 'master_bahan_baku':
-        return <TabMasterBahanBaku {...writeProps} />;
+      case 'analytics':
+        return <TabAnalytics user={user} {...dbData} />;
+
+      case 'orders':
+        return (
+          <TabOrders
+            user={user}
+            sendToSheet={sendToSheet}
+            setPrintData={setPrintData}
+            showToast={showToast}
+            {...dbData}
+          />
+        );
+
+      case 'master_customer':
+        return (
+          <TabMasterCustomer
+            user={user}
+            sendToSheet={sendToSheet}
+            setPrintData={setPrintData}
+            showToast={showToast}
+            {...dbData}
+          />
+        );
+
+      case 'antrian_po':
+        return (
+          <TabAntrianPO
+            user={user}
+            sendToSheet={sendToSheet}
+            showToast={showToast}
+            setPrintData={setPrintData}
+            {...dbData}
+          />
+        );
+
+      case 'purchases':
+        return (
+          <TabPurchases
+            user={user}
+            sendToSheet={sendToSheet}
+            setPrintData={setPrintData}
+            requestDelete={requestDelete}
+            showToast={showToast}
+            masterSuppliers={dbData.masterSuppliers}
+            {...dbData}
+          />
+        );
+
+      case 'supplier_ayam':
+        return (
+          <TabSupplierAyam
+            user={user}
+            sendToSheet={sendToSheet}
+            showToast={showToast}
+            {...dbData}
+          />
+        );
+
+      case 'expenses':
+        return (
+          <TabExpenses
+            user={user}
+            sendToSheet={sendToSheet}
+            showToast={showToast}
+            {...dbData}
+          />
+        );
+
+      case 'stok':
+        return (
+          <TabStok
+            user={user}
+            role={user?.role}
+            sendToSheet={sendToSheet}
+            requestDelete={requestDelete}
+            setPrintData={setPrintData}
+            showToast={showToast}
+            {...dbData}
+          />
+        );
+
+      case 'stok_outlet':
+        return (
+          <TabStokOutlet
+            user={user}
+            sendToSheet={sendToSheet}
+            showToast={showToast}
+            {...dbData}
+          />
+        );
+
+      case 'discrepancy':
+        return (
+          <TabDiscrepancy
+            user={user}
+            sendToSheet={sendToSheet}
+            showToast={showToast}
+            {...dbData}
+          />
+        );
+
+      case 'distribusi':
+        return (
+          <TabDistribusi
+            user={user}
+            sendToSheet={sendToSheet}
+            setPrintData={setPrintData}
+            showToast={showToast}
+            {...dbData}
+          />
+        );
+
+      case 'accounting':
+        return (
+          <TabAccounting
+            user={user}
+            setPrintData={setPrintData}
+            {...dbData}
+          />
+        );
+
+      case 'accounting_audit':
+        return <TabAccountingAudit user={user} {...dbData} />;
+
+      case 'piutang':
+        return (
+          <TabPiutang
+            user={user}
+            role={user?.role}
+            sendToSheet={sendToSheet}
+            setPrintData={setPrintData}
+            showToast={showToast}
+            {...dbData}
+          />
+        );
+
+      case 'karyawan':
+        return (
+          <TabKaryawan
+            user={user}
+            sendToSheet={sendToSheet}
+            setPrintData={setPrintData}
+            showToast={showToast}
+            {...dbData}
+          />
+        );
+
+      case 'master_data':
+        return (
+          <TabMasterData
+            user={user}
+            sendToSheet={sendToSheet}
+            showToast={showToast}
+            {...dbData}
+          />
+        );
+
+      case 'kartu_stok':
+        return <TabKartuStok user={user} {...dbData} />;
+
+      case 'profit_owner':
+        return (
+          <TabProfitOwner
+            user={user}
+            sendToSheet={sendToSheet}
+            showToast={showToast}
+            {...dbData}
+          />
+        );
+
+      case 'kewajiban':
+        return (
+          <TabKewajiban
+            user={user}
+            sendToSheet={sendToSheet}
+            showToast={showToast}
+            {...dbData}
+          />
+        );
 
       case 'master_konversi':
         return (
           <TabMasterKonversi
-            {...writeProps}
-            masterConversionRules={dbData.master_conversion_rules || dbData.masterConversionRules || []}
-          />
-        );
-
-      case 'master_resep_bom':
-        return <TabMasterResepBOM {...writeProps} />;
-
-      case 'master_pelanggan':
-        return <TabMasterPelanggan {...writeProps} />;
-
-      case 'purchase':
-        return <TabPurchase {...writeProps} />;
-
-      case 'production':
-        return <TabProduction {...writeProps} />;
-
-      case 'sales':
-        return <TabSales {...writeProps} />;
-
-      case 'stok':
-        return <TabStok {...writeProps} role={user?.role} />;
-
-      case 'kartu_stok':
-        return <TabKartuStok {...readOnlyProps} />;
-
-      case 'kas_bank':
-        return <TabKasBank {...writeProps} />;
-
-      case 'piutang':
-        return <TabPiutang {...writeProps} role={user?.role} />;
-
-      case 'hutang_supplier':
-        return <TabHutangSupplier {...writeProps} />;
-
-      case 'accounting':
-        return <TabAccounting {...writeProps} />;
-
-      case 'kewajiban':
-        return <TabKewajiban {...writeProps} />;
-
-      case 'karyawan':
-        return renderHrd('');
-
-      case 'hrd_master_sdm':
-        return renderHrd('master');
-
-      case 'hrd_payroll':
-        return renderHrd('payroll');
-
-      case 'hrd_lembur':
-        return renderHrd('lembur');
-
-      case 'hrd_kasbon':
-        return renderHrd('kasbon');
-
-      case 'dashboard_profit_owner':
-        return <TabDashboardProfitOwner {...readOnlyProps} />;
-
-      case 'executive_dashboard':
-        return <TabExecutiveDashboard {...readOnlyProps} />;
-
-      case 'business_radar':
-        return <TabBusinessRadar {...readOnlyProps} />;
-
-      case 'notification_center':
-        return <TabNotificationCenter {...readOnlyProps} />;
-
-      case 'accounting_audit':
-        return <TabAccountingAudit {...readOnlyProps} />;
-
-      case 'profit_owner_legacy':
-        return <TabProfitOwner {...writeProps} legacyMode />;
-
-      case 'orders_legacy':
-        return <TabOrders {...writeProps} setPrintData={setPrintData} />;
-
-      case 'antrian_po_legacy':
-        return <TabAntrianPO {...writeProps} setPrintData={setPrintData} />;
-
-      case 'purchases_legacy':
-        return (
-          <TabPurchases
-            {...writeProps}
-            masterSuppliers={dbData.masterSuppliers || dbData.master_suppliers || []}
-            setPrintData={setPrintData}
+            user={user}
+            sendToSheet={sendToSheet}
+            showToast={showToast}
+            masterConversionRules={dbData.master_conversion_rules || dbData.masterConversionRules}
           />
         );
 
       default:
-        return <TabDashboardBranch {...readOnlyProps} setActiveTab={setActiveTab} />;
+        return <TabDashboardBranch user={user} {...dbData} />;
     }
   };
 
   if (!user) {
     return (
       <div
-        className="fixed inset-0 flex h-screen w-full items-center justify-center overflow-hidden p-4 font-sans antialiased"
+        className="fixed inset-0 w-full h-screen overflow-hidden flex items-center justify-center font-sans antialiased p-4"
         style={{
           background: 'radial-gradient(circle at 10% 20%, rgb(254, 205, 211) 0%, transparent 40%), radial-gradient(circle at 90% 80%, rgb(254, 240, 138) 0%, transparent 40%), radial-gradient(circle at 50% 50%, rgb(248, 250, 252) 0%, transparent 100%)',
           backgroundColor: '#f8fafc',
         }}
       >
-        <div className="w-full max-w-sm space-y-6 rounded-3xl border border-white/50 bg-white/90 p-7 shadow-2xl shadow-rose-900/10 backdrop-blur-md duration-300 animate-in zoom-in-95">
+        <div className="w-full max-w-sm bg-white/90 backdrop-blur-md rounded-3xl shadow-2xl shadow-rose-900/10 border border-white/50 p-7 space-y-6 animate-in zoom-in-95 duration-300">
           <div className="flex flex-col items-center text-center">
             <img
               src="https://dimsumaditya.id/wp-content/uploads/2026/06/Dimsum-Aditya-New-Logo-scaled.webp"
               alt="Logo Dimsum Aditya"
-              className="mb-4 h-24 w-auto object-contain drop-shadow-sm"
+              className="h-24 w-auto object-contain mb-4 drop-shadow-sm"
             />
-            <h2 className="text-xl font-black tracking-tight text-slate-800">
+
+            <h2 className="text-xl font-black text-slate-800 tracking-tight">
               Selamat Datang
             </h2>
-            <p className="mt-1 text-xs font-bold text-slate-400">
+            <p className="text-xs font-bold text-slate-400 mt-1">
               Silakan login ke akun Anda
             </p>
           </div>
 
           {loginError && (
-            <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-[11px] font-bold text-red-600 animate-shake">
+            <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 font-bold text-[11px] flex items-center gap-2 animate-shake">
               <AlertCircle size={14} className="shrink-0" />
               <span>{loginError}</span>
             </div>
@@ -898,7 +714,7 @@ export default function App() {
 
           <form onSubmit={handleLoginSubmit} className="space-y-4">
             <div>
-              <label className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-slate-500">
+              <label className="text-[10px] font-black text-slate-500 block mb-1.5 uppercase tracking-wider">
                 Username
               </label>
               <input
@@ -906,13 +722,13 @@ export default function App() {
                 required
                 value={loginForm.username}
                 onChange={(event) => setLoginForm({ ...loginForm, username: event.target.value })}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50/50 p-3.5 text-sm font-bold outline-none transition-all focus:border-red-500 focus:bg-white focus:ring-4 focus:ring-red-500/10 normal-case"
+                className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl font-bold text-sm outline-none focus:bg-white focus:border-red-500 focus:ring-4 focus:ring-red-500/10 transition-all normal-case"
                 placeholder="Masukkan username"
               />
             </div>
 
             <div>
-              <label className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-slate-500">
+              <label className="text-[10px] font-black text-slate-500 block mb-1.5 uppercase tracking-wider">
                 Password
               </label>
               <input
@@ -920,7 +736,7 @@ export default function App() {
                 required
                 value={loginForm.password}
                 onChange={(event) => setLoginForm({ ...loginForm, password: event.target.value })}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50/50 p-3.5 text-sm font-bold outline-none transition-all focus:border-red-500 focus:bg-white focus:ring-4 focus:ring-red-500/10"
+                className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl font-bold text-sm outline-none focus:bg-white focus:border-red-500 focus:ring-4 focus:ring-red-500/10 transition-all"
                 placeholder="••••••••"
               />
             </div>
@@ -928,25 +744,26 @@ export default function App() {
             <button
               type="submit"
               disabled={isSaving}
-              className="mt-3 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-red-600 py-2.5 font-bold text-white shadow-md shadow-red-600/20 transition-all hover:bg-red-700 active:scale-95 disabled:opacity-50"
+              className="w-full py-2.5 mt-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold shadow-md shadow-red-600/20 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
             >
               {isSaving ? <Loader2 size={18} className="animate-spin" /> : 'Login'}
             </button>
           </form>
 
-          <div className="mt-6 flex flex-col items-center border-t border-slate-100 pt-4 text-center">
+          <div className="text-center mt-6 pt-4 border-t border-slate-100 flex flex-col items-center">
             <a
               href="https://dimsumaditya.id"
               target="_blank"
               rel="noopener noreferrer"
-              className="cursor-pointer text-[10px] font-black uppercase tracking-widest text-slate-400 transition-colors hover:text-red-600"
+              className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-red-600 transition-colors cursor-pointer"
             >
               Dimsum Aditya
             </a>
-            <div className="mt-1 text-[8px] font-bold text-slate-300">
+            <div className="text-[8px] font-bold text-slate-300 mt-1">
               Supplier Dimsum Ayam Tangerang.
             </div>
-            <div className="mt-2 text-[9px] font-black uppercase tracking-widest text-red-600">
+
+            <div className="text-[9px] font-black text-red-600 mt-2 tracking-widest uppercase">
               by Dnamic Network
             </div>
           </div>
@@ -957,23 +774,21 @@ export default function App() {
     );
   }
 
-  const safeActiveTab = resolveAuthorizedTab(activeTab, user);
-
   return (
-    <div className="fixed inset-0 h-screen w-full select-none overflow-hidden bg-transparent">
+    <div className="fixed inset-0 w-full h-screen overflow-hidden bg-transparent select-none">
       <LayoutEngine
         user={user}
-        activeTab={safeActiveTab}
+        activeTab={activeTab}
         setActiveTab={setActiveTab}
         handleLogout={handleLogout}
       >
         {renderContent()}
       </LayoutEngine>
 
-      {isSyncing && Array.isArray(dbData.orders) && dbData.orders.length > 0 && (
-        <div className="pointer-events-none fixed left-1/2 top-4 z-[9000] flex -translate-x-1/2 items-center gap-2 rounded-full border border-slate-200 bg-white/90 px-3 py-1.5 shadow-sm backdrop-blur duration-300 animate-in slide-in-from-top-5 fade-in">
-          <Loader2 size={12} className="animate-spin text-red-500" />
-          <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">
+      {isSyncing && ((dbData.orders || []).length > 0 || (dbData.orders_data || []).length > 0) && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9000] px-3 py-1.5 bg-white/90 backdrop-blur border border-slate-200 rounded-full shadow-sm flex items-center gap-2 animate-in slide-in-from-top-5 fade-in duration-300 pointer-events-none">
+          <Loader2 size={12} className="text-red-500 animate-spin" />
+          <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider">
             Menyinkronkan...
           </span>
         </div>
@@ -983,29 +798,32 @@ export default function App() {
       <PrintDotMatrix printData={printData} onClose={() => setPrintData(null)} />
 
       {confirmDialog && (
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[2px] duration-150 animate-in fade-in">
-          <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-2xl">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-red-100 bg-red-50">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-[99999] flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center border border-slate-200">
+            <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-100">
               <Trash2 size={20} className="text-red-600" />
             </div>
-            <h3 className="mb-1 text-base font-extrabold text-slate-800 normal-case">
+
+            <h3 className="text-base font-extrabold text-slate-800 mb-1 normal-case">
               Batalkan Transaksi?
             </h3>
-            <p className="mb-6 text-xs font-medium text-slate-500 normal-case">
+            <p className="text-xs text-slate-500 mb-6 font-medium normal-case">
               Data akan di-void dari cloud. Tindakan ini terekam otomatis dalam sistem audit trail.
             </p>
-            <div className="flex justify-center gap-3">
+
+            <div className="flex gap-3 justify-center">
               <button
                 type="button"
                 onClick={() => setConfirmDialog(null)}
-                className="flex-1 cursor-pointer rounded-xl border border-slate-200 bg-slate-50 py-2.5 text-xs font-bold text-slate-600 transition-colors hover:bg-slate-100 normal-case"
+                className="flex-1 py-2.5 bg-slate-50 text-slate-600 border border-slate-200 font-bold text-xs rounded-xl hover:bg-slate-100 transition-colors normal-case cursor-pointer"
               >
                 Batal (Esc)
               </button>
+
               <button
                 type="button"
                 onClick={handleExecuteDelete}
-                className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl bg-red-600 py-2.5 text-xs font-bold text-white transition-colors hover:bg-red-700 normal-case"
+                className="flex-1 py-2.5 bg-red-600 text-white font-bold text-xs rounded-xl hover:bg-red-700 transition-colors flex items-center justify-center gap-2 normal-case cursor-pointer"
               >
                 {isSaving ? <Loader2 size={14} className="animate-spin" /> : 'Ya, Batalkan'}
               </button>
@@ -1015,9 +833,9 @@ export default function App() {
       )}
 
       {isSaving && (
-        <div className="fixed inset-0 z-[99999] flex flex-col items-center justify-center bg-white/60 backdrop-blur-sm">
-          <Loader2 size={40} className="mb-4 animate-spin text-red-600" />
-          <div className="animate-pulse text-sm font-bold text-slate-700 normal-case">
+        <div className="fixed inset-0 bg-white/60 backdrop-blur-sm z-[99999] flex flex-col items-center justify-center">
+          <Loader2 size={40} className="text-red-600 animate-spin mb-4" />
+          <div className="font-bold text-slate-700 normal-case text-sm animate-pulse">
             Memproses Data...
           </div>
         </div>
