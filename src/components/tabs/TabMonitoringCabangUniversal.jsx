@@ -6,7 +6,9 @@ import {
   Coins,
   ArrowRightLeft,
   TrendingUp,
-  DollarSign,
+  Package,
+  Send,
+  AlertTriangle,
 } from 'lucide-react';
 
 import TabMonitoringPemalang from './TabMonitoringPemalang';
@@ -15,10 +17,6 @@ import {
   BRANCH_IDS,
   filterRowsByBranchScope,
 } from '../../utils/erpBranchScope';
-import {
-  calculateAmplopAllocation,
-  AMPLOP_MODES,
-} from '../../utils/erpAmplopRules';
 
 const formatRupiah = (angka) => `Rp ${Number(angka || 0).toLocaleString('id-ID')}`;
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
@@ -106,8 +104,6 @@ const getOrderCashInAmount = (order = {}) => {
     return Number(explicitCashIn || 0);
   }
 
-  // Fallback untuk data lama yang belum punya kolom amount_paid.
-  // Ini menjaga dashboard tetap hidup, tapi ke depan transaksi baru tetap wajib isi paid amount.
   return getOrderGrossAmount(order);
 };
 
@@ -118,6 +114,83 @@ const getPaymentAmount = (payment = {}) => {
     payment.paid_amount ||
     payment.nominal ||
     0,
+  );
+};
+
+const getStockQty = (row = {}) => {
+  return Number(
+    row.qty_remaining ||
+    row.qtyRemaining ||
+    row.stock_qty ||
+    row.stockQty ||
+    row.current_stock ||
+    row.currentStock ||
+    row.qty ||
+    row.quantity ||
+    row.sisa ||
+    0,
+  );
+};
+
+const getRequestQty = (row = {}) => {
+  return Number(
+    row.qty ||
+    row.quantity ||
+    row.request_qty ||
+    row.requestQty ||
+    row.qty_requested ||
+    row.qtyRequested ||
+    0,
+  );
+};
+
+const isFrozenOrMenuStock = (row = {}) => {
+  const category = String(row.category || row.item_category || row.itemCategory || '').toUpperCase();
+  const itemName = String(row.item_name || row.itemName || row.product_name || row.productName || row.name || '').toUpperCase();
+
+  return (
+    category.includes('FROZEN') ||
+    category.includes('MENU') ||
+    category.includes('PRODUK') ||
+    category.includes('FINISHED') ||
+    category.includes('BARANG_JADI') ||
+    category.includes('BARANG JADI') ||
+    itemName.includes('DIMSUM') ||
+    itemName.includes('PANGSIT') ||
+    itemName.includes('UDANG') ||
+    itemName.includes('LUMPIA') ||
+    itemName.includes('BOLA') ||
+    itemName.includes('FROZEN')
+  );
+};
+
+const isLowStockRow = (row = {}) => {
+  const qty = getStockQty(row);
+  const minimum = Number(
+    row.minimum_stock ||
+    row.minimumStock ||
+    row.min_stock ||
+    row.minStock ||
+    row.reorder_point ||
+    row.reorderPoint ||
+    0,
+  );
+
+  if (minimum > 0) return qty <= minimum;
+
+  return qty <= 10;
+};
+
+const isPendingRequestStatus = (statusValue) => {
+  const status = String(statusValue || '').toUpperCase();
+
+  return (
+    status.includes('PENDING') ||
+    status.includes('REQUEST') ||
+    status.includes('MENUNGGU') ||
+    status.includes('WAITING') ||
+    status.includes('DIAJUKAN') ||
+    status.includes('OPEN')
   );
 };
 
@@ -160,26 +233,51 @@ export default function TabMonitoringCabangUniversal(props) {
     props.piutang_payments_data,
   ]);
 
-  const realAmplopRules = useMemo(() => {
+  const realStockRows = useMemo(() => {
     return [
-      ...asArray(props.masterAmplopRules),
-      ...asArray(props.master_amplop_rules),
+      ...asArray(props.inventoryCostLayers),
+      ...asArray(props.inventory_cost_layers),
+      ...asArray(props.stokData),
+      ...asArray(props.stok_data),
+      ...asArray(props.stockMovements),
+      ...asArray(props.stock_movements),
     ];
-  }, [props.masterAmplopRules, props.master_amplop_rules]);
+  }, [
+    props.inventoryCostLayers,
+    props.inventory_cost_layers,
+    props.stokData,
+    props.stok_data,
+    props.stockMovements,
+    props.stock_movements,
+  ]);
 
-  const realConversionRules = useMemo(() => {
+  const realDistributionOrders = useMemo(() => {
     return [
-      ...asArray(props.masterConversionRules),
-      ...asArray(props.master_conversion_rules),
+      ...asArray(props.distributionOrders),
+      ...asArray(props.distribution_orders),
+      ...asArray(props.distribution_orders_data),
+      ...asArray(props.branch_requests),
+      ...asArray(props.branchRequests),
     ];
-  }, [props.masterConversionRules, props.master_conversion_rules]);
+  }, [
+    props.distributionOrders,
+    props.distribution_orders,
+    props.distribution_orders_data,
+    props.branch_requests,
+    props.branchRequests,
+  ]);
 
   const cibinongStats = useMemo(() => {
     if (selectedMonitor !== 'CIBINONG') return null;
 
+    const branchScopeUser = {
+      branch_id: cibinongBranchId,
+      branch_type: 'OUTLET_RESTO',
+    };
+
     const cibinongOrders = filterRowsByBranchScope({
       rows: realOrders,
-      user: { branch_id: cibinongBranchId, branch_type: 'OUTLET_RESTO' },
+      user: branchScopeUser,
       branchId: cibinongBranchId,
       includeGlobal: false,
       includeDeleted: false,
@@ -187,7 +285,7 @@ export default function TabMonitoringCabangUniversal(props) {
 
     const cibinongExpenses = filterRowsByBranchScope({
       rows: realExpenses,
-      user: { branch_id: cibinongBranchId, branch_type: 'OUTLET_RESTO' },
+      user: branchScopeUser,
       branchId: cibinongBranchId,
       includeGlobal: false,
       includeDeleted: false,
@@ -195,7 +293,7 @@ export default function TabMonitoringCabangUniversal(props) {
 
     const cibinongSettlements = filterRowsByBranchScope({
       rows: realSettlements,
-      user: { branch_id: cibinongBranchId, branch_type: 'OUTLET_RESTO' },
+      user: branchScopeUser,
       branchId: cibinongBranchId,
       includeGlobal: false,
       includeDeleted: false,
@@ -203,7 +301,23 @@ export default function TabMonitoringCabangUniversal(props) {
 
     const cibinongPiutangPayments = filterRowsByBranchScope({
       rows: realPiutangPayments,
-      user: { branch_id: cibinongBranchId, branch_type: 'OUTLET_RESTO' },
+      user: branchScopeUser,
+      branchId: cibinongBranchId,
+      includeGlobal: false,
+      includeDeleted: false,
+    });
+
+    const cibinongStockRows = filterRowsByBranchScope({
+      rows: realStockRows,
+      user: branchScopeUser,
+      branchId: cibinongBranchId,
+      includeGlobal: false,
+      includeDeleted: false,
+    });
+
+    const cibinongRequests = filterRowsByBranchScope({
+      rows: realDistributionOrders,
+      user: branchScopeUser,
       branchId: cibinongBranchId,
       includeGlobal: false,
       includeDeleted: false,
@@ -263,17 +377,24 @@ export default function TabMonitoringCabangUniversal(props) {
         }
       });
 
-    const amplopAllocation = calculateAmplopAllocation({
-      cashIn: uangMasukRiilBulanIni,
-      date: todayStr,
-      branchId: cibinongBranchId,
-      mode: AMPLOP_MODES.SURVIVAL,
-      rules: realAmplopRules,
-      dbData: {
-        master_amplop_rules: realAmplopRules,
-        master_conversion_rules: realConversionRules,
-      },
-    });
+    const frozenStockRows = cibinongStockRows
+      .filter((stockRow) => !isDeletedRow(stockRow))
+      .filter(isFrozenOrMenuStock);
+
+    const stokFrozenPcs = frozenStockRows.reduce((sum, stockRow) => sum + getStockQty(stockRow), 0);
+
+    const lowStockRows = frozenStockRows
+      .filter(isLowStockRow)
+      .sort((a, b) => getStockQty(a) - getStockQty(b))
+      .slice(0, 8);
+
+    const pendingRequests = cibinongRequests
+      .filter((request) => !isDeletedRow(request))
+      .filter((request) => isPendingRequestStatus(request.status || request.request_status || request.requestStatus))
+      .sort((a, b) => String(getDateYmd(b.date || b.created_at || b.createdAt)).localeCompare(String(getDateYmd(a.date || a.created_at || a.createdAt))))
+      .slice(0, 8);
+
+    const pendingRequestQty = pendingRequests.reduce((sum, request) => sum + getRequestQty(request), 0);
 
     const productMap = {};
 
@@ -313,20 +434,10 @@ export default function TabMonitoringCabangUniversal(props) {
       uangMasukRiilBulanIni,
       totalBebanHariIni,
       setoranMenungguVal,
-
-      amplopRule: amplopAllocation.rule,
-      amplopPercentSource: amplopAllocation.rule?.percentSource || 'DEFAULT',
-
-      jatahAyam: amplopAllocation.bahanBakuHutangNana,
-      jatahOps: amplopAllocation.operasionalLogistikGaji,
-      jatahCadangan: amplopAllocation.cicilanKomitmenBuffer,
-      jatahCuan: amplopAllocation.ownerSurvival,
-
-      percentAyam: amplopAllocation.bahanBakuPercent,
-      percentOps: amplopAllocation.operasionalPercent,
-      percentCadangan: amplopAllocation.cicilanBufferPercent,
-      percentCuan: amplopAllocation.ownerPercent,
-
+      stokFrozenPcs,
+      lowStockRows,
+      pendingRequests,
+      pendingRequestQty,
       topProducts,
     };
   }, [
@@ -335,8 +446,8 @@ export default function TabMonitoringCabangUniversal(props) {
     realExpenses,
     realSettlements,
     realPiutangPayments,
-    realAmplopRules,
-    realConversionRules,
+    realStockRows,
+    realDistributionOrders,
     todayStr,
     currentMonth,
     cibinongBranchId,
@@ -350,7 +461,7 @@ export default function TabMonitoringCabangUniversal(props) {
             Command Center Multi Cabang
           </h2>
           <p className="text-[11px] font-bold text-slate-400 mt-1 max-w-md leading-relaxed normal-case">
-            Gunakan tombol kendali di samping untuk berpindah pantauan analitik secara langsung antara pabrik produksi dan resto outlet.
+            Pantauan cabang produksi dan outlet. Tangerang tetap menjadi pusat kas, approval, stok, dan kontrol owner.
           </p>
         </div>
 
@@ -400,12 +511,12 @@ export default function TabMonitoringCabangUniversal(props) {
                 <div className="relative z-10 flex items-center gap-3 mb-2">
                   <Store size={24} className="text-blue-400" />
                   <h2 className="text-xl font-black text-white uppercase tracking-wide">
-                    Radar Eksekutif: Resto Cibinong
+                    Radar Outlet: Resto Cibinong
                   </h2>
                 </div>
 
                 <p className="relative z-10 text-[11px] font-bold text-slate-300 normal-case max-w-lg leading-relaxed">
-                  Layar analitik khusus memantau performa penjualan, uang masuk riil, beban operasional, dan peringkat menu terlaris outlet Resto Cibinong.
+                  Fokus outlet: penjualan, uang masuk riil, setoran, stok frozen/menu, dan request barang ke Tangerang. Tidak menghitung 4 amplop dan tidak menghitung adukan.
                 </p>
               </div>
 
@@ -426,7 +537,7 @@ export default function TabMonitoringCabangUniversal(props) {
                 <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
                   <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-2">
                     <ArrowRightLeft size={14} className="text-red-500" />
-                    Beban Operasional (H)
+                    Beban Operasional Hari Ini
                   </div>
                   <div className="text-3xl font-black text-red-600 tracking-tight">
                     -
@@ -437,7 +548,7 @@ export default function TabMonitoringCabangUniversal(props) {
                 <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm border-t-4 border-t-emerald-500">
                   <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-2">
                     <Wallet size={14} className="text-emerald-500" />
-                    Total Omset (Bulan Ini)
+                    Omset Bulan Ini
                   </div>
                   <div className="text-3xl font-black text-emerald-700 tracking-tight">
                     {formatRupiah(cibinongStats.omsetBulanIni)}
@@ -458,75 +569,141 @@ export default function TabMonitoringCabangUniversal(props) {
                 </div>
               </div>
 
-              {cibinongStats.uangMasukRiilBulanIni > 0 && (
-                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm border-l-8 border-l-blue-500">
-                  <h3 className="font-black text-sm text-slate-800 uppercase tracking-wide mb-2 flex items-center gap-2">
-                    <DollarSign size={18} className="text-blue-600" />
-                    Proyeksi Jatah 4 Amplop Cibinong
-                  </h3>
-
-                  <p className="text-[10px] font-bold text-slate-500 mb-5 normal-case">
-                    Dihitung dari uang masuk riil bulan ini:
-                    {' '}
-                    <b className="text-slate-800">
-                      {formatRupiah(cibinongStats.uangMasukRiilBulanIni)}
-                    </b>
-                    {' '}
-                    · Rule aktif:
-                    {' '}
-                    <b className="text-blue-700">
-                      {cibinongStats.amplopRule?.name || 'Survival Mode Dimsum Aditya'}
-                    </b>
-                    {' '}
-                    · Source:
-                    {' '}
-                    {cibinongStats.amplopPercentSource}
-                  </p>
-
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-5 text-center">
-                    <div className="bg-slate-50 border border-slate-100 p-5 rounded-2xl shadow-inner">
-                      <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">
-                        Amplop 1 Ayam / Nana ({Number(cibinongStats.percentAyam || 0).toFixed(0)}%)
-                      </div>
-                      <div className="text-xl font-black text-blue-700 mt-2">
-                        {formatRupiah(cibinongStats.jatahAyam)}
-                      </div>
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <div className="lg:col-span-5 bg-white rounded-3xl shadow-sm border border-slate-200 p-6">
+                  <div className="flex items-start justify-between gap-4 mb-5 border-b border-slate-100 pb-4">
+                    <div>
+                      <h3 className="font-black text-slate-800 text-sm uppercase tracking-wide flex items-center gap-2">
+                        <Package size={18} className="text-blue-600" />
+                        Stok Frozen/Menu Outlet
+                      </h3>
+                      <p className="text-[10px] font-bold text-slate-400 mt-1 normal-case">
+                        Stok barang jadi/frozen yang tersedia di Cibinong.
+                      </p>
                     </div>
-
-                    <div className="bg-slate-50 border border-slate-100 p-5 rounded-2xl shadow-inner">
-                      <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">
-                        Amplop 2 Ops ({Number(cibinongStats.percentOps || 0).toFixed(0)}%)
+                    <div className="text-right">
+                      <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider">
+                        Total Terpantau
                       </div>
-                      <div className="text-xl font-black text-emerald-700 mt-2">
-                        {formatRupiah(cibinongStats.jatahOps)}
-                      </div>
-                    </div>
-
-                    <div className="bg-slate-50 border border-slate-100 p-5 rounded-2xl shadow-inner">
-                      <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">
-                        Amplop 3 Cicilan ({Number(cibinongStats.percentCadangan || 0).toFixed(0)}%)
-                      </div>
-                      <div className="text-xl font-black text-orange-700 mt-2">
-                        {formatRupiah(cibinongStats.jatahCadangan)}
-                      </div>
-                    </div>
-
-                    <div className="bg-slate-50 border border-slate-100 p-5 rounded-2xl shadow-inner">
-                      <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">
-                        Amplop 4 Owner ({Number(cibinongStats.percentCuan || 0).toFixed(0)}%)
-                      </div>
-                      <div className="text-xl font-black text-amber-700 mt-2">
-                        {formatRupiah(cibinongStats.jatahCuan)}
+                      <div className="text-2xl font-black text-blue-700 tracking-tight">
+                        {formatNumber(cibinongStats.stokFrozenPcs)}
                       </div>
                     </div>
                   </div>
+
+                  {cibinongStats.lowStockRows.length === 0 ? (
+                    <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-5 text-center">
+                      <div className="font-black text-emerald-700 text-xs uppercase tracking-wider">
+                        Stok aman
+                      </div>
+                      <p className="text-[10px] font-bold text-emerald-600 mt-1 normal-case">
+                        Belum ada stok frozen/menu yang masuk batas minimum.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 text-[10px] font-black text-red-600 uppercase tracking-wider">
+                        <AlertTriangle size={14} />
+                        Stok Menipis
+                      </div>
+
+                      {cibinongStats.lowStockRows.map((row, index) => (
+                        <div
+                          key={row.id || row.reference_id || index}
+                          className="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center justify-between gap-4"
+                        >
+                          <div>
+                            <div className="font-black text-slate-800 text-xs uppercase tracking-wide">
+                              {row.item_name || row.itemName || row.product_name || row.name || '-'}
+                            </div>
+                            <div className="text-[10px] font-bold text-slate-400 mt-1 normal-case">
+                              Min:
+                              {' '}
+                              {formatNumber(row.minimum_stock || row.min_stock || row.reorder_point || 10)}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-xl font-black text-red-600">
+                              {formatNumber(getStockQty(row))}
+                            </div>
+                            <div className="text-[9px] font-bold text-red-400 uppercase">
+                              tersisa
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
+
+                <div className="lg:col-span-7 bg-white rounded-3xl shadow-sm border border-slate-200 p-6">
+                  <div className="flex items-start justify-between gap-4 mb-5 border-b border-slate-100 pb-4">
+                    <div>
+                      <h3 className="font-black text-slate-800 text-sm uppercase tracking-wide flex items-center gap-2">
+                        <Send size={18} className="text-emerald-600" />
+                        Request Barang ke Tangerang
+                      </h3>
+                      <p className="text-[10px] font-bold text-slate-400 mt-1 normal-case">
+                        Pantauan permintaan frozen/menu dari Cibinong yang menunggu approval/fulfillment Tangerang.
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider">
+                        Pending Qty
+                      </div>
+                      <div className="text-2xl font-black text-emerald-700 tracking-tight">
+                        {formatNumber(cibinongStats.pendingRequestQty)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {cibinongStats.pendingRequests.length === 0 ? (
+                    <div className="bg-slate-50 border border-slate-100 rounded-2xl p-8 text-center">
+                      <div className="font-black text-slate-500 text-xs uppercase tracking-wider">
+                        Belum ada request pending
+                      </div>
+                      <p className="text-[10px] font-bold text-slate-400 mt-1 normal-case">
+                        Kalau stok menipis, Cibinong bisa request barang/menu frozen ke Tangerang melalui flow distribusi/request yang sudah ada.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 max-h-[340px] overflow-y-auto custom-scrollbar pr-1">
+                      {cibinongStats.pendingRequests.map((request, index) => (
+                        <div
+                          key={request.id || request.do_id || index}
+                          className="p-4 bg-emerald-50/50 border border-emerald-100 rounded-2xl flex items-center justify-between gap-4"
+                        >
+                          <div>
+                            <div className="font-black text-slate-800 text-xs uppercase tracking-wide">
+                              {request.item_name || request.itemName || request.product_name || request.name || request.title || 'REQUEST BARANG'}
+                            </div>
+                            <div className="text-[10px] font-bold text-slate-400 mt-1 normal-case">
+                              {getDateYmd(request.date || request.created_at || request.createdAt) || '-'}
+                              {' '}
+                              ·
+                              {' '}
+                              {String(request.status || request.request_status || 'PENDING').replace(/_/g, ' ')}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-xl font-black text-emerald-700">
+                              {formatNumber(getRequestQty(request))}
+                            </div>
+                            <div className="text-[9px] font-bold text-emerald-500 uppercase">
+                              qty request
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
 
               <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 flex flex-col max-h-[480px]">
                 <h3 className="font-black text-slate-800 text-sm uppercase tracking-wide flex items-center gap-2 mb-5 border-b border-slate-100 pb-4">
                   <TrendingUp size={18} className="text-emerald-500" />
-                  Klasemen Menu / Produk Terlaris Cibinong (All Time)
+                  Klasemen Menu / Produk Terlaris Cibinong
                 </h3>
 
                 <div className="overflow-y-auto pr-2 flex-1 space-y-3 custom-scrollbar">
