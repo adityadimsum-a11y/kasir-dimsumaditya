@@ -1,39 +1,535 @@
 import React from 'react';
-import { 
-  Globe, 
-  TrendingUp, 
-  Building2, 
-  ShoppingCart, 
-  Layers, 
-  Receipt, 
-  BookOpen, 
-  Package, 
-  Truck, 
-  ClipboardCheck, 
-  LogOut, 
-  ShieldAlert, 
-  Users, 
-  DollarSign, 
-  BarChart3, 
-  Database, 
-  Scale, 
-  History, 
-  Coins,
-  Contact2,
-  PackageCheck,
-  Crown,  
-  Target, 
-  Calculator // 🧮 ICON BARU UNTUK SSOT
+import {
+  BarChart3,
+  Bell,
+  BookOpen,
+  Boxes,
+  BriefcaseBusiness,
+  Building2,
+  Calculator,
+  ClipboardList,
+  Clock3,
+  Crown,
+  Database,
+  Factory,
+  HandCoins,
+  History,
+  Landmark,
+  LayoutDashboard,
+  LogOut,
+  Package,
+  Radar,
+  ReceiptText,
+  Scale,
+  ShoppingCart,
+  Store,
+  Truck,
+  Users,
+  Wallet,
+  Warehouse,
 } from 'lucide-react';
 
-export default function LayoutEngine({ children, activeTab, setActiveTab, user, handleLogout }) {
-  const userName = user?.name || 'ADMIN PUSAT';
-  const userRole = user?.role || 'super_admin';
-  const branchType = user?.branch_type || 'HQ_FACTORY';
-  const branchName = user?.branch_id === 'PUSAT' ? 'TANGERANG PUSAT' : user?.branch_id || 'PUSAT';
+const OWNER_ROLE_GROUP = new Set([
+  'OWNER',
+  'DEWA',
+  'MONITOR_DEWA',
+  'HO_TANGERANG',
+  'SUPER_ADMIN',
+  'SUPERADMIN',
+]);
 
-  const isHQUser = branchType === 'HQ_FACTORY' || userRole === 'super_admin';
-  const isProductionBranch = branchType === 'PRODUCTION_BRANCH' || branchName.includes('PEMALANG');
+const HQ_ROLE_GROUP = new Set([
+  'OWNER',
+  'DEWA',
+  'MONITOR_DEWA',
+  'HO_TANGERANG',
+  'SUPER_ADMIN',
+  'SUPERADMIN',
+  'ADMIN_PUSAT',
+  'HQ',
+  'HQ_ADMIN',
+  'FINANCE',
+  'ACCOUNTING',
+]);
+
+const FINANCE_ROLE_GROUP = new Set([
+  'OWNER',
+  'DEWA',
+  'HO_TANGERANG',
+  'SUPER_ADMIN',
+  'SUPERADMIN',
+  'FINANCE',
+  'ACCOUNTING',
+  'KASIR_HQ',
+  'ADMIN_PUSAT',
+]);
+
+const WAREHOUSE_ROLE_GROUP = new Set([
+  'OWNER',
+  'DEWA',
+  'HO_TANGERANG',
+  'SUPER_ADMIN',
+  'SUPERADMIN',
+  'GUDANG',
+  'WAREHOUSE',
+  'STOCK',
+  'STOK',
+  'ADMIN_GUDANG',
+]);
+
+const PRODUCTION_ROLE_GROUP = new Set([
+  'OWNER',
+  'DEWA',
+  'HO_TANGERANG',
+  'SUPER_ADMIN',
+  'SUPERADMIN',
+  'PRODUCTION',
+  'PRODUKSI',
+  'DAPUR',
+  'ADMIN_PRODUKSI',
+]);
+
+const SALES_ROLE_GROUP = new Set([
+  'OWNER',
+  'DEWA',
+  'HO_TANGERANG',
+  'SUPER_ADMIN',
+  'SUPERADMIN',
+  'SALES',
+  'KASIR',
+  'CASHIER',
+  'ADMIN_SALES',
+  'CABANG',
+]);
+
+const HRD_ROLE_GROUP = new Set([
+  'OWNER',
+  'DEWA',
+  'HO_TANGERANG',
+  'SUPER_ADMIN',
+  'SUPERADMIN',
+  'HRD',
+  'HR',
+  'ADMIN_HRD',
+  'ADMIN_SDM',
+]);
+
+const normalizeCode = (value) => {
+  return String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^\w./-]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '');
+};
+
+const getRoleCode = (user = {}) => {
+  return normalizeCode(
+    user.role ||
+    user.user_role ||
+    user.userRole ||
+    user.access_role ||
+    user.accessRole ||
+    user.position ||
+    user.level ||
+    '',
+  );
+};
+
+const getBranchTypeCode = (user = {}) => {
+  return normalizeCode(user.branch_type || user.branchType || '');
+};
+
+const getBranchIdCode = (user = {}) => {
+  return normalizeCode(user.branch_id || user.branchId || '');
+};
+
+const isOwnerUser = (user = {}) => {
+  const role = getRoleCode(user);
+  const branchId = getBranchIdCode(user);
+  return OWNER_ROLE_GROUP.has(role) || branchId === 'HO_TANGERANG';
+};
+
+const isHQUser = (user = {}) => {
+  const role = getRoleCode(user);
+  const branchType = getBranchTypeCode(user);
+  const branchId = getBranchIdCode(user);
+
+  return (
+    isOwnerUser(user) ||
+    HQ_ROLE_GROUP.has(role) ||
+    branchType === 'HQ_FACTORY' ||
+    branchType === 'HQ' ||
+    branchId === 'PUSAT' ||
+    branchId === 'TANGERANG_PUSAT'
+  );
+};
+
+const isBranchUser = (user = {}) => {
+  return Boolean(user) && !isHQUser(user);
+};
+
+const isFinanceUser = (user = {}) => {
+  const role = getRoleCode(user);
+  return isHQUser(user) || FINANCE_ROLE_GROUP.has(role);
+};
+
+const isWarehouseUser = (user = {}) => {
+  const role = getRoleCode(user);
+  return isHQUser(user) || WAREHOUSE_ROLE_GROUP.has(role);
+};
+
+const isProductionUser = (user = {}) => {
+  const role = getRoleCode(user);
+  const branchType = getBranchTypeCode(user);
+  const branchId = getBranchIdCode(user);
+
+  return (
+    isHQUser(user) ||
+    PRODUCTION_ROLE_GROUP.has(role) ||
+    branchType === 'PRODUCTION_BRANCH' ||
+    branchId.includes('PEMALANG')
+  );
+};
+
+const isSalesUser = (user = {}) => {
+  const role = getRoleCode(user);
+  return isHQUser(user) || isBranchUser(user) || SALES_ROLE_GROUP.has(role);
+};
+
+const isHrdUser = (user = {}) => {
+  const role = getRoleCode(user);
+  return isHQUser(user) || HRD_ROLE_GROUP.has(role);
+};
+
+const canSeeMasterData = (user = {}) => {
+  return isHQUser(user) || isOwnerUser(user);
+};
+
+const canSeePurchase = (user = {}) => {
+  return isHQUser(user) || isOwnerUser(user);
+};
+
+const canSeeProduction = (user = {}) => {
+  return isProductionUser(user);
+};
+
+const canSeeInventory = (user = {}) => {
+  return isWarehouseUser(user) || isProductionUser(user) || isOwnerUser(user);
+};
+
+const canSeeFinance = (user = {}) => {
+  return isFinanceUser(user);
+};
+
+const canSeePiutang = (user = {}) => {
+  return isFinanceUser(user) || isSalesUser(user);
+};
+
+const canSeeHrdCore = (user = {}) => {
+  return isHrdUser(user);
+};
+
+const canSeeHrdBranch = (user = {}) => {
+  return isHrdUser(user) || isBranchUser(user);
+};
+
+const canSeeOwner = (user = {}) => {
+  return isOwnerUser(user);
+};
+
+const canSeeAudit = (user = {}) => {
+  return isOwnerUser(user) || isHQUser(user);
+};
+
+const MENU_GROUPS = [
+  {
+    id: 'dashboard',
+    label: 'Dashboard',
+    visible: () => true,
+    items: [
+      {
+        id: 'dashboard',
+        label: 'Dashboard Pusat',
+        icon: LayoutDashboard,
+        visible: (user) => isHQUser(user) || isOwnerUser(user),
+      },
+      {
+        id: 'dashboard_branch',
+        label: 'Dashboard Cabang',
+        icon: Store,
+        visible: () => true,
+      },
+    ],
+  },
+  {
+    id: 'master_data',
+    label: 'Master Data',
+    visible: canSeeMasterData,
+    items: [
+      {
+        id: 'master_cabang',
+        label: 'Master Cabang',
+        icon: Building2,
+        visible: canSeeMasterData,
+      },
+      {
+        id: 'master_gudang',
+        label: 'Master Gudang',
+        icon: Warehouse,
+        visible: canSeeMasterData,
+      },
+      {
+        id: 'master_produk',
+        label: 'Master Produk',
+        icon: Package,
+        visible: canSeeMasterData,
+      },
+      {
+        id: 'master_supplier',
+        label: 'Master Supplier',
+        icon: Truck,
+        visible: canSeeMasterData,
+      },
+      {
+        id: 'master_bahan_baku',
+        label: 'Master Bahan Baku',
+        icon: Boxes,
+        visible: canSeeMasterData,
+      },
+      {
+        id: 'master_konversi',
+        label: 'Master Konversi',
+        icon: Calculator,
+        visible: canSeeMasterData,
+      },
+      {
+        id: 'master_resep_bom',
+        label: 'Master Resep BOM',
+        icon: ClipboardList,
+        visible: canSeeMasterData,
+      },
+      {
+        id: 'master_pelanggan',
+        label: 'Master Pelanggan',
+        icon: Users,
+        visible: canSeeMasterData,
+      },
+    ],
+  },
+  {
+    id: 'operasional',
+    label: 'Operasional',
+    visible: () => true,
+    items: [
+      {
+        id: 'purchase',
+        label: 'Purchase',
+        icon: ReceiptText,
+        visible: canSeePurchase,
+      },
+      {
+        id: 'production',
+        label: 'Production',
+        icon: Factory,
+        visible: canSeeProduction,
+      },
+      {
+        id: 'sales',
+        label: 'Sales',
+        icon: ShoppingCart,
+        visible: isSalesUser,
+      },
+    ],
+  },
+  {
+    id: 'inventory',
+    label: 'Inventory',
+    visible: canSeeInventory,
+    items: [
+      {
+        id: 'stok',
+        label: 'Stok',
+        icon: Database,
+        visible: canSeeInventory,
+      },
+      {
+        id: 'kartu_stok',
+        label: 'Kartu Stok',
+        icon: BookOpen,
+        visible: canSeeInventory,
+      },
+    ],
+  },
+  {
+    id: 'keuangan',
+    label: 'Keuangan',
+    visible: (user) => canSeeFinance(user) || canSeePiutang(user),
+    items: [
+      {
+        id: 'kas_bank',
+        label: 'Kas Bank',
+        icon: Wallet,
+        visible: canSeeFinance,
+      },
+      {
+        id: 'piutang',
+        label: 'Piutang',
+        icon: Landmark,
+        visible: canSeePiutang,
+      },
+      {
+        id: 'hutang_supplier',
+        label: 'Hutang Supplier',
+        icon: ReceiptText,
+        visible: canSeeFinance,
+      },
+      {
+        id: 'accounting',
+        label: 'Accounting',
+        icon: Scale,
+        visible: canSeeFinance,
+      },
+      {
+        id: 'kewajiban',
+        label: 'Kewajiban',
+        icon: HandCoins,
+        visible: canSeeFinance,
+      },
+    ],
+  },
+  {
+    id: 'hrd',
+    label: 'HRD',
+    visible: (user) => canSeeHrdCore(user) || canSeeHrdBranch(user),
+    items: [
+      {
+        id: 'karyawan',
+        label: 'HRD Center',
+        icon: BriefcaseBusiness,
+        visible: canSeeHrdCore,
+      },
+      {
+        id: 'hrd_master_sdm',
+        label: 'Master SDM',
+        icon: Users,
+        visible: canSeeHrdCore,
+      },
+      {
+        id: 'hrd_payroll',
+        label: 'Payroll',
+        icon: Wallet,
+        visible: canSeeHrdCore,
+      },
+      {
+        id: 'hrd_lembur',
+        label: 'Lembur',
+        icon: Clock3,
+        visible: canSeeHrdBranch,
+      },
+      {
+        id: 'hrd_kasbon',
+        label: 'Kasbon',
+        icon: HandCoins,
+        visible: canSeeHrdBranch,
+      },
+    ],
+  },
+  {
+    id: 'owner',
+    label: 'Owner',
+    visible: canSeeOwner,
+    items: [
+      {
+        id: 'dashboard_profit_owner',
+        label: 'Profit Owner',
+        icon: Crown,
+        visible: canSeeOwner,
+      },
+      {
+        id: 'executive_dashboard',
+        label: 'Executive Dashboard',
+        icon: BarChart3,
+        visible: canSeeOwner,
+      },
+      {
+        id: 'business_radar',
+        label: 'Business Radar',
+        icon: Radar,
+        visible: canSeeOwner,
+      },
+      {
+        id: 'notification_center',
+        label: 'Notification Center',
+        icon: Bell,
+        visible: canSeeOwner,
+      },
+    ],
+  },
+  {
+    id: 'audit',
+    label: 'Audit',
+    visible: canSeeAudit,
+    items: [
+      {
+        id: 'accounting_audit',
+        label: 'Accounting Audit',
+        icon: History,
+        visible: canSeeAudit,
+      },
+    ],
+  },
+];
+
+// Hidden/backlog/legacy sengaja tidak tampil di sidebar:
+// TabProfitOwner, TabOrders, TabAntrianPO, TabPurchases,
+// TabAnalytics, TabSCMWarRoom, TabSupplierAyam, TabStokOutlet,
+// TabDiscrepancy, TabDistribusi, TabMonitoringPemalang,
+// TabMonitoringCabangUniversal, TabExpenses, dan seluruh analytics dashboard tambahan.
+
+const getVisibleMenuGroups = (user = {}) => {
+  return MENU_GROUPS
+    .filter((group) => group.visible(user))
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => item.visible(user)),
+    }))
+    .filter((group) => group.items.length > 0);
+};
+
+const NavButton = ({ item, activeTab, onClick }) => {
+  const Icon = item.icon;
+  const isActive = activeTab === item.id;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onClick(item.id)}
+      className={`flex w-full cursor-pointer items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-xs font-bold transition-all normal-case ${
+        isActive
+          ? 'border-red-100/60 bg-red-50 text-red-600 shadow-sm'
+          : 'border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+      }`}
+    >
+      <Icon size={16} className={isActive ? 'text-red-600' : 'text-slate-400'} />
+      <span className="truncate">{item.label}</span>
+    </button>
+  );
+};
+
+export default function LayoutEngine({
+  children,
+  activeTab,
+  setActiveTab,
+  user,
+  handleLogout,
+}) {
+  const userName = user?.name || user?.full_name || user?.username || 'ADMIN';
+  const userRole = getRoleCode(user) || 'USER';
+  const branchType = getBranchTypeCode(user) || 'BRANCH';
+  const branchId = getBranchIdCode(user) || 'PUSAT';
+  const branchName = branchId === 'PUSAT' ? 'TANGERANG PUSAT' : branchId.replace(/_/g, ' ');
+  const visibleMenuGroups = getVisibleMenuGroups(user);
 
   const handleTabChange = (tabId) => {
     if (typeof setActiveTab === 'function') {
@@ -42,279 +538,70 @@ export default function LayoutEngine({ children, activeTab, setActiveTab, user, 
   };
 
   return (
-    <div className="flex h-screen w-screen bg-slate-50 overflow-hidden font-sans antialiased text-slate-800">
-      
-      {/* SIDEBAR NAVIGATION */}
-      <aside className="w-64 bg-white border-r border-slate-200 flex flex-col h-full shrink-0 z-20 shadow-xs">
-        
-        <div className="p-5 border-b border-slate-200/50 flex flex-col items-center justify-center bg-white shrink-0">
-          <img 
-            src="https://dimsumaditya.id/wp-content/uploads/2026/06/Dimsum-Aditya-New-Logo-scaled.webp" 
-            alt="Dimsum Aditya ERP" 
+    <div className="flex h-screen w-screen overflow-hidden bg-slate-50 font-sans text-slate-800 antialiased">
+      <aside className="z-20 flex h-full w-64 shrink-0 flex-col border-r border-slate-200 bg-white shadow-xs">
+        <div className="flex shrink-0 flex-col items-center justify-center border-b border-slate-200/50 bg-white p-5">
+          <img
+            src="https://dimsumaditya.id/wp-content/uploads/2026/06/Dimsum-Aditya-New-Logo-scaled.webp"
+            alt="Dimsum Aditya ERP"
             className="h-12 w-auto object-contain drop-shadow-sm transition-transform hover:scale-105"
           />
-          <div className="mt-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">
+          <div className="mt-2 text-[8px] font-black uppercase tracking-widest text-slate-400">
             Enterprise Core System
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6 custom-scrollbar">
-          
-          {isHQUser && (
-            <div className="space-y-1">
-              <span className="px-3 text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">
-                Pusat Kendali Utama
-              </span>
-              
-              <button type="button" onClick={() => handleTabChange('dashboard')}
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all normal-case cursor-pointer ${
-                  activeTab === 'dashboard' ? 'bg-red-50 text-red-600 border border-red-100/50 shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50 border border-transparent'
-                }`}>
-                <Globe size={16} /> Radar Pusat (Global)
-              </button>
-
-              <button type="button" onClick={() => handleTabChange('business_radar')}
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all normal-case cursor-pointer ${
-                  activeTab === 'business_radar' ? 'bg-red-50 text-red-600 border border-red-100/50 shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50 border border-transparent'
-                }`}>
-                <TrendingUp size={16} /> Performa Bisnis
-              </button>
-
-              <button type="button" onClick={() => handleTabChange('monitoring_cabang')}
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all normal-case cursor-pointer ${
-                  activeTab === 'monitoring_cabang' ? 'bg-red-50 text-red-600 border border-red-100/50 shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50 border border-transparent'
-                }`}>
-                <Building2 size={16} /> Pantau Cabang
-              </button>
-
-              <button type="button" onClick={() => handleTabChange('scm_war_room')}
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all normal-case cursor-pointer ${
-                  activeTab === 'scm_war_room' ? 'bg-red-50 text-red-600 border border-red-100/50 shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50 border border-transparent'
-                }`}>
-                <BarChart3 size={16} /> Kendali Logistik
-              </button>
-
-              <button type="button" onClick={() => handleTabChange('analytics')}
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all normal-case cursor-pointer ${
-                  activeTab === 'analytics' ? 'bg-red-50 text-red-600 border border-red-100/50 shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50 border border-transparent'
-                }`}>
-                <Layers size={16} /> Analisa Mendalam
-              </button>
-            </div>
-          )}
-
-          <div className="space-y-1">
-            <span className="px-3 text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">
-              Operasional Inti
-            </span>
-
-            <button type="button" onClick={() => handleTabChange('orders')}
-              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all normal-case cursor-pointer ${
-                activeTab === 'orders' ? 'bg-red-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50 border border-transparent'
-              }`}>
-              <ShoppingCart size={16} className={activeTab === 'orders' ? "text-white" : ""} /> Kasir (POS) &amp; Penjualan
-            </button>
-
-            <button type="button" onClick={() => handleTabChange('antrian_po')}
-              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all normal-case cursor-pointer ${
-                activeTab === 'antrian_po' ? 'bg-orange-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50 border border-transparent'
-              }`}>
-              <PackageCheck size={16} className={activeTab === 'antrian_po' ? 'text-white' : 'text-orange-500'} /> Antrian PO &amp; Karantina
-            </button>
-
-            {isHQUser && (
-              <button type="button" onClick={() => handleTabChange('master_customer')}
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all normal-case cursor-pointer ${
-                  activeTab === 'master_customer' ? 'bg-orange-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50 border border-transparent'
-                }`}>
-                <Contact2 size={16} className={activeTab === 'master_customer' ? 'text-white' : 'text-orange-500'} /> Data Pelanggan (CRM)
-              </button>
-            )}
-
-            {(isHQUser || isProductionBranch) && (
-              <button type="button" onClick={() => handleTabChange('pemalang')}
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all normal-case cursor-pointer ${
-                  activeTab === 'pemalang' ? 'bg-red-50 text-red-600 border border-red-100/50 shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50 border border-transparent'
-                }`}>
-                <Layers size={16} /> Laporan Produksi
-              </button>
-            )}
-
-            {(isHQUser || isProductionBranch) && (
-              <button type="button" onClick={() => handleTabChange('purchases')}
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all normal-case cursor-pointer ${
-                  activeTab === 'purchases' ? 'bg-red-50 text-red-600 border border-red-100/50 shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50 border border-transparent'
-                }`}>
-                <Receipt size={16} /> Belanja &amp; Kas Keluar
-              </button>
-            )}
-
-            {isHQUser && (
-              <button type="button" onClick={() => handleTabChange('supplier_ayam')}
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all normal-case cursor-pointer ${
-                  activeTab === 'supplier_ayam' ? 'bg-red-50 text-red-600 border border-red-100/50 shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50 border border-transparent'
-                }`}>
-                <BookOpen size={16} /> Buku Nana Ayam
-              </button>
-            )}
-
-            {isHQUser && (
-              <button type="button" onClick={() => handleTabChange('stok')}
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all normal-case cursor-pointer ${
-                  activeTab === 'stok' ? 'bg-red-50 text-red-600 border border-red-100/50 shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50 border border-transparent'
-                }`}>
-                <Package size={16} /> Kartu Stok &amp; Gudang
-              </button>
-            )}
-
-            {isHQUser && (
-              <button type="button" onClick={() => handleTabChange('stok_outlet')}
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all normal-case cursor-pointer ${
-                  activeTab === 'stok_outlet' ? 'bg-red-50 text-red-600 border border-red-100/50 shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50 border border-transparent'
-                }`}>
-                <Building2 size={16} /> Stok Freezer Outlet
-              </button>
-            )}
-
-            {isHQUser && (
-              <button type="button" onClick={() => handleTabChange('distribusi')}
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all normal-case cursor-pointer ${
-                  activeTab === 'distribusi' ? 'bg-red-50 text-red-600 border border-red-100/50 shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50 border border-transparent'
-                }`}>
-                <Truck size={16} /> Distribusi Antar Cabang
-              </button>
-            )}
-
-            {isHQUser && (
-              <button type="button" onClick={() => handleTabChange('discrepancy')}
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all normal-case cursor-pointer ${
-                  activeTab === 'discrepancy' ? 'bg-red-50 text-red-600 border border-red-100/50 shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50 border border-transparent'
-                }`}>
-                <ClipboardCheck size={16} /> Opname &amp; Stok Basi
-              </button>
-            )}
-          </div>
-
-          {/* 👑 MODUL PRIBADI OWNER */}
-          {isHQUser && (
-            <div className="space-y-1">
-              <span className="px-3 text-[9px] font-black text-amber-500 uppercase tracking-widest block mb-2">
-                Area Pribadi Owner
-              </span>
-              <button type="button" onClick={() => handleTabChange('profit_owner')}
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all normal-case cursor-pointer ${
-                  activeTab === 'profit_owner' ? 'bg-amber-100 text-amber-700 border border-amber-200 shadow-sm' : 'text-slate-500 hover:text-amber-600 hover:bg-amber-50 border border-transparent'
-                }`}>
-                <Crown size={16} /> Brankas Profit (Prive)
-              </button>
-            </div>
-          )}
-
-          {isHQUser && (
-            <div className="space-y-1">
-              <span className="px-3 text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">
-                Pembukuan &amp; Keuangan
+        <div className="custom-scrollbar flex-1 space-y-6 overflow-y-auto px-4 py-6">
+          {visibleMenuGroups.map((group) => (
+            <div key={group.id} className="space-y-1">
+              <span className="mb-2 block px-3 text-[9px] font-black uppercase tracking-widest text-slate-400">
+                {group.label}
               </span>
 
-              <button type="button" onClick={() => handleTabChange('kewajiban')}
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all normal-case cursor-pointer ${
-                  activeTab === 'kewajiban' ? 'bg-blue-100 text-blue-700 border border-blue-200 shadow-sm' : 'text-slate-500 hover:text-blue-600 hover:bg-blue-50 border border-transparent'
-                }`}>
-                <Target size={16} /> Pusat Kewajiban
-              </button>
-
-              <button type="button" onClick={() => handleTabChange('accounting')}
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all normal-case cursor-pointer ${
-                  activeTab === 'accounting' ? 'bg-red-50 text-red-600 border border-red-100/50 shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50 border border-transparent'
-                }`}>
-                <Scale size={16} /> Jurnal &amp; Neraca
-              </button>
-
-              <button type="button" onClick={() => handleTabChange('accounting_audit')}
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all normal-case cursor-pointer ${
-                  activeTab === 'accounting_audit' ? 'bg-red-50 text-red-600 border border-red-100/50 shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50 border border-transparent'
-                }`}>
-                <History size={16} /> Riwayat Aktivitas (Audit)
-              </button>
-
-              <button type="button" onClick={() => handleTabChange('piutang')}
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all normal-case cursor-pointer ${
-                  activeTab === 'piutang' ? 'bg-red-50 text-red-600 border border-red-100/50 shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50 border border-transparent'
-                }`}>
-                <DollarSign size={16} /> Piutang Dagang Agen
-              </button>
-
-              <button type="button" onClick={() => handleTabChange('setoran_cabang')}
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all normal-case cursor-pointer ${
-                  activeTab === 'setoran_cabang' ? 'bg-red-50 text-red-600 border border-red-100/50 shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50 border border-transparent'
-                }`}>
-                <Coins size={16} /> Validasi Setoran Kasir
-              </button>
+              {group.items.map((item) => (
+                <NavButton
+                  key={item.id}
+                  item={item}
+                  activeTab={activeTab}
+                  onClick={handleTabChange}
+                />
+              ))}
             </div>
-          )}
-
-          {(isHQUser || isProductionBranch) && (
-            <div className="space-y-1">
-              <span className="px-3 text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">
-                Manajemen Data &amp; Tim
-              </span>
-
-              {isHQUser && (
-                <button type="button" onClick={() => handleTabChange('karyawan')}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all normal-case cursor-pointer ${
-                    activeTab === 'karyawan' ? 'bg-red-50 text-red-600 border border-red-100/50 shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50 border border-transparent'
-                  }`}>
-                  <Users size={16} /> Manajemen Karyawan
-                </button>
-              )}
-
-              {/* 🧮 ROUTE MENU BARU: MASTER KONVERSI SSOT */}
-              <button type="button" onClick={() => handleTabChange('master_konversi')}
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all normal-case cursor-pointer ${
-                  activeTab === 'master_konversi' ? 'bg-red-50 text-red-600 border border-red-100/50 shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50 border border-transparent'
-                }`}>
-                <Calculator size={16} className={activeTab === 'master_konversi' ? "text-[#CE1722]" : "text-slate-500"} /> Master Konversi (SSOT)
-              </button>
-
-              <button type="button" onClick={() => handleTabChange('master_data')}
-                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all normal-case cursor-pointer ${
-                  activeTab === 'master_data' ? 'bg-red-50 text-red-600 border border-red-100/50 shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50 border border-transparent'
-                }`}>
-                <Database size={16} /> Pengaturan Sistem Dasar
-              </button>
-            </div>
-          )}
+          ))}
         </div>
 
-        {/* PROFILE CRADLE FOOTER */}
-        <div className="p-4 border-t border-slate-100 bg-slate-50/50 space-y-3 shrink-0">
-          <div className="flex items-center gap-3 p-2 bg-white rounded-xl border border-slate-200/60 shadow-sm">
-            <div className="w-9 h-9 rounded-lg bg-red-600 text-white font-black flex items-center justify-center text-sm shadow-inner shrink-0">
-              {userName.charAt(0).toUpperCase()}
+        <div className="shrink-0 space-y-3 border-t border-slate-100 bg-slate-50/50 p-4">
+          <div className="flex items-center gap-3 rounded-xl border border-slate-200/60 bg-white p-2 shadow-sm">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-600 text-sm font-black text-white shadow-inner">
+              {String(userName || 'A').charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0 flex-1">
-              <h4 className="text-xs font-black text-slate-800 tracking-tight uppercase truncate">{userName}</h4>
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider truncate mt-0.5">{userRole.replace(/_/g, ' ')}</p>
+              <h4 className="truncate text-xs font-black uppercase tracking-tight text-slate-800">
+                {userName}
+              </h4>
+              <p className="mt-0.5 truncate text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                {userRole.replace(/_/g, ' ')}
+              </p>
+              <p className="mt-0.5 truncate text-[8px] font-black uppercase tracking-wider text-slate-300">
+                {branchType.replace(/_/g, ' ')} · {branchName}
+              </p>
             </div>
           </div>
-          
+
           <button
             type="button"
             onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold text-slate-500 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-100 transition-all cursor-pointer normal-case shadow-3xs"
+            className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-transparent px-3 py-2.5 text-xs font-bold text-slate-500 transition-all hover:border-red-100 hover:bg-red-50 hover:text-red-600 normal-case shadow-3xs"
           >
             <LogOut size={14} />
             Keluar Aplikasi
           </button>
         </div>
-
       </aside>
 
-      {/* MAIN CONTAINER */}
-      <main className="flex-1 h-full overflow-y-auto bg-slate-50 relative custom-scrollbar p-4 md:p-6 lg:p-8">
+      <main className="custom-scrollbar relative h-full flex-1 overflow-y-auto bg-slate-50 p-4 md:p-6 lg:p-8">
         {children}
       </main>
-
     </div>
   );
 }
