@@ -439,8 +439,9 @@ export function adaptLegacyBootstrap(rawData = {}, options = {}) {
     monitoring_expenses: mappedExpensesAll,
     monitoring_cashflow_transactions: mappedCashflowAll,
 
-    purchases: [],
-    purchases_data: [],
+    purchases: asArray(rawData.purchases),
+    purchases_data: asArray(rawData.purchases),
+    purchase_items: asArray(rawData.purchase_items),
     pemalang: scopedProductionBatches,
     pemalangReports: scopedProductionBatches,
     all_pemalang: mappedProductionBatchesAll,
