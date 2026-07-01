@@ -19,7 +19,7 @@ import {
   LogOut,
   Package,
   Radar,
-  ReceiptText,
+  Receipt as ReceiptText,
   Scale,
   ShoppingCart,
   Store,
