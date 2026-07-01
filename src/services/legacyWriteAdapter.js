@@ -118,6 +118,37 @@ export async function legacyWriteAction({ action, tableName, payload, user, sess
     );
   }
 
+
+
+  // ======================================================
+  // 2A) DROP AYAM / PURCHASE SUPPLIER NANA
+  // table lama: purchases
+  // backend bridge: legacyCreateChickenDropFromOldPurchase
+  // Catatan:
+  // - Ini gerbang resmi agar Produksi/Adukan punya stok ayam.
+  // - Membuat Chicken Lot + Stock IN + Hutang Supplier + Journal Preview.
+  // ======================================================
+  if (table === 'purchases' && oldAction === 'insert') {
+    const purchase = firstPayload(payload);
+
+    return apiRequest(
+      'legacyCreateChickenDropFromOldPurchase',
+      {
+        purchase,
+        legacy_purchase: purchase,
+        request_id: requestId,
+        source: 'LEGACY_PURCHASE_TAB_CHICKEN_DROP',
+        user_context: {
+          user_id: user?.user_id || user?.id || '',
+          username: user?.username || '',
+          location_id: user?.location_id || user?.branch_id || '',
+        },
+      },
+      sessionToken,
+    );
+  }
+
+
   if (table === 'orders' && oldAction === 'update') {
     return {
       success: false,
