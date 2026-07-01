@@ -305,9 +305,11 @@ export default function TabPemalang({
 
     const sisaKg = masukKg - keluarKg;
     return {
-      masukKantong: masukKg / 10,
-      keluarKantong: keluarKg / 10,
-      sisaKantong: sisaKg / 10,
+      masukKg,
+      keluarKg,
+      masukKantong: masukKg / DEFAULT_CHICKEN_KG_PER_ADUKAN,
+      keluarKantong: keluarKg / DEFAULT_CHICKEN_KG_PER_ADUKAN,
+      sisaKantong: sisaKg / DEFAULT_CHICKEN_KG_PER_ADUKAN,
       sisaKg,
     };
   }, [chickenLotOptions, pemalang]);
@@ -335,7 +337,7 @@ export default function TabPemalang({
     if (actualUnit === 'PCS') actualTotalPcs = inputAngka;
 
     const butuhAyamKg = adukanNum * productDefaults.chickenKgPerAdukan;
-    const butuhAyamKantong = butuhAyamKg / 10;
+    const butuhAyamKantong = butuhAyamKg / DEFAULT_CHICKEN_KG_PER_ADUKAN;
     const sisaAyamKantong = stockAyam.sisaKantong - butuhAyamKantong;
 
     const chickenUnitCost = selectedChickenLot?.unit_cost || toNumber(fallbackChickenPrice) || FALLBACK_CHICKEN_PRICE;
@@ -396,6 +398,34 @@ export default function TabPemalang({
     });
     return { totalAdukan, totalYieldPcs, totalCost };
   }, [filteredProductionLogs]);
+
+  const stockJadiSummary = useMemo(() => {
+    const targetName = normalizeCode(getProductName(selectedProduct));
+    const targetId = normalizeCode(getProductId(selectedProduct));
+    let masuk = 0;
+    let keluarOrder = 0;
+    let reserved = 0;
+
+    const scan = (row = {}) => {
+      if (!isActiveRow(row)) return;
+      const category = normalizeCode(row.category || row.item_type || row.stock_type || '');
+      const isFinished = category.includes('PRODUK') || category.includes('FINISHED') || category.includes('JADI');
+      if (!isFinished) return;
+      const rowName = normalizeCode(row.item_name || row.product_name || row.name);
+      const rowProductId = normalizeCode(row.product_id || row.item_id || row.product_code);
+      if (targetName && rowName && rowName !== targetName && rowProductId !== targetId) return;
+      const qty = toNumber(row.qty_remaining ?? row.qty_effect ?? row.qty ?? row.quantity);
+      const direction = normalizeCode(row.direction || (qty < 0 ? 'OUT' : 'IN'));
+      const status = normalizeCode(row.status || 'ACTIVE');
+      if (status === 'KARANTINA' || status === 'RESERVED') reserved += Math.abs(qty);
+      else if (direction === 'OUT' || qty < 0 || status === 'SOLD') keluarOrder += Math.abs(qty);
+      else masuk += Math.abs(qty);
+    };
+
+    [...(inventoryCostLayers || []), ...(inventory_cost_layers || []), ...(stockMovements || []), ...(stock_movements || [])].forEach(scan);
+    const ready = Math.max(0, masuk - keluarOrder - reserved);
+    return { masuk, keluarOrder, reserved, ready };
+  }, [selectedProduct, inventoryCostLayers, inventory_cost_layers, stockMovements, stock_movements]);
 
   const handleAdukanChange = (val) => {
     const adk = toNumber(String(val).replace(/\D/g, ''));
@@ -518,7 +548,7 @@ export default function TabPemalang({
     if (isSuccess && typeof showToast === 'function') showToast(`Log Batch ${id} berhasil di-void!`, 'success');
   };
 
-  const potensiAdukan = Math.floor(stockAyam.sisaKantong / 3);
+  const potensiAdukan = Math.max(0, Math.floor(stockAyam.sisaKantong));
 
   return (
     <div className="flex flex-col gap-6 pb-10 text-slate-700 animate-in fade-in duration-300">
@@ -538,18 +568,18 @@ export default function TabPemalang({
           <div className="flex-1 bg-slate-900/60 border border-slate-700/50 rounded-2xl p-5 flex flex-col justify-between shadow-inner backdrop-blur-sm relative overflow-hidden">
             {kalkulasi.sisaAyamKantong < 0 && <div className="absolute top-0 w-full left-0 bg-red-600 text-white text-[9px] font-black uppercase tracking-widest text-center py-0.5">Stok Minus!</div>}
             <div>
-              <div className="text-[11px] font-black text-slate-400 uppercase tracking-wider mb-1">Sisa Ayam Siap Adukan</div>
+              <div className="text-[11px] font-black text-slate-400 uppercase tracking-wider mb-1">Sisa Ayam Siap Produksi</div>
               <div className="text-4xl font-black text-white tracking-tight my-1">
-                {formatNumber(stockAyam.sisaKantong)} <span className="text-sm text-slate-500 font-bold">Kntg</span>
+                {formatNumber(stockAyam.sisaKg)} <span className="text-sm text-slate-500 font-bold">Kg</span>
               </div>
             </div>
             <div className="text-[10px] font-bold text-slate-400 mt-2 border-t border-slate-700/50 pt-2 flex flex-col gap-1">
               <div className="flex justify-between">
-                <span>Masuk: <b className="text-slate-300">{formatNumber(stockAyam.masukKantong)}</b></span>
-                <span>Dipakai: <b className="text-amber-500">{formatNumber(stockAyam.keluarKantong)}</b></span>
+                <span>Masuk: <b className="text-slate-300">{formatNumber(stockAyam.masukKg)} Kg</b></span>
+                <span>Dipakai: <b className="text-amber-500">{formatNumber(stockAyam.keluarKg)} Kg</b></span>
               </div>
               <div className="text-emerald-400 bg-emerald-950/30 px-2 py-1 rounded-md mt-1 inline-block border border-emerald-900/50 w-max">
-                Potensi: <b>{potensiAdukan} Adukan</b> (~{formatNumber(potensiAdukan * 250)} Porsi)
+                Potensi: <b>{potensiAdukan} Adukan</b> (~{formatNumber(potensiAdukan * DEFAULT_PORSI_PER_ADUKAN)} Porsi)
               </div>
             </div>
           </div>
@@ -570,6 +600,18 @@ export default function TabPemalang({
             <div className="text-[10px] font-bold text-emerald-600 mt-2 pt-3 border-t border-slate-700/50 flex justify-between">
               <span>Putaran Mesin: <b className="text-emerald-400 text-[11px]">{formatNumber(summaryFiltered.totalAdukan)} Adukan</b></span>
               <span>Perkiraan Modal: <b className="text-emerald-400 text-[11px]">{formatMoney(summaryFiltered.totalCost)}</b></span>
+            </div>
+            <div className="text-[10px] font-bold text-slate-300 mt-2 grid grid-cols-2 gap-2">
+              <span>Stok jadi ready: <b className="text-emerald-400">{formatNumber(stockJadiSummary.ready)} pcs</b></span>
+              <span>Keluar order: <b className="text-amber-400">{formatNumber(stockJadiSummary.keluarOrder)} pcs</b></span>
+              <span>Masuk freezer: <b className="text-emerald-400">{formatNumber(stockJadiSummary.masuk)} pcs</b></span>
+              <span>Reserved: <b className="text-amber-400">{formatNumber(stockJadiSummary.reserved)} pcs</b></span>
+            </div>
+            <div className="text-[10px] font-bold text-slate-300 mt-2 grid grid-cols-2 gap-2">
+              <span>Stok jadi ready: <b className="text-emerald-400">{formatNumber(stockJadiSummary.ready)} pcs</b></span>
+              <span>Keluar order: <b className="text-amber-400">{formatNumber(stockJadiSummary.keluarOrder)} pcs</b></span>
+              <span>Masuk freezer: <b className="text-emerald-400">{formatNumber(stockJadiSummary.masuk)} pcs</b></span>
+              <span>Reserved: <b className="text-amber-400">{formatNumber(stockJadiSummary.reserved)} pcs</b></span>
             </div>
           </div>
         </div>
