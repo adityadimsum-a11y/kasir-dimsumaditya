@@ -242,7 +242,7 @@ const MENU_GROUPS = [
       // ID sengaja memakai case lama yang sudah ada di App.jsx.
       { id: 'orders', label: 'Kasir / Order', icon: ShoppingCart, visible: isSalesUser },
       { id: 'antrian_po', label: 'Antrian PO', icon: ClipboardList, visible: isSalesUser },
-      { id: 'purchases', label: 'Purchase', icon: ReceiptText, visible: canSeePurchase },
+      { id: 'purchases', label: 'Beli Ayam / Purchase', icon: ReceiptText, visible: canSeePurchase },
       { id: 'expenses', label: 'Belanja & Kas Keluar', icon: Wallet, visible: canSeeFinance },
       { id: 'pemalang', label: 'Produksi / Adukan', icon: Factory, visible: canSeeProduction },
     ],
