@@ -1,21 +1,19 @@
 import React, { useMemo, useState } from 'react';
 import {
-  WalletCards,
+  Wallet,
   Search,
   Filter,
-  Building2,
-  UserRound,
-  ShieldCheck,
+  Building,
+  User,
+  Shield,
   AlertTriangle,
-  CalendarClock,
-  ReceiptText,
-  History,
-  Crown,
-  TrendingUp,
-  Undo2,
-  Send,
+  Calendar,
   FileText,
-  BadgeDollarSign,
+  History,
+  Users,
+  TrendingUp,
+  RotateCcw,
+  Send,
   Eye,
   Banknote,
   CreditCard,
@@ -23,11 +21,29 @@ import {
   CheckCircle,
   Clock,
   X,
-  ArrowDownCircle,
+  Download,
 } from 'lucide-react';
 
 import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 import erpOrchestrator from '../../services/erpOrchestrator';
+
+// ======================================================
+// LUCIDE ICON COMPATIBILITY
+// Project lama pakai lucide-react versi lama.
+// Alias ini menjaga nama icon lama tetap bisa dipakai
+// tanpa memaksa update dependency lucide-react.
+// ======================================================
+
+const WalletCards = Wallet;
+const Building2 = Building;
+const UserRound = User;
+const ShieldCheck = Shield;
+const CalendarClock = Calendar;
+const ReceiptText = FileText;
+const Crown = Users;
+const Undo2 = RotateCcw;
+const BadgeDollarSign = Wallet;
+const ArrowDownCircle = Download;
 
 const RECEIVABLE_PAYMENT_TABLE_NAME = 'receivable_payments';
 
