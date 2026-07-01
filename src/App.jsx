@@ -10,6 +10,7 @@ import LayoutEngine from './layouts/LayoutEngine';
 import TabDashboard from './components/tabs/TabDashboard';
 import TabOrders from './components/tabs/TabOrders';
 import TabPurchases from './components/tabs/TabPurchases';
+import TabChickenPurchase from './components/tabs/TabChickenPurchase';
 import TabSupplierAyam from './components/tabs/TabSupplierAyam';
 import TabExpenses from './components/tabs/TabExpenses';
 import TabPiutang from './components/tabs/TabPiutang';
@@ -465,7 +466,7 @@ export default function App() {
 
       case 'purchases':
         return (
-          <TabPurchases
+          <TabChickenPurchase
             user={user}
             sendToSheet={sendToSheet}
             setPrintData={setPrintData}
