@@ -365,7 +365,29 @@ export function adaptLegacyBootstrap(rawData = {}, options = {}) {
     return mapPayableToSupplierLedger(payable, payablePaymentsByPayable[id] || []);
   });
 
-  const mappedInventoryLayersAll = asArray(rawData.stock_movements).map(mapStockMovementToInventoryLayer);
+  const mappedInventoryLayersAll = [
+    ...asArray(rawData.stock_movements).map(mapStockMovementToInventoryLayer),
+    ...asArray(rawData.inventory_cost_layers).map((layer) => ({
+      id: layer.layer_id || layer.id,
+      date: normalizeDate(layer.layer_date || layer.date || layer.created_at),
+      branch_id: layer.location_id || layer.branch_id || '',
+      location_id: layer.location_id || layer.branch_id || '',
+      category: String(layer.item_type || '').toUpperCase().includes('FINISHED') ? 'PRODUK_JADI' : 'BAHAN_BAKU',
+      item_name: layer.product_name || layer.item_name || '',
+      product_id: layer.product_id || '',
+      qty_received: numberValue(layer.qty_in || 0),
+      qty_remaining: numberValue(layer.qty_remaining || 0),
+      unit_cost: numberValue(layer.unit_cost || 0),
+      unit: layer.unit || 'pcs',
+      status: layer.status || 'ACTIVE',
+      direction: 'IN',
+      reference_id: layer.source_id || '',
+      source_module: layer.source_module || '',
+      notes: layer.notes || '',
+      isDeleted: !isActiveRow(layer),
+      ...layer,
+    })),
+  ];
   const mappedProductionBatchesAll = asArray(rawData.production_batches).map(mapProductionBatchToPemalang);
   const scopedInventoryLayers = filterHomeScope(mappedInventoryLayersAll, user);
   const scopedProductionBatches = filterHomeScope(mappedProductionBatchesAll, user);
@@ -428,6 +450,10 @@ export function adaptLegacyBootstrap(rawData = {}, options = {}) {
     all_inventory_cost_layers: mappedInventoryLayersAll,
     stockMovements: asArray(rawData.stock_movements),
     stock_movements: asArray(rawData.stock_movements),
+    chickenLots: asArray(rawData.chicken_lots),
+    chicken_lots: asArray(rawData.chicken_lots),
+    inventoryCostLayersRaw: asArray(rawData.inventory_cost_layers),
+    inventory_cost_layers_raw: asArray(rawData.inventory_cost_layers),
     stokData: asArray(rawData.stock_balances),
     stok_data: asArray(rawData.stock_balances),
     productionBatches: asArray(rawData.production_batches),
