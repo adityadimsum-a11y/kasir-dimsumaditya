@@ -20,7 +20,26 @@ export default function TabPemalang({
   const realProducts = useMemo(() => master_products || masterProducts || [], [master_products, masterProducts]);
 
   const activeMenus = useMemo(() => {
-    return realProducts.filter(p => !p.isDeleted && String(p.isDeleted).toUpperCase() !== 'TRUE' && p.status_active).reverse();
+    const validProducts = realProducts.filter((p) => {
+      const deleted = p.isDeleted === true || String(p.isDeleted || p.is_deleted || '').toUpperCase() === 'TRUE';
+      const status = String(p.status || p.status_active || p.is_active || 'Active').toUpperCase();
+      return !deleted && !['NON_ACTIVE', 'INACTIVE', 'DISABLED', 'FALSE'].includes(status);
+    });
+
+    const productionProducts = validProducts.filter((p) => {
+      const haystack = String([
+        p.product_name,
+        p.name,
+        p.category,
+        p.product_type,
+        p.is_production_item,
+        p.adukan_conversion_active,
+      ].join(' ')).toUpperCase();
+
+      return haystack.includes('DIMSUM') || haystack.includes('ADUKAN') || haystack.includes('PRODUCTION') || haystack.includes('TRUE');
+    });
+
+    return (productionProducts.length > 0 ? productionProducts : validProducts).reverse();
   }, [realProducts]);
 
   const [date, setDate] = useState(todayStr);
@@ -161,15 +180,17 @@ export default function TabPemalang({
       notes: notes || '-', is_v2: true
     }];
 
-    const confirmMsg = `=== TRIPLE ENTRY: PABRIK ADITYA ===\n\nTanggal  : ${formatDate(date)}\nPIC      : ${pic.toUpperCase()}\nAdukan   : ${adukan} Kali\nFisik Dimsum : ${formatNumber(kalkulasi.actualTotalPcs)} Pcs\nPotong Ayam : ${kalkulasi.butuhAyamKg} Kg\n\nSistem akan memotong stok ayam di gudang dan mengisi freezer. Lanjutkan?`;
+    const confirmMsg = `=== TRIPLE ENTRY: PABRIK ADITYA ===\n\nTanggal  : ${formatDate(date)}\nPIC      : ${pic.toUpperCase()}\nAdukan   : ${adukan} Kali\nFisik Dimsum : ${formatNumber(kalkulasi.actualTotalPcs)} Pcs\nPotong Ayam : ${kalkulasi.butuhAyamKg} Kg\n\nSistem akan mencatat adukan dan menambah stok barang jadi di freezer. Lanjutkan?`;
 
     if (!window.confirm(confirmMsg)) return;
 
     // 1. ENTRY LOG BUKU PRODUKSI (PEMALANG)
     const payloadBatch = {
-      id: batchId, date: date, branch_id: currentBranch, customer_name: 'PABRIK_PEMALANG', sales_channel: 'PRODUCTION_YIELD',
+      id: batchId, date: date, branch_id: currentBranch, customer_name: 'PRODUKSI_ADUKAN', sales_channel: 'PRODUCTION_YIELD',
       items: JSON.stringify(secureItemsData), qty: kalkulasi.actualTotalPcs, total_amount: 0, amount_paid: 0, payment_method: 'SISTEM_PRODUKSI',
       status: 'LUNAS', notes: `${notes.toUpperCase()} (Asal: ${adukan} adukan, fisik: ${actualInput} ${actualUnit})`, isDeleted: false,
+      bridge_source: 'LEGACY_FACTORY_TAB_PEMALANG',
+      production_location_id: currentBranch,
       item_name: productName, pic: pic.toUpperCase() 
     };
 
@@ -191,7 +212,7 @@ export default function TabPemalang({
     if (isSuccess) {
       await sendToSheet('insert', [payloadInventoryOut, payloadInventoryIn], 'inventory_cost_layers');
       
-      if (typeof showToast === 'function') showToast(`Triple-Entry Sukses! Stok freezer bertambah, stok ayam berkurang.`, 'success');
+      if (typeof showToast === 'function') showToast(`Produksi adukan berhasil diproses mesin baru. Stok freezer bertambah.`, 'success');
       setAdukan(''); setActualInput(''); setNotes(''); setProductName(''); setPic('');
     }
   };
@@ -214,10 +235,10 @@ export default function TabPemalang({
         <div className="relative z-10 w-full xl:w-1/3 shrink-0 flex flex-col justify-center">
            <div className="flex items-center gap-2 mb-3">
              <Database size={24} className="text-red-400"/>
-             <h2 className="text-xl font-black text-white uppercase tracking-wide">Monitor Pabrik Utama</h2>
+             <h2 className="text-xl font-black text-white uppercase tracking-wide">Produksi / Adukan</h2>
            </div>
            <p className="text-[11px] font-bold text-slate-300 leading-relaxed max-w-sm">
-             Pusat kendali laporan adukan pabrik. Sistem cerdas Triple-Entry: Memotong stok ayam di gudang dan otomatis mengisi stok Freezer.
+             Gerbang resmi membuat stok barang jadi. Input adukan akan menambah stok Dimsum Original/Ayam Mix ke freezer sebelum Kasir/Order boleh jual.
            </p>
         </div>
         
