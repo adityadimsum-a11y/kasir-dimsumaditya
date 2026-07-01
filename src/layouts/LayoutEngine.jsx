@@ -23,11 +23,9 @@ import {
 
 // ======================================================
 // ICON COMPATIBILITY
-// Beberapa icon seperti HandCoins, ReceiptText, WalletCards,
-// BriefcaseBusiness tidak tersedia di lucide-react versi project lama.
-// Jadi kita alias ke icon yang lebih aman.
+// Project lama pakai lucide-react versi lama.
+// Alias ini menjaga UI tetap build tanpa ganti dependency.
 // ======================================================
-
 const Boxes = Package;
 const BriefcaseBusiness = Briefcase;
 const Building2 = Building;
@@ -153,13 +151,13 @@ const getBranchTypeCode = (user = {}) => {
 };
 
 const getBranchIdCode = (user = {}) => {
-  return normalizeCode(user.branch_id || user.branchId || '');
+  return normalizeCode(user.branch_id || user.branchId || user.location_id || '');
 };
 
 const isOwnerUser = (user = {}) => {
   const role = getRoleCode(user);
   const branchId = getBranchIdCode(user);
-  return OWNER_ROLE_GROUP.has(role) || branchId === 'HO_TANGERANG';
+  return OWNER_ROLE_GROUP.has(role) || branchId === 'HO_TANGERANG' || branchId === 'LOC_TGR';
 };
 
 const isHQUser = (user = {}) => {
@@ -173,23 +171,14 @@ const isHQUser = (user = {}) => {
     branchType === 'HQ_FACTORY' ||
     branchType === 'HQ' ||
     branchId === 'PUSAT' ||
-    branchId === 'TANGERANG_PUSAT'
+    branchId === 'TANGERANG_PUSAT' ||
+    branchId === 'LOC_TGR'
   );
 };
 
-const isBranchUser = (user = {}) => {
-  return Boolean(user) && !isHQUser(user);
-};
-
-const isFinanceUser = (user = {}) => {
-  const role = getRoleCode(user);
-  return isHQUser(user) || FINANCE_ROLE_GROUP.has(role);
-};
-
-const isWarehouseUser = (user = {}) => {
-  const role = getRoleCode(user);
-  return isHQUser(user) || WAREHOUSE_ROLE_GROUP.has(role);
-};
+const isBranchUser = (user = {}) => Boolean(user) && !isHQUser(user);
+const isFinanceUser = (user = {}) => isHQUser(user) || FINANCE_ROLE_GROUP.has(getRoleCode(user));
+const isWarehouseUser = (user = {}) => isHQUser(user) || WAREHOUSE_ROLE_GROUP.has(getRoleCode(user));
 
 const isProductionUser = (user = {}) => {
   const role = getRoleCode(user);
@@ -204,55 +193,19 @@ const isProductionUser = (user = {}) => {
   );
 };
 
-const isSalesUser = (user = {}) => {
-  const role = getRoleCode(user);
-  return isHQUser(user) || isBranchUser(user) || SALES_ROLE_GROUP.has(role);
-};
+const isSalesUser = (user = {}) => isHQUser(user) || isBranchUser(user) || SALES_ROLE_GROUP.has(getRoleCode(user));
+const isHrdUser = (user = {}) => isHQUser(user) || HRD_ROLE_GROUP.has(getRoleCode(user));
 
-const isHrdUser = (user = {}) => {
-  const role = getRoleCode(user);
-  return isHQUser(user) || HRD_ROLE_GROUP.has(role);
-};
-
-const canSeeMasterData = (user = {}) => {
-  return isHQUser(user) || isOwnerUser(user);
-};
-
-const canSeePurchase = (user = {}) => {
-  return isHQUser(user) || isOwnerUser(user);
-};
-
-const canSeeProduction = (user = {}) => {
-  return isProductionUser(user);
-};
-
-const canSeeInventory = (user = {}) => {
-  return isWarehouseUser(user) || isProductionUser(user) || isOwnerUser(user);
-};
-
-const canSeeFinance = (user = {}) => {
-  return isFinanceUser(user);
-};
-
-const canSeePiutang = (user = {}) => {
-  return isFinanceUser(user) || isSalesUser(user);
-};
-
-const canSeeHrdCore = (user = {}) => {
-  return isHrdUser(user);
-};
-
-const canSeeHrdBranch = (user = {}) => {
-  return isHrdUser(user) || isBranchUser(user);
-};
-
-const canSeeOwner = (user = {}) => {
-  return isOwnerUser(user);
-};
-
-const canSeeAudit = (user = {}) => {
-  return isOwnerUser(user) || isHQUser(user);
-};
+const canSeeMasterData = (user = {}) => isHQUser(user) || isOwnerUser(user);
+const canSeePurchase = (user = {}) => isHQUser(user) || isOwnerUser(user);
+const canSeeProduction = (user = {}) => isProductionUser(user);
+const canSeeInventory = (user = {}) => isWarehouseUser(user) || isProductionUser(user) || isOwnerUser(user);
+const canSeeFinance = (user = {}) => isFinanceUser(user);
+const canSeePiutang = (user = {}) => isFinanceUser(user) || isSalesUser(user);
+const canSeeHrdCore = (user = {}) => isHrdUser(user);
+const canSeeHrdBranch = (user = {}) => isHrdUser(user) || isBranchUser(user);
+const canSeeOwner = (user = {}) => isOwnerUser(user);
+const canSeeAudit = (user = {}) => isOwnerUser(user) || isHQUser(user);
 
 const MENU_GROUPS = [
   {
@@ -260,24 +213,10 @@ const MENU_GROUPS = [
     label: 'Dashboard',
     visible: () => true,
     items: [
-      {
-        id: 'dashboard',
-        label: 'Dashboard Pusat',
-        icon: LayoutDashboard,
-        visible: (user) => isHQUser(user) || isOwnerUser(user),
-      },
-      {
-        id: 'dashboard_branch',
-        label: 'Dashboard Cabang',
-        icon: Store,
-        visible: () => true,
-      },
-      {
-        id: 'monitoring_cabang',
-        label: 'Monitoring Cabang',
-        icon: Radar,
-        visible: canSeeOwner,
-      },
+      { id: 'dashboard', label: 'Dashboard Pusat', icon: LayoutDashboard, visible: (user) => isHQUser(user) || isOwnerUser(user) },
+      { id: 'dashboard_branch', label: 'Dashboard Cabang', icon: Store, visible: () => true },
+      { id: 'monitoring_cabang', label: 'Monitoring Cabang', icon: Radar, visible: canSeeOwner },
+      { id: 'setoran_cabang', label: 'Validasi Setoran', icon: ClipboardList, visible: canSeeOwner },
     ],
   },
   {
@@ -285,54 +224,14 @@ const MENU_GROUPS = [
     label: 'Master Data',
     visible: canSeeMasterData,
     items: [
-      {
-        id: 'master_cabang',
-        label: 'Master Cabang',
-        icon: Building2,
-        visible: canSeeMasterData,
-      },
-      {
-        id: 'master_gudang',
-        label: 'Master Gudang',
-        icon: Warehouse,
-        visible: canSeeMasterData,
-      },
-      {
-        id: 'master_produk',
-        label: 'Master Produk',
-        icon: Package,
-        visible: canSeeMasterData,
-      },
-      {
-        id: 'master_supplier',
-        label: 'Master Supplier',
-        icon: Truck,
-        visible: canSeeMasterData,
-      },
-      {
-        id: 'master_bahan_baku',
-        label: 'Master Bahan Baku',
-        icon: Boxes,
-        visible: canSeeMasterData,
-      },
-      {
-        id: 'master_konversi',
-        label: 'Master Konversi',
-        icon: Calculator,
-        visible: canSeeMasterData,
-      },
-      {
-        id: 'master_resep_bom',
-        label: 'Master Resep BOM',
-        icon: ClipboardList,
-        visible: canSeeMasterData,
-      },
-      {
-        id: 'master_pelanggan',
-        label: 'Master Pelanggan',
-        icon: Users,
-        visible: canSeeMasterData,
-      },
+      { id: 'master_cabang', label: 'Master Cabang', icon: Building2, visible: canSeeMasterData },
+      { id: 'master_gudang', label: 'Master Gudang', icon: Warehouse, visible: canSeeMasterData },
+      { id: 'master_produk', label: 'Master Produk', icon: Package, visible: canSeeMasterData },
+      { id: 'master_supplier', label: 'Master Supplier', icon: Truck, visible: canSeeMasterData },
+      { id: 'master_bahan_baku', label: 'Master Bahan Baku', icon: Boxes, visible: canSeeMasterData },
+      { id: 'master_konversi', label: 'Master Konversi', icon: Calculator, visible: canSeeMasterData },
+      { id: 'master_resep_bom', label: 'Master Resep BOM', icon: ClipboardList, visible: canSeeMasterData },
+      { id: 'master_pelanggan', label: 'Master Pelanggan', icon: Users, visible: canSeeMasterData },
     ],
   },
   {
@@ -340,24 +239,12 @@ const MENU_GROUPS = [
     label: 'Operasional',
     visible: () => true,
     items: [
-      {
-        id: 'purchase',
-        label: 'Purchase',
-        icon: ReceiptText,
-        visible: canSeePurchase,
-      },
-      {
-        id: 'production',
-        label: 'Production',
-        icon: Factory,
-        visible: canSeeProduction,
-      },
-      {
-        id: 'sales',
-        label: 'Sales',
-        icon: ShoppingCart,
-        visible: isSalesUser,
-      },
+      // ID sengaja memakai case lama yang sudah ada di App.jsx.
+      { id: 'orders', label: 'Kasir / Order', icon: ShoppingCart, visible: isSalesUser },
+      { id: 'antrian_po', label: 'Antrian PO', icon: ClipboardList, visible: isSalesUser },
+      { id: 'purchases', label: 'Purchase', icon: ReceiptText, visible: canSeePurchase },
+      { id: 'expenses', label: 'Belanja & Kas Keluar', icon: Wallet, visible: canSeeFinance },
+      { id: 'pemalang', label: 'Produksi Pemalang', icon: Factory, visible: canSeeProduction },
     ],
   },
   {
@@ -365,18 +252,8 @@ const MENU_GROUPS = [
     label: 'Inventory',
     visible: canSeeInventory,
     items: [
-      {
-        id: 'stok',
-        label: 'Stok',
-        icon: Database,
-        visible: canSeeInventory,
-      },
-      {
-        id: 'kartu_stok',
-        label: 'Kartu Stok',
-        icon: BookOpen,
-        visible: canSeeInventory,
-      },
+      { id: 'stok', label: 'Stok', icon: Database, visible: canSeeInventory },
+      { id: 'kartu_stok', label: 'Kartu Stok', icon: BookOpen, visible: canSeeInventory },
     ],
   },
   {
@@ -384,36 +261,11 @@ const MENU_GROUPS = [
     label: 'Keuangan',
     visible: (user) => canSeeFinance(user) || canSeePiutang(user),
     items: [
-      {
-        id: 'kas_bank',
-        label: 'Kas Bank',
-        icon: Wallet,
-        visible: canSeeFinance,
-      },
-      {
-        id: 'piutang',
-        label: 'Piutang',
-        icon: Landmark,
-        visible: canSeePiutang,
-      },
-      {
-        id: 'hutang_supplier',
-        label: 'Hutang Supplier',
-        icon: ReceiptText,
-        visible: canSeeFinance,
-      },
-      {
-        id: 'accounting',
-        label: 'Accounting',
-        icon: Scale,
-        visible: canSeeFinance,
-      },
-      {
-        id: 'kewajiban',
-        label: 'Kewajiban',
-        icon: HandCoins,
-        visible: canSeeFinance,
-      },
+      { id: 'kas_bank', label: 'Kas Bank', icon: Wallet, visible: canSeeFinance },
+      { id: 'piutang', label: 'Piutang', icon: Landmark, visible: canSeePiutang },
+      { id: 'hutang_supplier', label: 'Hutang Supplier', icon: ReceiptText, visible: canSeeFinance },
+      { id: 'accounting', label: 'Accounting', icon: Scale, visible: canSeeFinance },
+      { id: 'kewajiban', label: 'Kewajiban', icon: HandCoins, visible: canSeeFinance },
     ],
   },
   {
@@ -421,36 +273,11 @@ const MENU_GROUPS = [
     label: 'HRD',
     visible: (user) => canSeeHrdCore(user) || canSeeHrdBranch(user),
     items: [
-      {
-        id: 'karyawan',
-        label: 'HRD Center',
-        icon: BriefcaseBusiness,
-        visible: canSeeHrdCore,
-      },
-      {
-        id: 'hrd_master_sdm',
-        label: 'Master SDM',
-        icon: Users,
-        visible: canSeeHrdCore,
-      },
-      {
-        id: 'hrd_payroll',
-        label: 'Payroll',
-        icon: Wallet,
-        visible: canSeeHrdCore,
-      },
-      {
-        id: 'hrd_lembur',
-        label: 'Lembur',
-        icon: Clock3,
-        visible: canSeeHrdBranch,
-      },
-      {
-        id: 'hrd_kasbon',
-        label: 'Kasbon',
-        icon: HandCoins,
-        visible: canSeeHrdBranch,
-      },
+      { id: 'karyawan', label: 'HRD Center', icon: BriefcaseBusiness, visible: canSeeHrdCore },
+      { id: 'hrd_master_sdm', label: 'Master SDM', icon: Users, visible: canSeeHrdCore },
+      { id: 'hrd_payroll', label: 'Payroll', icon: Wallet, visible: canSeeHrdCore },
+      { id: 'hrd_lembur', label: 'Lembur', icon: Clock3, visible: canSeeHrdBranch },
+      { id: 'hrd_kasbon', label: 'Kasbon', icon: HandCoins, visible: canSeeHrdBranch },
     ],
   },
   {
@@ -458,30 +285,9 @@ const MENU_GROUPS = [
     label: 'Owner',
     visible: canSeeOwner,
     items: [
-      {
-        id: 'dashboard_profit_owner',
-        label: 'Profit Owner',
-        icon: Crown,
-        visible: canSeeOwner,
-      },
-      {
-        id: 'executive_dashboard',
-        label: 'Executive Dashboard',
-        icon: BarChart3,
-        visible: canSeeOwner,
-      },
-      {
-        id: 'business_radar',
-        label: 'Business Radar',
-        icon: Radar,
-        visible: canSeeOwner,
-      },
-      {
-        id: 'notification_center',
-        label: 'Notification Center',
-        icon: Bell,
-        visible: canSeeOwner,
-      },
+      { id: 'profit_owner', label: 'Profit Owner', icon: Crown, visible: canSeeOwner },
+      { id: 'business_radar', label: 'Business Radar', icon: Radar, visible: canSeeOwner },
+      { id: 'notification_center', label: 'Notification Center', icon: Bell, visible: canSeeOwner },
     ],
   },
   {
@@ -489,29 +295,15 @@ const MENU_GROUPS = [
     label: 'Audit',
     visible: canSeeAudit,
     items: [
-      {
-        id: 'accounting_audit',
-        label: 'Accounting Audit',
-        icon: History,
-        visible: canSeeAudit,
-      },
+      { id: 'accounting_audit', label: 'Accounting Audit', icon: History, visible: canSeeAudit },
     ],
   },
 ];
 
-// Hidden/backlog/legacy sengaja tidak tampil di sidebar:
-// TabProfitOwner, TabOrders, TabAntrianPO, TabPurchases,
-// TabAnalytics, TabSCMWarRoom, TabSupplierAyam, TabStokOutlet,
-// TabDiscrepancy, TabDistribusi, TabMonitoringPemalang,
-// TabExpenses, dan seluruh analytics dashboard tambahan.
-
 const getVisibleMenuGroups = (user = {}) => {
   return MENU_GROUPS
     .filter((group) => group.visible(user))
-    .map((group) => ({
-      ...group,
-      items: group.items.filter((item) => item.visible(user)),
-    }))
+    .map((group) => ({ ...group, items: group.items.filter((item) => item.visible(user)) }))
     .filter((group) => group.items.length > 0);
 };
 
@@ -535,26 +327,16 @@ const NavButton = ({ item, activeTab, onClick }) => {
   );
 };
 
-export default function LayoutEngine({
-  children,
-  activeTab,
-  setActiveTab,
-  user,
-  handleLogout,
-}) {
+export default function LayoutEngine({ children, activeTab, setActiveTab, user, handleLogout }) {
   const userName = user?.name || user?.full_name || user?.username || 'ADMIN';
   const userRole = getRoleCode(user) || 'USER';
   const branchType = getBranchTypeCode(user) || 'BRANCH';
   const branchId = getBranchIdCode(user) || 'PUSAT';
-  const branchName =
-    branchId === 'PUSAT' ? 'TANGERANG PUSAT' : branchId.replace(/_/g, ' ');
-
+  const branchName = branchId === 'PUSAT' ? 'TANGERANG PUSAT' : branchId.replace(/_/g, ' ');
   const visibleMenuGroups = getVisibleMenuGroups(user);
 
   const handleTabChange = (tabId) => {
-    if (typeof setActiveTab === 'function') {
-      setActiveTab(tabId);
-    }
+    if (typeof setActiveTab === 'function') setActiveTab(tabId);
   };
 
   return (
@@ -579,12 +361,7 @@ export default function LayoutEngine({
               </span>
 
               {group.items.map((item) => (
-                <NavButton
-                  key={item.id}
-                  item={item}
-                  activeTab={activeTab}
-                  onClick={handleTabChange}
-                />
+                <NavButton key={item.id} item={item} activeTab={activeTab} onClick={handleTabChange} />
               ))}
             </div>
           ))}
@@ -595,11 +372,8 @@ export default function LayoutEngine({
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-600 text-sm font-black text-white shadow-inner">
               {String(userName || 'A').charAt(0).toUpperCase()}
             </div>
-
             <div className="min-w-0 flex-1">
-              <h4 className="truncate text-xs font-black uppercase tracking-tight text-slate-800">
-                {userName}
-              </h4>
+              <h4 className="truncate text-xs font-black uppercase tracking-tight text-slate-800">{userName}</h4>
               <p className="mt-0.5 truncate text-[9px] font-bold uppercase tracking-wider text-slate-400">
                 {userRole.replace(/_/g, ' ')}
               </p>
