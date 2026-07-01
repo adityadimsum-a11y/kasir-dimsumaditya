@@ -31,9 +31,13 @@ const normalizeCode = (value) => String(value || '')
   .replace(/[^A-Z0-9]+/g, '_')
   .replace(/^_+|_+$/g, '');
 
+const asObject = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {});
+
 // Fallback saja. Final Modal tetap dari lot/session actual.
 const FALLBACK_CHICKEN_PRICE = 37500;
 const DEFAULT_CHICKEN_KG_PER_ADUKAN = 30;
+const DEFAULT_CHICKEN_KG_PER_KANTONG = 10;
+const DEFAULT_KANTONG_PER_ADUKAN = DEFAULT_CHICKEN_KG_PER_ADUKAN / DEFAULT_CHICKEN_KG_PER_KANTONG;
 const DEFAULT_YIELD_PCS_PER_ADUKAN = 1000;
 const DEFAULT_PORSI_PER_ADUKAN = 250;
 const DEFAULT_MIKA_PER_ADUKAN = 20;
@@ -45,42 +49,54 @@ const isTruthyFlag = (value) => {
 };
 
 const isActiveRow = (row = {}) => {
-  const deleted = row.isDeleted === true || String(row.isDeleted || row.is_deleted || '').toUpperCase() === 'TRUE';
-  const status = normalizeCode(row.status || row.status_active || row.is_active || 'ACTIVE');
+  const source = asObject(row);
+  if (!source || Object.keys(source).length === 0) return false;
+  const deleted = source.isDeleted === true || String(source.isDeleted || source.is_deleted || '').toUpperCase() === 'TRUE';
+  const status = normalizeCode(source.status || source.status_active || source.is_active || 'ACTIVE');
   return !deleted && !['NON_ACTIVE', 'INACTIVE', 'DISABLED', 'FALSE', 'NO', 'N', 'VOID', 'CANCELLED'].includes(status);
 };
 
-const getProductName = (product = {}) => product.product_name || product.name || product.item_name || product.menu_name || '';
-const getProductId = (product = {}) => product.product_id || product.id || product.product_code || getProductName(product);
-const getProductCode = (product = {}) => product.product_code || product.code || product.sku || getProductId(product);
+const getProductName = (product = {}) => {
+  const source = asObject(product);
+  return source.product_name || source.name || source.item_name || source.menu_name || '';
+};
+const getProductId = (product = {}) => {
+  const source = asObject(product);
+  return source.product_id || source.id || source.product_code || getProductName(source);
+};
+const getProductCode = (product = {}) => {
+  const source = asObject(product);
+  return source.product_code || source.code || source.sku || getProductId(source);
+};
 
 const isAdukanOutputProduct = (product = {}) => {
-  if (!isActiveRow(product)) return false;
+  const source = asObject(product);
+  if (!isActiveRow(source)) return false;
 
   const explicitFlags = [
-    product.uses_adukan,
-    product.use_adukan,
-    product.is_adukan_output,
-    product.is_production_output,
-    product.production_output,
-    product.is_production_item,
-    product.adukan_conversion_active,
-    product.needs_production,
-    product.produced_by_adukan,
+    source.uses_adukan,
+    source.use_adukan,
+    source.is_adukan_output,
+    source.is_production_output,
+    source.production_output,
+    source.is_production_item,
+    source.adukan_conversion_active,
+    source.needs_production,
+    source.produced_by_adukan,
   ];
 
   if (explicitFlags.some(isTruthyFlag)) return true;
 
-  const process = normalizeCode(product.production_process || product.process_type || product.production_type || '');
+  const process = normalizeCode(source.production_process || source.process_type || source.production_type || '');
   if (['ADUKAN', 'PRODUKSI_ADUKAN', 'DAPUR_ADUKAN'].includes(process)) return true;
 
   // Fallback sementara untuk data lama yang belum punya checkbox Master Produk.
   const haystack = String([
-    product.product_name,
-    product.name,
-    product.category,
-    product.product_type,
-    product.type,
+    source.product_name,
+    source.name,
+    source.category,
+    source.product_type,
+    source.type,
   ].join(' ')).toUpperCase();
 
   return haystack.includes('DIMSUM') && !haystack.includes('MENTAI SAUCE');
@@ -167,7 +183,7 @@ const buildLegacyChickenLots = ({ chickenLots = [], chicken_lots = [], inventory
     if (!itemName.includes('AYAM') && !itemName.includes('DADA') && !supplierName.includes('NANA')) return;
     let qty = toNumber(purchase.qty || purchase.quantity || purchase.kg);
     const unit = String(purchase.unit || '').toUpperCase();
-    if (unit.includes('KANT') || unit.includes('KNTG')) qty *= 10;
+    if (unit.includes('KANT') || unit.includes('KNTG')) qty *= DEFAULT_CHICKEN_KG_PER_KANTONG;
     const lotId = purchase.purchase_id || purchase.id || purchase.invoice_no || generateId('DROP-LEGACY', purchase.date || getTodayStr());
     rows.push({
       id: lotId,
@@ -220,12 +236,19 @@ export default function TabPemalang({
   const todayStr = getTodayStr();
   const currentBranch = user?.location_id || user?.branch_id || user?.branchId || 'TANGERANG_PUSAT';
 
-  const realProducts = useMemo(() => master_products || masterProducts || [], [master_products, masterProducts]);
+  const realProducts = useMemo(() => {
+    const rows = master_products || masterProducts || [];
+    return Array.isArray(rows) ? rows.filter((row) => row && typeof row === 'object') : [];
+  }, [master_products, masterProducts]);
 
   const productionProducts = useMemo(() => {
     const eligible = realProducts.filter(isAdukanOutputProduct);
-    const fallback = realProducts.filter(isActiveRow).filter((product) => String(getProductName(product)).toUpperCase().includes('DIMSUM'));
-    return (eligible.length > 0 ? eligible : fallback).sort((a, b) => getProductName(a).localeCompare(getProductName(b)));
+    const fallback = realProducts
+      .filter(isActiveRow)
+      .filter((product) => String(getProductName(product)).toUpperCase().includes('DIMSUM'));
+    return (eligible.length > 0 ? eligible : fallback)
+      .filter((product) => getProductName(product))
+      .sort((a, b) => String(getProductName(a)).localeCompare(String(getProductName(b))));
   }, [realProducts]);
 
   const chickenLotOptions = useMemo(() => buildLegacyChickenLots({
@@ -307,9 +330,12 @@ export default function TabPemalang({
     return {
       masukKg,
       keluarKg,
-      masukKantong: masukKg / DEFAULT_CHICKEN_KG_PER_ADUKAN,
-      keluarKantong: keluarKg / DEFAULT_CHICKEN_KG_PER_ADUKAN,
-      sisaKantong: sisaKg / DEFAULT_CHICKEN_KG_PER_ADUKAN,
+      masukKantong: masukKg / DEFAULT_CHICKEN_KG_PER_KANTONG,
+      keluarKantong: keluarKg / DEFAULT_CHICKEN_KG_PER_KANTONG,
+      sisaKantong: sisaKg / DEFAULT_CHICKEN_KG_PER_KANTONG,
+      masukAdukan: masukKg / DEFAULT_CHICKEN_KG_PER_ADUKAN,
+      keluarAdukan: keluarKg / DEFAULT_CHICKEN_KG_PER_ADUKAN,
+      sisaAdukan: sisaKg / DEFAULT_CHICKEN_KG_PER_ADUKAN,
       sisaKg,
     };
   }, [chickenLotOptions, pemalang]);
@@ -337,7 +363,7 @@ export default function TabPemalang({
     if (actualUnit === 'PCS') actualTotalPcs = inputAngka;
 
     const butuhAyamKg = adukanNum * productDefaults.chickenKgPerAdukan;
-    const butuhAyamKantong = butuhAyamKg / DEFAULT_CHICKEN_KG_PER_ADUKAN;
+    const butuhAyamKantong = butuhAyamKg / DEFAULT_CHICKEN_KG_PER_KANTONG;
     const sisaAyamKantong = stockAyam.sisaKantong - butuhAyamKantong;
 
     const chickenUnitCost = selectedChickenLot?.unit_cost || toNumber(fallbackChickenPrice) || FALLBACK_CHICKEN_PRICE;
@@ -548,7 +574,7 @@ export default function TabPemalang({
     if (isSuccess && typeof showToast === 'function') showToast(`Log Batch ${id} berhasil di-void!`, 'success');
   };
 
-  const potensiAdukan = Math.max(0, Math.floor(stockAyam.sisaKantong));
+  const potensiAdukan = Math.max(0, Math.floor(stockAyam.sisaKg / (productDefaults.chickenKgPerAdukan || DEFAULT_CHICKEN_KG_PER_ADUKAN)));
 
   return (
     <div className="flex flex-col gap-6 pb-10 text-slate-700 animate-in fade-in duration-300">
@@ -572,14 +598,17 @@ export default function TabPemalang({
               <div className="text-4xl font-black text-white tracking-tight my-1">
                 {formatNumber(stockAyam.sisaKg)} <span className="text-sm text-slate-500 font-bold">Kg</span>
               </div>
+              <div className="text-[11px] font-black text-slate-300 uppercase tracking-wider">
+                ≈ {formatNumber(stockAyam.sisaKantong)} Kantong @10kg
+              </div>
             </div>
             <div className="text-[10px] font-bold text-slate-400 mt-2 border-t border-slate-700/50 pt-2 flex flex-col gap-1">
               <div className="flex justify-between">
-                <span>Masuk: <b className="text-slate-300">{formatNumber(stockAyam.masukKg)} Kg</b></span>
-                <span>Dipakai: <b className="text-amber-500">{formatNumber(stockAyam.keluarKg)} Kg</b></span>
+                <span>Masuk: <b className="text-slate-300">{formatNumber(stockAyam.masukKg)} Kg / {formatNumber(stockAyam.masukKantong)} Ktg</b></span>
+                <span>Dipakai: <b className="text-amber-500">{formatNumber(stockAyam.keluarKg)} Kg / {formatNumber(stockAyam.keluarKantong)} Ktg</b></span>
               </div>
               <div className="text-emerald-400 bg-emerald-950/30 px-2 py-1 rounded-md mt-1 inline-block border border-emerald-900/50 w-max">
-                Potensi: <b>{potensiAdukan} Adukan</b> (~{formatNumber(potensiAdukan * DEFAULT_PORSI_PER_ADUKAN)} Porsi)
+                Potensi: <b>{potensiAdukan} Adukan</b> (~{formatNumber(potensiAdukan * DEFAULT_KANTONG_PER_ADUKAN)} Kantong / {formatNumber(potensiAdukan * DEFAULT_PORSI_PER_ADUKAN)} Porsi)
               </div>
             </div>
           </div>
@@ -656,7 +685,7 @@ export default function TabPemalang({
                 <option value="">-- Pilih stok ayam aktif --</option>
                 {chickenLotOptions.map((lot) => (
                   <option key={lot.lot_id} value={lot.lot_id}>
-                    {lot.label || lot.lot_id} · {formatNumber(lot.qty_kg_remaining)} kg · {formatMoney(lot.unit_cost)}/kg
+                    {lot.label || lot.lot_id} · {formatNumber(lot.qty_kg_remaining)} kg / {formatNumber(toNumber(lot.qty_kg_remaining) / DEFAULT_CHICKEN_KG_PER_KANTONG)} ktg · {formatMoney(lot.unit_cost)}/kg
                   </option>
                 ))}
               </select>
@@ -702,7 +731,7 @@ export default function TabPemalang({
             <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 space-y-2">
               <div className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">Ringkasan Modal Produksi</div>
               <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[11px] font-bold text-slate-700">
-                <span>Ayam dipakai</span><span className="text-right">{formatNumber(kalkulasi.butuhAyamKg)} kg</span>
+                <span>Ayam dipakai</span><span className="text-right">{formatNumber(kalkulasi.butuhAyamKg)} kg / {formatNumber(kalkulasi.butuhAyamKantong)} kantong</span>
                 <span>Harga beli ayam / kg</span><span className="text-right">{formatMoney(kalkulasi.chickenUnitCost)}</span>
                 <span>Modal ayam dipakai</span><span className="text-right">{formatMoney(kalkulasi.chickenCost)}</span>
                 <span>Bahan pendukung</span><span className="text-right">{formatMoney(kalkulasi.supportCostTotal)}</span>
@@ -782,7 +811,7 @@ export default function TabPemalang({
                       </td>
                       <td className="px-5 py-4 align-top">
                         <div className="font-black text-amber-700">{formatNumber(logAyamKg)} Kg</div>
-                        <div className="text-[10px] text-slate-400 font-bold">{formatNumber(logAyamKg / 10)} Kantong</div>
+                        <div className="text-[10px] text-slate-400 font-bold">{formatNumber(logAyamKg / DEFAULT_CHICKEN_KG_PER_KANTONG)} Kantong</div>
                       </td>
                       <td className="px-5 py-4 align-top">
                         <div className="font-black text-emerald-700">{formatNumber(log.qty || log.actual_pcs)} Pcs</div>
