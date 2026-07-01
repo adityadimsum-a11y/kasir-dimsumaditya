@@ -12,6 +12,7 @@ import TabOrders from './components/tabs/TabOrders';
 import TabPurchases from './components/tabs/TabPurchases';
 import TabChickenPurchase from './components/tabs/TabChickenPurchase';
 import TabSupplierAyam from './components/tabs/TabSupplierAyam';
+import TabSupplierDebtControl from './components/tabs/TabSupplierDebtControl';
 import TabExpenses from './components/tabs/TabExpenses';
 import TabPiutang from './components/tabs/TabPiutang';
 import TabPemalang from './components/tabs/TabPemalang';
@@ -536,6 +537,16 @@ export default function App() {
             user={user}
             sendToSheet={sendToSheet}
             setPrintData={setPrintData}
+            showToast={showToast}
+            {...dbData}
+          />
+        );
+
+      case 'hutang_supplier':
+        return (
+          <TabSupplierDebtControl
+            user={user}
+            sendToSheet={sendToSheet}
             showToast={showToast}
             {...dbData}
           />
