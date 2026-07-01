@@ -9,6 +9,12 @@ import {
   Wallet,
 } from 'lucide-react';
 
+const KG_PER_ADUKAN = 30;
+const PCS_PER_ADUKAN = 1000;
+const PCS_PER_PORSI = 4;
+const MONITOR_PRICE_PER_PORSI = 8500;
+const DEFAULT_CHICKEN_PRICE = 37500;
+
 const formatMoney = (value) => `Rp${Math.round(Number(value || 0)).toLocaleString('id-ID')}`;
 const formatNumber = (value) => Number(value || 0).toLocaleString('id-ID');
 const todayString = () => {
@@ -30,6 +36,9 @@ const activeRow = (row = {}) => {
 };
 const getSupplierName = (row = {}) => row.supplier_name || row.vendor_name || row.name || row.nama_supplier || '';
 const getSupplierId = (row = {}) => row.supplier_id || row.vendor_id || row.id || getSupplierName(row);
+const getRemainingKg = (lot = {}) => toNumber(lot.qty_kg_remaining || lot.remaining_kg || lot.qty_remaining || lot.qty_kg || lot.kg || lot.qty);
+const getUnitCost = (lot = {}) => toNumber(lot.unit_cost || lot.price_per_kg || lot.hpp_ayam || lot.hpp_per_kg || lot.harga_kg || DEFAULT_CHICKEN_PRICE);
+const getLotName = (lot = {}) => lot.lot_no || lot.chicken_lot_id || lot.lot_id || lot.id || lot.invoice_no || 'STOK-AYAM';
 
 const Badge = ({ children, tone = 'slate' }) => {
   const tones = {
@@ -50,6 +59,23 @@ const Field = ({ label, children }) => (
 );
 
 const inputClass = 'w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-bold text-slate-700 outline-none transition-all placeholder:text-slate-300 focus:border-red-500 focus:ring-4 focus:ring-red-50';
+
+const MonitorCard = ({ title, value, subtitle, tone = 'white' }) => {
+  const tones = {
+    white: 'border-slate-100 bg-white text-slate-900',
+    red: 'border-red-100 bg-red-50 text-red-900',
+    green: 'border-emerald-100 bg-emerald-50 text-emerald-900',
+    amber: 'border-amber-100 bg-amber-50 text-amber-900',
+    dark: 'border-slate-800 bg-slate-950 text-white',
+  };
+  return (
+    <div className={`rounded-[1.7rem] border p-4 shadow-sm ${tones[tone] || tones.white}`}>
+      <div className="text-[9px] font-black uppercase tracking-[0.18em] opacity-60">{title}</div>
+      <div className="mt-2 text-2xl font-black tracking-tight">{value}</div>
+      {subtitle && <div className="mt-1 text-[10px] font-bold leading-relaxed opacity-70">{subtitle}</div>}
+    </div>
+  );
+};
 
 export default function TabChickenPurchase({
   masterSuppliers = [],
@@ -73,11 +99,41 @@ export default function TabChickenPurchase({
 
   const currentLocationId = user?.location_id || user?.branch_id || user?.branchId || 'LOC-TGR';
   const walletRows = useMemo(() => (wallets || []).filter((row) => activeRow(row) && (!row.location_id || String(row.location_id) === String(currentLocationId))), [wallets, currentLocationId]);
-  const lotRows = useMemo(() => (chicken_lots || chickenLots || []).filter(activeRow).sort((a, b) => String(b.lot_date || b.created_at || '').localeCompare(String(a.lot_date || a.created_at || ''))), [chicken_lots, chickenLots]);
+  const lotRows = useMemo(() => {
+    const rows = chicken_lots || chickenLots || [];
+    return rows
+      .filter(activeRow)
+      .map((lot) => ({ ...lot, _remainingKg: getRemainingKg(lot), _unitCost: getUnitCost(lot) }))
+      .filter((lot) => lot._remainingKg > 0)
+      .sort((a, b) => String(b.lot_date || b.created_at || '').localeCompare(String(a.lot_date || a.created_at || '')));
+  }, [chicken_lots, chickenLots]);
+
   const nanaPayables = useMemo(() => (payables || []).filter((row) => {
     const text = normalizeText([row.vendor_name, row.supplier_name, row.payable_type, row.source_module].join(' '));
     return text.includes('NANA') || text.includes('AYAM') || text.includes('CHICKEN');
   }), [payables]);
+
+  const chickenAsset = useMemo(() => {
+    const remainingKg = lotRows.reduce((sum, lot) => sum + lot._remainingKg, 0);
+    const modalAyam = lotRows.reduce((sum, lot) => sum + (lot._remainingKg * lot._unitCost), 0);
+    const adukan = Math.floor(remainingKg / KG_PER_ADUKAN);
+    const pcs = adukan * PCS_PER_ADUKAN;
+    const porsi = Math.floor(pcs / PCS_PER_PORSI);
+    const potensiJual = porsi * MONITOR_PRICE_PER_PORSI;
+    const marginAyam = potensiJual - modalAyam;
+    const avgCost = remainingKg > 0 ? modalAyam / remainingKg : 0;
+
+    return {
+      remainingKg,
+      modalAyam,
+      adukan,
+      pcs,
+      porsi,
+      potensiJual,
+      marginAyam,
+      avgCost,
+    };
+  }, [lotRows]);
 
   const defaultSupplier = supplierRows[0] || {};
   const [form, setForm] = useState({
@@ -86,7 +142,7 @@ export default function TabChickenPurchase({
     supplier_name: getSupplierName(defaultSupplier) || 'NANA CHICKEN',
     invoice_no: '',
     qty_kg: '',
-    unit_cost: '37500',
+    unit_cost: String(DEFAULT_CHICKEN_PRICE),
     amount_paid: '0',
     wallet_id: '',
     due_date: '',
@@ -110,7 +166,7 @@ export default function TabChickenPurchase({
     if (toNumber(form.unit_cost) <= 0) return alert('Harga ayam per kg harus lebih dari 0.');
     if (toNumber(form.amount_paid) > 0 && !form.wallet_id) return alert('Kalau ada pembayaran saat beli ayam, pilih dompet/rekening sumber.');
 
-    const confirmed = window.confirm(`Posting DROP ayam?\n\nSupplier: ${form.supplier_name}\nQty: ${formatNumber(form.qty_kg)} kg\nHarga: ${formatMoney(form.unit_cost)}/kg\nTotal: ${formatMoney(totalAmount)}\nHutang: ${formatMoney(remainingAmount)}\n\nSistem akan membuat stok ayam, chicken lot, hutang supplier, dan jurnal preview.`);
+    const confirmed = window.confirm(`Posting DROP ayam?\n\nSupplier: ${form.supplier_name}\nQty: ${formatNumber(form.qty_kg)} kg\nHarga: ${formatMoney(form.unit_cost)}/kg\nTotal: ${formatMoney(totalAmount)}\nSisa hutang: ${formatMoney(remainingAmount)}\n\nSistem akan membuat stok ayam gudang, harga beli terkunci, dan hutang supplier jika belum lunas.`);
     if (!confirmed) return;
 
     const payload = {
@@ -126,7 +182,7 @@ export default function TabChickenPurchase({
 
     const ok = await sendToSheet?.('insert', payload, 'purchases');
     if (ok) {
-      if (typeof showToast === 'function') showToast('DROP ayam berhasil. Sekarang Produksi/Adukan sudah bisa pilih lot ayam.', 'success');
+      if (typeof showToast === 'function') showToast('DROP ayam berhasil. Stok ayam siap dipakai di Produksi / Adukan.', 'success');
       setForm((prev) => ({ ...prev, invoice_no: '', qty_kg: '', amount_paid: '0', notes: '' }));
     }
   };
@@ -142,13 +198,26 @@ export default function TabChickenPurchase({
               <span className="text-[10px] font-black uppercase tracking-[0.24em] text-amber-200">Supplier Nana & Stok Ayam</span>
             </div>
             <h1 className="text-2xl font-black tracking-tight lg:text-3xl">Beli Ayam / DROP Ayam</h1>
-            <p className="mt-2 max-w-3xl text-sm font-medium leading-relaxed text-slate-300">Gerbang resmi sebelum Produksi/Adukan. Setiap pembelian ayam membuat lot harga aktual, stok gudang, hutang supplier, dan preview jurnal accounting.</p>
+            <p className="mt-2 max-w-3xl text-sm font-medium leading-relaxed text-slate-300">Gerbang resmi sebelum Produksi / Adukan. Setiap pembelian ayam membuat stok gudang, harga beli terkunci, dan hutang supplier bila belum lunas.</p>
           </div>
           <div className="rounded-3xl border border-white/10 bg-white/10 p-4">
             <div className="text-[10px] font-black uppercase tracking-widest text-slate-300">Total Sisa Ayam</div>
-            <div className="mt-1 text-3xl font-black text-emerald-300">{formatNumber(lotRows.reduce((s, l) => s + toNumber(l.qty_kg_remaining || l.remaining_kg || l.qty_remaining), 0))} kg</div>
+            <div className="mt-1 text-3xl font-black text-emerald-300">{formatNumber(chickenAsset.remainingKg)} kg</div>
+            <div className="mt-1 text-[10px] font-bold text-slate-300">≈ {formatNumber(chickenAsset.adukan)} kantong/adukan</div>
           </div>
         </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <MonitorCard title="Sisa Ayam Gudang" value={`${formatNumber(chickenAsset.remainingKg)} kg`} subtitle={`≈ ${formatNumber(chickenAsset.adukan)} kantong/adukan`} tone="dark" />
+        <MonitorCard title="Potensi Hasil" value={`${formatNumber(chickenAsset.porsi)} porsi`} subtitle={`${formatNumber(chickenAsset.pcs)} pcs · patokan 1 adukan = 1.000 pcs`} tone="white" />
+        <MonitorCard title="Modal Ayam Tersisa" value={formatMoney(chickenAsset.modalAyam)} subtitle={`Rata-rata ${formatMoney(chickenAsset.avgCost)}/kg`} tone="amber" />
+        <MonitorCard title="Potensi Nilai Jual" value={formatMoney(chickenAsset.potensiJual)} subtitle={`Patokan ${formatMoney(MONITOR_PRICE_PER_PORSI)}/porsi`} tone="green" />
+        <MonitorCard title="Margin Ayam Saja" value={formatMoney(chickenAsset.marginAyam)} subtitle="Belum potong bumbu, plastik, gaji, listrik, logistik" tone={chickenAsset.marginAyam < 0 ? 'red' : 'white'} />
+      </div>
+
+      <div className="rounded-[2rem] border border-amber-100 bg-amber-50 p-5 text-xs font-bold leading-relaxed text-amber-800">
+        <b>Catatan Monitor:</b> potensi nilai jual memakai patokan {formatMoney(MONITOR_PRICE_PER_PORSI)}/porsi. Angka margin di sini adalah estimasi setelah modal ayam saja, bukan laba bersih final.
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
@@ -184,7 +253,7 @@ export default function TabChickenPurchase({
               <Field label="Qty Ayam (kg)">
                 <input className={inputClass} value={form.qty_kg} onChange={(e) => setValue('qty_kg', e.target.value.replace(/[^\d,.-]/g, ''))} placeholder="1020" />
               </Field>
-              <Field label="Harga / kg">
+              <Field label="Harga Beli / kg">
                 <input className={inputClass} value={form.unit_cost} onChange={(e) => setValue('unit_cost', e.target.value.replace(/[^\d,.-]/g, ''))} placeholder="37500" />
               </Field>
             </div>
@@ -193,7 +262,7 @@ export default function TabChickenPurchase({
               <div className="grid grid-cols-2 gap-3 text-xs font-bold">
                 <span className="text-amber-700">Total Pembelian</span><span className="text-right text-amber-950">{formatMoney(totalAmount)}</span>
                 <span className="text-amber-700">Dibayar Sekarang</span><span className="text-right text-amber-950">{formatMoney(form.amount_paid)}</span>
-                <span className="font-black text-red-700">Jadi Hutang Nana</span><span className="text-right font-black text-red-700">{formatMoney(remainingAmount)}</span>
+                <span className="font-black text-red-700">Sisa Hutang Nana</span><span className="text-right font-black text-red-700">{formatMoney(remainingAmount)}</span>
               </div>
             </div>
 
@@ -222,7 +291,7 @@ export default function TabChickenPurchase({
             </div>
 
             <button type="button" onClick={handleSubmit} className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-red-600 px-5 py-4 text-xs font-black uppercase tracking-widest text-white shadow-sm hover:bg-red-700">
-              <CheckCircle size={16} /> Posting DROP Ayam & Buat Lot HPP
+              <CheckCircle size={16} /> Posting DROP Ayam & Buat Stok Ayam
             </button>
           </div>
         </div>
@@ -230,18 +299,18 @@ export default function TabChickenPurchase({
         <div className="xl:col-span-7 space-y-6">
           <div className="rounded-[2rem] border border-slate-100 bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-slate-100 p-5">
-              <h2 className="flex items-center gap-2 text-sm font-black text-slate-900"><History size={17} className="text-red-600" /> Lot Ayam Aktif</h2>
-              <Badge tone="green">{lotRows.length} lot</Badge>
+              <h2 className="flex items-center gap-2 text-sm font-black text-slate-900"><History size={17} className="text-red-600" /> Stok Ayam Aktif</h2>
+              <Badge tone="green">{lotRows.length} stok</Badge>
             </div>
             <div className="p-5">
               {lotRows.length === 0 ? (
-                <div className="rounded-3xl border border-amber-100 bg-amber-50 p-5 text-sm font-bold text-amber-800"><AlertTriangle size={18} className="mb-2" /> Belum ada stok ayam. Produksi/Adukan akan menolak posting sampai DROP Ayam dicatat.</div>
+                <div className="rounded-3xl border border-amber-100 bg-amber-50 p-5 text-sm font-bold text-amber-800"><AlertTriangle size={18} className="mb-2" /> Belum ada stok ayam. Produksi / Adukan akan menolak posting sampai DROP Ayam dicatat.</div>
               ) : (
                 <div className="overflow-hidden rounded-3xl border border-slate-100">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400"><tr><th className="px-4 py-3">Lot</th><th className="px-4 py-3">Supplier</th><th className="px-4 py-3 text-right">Sisa Kg</th><th className="px-4 py-3 text-right">HPP/kg</th></tr></thead>
+                    <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400"><tr><th className="px-4 py-3">Stok Ayam</th><th className="px-4 py-3">Supplier</th><th className="px-4 py-3 text-right">Sisa</th><th className="px-4 py-3 text-right">Harga Beli</th><th className="px-4 py-3 text-right">Modal</th></tr></thead>
                     <tbody className="divide-y divide-slate-100">
-                      {lotRows.slice(0, 10).map((lot) => <tr key={lot.chicken_lot_id || lot.lot_id || lot.id}><td className="px-4 py-3 font-black text-slate-800">{lot.lot_no || lot.invoice_no || lot.chicken_lot_id || lot.lot_id}</td><td className="px-4 py-3 font-bold text-slate-500">{lot.supplier_name || '-'}</td><td className="px-4 py-3 text-right font-black text-emerald-700">{formatNumber(lot.qty_kg_remaining || lot.remaining_kg || lot.qty_remaining)} kg</td><td className="px-4 py-3 text-right font-black text-slate-900">{formatMoney(lot.unit_cost)}</td></tr>)}
+                      {lotRows.slice(0, 10).map((lot) => <tr key={lot.chicken_lot_id || lot.lot_id || lot.id}><td className="px-4 py-3 font-black text-slate-800">{getLotName(lot)}</td><td className="px-4 py-3 font-bold text-slate-500">{lot.supplier_name || '-'}</td><td className="px-4 py-3 text-right font-black text-emerald-700">{formatNumber(lot._remainingKg)} kg</td><td className="px-4 py-3 text-right font-black text-slate-900">{formatMoney(lot._unitCost)}/kg</td><td className="px-4 py-3 text-right font-black text-slate-900">{formatMoney(lot._remainingKg * lot._unitCost)}</td></tr>)}
                     </tbody>
                   </table>
                 </div>
@@ -264,8 +333,8 @@ export default function TabChickenPurchase({
           </div>
 
           <div className="rounded-[2rem] border border-emerald-100 bg-emerald-50 p-5 text-sm font-bold leading-relaxed text-emerald-800">
-            <div className="mb-2 flex items-center gap-2 font-black"><FileText size={18} /> Alur accounting</div>
-            DROP Ayam membuat Dr Persediaan Bahan Baku - Ayam, Cr Kas/Bank jika dibayar, dan Cr Hutang Supplier Nana untuk sisa hutang. Produksi/Adukan berikutnya akan mengurangi lot ayam ini dan membuat HPP barang jadi historis.
+            <div className="mb-2 flex items-center gap-2 font-black"><FileText size={18} /> Alur Sistem</div>
+            DROP Ayam membuat stok ayam gudang dan hutang supplier Nana bila belum lunas. Produksi / Adukan berikutnya mengambil stok ayam ini dan membuat stok barang jadi dengan modal terkunci.
           </div>
         </div>
       </div>
