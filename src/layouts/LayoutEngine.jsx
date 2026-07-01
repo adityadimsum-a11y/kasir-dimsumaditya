@@ -3,31 +3,43 @@ import {
   BarChart3,
   Bell,
   BookOpen,
-  Boxes,
-  Briefcase as BriefcaseBusiness,
-  Building2,
+  Briefcase,
+  Building,
   Calculator,
   ClipboardList,
-  Clock3,
-  Crown,
+  Clock,
   Database,
-  Factory,
-  WalletCards as HandCoins,
+  FileText,
   History,
-  Landmark,
   LayoutDashboard,
   LogOut,
   Package,
-  Radar,
-  Receipt as ReceiptText,
-  Scale,
   ShoppingCart,
   Store,
   Truck,
   Users,
   Wallet,
-  Warehouse,
 } from 'lucide-react';
+
+// ======================================================
+// ICON COMPATIBILITY
+// Beberapa icon seperti HandCoins, ReceiptText, WalletCards,
+// BriefcaseBusiness tidak tersedia di lucide-react versi project lama.
+// Jadi kita alias ke icon yang lebih aman.
+// ======================================================
+
+const Boxes = Package;
+const BriefcaseBusiness = Briefcase;
+const Building2 = Building;
+const Clock3 = Clock;
+const Crown = Users;
+const Factory = Building;
+const HandCoins = Wallet;
+const Landmark = Building;
+const Radar = BarChart3;
+const ReceiptText = FileText;
+const Scale = Calculator;
+const Warehouse = Store;
 
 const OWNER_ROLE_GROUP = new Set([
   'OWNER',
@@ -126,13 +138,13 @@ const normalizeCode = (value) => {
 const getRoleCode = (user = {}) => {
   return normalizeCode(
     user.role ||
-    user.user_role ||
-    user.userRole ||
-    user.access_role ||
-    user.accessRole ||
-    user.position ||
-    user.level ||
-    '',
+      user.user_role ||
+      user.userRole ||
+      user.access_role ||
+      user.accessRole ||
+      user.position ||
+      user.level ||
+      '',
   );
 };
 
@@ -259,6 +271,12 @@ const MENU_GROUPS = [
         label: 'Dashboard Cabang',
         icon: Store,
         visible: () => true,
+      },
+      {
+        id: 'monitoring_cabang',
+        label: 'Monitoring Cabang',
+        icon: Radar,
+        visible: canSeeOwner,
       },
     ],
   },
@@ -485,7 +503,7 @@ const MENU_GROUPS = [
 // TabProfitOwner, TabOrders, TabAntrianPO, TabPurchases,
 // TabAnalytics, TabSCMWarRoom, TabSupplierAyam, TabStokOutlet,
 // TabDiscrepancy, TabDistribusi, TabMonitoringPemalang,
-// TabMonitoringCabangUniversal, TabExpenses, dan seluruh analytics dashboard tambahan.
+// TabExpenses, dan seluruh analytics dashboard tambahan.
 
 const getVisibleMenuGroups = (user = {}) => {
   return MENU_GROUPS
@@ -528,7 +546,9 @@ export default function LayoutEngine({
   const userRole = getRoleCode(user) || 'USER';
   const branchType = getBranchTypeCode(user) || 'BRANCH';
   const branchId = getBranchIdCode(user) || 'PUSAT';
-  const branchName = branchId === 'PUSAT' ? 'TANGERANG PUSAT' : branchId.replace(/_/g, ' ');
+  const branchName =
+    branchId === 'PUSAT' ? 'TANGERANG PUSAT' : branchId.replace(/_/g, ' ');
+
   const visibleMenuGroups = getVisibleMenuGroups(user);
 
   const handleTabChange = (tabId) => {
@@ -575,6 +595,7 @@ export default function LayoutEngine({
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-600 text-sm font-black text-white shadow-inner">
               {String(userName || 'A').charAt(0).toUpperCase()}
             </div>
+
             <div className="min-w-0 flex-1">
               <h4 className="truncate text-xs font-black uppercase tracking-tight text-slate-800">
                 {userName}
