@@ -2,33 +2,45 @@ import React, { useMemo, useState } from 'react';
 import {
   Activity,
   AlertTriangle,
-  BadgeDollarSign,
   Banknote,
   BarChart3,
-  Boxes,
-  Building2,
-  CalendarClock,
+  Building,
+  Calendar,
   CheckCircle,
-  Crown,
+  FileText,
   Gauge,
   Landmark,
-  LockKeyhole,
+  Lock,
   Package,
   PieChart,
   RefreshCw,
-  ShieldAlert,
-  ShieldCheck,
+  Shield,
   ShoppingBag,
   Target,
   TrendingDown,
   TrendingUp,
   Trophy,
   Users,
-  WalletCards,
+  Wallet,
   Zap,
 } from 'lucide-react';
 
 import erpOrchestrator from '../../utils/erpOrchestrator';
+
+// ======================================================
+// LUCIDE ICON COMPATIBILITY
+// Project lama pakai lucide-react versi lama.
+// Beberapa icon baru tidak tersedia, jadi dialias ke icon aman.
+// ======================================================
+const BadgeDollarSign = Wallet;
+const Boxes = Package;
+const Building2 = Building;
+const CalendarClock = Calendar;
+const Crown = Users;
+const LockKeyhole = Lock;
+const ShieldAlert = Shield;
+const ShieldCheck = Shield;
+const WalletCards = Wallet;
 
 const PERIOD_OPTIONS = [
   { id: 'TODAY', label: 'Hari Ini' },
