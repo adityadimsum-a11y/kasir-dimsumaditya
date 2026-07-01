@@ -2,6 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { AlertCircle, Loader2, Trash2 } from 'lucide-react';
 
 import { safeJsonParse, generateRequestId } from './utils/helpers';
+import { loginBridge, getLegacyBootstrap } from './services/erpApiClient';
+import { adaptLegacyBootstrap } from './services/legacyDataAdapter';
+import { legacyWriteAction } from './services/legacyWriteAdapter';
 
 import LayoutEngine from './layouts/LayoutEngine';
 import TabDashboard from './components/tabs/TabDashboard';
@@ -35,7 +38,8 @@ import TabAntrianPO from './components/tabs/TabAntrianPO';
 import TabMonitoringCabangUniversal from './components/tabs/TabMonitoringCabangUniversal';
 import PrintDotMatrix from './components/PrintDotMatrix';
 
-const API_URL_GAS = 'https://script.google.com/macros/s/AKfycbybKUYeFHFZ7pV7AvHlbJwUp_RqjSCdO71i2arQ9fAQODKr3AEOJ_m0CCY-X7IkGNg98Q/exec';
+// Backend baru dikonfigurasi via VITE_ERP_API_URL / localStorage dimsum_new_erp_api_url.
+// API_URL_GAS lama sengaja tidak dipakai lagi agar transaksi tidak masuk mesin lama.
 
 const DEFAULT_DB_DATA = {
   orders: [],
@@ -216,139 +220,82 @@ export default function App() {
     setTimeout(() => setToast(null), 3500);
   }, []);
 
-  const fetchAllDatabase = useCallback(async (currentBranchId) => {
-    if (!API_URL_GAS || API_URL_GAS.includes('URL_WEBAPP_')) return;
+  const fetchAllDatabase = useCallback(async (currentBranchId, activeSessionToken) => {
+    const sessionToken = activeSessionToken || localStorage.getItem('dimsum_session_token') || user?.session_token || '';
+
+    if (!sessionToken) return;
 
     setIsSyncing(true);
 
     try {
-      const response = await fetch(`${API_URL_GAS}?action=read_all&branch_id=${currentBranchId || 'ALL'}`);
-      const resJson = await response.json();
+      const result = await getLegacyBootstrap(sessionToken, {
+        branch_id: currentBranchId || user?.branch_id || 'ALL',
+        dashboard_scope: 'HOME_OWNER',
+      });
 
-      if (resJson.status === 'success' && resJson.data) {
+      if (result.success) {
+        const adaptedData = adaptLegacyBootstrap(result.data, {
+          user,
+          defaultDbData: DEFAULT_DB_DATA,
+        });
+
         setDbData((prev) => {
           const newData = {
             ...DEFAULT_DB_DATA,
             ...prev,
-            ...resJson.data,
+            ...adaptedData,
           };
 
           localStorage.setItem('dimsum_db_cache', JSON.stringify(newData));
 
           return newData;
         });
+      } else {
+        console.error('Legacy bridge sync rejected:', result.message, result.error);
       }
     } catch (err) {
       console.error('Background Sync Error:', err);
     } finally {
       setIsSyncing(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     if (user) {
-      fetchAllDatabase(user.branch_id);
+      fetchAllDatabase(user.branch_id, user.session_token);
     }
   }, [user, fetchAllDatabase]);
 
   const sendToSheet = async (action, payload, tableName) => {
-    if (!API_URL_GAS || API_URL_GAS.includes('URL_WEBAPP_')) {
-      showToast('URL Google Apps Script belum terkonfigurasi!', 'error');
+    const sessionToken = user?.session_token || localStorage.getItem('dimsum_session_token') || '';
+
+    if (!sessionToken) {
+      showToast('Session baru belum aktif. Silakan login ulang.', 'error');
       return false;
     }
 
     setIsSaving(true);
 
     try {
-      const response = await fetch(API_URL_GAS, {
-        method: 'POST',
-        body: JSON.stringify({
-          action,
-          table: tableName,
-          data: payload,
-          executor: {
-            name: user?.name || 'SYSTEM',
-            branch_id: user?.branch_id || 'PUSAT',
-          },
-          request_id: generateRequestId(),
-        }),
+      const result = await legacyWriteAction({
+        action,
+        tableName,
+        payload,
+        user,
+        sessionToken,
+        requestId: generateRequestId(),
       });
 
-      const resJson = await response.json();
-
-      if (resJson.status === 'success') {
-        showToast('Data berhasil diamankan ke cloud database!', 'success');
-
-        if (action === 'insert' && tableName && tableName !== 'auto') {
-          setDbData((prev) => {
-            const currentTableData = prev[tableName] || [];
-            const payloadArray = Array.isArray(payload) ? payload : [payload];
-
-            const newDataInjected = payloadArray.map((item) => ({
-              ...item,
-              id: item.id || resJson.data?.data?.id || `TEMP-${Date.now()}`,
-              isDeleted: false,
-            }));
-
-            const updatedState = {
-              ...DEFAULT_DB_DATA,
-              ...prev,
-              [tableName]: [...newDataInjected, ...currentTableData],
-            };
-
-            localStorage.setItem('dimsum_db_cache', JSON.stringify(updatedState));
-
-            return updatedState;
-          });
-        } else if (action === 'update' && tableName && tableName !== 'auto') {
-          setDbData((prev) => {
-            const currentTableData = prev[tableName] || [];
-            const payloadArray = Array.isArray(payload) ? payload : [payload];
-
-            const updatedTableData = currentTableData.map((row) => {
-              const updatedRow = payloadArray.find((item) => (
-                item.id === row.id ||
-                item.customer_id === row.customer_id ||
-                item.do_id === row.do_id
-              ));
-
-              return updatedRow ? { ...row, ...updatedRow } : row;
-            });
-
-            const updatedState = {
-              ...DEFAULT_DB_DATA,
-              ...prev,
-              [tableName]: updatedTableData,
-            };
-
-            localStorage.setItem('dimsum_db_cache', JSON.stringify(updatedState));
-
-            return updatedState;
-          });
-        }
-
-        setTimeout(() => {
-          fetch(`${API_URL_GAS}?branch_id=${user?.branch_id || 'ALL'}&table=${tableName}`)
-            .then((res) => res.json())
-            .then((silentRes) => {
-              if (silentRes.status === 'success' && silentRes.data && silentRes.data[tableName]) {
-                setDbData((prev) => ({
-                  ...DEFAULT_DB_DATA,
-                  ...prev,
-                  [tableName]: silentRes.data[tableName],
-                }));
-              }
-            })
-            .catch((error) => console.log('Silent sync failed', error));
-        }, 3000);
-
-        return true;
+      if (!result.success) {
+        showToast(result.message || 'Fitur simpan ini belum disambungkan ke mesin baru.', 'error');
+        return false;
       }
 
-      showToast(`Ditolak sistem: ${resJson.message}`, 'error');
-      return false;
+      showToast(result.message || 'Data berhasil diproses mesin baru.', 'success');
+      await fetchAllDatabase(user?.branch_id || 'ALL', sessionToken);
+      return true;
     } catch (err) {
-      showToast('Koneksi internet terputus!', 'error');
+      showToast(err.message || 'Koneksi mesin baru terputus.', 'error');
       return false;
     } finally {
       document.body.style.overflow = 'unset';
@@ -363,31 +310,26 @@ export default function App() {
     setLoginError('');
 
     try {
-      const response = await fetch(API_URL_GAS, {
-        method: 'POST',
-        body: JSON.stringify({
-          action: 'login',
-          data: {
-            username: loginForm.username,
-            password: loginForm.password,
-          },
-        }),
+      const result = await loginBridge({
+        username: loginForm.username,
+        password: loginForm.password,
       });
 
-      const resJson = await response.json();
-
-      if (resJson.status === 'success' && resJson.data?.success) {
-        const activeUser = resJson.data.user;
+      if (result.success && result.user) {
+        const activeUser = result.user;
+        const sessionToken = result.sessionToken || activeUser.session_token || '';
 
         localStorage.setItem('dimsum_user', JSON.stringify(activeUser));
+        localStorage.setItem('dimsum_session_token', sessionToken);
 
         setUser(activeUser);
         setActiveTab(activeUser.branch_type === 'HQ_FACTORY' ? 'dashboard' : 'dashboard_branch');
+        await fetchAllDatabase(activeUser.branch_id, sessionToken);
       } else {
-        setLoginError(resJson.data?.message || 'Identitas otentikasi salah.');
+        setLoginError(result.message || 'Identitas otentikasi salah.');
       }
     } catch (err) {
-      setLoginError('Koneksi database pusat terputus.');
+      setLoginError(err.message || 'Koneksi database pusat terputus.');
     } finally {
       setIsSaving(false);
     }
@@ -397,6 +339,7 @@ export default function App() {
     if (window.confirm('Apakah Anda yakin ingin keluar dari sistem?')) {
       localStorage.removeItem('dimsum_user');
       localStorage.removeItem('dimsum_db_cache');
+      localStorage.removeItem('dimsum_session_token');
 
       setUser(null);
       setLoginForm({ username: '', password: '' });
