@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Factory,
   Trash2,
@@ -31,7 +31,7 @@ const normalizeCode = (value) => String(value || '')
   .replace(/[^A-Z0-9]+/g, '_')
   .replace(/^_+|_+$/g, '');
 
-// Fallback saja. Final HPP tetap dari lot/session actual.
+// Fallback saja. Final Modal tetap dari lot/session actual.
 const FALLBACK_CHICKEN_PRICE = 37500;
 const DEFAULT_CHICKEN_KG_PER_ADUKAN = 30;
 const DEFAULT_YIELD_PCS_PER_ADUKAN = 1000;
@@ -236,7 +236,9 @@ export default function TabPemalang({
     stockMovements,
     stock_movements,
     purchases,
-  }).filter((lot) => !lot.location_id || String(lot.location_id) === String(currentBranch) || String(currentBranch).includes('TGR') || String(currentBranch).includes('TANGERANG')), [
+  })
+    .filter((lot) => toNumber(lot.qty_kg_remaining) > 0)
+    .filter((lot) => !lot.location_id || String(lot.location_id) === String(currentBranch) || String(currentBranch).includes('TGR') || String(currentBranch).includes('TANGERANG')), [
     chickenLots,
     chicken_lots,
     inventoryCostLayers,
@@ -267,6 +269,17 @@ export default function TabPemalang({
 
   const selectedChickenLot = useMemo(() => {
     return chickenLotOptions.find((lot) => String(lot.lot_id) === String(chickenLotId)) || null;
+  }, [chickenLotOptions, chickenLotId]);
+
+  useEffect(() => {
+    if (chickenLotOptions.length === 1 && !chickenLotId) {
+      setChickenLotId(chickenLotOptions[0].lot_id);
+      return;
+    }
+
+    if (chickenLotId && !chickenLotOptions.some((lot) => String(lot.lot_id) === String(chickenLotId))) {
+      setChickenLotId(chickenLotOptions[0]?.lot_id || '');
+    }
   }, [chickenLotOptions, chickenLotId]);
 
   const stockAyam = useMemo(() => {
@@ -401,10 +414,14 @@ export default function TabPemalang({
     if (!selectedProduct) return alert('Pilih produk hasil adukan dari Master Produk!');
     if (!pic) return alert('Kepala Dapur/PIC wajib diisi!');
 
-    if (!selectedChickenLot) return alert('Belum ada DROP/Lot ayam yang dipilih. Catat pembelian ayam di menu Beli Ayam / Purchase dulu supaya HPP dan stok gudang valid.');
+    if (!selectedChickenLot) return alert('Belum ada stok ayam yang dipilih. Catat pembelian ayam di menu Beli Ayam / Purchase dulu supaya stok gudang valid.');
+
+    if (kalkulasi.butuhAyamKg > toNumber(selectedChickenLot.qty_kg_remaining)) {
+      return alert(`Stok ayam yang dipilih tidak cukup. Dapur butuh ${formatNumber(kalkulasi.butuhAyamKg)} kg, stok terpilih sisa ${formatNumber(selectedChickenLot.qty_kg_remaining)} kg. Pilih stok lain atau catat DROP Ayam dulu.`);
+    }
 
     if (kalkulasi.butuhAyamKantong > stockAyam.sisaKantong) {
-      return alert(`Stok ayam tidak cukup. Dapur butuh ${formatNumber(kalkulasi.butuhAyamKantong)} kantong, sistem sisa ${formatNumber(stockAyam.sisaKantong)} kantong. Catat DROP Ayam dulu atau pilih lot lain.`);
+      return alert(`Total stok ayam tidak cukup. Dapur butuh ${formatNumber(kalkulasi.butuhAyamKantong)} kantong, sistem sisa ${formatNumber(stockAyam.sisaKantong)} kantong. Catat DROP Ayam dulu atau pilih stok lain.`);
     }
 
     const batchId = generateId('PRD', date);
@@ -440,7 +457,7 @@ export default function TabPemalang({
       is_v2: true,
     }];
 
-    const confirmMsg = `=== POSTING PRODUKSI / ADUKAN ===\n\nTanggal  : ${formatDate(date)}\nPIC      : ${pic.toUpperCase()}\nProduk   : ${productName}\nAdukan   : ${adukan} Kali\nFisik    : ${formatNumber(kalkulasi.actualTotalPcs)} Pcs\nAyam     : ${formatNumber(kalkulasi.butuhAyamKg)} Kg x ${formatMoney(kalkulasi.chickenUnitCost)}\nTotal HPP Batch : ${formatMoney(kalkulasi.totalBatchCost)}\nHPP / Pcs       : ${formatMoney(kalkulasi.hppPerPcs)}\n\nSistem akan membuat batch produksi, stock movement, dan cost layer barang jadi. Lanjutkan?`;
+    const confirmMsg = `=== POSTING PRODUKSI / ADUKAN ===\n\nTanggal  : ${formatDate(date)}\nPIC      : ${pic.toUpperCase()}\nProduk   : ${productName}\nAdukan   : ${adukan} Kali\nFisik    : ${formatNumber(kalkulasi.actualTotalPcs)} Pcs\nAyam     : ${formatNumber(kalkulasi.butuhAyamKg)} Kg x ${formatMoney(kalkulasi.chickenUnitCost)}\nPerkiraan Modal Batch: ${formatMoney(kalkulasi.totalBatchCost)}\nModal / Pcs        : ${formatMoney(kalkulasi.hppPerPcs)}\n\nSistem akan mencatat ayam dipakai, stok jadi masuk freezer, dan modal produk terkunci. Lanjutkan?`;
 
     if (!window.confirm(confirmMsg)) return;
 
@@ -485,7 +502,7 @@ export default function TabPemalang({
 
     const isSuccess = await sendToSheet('insert', payloadBatch, 'pemalang');
     if (isSuccess) {
-      if (typeof showToast === 'function') showToast('Produksi adukan berhasil diproses. HPP batch dan stok barang jadi terkunci per sesi.', 'success');
+      if (typeof showToast === 'function') showToast('Produksi adukan berhasil diproses. Stok jadi masuk freezer dan modal produk terkunci per sesi.', 'success');
       setAdukan('');
       setActualInput('');
       setSupportCost('0');
@@ -496,7 +513,7 @@ export default function TabPemalang({
   };
 
   const handleVoidProduction = async (id) => {
-    if (!window.confirm(`Void laporan produksi ${id}? Stock movement/cost layer terkait akan dibatalkan oleh backend bridge jika data sudah masuk mesin baru.`)) return;
+    if (!window.confirm(`Void laporan produksi ${id}? Catatan stok terkait akan dibatalkan oleh backend bridge jika data sudah masuk mesin baru.`)) return;
     const isSuccess = await sendToSheet('update', { id, production_id: id, isDeleted: true }, 'pemalang');
     if (isSuccess && typeof showToast === 'function') showToast(`Log Batch ${id} berhasil di-void!`, 'success');
   };
@@ -513,7 +530,7 @@ export default function TabPemalang({
             <h2 className="text-xl font-black text-white uppercase tracking-wide">Produksi / Adukan</h2>
           </div>
           <p className="text-[11px] font-bold text-slate-300 leading-relaxed max-w-sm">
-            Gerbang resmi membuat stok barang jadi. HPP tidak hardcoded: setiap adukan mengunci harga ayam dari DROP/Lot yang dipilih.
+            Gerbang resmi membuat stok barang jadi. Setiap adukan mengambil stok ayam dari DROP yang dipilih, lalu modal produk dikunci otomatis.
           </p>
         </div>
 
@@ -521,7 +538,7 @@ export default function TabPemalang({
           <div className="flex-1 bg-slate-900/60 border border-slate-700/50 rounded-2xl p-5 flex flex-col justify-between shadow-inner backdrop-blur-sm relative overflow-hidden">
             {kalkulasi.sisaAyamKantong < 0 && <div className="absolute top-0 w-full left-0 bg-red-600 text-white text-[9px] font-black uppercase tracking-widest text-center py-0.5">Stok Minus!</div>}
             <div>
-              <div className="text-[11px] font-black text-slate-400 uppercase tracking-wider mb-1">Sisa Ayam Cost Lot</div>
+              <div className="text-[11px] font-black text-slate-400 uppercase tracking-wider mb-1">Sisa Ayam Siap Adukan</div>
               <div className="text-4xl font-black text-white tracking-tight my-1">
                 {formatNumber(stockAyam.sisaKantong)} <span className="text-sm text-slate-500 font-bold">Kntg</span>
               </div>
@@ -552,7 +569,7 @@ export default function TabPemalang({
             </div>
             <div className="text-[10px] font-bold text-emerald-600 mt-2 pt-3 border-t border-slate-700/50 flex justify-between">
               <span>Putaran Mesin: <b className="text-emerald-400 text-[11px]">{formatNumber(summaryFiltered.totalAdukan)} Adukan</b></span>
-              <span>HPP Batch: <b className="text-emerald-400 text-[11px]">{formatMoney(summaryFiltered.totalCost)}</b></span>
+              <span>Perkiraan Modal: <b className="text-emerald-400 text-[11px]">{formatMoney(summaryFiltered.totalCost)}</b></span>
             </div>
           </div>
         </div>
@@ -562,7 +579,7 @@ export default function TabPemalang({
         <div className="xl:col-span-5 flex flex-col bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden border-t-4 border-t-red-600 h-max">
           <div className="p-6 border-b border-slate-100 bg-slate-50 shrink-0 flex items-center gap-2">
             <Factory size={18} className="text-red-600" />
-            <h4 className="font-black text-slate-800 uppercase tracking-wide text-sm">Form Posting Adukan + HPP</h4>
+            <h4 className="font-black text-slate-800 uppercase tracking-wide text-sm">Form Produksi / Adukan</h4>
           </div>
           <form onSubmit={handleSubmitProduction} className="p-6 space-y-5 bg-white">
             <div className="grid grid-cols-2 gap-4">
@@ -587,14 +604,14 @@ export default function TabPemalang({
                 ))}
               </select>
               <div className="mt-2 text-[10px] font-bold text-slate-400 leading-relaxed">
-                Dropdown ini mengambil produk aktif dengan flag Master Produk: uses_adukan / is_production_output / production_process = ADUKAN.
+                Dropdown ini otomatis mengambil produk aktif dari Master Produk yang dicentang pakai proses Adukan.
               </div>
             </div>
 
             <div>
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1.5">DROP / Lot Ayam untuk HPP</label>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1.5">Pilih Stok Ayam yang Dipakai</label>
               <select value={chickenLotId} onChange={(e) => setChickenLotId(e.target.value)} className="w-full p-3 border border-slate-200 rounded-xl text-xs font-bold bg-slate-50 outline-none focus:bg-white focus:border-red-400 shadow-sm uppercase cursor-pointer">
-                <option value="">-- Pilih DROP/Lot ayam aktif --</option>
+                <option value="">-- Pilih stok ayam aktif --</option>
                 {chickenLotOptions.map((lot) => (
                   <option key={lot.lot_id} value={lot.lot_id}>
                     {lot.label || lot.lot_id} · {formatNumber(lot.qty_kg_remaining)} kg · {formatMoney(lot.unit_cost)}/kg
@@ -604,11 +621,11 @@ export default function TabPemalang({
               {!selectedChickenLot && (
                 <div className="mt-3 grid grid-cols-2 gap-3 items-end rounded-2xl border border-amber-100 bg-amber-50 p-3">
                   <div>
-                    <label className="text-[9px] font-black text-amber-700 uppercase tracking-wider block mb-1">Fallback Harga Ayam / Kg</label>
+                    <label className="text-[9px] font-black text-amber-700 uppercase tracking-wider block mb-1">Harga Ayam Darurat / Kg</label>
                     <input value={fallbackChickenPrice} onChange={(e) => setFallbackChickenPrice(e.target.value.replace(/\D/g, ''))} className="w-full p-2 border border-amber-200 rounded-xl text-xs font-black bg-white outline-none" />
                   </div>
                   <div className="text-[10px] font-bold text-amber-700 leading-relaxed">
-                    Fallback tidak dipakai untuk posting final. Catat DROP Ayam dulu agar HPP valid.
+                    Harga darurat hanya untuk simulasi. Untuk posting real, catat DROP Ayam dulu agar stok dan modal valid.
                   </div>
                 </div>
               )}
@@ -641,22 +658,22 @@ export default function TabPemalang({
             </div>
 
             <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 space-y-2">
-              <div className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">Preview HPP Batch</div>
+              <div className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">Ringkasan Modal Produksi</div>
               <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-[11px] font-bold text-slate-700">
                 <span>Ayam dipakai</span><span className="text-right">{formatNumber(kalkulasi.butuhAyamKg)} kg</span>
-                <span>Harga ayam / kg</span><span className="text-right">{formatMoney(kalkulasi.chickenUnitCost)}</span>
-                <span>Total modal ayam</span><span className="text-right">{formatMoney(kalkulasi.chickenCost)}</span>
+                <span>Harga beli ayam / kg</span><span className="text-right">{formatMoney(kalkulasi.chickenUnitCost)}</span>
+                <span>Modal ayam dipakai</span><span className="text-right">{formatMoney(kalkulasi.chickenCost)}</span>
                 <span>Bahan pendukung</span><span className="text-right">{formatMoney(kalkulasi.supportCostTotal)}</span>
-                <span className="font-black text-slate-900">Total cost batch</span><span className="text-right font-black text-slate-900">{formatMoney(kalkulasi.totalBatchCost)}</span>
-                <span className="font-black text-red-700">HPP / pcs aktual</span><span className="text-right font-black text-red-700">{formatMoney(kalkulasi.hppPerPcs)}</span>
+                <span className="font-black text-slate-900">Total perkiraan modal</span><span className="text-right font-black text-slate-900">{formatMoney(kalkulasi.totalBatchCost)}</span>
+                <span className="font-black text-red-700">Modal / pcs aktual</span><span className="text-right font-black text-red-700">{formatMoney(kalkulasi.hppPerPcs)}</span>
               </div>
               <div className="pt-2 border-t border-emerald-100 text-[10px] font-bold text-emerald-700 leading-relaxed">
-                Trace: {selectedChickenLot?.lot_id || 'FALLBACK-HARGA'} → Batch Adukan → Cost Layer Barang Jadi → Order → Jurnal HPP.
+                Alur: Stok ayam dipakai → Adukan dibuat → Stok jadi masuk freezer → Order/Kasir.
               </div>
             </div>
 
             <div>
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1.5">Bahan Pendukung / Biaya Tambahan Batch</label>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1.5">Biaya Bahan Pendukung Batch</label>
               <input type="text" value={supportCost} onChange={(e) => setSupportCost(e.target.value.replace(/\D/g, ''))} className="w-full p-3 border border-slate-200 rounded-xl text-xs font-bold bg-slate-50 outline-none focus:bg-white focus:border-red-400 shadow-sm" placeholder="0" />
             </div>
 
@@ -666,7 +683,7 @@ export default function TabPemalang({
             </div>
 
             <button type="submit" className="w-full py-4 rounded-xl text-xs font-black shadow-md flex items-center justify-center gap-2 mt-2 bg-red-600 hover:bg-red-700 text-white uppercase tracking-wider transition-transform active:scale-95 cursor-pointer">
-              <CheckCircle2 size={16} /> Posting Adukan, Kunci HPP & Masukkan Stok Freezer
+              <CheckCircle2 size={16} /> Posting Adukan & Masukkan Stok Jadi
             </button>
           </form>
         </div>
@@ -696,8 +713,8 @@ export default function TabPemalang({
                 <tr>
                   <th className="px-5 py-4 font-black">Waktu & Batch</th>
                   <th className="px-5 py-4 font-black">Matriks Adukan</th>
-                  <th className="px-5 py-4 font-black">Daging Ayam</th>
-                  <th className="px-5 py-4 font-black">Yield & HPP</th>
+                  <th className="px-5 py-4 font-black">Ayam Dipakai</th>
+                  <th className="px-5 py-4 font-black">Hasil & Modal</th>
                   <th className="px-5 py-4 font-black text-center">Aksi</th>
                 </tr>
               </thead>
@@ -727,8 +744,8 @@ export default function TabPemalang({
                       </td>
                       <td className="px-5 py-4 align-top">
                         <div className="font-black text-emerald-700">{formatNumber(log.qty || log.actual_pcs)} Pcs</div>
-                        <div className="text-[10px] text-slate-500 font-bold">Batch {formatMoney(logCost)}</div>
-                        <div className="text-[10px] text-red-600 font-black">HPP {formatMoney(logHpp)} / pcs</div>
+                        <div className="text-[10px] text-slate-500 font-bold">Modal batch {formatMoney(logCost)}</div>
+                        <div className="text-[10px] text-red-600 font-black">Modal {formatMoney(logHpp)} / pcs</div>
                       </td>
                       <td className="px-5 py-4 align-top text-center">
                         <button type="button" onClick={() => handleVoidProduction(log.production_id || log.id)} className="p-2 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
