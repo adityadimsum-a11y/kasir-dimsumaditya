@@ -244,7 +244,7 @@ const MENU_GROUPS = [
       { id: 'antrian_po', label: 'Antrian PO', icon: ClipboardList, visible: isSalesUser },
       { id: 'purchases', label: 'Purchase', icon: ReceiptText, visible: canSeePurchase },
       { id: 'expenses', label: 'Belanja & Kas Keluar', icon: Wallet, visible: canSeeFinance },
-      { id: 'pemalang', label: 'Produksi Pemalang', icon: Factory, visible: canSeeProduction },
+      { id: 'pemalang', label: 'Produksi / Adukan', icon: Factory, visible: canSeeProduction },
     ],
   },
   {
