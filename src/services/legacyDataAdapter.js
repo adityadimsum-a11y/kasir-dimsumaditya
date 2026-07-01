@@ -221,6 +221,84 @@ const mapPayableToSupplierLedger = (payable = {}, payments = []) => ({
   ...payable,
 });
 
+
+const isActiveRow = (row = {}) => {
+  const status = upper(row.status || row.is_active || 'Active');
+  const deleted = row.isDeleted === true || upper(row.is_deleted || row.deleted || row.isDeleted) === 'TRUE';
+  return !deleted && status !== 'VOID' && status !== 'CANCELLED' && status !== 'INACTIVE';
+};
+
+const mapStockMovementToInventoryLayer = (movement = {}) => {
+  const direction = upper(movement.direction || movement.movement_direction || 'IN');
+  const itemType = upper(movement.item_type || movement.category || movement.stock_type || 'PRODUK_JADI');
+  const qtyRaw = numberValue(movement.qty || movement.quantity || movement.qty_effect || movement.qty_remaining);
+  const qtyEffectRaw = movement.qty_effect !== undefined && movement.qty_effect !== ''
+    ? numberValue(movement.qty_effect)
+    : (direction === 'OUT' ? -Math.abs(qtyRaw) : Math.abs(qtyRaw));
+
+  const isFinishedGood = itemType.includes('FINISHED') || itemType.includes('PRODUK') || itemType.includes('JADI') || itemType.includes('DIMSUM');
+  const status = isFinishedGood ? 'ACTIVE' : (direction === 'OUT' ? 'USED_IN_PRODUCTION' : 'ACTIVE');
+
+  return {
+    id: movement.movement_id || movement.id,
+    date: normalizeDate(movement.movement_date || movement.date || movement.created_at),
+    branch_id: movement.location_id || movement.branch_id || '',
+    location_id: movement.location_id || movement.branch_id || '',
+    category: isFinishedGood ? 'PRODUK_JADI' : 'BAHAN_BAKU',
+    item_name: movement.item_name || movement.product_name || movement.material_name || '',
+    product_id: movement.product_id || '',
+    qty_received: direction === 'IN' ? Math.abs(qtyEffectRaw) : 0,
+    qty_remaining: qtyEffectRaw,
+    unit_cost: numberValue(movement.unit_cost || movement.hpp_per_unit || movement.hpp || 0),
+    unit: movement.unit || 'pcs',
+    status,
+    direction,
+    reference_id: movement.source_id || movement.reference_id || movement.production_id || movement.order_id || '',
+    source_module: movement.source_module || '',
+    notes: movement.notes || '',
+    isDeleted: !isActiveRow(movement),
+    ...movement,
+  };
+};
+
+const mapProductionBatchToPemalang = (batch = {}) => {
+  const adukanQty = numberValue(batch.adukan_qty || batch.adukan || batch.total_adukan);
+  const actualPcs = numberValue(batch.actual_pcs || batch.actual_output_pcs || batch.qty || batch.output_qty);
+  const chickenKg = numberValue(batch.chicken_kg_used || batch.ayam_kg || (adukanQty * 30));
+  const productName = batch.product_name || batch.item_name || 'DIMSUM ORIGINAL';
+
+  const items = [{
+    name: productName,
+    qty: actualPcs,
+    adukan: adukanQty,
+    ayam_kg: chickenKg,
+    notes: batch.notes || '-',
+    is_v2: true,
+  }];
+
+  return {
+    id: batch.production_id || batch.batch_id || batch.id,
+    production_id: batch.production_id || batch.batch_id || batch.id,
+    date: normalizeDate(batch.production_date || batch.date || batch.created_at),
+    branch_id: batch.location_id || batch.branch_id || '',
+    location_id: batch.location_id || batch.branch_id || '',
+    customer_name: 'PRODUKSI_ADUKAN',
+    sales_channel: 'PRODUCTION_YIELD',
+    items: JSON.stringify(items),
+    items_json: JSON.stringify(items),
+    qty: actualPcs,
+    total_amount: 0,
+    amount_paid: 0,
+    payment_method: 'SISTEM_PRODUKSI',
+    status: batch.status || 'POSTED',
+    notes: batch.notes || '',
+    item_name: productName,
+    pic: batch.pic_name || batch.pic || '',
+    isDeleted: !isActiveRow(batch),
+    ...batch,
+  };
+};
+
 const buildMapById = (rows, idField) => {
   return asArray(rows).reduce((map, row) => {
     const id = row[idField] || row.id;
@@ -287,6 +365,11 @@ export function adaptLegacyBootstrap(rawData = {}, options = {}) {
     return mapPayableToSupplierLedger(payable, payablePaymentsByPayable[id] || []);
   });
 
+  const mappedInventoryLayersAll = asArray(rawData.stock_movements).map(mapStockMovementToInventoryLayer);
+  const mappedProductionBatchesAll = asArray(rawData.production_batches).map(mapProductionBatchToPemalang);
+  const scopedInventoryLayers = filterHomeScope(mappedInventoryLayersAll, user);
+  const scopedProductionBatches = filterHomeScope(mappedProductionBatchesAll, user);
+
   const branchSettlementsAll = asArray(rawData.branch_deposits).map((deposit) => ({
     id: deposit.deposit_id || deposit.settlement_id || deposit.id,
     settlement_id: deposit.deposit_id || deposit.settlement_id || deposit.id,
@@ -336,8 +419,13 @@ export function adaptLegacyBootstrap(rawData = {}, options = {}) {
 
     purchases: [],
     purchases_data: [],
-    pemalang: [],
-    pemalangReports: [],
+    pemalang: scopedProductionBatches,
+    pemalangReports: scopedProductionBatches,
+    all_pemalang: mappedProductionBatchesAll,
+    production_logs: mappedProductionBatchesAll,
+    inventoryCostLayers: scopedInventoryLayers,
+    inventory_cost_layers: scopedInventoryLayers,
+    all_inventory_cost_layers: mappedInventoryLayersAll,
     stockMovements: asArray(rawData.stock_movements),
     stock_movements: asArray(rawData.stock_movements),
     stokData: asArray(rawData.stock_balances),
