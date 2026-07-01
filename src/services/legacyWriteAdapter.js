@@ -137,6 +137,58 @@ export async function legacyWriteAction({ action, tableName, payload, user, sess
     };
   }
 
+
+
+  // ======================================================
+  // 2B) PRODUKSI / ADUKAN LAMA
+  // table lama: pemalang
+  // backend bridge: legacyCreateProductionBatchFromOldFactory
+  // Catatan:
+  // - UI lama tetap boleh memakai route/tab pemalang untuk kompatibilitas.
+  // - Backend baru menulis Production Batch + Stock Movement IN barang jadi.
+  // - Inventory side-effect lama setelah submit tetap no-op agar tidak double posting.
+  // ======================================================
+  if (table === 'pemalang' && oldAction === 'insert') {
+    const batch = firstPayload(payload);
+
+    return apiRequest(
+      'legacyCreateProductionBatchFromOldFactory',
+      {
+        batch,
+        legacy_batch: batch,
+        items: parseMaybeJson(batch?.items_json || batch?.items, []),
+        request_id: requestId,
+        source: 'LEGACY_FACTORY_TAB_PEMALANG',
+        user_context: {
+          user_id: user?.user_id || user?.id || '',
+          username: user?.username || '',
+          location_id: user?.location_id || user?.branch_id || '',
+        },
+      },
+      sessionToken,
+    );
+  }
+
+  if (table === 'pemalang' && oldAction === 'update') {
+    const batch = firstPayload(payload);
+
+    return apiRequest(
+      'legacyVoidProductionBatchFromOldFactory',
+      {
+        batch,
+        legacy_batch: batch,
+        request_id: requestId,
+        source: 'LEGACY_FACTORY_TAB_PEMALANG_VOID',
+        user_context: {
+          user_id: user?.user_id || user?.id || '',
+          username: user?.username || '',
+          location_id: user?.location_id || user?.branch_id || '',
+        },
+      },
+      sessionToken,
+    );
+  }
+
   // ======================================================
   // 3) Bridge test opsional
   // ======================================================
