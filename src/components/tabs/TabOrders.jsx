@@ -309,9 +309,34 @@ export default function TabOrders({
 
     // 🔥 JANTUNG KASIR: TRIPLE-ENTRY PADA CHECKOUT
     const orderPayload = {
-      id: orderId, date: todayStr, branch_id: currentBranch, customer_name: custName, sales_channel: custCategory,
-      items: JSON.stringify(cart), qty: totalItemQty, total_amount: cartTotal, amount_paid: paymentSummary.totalDibayar,
-      payment_method: paymentSummary.methodStr, status: paymentSummary.sisaBon <= 0 ? 'LUNAS' : 'BELUM_LUNAS', notes: finalNotes, isDeleted: false
+      id: orderId,
+      legacy_id: orderId,
+      date: todayStr,
+      order_date: todayStr,
+      pickup_date: targetDate || '',
+      target_date: targetDate || '',
+      branch_id: currentBranch,
+      customer_id: selectedCustomerId,
+      customer_name: custName,
+      customer_tier: custCategory,
+      sales_channel: custCategory,
+      order_mode: orderMode,
+      items: JSON.stringify(cart),
+      items_json: JSON.stringify(cart),
+      payment_breakdown_json: JSON.stringify(paymentSummary.breakdown || []),
+      qty: totalItemQty,
+      total_qty: totalItemQty,
+      subtotal: cartTotal,
+      total_amount: cartTotal,
+      grand_total: cartTotal,
+      amount_paid: paymentSummary.totalDibayar,
+      paid_amount: paymentSummary.totalDibayar,
+      remaining_amount: paymentSummary.sisaBon,
+      payment_method: paymentSummary.methodStr,
+      status: paymentSummary.sisaBon <= 0 ? 'LUNAS' : 'BELUM_LUNAS',
+      notes: finalNotes,
+      isDeleted: false,
+      bridge_source: 'LEGACY_POS_TAB_ORDERS'
     };
 
     const actionType = editingOrderId ? 'update' : 'insert';
