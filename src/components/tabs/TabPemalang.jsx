@@ -401,10 +401,10 @@ export default function TabPemalang({
     if (!selectedProduct) return alert('Pilih produk hasil adukan dari Master Produk!');
     if (!pic) return alert('Kepala Dapur/PIC wajib diisi!');
 
-    if (!selectedChickenLot && !window.confirm('Belum memilih DROP/Lot ayam. Sistem akan pakai harga fallback untuk HPP sesi ini. Lanjutkan?')) return;
+    if (!selectedChickenLot) return alert('Belum ada DROP/Lot ayam yang dipilih. Catat pembelian ayam di menu Beli Ayam / Purchase dulu supaya HPP dan stok gudang valid.');
 
     if (kalkulasi.butuhAyamKantong > stockAyam.sisaKantong) {
-      if (!window.confirm(`⚠️ Stok ayam minus!\nDapur butuh ${formatNumber(kalkulasi.butuhAyamKantong)} kantong, sistem sisa ${formatNumber(stockAyam.sisaKantong)} kantong.\nLanjutkan pencatatan minus?`)) return;
+      return alert(`Stok ayam tidak cukup. Dapur butuh ${formatNumber(kalkulasi.butuhAyamKantong)} kantong, sistem sisa ${formatNumber(stockAyam.sisaKantong)} kantong. Catat DROP Ayam dulu atau pilih lot lain.`);
     }
 
     const batchId = generateId('PRD', date);
@@ -594,7 +594,7 @@ export default function TabPemalang({
             <div>
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1.5">DROP / Lot Ayam untuk HPP</label>
               <select value={chickenLotId} onChange={(e) => setChickenLotId(e.target.value)} className="w-full p-3 border border-slate-200 rounded-xl text-xs font-bold bg-slate-50 outline-none focus:bg-white focus:border-red-400 shadow-sm uppercase cursor-pointer">
-                <option value="">-- Pilih lot ayam, atau pakai fallback --</option>
+                <option value="">-- Pilih DROP/Lot ayam aktif --</option>
                 {chickenLotOptions.map((lot) => (
                   <option key={lot.lot_id} value={lot.lot_id}>
                     {lot.label || lot.lot_id} · {formatNumber(lot.qty_kg_remaining)} kg · {formatMoney(lot.unit_cost)}/kg
@@ -608,7 +608,7 @@ export default function TabPemalang({
                     <input value={fallbackChickenPrice} onChange={(e) => setFallbackChickenPrice(e.target.value.replace(/\D/g, ''))} className="w-full p-2 border border-amber-200 rounded-xl text-xs font-black bg-white outline-none" />
                   </div>
                   <div className="text-[10px] font-bold text-amber-700 leading-relaxed">
-                    Fallback hanya untuk darurat. Final HPP terbaik tetap pilih lot ayam.
+                    Fallback tidak dipakai untuk posting final. Catat DROP Ayam dulu agar HPP valid.
                   </div>
                 </div>
               )}
