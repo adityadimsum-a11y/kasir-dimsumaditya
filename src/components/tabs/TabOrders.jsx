@@ -9,6 +9,27 @@ import { getTodayStr, generateId, formatDate, safeJsonParse, getLocalYMD } from 
 const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
 const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
 
+const normalizeCode = (value) => String(value || '')
+  .trim()
+  .toUpperCase()
+  .replace(/[^A-Z0-9]+/g, '_')
+  .replace(/^_+|_+$/g, '');
+
+const normalizeStockKey = (value) => normalizeCode(value).replace(/^PRODUK_/, '');
+const getUserLocationId = (user = {}) => user?.location_id || user?.branch_id || user?.branchId || user?.location_code || 'LOC-TGR';
+const sameLocation = (a, b) => {
+  const x = normalizeCode(a);
+  const y = normalizeCode(b);
+  if (!x || !y) return true;
+  if (x === y) return true;
+  const aliases = {
+    LOC_TGR: ['TANGERANG_PUSAT', 'PUSAT', 'TGR', 'HO_TANGERANG'],
+    TANGERANG_PUSAT: ['LOC_TGR', 'PUSAT', 'TGR', 'HO_TANGERANG'],
+    PUSAT: ['LOC_TGR', 'TANGERANG_PUSAT', 'TGR', 'HO_TANGERANG'],
+  };
+  return (aliases[x] || []).includes(y) || (aliases[y] || []).includes(x);
+};
+
 export default function TabOrders({ 
   masterProducts = [], master_products,
   masterCustomers = [], master_customers,
@@ -16,7 +37,7 @@ export default function TabOrders({
   sendToSheet, setPrintData, showToast, user 
 }) {
   const todayStr = getTodayStr();
-  const currentBranch = (user?.branch_id === 'PUSAT' || !user?.branch_id) ? 'TANGERANG_PUSAT' : user?.branch_id;
+  const currentBranch = getUserLocationId(user); // Bridge 5B: pakai location_id backend baru, bukan TANGERANG_PUSAT hardcoded
 
   // --- SINKRONISASI DATABASE ---
   const realProducts = useMemo(() => master_products || masterProducts || [], [master_products, masterProducts]);
@@ -71,23 +92,80 @@ export default function TabOrders({
   const stockData = useMemo(() => {
     const free = {};
     const quarantine = {};
-    const poQuarantineDetails = {}; 
+    const poQuarantineDetails = {};
+
+    const addStock = (bucket, keys, qty) => {
+      const value = Number(qty || 0);
+      if (!Number.isFinite(value) || value === 0) return;
+      keys.filter(Boolean).map(normalizeStockKey).filter(Boolean).forEach((key) => {
+        bucket[key] = (bucket[key] || 0) + value;
+      });
+    };
 
     (inventoryCostLayers || []).forEach(layer => {
-      if (layer.isDeleted || layer.branch_id !== currentBranch) return;
-      
-      if (layer.status === 'ACTIVE') {
-        free[layer.item_name] = (free[layer.item_name] || 0) + Number(layer.qty_remaining || 0);
-      } 
-      else if (layer.status === 'KARANTINA') {
-        quarantine[layer.item_name] = (quarantine[layer.item_name] || 0) + Number(layer.qty_remaining || 0);
-        
-        if (!poQuarantineDetails[layer.reference_id]) poQuarantineDetails[layer.reference_id] = {};
-        poQuarantineDetails[layer.reference_id][layer.item_name] = (poQuarantineDetails[layer.reference_id][layer.item_name] || 0) + Number(layer.qty_remaining || 0);
+      if (layer.isDeleted) return;
+      const layerLocation = layer.location_id || layer.branch_id || layer.warehouse_id || '';
+      if (layerLocation && !sameLocation(layerLocation, currentBranch)) return;
+
+      const qty = Number(layer.qty_remaining ?? layer.qty_effect ?? layer.qty ?? layer.quantity ?? 0);
+      const status = normalizeCode(layer.status || 'ACTIVE');
+      const direction = normalizeCode(layer.direction || (qty < 0 ? 'OUT' : 'IN'));
+      const itemType = normalizeCode(layer.category || layer.item_type || layer.stock_type || '');
+      const isFinishedGood = itemType.includes('PRODUK') || itemType.includes('FINISHED') || itemType.includes('JADI') || normalizeStockKey(layer.item_name || layer.product_name).includes('DIMSUM');
+      if (!isFinishedGood) return;
+
+      const keys = [
+        layer.product_id,
+        layer.item_id,
+        layer.product_code,
+        layer.item_code,
+        layer.product_name,
+        layer.item_name,
+        layer.name,
+      ];
+
+      // Backend baru sudah mengirim stock OUT sebagai qty negatif / direction OUT.
+      // POS harus menjumlahkan IN - OUT, bukan hanya melihat layer ACTIVE lama.
+      const signedQty = direction === 'OUT' ? -Math.abs(qty) : qty;
+
+      if (status === 'KARANTINA' || status === 'RESERVED') {
+        addStock(quarantine, keys, Math.abs(qty));
+        const ref = layer.reference_id || layer.source_id || layer.po_id || '-';
+        if (!poQuarantineDetails[ref]) poQuarantineDetails[ref] = {};
+        keys.filter(Boolean).map(normalizeStockKey).forEach((key) => {
+          poQuarantineDetails[ref][key] = (poQuarantineDetails[ref][key] || 0) + Math.abs(qty);
+        });
+      } else {
+        addStock(free, keys, signedQty);
       }
     });
+
+    Object.keys(free).forEach((key) => {
+      free[key] = Math.max(0, free[key]);
+    });
+
     return { free, quarantine, poQuarantineDetails };
   }, [inventoryCostLayers, currentBranch]);
+
+  const getProductStockKeys = (product = {}) => [
+    product.product_id,
+    product.id,
+    product.product_code,
+    product.sku,
+    product.product_name,
+    product.name,
+    product.item_name,
+  ].filter(Boolean).map(normalizeStockKey);
+
+  const getFreeStock = (product = {}) => {
+    const keys = getProductStockKeys(product);
+    return Math.max(0, ...keys.map((key) => Number(stockData.free[key] || 0)));
+  };
+
+  const getQuarantineStock = (product = {}) => {
+    const keys = getProductStockKeys(product);
+    return Math.max(0, ...keys.map((key) => Number(stockData.quarantine[key] || 0)));
+  };
 
   const filteredCustomersForSelect = useMemo(() => {
     if (!customerSearchTerm) return activeCustomers;
@@ -127,12 +205,12 @@ export default function TabOrders({
   };
 
   const handleProductClick = (product) => {
-    const freeStock = stockData.free[product.product_name] || 0;
+    const freeStock = getFreeStock(product);
     const cartItem = cart.find(i => i.id === product.id);
     const currentCartQty = cartItem ? cartItem.qty : 0;
 
     if (freeStock - currentCartQty <= 0) {
-      const qStock = stockData.quarantine[product.product_name] || 0;
+      const qStock = getQuarantineStock(product);
       if (qStock > 0) {
         setBorrowForm({ product, poId: '', qty: '', maxQty: 0 });
         setShowBorrowModal(true);
@@ -158,7 +236,7 @@ export default function TabOrders({
   const updateQtyExact = (id, newQty) => {
     const product = activeProducts.find(p => p.id === id);
     if (!product) return;
-    const freeStock = stockData.free[product.product_name] || 0;
+    const freeStock = getFreeStock(product);
     
     if (newQty > freeStock) {
        showToast(`Maksimal stok bebas hanya ${freeStock} Pcs! Pinjam karantina jika kurang.`, 'error');
@@ -258,7 +336,7 @@ export default function TabOrders({
   const poOptionsForBorrow = useMemo(() => {
     if (!borrowForm.product) return [];
     const opts = [];
-    const pName = borrowForm.product.product_name;
+    const pName = normalizeStockKey(borrowForm.product.product_name || borrowForm.product.product_id || borrowForm.product.id);
     Object.entries(stockData.poQuarantineDetails).forEach(([poId, items]) => {
       const qty = items[pName] || 0;
       if (qty > 0) {
@@ -350,9 +428,9 @@ export default function TabOrders({
         
         // 🔥 TRIGGER AUTO-POTONG STOK BARANG JADI (FREEZER) UNTUK SETIAP ITEM DI KERANJANG
         const inventoryPayloads = cart.map((item, idx) => ({
-           id: `${orderId}-OUT-${idx}`, date: todayStr, branch_id: currentBranch, category: 'PRODUK_JADI',
-           item_name: item.name.toUpperCase(), qty_received: 0, qty_remaining: -item.qty, unit_cost: item.hpp || 1125,
-           status: 'SOLD', reference_id: orderId, isDeleted: false
+           id: `${orderId}-OUT-${idx}`, date: todayStr, branch_id: currentBranch, location_id: currentBranch, category: 'PRODUK_JADI',
+           product_id: item.id, item_name: item.name.toUpperCase(), qty_received: 0, qty_remaining: -item.qty, qty_effect: -item.qty, unit: 'pcs', unit_cost: item.hpp || 1125,
+           status: 'SOLD', direction: 'OUT', source_module: 'ORDER_POS', reference_id: orderId, source_id: orderId, isDeleted: false
         }));
 
         await sendToSheet('insert', inventoryPayloads, 'inventory_cost_layers');
@@ -445,8 +523,8 @@ export default function TabOrders({
         </div>
         <div className="relative z-10 flex flex-wrap gap-4">
           {activeProducts.map(p => {
-            const freeStock = stockData.free[p.product_name] || 0;
-            const qStock = stockData.quarantine[p.product_name] || 0;
+            const freeStock = getFreeStock(p);
+            const qStock = getQuarantineStock(p);
             return (
               <div key={p.id} className="bg-gradient-to-br from-slate-800/80 to-slate-900 border border-slate-700/60 p-4 rounded-2xl flex flex-col justify-between gap-3 min-w-[190px] shadow-lg flex-1 sm:flex-none relative overflow-hidden group hover:border-slate-500 transition-colors">
                 
@@ -650,8 +728,8 @@ export default function TabOrders({
 
           <div className="grid grid-cols-2 xl:grid-cols-3 gap-4 overflow-y-auto custom-scrollbar max-h-[70vh] pb-2 pr-1">
             {filteredProducts.map(product => {
-              const freeStock = stockData.free[product.product_name] || 0;
-              const qStock = stockData.quarantine[product.product_name] || 0;
+              const freeStock = getFreeStock(product);
+              const qStock = getQuarantineStock(product);
               
               const wholesalePrice = Number(product.selling_price || 0);
               const retailPrice = Number(product.retail_price || product.penalty_price || product.selling_price || 0);
