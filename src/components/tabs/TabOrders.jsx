@@ -616,14 +616,43 @@ Sahkan & Kirim ke Cloud?`;
   };
 
   const handleTriggerVoidOrder = async (orderId) => {
-    if (!window.confirm(`🔥 PERINGATAN OWNER:\nHapus permanen (Void) nota ${orderId} dari sistem cloud?\nTindakan ini HANYA akan mengubah status nota, TIDAK MENGEMBALIKAN STOK FISIK YANG SUDAH DIPOTONG. Gunakan Opname jika barang kembali ke gudang.`)) return;
-    const isSuccess = await sendToSheet('update', { id: orderId, isDeleted: true }, 'orders');
-    if (isSuccess) showToast(`Nota ${orderId} berhasil dihapus permanen!`, 'success');
+    if (!orderId) {
+      showToast('ID nota tidak ditemukan. Tidak bisa membatalkan nota.', 'error');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Batalkan nota ${orderId}?\n\n` +
+      'Nota tidak akan dihapus permanen. Sistem akan membuat pembatalan resmi, menyembunyikan nota dari histori aktif, mengembalikan stok jika sebelumnya sudah terpotong, dan menyimpan jejak arsip.'
+    );
+
+    if (!confirmed) return;
+
+    const isSuccess = await sendToSheet(
+      'delete',
+      {
+        id: orderId,
+        order_id: orderId,
+        restore_stock: true,
+        reason: 'BATAL_NOTA_DARI_HISTORY_KASIR',
+        void_source: 'TAB_ORDERS_HISTORY_TRASH_BUTTON',
+      },
+      'orders',
+    );
+
+    if (isSuccess) {
+      showToast(`Nota ${orderId} berhasil dibatalkan. Stok dan catatan uang dikoreksi oleh mesin baru.`, 'success');
+    }
   };
 
   const historyOrdersData = useMemo(() => {
     return (orders || []).filter(o => {
-      if (o.isDeleted || o.branch_id !== currentBranch) return false;
+      const statusText = String(o.status || o.order_status || o.payment_status || '').toUpperCase();
+      const isVoided = Boolean(o.isDeleted || o.is_deleted || o.deleted_at) ||
+        ['VOID', 'VOIDED', 'CANCELLED', 'CANCELED', 'DIBATALKAN', 'BATAL'].includes(statusText);
+
+      if (isVoided || o.branch_id !== currentBranch) return false;
+
       const oDate = getLocalYMD(o.date);
       return oDate >= historyDateFrom && oDate <= historyDateTo;
     }).sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -1117,7 +1146,7 @@ Sahkan & Kirim ke Cloud?`;
                             });
                           }} className="p-2 text-slate-400 hover:text-purple-600 border border-slate-200 rounded-xl shadow-sm bg-white cursor-pointer hover:bg-purple-50 transition-colors" title="Cetak Work Order (WO) Dapur"><ChefHat size={16}/></button>
 
-                          <button type="button" onClick={() => handleTriggerVoidOrder(o.id)} className="p-2 text-slate-400 hover:text-rose-600 border border-slate-200 rounded-xl shadow-sm bg-white cursor-pointer hover:bg-rose-50 transition-colors" title="Void Nota Permanen"><Trash2 size={14}/></button>
+                          <button type="button" onClick={() => handleTriggerVoidOrder(o.id)} className="p-2 text-slate-400 hover:text-rose-600 border border-slate-200 rounded-xl shadow-sm bg-white cursor-pointer hover:bg-rose-50 transition-colors" title="Batalkan Nota"><Trash2 size={14}/></button>
                         </div>
                       </td>
                     </tr>
