@@ -45,10 +45,34 @@ export async function legacyWriteAction({ action, tableName, payload, user, sess
     };
   }
 
+  if (oldAction === 'delete' && table === 'orders') {
+    const order = firstPayload(payload);
+
+    return apiRequest(
+      'legacyVoidOrderFromOldPos',
+      {
+        order,
+        legacy_order: order,
+        order_id: order?.order_id || order?.id || order?.order_no || '',
+        request_id: requestId,
+        operation_id: requestId,
+        restore_stock: order?.restore_stock !== false,
+        reason: order?.reason || 'VOID_FROM_LEGACY_POS_HISTORY',
+        source: 'LEGACY_POS_TAB_ORDERS_VOID',
+        user_context: {
+          user_id: user?.user_id || user?.id || '',
+          username: user?.username || '',
+          location_id: user?.location_id || user?.branch_id || '',
+        },
+      },
+      sessionToken,
+    );
+  }
+
   if (oldAction === 'delete') {
     return {
       success: false,
-      message: 'Hapus/void transaksi lama belum aktif. Nanti diarahkan ke endpoint void/reversal baru, bukan delete manual.',
+      message: 'Hapus/void transaksi lama belum aktif untuk tabel ini. Gunakan flow batal/void resmi.',
     };
   }
 
