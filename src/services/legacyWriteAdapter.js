@@ -221,6 +221,34 @@ export async function legacyWriteAction({ action, tableName, payload, user, sess
   }
 
   // ======================================================
+  // 2C) PO KARANTINA / PO HARIAN / PINJAM STOK
+  // table lama baru: po_stock_plans / stock_allocations / antrian_po
+  // backend bridge: legacyCreatePOStockPlanFromOldQueue
+  // Catatan:
+  // - Ini hanya menahan / merencanakan stok, bukan omzet.
+  // - Uang DP/lunas tetap masuk payment/order resmi pada flow berikutnya.
+  // ======================================================
+  if (['po_stock_plans', 'stock_allocations', 'antrian_po', 'po_karantina', 'daily_po'].includes(table) && oldAction === 'insert') {
+    const plan = firstPayload(payload);
+
+    return apiRequest(
+      'legacyCreatePOStockPlanFromOldQueue',
+      {
+        po_plan: plan,
+        legacy_po: plan,
+        request_id: requestId,
+        source: 'LEGACY_TAB_ANTRIAN_PO_5C',
+        user_context: {
+          user_id: user?.user_id || user?.id || '',
+          username: user?.username || '',
+          location_id: user?.location_id || user?.branch_id || '',
+        },
+      },
+      sessionToken,
+    );
+  }
+
+  // ======================================================
   // 3) Bridge test opsional
   // ======================================================
   if (table === 'bridge_test') {
