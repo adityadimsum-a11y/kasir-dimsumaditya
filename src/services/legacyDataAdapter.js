@@ -34,18 +34,22 @@ const mapLocationToBranch = (location = {}) => ({
 });
 
 const mapProduct = (product = {}) => ({
+  ...product,
   id: product.product_id || product.id,
   product_id: product.product_id || product.id,
   name: product.product_name || product.name || product.item_name || '',
   product_name: product.product_name || product.name || product.item_name || '',
   category: product.category || product.product_category || '',
-  selling_price: numberValue(product.selling_price || product.price || product.retail_price || product.default_price),
-  retail_price: numberValue(product.retail_price || product.selling_price || product.price || product.default_price),
-  wholesale_price: numberValue(product.wholesale_price || product.selling_price || product.price || product.default_price),
+  // 5D: normalisasi harga harus menang dari raw field kosong/0 supaya POS tidak tampil Rp0.
+  selling_price: numberValue(product.selling_price || product.wholesale_price || product.price || product.retail_price || product.default_price || product.price_tier_100 || product.harga_grosir),
+  retail_price: numberValue(product.retail_price || product.penalty_price || product.selling_price || product.price || product.default_price || product.harga_eceran),
+  wholesale_price: numberValue(product.wholesale_price || product.selling_price || product.price || product.default_price || product.price_tier_100 || product.harga_grosir),
+  default_hpp: numberValue(product.default_hpp || product.hpp || product.hpp_per_pcs || product.cost_price || product.unit_cost || 0),
+  min_order: numberValue(product.min_order || product.wholesale_qty || product.minimum_order || 1) || 1,
+  wholesale_qty: numberValue(product.wholesale_qty || product.min_order || product.minimum_order || 1) || 1,
   unit: product.unit || product.default_unit || 'pcs',
   status: product.status || 'Active',
-  isDeleted: false,
-  ...product,
+  isDeleted: product.isDeleted === true || upper(product.status || '') === 'VOID',
 });
 
 const mapCustomer = (customer = {}) => ({
@@ -111,13 +115,17 @@ const mapOrder = (order = {}, context = {}) => {
   const invoice = invoicesByOrder[orderId] || {};
   const invoiceId = invoice.invoice_id || invoice.id || '';
   const payments = paymentsByInvoice[invoiceId] || [];
-  const paidAmount = payments.reduce((sum, payment) => sum + numberValue(payment.amount || payment.payment_amount), 0);
-  const totalAmount = numberValue(invoice.grand_total || order.grand_total || order.total_amount || order.total);
+  const paidAmountFromPayments = payments.reduce((sum, payment) => sum + numberValue(payment.amount || payment.payment_amount), 0);
+  const paidAmount = paidAmountFromPayments || numberValue(invoice.paid_amount || order.paid_amount || order.amount_paid);
+  const itemsTotal = orderItems.reduce((sum, item) => sum + numberValue(item.subtotal || item.total || (numberValue(item.qty) * numberValue(item.price || item.unit_price))), 0);
+  const itemQty = orderItems.reduce((sum, item) => sum + numberValue(item.qty || item.quantity), 0);
+  const totalAmount = numberValue(invoice.grand_total || invoice.total_amount || order.grand_total || order.total_amount || order.total || itemsTotal);
   const receivable = receivablesByInvoice[invoiceId] || {};
   const remainingAmount = numberValue(receivable.remaining_amount || receivable.sisa_piutang || Math.max(totalAmount - paidAmount, 0));
   const paymentStatus = invoice.payment_status || order.payment_status || receivable.payment_status || (remainingAmount <= 0 && totalAmount > 0 ? 'Lunas' : 'Piutang/Belum Bayar');
 
   return {
+    ...order,
     id: orderId,
     order_id: orderId,
     order_no: order.order_no || orderId,
@@ -132,6 +140,8 @@ const mapOrder = (order = {}, context = {}) => {
     pickup_date: order.pickup_date || order.delivery_date || '',
     items: JSON.stringify(orderItems),
     items_json: JSON.stringify(orderItems),
+    qty: itemQty || numberValue(order.qty || order.total_qty),
+    total_qty: itemQty || numberValue(order.total_qty || order.qty),
     total_amount: totalAmount,
     total: totalAmount,
     grand_total: totalAmount,
@@ -143,7 +153,6 @@ const mapOrder = (order = {}, context = {}) => {
     invoice_id: invoiceId,
     invoice_no: invoice.invoice_no || invoiceId,
     isDeleted: false,
-    ...order,
   };
 };
 
