@@ -481,6 +481,15 @@ export function adaptLegacyBootstrap(rawData = {}, options = {}) {
     cash_expense_items: asArray(rawData.cash_expense_items),
     payables: asArray(rawData.payables),
     payable_payments: asArray(rawData.payable_payments),
+
+    // Bridge 5C - stok dengan tujuan: PO karantina, PO harian, pinjam stok.
+    poStockPlans: asArray(rawData.po_stock_plans),
+    po_stock_plans: asArray(rawData.po_stock_plans),
+    stockAllocations: asArray(rawData.stock_allocations),
+    stock_allocations: asArray(rawData.stock_allocations),
+    stockAllocationMovements: asArray(rawData.stock_allocation_movements),
+    stock_allocation_movements: asArray(rawData.stock_allocation_movements),
+
     archives: asArray(rawData.archives),
     search_index: asArray(rawData.search_index),
   };
