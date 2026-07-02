@@ -69,6 +69,36 @@ export async function legacyWriteAction({ action, tableName, payload, user, sess
     );
   }
 
+
+  if (oldAction === 'update' && table === 'orders') {
+    const order = firstPayload(payload);
+    const statusText = String(order?.status || order?.order_status || '').toUpperCase();
+    const wantsVoid = Boolean(order?.isDeleted || order?.is_deleted || order?.deleted_at) ||
+      ['VOID', 'VOIDED', 'CANCELLED', 'CANCELED', 'DIBATALKAN', 'BATAL'].includes(statusText);
+
+    if (wantsVoid) {
+      return apiRequest(
+        'legacyVoidOrderFromOldPos',
+        {
+          order,
+          legacy_order: order,
+          order_id: order?.order_id || order?.id || order?.order_no || '',
+          request_id: requestId,
+          operation_id: requestId,
+          restore_stock: order?.restore_stock !== false,
+          reason: order?.reason || 'VOID_FROM_LEGACY_POS_HISTORY_UPDATE_COMPAT',
+          source: 'LEGACY_POS_TAB_ORDERS_VOID_UPDATE_COMPAT',
+          user_context: {
+            user_id: user?.user_id || user?.id || '',
+            username: user?.username || '',
+            location_id: user?.location_id || user?.branch_id || '',
+          },
+        },
+        sessionToken,
+      );
+    }
+  }
+
   if (oldAction === 'delete') {
     return {
       success: false,
@@ -177,7 +207,7 @@ export async function legacyWriteAction({ action, tableName, payload, user, sess
   if (table === 'orders' && oldAction === 'update') {
     return {
       success: false,
-      message: 'Edit nota dari kasir lama belum aktif di Bridge Package 2. Untuk koreksi aman, nanti dibuat flow revisi/void resmi.',
+      message: 'Revisi nota belum aktif. Untuk koreksi aman, gunakan tombol Batalkan Nota lalu buat transaksi baru.',
     };
   }
 
