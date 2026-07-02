@@ -1,566 +1,273 @@
-import React, { useState, useMemo } from 'react';
-import { 
-  PackageCheck, Clock, ArrowRight, Save, 
-  Search, ThermometerSnowflake, AlertCircle, CheckCircle2,
-  Eye, Receipt, Wallet, Archive, ListTodo, Calendar, Package
+import React, { useMemo, useState } from 'react';
+import {
+  AlertTriangle,
+  Calendar,
+  CheckCircle,
+  Clock,
+  Package,
+  Plus,
+  Search,
+  ShoppingCart,
+  Truck,
 } from 'lucide-react';
-import { getTodayStr, generateId, safeJsonParse, formatDate } from '../../utils/helpers';
+import { getTodayStr, generateId } from '../../utils/helpers';
 
-const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
-const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
+const numberValue = (value) => {
+  const parsed = Number(String(value ?? 0).replace(/[^\d,.-]/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+const formatNumber = (value) => Number(value || 0).toLocaleString('id-ID');
+const formatMoney = (value) => `Rp ${Math.round(Number(value || 0)).toLocaleString('id-ID')}`;
+const normalizeCode = (value) => String(value || '').trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+const safeArray = (value) => Array.isArray(value) ? value : [];
+const pct = (ready, need) => need > 0 ? Math.min(100, Math.round((ready / need) * 100)) : 0;
+const daysUntil = (date) => {
+  if (!date) return null;
+  const target = new Date(`${String(date).slice(0, 10)}T00:00:00`);
+  const today = new Date(`${getTodayStr()}T00:00:00`);
+  if (Number.isNaN(target.getTime())) return null;
+  return Math.round((target - today) / 86400000);
+};
+const bucketLabel = (bucket) => {
+  const code = normalizeCode(bucket);
+  if (code.includes('DAILY') || code.includes('HARIAN')) return 'PO Harian';
+  if (code.includes('BORROW') || code.includes('PINJAM')) return 'Pinjam Stok';
+  return 'Karantina PO';
+};
+const isActive = (row = {}) => {
+  const status = normalizeCode(row.status || row.allocation_status || 'ACTIVE');
+  return !['VOID', 'CANCELLED', 'CANCELED', 'DONE', 'CLOSED', 'PICKED_UP', 'COMPLETE'].includes(status);
+};
+const rowProductId = (row = {}) => normalizeCode(row.product_id || row.item_id || row.product_code || row.item_code || row.product_name || row.item_name || row.name);
+const rowProductName = (row = {}) => row.product_name || row.item_name || row.name || row.product_code || row.product_id || '-';
 
-export default function TabAntrianPO({ orders, inventoryCostLayers, masterProducts, master_products, user, sendToSheet, showToast }) {
-  const todayStr = getTodayStr();
-  const currentBranch = (user?.branch_id === 'PUSAT' || !user?.branch_id) ? 'TANGERANG_PUSAT' : user?.branch_id;
+const buildFinishedStock = ({ inventoryCostLayers = [], stockMovements = [], allocations = [] }) => {
+  const total = {};
+  const reserved = {};
+  const add = (obj, key, qty) => {
+    if (!key || !Number.isFinite(qty) || qty === 0) return;
+    obj[key] = (obj[key] || 0) + qty;
+  };
 
-  const [activeSubTab, setActiveSubTab] = useState('ACTIVE'); // 'ACTIVE' | 'COMPLETED'
-  const [searchTerm, setSearchTerm] = useState('');
-  const [historyDateFrom, setHistoryDateFrom] = useState(todayStr);
-  const [historyDateTo, setHistoryDateTo] = useState(todayStr);
+  [...safeArray(inventoryCostLayers), ...safeArray(stockMovements)].forEach((row) => {
+    if (!isActive(row)) return;
+    const cat = normalizeCode(row.category || row.item_type || row.stock_type || '');
+    const isFinished = cat.includes('PRODUK') || cat.includes('FINISHED') || cat.includes('JADI') || normalizeCode(rowProductName(row)).includes('DIMSUM');
+    if (!isFinished) return;
+    const key = rowProductId(row);
+    const rawQty = numberValue(row.qty_remaining ?? row.qty_effect ?? row.qty ?? row.quantity);
+    const direction = normalizeCode(row.direction || (rawQty < 0 ? 'OUT' : 'IN'));
+    const effect = direction === 'OUT' ? -Math.abs(rawQty) : rawQty;
+    add(total, key, effect);
+  });
 
-  const [selectedPO, setSelectedPO] = useState(null);
-  const [allocations, setAllocations] = useState({}); 
-  const [detailPO, setDetailPO] = useState(null);
+  safeArray(allocations).forEach((row) => {
+    if (!isActive(row)) return;
+    const key = rowProductId(row);
+    const q = Math.max(0, numberValue(row.qty_allocated || row.allocated_qty || row.reserved_qty || row.qty_reserved || row.required_qty_pcs || row.qty_pcs || row.qty));
+    add(reserved, key, q);
+  });
 
-  // =========================================================================
-  // 1. DATA MASTER PRODUK (UNTUK PAPAN STOK ATAS)
-  // =========================================================================
-  const realProducts = useMemo(() => master_products || masterProducts || [], [master_products, masterProducts]);
-  const activeProducts = useMemo(() => realProducts.filter(p => !p.isDeleted), [realProducts]);
+  return { total, reserved };
+};
 
-  // =========================================================================
-  // 2. ENGINE KALKULASI STOK BEBAS VS STOK KARANTINA
-  // =========================================================================
-  const stockData = useMemo(() => {
-    const free = {};
-    const quarantine = {}; 
-    
-    (inventoryCostLayers || []).forEach(l => {
-      if (l.isDeleted || l.branch_id !== currentBranch) return;
-      
-      if (l.status === 'ACTIVE') {
-        free[l.item_name] = (free[l.item_name] || 0) + Number(l.qty_remaining || 0);
-      } 
-      else if (l.status === 'KARANTINA') {
-        if (!quarantine[l.reference_id]) quarantine[l.reference_id] = {};
-        quarantine[l.reference_id][l.item_name] = (quarantine[l.reference_id][l.item_name] || 0) + Number(l.qty_remaining || 0);
-      }
-    });
-    return { free, quarantine };
-  }, [inventoryCostLayers, currentBranch]);
+const ProgressBar = ({ ready, need, urgent = false }) => {
+  const value = pct(ready, need);
+  const color = value >= 100 ? 'bg-emerald-500' : urgent ? 'bg-red-500' : value >= 70 ? 'bg-amber-500' : 'bg-blue-500';
+  return (
+    <div className="mt-3">
+      <div className="mb-1 flex justify-between text-[10px] font-black text-slate-500">
+        <span>{formatNumber(ready)} siap</span>
+        <span>{value}%</span>
+      </div>
+      <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${value}%` }} />
+      </div>
+    </div>
+  );
+};
 
-  // =========================================================================
-  // 3. FILTER & ENRICH DATA NOTA PO (SEMUA PO TANPA KECUALI)
-  // =========================================================================
-  const allPOOrders = useMemo(() => {
-    const filtered = (orders || []).filter(o => {
-      if (o.isDeleted || o.branch_id !== currentBranch) return false;
-      return o.payment_method === 'COD_PO' || String(o.notes).includes('TARGET PO');
-    });
+export default function TabAntrianPO({
+  masterProducts = [], master_products,
+  masterCustomers = [], master_customers,
+  inventoryCostLayers = [], inventory_cost_layers,
+  stockMovements = [], stock_movements,
+  stockAllocations = [], stock_allocations,
+  poStockPlans = [], po_stock_plans,
+  orders = [],
+  sendToSheet,
+  showToast,
+  user,
+}) {
+  const today = getTodayStr();
+  const locationId = user?.location_id || user?.branch_id || 'LOC-TGR';
+  const products = useMemo(() => safeArray(master_products || masterProducts).filter(Boolean), [masterProducts, master_products]);
+  const customers = useMemo(() => safeArray(master_customers || masterCustomers).filter(Boolean), [masterCustomers, master_customers]);
+  const allocationRows = useMemo(() => [...safeArray(stock_allocations), ...safeArray(stockAllocations), ...safeArray(po_stock_plans), ...safeArray(poStockPlans)], [stockAllocations, stock_allocations, poStockPlans, po_stock_plans]);
+  const stock = useMemo(() => buildFinishedStock({
+    inventoryCostLayers: [...safeArray(inventory_cost_layers), ...safeArray(inventoryCostLayers)],
+    stockMovements: [...safeArray(stock_movements), ...safeArray(stockMovements)],
+    allocations: allocationRows,
+  }), [inventoryCostLayers, inventory_cost_layers, stockMovements, stock_movements, allocationRows]);
 
-    return filtered.map(po => {
-      const items = safeJsonParse(po.items, []);
-      let totalOrdered = 0;
-      let totalQuarantined = 0;
-      
-      const enrichedItems = items.map(i => {
-        const qQty = stockData.quarantine[po.id]?.[i.name] || 0;
-        totalOrdered += Number(i.qty || 0);
-        totalQuarantined += qQty;
-        return { ...i, quarantined: qQty };
-      });
+  const [query, setQuery] = useState('');
+  const [form, setForm] = useState({
+    type: 'PO_QUARANTINE',
+    customer_name: '',
+    product_id: '',
+    required_qty_pcs: '',
+    pickup_date: today,
+    payment_status: 'BELUM_TAHU',
+    paid_amount: '0',
+    notes: '',
+    reserve_now: true,
+  });
 
-      let target = 'Tanpa Target';
-      if (po.notes && po.notes.includes('TARGET PO:')) {
-          const split1 = po.notes.split('TARGET PO: ');
-          if (split1.length > 1) target = split1[1].split(')')[0];
-      }
+  const selectedProduct = products.find((p) => String(p.product_id || p.id || p.product_code) === String(form.product_id));
+  const selectedKey = rowProductId(selectedProduct || {});
+  const totalStock = Math.max(0, numberValue(stock.total[selectedKey] || 0));
+  const alreadyReserved = Math.max(0, numberValue(stock.reserved[selectedKey] || 0));
+  const freeStock = Math.max(0, totalStock - alreadyReserved);
+  const requiredQty = Math.max(0, numberValue(form.required_qty_pcs));
+  const autoReserve = form.reserve_now ? Math.min(freeStock, requiredQty) : 0;
 
-      const progress = totalOrdered > 0 ? (totalQuarantined / totalOrdered) * 100 : 0;
-
-      return { 
-        ...po, 
-        targetDate: target, 
-        enrichedItems, 
-        totalOrdered, 
-        totalQuarantined, 
-        progress: Math.min(progress, 100) 
+  const planRows = useMemo(() => {
+    const rows = allocationRows.filter(isActive).map((row) => {
+      const key = rowProductId(row);
+      const required = Math.max(0, numberValue(row.required_qty_pcs || row.qty_required || row.qty_pcs || row.qty));
+      const allocated = Math.max(0, numberValue(row.qty_allocated || row.allocated_qty || row.reserved_qty || row.qty_reserved));
+      const due = row.pickup_date || row.due_date || row.delivery_date || '';
+      const dday = daysUntil(due);
+      const shortage = Math.max(0, required - allocated);
+      return {
+        ...row,
+        key,
+        po_id: row.po_id || row.plan_id || row.source_id || row.allocation_id || row.id,
+        customer_name: row.customer_name || row.customer || '-',
+        product_name: row.product_name || row.item_name || row.name || '-',
+        bucket: row.bucket_type || row.bucket || row.allocation_type || row.po_type || row.order_type || 'PO_QUARANTINE',
+        required,
+        allocated,
+        shortage,
+        due,
+        dday,
       };
-    }).sort((a,b) => new Date(b.date) - new Date(a.date));
-  }, [orders, currentBranch, stockData]);
+    });
+    const q = normalizeCode(query);
+    return rows
+      .filter((row) => !q || normalizeCode([row.po_id, row.customer_name, row.product_name, row.bucket].join(' ')).includes(q))
+      .sort((a, b) => String(a.due || '').localeCompare(String(b.due || '')));
+  }, [allocationRows, query]);
 
-  // Pisahkan berdasarkan Sub-Tab yang sedang aktif + Filter Kalender
-  const displayedPOs = useMemo(() => {
-    let targetList = [];
+  const summary = useMemo(() => {
+    return planRows.reduce((acc, row) => {
+      acc.totalNeed += row.required;
+      acc.totalReady += row.allocated;
+      acc.totalShort += row.shortage;
+      if (normalizeCode(row.bucket).includes('DAILY') || normalizeCode(row.bucket).includes('HARIAN')) acc.daily += row.required;
+      else if (normalizeCode(row.bucket).includes('BORROW') || normalizeCode(row.bucket).includes('PINJAM')) acc.borrowed += row.required;
+      else acc.quarantine += row.required;
+      if (row.dday !== null && row.dday <= 1 && row.shortage > 0) acc.urgent += 1;
+      return acc;
+    }, { totalNeed: 0, totalReady: 0, totalShort: 0, daily: 0, quarantine: 0, borrowed: 0, urgent: 0 });
+  }, [planRows]);
 
-    if (activeSubTab === 'ACTIVE') {
-      targetList = allPOOrders.filter(po => po.status !== 'SELESAI_KIRIM');
-    } else {
-      // Jika di Tab Arsip/Selesai, terapkan filter tanggal
-      targetList = allPOOrders.filter(po => {
-        if (po.status !== 'SELESAI_KIRIM') return false;
-        const d = po.date.substring(0, 10);
-        return d >= historyDateFrom && d <= historyDateTo;
-      });
-    }
-
-    if (!searchTerm) return targetList;
-    const lower = searchTerm.toLowerCase();
-    return targetList.filter(po => po.id.toLowerCase().includes(lower) || String(po.customer_name).toLowerCase().includes(lower));
-  }, [allPOOrders, activeSubTab, searchTerm, historyDateFrom, historyDateTo]);
-
-  const countActive = allPOOrders.filter(po => po.status !== 'SELESAI_KIRIM').length;
-
-  // =========================================================================
-  // 4. LOGIKA EKSEKUSI KARANTINA
-  // =========================================================================
-  const handleOpenModal = (po) => {
-    setSelectedPO(po);
-    setAllocations({});
-  };
-
-  const handleAllocationChange = (itemName, val) => {
-    setAllocations(prev => ({ ...prev, [itemName]: val.replace(/\D/g, '') }));
-  };
-
-  const submitKarantina = async () => {
-    const payloads = [];
-    let hasInput = false;
-
-    for (const item of selectedPO.enrichedItems) {
-      const inputVal = Number(allocations[item.name] || 0);
-      if (inputVal > 0) {
-        hasInput = true;
-        const availableFreeStock = stockData.free[item.name] || 0;
-        const remainingNeeded = item.qty - item.quarantined;
-
-        if (inputVal > availableFreeStock) {
-          return alert(`Gagal! Stok Bebas Gudang untuk ${item.name} tidak mencukupi. (Sisa: ${availableFreeStock})`);
-        }
-        if (inputVal > remainingNeeded) {
-          return alert(`Gagal! Angka alokasi ${item.name} melebihi sisa kekurangan PO.`);
-        }
-
-        payloads.push({
-          id: generateId('INV', todayStr) + '-OUT-' + Math.floor(Math.random() * 1000),
-          date: todayStr, branch_id: currentBranch, category: 'PENYESUAIAN_KARANTINA',
-          item_name: item.name, qty_remaining: -inputVal, unit_cost: 0, status: 'USED',
-          reference_id: selectedPO.id, notes: `Dikunci untuk Karantina PO (${selectedPO.id})`, isDeleted: false
-        });
-
-        payloads.push({
-          id: generateId('INV', todayStr) + '-IN-' + Math.floor(Math.random() * 1000),
-          date: todayStr, branch_id: currentBranch, category: 'KARANTINA_PO',
-          item_name: item.name, qty_remaining: inputVal, unit_cost: 0, status: 'KARANTINA', 
-          reference_id: selectedPO.id, notes: `Stok Karantina Beku`, isDeleted: false
-        });
-      }
-    }
-
-    if (!hasInput) return alert("Silakan isi jumlah yang ingin dikarantina terlebih dahulu!");
-    if (!window.confirm("Kunci stok ini untuk Karantina? (Stok bebas akan otomatis berkurang dan tidak bisa dijual di kasir)")) return;
-
-    const isSuccess = await sendToSheet('insert', payloads, 'inventory_cost_layers');
-    if (isSuccess) {
-      showToast("Stok berhasil diamankan di Freezer Karantina!", "success");
-      setSelectedPO(null);
-    }
-  };
-
-  const handleSelesaikanPO = async (poId) => {
-    if (!window.confirm("Tandai PO ini sebagai Selesai/Terkirim? (Akan dipindahkan ke Tab Riwayat Selesai)")) return;
-    const isSuccess = await sendToSheet('update', { id: poId, status: 'SELESAI_KIRIM' }, 'orders');
-    if (isSuccess) {
-      showToast("Nota PO berhasil dipindahkan ke Arsip!", "success");
-      setActiveSubTab('COMPLETED'); 
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (!selectedProduct) return showToast?.('Pilih produk dulu.', 'error');
+    if (requiredQty <= 0) return showToast?.('Qty PO wajib lebih dari 0 pcs.', 'error');
+    const poId = generateId(form.type === 'DAILY_PO' ? 'POH' : 'POKAR', today);
+    const payload = {
+      po_id: poId,
+      plan_id: poId,
+      location_id: locationId,
+      bucket_type: form.type,
+      customer_name: form.customer_name || 'Customer PO',
+      product_id: selectedProduct.product_id || selectedProduct.id || selectedProduct.product_code || '',
+      product_code: selectedProduct.product_code || selectedProduct.code || '',
+      product_name: selectedProduct.product_name || selectedProduct.name || '',
+      required_qty_pcs: requiredQty,
+      qty_allocated: autoReserve,
+      pickup_date: form.pickup_date,
+      payment_status: form.payment_status,
+      paid_amount: numberValue(form.paid_amount),
+      status: autoReserve >= requiredQty ? 'READY_PICKUP' : autoReserve > 0 ? 'PARTLY_READY' : 'SHORTAGE',
+      notes: form.notes,
+      source: 'TAB_ANTRIAN_PO_5C',
+    };
+    const ok = await sendToSheet?.('insert', payload, 'po_stock_plans');
+    if (ok) {
+      setForm({ type: 'PO_QUARANTINE', customer_name: '', product_id: '', required_qty_pcs: '', pickup_date: today, payment_status: 'BELUM_TAHU', paid_amount: '0', notes: '', reserve_now: true });
     }
   };
 
   return (
-    <div className="flex flex-col gap-6 pb-10 text-slate-700 animate-in fade-in duration-200">
-      
-      {/* HEADER BANNER: PAPAN STOK & TOTAL ANTRIAN */}
-      <div className="bg-white border border-slate-200 rounded-3xl shadow-sm p-6 flex flex-col xl:flex-row justify-between items-start gap-6 relative overflow-hidden">
-        
-        {/* KIRI: PAPAN STOK BEBAS */}
-        <div className="flex-1 w-full overflow-hidden z-10">
-          <h2 className="text-base font-black text-slate-800 flex items-center gap-2 mb-4 tracking-wide">
-            <ThermometerSnowflake className="text-orange-500" size={20} /> 
-            Pusat Komando Antrian PO &amp; Stok Bebas Gudang (Live)
-          </h2>
-          <div className="flex overflow-x-auto custom-scrollbar pb-3 gap-4">
-            {activeProducts.map(p => {
-              const stockQty = stockData.free[p.product_name] || 0;
+    <div className="space-y-6 pb-10 text-slate-700 normal-case">
+      <div className="relative overflow-hidden rounded-[2rem] bg-slate-950 p-6 text-white shadow-sm">
+        <div className="absolute -right-20 -top-20 h-56 w-56 rounded-full bg-red-600/20 blur-2xl" />
+        <div className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+          <div>
+            <div className="mb-2 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-amber-200"><Package size={18} /> Stok dengan Tujuan</div>
+            <h1 className="text-3xl font-black tracking-tight">Antrian PO & Karantina Stok</h1>
+            <p className="mt-2 max-w-3xl text-sm font-semibold leading-relaxed text-slate-300">
+              Pisahkan stok bebas, stok PO besar, PO harian, dan pinjam stok. Perpindahan bucket hanya menahan barang, belum jadi omzet sampai ada bayar/pickup.
+            </p>
+          </div>
+          <div className="grid min-w-[320px] grid-cols-2 gap-3">
+            <div className="rounded-2xl bg-white/10 p-4"><div className="text-[9px] font-black uppercase text-slate-400">Kebutuhan PO</div><div className="mt-1 text-2xl font-black">{formatNumber(summary.totalNeed)}</div><div className="text-[10px] text-slate-400">pcs</div></div>
+            <div className="rounded-2xl bg-white/10 p-4"><div className="text-[9px] font-black uppercase text-slate-400">Kurang Produksi</div><div className="mt-1 text-2xl font-black text-red-300">{formatNumber(summary.totalShort)}</div><div className="text-[10px] text-slate-400">pcs</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm"><div className="text-[10px] font-black uppercase text-slate-400">Stok Karantina PO</div><div className="mt-2 text-2xl font-black text-slate-900">{formatNumber(summary.quarantine)}</div><div className="text-xs font-bold text-slate-400">pcs ditahan untuk PO besar</div></div>
+        <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm"><div className="text-[10px] font-black uppercase text-slate-400">Stok PO Harian</div><div className="mt-2 text-2xl font-black text-blue-700">{formatNumber(summary.daily)}</div><div className="text-xs font-bold text-slate-400">pesanan pickup besok/hari ini</div></div>
+        <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm"><div className="text-[10px] font-black uppercase text-slate-400">Pinjam Stok</div><div className="mt-2 text-2xl font-black text-orange-700">{formatNumber(summary.borrowed)}</div><div className="text-xs font-bold text-slate-400">wajib diganti produksi</div></div>
+        <div className="rounded-3xl border border-red-100 bg-red-50 p-5 shadow-sm"><div className="text-[10px] font-black uppercase text-red-400">Mepet H-Day</div><div className="mt-2 text-2xl font-black text-red-700">{summary.urgent}</div><div className="text-xs font-bold text-red-500">PO kurang dan sudah dekat</div></div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+        <form onSubmit={handleSubmit} className="xl:col-span-4 rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm">
+          <div className="mb-5 flex items-center gap-2"><Plus size={18} className="text-red-600" /><h2 className="text-sm font-black text-slate-900">Buat Rencana PO</h2></div>
+          <div className="space-y-4">
+            <div><label className="mb-1 block text-[10px] font-black uppercase text-slate-400">Jenis</label><select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-xs font-bold"><option value="PO_QUARANTINE">Stok Karantina PO</option><option value="DAILY_PO">Stok PO Harian</option><option value="BORROWED">Pinjam Stok / Wajib Ganti</option></select></div>
+            <div><label className="mb-1 block text-[10px] font-black uppercase text-slate-400">Customer</label><input value={form.customer_name} onChange={(e) => setForm({ ...form, customer_name: e.target.value })} list="po-customers" className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-xs font-bold" placeholder="Nama customer / reseller" /><datalist id="po-customers">{customers.map((c) => <option key={c.customer_id || c.id || c.name} value={c.customer_name || c.name || ''} />)}</datalist></div>
+            <div><label className="mb-1 block text-[10px] font-black uppercase text-slate-400">Produk</label><select value={form.product_id} onChange={(e) => setForm({ ...form, product_id: e.target.value })} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-xs font-bold"><option value="">Pilih produk</option>{products.map((p) => <option key={p.product_id || p.id || p.product_code} value={p.product_id || p.id || p.product_code}>{p.product_name || p.name}</option>)}</select></div>
+            <div className="grid grid-cols-2 gap-3"><div><label className="mb-1 block text-[10px] font-black uppercase text-slate-400">Qty pcs</label><input value={form.required_qty_pcs} onChange={(e) => setForm({ ...form, required_qty_pcs: e.target.value })} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-xs font-bold" placeholder="5000" /></div><div><label className="mb-1 block text-[10px] font-black uppercase text-slate-400">Pickup</label><input type="date" value={form.pickup_date} onChange={(e) => setForm({ ...form, pickup_date: e.target.value })} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-xs font-bold" /></div></div>
+            <div className="grid grid-cols-2 gap-3"><div><label className="mb-1 block text-[10px] font-black uppercase text-slate-400">Bayar</label><select value={form.payment_status} onChange={(e) => setForm({ ...form, payment_status: e.target.value })} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-xs font-bold"><option value="BELUM_TAHU">Belum tahu</option><option value="DP">DP</option><option value="LUNAS">Lunas</option><option value="COD_PICKUP">Bayar saat pickup</option><option value="PIUTANG">Piutang</option></select></div><div><label className="mb-1 block text-[10px] font-black uppercase text-slate-400">Nominal masuk</label><input value={form.paid_amount} onChange={(e) => setForm({ ...form, paid_amount: e.target.value })} className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-xs font-bold" /></div></div>
+            <label className="flex items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 p-3 text-xs font-bold text-emerald-800"><input type="checkbox" checked={form.reserve_now} onChange={(e) => setForm({ ...form, reserve_now: e.target.checked })} />Tahan stok bebas yang tersedia sekarang</label>
+            <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4 text-xs font-bold text-amber-900">Stok bebas produk ini: {formatNumber(freeStock)} pcs. Akan ditahan: {formatNumber(autoReserve)} pcs. Kurang produksi: {formatNumber(Math.max(0, requiredQty - autoReserve))} pcs.</div>
+            <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="w-full resize-none rounded-2xl border border-slate-200 px-4 py-3 text-xs font-bold" rows={3} placeholder="Catatan PO / alamat / jam pickup" />
+            <button className="w-full rounded-2xl bg-red-600 px-5 py-3 text-xs font-black uppercase tracking-wider text-white shadow-sm hover:bg-red-700">Simpan PO & Tahan Stok</button>
+          </div>
+        </form>
+
+        <div className="xl:col-span-8 rounded-[2rem] border border-slate-100 bg-white shadow-sm">
+          <div className="flex flex-col gap-3 border-b border-slate-100 p-5 md:flex-row md:items-center md:justify-between"><div><h2 className="flex items-center gap-2 text-sm font-black text-slate-900"><Truck size={18} className="text-red-600" />Papan Progress PO</h2><p className="mt-1 text-[11px] font-bold text-slate-400">Progress ini membantu produksi mengejar kekurangan sebelum H-day.</p></div><div className="relative"><Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input value={query} onChange={(e) => setQuery(e.target.value)} className="rounded-2xl border border-slate-200 py-3 pl-9 pr-4 text-xs font-bold" placeholder="Cari PO/customer/produk" /></div></div>
+          <div className="space-y-4 p-5">
+            {planRows.length === 0 && <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 p-10 text-center text-sm font-bold text-slate-400">Belum ada PO karantina / PO harian.</div>}
+            {planRows.map((row) => {
+              const urgent = row.dday !== null && row.dday <= 1 && row.shortage > 0;
+              const ready = row.allocated;
               return (
-                <div key={p.id} className="bg-slate-50 border border-slate-200 p-4 rounded-2xl flex flex-col min-w-[180px] shadow-sm shrink-0 hover:border-orange-300 transition-colors">
-                  <div className="text-[10px] font-bold text-slate-500 uppercase leading-snug whitespace-normal break-words mb-3 line-clamp-2 min-h-[30px]">
-                    {p.product_name}
+                <div key={row.po_id} className={`rounded-3xl border p-5 shadow-sm ${urgent ? 'border-red-200 bg-red-50' : 'border-slate-100 bg-slate-50/70'}`}>
+                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                    <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="text-sm font-black text-slate-900">{row.po_id}</span><span className="rounded-full bg-slate-900 px-2.5 py-1 text-[9px] font-black uppercase text-white">{bucketLabel(row.bucket)}</span>{urgent && <span className="rounded-full bg-red-600 px-2.5 py-1 text-[9px] font-black uppercase text-white">Mepet</span>}</div><div className="mt-2 text-xs font-bold text-slate-500">{row.customer_name} · {row.product_name}</div><div className="mt-1 flex flex-wrap gap-2 text-[11px] font-bold text-slate-400"><span><Calendar size={12} className="inline" /> Pickup {row.due || '-'}</span><span>{row.dday === null ? '' : row.dday >= 0 ? `H-${row.dday}` : `Lewat ${Math.abs(row.dday)} hari`}</span><span>{row.payment_status || 'BELUM_TAHU'}</span></div></div>
+                    <div className="shrink-0 text-right"><div className="text-lg font-black text-slate-900">{formatNumber(row.required)} pcs</div><div className="text-[11px] font-bold text-slate-400">butuh</div></div>
                   </div>
-                  <div className="text-2xl font-black text-slate-800 leading-none mb-2">
-                    {formatNumber(stockQty)} <span className="text-[10px] text-slate-400 font-normal normal-case">Pcs</span>
-                  </div>
-                  <div className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100 self-start">
-                    {formatNumber((stockQty/50).toFixed(1))} Mika | {formatNumber(Math.floor(stockQty/4))} Porsi
-                  </div>
+                  <ProgressBar ready={ready} need={row.required} urgent={urgent} />
+                  <div className="mt-3 grid grid-cols-3 gap-2 text-[11px] font-bold"><div className="rounded-2xl bg-white p-3"><div className="text-slate-400">Siap</div><div className="text-emerald-700">{formatNumber(ready)} pcs</div></div><div className="rounded-2xl bg-white p-3"><div className="text-slate-400">Kurang</div><div className="text-red-600">{formatNumber(row.shortage)} pcs</div></div><div className="rounded-2xl bg-white p-3"><div className="text-slate-400">Uang Masuk</div><div className="text-slate-900">{formatMoney(row.paid_amount)}</div></div></div>
                 </div>
               );
             })}
           </div>
         </div>
-
-        {/* KANAN: TOTAL ANTRIAN BADGE */}
-        <div className="bg-gradient-to-br from-orange-50 to-orange-100/50 border border-orange-200 p-6 rounded-3xl shrink-0 flex items-center gap-4 xl:w-80 shadow-sm w-full xl:w-auto z-10">
-          <div className="bg-orange-200/50 p-4 rounded-2xl shadow-inner"><PackageCheck size={36} className="text-orange-600"/></div>
-          <div>
-            <div className="text-[10px] font-black text-orange-800 uppercase tracking-widest mb-1">Total Antrian Berjalan</div>
-            <div className="text-3xl font-black text-orange-600 tracking-tight">{countActive} <span className="text-sm font-bold text-orange-700/70 normal-case">Nota Aktif</span></div>
-          </div>
-        </div>
-
       </div>
 
-      {/* TOOLBAR FILTER & SUB-TABS */}
-      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-sm gap-4">
-        
-        {/* SUB TABS NAVIGATION */}
-        <div className="flex bg-slate-100 p-1.5 rounded-xl w-full xl:w-auto overflow-x-auto custom-scrollbar shrink-0 shadow-inner">
-          <button 
-            onClick={() => setActiveSubTab('ACTIVE')} 
-            className={`flex-1 xl:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
-              activeSubTab === 'ACTIVE' ? 'bg-white text-orange-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            <ListTodo size={16}/> Antrian Berjalan
-            <span className={`px-2 py-0.5 rounded-md text-[10px] ${activeSubTab === 'ACTIVE' ? 'bg-orange-100 text-orange-700' : 'bg-slate-200 text-slate-500'}`}>{countActive}</span>
-          </button>
-          
-          <button 
-            onClick={() => setActiveSubTab('COMPLETED')} 
-            className={`flex-1 xl:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
-              activeSubTab === 'COMPLETED' ? 'bg-emerald-50 text-emerald-600 shadow-sm border border-emerald-100' : 'text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            <Archive size={16}/> Riwayat Selesai
-          </button>
-        </div>
-
-        {/* SEARCH & KALENDER (KALENDER MUNCUL JIKA TAB COMPLETED) */}
-        <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto">
-          {activeSubTab === 'COMPLETED' && (
-            <div className="flex items-center justify-between w-full sm:w-auto gap-2 bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl shrink-0">
-               <Calendar size={16} className="text-slate-400 shrink-0"/>
-               <input type="date" value={historyDateFrom} onChange={e=>setHistoryDateFrom(e.target.value)} className="text-[11px] font-bold bg-transparent outline-none cursor-pointer text-slate-600 w-full sm:w-auto" />
-               <span className="text-slate-400 font-bold">-</span>
-               <input type="date" value={historyDateTo} onChange={e=>setHistoryDateTo(e.target.value)} className="text-[11px] font-bold bg-transparent outline-none cursor-pointer text-slate-600 w-full sm:w-auto" />
-            </div>
-          )}
-
-          <div className="relative w-full sm:w-72 shrink-0">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
-            <input 
-              type="text" 
-              value={searchTerm} 
-              onChange={(e) => setSearchTerm(e.target.value)} 
-              className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:bg-white focus:border-orange-400 transition-colors shadow-sm" 
-              placeholder="Cari ID Nota atau Nama Klien..." 
-            />
-          </div>
-        </div>
+      <div className="rounded-[2rem] border border-emerald-100 bg-emerald-50 p-5 text-sm font-bold leading-relaxed text-emerald-900">
+        Alur uang tetap aman: menahan stok untuk PO belum dihitung omzet. 4 Amplop berjalan hanya dari uang DP/lunas yang benar-benar masuk, sedangkan PO yang belum bayar tampil sebagai potensi uang masuk.
       </div>
-
-      {/* GRID KARTU PO */}
-      {displayedPOs.length === 0 ? (
-        <div className="bg-white border-2 border-dashed border-slate-300 rounded-3xl p-20 text-center flex flex-col items-center justify-center text-slate-400 shadow-sm">
-          {activeSubTab === 'ACTIVE' ? (
-             <>
-               <CheckCircle2 size={56} className="mb-4 opacity-20 text-emerald-500" />
-               <h3 className="text-base font-black tracking-wide mb-1 text-slate-600">Semua Terkendali</h3>
-               <p className="text-sm font-bold normal-case">Tidak ada antrian Pre-Order yang sedang berjalan saat ini.</p>
-             </>
-          ) : (
-             <>
-               <Archive size={56} className="mb-4 opacity-20" />
-               <h3 className="text-base font-black tracking-wide mb-1 text-slate-600">Arsip Kosong</h3>
-               <p className="text-sm font-bold normal-case">Belum ada riwayat PO yang diselesaikan pada periode ini.</p>
-             </>
-          )}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          {displayedPOs.map(po => (
-            <div key={po.id} className={`bg-white border rounded-3xl shadow-sm overflow-hidden flex flex-col transition-colors hover:shadow-md ${activeSubTab === 'COMPLETED' ? 'border-emerald-200' : 'border-slate-200 hover:border-orange-300'}`}>
-              
-              {/* Card Header */}
-              <div className={`p-5 border-b flex justify-between items-start ${activeSubTab === 'COMPLETED' ? 'bg-emerald-50/50 border-emerald-100' : 'bg-slate-50 border-slate-100'}`}>
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="bg-slate-200 text-slate-700 font-mono text-[10px] px-2 py-0.5 rounded-md font-black">{po.id}</span>
-                    {activeSubTab === 'COMPLETED' ? (
-                      <span className="bg-emerald-100 text-emerald-700 text-[10px] px-2 py-0.5 rounded-md font-black flex items-center gap-1 uppercase tracking-wider border border-emerald-200"><CheckCircle2 size={12}/> Selesai &amp; Terkirim</span>
-                    ) : (
-                      <span className="bg-red-100 text-red-700 text-[10px] px-2 py-0.5 rounded-md font-black flex items-center gap-1 uppercase tracking-wider border border-red-200"><Clock size={12}/> Target: {formatDate(po.targetDate)}</span>
-                    )}
-                  </div>
-                  <h3 className="font-black text-slate-800 text-lg uppercase tracking-tight">{po.customer_name}</h3>
-                </div>
-                <div className="text-right">
-                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Status Karantina</div>
-                  <div className={`text-2xl font-black tracking-tighter ${po.progress === 100 || activeSubTab === 'COMPLETED' ? 'text-emerald-600' : 'text-orange-600'}`}>
-                    {activeSubTab === 'COMPLETED' ? '100%' : `${po.progress.toFixed(0)}%`}
-                  </div>
-                </div>
-              </div>
-
-              {/* Progress Bar */}
-              <div className="w-full bg-slate-200 h-2">
-                <div className={`h-2 transition-all duration-500 ${po.progress === 100 || activeSubTab === 'COMPLETED' ? 'bg-emerald-500' : 'bg-orange-500'}`} style={{ width: activeSubTab === 'COMPLETED' ? '100%' : `${po.progress}%` }}></div>
-              </div>
-
-              {/* Card Body (Item List Compact) */}
-              <div className={`p-5 flex-1 space-y-3 ${activeSubTab === 'COMPLETED' ? 'opacity-80' : ''}`}>
-                {po.enrichedItems.map((item, i) => (
-                  <div key={i} className={`flex justify-between items-center border p-3 rounded-2xl ${activeSubTab === 'COMPLETED' ? 'bg-white border-slate-100' : 'bg-slate-50 border-slate-100 shadow-3xs'}`}>
-                    <div className="flex-1 pr-2">
-                      <div className="font-bold text-slate-800 text-xs uppercase line-clamp-1">{item.name}</div>
-                      <div className="text-[10px] font-bold text-slate-500 mt-1 normal-case">Order: {formatNumber(item.qty)} Pcs</div>
-                    </div>
-                    <div className="flex items-center gap-4 shrink-0">
-                      <div className="text-right">
-                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-0.5">{activeSubTab === 'COMPLETED' ? 'Dikirim' : 'Terkumpul'}</div>
-                        <div className="font-black text-base text-emerald-600">{activeSubTab === 'COMPLETED' ? formatNumber(item.qty) : formatNumber(item.quarantined)}</div>
-                      </div>
-                      
-                      {activeSubTab === 'ACTIVE' && (
-                        <>
-                          <ArrowRight size={16} className="text-slate-300"/>
-                          <div className="text-right w-16">
-                            <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Kekurangan</div>
-                            <div className="font-black text-base text-red-500">{formatNumber(item.qty - item.quarantined)}</div>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Card Footer / Actions */}
-              {activeSubTab === 'COMPLETED' ? (
-                <div className="p-5 bg-white border-t border-slate-100">
-                  <button onClick={() => setDetailPO(po)} className="w-full py-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-[11px] font-black rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider">
-                    <Eye size={16}/> Buka Arsip &amp; Detail PO
-                  </button>
-                </div>
-              ) : (
-                <div className="p-5 bg-slate-50 border-t border-slate-100 flex flex-col gap-3">
-                  <div className="flex gap-3">
-                    <button 
-                      onClick={() => setDetailPO(po)} 
-                      className="flex-1 py-3 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-[11px] font-black rounded-xl shadow-sm transition-colors flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider"
-                    >
-                      <Eye size={16}/> Cek Detail PO
-                    </button>
-                    <button 
-                      onClick={() => handleOpenModal(po)} 
-                      disabled={po.progress === 100}
-                      className="flex-1 py-3 bg-orange-600 hover:bg-orange-700 text-white text-[11px] font-black rounded-xl shadow-md transition-transform active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer uppercase tracking-wider"
-                    >
-                      <ThermometerSnowflake size={16}/> {po.progress === 100 ? 'Terpenuhi 100%' : 'Alokasikan Freezer'}
-                    </button>
-                  </div>
-                  
-                  {po.progress === 100 && (
-                    <button onClick={() => handleSelesaikanPO(po.id)} className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-md transition-transform active:scale-95 cursor-pointer uppercase tracking-wider flex items-center justify-center gap-2 animate-in slide-in-from-bottom-2">
-                      <CheckCircle2 size={18}/> Selesai &amp; Pindahkan ke Arsip
-                    </button>
-                  )}
-                </div>
-              )}
-
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* =========================================================================
-          MODAL DETAIL PO (MINI LEDGER)
-         ========================================================================= */}
-      {detailPO && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-[2px] z-[99999] flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl border border-slate-200 overflow-hidden flex flex-col max-h-[85vh]">
-            
-            <div className={`p-5 text-white flex justify-between items-center shrink-0 ${activeSubTab === 'COMPLETED' ? 'bg-emerald-950' : 'bg-slate-950'}`}>
-              <div>
-                <h3 className={`font-black text-sm uppercase flex items-center gap-2 tracking-wider ${activeSubTab === 'COMPLETED' ? 'text-emerald-400' : 'text-blue-400'}`}>
-                  {activeSubTab === 'COMPLETED' ? <Archive size={18}/> : <Receipt size={18}/>} Rincian Lengkap PO
-                </h3>
-                <p className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-wider">Klien: {detailPO.customer_name} | Nota: {detailPO.id}</p>
-              </div>
-              <button type="button" onClick={() => setDetailPO(null)} className="text-slate-400 hover:text-white font-bold text-xl cursor-pointer">✕</button>
-            </div>
-
-            <div className="p-6 flex-1 overflow-y-auto custom-scrollbar bg-slate-50 space-y-5">
-              
-              {/* Info Pelanggan & Catatan Khusus */}
-              <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm">
-                <div className="flex justify-between items-center border-b border-slate-100 pb-3 mb-3">
-                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Tanggal Tulis Nota</span>
-                  <span className="text-xs font-bold text-slate-800">{formatDate(detailPO.date)}</span>
-                </div>
-                <div className="flex justify-between items-center border-b border-slate-100 pb-3 mb-3">
-                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Target Dikirim</span>
-                  <span className="text-xs font-bold text-red-600 bg-red-50 border border-red-100 px-3 py-1 rounded-lg">{formatDate(detailPO.targetDate)}</span>
-                </div>
-                <div>
-                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1.5">Catatan Kasir / Dapur:</span>
-                  <div className="text-xs font-bold text-slate-700 bg-orange-50 border border-orange-200 p-3 rounded-xl italic leading-relaxed">
-                    "{detailPO.notes || 'Tidak ada catatan.'}"
-                  </div>
-                </div>
-              </div>
-
-              {/* Rincian Belanja */}
-              <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm">
-                <div className="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-3">Detail Pesanan Barang</div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-[11px] border-collapse">
-                    <thead>
-                      <tr className="bg-slate-50 text-slate-500 font-bold border-b text-[10px] uppercase tracking-wider">
-                        <th className="p-3">Item</th>
-                        <th className="p-3 text-center">Qty</th>
-                        <th className="p-3 text-right">Harga</th>
-                        <th className="p-3 text-right">Subtotal</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y text-slate-700 font-bold">
-                      {detailPO.enrichedItems.map((itm, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50/80">
-                          <td className="p-3 uppercase">{itm.name}</td>
-                          <td className="p-3 text-center">{formatNumber(itm.qty)} Pcs</td>
-                          <td className="p-3 text-right">{formatRupiah(itm.price || (itm.subtotal/itm.qty))}</td>
-                          <td className="p-3 text-right text-slate-900 font-black">{formatRupiah(itm.subtotal)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Ringkasan Keuangan */}
-              <div className={`text-white p-5 rounded-2xl space-y-3 font-bold text-xs shadow-md ${activeSubTab === 'COMPLETED' ? 'bg-gradient-to-r from-emerald-900 to-emerald-800' : 'bg-gradient-to-r from-slate-900 to-slate-800'}`}>
-                <div className={`flex items-center gap-2 mb-3 pb-3 border-b border-slate-700 ${activeSubTab === 'COMPLETED' ? 'text-emerald-400' : 'text-blue-400'}`}>
-                  <Wallet size={18}/> <span className="uppercase tracking-widest text-[10px]">Ringkasan Keuangan</span>
-                </div>
-                <div className="flex justify-between text-slate-300">
-                  <span>Total Nilai PO</span>
-                  <span>{formatRupiah(detailPO.total_amount)}</span>
-                </div>
-                <div className="flex justify-between text-slate-300">
-                  <span>DP / Uang Muka Masuk ({detailPO.payment_method})</span>
-                  <span className="text-emerald-400">{formatRupiah(detailPO.amount_paid)}</span>
-                </div>
-                <div className="border-t border-slate-700 my-2"></div>
-                <div className="flex justify-between text-sm font-black">
-                  <span>Sisa Pembayaran</span>
-                  <span className={(detailPO.total_amount - detailPO.amount_paid) <= 0 ? 'text-emerald-400' : 'text-rose-400'}>
-                    {(detailPO.total_amount - detailPO.amount_paid) <= 0 ? 'LUNAS' : formatRupiah(detailPO.total_amount - detailPO.amount_paid)}
-                  </span>
-                </div>
-              </div>
-
-            </div>
-            
-            <div className="p-5 bg-white border-t border-slate-200 text-right shrink-0">
-              <button type="button" onClick={() => setDetailPO(null)} className="w-full sm:w-auto px-8 py-3 bg-slate-900 hover:bg-slate-800 text-white font-black text-[11px] uppercase tracking-wider rounded-xl shadow-md cursor-pointer transition-colors">
-                Tutup Arsip
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* =========================================================================
-          MODAL ALOKASI KARANTINA (DARI STOK BEBAS -> KE FREEZER PO)
-         ========================================================================= */}
-      {selectedPO && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-[2px] z-[99999] flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl border border-slate-200 overflow-hidden flex flex-col h-[85vh]">
-            
-            <div className="p-5 bg-slate-950 text-white flex justify-between items-center shrink-0">
-              <div>
-                <h3 className="font-black text-sm uppercase flex items-center gap-2 text-orange-400 tracking-wider"><ThermometerSnowflake size={18}/> Eksekusi Bekukan Stok</h3>
-                <p className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-wider">Klien: {selectedPO.customer_name} | Nota: {selectedPO.id}</p>
-              </div>
-              <button type="button" onClick={() => setSelectedPO(null)} className="text-slate-400 hover:text-white font-bold text-xl cursor-pointer">✕</button>
-            </div>
-
-            <div className="p-6 flex-1 overflow-y-auto custom-scrollbar bg-slate-50 space-y-5">
-              <div className="bg-orange-50 border border-orange-200 p-4 rounded-2xl flex gap-3 mb-2 shadow-sm">
-                <AlertCircle className="text-orange-600 shrink-0 mt-0.5" size={20}/>
-                <div className="text-[10px] font-bold text-orange-800 normal-case leading-relaxed">
-                  Masukkan jumlah fisik barang yang sudah dipisahkan ke dalam Freezer khusus pesanan ini. Sistem akan otomatis memotongnya dari <b>Stok Bebas (Gudang Utama)</b>.
-                </div>
-              </div>
-
-              {selectedPO.enrichedItems.map((item, idx) => {
-                const sisaButuh = item.qty - item.quarantined;
-                const stokBebasLive = stockData.free[item.name] || 0;
-                
-                if (sisaButuh <= 0) return null; // Sembunyikan yang sudah penuh
-
-                return (
-                  <div key={idx} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm relative overflow-hidden">
-                    <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-500"></div>
-                    <div className="pl-3">
-                      <div className="font-black text-slate-800 text-sm uppercase tracking-wide mb-4">{item.name}</div>
-                      
-                      <div className="grid grid-cols-3 gap-3 mb-5 text-center">
-                        <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 shadow-inner">
-                          <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">Sisa Dibutuhkan</div>
-                          <div className="text-lg font-black text-red-600">{formatNumber(sisaButuh)}</div>
-                        </div>
-                        <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 shadow-inner">
-                          <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider mb-1">Stok Karantina</div>
-                          <div className="text-lg font-black text-emerald-600">{formatNumber(item.quarantined)}</div>
-                        </div>
-                        <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 shadow-inner">
-                          <div className="text-[9px] font-black text-blue-500 uppercase tracking-wider mb-1">Stok Bebas (Live)</div>
-                          <div className="text-lg font-black text-blue-700">{formatNumber(stokBebasLive)}</div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        <label className="text-[10px] font-black text-slate-600 uppercase tracking-wider shrink-0">Alokasikan Pcs:</label>
-                        <input 
-                          type="text" 
-                          value={allocations[item.name] || ''} 
-                          onChange={(e) => handleAllocationChange(item.name, e.target.value)} 
-                          className="flex-1 p-3 bg-slate-50 border border-slate-300 rounded-xl text-base font-black outline-none focus:bg-white focus:border-orange-500 text-slate-800 transition-colors shadow-inner"
-                          placeholder="0"
-                        />
-                        <button 
-                          onClick={() => handleAllocationChange(item.name, String(Math.min(sisaButuh, stokBebasLive)))}
-                          className="px-4 py-3 bg-slate-800 hover:bg-black text-white text-[11px] font-black rounded-xl transition-colors cursor-pointer uppercase tracking-wider shadow-md"
-                        >
-                          Max
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-            
-            <div className="p-5 bg-white border-t border-slate-200 flex gap-4 shrink-0">
-              <button type="button" onClick={() => setSelectedPO(null)} className="px-6 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition-colors cursor-pointer uppercase tracking-wider">Batal</button>
-              <button type="button" onClick={submitKarantina} className="flex-1 py-3.5 bg-orange-600 hover:bg-orange-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer flex items-center justify-center gap-2 uppercase tracking-wider transition-transform active:scale-95">
-                <Save size={18}/> Kunci &amp; Simpan Ke Karantina
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 }
