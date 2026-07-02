@@ -232,9 +232,19 @@ const mapPayableToSupplierLedger = (payable = {}, payments = []) => ({
 
 
 const isActiveRow = (row = {}) => {
-  const status = upper(row.status || row.is_active || 'Active');
-  const deleted = row.isDeleted === true || upper(row.is_deleted || row.deleted || row.isDeleted) === 'TRUE';
-  return !deleted && status !== 'VOID' && status !== 'CANCELLED' && status !== 'INACTIVE';
+  const status = upper(
+    row.status ||
+    row.order_status ||
+    row.payment_status ||
+    row.void_status ||
+    row.cancel_status ||
+    row.is_active ||
+    'Active'
+  );
+  const deleted = row.isDeleted === true ||
+    upper(row.is_deleted || row.deleted || row.isDeleted) === 'TRUE' ||
+    Boolean(row.deleted_at || row.voided_at || row.cancelled_at || row.cancelled_by || row.voided_by);
+  return !deleted && !['VOID', 'VOIDED', 'CANCELLED', 'CANCELED', 'DIBATALKAN', 'BATAL', 'LUNAS_BATAL', 'INACTIVE'].includes(status);
 };
 
 const mapStockMovementToInventoryLayer = (movement = {}) => {
