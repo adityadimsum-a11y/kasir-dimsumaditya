@@ -106,7 +106,8 @@ export async function legacyWriteAction({ action, tableName, payload, user, sess
         legacy_order: order,
         items: parseMaybeJson(order?.items, []),
         payment_breakdown: parseMaybeJson(order?.payment_breakdown_json, []),
-        request_id: requestId,
+        request_id: order?.request_id || order?.operation_id || requestId,
+        operation_id: order?.operation_id || order?.request_id || requestId,
         source: 'LEGACY_POS_TAB_ORDERS',
         user_context: {
           user_id: user?.user_id || user?.id || '',
