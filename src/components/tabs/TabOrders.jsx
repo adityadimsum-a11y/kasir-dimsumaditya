@@ -561,26 +561,12 @@ Sahkan & Kirim ke Cloud?`;
         showToast(`Invoice ${orderId} Berhasil Diperbarui! (Keuangan tidak diubah otomatis)`, 'warning'); 
         setEditingOrderId(null);
       } else {
-        
-        // 🔥 TRIGGER AUTO-POTONG STOK BARANG JADI (FREEZER) UNTUK SETIAP ITEM DI KERANJANG
-        const inventoryPayloads = cart.map((item, idx) => ({
-           id: `${orderId}-OUT-${idx}`, date: todayStr, branch_id: currentBranch, location_id: currentBranch, category: 'PRODUK_JADI',
-           product_id: item.id, item_name: item.name.toUpperCase(), qty_received: 0, qty_remaining: -item.qty, qty_effect: -item.qty, unit: 'pcs', unit_cost: item.hpp || 1125,
-           status: 'SOLD', direction: 'OUT', source_module: 'ORDER_POS', reference_id: orderId, source_id: orderId, isDeleted: false
-        }));
-
-        await sendToSheet('insert', inventoryPayloads, 'inventory_cost_layers');
-
-        // PENCATATAN UANG MASUK (CASHFLOW)
-        if (orderMode === 'INFLUENCER') {
-          await sendToSheet('insert', { id: generateId('EXP', todayStr), date: todayStr, branch_id: currentBranch, category: 'BIAYA_PROMOSI', description: `Beban gratis menu ${totalItemQty} Pcs Nota ${orderId}.`, amount: cartHPP, payment_method: 'SISTEM', employee_name: 'SISTEM', isDeleted: false }, 'expenses');
-        } else if (paymentSummary.totalDibayar > 0) {
-          for (let pay of paymentSummary.breakdown) {
-            if (pay.amount <= 0) continue;
-            await sendToSheet('insert', { id: generateId('CFI', todayStr), date: todayStr, branch_id: currentBranch, type: 'IN', category: 'PENJUALAN POS', amount: pay.amount, method: pay.method, reference_id: orderId, description: `Pelunasan POS ${orderId} - Klien: ${custName} (${pay.method})`, isDeleted: false }, 'cashflow_transactions');
-          }
-        }
-        showToast(`Invoice ${orderId} Berhasil Diproses & Stok Berkurang!`, 'success');
+        // Bridge 5D Hotfix:
+        // Jangan kirim lagi inventory_cost_layers / cashflow_transactions dari UI lama.
+        // Backend legacyCreateOrderFromOldPos sudah membuat order, item, payment,
+        // dompet, piutang, dan potong stok dalam satu mesin. Kalau UI mengirim
+        // side-effect lagi, sync jadi berulang dan rawan dobel/nyangkut.
+        showToast(`Invoice ${orderId} Berhasil Diproses mesin baru! Stok & pembayaran sudah dicatat otomatis.`, 'success');
       }
 
       setPrintData({
