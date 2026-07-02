@@ -83,6 +83,7 @@ export default function TabOrders({
   const [singleMethod, setSingleMethod] = useState('CASH'); 
   const [dpMethod, setDpMethod] = useState('CASH');
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+  const [localVoidedOrderIds, setLocalVoidedOrderIds] = useState(new Set());
 
   const [editingOrderId, setEditingOrderId] = useState(null);
   const [showStaplesModal, setShowAddStaplesModal] = useState(false);
@@ -641,22 +642,39 @@ Sahkan & Kirim ke Cloud?`;
     );
 
     if (isSuccess) {
+      // Hotfix 5D-4:
+      // Backend sudah berhasil void, tapi data bootstrap bisa masih membawa snapshot lama
+      // sampai sinkronisasi selesai. Sembunyikan langsung dari histori aktif di UI.
+      setLocalVoidedOrderIds((prev) => {
+        const next = new Set(prev);
+        next.add(String(orderId));
+        return next;
+      });
       showToast(`Nota ${orderId} berhasil dibatalkan. Stok dan catatan uang dikoreksi oleh mesin baru.`, 'success');
     }
   };
 
   const historyOrdersData = useMemo(() => {
     return (orders || []).filter(o => {
-      const statusText = String(o.status || o.order_status || o.payment_status || '').toUpperCase();
-      const isVoided = Boolean(o.isDeleted || o.is_deleted || o.deleted_at) ||
-        ['VOID', 'VOIDED', 'CANCELLED', 'CANCELED', 'DIBATALKAN', 'BATAL'].includes(statusText);
+      const orderIdText = String(o.id || o.order_id || o.order_no || '');
+      const statusText = String(
+        o.status ||
+        o.order_status ||
+        o.payment_status ||
+        o.void_status ||
+        o.cancel_status ||
+        ''
+      ).toUpperCase();
+      const isVoided = localVoidedOrderIds.has(orderIdText) ||
+        Boolean(o.isDeleted || o.is_deleted || o.deleted_at || o.voided_at || o.cancelled_at || o.cancelled_by || o.voided_by) ||
+        ['VOID', 'VOIDED', 'CANCELLED', 'CANCELED', 'DIBATALKAN', 'BATAL', 'LUNAS_BATAL'].includes(statusText);
 
       if (isVoided || o.branch_id !== currentBranch) return false;
 
       const oDate = getLocalYMD(o.date);
       return oDate >= historyDateFrom && oDate <= historyDateTo;
     }).sort((a, b) => new Date(b.date) - new Date(a.date));
-  }, [orders, currentBranch, historyDateFrom, historyDateTo]);
+  }, [orders, currentBranch, historyDateFrom, historyDateTo, localVoidedOrderIds]);
 
   const filteredHistoryOrders = useMemo(() => {
     if (!searchHistoryTerm) return historyOrdersData;
