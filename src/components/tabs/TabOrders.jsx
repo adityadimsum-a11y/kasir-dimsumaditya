@@ -43,6 +43,31 @@ const isActiveAllocation = (row = {}) => {
 const allocationBucket = (row = {}) => normalizeCode(row.bucket_type || row.bucket || row.allocation_type || row.po_type || row.order_type || 'PO_QUARANTINE');
 const allocationQty = (row = {}) => Math.max(0, numberValue(row.qty_allocated || row.allocated_qty || row.reserved_qty || row.qty_reserved || row.required_qty_pcs || row.qty_pcs || row.qty));
 
+
+const VOID_STATUS_CODES = new Set(['VOID', 'VOIDED', 'CANCELLED', 'CANCELED', 'DIBATALKAN', 'BATAL', 'LUNAS_BATAL']);
+
+const getOrderPrimaryId = (order = {}) => String(
+  order.order_id ||
+  order.order_no ||
+  order.id ||
+  order.legacy_id ||
+  ''
+).trim();
+
+const isOrderVoided = (order = {}) => {
+  const statusText = normalizeCode(
+    order.status ||
+    order.order_status ||
+    order.payment_status ||
+    order.void_status ||
+    order.cancel_status ||
+    ''
+  );
+
+  return Boolean(order.isDeleted || order.is_deleted || order.deleted || order.deleted_at || order.voided_at || order.cancelled_at || order.voided_by || order.cancelled_by) ||
+    VOID_STATUS_CODES.has(statusText);
+};
+
 export default function TabOrders({ 
   masterProducts = [], master_products,
   masterCustomers = [], master_customers,
@@ -83,6 +108,8 @@ export default function TabOrders({
   const [singleMethod, setSingleMethod] = useState('CASH'); 
   const [dpMethod, setDpMethod] = useState('CASH');
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+  const [localVoidedOrderIds, setLocalVoidedOrderIds] = useState(() => new Set());
+  const [historyStatusFilter, setHistoryStatusFilter] = useState('ACTIVE'); // ACTIVE | VOID | ALL
 
   const [editingOrderId, setEditingOrderId] = useState(null);
   const [showStaplesModal, setShowAddStaplesModal] = useState(false);
@@ -641,22 +668,28 @@ Sahkan & Kirim ke Cloud?`;
     );
 
     if (isSuccess) {
+      setLocalVoidedOrderIds((prev) => {
+        const next = new Set(prev);
+        next.add(String(orderId));
+        return next;
+      });
       showToast(`Nota ${orderId} berhasil dibatalkan. Stok dan catatan uang dikoreksi oleh mesin baru.`, 'success');
     }
   };
 
   const historyOrdersData = useMemo(() => {
     return (orders || []).filter(o => {
-      const statusText = String(o.status || o.order_status || o.payment_status || '').toUpperCase();
-      const isVoided = Boolean(o.isDeleted || o.is_deleted || o.deleted_at) ||
-        ['VOID', 'VOIDED', 'CANCELLED', 'CANCELED', 'DIBATALKAN', 'BATAL'].includes(statusText);
+      const orderId = getOrderPrimaryId(o);
+      const isVoided = isOrderVoided(o) || (orderId && localVoidedOrderIds.has(orderId));
 
-      if (isVoided || o.branch_id !== currentBranch) return false;
+      if (o.branch_id !== currentBranch && o.location_id !== currentBranch) return false;
+      if (historyStatusFilter === 'ACTIVE' && isVoided) return false;
+      if (historyStatusFilter === 'VOID' && !isVoided) return false;
 
       const oDate = getLocalYMD(o.date);
       return oDate >= historyDateFrom && oDate <= historyDateTo;
     }).sort((a, b) => new Date(b.date) - new Date(a.date));
-  }, [orders, currentBranch, historyDateFrom, historyDateTo]);
+  }, [orders, currentBranch, historyDateFrom, historyDateTo, historyStatusFilter, localVoidedOrderIds]);
 
   const filteredHistoryOrders = useMemo(() => {
     if (!searchHistoryTerm) return historyOrdersData;
@@ -1037,6 +1070,22 @@ Sahkan & Kirim ke Cloud?`;
           </div>
           
           <div className="flex flex-wrap items-center gap-3 bg-white border border-slate-200 p-2 rounded-2xl shadow-sm w-full sm:w-auto">
+            <div className="flex items-center gap-1 rounded-xl bg-slate-50 p-1 border border-slate-100">
+              {[
+                { id: 'ACTIVE', label: 'Aktif' },
+                { id: 'VOID', label: 'Dibatalkan' },
+                { id: 'ALL', label: 'Semua' },
+              ].map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setHistoryStatusFilter(item.id)}
+                  className={`rounded-lg px-2.5 py-1.5 text-[9px] font-black uppercase tracking-wider transition-all ${historyStatusFilter === item.id ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-white'}`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
             <div className="flex items-center gap-2 px-2">
               <Calendar size={14} className="text-blue-500"/>
               <input type="date" value={historyDateFrom} onChange={e=>setHistoryDateFrom(e.target.value)} className="text-[11px] font-bold border-none outline-none cursor-pointer bg-transparent text-slate-700" />
@@ -1068,6 +1117,7 @@ Sahkan & Kirim ke Cloud?`;
                 <tr><td colSpan="7" className="text-center py-20 text-slate-400 font-medium text-sm normal-case">Tidak ada data invoice di periode ini.</td></tr>
               ) : (
                 filteredHistoryOrders.map(o => {
+                  const rowVoided = isOrderVoided(o) || localVoidedOrderIds.has(getOrderPrimaryId(o));
                   let listItems = [];
                   try { listItems = safeJsonParse(o.items, []); } catch(e) {}
                   
@@ -1090,7 +1140,7 @@ Sahkan & Kirim ke Cloud?`;
                   const statusLunasDynamic = sisaHutangDynamic <= 0 ? 'LUNAS' : 'BELUM_LUNAS';
                   
                   return (
-                    <tr key={o.id} className="hover:bg-slate-50/80 transition-colors group">
+                    <tr key={o.id} className={`hover:bg-slate-50/80 transition-colors group ${rowVoided ? 'bg-rose-50/40 opacity-75' : ''}`}>
                       <td className="px-5 py-4 whitespace-nowrap">
                         <div onClick={() => { setSelectedStaplesOrder({ ...o, orderHPP, listItems, sisaHutangDynamic, totalTerbayarDynamic }); setShowAddStaplesModal(true); }} className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer font-black font-mono text-[11px] mb-1">{o.id}</div>
                         <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{formatDate(o.date)}</div>
@@ -1112,13 +1162,13 @@ Sahkan & Kirim ke Cloud?`;
                       </td>
 
                       <td className="px-5 py-4 text-center whitespace-nowrap">
-                        <span className={`px-2.5 py-1.5 rounded-md text-[9px] font-black uppercase tracking-wider ${statusLunasDynamic === 'LUNAS' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200 shadow-sm' : 'bg-rose-100 text-rose-700 border border-rose-200 shadow-sm'}`}>{statusLunasDynamic}</span>
+                        <span className={`px-2.5 py-1.5 rounded-md text-[9px] font-black uppercase tracking-wider ${rowVoided ? 'bg-slate-200 text-slate-600 border border-slate-300 shadow-sm' : statusLunasDynamic === 'LUNAS' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200 shadow-sm' : 'bg-rose-100 text-rose-700 border border-rose-200 shadow-sm'}`}>{rowVoided ? 'DIBATALKAN' : statusLunasDynamic}</span>
                         {sisaHutangDynamic > 0 && <div className="text-[10px] font-black text-rose-600 mt-2 uppercase tracking-wider">Sisa Bon: {formatRupiah(sisaHutangDynamic)}</div>}
                       </td>
                       
                       <td className="px-5 py-4 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-2">
-                          <button type="button" onClick={() => handleTriggerEditOrder(o)} className="p-2 text-slate-500 hover:text-orange-600 border border-slate-200 rounded-xl bg-white shadow-sm hover:bg-orange-50 cursor-pointer transition-colors" title="Revisi/Edit Nota Total"><Edit size={16}/></button>
+                          <button type="button" onClick={() => !rowVoided && handleTriggerEditOrder(o)} disabled={rowVoided} className={`p-2 ${rowVoided ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:text-orange-600'} border border-slate-200 rounded-xl bg-white shadow-sm hover:bg-orange-50 cursor-pointer transition-colors`} title="Revisi/Edit Nota Total"><Edit size={16}/></button>
                           
                           <button type="button" onClick={() => {
                             setPrintData({
@@ -1146,7 +1196,7 @@ Sahkan & Kirim ke Cloud?`;
                             });
                           }} className="p-2 text-slate-400 hover:text-purple-600 border border-slate-200 rounded-xl shadow-sm bg-white cursor-pointer hover:bg-purple-50 transition-colors" title="Cetak Work Order (WO) Dapur"><ChefHat size={16}/></button>
 
-                          <button type="button" onClick={() => handleTriggerVoidOrder(o.id)} className="p-2 text-slate-400 hover:text-rose-600 border border-slate-200 rounded-xl shadow-sm bg-white cursor-pointer hover:bg-rose-50 transition-colors" title="Batalkan Nota"><Trash2 size={14}/></button>
+                          <button type="button" onClick={() => !rowVoided && handleTriggerVoidOrder(getOrderPrimaryId(o))} disabled={rowVoided} className={`p-2 ${rowVoided ? 'text-slate-300 cursor-not-allowed' : 'text-slate-400 hover:text-rose-600'} border border-slate-200 rounded-xl shadow-sm bg-white cursor-pointer hover:bg-rose-50 transition-colors`} title={rowVoided ? 'Nota sudah dibatalkan' : 'Batalkan Nota'}><Trash2 size={14}/></button>
                         </div>
                       </td>
                     </tr>
