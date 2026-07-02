@@ -152,7 +152,7 @@ const mapOrder = (order = {}, context = {}) => {
     status: order.status || order.order_status || 'Active',
     invoice_id: invoiceId,
     invoice_no: invoice.invoice_no || invoiceId,
-    isDeleted: false,
+    isDeleted: !isActiveRow(order),
   };
 };
 
