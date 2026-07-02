@@ -227,6 +227,10 @@ export default function TabPemalang({
   chickenLots = [],
   chicken_lots,
   purchases = [],
+  stockAllocations = [],
+  stock_allocations = [],
+  poStockPlans = [],
+  po_stock_plans = [],
   sendToSheet,
   showToast,
   user,
@@ -453,6 +457,41 @@ export default function TabPemalang({
     return { masuk, keluarOrder, reserved, ready };
   }, [selectedProduct, inventoryCostLayers, inventory_cost_layers, stockMovements, stock_movements]);
 
+
+  const poDemandSummary = useMemo(() => {
+    const targetName = normalizeCode(getProductName(selectedProduct));
+    const targetId = normalizeCode(getProductId(selectedProduct));
+    let karantinaNeed = 0;
+    let harianNeed = 0;
+    let borrowed = 0;
+
+    const rows = [
+      ...(stock_allocations || []),
+      ...(stockAllocations || []),
+      ...(po_stock_plans || []),
+      ...(poStockPlans || []),
+    ];
+
+    rows.forEach((row = {}) => {
+      if (!isActiveRow(row)) return;
+      const status = normalizeCode(row.status || row.allocation_status || 'ACTIVE');
+      if (['VOID', 'CANCELLED', 'CANCELED', 'DONE', 'CLOSED'].includes(status)) return;
+      const rowName = normalizeCode(row.item_name || row.product_name || row.name);
+      const rowProductId = normalizeCode(row.product_id || row.item_id || row.product_code);
+      if (targetName && rowName && rowName !== targetName && rowProductId !== targetId) return;
+      const qty = toNumber(row.qty_required || row.required_qty_pcs || row.qty_allocated || row.allocated_qty || row.reserved_qty || row.qty_pcs || row.qty);
+      const bucket = normalizeCode(row.bucket_type || row.bucket || row.allocation_type || row.po_type || row.order_type || 'PO_QUARANTINE');
+      if (bucket.includes('DAILY') || bucket.includes('HARIAN')) harianNeed += qty;
+      else if (bucket.includes('BORROW') || bucket.includes('PINJAM')) borrowed += qty;
+      else karantinaNeed += qty;
+    });
+
+    const totalDemand = karantinaNeed + harianNeed + borrowed;
+    const shortage = Math.max(0, totalDemand - stockJadiSummary.ready);
+    const targetAdukan = Math.ceil(shortage / DEFAULT_YIELD_PCS_PER_ADUKAN);
+    return { karantinaNeed, harianNeed, borrowed, totalDemand, shortage, targetAdukan };
+  }, [selectedProduct, stockAllocations, stock_allocations, poStockPlans, po_stock_plans, stockJadiSummary.ready]);
+
   const handleAdukanChange = (val) => {
     const adk = toNumber(String(val).replace(/\D/g, ''));
     setAdukan(String(adk));
@@ -631,17 +670,20 @@ export default function TabPemalang({
               <span>Perkiraan Modal: <b className="text-emerald-400 text-[11px]">{formatMoney(summaryFiltered.totalCost)}</b></span>
             </div>
             <div className="text-[10px] font-bold text-slate-300 mt-2 grid grid-cols-2 gap-2">
-              <span>Stok jadi ready: <b className="text-emerald-400">{formatNumber(stockJadiSummary.ready)} pcs</b></span>
-              <span>Keluar order: <b className="text-amber-400">{formatNumber(stockJadiSummary.keluarOrder)} pcs</b></span>
               <span>Masuk freezer: <b className="text-emerald-400">{formatNumber(stockJadiSummary.masuk)} pcs</b></span>
-              <span>Reserved: <b className="text-amber-400">{formatNumber(stockJadiSummary.reserved)} pcs</b></span>
-            </div>
-            <div className="text-[10px] font-bold text-slate-300 mt-2 grid grid-cols-2 gap-2">
-              <span>Stok jadi ready: <b className="text-emerald-400">{formatNumber(stockJadiSummary.ready)} pcs</b></span>
               <span>Keluar order: <b className="text-amber-400">{formatNumber(stockJadiSummary.keluarOrder)} pcs</b></span>
-              <span>Masuk freezer: <b className="text-emerald-400">{formatNumber(stockJadiSummary.masuk)} pcs</b></span>
-              <span>Reserved: <b className="text-amber-400">{formatNumber(stockJadiSummary.reserved)} pcs</b></span>
+              <span>Stok bebas siap jual: <b className="text-emerald-400">{formatNumber(Math.max(0, stockJadiSummary.ready - poDemandSummary.totalDemand))} pcs</b></span>
+              <span>Kebutuhan PO: <b className="text-amber-400">{formatNumber(poDemandSummary.totalDemand)} pcs</b></span>
+              <span>PO Karantina: <b className="text-blue-300">{formatNumber(poDemandSummary.karantinaNeed)} pcs</b></span>
+              <span>PO Harian: <b className="text-blue-300">{formatNumber(poDemandSummary.harianNeed)} pcs</b></span>
+              <span>Pinjam stok: <b className="text-orange-300">{formatNumber(poDemandSummary.borrowed)} pcs</b></span>
+              <span>Kurang produksi: <b className="text-red-300">{formatNumber(poDemandSummary.shortage)} pcs</b></span>
             </div>
+            {poDemandSummary.shortage > 0 && (
+              <div className="mt-3 rounded-xl border border-amber-600/30 bg-amber-950/30 px-3 py-2 text-[10px] font-black text-amber-200">
+                Target kejar hari ini: ± {formatNumber(poDemandSummary.targetAdukan)} adukan agar PO tidak mepet H-day.
+              </div>
+            )}
           </div>
         </div>
       </div>
