@@ -184,6 +184,20 @@ const ContentSkeleton = () => (
   </div>
 );
 
+const withTimeout = (promise, ms = 12000, label = 'request') => {
+  let timeoutId;
+
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = window.setTimeout(() => {
+      reject(new Error(`${label} terlalu lama. Sinkronisasi dihentikan sementara, coba refresh ulang.`));
+    }, ms);
+  });
+
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    window.clearTimeout(timeoutId);
+  });
+};
+
 export default function App() {
   const [user, setUser] = useState(() => {
     const savedUser = localStorage.getItem('dimsum_user');
@@ -230,10 +244,14 @@ export default function App() {
     setIsSyncing(true);
 
     try {
-      const result = await getLegacyBootstrap(sessionToken, {
-        branch_id: currentBranchId || user?.branch_id || 'ALL',
-        dashboard_scope: 'HOME_OWNER',
-      });
+      const result = await withTimeout(
+        getLegacyBootstrap(sessionToken, {
+          branch_id: currentBranchId || user?.branch_id || 'ALL',
+          dashboard_scope: 'HOME_OWNER',
+        }),
+        12000,
+        'Sinkronisasi data'
+      );
 
       if (result.success) {
         const adaptedData = adaptLegacyBootstrap(result.data, {
@@ -294,7 +312,15 @@ export default function App() {
       }
 
       showToast(result.message || 'Data berhasil diproses mesin baru.', 'success');
-      await fetchAllDatabase(user?.branch_id || 'ALL', sessionToken);
+
+      // Jangan tahan tombol/form hanya karena sinkronisasi background lambat.
+      // Ini mencegah badge "Menyinkronkan..." terasa muter tanpa henti setelah checkout.
+      window.setTimeout(() => {
+        fetchAllDatabase(user?.branch_id || 'ALL', sessionToken).catch((syncErr) => {
+          console.error('Background resync after write failed:', syncErr);
+        });
+      }, 0);
+
       return true;
     } catch (err) {
       showToast(err.message || 'Koneksi mesin baru terputus.', 'error');
