@@ -82,6 +82,7 @@ export default function TabOrders({
   const [isSplitPayment, setIsSplitPayment] = useState(false);
   const [singleMethod, setSingleMethod] = useState('CASH'); 
   const [dpMethod, setDpMethod] = useState('CASH');
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
 
   const [editingOrderId, setEditingOrderId] = useState(null);
   const [showStaplesModal, setShowAddStaplesModal] = useState(false);
@@ -252,7 +253,7 @@ export default function TabOrders({
       if (existing) {
         return prev.map(item => item.id === product.id ? { ...item, qty: newTotalQty, price: dynamicPrice } : item);
       }
-      return [...prev, { id: product.id, name: product.product_name, price: dynamicPrice, hpp: Number(product.default_hpp || 0), qty: newTotalQty }];
+      return [...prev, { id: product.product_id || product.id, product_id: product.product_id || product.id, name: product.product_name, product_name: product.product_name, price: dynamicPrice, hpp: Number(product.default_hpp || product.hpp || 0), qty: newTotalQty }];
     });
   };
 
@@ -368,6 +369,60 @@ export default function TabOrders({
     else handleMoneyInput(String(cartTotal), setSingleAmountPaid, setDisplaySingleAmountPaid);
   };
 
+  const ORDER_MODE_OPTIONS = [
+    { id: 'REGULAR', label: 'Jual Langsung', desc: 'Ambil dari Stok Bebas / Siap Jual.' },
+    { id: 'PO_HARIAN', label: 'PO Harian', desc: 'Pesanan malam/hari ini untuk pickup besok.' },
+    { id: 'PO_KARANTINA', label: 'PO Karantina', desc: 'PO besar/jauh hari, perlu ditahan stok.' },
+    { id: 'INFLUENCER', label: 'Promosi', desc: 'Gratis/event/influencer, tidak jadi omzet cash.' },
+  ];
+
+  const getOrderModeLabel = (mode) => {
+    const found = ORDER_MODE_OPTIONS.find((item) => item.id === mode);
+    return found ? found.label : 'Jual Langsung';
+  };
+
+  const validateCheckout = () => {
+    const errors = [];
+
+    if (isSubmittingOrder) errors.push('Transaksi masih diproses. Jangan klik dua kali.');
+    if (!cart.length) errors.push('Keranjang belanja masih kosong.');
+    if (!selectedCustomerId) errors.push('Wajib pilih pelanggan / agen dulu.');
+
+    const normalizedCart = cart.filter((item) => Number(item.qty || 0) > 0);
+    if (normalizedCart.length !== cart.length || normalizedCart.length === 0) {
+      errors.push('Ada item dengan qty 0. Hapus atau isi qty yang benar.');
+    }
+
+    normalizedCart.forEach((item) => {
+      const product = activeProducts.find((p) => p.id === item.id || p.product_id === item.id || p.product_name === item.name);
+      const freeStock = product ? getFreeStock(product) : 0;
+      if (!product) {
+        errors.push(`Produk ${item.name || item.id} tidak ditemukan di Master Produk.`);
+        return;
+      }
+      if (Number(item.qty || 0) > freeStock) {
+        errors.push(`Stok bebas ${item.name} tidak cukup. Tersedia ${formatNumber(freeStock)} pcs, diminta ${formatNumber(item.qty)} pcs.`);
+      }
+      if (Number(item.price || 0) <= 0 && orderMode !== 'INFLUENCER') {
+        errors.push(`Harga ${item.name} masih Rp0. Cek Master Produk / price list sebelum transaksi.`);
+      }
+    });
+
+    if (orderMode !== 'INFLUENCER' && Number(cartTotal || 0) <= 0) {
+      errors.push('Total tagihan Rp0. Transaksi normal tidak boleh disahkan. Gunakan mode Promosi jika memang gratis.');
+    }
+
+    if (['PO_HARIAN', 'PO_KARANTINA'].includes(orderMode) && !targetDate) {
+      errors.push('Tanggal pickup / target wajib diisi untuk PO Harian atau PO Karantina.');
+    }
+
+    if (singleMethod === 'DP_PIUTANG' && Number(singleAmountPaid || 0) <= 0) {
+      errors.push('Nominal DP wajib diisi jika memilih Bayar DP.');
+    }
+
+    return errors;
+  };
+
   const handleCreateCustomerFast = async (e) => {
     e.preventDefault();
     if (!newCustomerForm.name) return alert("Nama wajib diisi!");
@@ -421,21 +476,40 @@ export default function TabOrders({
   };
 
   const handleCheckout = async () => {
-    if (cart.length === 0) return alert("Keranjang belanja masih kosong!");
-    if (!selectedCustomerId) return alert("Wajib pilih nama pelanggan / agen!");
+    const validationErrors = validateCheckout();
+    if (validationErrors.length > 0) {
+      alert(validationErrors.join('\n'));
+      return;
+    }
 
     const customer = activeCustomers.find(c => c.customer_id === selectedCustomerId || c.id === selectedCustomerId);
     const custName = customer ? customer.customer_name : 'UMUM';
     const custCategory = customer ? (customer.customer_tier || customer.category) : 'OFFLINE';
 
     const orderId = editingOrderId ? editingOrderId : generateId('INV', todayStr);
+    const operationId = editingOrderId
+      ? `EDIT-${orderId}`
+      : `POS-${todayStr}-${currentBranch}-${selectedCustomerId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const totalItemQty = cart.reduce((sum, item) => sum + item.qty, 0);
 
     let finalNotes = notes || '-';
-    if (singleMethod === 'COD_PO' && targetDate) finalNotes = `(TARGET PO: ${formatDate(targetDate)}) ${finalNotes}`;
+    if ((singleMethod === 'COD_PO' || ['PO_HARIAN', 'PO_KARANTINA'].includes(orderMode)) && targetDate) {
+      finalNotes = `(TARGET PO: ${formatDate(targetDate)}) ${finalNotes}`;
+    }
 
-    const confirmMsg = `${editingOrderId ? '⚡ REVISI NOTA PENJUALAN' : 'Konfirmasi Transaksi Grosir Aditya'}:\n\nNo Invoice: ${orderId}\nPelanggan: ${custName}\nTotal Belanja Aktual: ${formatRupiah(cartTotal)}\nTotal Uang Masuk: ${formatRupiah(paymentSummary.totalDibayar)}\nSisa Bon Gantung: ${formatRupiah(paymentSummary.sisaBon)}\n\nSahkan & Kirim ke Cloud?`;
+    const confirmMsg = `${editingOrderId ? '⚡ REVISI NOTA PENJUALAN' : 'Konfirmasi Transaksi Grosir Aditya'}:
+
+Mode: ${getOrderModeLabel(orderMode)}
+No Invoice: ${orderId}
+Pelanggan: ${custName}
+Total Item: ${formatNumber(totalItemQty)} pcs
+Total Belanja Aktual: ${formatRupiah(cartTotal)}
+Total Uang Masuk: ${formatRupiah(paymentSummary.totalDibayar)}
+Sisa Bon Gantung: ${formatRupiah(paymentSummary.sisaBon)}
+
+Sahkan & Kirim ke Cloud?`;
     if (!window.confirm(confirmMsg)) return;
+    setIsSubmittingOrder(true);
 
     // 🔥 JANTUNG KASIR: TRIPLE-ENTRY PADA CHECKOUT
     const orderPayload = {
@@ -451,8 +525,11 @@ export default function TabOrders({
       customer_tier: custCategory,
       sales_channel: custCategory,
       order_mode: orderMode,
-      items: JSON.stringify(cart),
-      items_json: JSON.stringify(cart),
+      order_type: orderMode,
+      operation_id: operationId,
+      request_id: operationId,
+      items: JSON.stringify(cart.map((item) => ({ ...item, product_id: item.id, product_name: item.name, quantity: item.qty, unit_price: item.price, line_total: item.price * item.qty }))),
+      items_json: JSON.stringify(cart.map((item) => ({ ...item, product_id: item.id, product_name: item.name, quantity: item.qty, unit_price: item.price, line_total: item.price * item.qty }))),
       payment_breakdown_json: JSON.stringify(paymentSummary.breakdown || []),
       qty: totalItemQty,
       total_qty: totalItemQty,
@@ -470,7 +547,14 @@ export default function TabOrders({
     };
 
     const actionType = editingOrderId ? 'update' : 'insert';
-    const isSuccess = await sendToSheet(actionType, orderPayload, 'orders');
+    let isSuccess = false;
+    try {
+      isSuccess = await sendToSheet(actionType, orderPayload, 'orders');
+    } catch (error) {
+      showToast(error?.message || 'Gagal menyimpan order ke backend.', 'error');
+      setIsSubmittingOrder(false);
+      return;
+    }
     
     if (isSuccess) {
       if (editingOrderId) {
@@ -513,7 +597,10 @@ export default function TabOrders({
       setPayBRI(''); setDisplayPayBRI('');
       setSingleAmountPaid(''); setDisplaySingleAmountPaid('');
       setIsSplitPayment(false); setOrderMode('REGULAR'); setCustomerSearchTerm(''); setSingleMethod('CASH'); setDpMethod('CASH');
+    } else {
+      showToast('Order belum tersimpan. Cek validasi backend dan coba ulang.', 'error');
     }
+    setIsSubmittingOrder(false);
   };
 
   const handleTriggerEditOrder = (o) => {
@@ -670,18 +757,29 @@ export default function TabOrders({
                 </div>
               </div>
 
-              <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl flex items-center justify-between cursor-pointer shadow-inner" onClick={() => setOrderMode(prev => prev === 'REGULAR' ? 'INFLUENCER' : 'REGULAR')}>
-                <div className="flex items-center gap-2">
-                  <div className={`p-1.5 rounded-lg ${orderMode === 'INFLUENCER' ? 'bg-red-100 text-red-600' : 'bg-white text-slate-400 border shadow-sm'}`}><Gift size={12}/></div>
-                  <div>
-                    <div className="text-[11px] font-black text-slate-800 uppercase tracking-wider">Mode Influencer / Promosi Gratis</div>
-                    <div className="text-[9px] font-bold text-slate-400 mt-0.5 normal-case">HPP akan dicatat sebagai beban promosi harian.</div>
-                  </div>
+              <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl shadow-inner">
+                <div className="text-[9px] font-black text-slate-600 uppercase tracking-wider mb-2 flex items-center gap-1"><Info size={12}/> Mode Transaksi</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {ORDER_MODE_OPTIONS.map((mode) => (
+                    <button
+                      key={mode.id}
+                      type="button"
+                      disabled={editingOrderId !== null || isSubmittingOrder}
+                      onClick={() => {
+                        setOrderMode(mode.id);
+                        if (mode.id === 'PO_HARIAN' || mode.id === 'PO_KARANTINA') setSingleMethod('COD_PO');
+                        if (mode.id === 'INFLUENCER') setSingleMethod('CASH');
+                      }}
+                      className={`rounded-xl border px-3 py-2 text-left transition-all ${orderMode === mode.id ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm' : 'border-slate-200 bg-white text-slate-600 hover:border-blue-200'}`}
+                    >
+                      <div className="text-[10px] font-black uppercase tracking-wider">{mode.label}</div>
+                      <div className="text-[8px] font-bold normal-case opacity-70 mt-0.5 leading-snug">{mode.desc}</div>
+                    </button>
+                  ))}
                 </div>
-                <div className={`w-8 h-4 rounded-full relative ${orderMode === 'INFLUENCER' ? 'bg-red-500' : 'bg-slate-300'}`}><div className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white transition-transform ${orderMode === 'INFLUENCER' ? 'translate-x-4' : ''}`}></div></div>
               </div>
 
-              {orderMode === 'REGULAR' && (
+              {orderMode !== 'INFLUENCER' && (
                 <div className="space-y-3 bg-slate-50 p-3 rounded-xl border border-slate-200 shadow-inner">
                   <div className="flex items-center justify-between">
                     <label className="text-[9px] font-black text-slate-600 uppercase tracking-wider">Opsi Model Bayar</label>
@@ -730,7 +828,7 @@ export default function TabOrders({
                           <input type="text" disabled={editingOrderId !== null} value={displaySingleAmountPaid} onChange={e=>handleMoneyInput(e.target.value, setSingleAmountPaid, setDisplaySingleAmountPaid)} className="w-1/2 p-2 bg-white border border-orange-200 rounded-lg text-xs font-black text-right text-orange-700 outline-none shadow-sm placeholder:text-orange-300" placeholder="Nominal DP (Rp)" />
                         </div>
                       )}
-                      {singleMethod === 'COD_PO' && (
+                      {(singleMethod === 'COD_PO' || orderMode === 'PO_HARIAN' || orderMode === 'PO_KARANTINA') && (
                         <div className="p-2 bg-purple-50 border border-purple-200 rounded-lg shadow-inner">
                           <label className="text-[9px] font-black text-purple-800 block mb-1 uppercase tracking-wider">Set Tanggal Target Acara / PO: (Opsional)</label>
                           <input type="date" value={targetDate} onChange={e=>setTargetDate(e.target.value)} className="w-full p-2 bg-white border border-purple-200 rounded-lg text-xs font-bold text-purple-900 outline-none cursor-pointer shadow-sm" />
@@ -755,8 +853,8 @@ export default function TabOrders({
                 <input type="text" value={notes} onChange={e=>setNotes(e.target.value)} className="w-full p-2.5 border border-slate-200 rounded-lg text-xs font-medium normal-case outline-none bg-slate-50 focus:bg-white focus:border-blue-400 transition-colors shadow-inner" placeholder={orderMode === 'INFLUENCER' ? "Ketik detail target promo..." : "Contoh: Bawa sore hari, jangan pakai daun bawang..."} />
               </div>
 
-              <button type="button" onClick={handleCheckout} className={`w-full text-white font-black py-3.5 rounded-xl text-xs uppercase tracking-widest shadow-md transition-transform active:scale-95 flex items-center justify-center gap-2 cursor-pointer ${editingOrderId ? 'bg-orange-600 hover:bg-orange-700' : 'bg-blue-600 hover:bg-blue-700'}`}>
-                <CheckCircle2 size={16}/> {editingOrderId ? 'Simpan & Sahkan Hasil Revisi Nota' : 'Sahkan Transaksi & Potong Stok'}
+              <button type="button" disabled={isSubmittingOrder} onClick={handleCheckout} className={`w-full text-white font-black py-3.5 rounded-xl text-xs uppercase tracking-widest shadow-md transition-transform active:scale-95 flex items-center justify-center gap-2 ${isSubmittingOrder ? 'bg-slate-400 cursor-not-allowed' : editingOrderId ? 'bg-orange-600 hover:bg-orange-700 cursor-pointer' : 'bg-blue-600 hover:bg-blue-700 cursor-pointer'}`}>
+                <CheckCircle2 size={16}/> {isSubmittingOrder ? 'Menyimpan... Jangan Klik Lagi' : editingOrderId ? 'Simpan & Sahkan Hasil Revisi Nota' : 'Sahkan Transaksi & Potong Stok'}
               </button>
             </div>
           </div>
