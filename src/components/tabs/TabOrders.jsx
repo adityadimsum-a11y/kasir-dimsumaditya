@@ -30,10 +30,24 @@ const sameLocation = (a, b) => {
   return (aliases[x] || []).includes(y) || (aliases[y] || []).includes(x);
 };
 
+const numberValue = (value) => {
+  const parsed = Number(String(value ?? 0).replace(/[^\d,.-]/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const isActiveAllocation = (row = {}) => {
+  const status = normalizeCode(row.status || row.allocation_status || 'ACTIVE');
+  return !['VOID', 'CANCELLED', 'CANCELED', 'DONE', 'CLOSED', 'LUNAS_BATAL'].includes(status);
+};
+
+const allocationBucket = (row = {}) => normalizeCode(row.bucket_type || row.bucket || row.allocation_type || row.po_type || row.order_type || 'PO_QUARANTINE');
+const allocationQty = (row = {}) => Math.max(0, numberValue(row.qty_allocated || row.allocated_qty || row.reserved_qty || row.qty_reserved || row.required_qty_pcs || row.qty_pcs || row.qty));
+
 export default function TabOrders({ 
   masterProducts = [], master_products,
   masterCustomers = [], master_customers,
   inventoryCostLayers = [], orders = [], piutangPayments = [],
+  stockAllocations = [], stock_allocations = [], poStockPlans = [], po_stock_plans = [],
   sendToSheet, setPrintData, showToast, user 
 }) {
   const todayStr = getTodayStr();
@@ -140,12 +154,50 @@ export default function TabOrders({
       }
     });
 
+    const allocationRows = [
+      ...(stock_allocations || []),
+      ...(stockAllocations || []),
+      ...(po_stock_plans || []),
+      ...(poStockPlans || []),
+    ];
+
+    allocationRows.forEach((allocation) => {
+      if (!isActiveAllocation(allocation)) return;
+      const location = allocation.location_id || allocation.branch_id || allocation.warehouse_id || '';
+      if (location && !sameLocation(location, currentBranch)) return;
+
+      const qty = allocationQty(allocation);
+      if (qty <= 0) return;
+
+      const bucketType = allocationBucket(allocation);
+      const keys = [
+        allocation.product_id,
+        allocation.item_id,
+        allocation.product_code,
+        allocation.item_code,
+        allocation.product_name,
+        allocation.item_name,
+        allocation.name,
+      ];
+      const ref = allocation.po_id || allocation.plan_id || allocation.source_id || allocation.order_id || allocation.allocation_id || '-';
+
+      // Alokasi PO/karantina/PO harian bukan stok baru; ini memindahkan stok dari Bebas ke Ditahan.
+      if (['PO_QUARANTINE', 'KARANTINA_PO', 'DAILY_PO', 'PO_HARIAN', 'RESERVED', 'BORROWED', 'PINJAM_STOK'].includes(bucketType)) {
+        addStock(quarantine, keys, qty);
+        addStock(free, keys, -qty);
+        if (!poQuarantineDetails[ref]) poQuarantineDetails[ref] = {};
+        keys.filter(Boolean).map(normalizeStockKey).forEach((key) => {
+          poQuarantineDetails[ref][key] = (poQuarantineDetails[ref][key] || 0) + qty;
+        });
+      }
+    });
+
     Object.keys(free).forEach((key) => {
       free[key] = Math.max(0, free[key]);
     });
 
     return { free, quarantine, poQuarantineDetails };
-  }, [inventoryCostLayers, currentBranch]);
+  }, [inventoryCostLayers, stockAllocations, stock_allocations, poStockPlans, po_stock_plans, currentBranch]);
 
   const getProductStockKeys = (product = {}) => [
     product.product_id,
