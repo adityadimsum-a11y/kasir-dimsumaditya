@@ -33,24 +33,45 @@ const mapLocationToBranch = (location = {}) => ({
   ...location,
 });
 
-const mapProduct = (product = {}) => ({
-  ...product,
-  id: product.product_id || product.id,
-  product_id: product.product_id || product.id,
-  name: product.product_name || product.name || product.item_name || '',
-  product_name: product.product_name || product.name || product.item_name || '',
-  category: product.category || product.product_category || '',
-  // 5D: normalisasi harga harus menang dari raw field kosong/0 supaya POS tidak tampil Rp0.
-  selling_price: numberValue(product.selling_price || product.wholesale_price || product.price || product.retail_price || product.default_price || product.price_tier_100 || product.harga_grosir),
-  retail_price: numberValue(product.retail_price || product.penalty_price || product.selling_price || product.price || product.default_price || product.harga_eceran),
-  wholesale_price: numberValue(product.wholesale_price || product.selling_price || product.price || product.default_price || product.price_tier_100 || product.harga_grosir),
-  default_hpp: numberValue(product.default_hpp || product.hpp || product.hpp_per_pcs || product.cost_price || product.unit_cost || 0),
-  min_order: numberValue(product.min_order || product.wholesale_qty || product.minimum_order || 1) || 1,
-  wholesale_qty: numberValue(product.wholesale_qty || product.min_order || product.minimum_order || 1) || 1,
-  unit: product.unit || product.default_unit || 'pcs',
-  status: product.status || 'Active',
-  isDeleted: product.isDeleted === true || upper(product.status || '') === 'VOID',
-});
+const mapProduct = (product = {}) => {
+  const pricePorsi = numberValue(product.price_porsi || product.harga_porsi || product.selling_price_porsi || 0);
+  const pricePcs = numberValue(product.price_pcs || product.harga_pcs || product.selling_price_pcs || product.selling_price || product.price || product.default_price || 0);
+  const priceMika = numberValue(product.price_mika || product.harga_mika || 0);
+  const retailPrice = numberValue(product.retail_price || product.penalty_price || product.price_retail || product.harga_retail || pricePorsi || pricePcs || product.price || product.default_price || 0);
+  const wholesalePrice = numberValue(product.wholesale_price || product.price_mitra || product.price_reseller || product.harga_mitra || product.harga_reseller || product.price_tier_100 || product.harga_grosir || pricePcs || retailPrice || 0);
+  const usesAdukan = product.uses_adukan === true || product.use_adukan === true || product.is_adukan_output === true || product.is_production_output === true || product.adukan_conversion_active === true || upper(product.production_process || '') === 'ADUKAN';
+
+  return {
+    ...product,
+    id: product.product_id || product.id,
+    product_id: product.product_id || product.id,
+    product_code: product.product_code || product.code || product.sku || product.product_id || product.id || '',
+    name: product.product_name || product.name || product.item_name || '',
+    product_name: product.product_name || product.name || product.item_name || '',
+    category: product.category || product.product_category || '',
+    product_type: product.product_type || product.type || (usesAdukan ? 'HASIL_ADUKAN' : 'MENU_JUAL'),
+    price_porsi: pricePorsi,
+    price_pcs: pricePcs,
+    price_mika: priceMika,
+    selling_price: wholesalePrice || pricePcs || retailPrice,
+    retail_price: retailPrice,
+    wholesale_price: wholesalePrice,
+    default_hpp: numberValue(product.default_hpp || product.hpp || product.hpp_per_pcs || product.current_hpp || product.fallback_hpp || product.cost_price || product.unit_cost || 0),
+    current_hpp: numberValue(product.current_hpp || product.hpp || product.hpp_per_pcs || product.fallback_hpp || product.cost_price || product.unit_cost || 0),
+    fallback_hpp: numberValue(product.fallback_hpp || product.current_hpp || product.hpp || product.hpp_per_pcs || product.cost_price || product.unit_cost || 0),
+    min_order: numberValue(product.min_order || product.wholesale_qty || product.minimum_order || 1) || 1,
+    wholesale_qty: numberValue(product.wholesale_qty || product.min_order || product.minimum_order || 1) || 1,
+    unit: product.unit || product.default_unit || product.selling_unit || 'pcs',
+    default_unit: product.default_unit || product.unit || product.selling_unit || 'pcs',
+    uses_adukan: usesAdukan,
+    is_production_output: product.is_production_output === true || usesAdukan,
+    adukan_conversion_active: product.adukan_conversion_active === true || usesAdukan,
+    is_sellable: product.is_sellable !== false,
+    is_stock_tracked: product.is_stock_tracked !== false,
+    status: product.status || 'Active',
+    isDeleted: product.isDeleted === true || product.is_deleted === true || ['VOID', 'DELETED', 'NON_ACTIVE', 'INACTIVE'].includes(upper(product.status || '')),
+  };
+};
 
 const mapCustomer = (customer = {}) => ({
   id: customer.customer_id || customer.id,
