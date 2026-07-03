@@ -11,6 +11,39 @@ const asArray = (value) => {
 const normalizeTable = (value) => String(value || '').trim().toLowerCase();
 const normalizeAction = (value) => String(value || '').trim().toLowerCase();
 
+const resolveSessionToken = (sessionToken, user) => {
+  const fromArg = String(sessionToken || '').trim();
+  if (fromArg) return fromArg;
+
+  const fromUser = String(user?.session_token || user?.sessionToken || user?.token || '').trim();
+  if (fromUser) return fromUser;
+
+  if (typeof window !== 'undefined') {
+    return String(window.localStorage.getItem('dimsum_session_token') || '').trim();
+  }
+
+  return '';
+};
+
+const isAuthRequiredMessage = (result) => {
+  const text = String(result?.message || result?.error?.message || result?.error?.code || '').toUpperCase();
+  return text.includes('AUTH_REQUIRED') || text.includes('SESSION SUDAH TIDAK AKTIF') || text.includes('SESSION EXPIRED');
+};
+
+const normalizeWriteResult = (result) => {
+  if (!isAuthRequiredMessage(result)) return result;
+
+  return {
+    ...result,
+    success: false,
+    message: 'Sesi login sudah habis. Klik Keluar Aplikasi lalu login ulang sebelum simpan data.',
+    error: {
+      ...(result?.error || {}),
+      code: 'AUTH_REQUIRED',
+    },
+  };
+};
+
 const firstPayload = (payload) => asArray(payload)[0] || payload || {};
 
 const parseMaybeJson = (value, fallback) => {
@@ -37,11 +70,13 @@ const isHandledSideEffectTable = (table) => {
 export async function legacyWriteAction({ action, tableName, payload, user, sessionToken, requestId }) {
   const table = normalizeTable(tableName);
   const oldAction = normalizeAction(action);
+  const activeSessionToken = resolveSessionToken(sessionToken, user);
 
-  if (!sessionToken) {
+  if (!activeSessionToken) {
     return {
       success: false,
       message: 'Session backend baru kosong. Silakan login ulang.',
+      error: { code: 'AUTH_REQUIRED' },
     };
   }
 
@@ -65,7 +100,7 @@ export async function legacyWriteAction({ action, tableName, payload, user, sess
           location_id: user?.location_id || user?.branch_id || '',
         },
       },
-      sessionToken,
+      activeSessionToken,
     );
   }
 
@@ -77,7 +112,7 @@ export async function legacyWriteAction({ action, tableName, payload, user, sess
   if (table === 'master_products' && ['insert', 'update'].includes(oldAction)) {
     const product = firstPayload(payload);
 
-    return apiRequest(
+    return normalizeWriteResult(await apiRequest(
       'legacyUpsertMasterProductFromOldMaster',
       {
         product,
@@ -92,14 +127,14 @@ export async function legacyWriteAction({ action, tableName, payload, user, sess
           location_id: user?.location_id || user?.branch_id || '',
         },
       },
-      sessionToken,
-    );
+      activeSessionToken,
+    ));
   }
 
   if (table === 'master_products' && oldAction === 'delete') {
     const product = firstPayload(payload);
 
-    return apiRequest(
+    return normalizeWriteResult(await apiRequest(
       'legacySoftDeleteMasterProductFromOldMaster',
       {
         product,
@@ -113,8 +148,8 @@ export async function legacyWriteAction({ action, tableName, payload, user, sess
           location_id: user?.location_id || user?.branch_id || '',
         },
       },
-      sessionToken,
-    );
+      activeSessionToken,
+    ));
   }
 
 
@@ -142,7 +177,7 @@ export async function legacyWriteAction({ action, tableName, payload, user, sess
             location_id: user?.location_id || user?.branch_id || '',
           },
         },
-        sessionToken,
+        activeSessionToken,
       );
     }
   }
@@ -176,7 +211,7 @@ export async function legacyWriteAction({ action, tableName, payload, user, sess
             location_id: user?.location_id || user?.branch_id || '',
           },
         },
-        sessionToken,
+        activeSessionToken,
       );
 
       if (!lastResult.success) return lastResult;
@@ -217,7 +252,7 @@ export async function legacyWriteAction({ action, tableName, payload, user, sess
           location_id: user?.location_id || user?.branch_id || '',
         },
       },
-      sessionToken,
+      activeSessionToken,
     );
   }
 
@@ -247,7 +282,7 @@ export async function legacyWriteAction({ action, tableName, payload, user, sess
           location_id: user?.location_id || user?.branch_id || '',
         },
       },
-      sessionToken,
+      activeSessionToken,
     );
   }
 
@@ -299,7 +334,7 @@ export async function legacyWriteAction({ action, tableName, payload, user, sess
           location_id: user?.location_id || user?.branch_id || '',
         },
       },
-      sessionToken,
+      activeSessionToken,
     );
   }
 
@@ -319,7 +354,7 @@ export async function legacyWriteAction({ action, tableName, payload, user, sess
           location_id: user?.location_id || user?.branch_id || '',
         },
       },
-      sessionToken,
+      activeSessionToken,
     );
   }
 
@@ -347,7 +382,7 @@ export async function legacyWriteAction({ action, tableName, payload, user, sess
           location_id: user?.location_id || user?.branch_id || '',
         },
       },
-      sessionToken,
+      activeSessionToken,
     );
   }
 
