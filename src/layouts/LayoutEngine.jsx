@@ -210,12 +210,12 @@ const canSeeAudit = (user = {}) => isOwnerUser(user) || isHQUser(user);
 const MENU_GROUPS = [
   {
     id: 'dashboard',
-    label: 'Dashboard',
+    label: 'Papan Pantau',
     visible: () => true,
     items: [
-      { id: 'dashboard', label: 'Dashboard Pusat', icon: LayoutDashboard, visible: (user) => isHQUser(user) || isOwnerUser(user) },
-      { id: 'dashboard_branch', label: 'Dashboard Cabang', icon: Store, visible: () => true },
-      { id: 'monitoring_cabang', label: 'Monitoring Cabang', icon: Radar, visible: canSeeOwner },
+      { id: 'dashboard', label: 'Papan Pusat', icon: LayoutDashboard, visible: (user) => isHQUser(user) || isOwnerUser(user) },
+      { id: 'dashboard_branch', label: 'Papan Cabang', icon: Store, visible: () => true },
+      { id: 'monitoring_cabang', label: 'Pantau Cabang', icon: Radar, visible: canSeeOwner },
       { id: 'setoran_cabang', label: 'Validasi Setoran', icon: ClipboardList, visible: canSeeOwner },
     ],
   },
@@ -224,14 +224,14 @@ const MENU_GROUPS = [
     label: 'Master Data',
     visible: canSeeMasterData,
     items: [
-      { id: 'master_cabang', label: 'Master Cabang', icon: Building2, visible: canSeeMasterData },
-      { id: 'master_gudang', label: 'Master Gudang', icon: Warehouse, visible: canSeeMasterData },
-      { id: 'master_produk', label: 'Master Produk', icon: Package, visible: canSeeMasterData },
-      { id: 'master_supplier', label: 'Master Supplier', icon: Truck, visible: canSeeMasterData },
-      { id: 'master_bahan_baku', label: 'Master Bahan Baku', icon: Boxes, visible: canSeeMasterData },
-      { id: 'master_konversi', label: 'Master Konversi', icon: Calculator, visible: canSeeMasterData },
-      { id: 'master_resep_bom', label: 'Master Resep BOM', icon: ClipboardList, visible: canSeeMasterData },
-      { id: 'master_pelanggan', label: 'Master Pelanggan', icon: Users, visible: canSeeMasterData },
+      { id: 'master_cabang', label: 'Cabang / Lokasi', icon: Building2, visible: canSeeMasterData },
+      { id: 'master_gudang', label: 'Gudang', icon: Warehouse, visible: canSeeMasterData },
+      { id: 'master_produk', label: 'Produk', icon: Package, visible: canSeeMasterData },
+      { id: 'master_supplier', label: 'Supplier', icon: Truck, visible: canSeeMasterData },
+      { id: 'master_bahan_baku', label: 'Bahan Baku', icon: Boxes, visible: canSeeMasterData },
+      { id: 'master_konversi', label: 'Aturan Konversi', icon: Calculator, visible: canSeeMasterData },
+      { id: 'master_resep_bom', label: 'Resep Produk', icon: ClipboardList, visible: canSeeMasterData },
+      { id: 'master_pelanggan', label: 'Pelanggan', icon: Users, visible: canSeeMasterData },
     ],
   },
   {
@@ -258,14 +258,14 @@ const MENU_GROUPS = [
   },
   {
     id: 'keuangan',
-    label: 'Keuangan',
+    label: 'Uang & Tagihan',
     visible: (user) => canSeeFinance(user) || canSeePiutang(user),
     items: [
-      { id: 'kas_bank', label: 'Kas Bank', icon: Wallet, visible: canSeeFinance },
+      { id: 'kas_bank', label: 'Kas & Dompet', icon: Wallet, visible: canSeeFinance },
       { id: 'piutang', label: 'Piutang', icon: Landmark, visible: canSeePiutang },
       { id: 'hutang_supplier', label: 'Hutang Supplier', icon: ReceiptText, visible: canSeeFinance },
-      { id: 'accounting', label: 'Accounting', icon: Scale, visible: canSeeFinance },
-      { id: 'kewajiban', label: 'Kewajiban', icon: HandCoins, visible: canSeeFinance },
+      { id: 'accounting', label: 'Catatan Keuangan', icon: Scale, visible: canSeeFinance },
+      { id: 'kewajiban', label: 'Cicilan & Kewajiban', icon: HandCoins, visible: canSeeFinance },
     ],
   },
   {
@@ -282,7 +282,7 @@ const MENU_GROUPS = [
   },
   {
     id: 'owner',
-    label: 'Owner',
+    label: 'Kontrol Owner',
     visible: canSeeOwner,
     items: [
       { id: 'profit_owner', label: 'Profit Owner', icon: Crown, visible: canSeeOwner },
@@ -292,10 +292,10 @@ const MENU_GROUPS = [
   },
   {
     id: 'audit',
-    label: 'Audit',
+    label: 'Arsip & Audit',
     visible: canSeeAudit,
     items: [
-      { id: 'accounting_audit', label: 'Accounting Audit', icon: History, visible: canSeeAudit },
+      { id: 'accounting_audit', label: 'Audit Keuangan', icon: History, visible: canSeeAudit },
     ],
   },
 ];
