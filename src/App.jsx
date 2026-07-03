@@ -308,6 +308,12 @@ export default function App() {
       });
 
       if (!result.success) {
+        const errorText = String(result.message || result.error?.message || result.error?.code || '');
+        if (errorText.toUpperCase().includes('AUTH_REQUIRED') || errorText.toUpperCase().includes('SESI LOGIN')) {
+          localStorage.removeItem('dimsum_session_token');
+          showToast('Sesi login sudah habis. Silakan keluar lalu login ulang sebelum simpan data.', 'error');
+          return false;
+        }
         showToast(result.message || 'Fitur simpan ini belum disambungkan ke mesin baru.', 'error');
         return false;
       }
