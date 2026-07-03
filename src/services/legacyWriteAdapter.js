@@ -69,6 +69,54 @@ export async function legacyWriteAction({ action, tableName, payload, user, sess
     );
   }
 
+  // ======================================================
+  // MASTER PRODUK NEXT LEVEL
+  // table lama: master_products
+  // backend bridge: legacyUpsertMasterProductFromOldMaster
+  // ======================================================
+  if (table === 'master_products' && ['insert', 'update'].includes(oldAction)) {
+    const product = firstPayload(payload);
+
+    return apiRequest(
+      'legacyUpsertMasterProductFromOldMaster',
+      {
+        product,
+        legacy_product: product,
+        mode: oldAction,
+        request_id: requestId,
+        operation_id: requestId,
+        source: 'LEGACY_MASTER_PRODUCT_NEXT_LEVEL',
+        user_context: {
+          user_id: user?.user_id || user?.id || '',
+          username: user?.username || '',
+          location_id: user?.location_id || user?.branch_id || '',
+        },
+      },
+      sessionToken,
+    );
+  }
+
+  if (table === 'master_products' && oldAction === 'delete') {
+    const product = firstPayload(payload);
+
+    return apiRequest(
+      'legacySoftDeleteMasterProductFromOldMaster',
+      {
+        product,
+        legacy_product: product,
+        request_id: requestId,
+        operation_id: requestId,
+        source: 'LEGACY_MASTER_PRODUCT_SOFT_DELETE',
+        user_context: {
+          user_id: user?.user_id || user?.id || '',
+          username: user?.username || '',
+          location_id: user?.location_id || user?.branch_id || '',
+        },
+      },
+      sessionToken,
+    );
+  }
+
 
   if (oldAction === 'update' && table === 'orders') {
     const order = firstPayload(payload);
