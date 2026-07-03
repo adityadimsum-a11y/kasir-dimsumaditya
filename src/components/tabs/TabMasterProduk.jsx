@@ -382,12 +382,43 @@ export default function TabMasterProduk(props) {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState('');
   const [form, setForm] = useState(DEFAULT_FORM);
+  const [localProducts, setLocalProducts] = useState(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const cached = JSON.parse(window.localStorage.getItem('dimsum_master_products_cache') || '[]');
+      return Array.isArray(cached) ? cached.filter(Boolean) : [];
+    } catch (error) {
+      return [];
+    }
+  });
   const activeProductTypeMeta = getProductTypeMeta(form.product_type);
+
+  const rememberLocalProduct = (row, action = 'upsert') => {
+    if (!row || typeof row !== 'object') return;
+
+    setLocalProducts((prev) => {
+      const map = new Map();
+      [...safeArray(prev), row].forEach((item) => {
+        const key = String(item.product_id || item.product_code || item.product_name || '').trim();
+        if (!key) return;
+        map.set(key, {
+          ...(map.get(key) || {}),
+          ...item,
+          ...(action === 'delete' ? { status: 'Non Active', isDeleted: true, is_deleted: true } : {}),
+        });
+      });
+      const next = Array.from(map.values());
+      try {
+        window.localStorage.setItem('dimsum_master_products_cache', JSON.stringify(next));
+      } catch (error) {}
+      return next;
+    });
+  };
 
   const productRecords = useMemo(() => {
     const uniqueMap = new Map();
 
-    getRawProducts(props)
+    [...getRawProducts(props), ...safeArray(localProducts)]
       .map(normalizeProduct)
       .filter((product) => product.product_name || product.product_code || product.product_id)
       .forEach((product) => {
@@ -396,7 +427,7 @@ export default function TabMasterProduk(props) {
       });
 
     return Array.from(uniqueMap.values()).sort((a, b) => String(a.product_name).localeCompare(String(b.product_name)));
-  }, [props.masterProducts, props.master_products, props.products, props.dbData]);
+  }, [props.masterProducts, props.master_products, props.products, props.dbData, localProducts]);
 
   const filteredProducts = useMemo(() => {
     const keyword = normalizeSearch(searchQuery);
@@ -547,9 +578,10 @@ export default function TabMasterProduk(props) {
 
     const ok = await sendToSheet(editingId ? 'update' : 'insert', payload, PRODUCT_TABLE_NAME);
     if (ok) {
+      rememberLocalProduct(payload, editingId ? 'update' : 'insert');
       setIsFormOpen(false);
       setEditingId('');
-      setSelectedId(payload.product_id);
+      setSelectedId(payload.product_id || payload.product_code || payload.product_name || '');
     }
   };
 
@@ -568,7 +600,18 @@ export default function TabMasterProduk(props) {
       updated_at: new Date().toISOString(),
     }, PRODUCT_TABLE_NAME);
 
-    if (ok && typeof showToast === 'function') showToast('Produk dinonaktifkan dari daftar aktif.', 'success');
+    if (ok) {
+      rememberLocalProduct({
+        ...product.raw,
+        ...product,
+        status: 'Non Active',
+        isDeleted: true,
+        is_deleted: true,
+        updated_at: new Date().toISOString(),
+      }, 'delete');
+      setSelectedId('');
+      if (typeof showToast === 'function') showToast('Produk dinonaktifkan dari daftar aktif.', 'success');
+    }
   };
 
   return (
