@@ -1,722 +1,1007 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { 
-  Box, Settings, Layers, Package, Truck, 
-  Plus, Edit2, Trash2, Save, X, Calculator, ShieldCheck, 
-  CheckCircle2, User, Phone, MapPin, List, History, 
-  TrendingUp, TrendingDown, ArrowRight, Clock, 
-  Calendar, BarChart2, Filter, ArrowUpRight, ArrowDownRight, Minus, Tag
+import React, { useMemo, useState } from 'react';
+import {
+  AlertTriangle,
+  CheckCircle,
+  Database,
+  Edit2,
+  Factory,
+  Filter,
+  Package,
+  Plus,
+  Save,
+  Search,
+  ShoppingBag,
+  Store,
+  Trash2,
+  Wallet,
+  X,
 } from 'lucide-react';
-import { getTodayStr, generateId, formatDate } from '../../utils/helpers';
 
-const formatRupiah = (angka) => "Rp " + Number(angka || 0).toLocaleString('id-ID');
-const formatNumber = (angka) => Number(angka || 0).toLocaleString('id-ID');
+const PRODUCT_TABLE_NAME = 'master_products';
 
-export default function TabMasterData({ 
-  masterProducts = [], master_products,
-  masterSuppliers = [], master_suppliers,
-  masterRawMaterials = [], master_raw_materials,
-  masterConversionRules = [], master_conversion_rules, 
-  sendToSheet, showToast, user 
-}) {
-  const todayStr = getTodayStr();
-  const currentBranch = (user?.branch_id === 'PUSAT' || !user?.branch_id) ? 'TANGERANG_PUSAT' : user?.branch_id;
+const DEFAULT_FORM = {
+  product_id: '',
+  product_code: '',
+  product_name: '',
+  product_type: 'MENU_JUAL',
+  category: 'DIMSUM',
+  default_unit: 'pcs',
+  selling_unit: 'pcs',
+  production_unit: 'pcs',
+  price_pcs: '',
+  price_porsi: '',
+  price_mika: '',
+  price_basis: 'PORSI',
+  price_auto_calculate: true,
+  price_retail: '',
+  price_reseller: '',
+  price_mitra: '',
+  current_hpp: '',
+  fallback_hpp: '',
+  minimum_selling_price: '',
+  target_margin_percent: '',
+  is_sellable: true,
+  is_stock_tracked: true,
+  is_production_output: false,
+  is_production_item: false,
+  uses_adukan: false,
+  adukan_conversion_active: false,
+  is_resto_menu: false,
+  is_purchasable: false,
+  production_process: '',
+  default_yield_pcs: '1000',
+  chicken_kg_per_adukan: '30',
+  pcs_per_porsi: '4',
+  pcs_per_mika: '50',
+  status: 'Active',
+  notes: '',
+};
 
-  const [activeTab, setActiveTab] = useState('MENU'); 
-  const [isEditing, setIsEditing] = useState(false);
-  const [isEditingSpl, setIsEditingSpl] = useState(false);
-  const [isEditingItem, setIsEditingItem] = useState(false);
-  const [historyModal, setHistoryModal] = useState(null);
-  const [useAdvancedPricing, setUseAdvancedPricing] = useState(false);
-  const [recapStart, setRecapStart] = useState(() => { const d = new Date(); d.setDate(1); return d.toISOString().substring(0, 10); });
-  const [recapEnd, setRecapEnd] = useState(todayStr);
+const PRODUCT_TYPES = [
+  {
+    id: 'HASIL_ADUKAN',
+    label: 'Hasil Adukan',
+    short: 'Lahir dari proses adukan',
+    description: 'Contoh: Dimsum Original Mix / Dimsum Ayam Mix. Produk ini muncul di Produksi / Adukan dan bisa menjadi stok jadi freezer.',
+  },
+  {
+    id: 'MENU_JUAL',
+    label: 'Menu Jual',
+    short: 'Dijual langsung di Kasir',
+    description: 'Contoh: Dimsum Ayam Mix isi 4, Udang Keju, Lumpia Goreng. Produk ini boleh muncul di Kasir / Order.',
+  },
+  {
+    id: 'MENU_TURUNAN',
+    label: 'Menu Turunan',
+    short: 'Dari produk dasar + finishing',
+    description: 'Contoh: Dimsum Mentai atau produk goreng. Biasanya berasal dari stok dasar lalu ditambah topping/proses finishing.',
+  },
+  {
+    id: 'BAHAN_PENDUKUNG',
+    label: 'Bahan / Saos',
+    short: 'Bahan pendukung, bukan menu utama',
+    description: 'Contoh: saos, mentai, chili oil, mika, tepung, bumbu. Dipantau sebagai bahan/stok, bukan wajib muncul di Kasir.',
+  },
+  {
+    id: 'PAKET',
+    label: 'Paket',
+    short: 'Bundling beberapa produk',
+    description: 'Contoh: paket reseller, paket promo, paket mix. Isi paket bisa diturunkan dari beberapa produk lain.',
+  },
+];
 
-  const realProducts = useMemo(() => master_products || masterProducts || [], [master_products, masterProducts]);
-  const realSuppliers = useMemo(() => master_suppliers || masterSuppliers || [], [master_suppliers, masterSuppliers]);
-  const realRawMaterials = useMemo(() => master_raw_materials || masterRawMaterials || [], [master_raw_materials, masterRawMaterials]);
-  const realRules = useMemo(() => master_conversion_rules || masterConversionRules || [], [master_conversion_rules, masterConversionRules]);
-  
-  // 🔥 AUTO-LOAD ATURAN DARI DATABASE SULTAN TERCETAK TANGGAL GAJIAN
-  const [rules, setRules] = useState({
-    kgPerKantong: 10, kgPerAdukan: 30, pcsPerAdukan: 1000, pcsPerPorsi: 4, pcsPerMika: 50, tanggalGajian: 25
+
+const CATEGORIES = [
+  'DIMSUM',
+  'DIMSUM_GORENG',
+  'PANGSIT',
+  'SAOS',
+  'TOPPING',
+  'PAKET',
+  'MINUMAN',
+  'LAINNYA',
+];
+
+const safeArray = (value) => (Array.isArray(value) ? value.filter(Boolean) : []);
+
+const normalizeCode = (value) => String(value || '')
+  .trim()
+  .toUpperCase()
+  .replace(/[^A-Z0-9_./-]+/g, '_')
+  .replace(/_+/g, '_')
+  .replace(/^_+|_+$/g, '');
+
+const normalizeSearch = (value) => String(value || '').trim().toUpperCase();
+
+const toNumber = (value) => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (value === undefined || value === null || value === '') return 0;
+
+  const parsed = Number(
+    String(value)
+      .replace(/[^\d,.-]/g, '')
+      .replace(/\.(?=\d{3}(\D|$))/g, '')
+      .replace(',', '.'),
+  );
+
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const formatMoney = (value) => `Rp ${Math.round(toNumber(value)).toLocaleString('id-ID')}`;
+const formatQty = (value, unit = 'pcs') => `${Math.round(toNumber(value)).toLocaleString('id-ID')} ${unit}`;
+
+const toBool = (value, fallback = false) => {
+  if (typeof value === 'boolean') return value;
+  if (value === undefined || value === null || value === '') return fallback;
+  const normalized = normalizeCode(value);
+  if (['TRUE', 'YES', 'YA', 'Y', '1', 'ACTIVE', 'AKTIF'].includes(normalized)) return true;
+  if (['FALSE', 'NO', 'TIDAK', 'N', '0', 'NON_ACTIVE', 'INACTIVE'].includes(normalized)) return false;
+  return fallback;
+};
+
+const firstValue = (row, keys, fallback = '') => {
+  for (const key of keys) {
+    if (row && row[key] !== undefined && row[key] !== null && row[key] !== '') return row[key];
+  }
+  return fallback;
+};
+
+const slugCode = (value) => normalizeCode(value)
+  .replace(/[./-]+/g, '_')
+  .replace(/^_+|_+$/g, '')
+  .slice(0, 24);
+
+const PRODUCT_TYPE_META = PRODUCT_TYPES.reduce((map, item) => ({ ...map, [item.id]: item }), {});
+
+const getProductTypeMeta = (productType) => PRODUCT_TYPE_META[normalizeCode(productType || 'MENU_JUAL')] || PRODUCT_TYPE_META.MENU_JUAL;
+
+const roundPrice = (value) => {
+  const number = toNumber(value);
+  if (!number) return 0;
+  return Math.round(number);
+};
+
+const getConversionForPrice = (draft = {}) => {
+  const pcsPerPorsi = Math.max(toNumber(draft.pcs_per_porsi || 4), 1);
+  const pcsPerMika = Math.max(toNumber(draft.pcs_per_mika || 50), 1);
+  return { pcsPerPorsi, pcsPerMika };
+};
+
+const normalizePriceTriplet = (draft = {}, changedKey = '') => {
+  const next = { ...draft };
+  const auto = next.price_auto_calculate !== false;
+  const { pcsPerPorsi, pcsPerMika } = getConversionForPrice(next);
+
+  let basis = normalizeCode(next.price_basis || 'PORSI');
+  if (!['PORSI', 'PCS', 'MIKA'].includes(basis)) basis = 'PORSI';
+
+  if (['price_porsi', 'price_pcs', 'price_mika'].includes(changedKey)) {
+    if (changedKey === 'price_porsi') basis = 'PORSI';
+    if (changedKey === 'price_pcs') basis = 'PCS';
+    if (changedKey === 'price_mika') basis = 'MIKA';
+    next.price_basis = basis;
+  }
+
+  if (!auto) return next;
+
+  const pricePorsi = toNumber(next.price_porsi);
+  const pricePcs = toNumber(next.price_pcs);
+  const priceMika = toNumber(next.price_mika);
+
+  if (basis === 'PORSI' && pricePorsi > 0) {
+    const derivedPcs = roundPrice(pricePorsi / pcsPerPorsi);
+    next.price_pcs = String(derivedPcs || '');
+    next.price_mika = String(roundPrice(derivedPcs * pcsPerMika) || '');
+    next.price_retail = String(pricePorsi || '');
+  }
+
+  if (basis === 'PCS' && pricePcs > 0) {
+    next.price_porsi = String(roundPrice(pricePcs * pcsPerPorsi) || '');
+    next.price_mika = String(roundPrice(pricePcs * pcsPerMika) || '');
+    next.price_retail = String(roundPrice(pricePcs * pcsPerPorsi) || '');
+  }
+
+  if (basis === 'MIKA' && priceMika > 0) {
+    const derivedPcs = roundPrice(priceMika / pcsPerMika);
+    next.price_pcs = String(derivedPcs || '');
+    next.price_porsi = String(roundPrice(derivedPcs * pcsPerPorsi) || '');
+    next.price_retail = String(roundPrice(derivedPcs * pcsPerPorsi) || '');
+  }
+
+  if (!toNumber(next.price_mitra) && toNumber(next.price_reseller)) next.price_mitra = next.price_reseller;
+  if (!toNumber(next.price_reseller) && toNumber(next.price_mitra)) next.price_reseller = next.price_mitra;
+
+  return next;
+};
+
+const deriveDisplayPrices = (row = {}) => {
+  const pcsPerPorsi = Math.max(toNumber(firstValue(row, ['pcs_per_porsi'], 4)), 1);
+  const pcsPerMika = Math.max(toNumber(firstValue(row, ['pcs_per_mika'], 50)), 1);
+  const rawPorsi = toNumber(firstValue(row, ['price_porsi', 'harga_porsi', 'selling_price_porsi'], 0));
+  const rawPcs = toNumber(firstValue(row, ['price_pcs', 'harga_pcs', 'selling_price_pcs', 'selling_price', 'price', 'harga_jual'], 0));
+  const rawMika = toNumber(firstValue(row, ['price_mika', 'harga_mika'], 0));
+
+  let pricePcs = rawPcs;
+  if (!pricePcs && rawPorsi) pricePcs = roundPrice(rawPorsi / pcsPerPorsi);
+  if (!pricePcs && rawMika) pricePcs = roundPrice(rawMika / pcsPerMika);
+
+  const pricePorsi = rawPorsi || (pricePcs ? roundPrice(pricePcs * pcsPerPorsi) : 0);
+  const priceMika = rawMika || (pricePcs ? roundPrice(pricePcs * pcsPerMika) : 0);
+
+  return { price_pcs: pricePcs, price_porsi: pricePorsi, price_mika: priceMika };
+};
+
+const applyProductTypeTemplate = (draft, productType) => {
+  const next = { ...draft, product_type: productType };
+  const normalized = normalizeCode(productType);
+
+  if (normalized === 'HASIL_ADUKAN') {
+    next.is_sellable = true;
+    next.is_stock_tracked = true;
+    next.uses_adukan = true;
+    next.is_production_output = true;
+    next.is_production_item = true;
+    next.adukan_conversion_active = true;
+    next.production_process = 'ADUKAN';
+    next.default_unit = next.default_unit || 'pcs';
+    next.selling_unit = next.selling_unit || 'pcs';
+    next.production_unit = next.production_unit || 'pcs';
+    next.default_yield_pcs = next.default_yield_pcs || '1000';
+    next.chicken_kg_per_adukan = next.chicken_kg_per_adukan || '30';
+    next.pcs_per_porsi = next.pcs_per_porsi || '4';
+    next.pcs_per_mika = next.pcs_per_mika || '50';
+  }
+
+  if (normalized === 'MENU_JUAL') {
+    next.is_sellable = true;
+    next.is_resto_menu = true;
+    next.is_stock_tracked = true;
+    next.is_purchasable = false;
+  }
+
+  if (normalized === 'MENU_TURUNAN') {
+    next.is_sellable = true;
+    next.is_resto_menu = true;
+    next.is_stock_tracked = true;
+    next.is_purchasable = false;
+    if (!next.production_process || normalizeCode(next.production_process) === 'ADUKAN') {
+      next.production_process = 'FINISHING';
+    }
+  }
+
+  if (normalized === 'BAHAN_PENDUKUNG') {
+    next.is_sellable = false;
+    next.is_resto_menu = false;
+    next.is_stock_tracked = true;
+    next.is_purchasable = true;
+    next.uses_adukan = false;
+    next.is_production_output = false;
+    next.is_production_item = false;
+    next.adukan_conversion_active = false;
+    next.production_process = '';
+  }
+
+  if (normalized === 'PAKET') {
+    next.is_sellable = true;
+    next.is_resto_menu = true;
+    next.is_stock_tracked = false;
+    next.is_purchasable = false;
+    next.uses_adukan = false;
+    next.is_production_output = false;
+    next.is_production_item = false;
+    next.adukan_conversion_active = false;
+    next.production_process = 'BUNDLE';
+  }
+
+  return next;
+};
+
+
+const getRawProducts = (props) => [
+  ...safeArray(props.masterProducts),
+  ...safeArray(props.master_products),
+  ...safeArray(props.products),
+  ...safeArray(props.dbData?.masterProducts),
+  ...safeArray(props.dbData?.master_products),
+  ...safeArray(props.dbData?.products),
+];
+
+const normalizeProduct = (row = {}) => {
+  const raw = row.raw || row;
+  const productId = String(firstValue(raw, ['product_id', 'id', 'sku'], '')).trim();
+  const productCode = String(firstValue(raw, ['product_code', 'code', 'kode_produk', 'sku'], productId)).trim();
+  const productName = String(firstValue(raw, ['product_name', 'name', 'nama_produk', 'item_name'], '')).trim();
+  const typeRaw = firstValue(raw, ['product_type', 'type', 'jenis_produk'], 'MENU_JUAL');
+  const categoryRaw = firstValue(raw, ['category', 'product_category', 'kategori'], 'DIMSUM');
+  const statusRaw = String(firstValue(raw, ['status', 'product_status', 'status_active'], 'Active')).trim();
+  const isDeleted = toBool(firstValue(raw, ['isDeleted', 'is_deleted', 'deleted'], false), false);
+  const usesAdukan = toBool(firstValue(raw, ['uses_adukan', 'use_adukan', 'is_adukan_output', 'is_production_output', 'adukan_conversion_active', 'produced_by_adukan'], false), false) || normalizeCode(firstValue(raw, ['production_process'], '')) === 'ADUKAN';
+  const isProductionOutput = toBool(firstValue(raw, ['is_production_output', 'production_output', 'is_production_item'], usesAdukan), usesAdukan);
+  const isSellable = toBool(firstValue(raw, ['is_sellable', 'sellable', 'is_resto_menu'], true), true);
+
+  const derivedPrices = deriveDisplayPrices(raw);
+  const pricePorsi = derivedPrices.price_porsi;
+  const pricePcs = derivedPrices.price_pcs;
+  const priceMika = derivedPrices.price_mika;
+  const currentHpp = toNumber(firstValue(raw, ['current_hpp', 'hpp', 'unit_cost', 'fallback_hpp'], 0));
+
+  const normalized = {
+    ...raw,
+    id: productId || productCode || productName,
+    product_id: productId,
+    product_code: productCode,
+    product_name: productName,
+    product_type: normalizeCode(typeRaw || 'MENU_JUAL'),
+    category: normalizeCode(categoryRaw || 'DIMSUM'),
+    default_unit: String(firstValue(raw, ['default_unit', 'selling_unit', 'unit'], 'pcs')).trim() || 'pcs',
+    selling_unit: String(firstValue(raw, ['selling_unit', 'default_unit', 'unit'], 'pcs')).trim() || 'pcs',
+    production_unit: String(firstValue(raw, ['production_unit'], 'pcs')).trim() || 'pcs',
+    price_pcs: pricePcs,
+    price_porsi: pricePorsi,
+    price_mika: priceMika,
+    price_retail: toNumber(firstValue(raw, ['price_retail', 'harga_retail'], pricePorsi || pricePcs)),
+    price_reseller: toNumber(firstValue(raw, ['price_reseller', 'harga_reseller'], 0)),
+    price_mitra: toNumber(firstValue(raw, ['price_mitra', 'harga_mitra'], 0)),
+    current_hpp: currentHpp,
+    fallback_hpp: toNumber(firstValue(raw, ['fallback_hpp', 'hpp_default'], currentHpp)),
+    minimum_selling_price: toNumber(firstValue(raw, ['minimum_selling_price', 'min_price'], 0)),
+    target_margin_percent: toNumber(firstValue(raw, ['target_margin_percent', 'target_margin'], 0)),
+    is_sellable: isSellable,
+    is_stock_tracked: toBool(firstValue(raw, ['is_stock_tracked', 'stock_tracked'], true), true),
+    is_production_output: isProductionOutput,
+    is_production_item: toBool(firstValue(raw, ['is_production_item'], isProductionOutput), isProductionOutput),
+    uses_adukan: usesAdukan,
+    adukan_conversion_active: toBool(firstValue(raw, ['adukan_conversion_active'], usesAdukan), usesAdukan),
+    is_resto_menu: toBool(firstValue(raw, ['is_resto_menu'], isSellable), isSellable),
+    is_purchasable: toBool(firstValue(raw, ['is_purchasable'], false), false),
+    production_process: String(firstValue(raw, ['production_process'], usesAdukan ? 'ADUKAN' : '')).trim(),
+    default_yield_pcs: toNumber(firstValue(raw, ['default_yield_pcs', 'target_pcs_per_adukan'], usesAdukan ? 1000 : 0)),
+    chicken_kg_per_adukan: toNumber(firstValue(raw, ['chicken_kg_per_adukan', 'ayam_kg_per_adukan'], usesAdukan ? 30 : 0)),
+    pcs_per_porsi: toNumber(firstValue(raw, ['pcs_per_porsi'], 4)),
+    pcs_per_mika: toNumber(firstValue(raw, ['pcs_per_mika'], 50)),
+    status: isDeleted ? 'Deleted' : (statusRaw || 'Active'),
+    isDeleted,
+    notes: String(firstValue(raw, ['notes', 'catatan'], '')).trim(),
+    search_text: normalizeSearch([productId, productCode, productName, typeRaw, categoryRaw, statusRaw].join(' ')),
+    raw,
+  };
+
+  return normalized;
+};
+
+const statusTone = (status) => {
+  const normalized = normalizeCode(status);
+  if (['ACTIVE', 'AKTIF'].includes(normalized)) return 'green';
+  if (['DELETED', 'VOID', 'NON_ACTIVE', 'INACTIVE'].includes(normalized)) return 'red';
+  return 'amber';
+};
+
+const badgeClass = (tone = 'slate') => {
+  const map = {
+    green: 'border-emerald-100 bg-emerald-50 text-emerald-700',
+    red: 'border-red-100 bg-red-50 text-red-700',
+    amber: 'border-amber-100 bg-amber-50 text-amber-700',
+    blue: 'border-blue-100 bg-blue-50 text-blue-700',
+    slate: 'border-slate-100 bg-slate-50 text-slate-600',
+    dark: 'border-slate-800 bg-slate-950 text-white',
+  };
+  return map[tone] || map.slate;
+};
+
+const Badge = ({ children, tone = 'slate' }) => (
+  <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${badgeClass(tone)}`}>
+    {children}
+  </span>
+);
+
+const StatCard = ({ title, value, subtitle, icon, tone = 'white' }) => {
+  const toneMap = {
+    red: 'bg-red-600 text-white',
+    dark: 'bg-slate-950 text-white',
+    gold: 'border border-amber-100 bg-amber-50 text-amber-900',
+    white: 'border border-slate-100 bg-white text-slate-900',
+  };
+
+  return (
+    <div className={`rounded-[1.75rem] p-5 shadow-sm ${toneMap[tone] || toneMap.white}`}>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="text-[10px] font-black uppercase tracking-[0.18em] opacity-60">{title}</div>
+          <div className="mt-2 text-2xl font-black tracking-tight">{value}</div>
+          {subtitle && <div className="mt-1 text-[11px] font-bold opacity-60">{subtitle}</div>}
+        </div>
+        <div className="rounded-2xl border border-white/60 bg-white/80 p-3 text-red-600 shadow-sm">{icon}</div>
+      </div>
+    </div>
+  );
+};
+
+const Field = ({ label, children, help }) => (
+  <div>
+    <label className="mb-1.5 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">{label}</label>
+    {children}
+    {help && <p className="mt-1 text-[10px] font-bold leading-relaxed text-slate-400">{help}</p>}
+  </div>
+);
+
+const inputClass = 'w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-bold text-slate-700 outline-none transition-all placeholder:text-slate-300 focus:border-red-500 focus:ring-4 focus:ring-red-50 disabled:bg-slate-50 disabled:text-slate-400';
+
+const normalizeFormFromProduct = (product) => ({
+  ...DEFAULT_FORM,
+  ...product,
+  product_type: product?.product_type || 'MENU_JUAL',
+  category: product?.category || 'DIMSUM',
+  default_unit: product?.default_unit || 'pcs',
+  selling_unit: product?.selling_unit || 'pcs',
+  production_unit: product?.production_unit || 'pcs',
+  price_pcs: product?.price_pcs ? String(product.price_pcs) : '',
+  price_porsi: product?.price_porsi ? String(product.price_porsi) : '',
+  price_mika: product?.price_mika ? String(product.price_mika) : '',
+  price_basis: product?.price_basis || 'PORSI',
+  price_auto_calculate: product?.price_auto_calculate !== false,
+  price_retail: product?.price_retail ? String(product.price_retail) : '',
+  price_reseller: product?.price_reseller ? String(product.price_reseller) : '',
+  price_mitra: product?.price_mitra ? String(product.price_mitra) : '',
+  current_hpp: product?.current_hpp ? String(product.current_hpp) : '',
+  fallback_hpp: product?.fallback_hpp ? String(product.fallback_hpp) : '',
+  minimum_selling_price: product?.minimum_selling_price ? String(product.minimum_selling_price) : '',
+  target_margin_percent: product?.target_margin_percent ? String(product.target_margin_percent) : '',
+  default_yield_pcs: product?.default_yield_pcs ? String(product.default_yield_pcs) : '1000',
+  chicken_kg_per_adukan: product?.chicken_kg_per_adukan ? String(product.chicken_kg_per_adukan) : '30',
+  pcs_per_porsi: product?.pcs_per_porsi ? String(product.pcs_per_porsi) : '4',
+  pcs_per_mika: product?.pcs_per_mika ? String(product.pcs_per_mika) : '50',
+  status: product?.status || 'Active',
+});
+
+export default function TabMasterProduk(props) {
+  const { sendToSheet, showToast } = props;
+  const [searchQuery, setSearchQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState('ALL');
+  const [statusFilter, setStatusFilter] = useState('ACTIVE');
+  const [categoryFilter, setCategoryFilter] = useState('ALL');
+  const [selectedId, setSelectedId] = useState('');
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingId, setEditingId] = useState('');
+  const [form, setForm] = useState(DEFAULT_FORM);
+  const [localProducts, setLocalProducts] = useState(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const cached = JSON.parse(window.localStorage.getItem('dimsum_master_products_cache') || '[]');
+      return Array.isArray(cached) ? cached.filter(Boolean) : [];
+    } catch (error) {
+      return [];
+    }
   });
+  const activeProductTypeMeta = getProductTypeMeta(form.product_type);
 
-  useEffect(() => {
-    const dbRule = realRules.find(r => r.id === 'RULE-GLOBAL' && !r.isDeleted);
-    if (dbRule) {
-      setRules({
-        kgPerKantong: Number(dbRule.kg_per_kantong || 10),
-        kgPerAdukan: Number(dbRule.kg_per_adukan || 30),
-        pcsPerAdukan: Number(dbRule.pcs_per_adukan || 1000),
-        pcsPerPorsi: Number(dbRule.pcs_per_porsi || 4),
-        pcsPerMika: Number(dbRule.pcs_per_mika || 50),
-        tanggalGajian: Number(dbRule.tanggal_gajian || 25)
+  const rememberLocalProduct = (row, action = 'upsert') => {
+    if (!row || typeof row !== 'object') return;
+
+    setLocalProducts((prev) => {
+      const map = new Map();
+      [...safeArray(prev), row].forEach((item) => {
+        const key = String(item.product_id || item.product_code || item.product_name || '').trim();
+        if (!key) return;
+        map.set(key, {
+          ...(map.get(key) || {}),
+          ...item,
+          ...(action === 'delete' ? { status: 'Non Active', isDeleted: true, is_deleted: true } : {}),
+        });
       });
-    }
-  }, [realRules]);
-
-  const [formMenu, setFormMenu] = useState({ id: '', product_name: '', category: 'FROZEN_GOODS', selling_price: '', retail_price: '', min_order: '1', wholesale_qty: '1', default_hpp: '1125' });
-  const [formSpl, setFormSpl] = useState({ id: '', supplier_name: '', pic_name: '', phone: '', address: '', default_price: '' });
-  const [formItem, setFormItem] = useState({ id: '', item_name: '', category: 'BAHAN BAKU', unit: '', default_price: '' });
-
-  const activeProducts = useMemo(() => realProducts.filter(p => !p.isDeleted && String(p.isDeleted).toUpperCase() !== 'TRUE').reverse(), [realProducts]);
-  const activeSuppliers = useMemo(() => realSuppliers.filter(s => !s.isDeleted && String(s.isDeleted).toUpperCase() !== 'TRUE').reverse(), [realSuppliers]);
-  const activeRawMaterials = useMemo(() => realRawMaterials.filter(m => !m.isDeleted && String(m.isDeleted).toUpperCase() !== 'TRUE').reverse(), [realRawMaterials]);
-
-  // --- ACTIONS: SAVE MASTER RULES (BENAR-BENAR MENYIMPAN KE CLOUD) ---
-  const handleSaveRules = async () => {
-    if(!window.confirm("Simpan perubahan Konfigurasi Master Pabrik? Perhitungan dashboard dan dapur akan langsung mengikuti angka baru ini.")) return;
-    const payload = {
-      id: 'RULE-GLOBAL', date: todayStr, branch_id: currentBranch,
-      kg_per_kantong: rules.kgPerKantong, kg_per_adukan: rules.kgPerAdukan,
-      pcs_per_adukan: rules.pcsPerAdukan, pcs_per_porsi: rules.pcsPerPorsi,
-      pcs_per_mika: rules.pcsPerMika, tanggal_gajian: rules.tanggalGajian, 
-      isDeleted: false
-    };
-    
-    const isSuccess = await sendToSheet('update', payload, 'master_conversion_rules');
-    if (isSuccess) showToast('Konfigurasi Master Engine berhasil diperbarui ke seluruh sistem!', 'success');
-  };
-
-  const handleSubmitMenu = async (e) => {
-    e.preventDefault();
-    if (!formMenu.product_name) return alert("Nama menu tidak boleh kosong!");
-    const productId = isEditing ? formMenu.id : generateId('PRD', todayStr);
-    const finalWholesalePrice = Number(formMenu.selling_price || 0);
-    const finalRetailPrice = useAdvancedPricing ? Number(formMenu.retail_price || finalWholesalePrice) : finalWholesalePrice;
-    const finalMinOrder = useAdvancedPricing ? Number(formMenu.min_order || 1) : 1;
-    const finalWholesaleQty = useAdvancedPricing ? Number(formMenu.wholesale_qty || 1) : 1;
-
-    const payload = {
-      id: productId, date: todayStr, branch_id: currentBranch, isDeleted: false, product_name: formMenu.product_name.toUpperCase(),
-      sku: formMenu.product_name.substring(0, 3).toUpperCase() + '-' + Math.floor(Math.random() * 1000),
-      category: formMenu.category, unit: 'PCS', status_active: true, default_hpp: Number(formMenu.default_hpp || 1125), 
-      selling_price: finalWholesalePrice, retail_price: finalRetailPrice, min_order: finalMinOrder, wholesale_qty: finalWholesaleQty, penalty_price: finalRetailPrice 
-    };
-
-    const isSuccess = await sendToSheet(isEditing ? 'update' : 'insert', payload, 'master_products');
-    if (isSuccess) {
-      showToast(isEditing ? 'Data Menu berhasil diperbarui!' : 'Menu Baru berhasil ditambah!', 'success');
-      setIsEditing(false); setUseAdvancedPricing(false);
-      setFormMenu({ id: '', product_name: '', category: 'FROZEN_GOODS', selling_price: '', retail_price: '', min_order: '1', wholesale_qty: '1', default_hpp: '1125' });
-    }
-  };
-
-  const handleEditMenuBtn = (p) => {
-    const isAdvanced = Number(p.wholesale_qty || 1) > 1 || Number(p.min_order || 1) > 1 || Number(p.retail_price || p.penalty_price || p.selling_price) !== Number(p.selling_price);
-    setUseAdvancedPricing(isAdvanced);
-    setFormMenu({
-      id: p.id, product_name: p.product_name, category: p.category || 'FROZEN_GOODS', default_hpp: String(p.default_hpp || ''), selling_price: String(p.selling_price || ''),
-      retail_price: String(p.retail_price || p.penalty_price || p.selling_price || ''), min_order: String(p.min_order || '1'), wholesale_qty: String(p.wholesale_qty || '1')
+      const next = Array.from(map.values());
+      try {
+        window.localStorage.setItem('dimsum_master_products_cache', JSON.stringify(next));
+      } catch (error) {}
+      return next;
     });
-    setIsEditing(true);
   };
 
-  const handleSubmitSupplier = async (e) => {
-    e.preventDefault();
-    if (!formSpl.supplier_name) return alert("Nama perusahaan supplier wajib diisi!");
-    const splId = isEditingSpl ? formSpl.id : generateId('SPL', todayStr);
-    const payload = {
-      id: splId, date: todayStr, branch_id: currentBranch, isDeleted: false,
-      supplier_name: formSpl.supplier_name.toUpperCase(), pic_name: formSpl.pic_name.toUpperCase(), phone: formSpl.phone, 
-      address: (formSpl.address || '').toUpperCase(), default_price: Number(formSpl.default_price || 0) 
-    };
-    const isSuccess = await sendToSheet(isEditingSpl ? 'update' : 'insert', payload, 'master_suppliers');
-    if (isSuccess) {
-      showToast(isEditingSpl ? 'Data Supplier diperbarui!' : 'Supplier resmi terdaftar!', 'success');
-      setIsEditingSpl(false); setFormSpl({ id: '', supplier_name: '', pic_name: '', phone: '', address: '', default_price: '' });
-    }
-  };
+  const productRecords = useMemo(() => {
+    const uniqueMap = new Map();
 
-  const handleSubmitItem = async (e) => {
-    e.preventDefault();
-    if (!formItem.item_name) return alert("Nama item wajib diisi!");
-    const itemId = isEditingItem ? formItem.id : generateId('RAW', todayStr);
-    const newPrice = Number(formItem.default_price || 0);
-    let newHistoryStr = "";
+    [...getRawProducts(props), ...safeArray(localProducts)]
+      .map(normalizeProduct)
+      .filter((product) => product.product_name || product.product_code || product.product_id)
+      .forEach((product) => {
+        const key = product.product_id || product.product_code || product.product_name;
+        uniqueMap.set(key, product);
+      });
 
-    if (isEditingItem) {
-      const oldItem = realRawMaterials.find(m => m.id === formItem.id);
-      const oldPrice = oldItem ? Number(oldItem.default_price || 0) : 0;
-      let parsedHistory = [];
-      if (oldItem && oldItem.price_history) { try { parsedHistory = JSON.parse(oldItem.price_history); } catch(e) {} }
+    return Array.from(uniqueMap.values()).sort((a, b) => String(a.product_name).localeCompare(String(b.product_name)));
+  }, [props.masterProducts, props.master_products, props.products, props.dbData, localProducts]);
 
-      if (newPrice !== oldPrice) { parsedHistory.push({ date: todayStr, old_price: oldPrice, new_price: newPrice, type: newPrice > oldPrice ? 'NAIK' : 'TURUN' }); }
-      newHistoryStr = JSON.stringify(parsedHistory);
-    } else {
-       newHistoryStr = JSON.stringify([{ date: todayStr, old_price: 0, new_price: newPrice, type: 'BARU' }]);
-    }
+  const filteredProducts = useMemo(() => {
+    const keyword = normalizeSearch(searchQuery);
 
-    const payload = {
-      id: itemId, date: todayStr, branch_id: currentBranch, isDeleted: false, item_name: formItem.item_name.toUpperCase(), 
-      category: formItem.category.toUpperCase(), unit: formItem.unit.toUpperCase(), default_price: newPrice, price_history: newHistoryStr 
-    };
-
-    const isSuccess = await sendToSheet(isEditingItem ? 'update' : 'insert', payload, 'master_raw_materials');
-    if (isSuccess) {
-      showToast(isEditingItem ? 'Data Item Biaya & Harga diperbarui!' : 'Item Biaya Baru terdaftar!', 'success');
-      setIsEditingItem(false); setFormItem({ id: '', item_name: '', category: 'BAHAN BAKU', unit: '', default_price: '' });
-    }
-  };
-
-  const openHistoryModal = (item) => {
-    let history = [];
-    if (item.price_history) { try { history = JSON.parse(item.price_history).reverse(); } catch(e) {} }
-    setHistoryModal({ itemName: item.item_name, history: history });
-  };
-
-  const priceAnalytics = useMemo(() => {
-    let naikCount = 0; let turunCount = 0; let stabilCount = 0; let details = [];
-    activeRawMaterials.forEach(item => {
-      let history = [];
-      try { history = JSON.parse(item.price_history || '[]'); } catch(e) {}
-      
-      const sDate = new Date(recapStart).setHours(0,0,0,0);
-      const eDate = new Date(recapEnd).setHours(23,59,59,999);
-      const rangeHistory = history.filter(h => { const hDate = new Date(h.date).getTime(); return hDate >= sDate && hDate <= eDate; });
-
-      const historyBeforeStart = history.filter(h => new Date(h.date).getTime() < sDate);
-      let startingPrice = item.default_price; 
-      if (historyBeforeStart.length > 0) startingPrice = historyBeforeStart[historyBeforeStart.length - 1].new_price;
-      else if (rangeHistory.length > 0 && rangeHistory[0].type !== 'BARU') startingPrice = rangeHistory[0].old_price;
-      else if (rangeHistory.length > 0 && rangeHistory[0].type === 'BARU') startingPrice = rangeHistory[0].new_price; 
-
-      let endPrice = rangeHistory.length > 0 ? rangeHistory[rangeHistory.length - 1].new_price : startingPrice;
-      let selisih = endPrice - startingPrice;
-
-      if (rangeHistory.length === 1 && rangeHistory[0].type === 'BARU') selisih = 0;
-
-      if (selisih > 0) { naikCount++; details.push({ item, status: 'Naik', change: selisih, latestPrice: endPrice, oldPrice: startingPrice }); } 
-      else if (selisih < 0) { turunCount++; details.push({ item, status: 'Turun', change: selisih, latestPrice: endPrice, oldPrice: startingPrice }); } 
-      else { stabilCount++; details.push({ item, status: 'Stabil', change: 0, latestPrice: endPrice, oldPrice: startingPrice }); }
+    return productRecords.filter((product) => {
+      const statusOk = statusFilter === 'ALL' || (statusFilter === 'ACTIVE'
+        ? ['ACTIVE', 'AKTIF'].includes(normalizeCode(product.status)) && !product.isDeleted
+        : statusFilter === 'NON_ACTIVE'
+          ? !['ACTIVE', 'AKTIF'].includes(normalizeCode(product.status)) || product.isDeleted
+          : true);
+      const typeOk = typeFilter === 'ALL' || normalizeCode(product.product_type) === typeFilter;
+      const categoryOk = categoryFilter === 'ALL' || normalizeCode(product.category) === categoryFilter;
+      const searchOk = !keyword || product.search_text.includes(keyword);
+      return statusOk && typeOk && categoryOk && searchOk;
     });
-    details.sort((a, b) => { if (a.status === 'Naik' && b.status !== 'Naik') return -1; if (a.status === 'Turun' && b.status === 'Stabil') return -1; return 0; });
-    return { naikCount, turunCount, stabilCount, details };
-  }, [activeRawMaterials, recapStart, recapEnd]);
+  }, [productRecords, searchQuery, statusFilter, typeFilter, categoryFilter]);
+
+  const analytics = useMemo(() => {
+    const active = productRecords.filter((item) => ['ACTIVE', 'AKTIF'].includes(normalizeCode(item.status)) && !item.isDeleted);
+    const sellable = active.filter((item) => item.is_sellable);
+    const adukan = active.filter((item) => item.uses_adukan || item.is_production_output || normalizeCode(item.production_process) === 'ADUKAN');
+    const zeroPrice = sellable.filter((item) => toNumber(item.price_porsi || item.price_pcs || item.price_retail) <= 0);
+    const noModal = active.filter((item) => (item.uses_adukan || item.is_stock_tracked) && toNumber(item.current_hpp || item.fallback_hpp) <= 0);
+
+    return {
+      total: productRecords.length,
+      active: active.length,
+      sellable: sellable.length,
+      adukan: adukan.length,
+      zeroPrice: zeroPrice.length,
+      noModal: noModal.length,
+    };
+  }, [productRecords]);
+
+  const selectedProduct = useMemo(() => {
+    return productRecords.find((product) => (product.product_id || product.product_code || product.product_name) === selectedId) || filteredProducts[0] || null;
+  }, [productRecords, filteredProducts, selectedId]);
+
+  const openCreate = () => {
+    setEditingId('');
+    setForm(DEFAULT_FORM);
+    setIsFormOpen(true);
+  };
+
+  const openEdit = (product) => {
+    setEditingId(product.product_id || product.product_code || product.product_name);
+    setForm(normalizeFormFromProduct(product));
+    setIsFormOpen(true);
+  };
+
+  const updateForm = (key, value) => {
+    setForm((prev) => {
+      let next = { ...prev, [key]: value };
+
+      if (key === 'product_name' && !prev.product_code) {
+        next.product_code = slugCode(value);
+      }
+
+      if (key === 'product_type') {
+        next = applyProductTypeTemplate(next, value);
+      }
+
+      if (key === 'uses_adukan' || key === 'is_production_output') {
+        const active = key === 'uses_adukan' ? value : (next.uses_adukan || value);
+        if (active) {
+          next.production_process = 'ADUKAN';
+          next.is_stock_tracked = true;
+          next.is_production_output = true;
+          next.is_production_item = true;
+          next.adukan_conversion_active = true;
+          if (!next.default_yield_pcs) next.default_yield_pcs = '1000';
+          if (!next.chicken_kg_per_adukan) next.chicken_kg_per_adukan = '30';
+        }
+      }
+
+      if (['price_porsi', 'price_pcs', 'price_mika', 'price_basis', 'price_auto_calculate', 'pcs_per_porsi', 'pcs_per_mika'].includes(key)) {
+        next = normalizePriceTriplet(next, key);
+      }
+
+      return next;
+    });
+  };
+
+  const buildPayload = () => {
+    const normalizedForm = normalizePriceTriplet(form, 'build');
+    const productCode = slugCode(normalizedForm.product_code || normalizedForm.product_name);
+    const productId = normalizedForm.product_id || `PROD-${productCode}`;
+    const usesAdukan = Boolean(normalizedForm.uses_adukan || normalizedForm.is_production_output || normalizeCode(normalizedForm.production_process) === 'ADUKAN');
+
+    return {
+      ...normalizedForm,
+      product_id: productId,
+      product_code: productCode,
+      product_name: String(normalizedForm.product_name || '').trim(),
+      product_type: normalizeCode(normalizedForm.product_type || 'MENU_JUAL'),
+      category: normalizeCode(normalizedForm.category || 'DIMSUM'),
+      default_unit: normalizedForm.default_unit || 'pcs',
+      selling_unit: normalizedForm.selling_unit || normalizedForm.default_unit || 'pcs',
+      production_unit: normalizedForm.production_unit || 'pcs',
+      price_basis: normalizeCode(normalizedForm.price_basis || 'PORSI'),
+      price_auto_calculate: normalizedForm.price_auto_calculate !== false,
+      price_pcs: toNumber(normalizedForm.price_pcs),
+      price_porsi: toNumber(normalizedForm.price_porsi),
+      price_mika: toNumber(normalizedForm.price_mika),
+      price_retail: toNumber(normalizedForm.price_retail || normalizedForm.price_porsi || normalizedForm.price_pcs),
+      price_reseller: toNumber(normalizedForm.price_reseller),
+      price_mitra: toNumber(normalizedForm.price_mitra),
+      selling_price: toNumber(normalizedForm.price_pcs || normalizedForm.price_retail || normalizedForm.price_porsi),
+      retail_price: toNumber(normalizedForm.price_porsi || normalizedForm.price_retail || normalizedForm.price_pcs),
+      wholesale_price: toNumber(normalizedForm.price_mitra || normalizedForm.price_reseller || normalizedForm.price_pcs),
+      current_hpp: toNumber(normalizedForm.current_hpp),
+      fallback_hpp: toNumber(normalizedForm.fallback_hpp || normalizedForm.current_hpp),
+      minimum_selling_price: toNumber(normalizedForm.minimum_selling_price),
+      target_margin_percent: toNumber(normalizedForm.target_margin_percent),
+      is_sellable: Boolean(normalizedForm.is_sellable),
+      is_stock_tracked: Boolean(normalizedForm.is_stock_tracked),
+      is_production_output: Boolean(normalizedForm.is_production_output || usesAdukan),
+      is_production_item: Boolean(normalizedForm.is_production_item || usesAdukan),
+      uses_adukan: usesAdukan,
+      adukan_conversion_active: Boolean(normalizedForm.adukan_conversion_active || usesAdukan),
+      is_resto_menu: Boolean(normalizedForm.is_resto_menu || normalizedForm.is_sellable),
+      is_purchasable: Boolean(normalizedForm.is_purchasable),
+      production_process: usesAdukan ? 'ADUKAN' : normalizeCode(normalizedForm.production_process || ''),
+      default_yield_pcs: toNumber(normalizedForm.default_yield_pcs),
+      chicken_kg_per_adukan: toNumber(normalizedForm.chicken_kg_per_adukan),
+      pcs_per_porsi: toNumber(normalizedForm.pcs_per_porsi || 4),
+      pcs_per_mika: toNumber(normalizedForm.pcs_per_mika || 50),
+      status: normalizedForm.status || 'Active',
+      notes: normalizedForm.notes || '',
+      updated_at: new Date().toISOString(),
+    };
+  };
+
+  const validatePayload = (payload) => {
+    const warnings = [];
+    if (!payload.product_name) warnings.push('Nama produk wajib diisi.');
+    if (!payload.product_code) warnings.push('Kode produk wajib diisi.');
+    if (payload.is_sellable && !payload.price_porsi && !payload.price_pcs && !payload.price_retail) warnings.push('Produk dijual perlu harga jual agar Kasir tidak Rp0.');
+    if (payload.uses_adukan && (!payload.default_yield_pcs || !payload.chicken_kg_per_adukan)) warnings.push('Produk adukan perlu target pcs dan ayam per adukan.');
+    return warnings;
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    const payload = buildPayload();
+    const warnings = validatePayload(payload);
+
+    if (warnings.length > 0) {
+      if (typeof showToast === 'function') showToast(warnings.join('\n'), 'error');
+      else window.alert(warnings.join('\n'));
+      return;
+    }
+
+    if (typeof sendToSheet !== 'function') {
+      window.alert('sendToSheet belum tersedia.');
+      return;
+    }
+
+    const ok = await sendToSheet(editingId ? 'update' : 'insert', payload, PRODUCT_TABLE_NAME);
+    if (ok) {
+      rememberLocalProduct(payload, editingId ? 'update' : 'insert');
+      setIsFormOpen(false);
+      setEditingId('');
+      setSelectedId(payload.product_id || payload.product_code || payload.product_name || '');
+    }
+  };
+
+  const handleSoftDelete = async (product) => {
+    if (!product) return;
+    const confirmed = window.confirm(`Nonaktifkan produk ${product.product_name}? Produk tidak dihapus permanen.`);
+    if (!confirmed) return;
+
+    const ok = await sendToSheet('update', {
+      ...product.raw,
+      product_id: product.product_id,
+      product_code: product.product_code,
+      status: 'Non Active',
+      isDeleted: true,
+      is_deleted: true,
+      updated_at: new Date().toISOString(),
+    }, PRODUCT_TABLE_NAME);
+
+    if (ok) {
+      rememberLocalProduct({
+        ...product.raw,
+        ...product,
+        status: 'Non Active',
+        isDeleted: true,
+        is_deleted: true,
+        updated_at: new Date().toISOString(),
+      }, 'delete');
+      setSelectedId('');
+      if (typeof showToast === 'function') showToast('Produk dinonaktifkan dari daftar aktif.', 'success');
+    }
+  };
 
   return (
     <div className="space-y-6 pb-10 text-slate-700 normal-case">
-      
-      <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-4">
-        <button onClick={() => setActiveTab('ITEM_BIAYA')} className={`px-5 py-2.5 rounded-lg font-bold text-xs transition-all flex items-center gap-2 ${activeTab === 'ITEM_BIAYA' ? 'bg-white shadow-xs text-red-600 border border-slate-200' : 'bg-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-700 border border-transparent'}`}><List size={14}/> Master Item &amp; Biaya</button>
-        <button onClick={() => setActiveTab('MENU')} className={`px-5 py-2.5 rounded-lg font-bold text-xs transition-all flex items-center gap-2 ${activeTab === 'MENU' ? 'bg-white shadow-xs text-red-600 border border-slate-200' : 'bg-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-700 border border-transparent'}`}><Box size={14}/> Master Daftar Menu</button>
-        <button onClick={() => setActiveTab('SUPPLIER')} className={`px-5 py-2.5 rounded-lg font-bold text-xs transition-all flex items-center gap-2 ${activeTab === 'SUPPLIER' ? 'bg-white shadow-xs text-red-600 border border-slate-200' : 'bg-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-700 border border-transparent'}`}><Truck size={14}/> Mitra Supplier</button>
-        <button onClick={() => setActiveTab('RULES')} className={`px-5 py-2.5 rounded-lg font-bold text-xs transition-all flex items-center gap-2 ${activeTab === 'RULES' ? 'bg-white shadow-xs text-red-600 border border-slate-200' : 'bg-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-700 border border-transparent'}`}><Settings size={14}/> Aturan Pabrik</button>
+      <div className="relative overflow-hidden rounded-[2rem] bg-slate-950 p-6 text-white shadow-sm">
+        <div className="absolute -right-16 -top-16 h-52 w-52 rounded-full bg-red-600/30 blur-2xl" />
+        <div className="absolute -bottom-20 left-1/3 h-48 w-48 rounded-full bg-amber-400/20 blur-2xl" />
+        <div className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+          <div>
+            <div className="mb-3 flex items-center gap-2">
+              <div className="rounded-2xl bg-red-600 p-2 shadow-sm"><Package size={20} /></div>
+              <span className="text-[10px] font-black uppercase tracking-[0.24em] text-amber-200">Master Produk & Aturan Produksi</span>
+            </div>
+            <h1 className="text-2xl font-black tracking-tight lg:text-3xl">Master Produk</h1>
+            <p className="mt-2 max-w-3xl text-sm font-medium leading-relaxed text-slate-300">
+              Pusat pengaturan produk yang dijual, produk hasil adukan, harga, satuan, stok, dan patokan produksi. Bahasa UI dibuat operasional; jejak modal tetap disimpan untuk mesin keuangan.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={openCreate}
+            className="flex items-center justify-center gap-2 rounded-2xl bg-red-600 px-5 py-3 text-xs font-black uppercase tracking-[0.14em] text-white shadow-sm transition-all hover:bg-red-700"
+          >
+            <Plus size={16} /> Tambah Produk
+          </button>
+        </div>
       </div>
 
-      {activeTab === 'MENU' && (
-         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 animate-in fade-in">
-           <div className="xl:col-span-5">
-             <div className="card-holo p-6">
-               <div className="flex justify-between items-center mb-5 border-b border-slate-100 pb-3">
-                 <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2"><Box size={16} className="text-red-600"/> {isEditing ? 'Edit Menu' : 'Tambah Menu'}</h3>
-                 {isEditing && <button type="button" onClick={() => { setIsEditing(false); setUseAdvancedPricing(false); setFormMenu({ id: '', product_name: '', category: 'FROZEN_GOODS', selling_price: '', retail_price: '', min_order: '1', wholesale_qty: '1', default_hpp: '1125' }); }} className="p-1.5 bg-slate-100 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><X size={14}/></button>}
-               </div>
-               
-               <form onSubmit={handleSubmitMenu} className="space-y-4">
-                 <div>
-                   <label className="text-[10px] font-bold text-slate-500 block mb-1 uppercase tracking-wider">Nama Menu / Produk</label>
-                   <input type="text" required value={formMenu.product_name} onChange={e=>setFormMenu({...formMenu, product_name: e.target.value})} className="w-full p-2.5 bg-white border border-slate-200 rounded-lg font-bold text-xs outline-none focus:border-red-500 uppercase tracking-wider" placeholder="Ketik nama menu..." />
-                 </div>
-                 <div>
-                   <label className="text-[10px] font-bold text-slate-500 block mb-1 uppercase tracking-wider">Kategori</label>
-                   <select value={formMenu.category} onChange={e=>setFormMenu({...formMenu, category: e.target.value})} className="w-full p-2.5 bg-white border border-slate-200 rounded-lg font-bold text-xs outline-none cursor-pointer focus:border-red-500">
-                     <option value="FROZEN_GOODS">Frozen / Mentah</option>
-                     <option value="READY_TO_EAT">Matang / Ready to eat</option>
-                   </select>
-                 </div>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6">
+        <StatCard title="Total Produk" value={analytics.total} icon={<Package size={18} />} />
+        <StatCard title="Aktif" value={analytics.active} icon={<CheckCircle size={18} />} tone="red" />
+        <StatCard title="Bisa Dijual" value={analytics.sellable} icon={<ShoppingBag size={18} />} tone="gold" />
+        <StatCard title="Pakai Adukan" value={analytics.adukan} icon={<Factory size={18} />} />
+        <StatCard title="Harga Belum Beres" value={analytics.zeroPrice} icon={<AlertTriangle size={18} />} tone={analytics.zeroPrice > 0 ? 'gold' : 'white'} />
+        <StatCard title="Modal Belum Beres" value={analytics.noModal} icon={<Wallet size={18} />} tone={analytics.noModal > 0 ? 'dark' : 'white'} />
+      </div>
 
-                 <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl shadow-inner mt-4">
-                   <label className="flex items-center gap-2 cursor-pointer mb-3">
-                     <input type="checkbox" checked={useAdvancedPricing} onChange={e => setUseAdvancedPricing(e.target.checked)} className="w-4 h-4 accent-red-600 cursor-pointer" />
-                     <span className="text-[10px] font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5"><Tag size={12} className="text-red-500"/> Aktifkan Ketentuan Harga Bertingkat</span>
-                   </label>
-
-                   {useAdvancedPricing ? (
-                     <div className="space-y-3 animate-in fade-in slide-in-from-top-2 border-t border-slate-200 pt-3">
-                       <div className="grid grid-cols-2 gap-3">
-                         <div>
-                           <label className="text-[9px] font-bold text-slate-500 block mb-1 uppercase tracking-wider text-rose-600">Minimal Beli (Mutlak)</label>
-                           <input type="number" min="1" required value={formMenu.min_order} onChange={e=>setFormMenu({...formMenu, min_order: e.target.value})} className="w-full p-2 bg-white border border-rose-200 rounded-lg font-bold text-xs outline-none focus:border-red-500 text-center" placeholder="Min Pcs..." />
-                         </div>
-                         <div>
-                           <label className="text-[9px] font-bold text-slate-500 block mb-1 uppercase tracking-wider text-slate-500">Harga Eceran (Bawah Grosir)</label>
-                           <div className="relative">
-                             <span className="absolute left-2.5 top-2 font-bold text-slate-400 text-[10px]">Rp</span>
-                             <input type="text" required value={formMenu.retail_price ? Number(formMenu.retail_price).toLocaleString('id-ID') : ''} onChange={e=>setFormMenu({...formMenu, retail_price: e.target.value.replace(/\D/g, '')})} className="w-full pl-7 pr-2 py-2 bg-white border border-slate-200 rounded-lg font-bold text-xs outline-none focus:border-red-500 text-slate-700" placeholder="0" />
-                           </div>
-                         </div>
-                       </div>
-                       <div className="grid grid-cols-2 gap-3 bg-emerald-50/50 p-2 rounded-lg border border-emerald-100">
-                         <div>
-                           <label className="text-[9px] font-bold text-emerald-700 block mb-1 uppercase tracking-wider">Syarat Qty Grosir (&gt;=)</label>
-                           <input type="number" min="1" required value={formMenu.wholesale_qty} onChange={e=>setFormMenu({...formMenu, wholesale_qty: e.target.value})} className="w-full p-2 bg-white border border-emerald-200 rounded-lg font-bold text-xs outline-none focus:border-emerald-500 text-center text-emerald-800" placeholder="Qty Grosir..." />
-                         </div>
-                         <div>
-                           <label className="text-[9px] font-bold text-emerald-700 block mb-1 uppercase tracking-wider">Harga Grosir (Murah)</label>
-                           <div className="relative">
-                             <span className="absolute left-2.5 top-2 font-bold text-emerald-500 text-[10px]">Rp</span>
-                             <input type="text" required value={formMenu.selling_price ? Number(formMenu.selling_price).toLocaleString('id-ID') : ''} onChange={e=>setFormMenu({...formMenu, selling_price: e.target.value.replace(/\D/g, '')})} className="w-full pl-7 pr-2 py-2 bg-white border border-emerald-200 rounded-lg font-black text-xs outline-none focus:border-emerald-500 text-emerald-700" placeholder="0" />
-                           </div>
-                         </div>
-                       </div>
-                     </div>
-                   ) : (
-                     <div className="animate-in fade-in">
-                       <label className="text-[9px] font-bold text-slate-500 block mb-1 uppercase tracking-wider">Harga Jual Flat (Pcs)</label>
-                       <div className="relative">
-                         <span className="absolute left-3 top-2.5 font-bold text-slate-400 text-xs">Rp</span>
-                         <input type="text" required value={formMenu.selling_price ? Number(formMenu.selling_price).toLocaleString('id-ID') : ''} onChange={e=>setFormMenu({...formMenu, selling_price: e.target.value.replace(/\D/g, '')})} className="w-full pl-8 pr-3 py-2 bg-white border border-slate-200 rounded-lg font-bold text-xs outline-none focus:border-red-500" placeholder="0" />
-                       </div>
-                     </div>
-                   )}
-                 </div>
-                 <button type="submit" className="w-full btn-holo py-3 rounded-lg text-xs font-bold shadow-xs mt-2 uppercase tracking-widest">{isEditing ? 'Update Menu' : 'Simpan Menu'}</button>
-               </form>
-             </div>
-           </div>
-           
-           <div className="xl:col-span-7 card-holo overflow-hidden custom-scrollbar min-h-[50vh] overflow-x-auto">
-             <div className="p-4 bg-slate-50 border-b border-slate-100 font-extrabold text-xs text-slate-700">Daftar Menu Aktif</div>
-             <table className="w-full text-sm text-left">
-               <thead className="bg-white text-[10px] text-slate-400 border-b border-slate-200 uppercase tracking-wider">
-                 <tr><th className="px-5 py-3 font-bold">Menu Produk</th><th className="px-5 py-3 font-bold">Ketentuan Harga &amp; Qty</th><th className="px-5 py-3 font-bold text-center">Aksi</th></tr>
-               </thead>
-               <tbody className="divide-y divide-slate-100 text-xs font-bold bg-white">
-                 {activeProducts.map(p => {
-                   const isAdvanced = Number(p.wholesale_qty || 1) > 1 || Number(p.min_order || 1) > 1 || Number(p.retail_price || p.penalty_price || p.selling_price) !== Number(p.selling_price);
-                   return (
-                     <tr key={p.id} className="hover:bg-slate-50 transition-colors">
-                       <td className="px-5 py-4 text-slate-800 uppercase tracking-wider">{p.product_name}</td>
-                       <td className="px-5 py-4">
-                         {isAdvanced ? (
-                           <div className="space-y-1">
-                             <div className="text-[10px] text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100 w-max font-black">Min Beli: {formatNumber(p.min_order)} Pcs</div>
-                             <div className="text-emerald-700 font-black">Grosir (&gt;={formatNumber(p.wholesale_qty)}): {formatRupiah(p.selling_price)}</div>
-                             <div className="text-[9px] text-slate-500 font-bold">Harga Eceran: {formatRupiah(p.retail_price || p.penalty_price || p.selling_price)}</div>
-                           </div>
-                         ) : (
-                           <div className="text-emerald-600 font-extrabold text-sm">{formatRupiah(p.selling_price)}</div>
-                         )}
-                       </td>
-                       <td className="px-5 py-4 text-center">
-                         <div className="flex items-center justify-center gap-1.5">
-                           <button onClick={() => handleEditMenuBtn(p)} className="p-2 text-slate-400 hover:text-blue-600 bg-white hover:bg-blue-50 rounded-lg transition-colors border shadow-xs"><Edit2 size={14}/></button>
-                           <button onClick={async () => { if(window.confirm(`Karantina menu ${p.product_name}? Item tidak akan muncul lagi di kasir.`)) sendToSheet('update', {id: p.id, isDeleted: true}, 'master_products'); }} className="p-2 text-slate-400 hover:text-red-600 bg-white hover:bg-red-50 rounded-lg transition-colors border shadow-xs"><Trash2 size={14}/></button>
-                         </div>
-                       </td>
-                     </tr>
-                   );
-                 })}
-               </tbody>
-             </table>
-           </div>
-         </div>
-      )}
-
-      {activeTab === 'SUPPLIER' && (
-         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 animate-in fade-in">
-           <div className="xl:col-span-4 card-holo p-6 border-t-4 border-t-blue-500">
-              <div className="flex justify-between items-center mb-5 border-b border-slate-100 pb-3">
-                <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2"><Truck size={16} className="text-blue-600"/> {isEditingSpl ? 'Edit Supplier' : 'Tambah Supplier'}</h3>
-                {isEditingSpl && <button type="button" onClick={() => { setIsEditingSpl(false); setFormSpl({ id: '', supplier_name: '', pic_name: '', phone: '', address: '', default_price: '' }); }} className="p-1.5 bg-slate-100 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg"><X size={14}/></button>}
-              </div>
-              <form onSubmit={handleSubmitSupplier} className="space-y-4">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+        <div className="xl:col-span-8">
+          <div className="rounded-[2rem] border border-slate-100 bg-white shadow-sm">
+            <div className="border-b border-slate-100 p-5">
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                 <div>
-                  <label className="text-[10px] font-bold text-slate-500 block mb-1 uppercase tracking-wider">Nama PT / CV / Warung</label>
-                  <input type="text" required value={formSpl.supplier_name} onChange={e=>setFormSpl({...formSpl, supplier_name: e.target.value})} className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold outline-none focus:border-blue-500 uppercase tracking-wider" placeholder="Ketik nama entitas..." />
+                  <h2 className="flex items-center gap-2 text-sm font-black text-slate-900"><Database size={17} className="text-red-600" /> Daftar Produk</h2>
+                  <p className="mt-1 text-[11px] font-semibold text-slate-400">Klik produk untuk melihat detail. Produk adukan otomatis masuk pilihan Produksi/Adukan.</p>
                 </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 block mb-1 uppercase tracking-wider">Nama Sales / PIC</label>
-                  <input type="text" required value={formSpl.pic_name} onChange={e=>setFormSpl({...formSpl, pic_name: e.target.value})} className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold outline-none focus:border-blue-500 uppercase tracking-wider" placeholder="Ketik nama kontak..." />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 block mb-1 uppercase tracking-wider">Nomor Handphone / WA</label>
-                  <input type="text" required value={formSpl.phone} onChange={e=>setFormSpl({...formSpl, phone: e.target.value})} className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold outline-none focus:border-blue-500" placeholder="08xx..." />
-                </div>
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 block mb-1 uppercase tracking-wider">Harga Satuan Default (Rp/Kg)</label>
+                <div className="flex flex-col gap-2 lg:flex-row">
                   <div className="relative">
-                    <span className="absolute left-3 top-2.5 font-bold text-slate-400 text-xs">Rp</span>
-                    <input type="text" required value={formSpl.default_price ? Number(formSpl.default_price).toLocaleString('id-ID') : ''} onChange={e=>setFormSpl({...formSpl, default_price: e.target.value.replace(/\D/g, '')})} className="w-full pl-8 pr-3 py-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold outline-none focus:border-blue-500" placeholder="0" />
+                    <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-9 pr-4 text-xs font-bold outline-none transition-all placeholder:text-slate-300 focus:border-red-500 focus:ring-4 focus:ring-red-50 lg:w-64" placeholder="Cari produk..." />
                   </div>
-                </div>
-                <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-lg text-xs shadow-sm hover:bg-blue-700 transition-colors mt-2 uppercase tracking-widest">Simpan Supplier</button>
-              </form>
-           </div>
-           <div className="xl:col-span-8 card-holo overflow-hidden custom-scrollbar min-h-[50vh] overflow-x-auto">
-             <div className="p-4 bg-slate-50 border-b border-slate-100 font-extrabold text-xs text-slate-700">Database Mitra Supplier Aktif</div>
-             <table className="w-full text-sm text-left">
-               <thead className="bg-white text-[10px] text-slate-400 border-b border-slate-200 uppercase tracking-wider">
-                 <tr><th className="px-5 py-3 font-bold">Nama Supplier &amp; PIC</th><th className="px-5 py-3 font-bold">Kontak</th><th className="px-5 py-3 font-bold text-right">Harga Acuan</th><th className="px-5 py-3 font-bold text-center">Aksi</th></tr>
-               </thead>
-               <tbody className="divide-y divide-slate-100 text-xs font-bold bg-white">
-                 {activeSuppliers.map(s => (
-                   <tr key={s.id} className="hover:bg-slate-50 transition-colors">
-                     <td className="px-5 py-4">
-                       <div className="text-slate-800 font-extrabold uppercase tracking-wider">{s.supplier_name}</div>
-                       <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mt-0.5">PIC: {s.pic_name}</div>
-                     </td>
-                     <td className="px-5 py-4 text-slate-600">{s.phone}</td>
-                     <td className="px-5 py-4 text-right text-emerald-600 font-extrabold">{formatRupiah(s.default_price)}</td>
-                     <td className="px-5 py-4 text-center">
-                       <div className="flex items-center justify-center gap-1.5">
-                         <button onClick={() => {setFormSpl({...s, default_price: String(s.default_price || ''), address: s.address || ''}); setIsEditingSpl(true);}} className="p-2 text-slate-400 hover:text-blue-600 bg-white hover:bg-slate-100 rounded-lg transition-colors border shadow-xs"><Edit2 size={14}/></button>
-                         <button onClick={async () => { if(window.confirm(`Putus kontrak & karantina supplier ${s.supplier_name}?`)) sendToSheet('update', {id: s.id, isDeleted: true}, 'master_suppliers'); }} className="p-2 text-slate-400 hover:text-red-600 bg-white hover:bg-red-50 rounded-lg transition-colors border shadow-xs"><Trash2 size={14}/></button>
-                       </div>
-                     </td>
-                   </tr>
-                 ))}
-               </tbody>
-             </table>
-           </div>
-         </div>
-      )}
-
-      {activeTab === 'ITEM_BIAYA' && (
-        <div className="flex flex-col gap-6 animate-in fade-in">
-          <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-            <div className="xl:col-span-4">
-              <div className="card-holo p-6 transition-all border-t-4 border-t-red-500">
-                <div className="flex justify-between items-start mb-5 border-b border-slate-100 pb-3">
-                  <div className="flex items-center gap-2">
-                    <List size={16} className="text-red-600"/>
-                    <div>
-                      <h3 className="font-extrabold text-slate-800 text-sm">{isEditingItem ? 'Edit Item Biaya' : 'Daftarkan Item Baru'}</h3>
-                      {isEditingItem && <p className="text-[9px] font-medium text-slate-400 mt-0.5">Perubahan harga otomatis direkam</p>}
-                    </div>
-                  </div>
-                  {isEditingItem && <button type="button" onClick={() => { setIsEditingItem(false); setFormItem({ id: '', item_name: '', category: 'BAHAN BAKU', unit: '', default_price: '' }); }} className="p-1.5 bg-slate-100 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg shadow-xs"><X size={14}/></button>}
-                </div>
-
-                <form onSubmit={handleSubmitItem} className="space-y-4">
-                  <div>
-                    <label className="text-[9px] font-bold text-slate-500 block mb-1 uppercase tracking-wider">Kategori Item</label>
-                    <select value={formItem.category} onChange={e=>setFormItem({...formItem, category: e.target.value})} className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold outline-none focus:border-red-500 cursor-pointer">
-                      <option value="BAHAN BAKU">Bahan Baku</option>
-                      <option value="KEMASAN">Kemasan / Packaging</option>
-                      <option value="OPERASIONAL KENDARAAN">Operasional Kendaraan</option>
-                      <option value="ATK & PERLENGKAPAN">ATK &amp; Perlengkapan</option>
-                      <option value="AIR & KEBERSIHAN">Air &amp; Kebersihan</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[9px] font-bold text-slate-500 block mb-1 uppercase tracking-wider">Nama Item</label>
-                    <input type="text" required value={formItem.item_name} onChange={e=>setFormItem({...formItem, item_name: e.target.value})} className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold outline-none focus:border-red-500 uppercase tracking-wider" placeholder="Cth: Saus Delmonte..." />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[9px] font-bold text-slate-500 block mb-1 uppercase tracking-wider">Satuan Dasar</label>
-                      <input type="text" required value={formItem.unit} onChange={e=>setFormItem({...formItem, unit: e.target.value})} className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold outline-none focus:border-red-500 uppercase tracking-wider" placeholder="Cth: Dus / Kg" />
-                    </div>
-                    <div>
-                      <label className="text-[9px] font-bold text-slate-500 block mb-1 uppercase tracking-wider">Harga Acuan Default</label>
-                      <div className="relative">
-                         <span className="absolute left-2.5 top-2.5 font-bold text-slate-400 text-xs">Rp</span>
-                         <input type="text" required value={formItem.default_price ? Number(formItem.default_price).toLocaleString('id-ID') : ''} onChange={e=>setFormItem({...formItem, default_price: e.target.value.replace(/\D/g, '')})} className="w-full pl-7 pr-2 py-2 bg-white border border-slate-200 rounded-lg text-xs font-extrabold text-slate-800 outline-none focus:border-red-500" placeholder="0" />
-                      </div>
-                    </div>
-                  </div>
-                  <button type="submit" className={`w-full text-white font-bold py-3.5 rounded-lg text-xs shadow-xs transition-colors flex items-center justify-center gap-2 mt-2 uppercase tracking-widest ${isEditingItem ? 'bg-blue-600 hover:bg-blue-700' : 'btn-holo'}`}>
-                     {isEditingItem ? <><Save size={14}/> Update &amp; Rekam Harga</> : <><Plus size={14}/> Simpan Master Item</>}
-                  </button>
-                </form>
-              </div>
-            </div>
-            
-            <div className="xl:col-span-8 card-holo overflow-hidden flex flex-col">
-              <div className="p-4 bg-slate-50 border-b border-slate-100 font-extrabold text-xs text-slate-700">Database Master Item &amp; Beban Biaya</div>
-              <div className="overflow-x-auto custom-scrollbar min-h-[50vh] max-h-[60vh]">
-                <table className="w-full text-sm text-left border-collapse">
-                  <thead className="bg-white text-[10px] text-slate-400 border-b border-slate-200 sticky top-0 shadow-xs uppercase tracking-wider">
-                    <tr><th className="px-5 py-3 font-bold">Nama Item &amp; Satuan</th><th className="px-5 py-3 font-bold">Kategori Jurnal</th><th className="px-5 py-3 font-bold text-right">Harga Default (Ref)</th><th className="px-5 py-3 font-bold text-center">Aksi</th></tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-xs font-bold bg-white">
-                    {activeRawMaterials.length === 0 ? (
-                      <tr><td colSpan="4" className="text-center py-10 text-slate-400 font-medium">Data kamus item belum tersedia.</td></tr>
-                    ) : (
-                      activeRawMaterials.map(m => (
-                        <tr key={m.id} className="hover:bg-slate-50 transition-colors group">
-                          <td className="px-5 py-4">
-                            <div className="text-sm font-extrabold text-slate-800 uppercase tracking-wider">{m.item_name}</div>
-                            <div className="text-[9px] text-slate-400 mt-1 font-medium uppercase tracking-wider">Satuan: {m.unit}</div>
-                          </td>
-                          <td className="px-5 py-4">
-                            <span className="bg-slate-100 border border-slate-200 text-slate-600 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider">{m.category.replace(/_/g, ' ')}</span>
-                          </td>
-                          <td className="px-5 py-4 text-right text-slate-800 font-extrabold text-sm">{formatRupiah(m.default_price)}</td>
-                          <td className="px-5 py-4 text-center opacity-60 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                            <div className="flex items-center justify-center gap-1.5">
-                              <button onClick={() => openHistoryModal(m)} className="p-2 text-slate-400 bg-white border border-slate-200 rounded-lg hover:text-blue-600 hover:bg-blue-50 shadow-xs transition-colors" title="Lihat Riwayat Perubahan Harga"><History size={14}/></button>
-                              <button onClick={() => { setFormItem({ id: m.id, item_name: m.item_name, category: m.category, unit: m.unit, default_price: String(m.default_price) }); setIsEditingItem(true); }} className="p-2 text-slate-400 bg-white border border-slate-200 rounded-lg hover:text-blue-600 hover:bg-blue-50 shadow-xs transition-colors"><Edit2 size={14}/></button>
-                              <button onClick={async () => { if(window.confirm("Karantina item ini dari kamus pabrik?")) sendToSheet('update', {id: m.id, isDeleted: true}, 'master_raw_materials'); }} className="p-2 text-slate-400 bg-white border border-slate-200 rounded-lg hover:text-red-600 hover:bg-red-50 shadow-xs transition-colors"><Trash2 size={14}/></button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          <div className="card-holo overflow-hidden mt-2">
-             <div className="p-5 border-b border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-50">
-                <div className="flex items-center gap-3">
-                   <div className="text-blue-600"><BarChart2 size={20}/></div>
-                   <div>
-                     <h3 className="text-slate-800 font-extrabold text-sm">Market Price Analytics</h3>
-                     <p className="text-[10px] font-medium text-slate-500 mt-0.5">Rekapan analisa fluktuasi harga pasar barang</p>
-                   </div>
-                </div>
-                <div className="flex items-center gap-2 bg-white border border-slate-200 p-1.5 rounded-lg shadow-xs">
-                   <Filter size={14} className="text-slate-400 ml-1"/>
-                   <input type="date" value={recapStart} onChange={e=>setRecapStart(e.target.value)} className="bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer" />
-                   <span className="text-slate-400 font-medium">-</span>
-                   <input type="date" value={recapEnd} onChange={e=>setRecapEnd(e.target.value)} className="bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer" />
-                </div>
-             </div>
-
-             <div className="p-6 bg-white">
-               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                 <div className="bg-red-50/50 border border-red-100 p-4 rounded-xl flex items-center justify-between shadow-xs hover:border-red-300 transition-colors">
-                   <div>
-                     <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">Total Item Harga Naik</div>
-                     <div className="text-2xl font-black text-red-600">{priceAnalytics.naikCount} <span className="text-[10px] text-red-500 font-bold">Item</span></div>
-                   </div>
-                   <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600"><ArrowUpRight size={20}/></div>
-                 </div>
-                 <div className="bg-emerald-50/50 border border-emerald-100 p-4 rounded-xl flex items-center justify-between shadow-xs hover:border-emerald-300 transition-colors">
-                   <div>
-                     <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">Total Item Harga Turun</div>
-                     <div className="text-2xl font-black text-emerald-600">{priceAnalytics.turunCount} <span className="text-[10px] text-emerald-500 font-bold">Item</span></div>
-                   </div>
-                   <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600"><ArrowDownRight size={20}/></div>
-                 </div>
-                 <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl flex items-center justify-between shadow-xs hover:border-slate-300 transition-colors">
-                   <div>
-                     <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-1">Total Harga Stabil</div>
-                     <div className="text-2xl font-black text-slate-700">{priceAnalytics.stabilCount} <span className="text-[10px] text-slate-400 font-bold">Item</span></div>
-                   </div>
-                   <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-500"><Minus size={20}/></div>
-                 </div>
-               </div>
-
-               <div className="overflow-x-auto border border-slate-200 rounded-xl shadow-xs">
-                 <table className="w-full text-left text-sm border-collapse">
-                   <thead className="bg-slate-50 text-[10px] font-bold text-slate-400 border-b border-slate-200 uppercase tracking-wider">
-                     <tr><th className="px-5 py-3">Nama Item</th><th className="px-5 py-3">Kategori</th><th className="px-5 py-3 text-center">Status</th><th className="px-5 py-3 text-right">Perubahan / Selisih Harga</th></tr>
-                   </thead>
-                   <tbody className="divide-y divide-slate-100 text-xs font-bold bg-white">
-                     {priceAnalytics.details.length === 0 ? (
-                       <tr><td colSpan="4" className="text-center py-8 text-slate-400 font-medium">Tidak ada data item.</td></tr>
-                     ) : (
-                       priceAnalytics.details.map((d, i) => (
-                         <tr key={i} className="hover:bg-slate-50 transition-colors">
-                           <td className="px-5 py-4 text-slate-800 font-extrabold uppercase tracking-wider">{d.item.item_name}</td>
-                           <td className="px-5 py-4 text-slate-500 uppercase tracking-wider">{d.item.category.replace(/_/g, ' ')}</td>
-                           <td className="px-5 py-4 text-center">
-                             <span className={`px-2.5 py-1 rounded-md text-[9px] font-bold border shadow-xs inline-block uppercase tracking-wider ${d.status === 'Naik' ? 'bg-red-50 text-red-700 border-red-200' : d.status === 'Turun' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
-                               {d.status}
-                             </span>
-                           </td>
-                           <td className="px-5 py-4 text-right">
-                             {d.status === 'Stabil' ? (
-                               <span className="text-slate-500 font-extrabold">{formatRupiah(d.latestPrice)} <span className="text-[9px] font-medium text-slate-400 ml-1">(Tetap)</span></span>
-                             ) : (
-                               <div className="flex items-center justify-end gap-2 text-xs font-extrabold">
-                                 <span className="text-slate-400 line-through font-medium">{formatRupiah(d.oldPrice)}</span>
-                                 <ArrowRight size={12} className="text-slate-300"/>
-                                 <span className={d.status === 'Naik' ? 'text-red-600' : 'text-emerald-600'}>{formatRupiah(d.latestPrice)}</span>
-                                 <span className={`ml-1 text-[9px] px-1.5 py-0.5 rounded-md font-bold ${d.status === 'Naik' ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
-                                    ({d.status === 'Naik' ? '+' : '-'}{formatRupiah(Math.abs(d.change))})
-                                 </span>
-                               </div>
-                             )}
-                           </td>
-                         </tr>
-                       ))
-                     )}
-                   </tbody>
-                 </table>
-               </div>
-             </div>
-          </div>
-        </div>
-      )}
-
-      {/* --- TAB RULES (DARK ENTERPRISE MODE) --- */}
-      {activeTab === 'RULES' && (
-        <div className="bg-[#161b22] p-6 md:p-8 rounded-2xl text-slate-300 shadow-xl border border-slate-800 font-sans animate-in fade-in">
-          <div className="flex items-start gap-4 mb-8">
-            <div className="p-3 bg-amber-500/10 text-amber-500 rounded-xl border border-amber-500/20 shadow-inner">
-              <Settings size={28}/>
-            </div>
-            <div>
-              <h2 className="text-xl font-black text-white uppercase tracking-wider">Master Conversion Engine</h2>
-              <p className="text-[10px] font-bold text-amber-500 uppercase tracking-widest mt-1">Ubah angka di bawah ini untuk menyesuaikan perhitungan pabrik</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-8">
-            <div className="bg-[#1f242c] border border-[#30363d] rounded-xl p-5 shadow-inner">
-              <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #1: Timbangan Mentah</div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-end gap-2">
-                  <input type="number" value={rules.kgPerKantong} onChange={e => setRules({...rules, kgPerKantong: Number(e.target.value)})} className="w-20 bg-[#0d1117] border border-[#30363d] text-white text-2xl font-black rounded-lg p-2 text-center outline-none focus:border-amber-500 transition-colors" />
-                  <span className="text-xs font-bold text-slate-500 pb-2">KG</span>
-                </div>
-                <div className="text-slate-500 font-black text-xl">=</div>
-                <div className="text-right">
-                  <div className="text-xl font-black text-orange-500">1 <span className="text-sm">Kantong</span></div>
-                  <div className="text-[9px] font-bold text-slate-500 mt-1 uppercase tracking-wider">Ayam Mentah</div>
+                  <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)} className={inputClass}>
+                    <option value="ALL">Semua Jenis</option>
+                    {PRODUCT_TYPES.map((type) => <option key={type.id} value={type.id}>{type.label}</option>)}
+                  </select>
+                  <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} className={inputClass}>
+                    <option value="ALL">Semua Kategori</option>
+                    {CATEGORIES.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
+                  </select>
+                  <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className={inputClass}>
+                    <option value="ACTIVE">Aktif</option>
+                    <option value="NON_ACTIVE">Nonaktif</option>
+                    <option value="ALL">Semua</option>
+                  </select>
                 </div>
               </div>
             </div>
 
-            <div className="bg-[#1f242c] border border-[#30363d] rounded-xl p-5 shadow-inner">
-              <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #2: Resep Adukan</div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-end gap-2">
-                  <input type="number" value={rules.kgPerAdukan} onChange={e => setRules({...rules, kgPerAdukan: Number(e.target.value)})} className="w-20 bg-[#0d1117] border border-[#30363d] text-white text-2xl font-black rounded-lg p-2 text-center outline-none focus:border-amber-500 transition-colors" />
-                  <span className="text-xs font-bold text-slate-500 pb-2">KG</span>
-                </div>
-                <div className="text-slate-500 font-black text-xl">=</div>
-                <div className="text-right">
-                  <div className="text-xl font-black text-orange-500">1 <span className="text-sm">Adukan</span></div>
-                  <div className="text-[9px] font-bold text-slate-500 mt-1 uppercase tracking-wider">Mix Base</div>
-                </div>
-              </div>
-            </div>
+            <div className="overflow-x-auto p-5">
+              <table className="w-full min-w-[980px] text-left">
+                <thead>
+                  <tr className="border-b border-slate-100 text-[10px] font-black uppercase tracking-[0.15em] text-slate-400">
+                    <th className="px-3 py-3 min-w-[260px]">Produk</th>
+                    <th className="px-3 py-3">Jenis</th>
+                    <th className="px-3 py-3">Harga</th>
+                    <th className="px-3 py-3">Modal Patokan</th>
+                    <th className="px-3 py-3">Produksi</th>
+                    <th className="px-3 py-3">Status</th>
+                    <th className="px-3 py-3 text-right">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredProducts.length === 0 && (
+                    <tr><td colSpan={7} className="px-3 py-10 text-center text-xs font-bold text-slate-400">Belum ada produk yang cocok.</td></tr>
+                  )}
+                  {filteredProducts.map((product) => {
+                    const key = product.product_id || product.product_code || product.product_name;
+                    const isSelected = selectedProduct && (selectedProduct.product_id || selectedProduct.product_code || selectedProduct.product_name) === key;
 
-            <div className="bg-[#1f242c] border border-[#30363d] rounded-xl p-5 shadow-inner">
-              <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #3: Target Yield Dasar</div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-xl font-black text-white">1 <span className="text-sm text-slate-400">Adukan</span></div>
-                  <div className="text-[9px] font-bold text-slate-500 mt-1 uppercase tracking-wider">Mix Base</div>
-                </div>
-                <div className="text-slate-500 font-black text-xl">=</div>
-                <div className="flex items-end gap-2">
-                  <input type="number" value={rules.pcsPerAdukan} onChange={e => setRules({...rules, pcsPerAdukan: Number(e.target.value)})} className="w-24 bg-[#0d1117] border border-[#30363d] text-blue-400 text-2xl font-black rounded-lg p-2 text-center outline-none focus:border-blue-500 transition-colors" />
-                  <span className="text-xs font-bold text-slate-500 pb-2">PCS</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-[#1f242c] border border-[#30363d] rounded-xl p-5 shadow-inner">
-              <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #4: Konversi Porsi Eceran</div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-xl font-black text-white">1 <span className="text-sm text-slate-400">Porsi</span></div>
-                  <div className="text-[9px] font-bold text-slate-500 mt-1 uppercase tracking-wider">Penjualan Resto</div>
-                </div>
-                <div className="text-slate-500 font-black text-xl">=</div>
-                <div className="flex items-end gap-2 text-right">
-                  <input type="number" value={rules.pcsPerPorsi} onChange={e => setRules({...rules, pcsPerPorsi: Number(e.target.value)})} className="w-16 bg-[#0d1117] border border-[#30363d] text-purple-400 text-2xl font-black rounded-lg p-2 text-center outline-none focus:border-purple-500 transition-colors" />
-                  <span className="text-xs font-bold text-slate-500 pb-2">PCS</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-[#1f242c] border border-[#30363d] rounded-xl p-5 shadow-inner">
-              <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-4">Rule #5: Konversi Mika Frozen</div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-xl font-black text-white">1 <span className="text-sm text-slate-400">Mika</span></div>
-                  <div className="text-[9px] font-bold text-slate-500 mt-1 uppercase tracking-wider">Kemasan Frozen</div>
-                </div>
-                <div className="text-slate-500 font-black text-xl">=</div>
-                <div className="flex items-end gap-2">
-                  <input type="number" value={rules.pcsPerMika} onChange={e => setRules({...rules, pcsPerMika: Number(e.target.value)})} className="w-20 bg-[#0d1117] border border-[#30363d] text-pink-500 text-2xl font-black rounded-lg p-2 text-center outline-none focus:border-pink-500 transition-colors" />
-                  <span className="text-xs font-bold text-slate-500 pb-2">PCS</span>
-                </div>
-              </div>
-            </div>
-            
-            {/* 🔥 FITUR BARU: TANGGAL GAJIAN PUKUL RATA */}
-            <div className="bg-[#1f242c] border border-blue-500/30 rounded-xl p-5 shadow-inner">
-              <div className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-4 flex items-center gap-1.5"><Calendar size={12}/> Rule #6: Tanggal Gaji Pukul Rata</div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-xl font-black text-white">Cut-Off</div>
-                  <div className="text-[9px] font-bold text-slate-500 mt-1 uppercase tracking-wider">Gaji Bulanan</div>
-                </div>
-                <div className="text-slate-500 font-black text-xl">=</div>
-                <div className="flex items-end gap-2">
-                  <span className="text-xs font-bold text-slate-500 pb-2">Tgl</span>
-                  <input type="number" min="1" max="31" value={rules.tanggalGajian} onChange={e => setRules({...rules, tanggalGajian: Number(e.target.value)})} className="w-20 bg-[#0d1117] border border-[#30363d] text-blue-400 text-2xl font-black rounded-lg p-2 text-center outline-none focus:border-blue-500 transition-colors" />
-                </div>
-              </div>
-            </div>
-            
-          </div>
-
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-6 border-t border-[#30363d]">
-            <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-               <CheckCircle2 size={14} className="text-amber-500"/> Pastikan klik simpan setelah mengubah angka konfigurasi di atas.
-            </div>
-            <button onClick={handleSaveRules} className="w-full md:w-auto px-6 py-3 bg-amber-500 hover:bg-amber-600 text-slate-900 font-black rounded-xl text-xs flex items-center justify-center gap-2 transition-colors shadow-lg cursor-pointer uppercase tracking-widest">
-              <Save size={16}/> SIMPAN KONFIGURASI PABRIK
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* POPUP HISTORY HARGA */}
-      {historyModal && (
-        <div className="fixed inset-0 bg-slate-900/40 z-[9999] flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg border border-slate-200 overflow-hidden flex flex-col max-h-[80vh]">
-            <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="bg-white p-2 rounded-lg border border-slate-200 text-blue-600 shadow-xs"><History size={16}/></div>
-                <div>
-                  <h3 className="font-extrabold text-slate-800 text-sm">Riwayat Perubahan Harga</h3>
-                  <p className="text-[10px] font-medium text-slate-500 mt-0.5 uppercase tracking-wider">{historyModal.itemName}</p>
-                </div>
-              </div>
-              <button onClick={() => setHistoryModal(null)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><X size={18}/></button>
-            </div>
-            <div className="p-6 overflow-y-auto custom-scrollbar bg-white">
-              {historyModal.history.length === 0 ? (
-                <div className="text-center py-10 opacity-60"><Clock size={36} className="mx-auto mb-3 text-slate-300"/><p className="font-bold text-xs text-slate-400">Belum ada riwayat perubahan harga.</p></div>
-              ) : (
-                <div className="space-y-4 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-[1px] before:bg-slate-200">
-                  {historyModal.history.map((hist, idx) => {
-                    const selisih = Math.abs(hist.new_price - hist.old_price);
                     return (
-                      <div key={idx} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
-                        <div className="flex items-center justify-center w-8 h-8 rounded-full border-4 border-white bg-slate-100 text-slate-500 shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 shadow-xs z-10">
-                          {hist.type === 'NAIK' ? <TrendingUp size={12} className="text-red-600"/> : hist.type === 'TURUN' ? <TrendingDown size={12} className="text-emerald-600"/> : <Plus size={12} className="text-blue-600"/>}
-                        </div>
-                        <div className="w-[calc(100%-3rem)] md:w-[calc(50%-2rem)] bg-slate-50 border border-slate-200 p-4 rounded-xl shadow-xs hover:border-slate-300 transition-colors">
-                          <div className="flex items-center justify-between mb-2 border-b border-slate-200 pb-2">
-                            <span className="text-[9px] font-bold text-slate-400 flex items-center gap-1 uppercase tracking-wider"><Calendar size={10}/> {formatDate(hist.date)}</span>
-                            <span className={`text-[8px] font-bold px-2 py-0.5 rounded-md border uppercase tracking-wider ${hist.type === 'NAIK' ? 'bg-red-50 text-red-600 border-red-100' : hist.type === 'TURUN' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>{hist.type === 'BARU' ? 'Harga Awal' : hist.type === 'NAIK' ? 'Harga Naik' : 'Harga Turun'}</span>
+                      <tr key={key} onClick={() => setSelectedId(key)} className={`cursor-pointer border-b border-slate-50 text-xs font-bold transition-all hover:bg-red-50/40 ${isSelected ? 'bg-red-50/70' : ''}`}>
+                        <td className="px-3 py-4">
+                          <div className="max-w-[260px] whitespace-normal break-words font-black leading-snug text-slate-900">{product.product_name || '-'}</div>
+                          <div className="mt-1 text-[10px] font-bold text-slate-400">{product.product_code || product.product_id || '-'}</div>
+                        </td>
+                        <td className="px-3 py-4">
+                          <div className="flex flex-col gap-1">
+                            <Badge tone={product.is_sellable ? 'blue' : 'slate'}>{product.product_type || 'MENU'}</Badge>
+                            <span className="text-[10px] text-slate-400">{product.category}</span>
                           </div>
-                          {hist.type === 'BARU' ? (
-                            <div className="text-xs font-bold text-slate-500">Harga ditetapkan: <span className="text-slate-800 font-extrabold ml-1">{formatRupiah(hist.new_price)}</span></div>
-                          ) : (
-                            <div className="flex items-center gap-2 text-xs font-extrabold flex-wrap">
-                              <span className="text-slate-400 line-through font-medium">{formatRupiah(hist.old_price)}</span>
-                              <ArrowRight size={12} className="text-slate-300"/>
-                              <span className={hist.type === 'NAIK' ? 'text-red-600' : 'text-emerald-600'}>
-                                {formatRupiah(hist.new_price)}
-                                <span className={`text-[9px] px-1.5 py-0.5 rounded-md ml-1.5 font-bold border ${hist.type === 'NAIK' ? 'bg-red-50 border-red-100' : 'bg-emerald-50 border-emerald-100'}`}>({hist.type === 'NAIK' ? '+' : '-'}{formatRupiah(selisih)})</span>
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                        </td>
+                        <td className="px-3 py-4">
+                          <div className="font-black text-emerald-700">Porsi {formatMoney(product.price_porsi)}</div>
+                          <div className="text-[10px] text-slate-400">pcs {formatMoney(product.price_pcs)} · mika {formatMoney(product.price_mika)}</div>
+                        </td>
+                        <td className="px-3 py-4">
+                          <div className="font-black text-slate-900">{formatMoney(product.current_hpp || product.fallback_hpp)}</div>
+                          <div className="text-[10px] text-slate-400">patokan awal / modal terakhir</div>
+                        </td>
+                        <td className="px-3 py-4">
+                          <div className="flex flex-wrap gap-1">
+                            {product.uses_adukan && <Badge tone="red">Adukan</Badge>}
+                            {product.is_stock_tracked && <Badge tone="green">Stok</Badge>}
+                            {product.is_sellable && <Badge tone="blue">Jual</Badge>}
+                          </div>
+                        </td>
+                        <td className="px-3 py-4"><Badge tone={statusTone(product.status)}>{product.status || 'Active'}</Badge></td>
+                        <td className="px-3 py-4">
+                          <div className="flex justify-end gap-2">
+                            <button type="button" onClick={(event) => { event.stopPropagation(); openEdit(product); }} className="rounded-xl border border-slate-200 bg-white p-2 text-slate-500 hover:border-blue-100 hover:bg-blue-50 hover:text-blue-600" title="Edit produk"><Edit2 size={14} /></button>
+                            <button type="button" onClick={(event) => { event.stopPropagation(); handleSoftDelete(product); }} className="rounded-xl border border-slate-200 bg-white p-2 text-slate-500 hover:border-red-100 hover:bg-red-50 hover:text-red-600" title="Nonaktifkan"><Trash2 size={14} /></button>
+                          </div>
+                        </td>
+                      </tr>
                     );
                   })}
-                </div>
-              )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
-      )}
 
+        <div className="xl:col-span-4">
+          <div className="sticky top-4 rounded-[2rem] border border-slate-100 bg-white p-5 shadow-sm">
+            <div className="mb-4 flex items-start justify-between gap-3 border-b border-slate-100 pb-4">
+              <div>
+                <h2 className="text-sm font-black text-slate-900">Detail Produk</h2>
+                <p className="mt-1 text-[11px] font-semibold text-slate-400">Ringkasan operasional dan aturan produksi.</p>
+              </div>
+              {selectedProduct && <button type="button" onClick={() => openEdit(selectedProduct)} className="rounded-xl bg-red-50 p-2 text-red-600 hover:bg-red-100"><Edit2 size={15} /></button>}
+            </div>
+
+            {!selectedProduct ? (
+              <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4 text-xs font-bold text-amber-800">Pilih produk untuk lihat detail.</div>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <div className="text-xl font-black text-slate-900">{selectedProduct.product_name}</div>
+                  <div className="mt-1 text-xs font-bold text-slate-400">{selectedProduct.product_id || selectedProduct.product_code}</div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge tone={statusTone(selectedProduct.status)}>{selectedProduct.status}</Badge>
+                  {selectedProduct.uses_adukan && <Badge tone="red">Pakai Adukan</Badge>}
+                  {selectedProduct.is_sellable && <Badge tone="blue">Bisa Dijual</Badge>}
+                  {selectedProduct.is_stock_tracked && <Badge tone="green">Pantau Stok</Badge>}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-2xl bg-slate-50 p-4"><div className="text-[10px] font-black uppercase text-slate-400">Harga Porsi</div><div className="mt-1 text-sm font-black text-slate-900">{formatMoney(selectedProduct.price_porsi || selectedProduct.price_retail)}</div></div>
+                  <div className="rounded-2xl bg-slate-50 p-4"><div className="text-[10px] font-black uppercase text-slate-400">Harga PCS</div><div className="mt-1 text-sm font-black text-slate-900">{formatMoney(selectedProduct.price_pcs)}</div></div>
+                  <div className="rounded-2xl bg-slate-50 p-4"><div className="text-[10px] font-black uppercase text-slate-400">Modal Patokan</div><div className="mt-1 text-sm font-black text-slate-900">{formatMoney(selectedProduct.current_hpp || selectedProduct.fallback_hpp)}</div></div>
+                  <div className="rounded-2xl bg-slate-50 p-4"><div className="text-[10px] font-black uppercase text-slate-400">Satuan</div><div className="mt-1 text-sm font-black text-slate-900">{selectedProduct.selling_unit}</div></div>
+                </div>
+
+                {selectedProduct.uses_adukan && (
+                  <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-xs font-bold text-red-900">
+                    <div className="mb-2 font-black uppercase tracking-[0.14em] text-red-600">Aturan Adukan</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <span>Ayam/adukan</span><strong className="text-right">{selectedProduct.chicken_kg_per_adukan || 30} kg</strong>
+                      <span>Target hasil</span><strong className="text-right">{formatQty(selectedProduct.default_yield_pcs || 1000, 'pcs')}</strong>
+                      <span>1 porsi</span><strong className="text-right">{selectedProduct.pcs_per_porsi || 4} pcs</strong>
+                      <span>1 mika</span><strong className="text-right">{selectedProduct.pcs_per_mika || 50} pcs</strong>
+                    </div>
+                  </div>
+                )}
+
+                <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-xs font-bold leading-relaxed text-emerald-900">
+                  Alur: Master Produk → Produksi/Adukan atau Kasir/Order → Stok/Modal otomatis ikut aturan produk ini.
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {isFormOpen && (
+        <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+          <form onSubmit={handleSubmit} className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-[2rem] bg-white shadow-2xl">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white/95 p-5 backdrop-blur">
+              <div>
+                <h2 className="text-lg font-black text-slate-900">{editingId ? 'Edit Produk' : 'Tambah Produk'}</h2>
+                <p className="mt-1 text-xs font-bold text-slate-400">Isi produk dengan bahasa operasional. Jenis produk menentukan produk muncul di Kasir, Produksi/Adukan, atau stok bahan.</p>
+              </div>
+              <button type="button" onClick={() => setIsFormOpen(false)} className="rounded-xl bg-slate-100 p-2 text-slate-500 hover:bg-red-50 hover:text-red-600"><X size={18} /></button>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6 p-6 xl:grid-cols-2">
+              <div className="space-y-4 rounded-[1.75rem] border border-slate-100 bg-slate-50/50 p-5">
+                <h3 className="text-sm font-black text-slate-900">1. Identitas Produk</h3>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <Field label="Nama Produk"><input value={form.product_name} onChange={(e) => updateForm('product_name', e.target.value)} className={inputClass} placeholder="Contoh: Dimsum Ayam Mix" /></Field>
+                  <Field label="Kode Produk"><input value={form.product_code} onChange={(e) => updateForm('product_code', slugCode(e.target.value))} className={inputClass} placeholder="DIMSUM_AYAM_MIX" /></Field>
+                  <Field label="Jenis Produk" help="Pilih posisi produk di alur kerja. Sistem akan bantu set aturan default, tetap bisa kamu ubah manual.">
+                    <select value={form.product_type} onChange={(e) => updateForm('product_type', e.target.value)} className={inputClass}>
+                      {PRODUCT_TYPES.map((type) => <option key={type.id} value={type.id}>{type.label}</option>)}
+                    </select>
+                    <div className="mt-2 rounded-2xl border border-blue-100 bg-blue-50 p-3 text-[11px] font-bold leading-relaxed text-blue-800">
+                      <div className="font-black uppercase tracking-[0.12em]">{activeProductTypeMeta.label} · {activeProductTypeMeta.short}</div>
+                      <div className="mt-1">{activeProductTypeMeta.description}</div>
+                    </div>
+                  </Field>
+                  <Field label="Kategori"><select value={form.category} onChange={(e) => updateForm('category', e.target.value)} className={inputClass}>{CATEGORIES.map((cat) => <option key={cat} value={cat}>{cat}</option>)}</select></Field>
+                  <Field label="Status"><select value={form.status} onChange={(e) => updateForm('status', e.target.value)} className={inputClass}><option value="Active">Aktif</option><option value="Non Active">Nonaktif</option></select></Field>
+                  <Field label="Satuan Utama"><input value={form.default_unit} onChange={(e) => updateForm('default_unit', e.target.value)} className={inputClass} placeholder="pcs" /></Field>
+                </div>
+              </div>
+
+              <div className="space-y-4 rounded-[1.75rem] border border-slate-100 bg-slate-50/50 p-5">
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900">2. Harga & Modal Patokan</h3>
+                    <p className="mt-1 text-[11px] font-bold leading-relaxed text-slate-400">Isi satu harga utama, sistem otomatis hitung harga porsi/pcs/mika dari konversi.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => updateForm('price_auto_calculate', !form.price_auto_calculate)}
+                    className={`rounded-2xl border px-4 py-2 text-[10px] font-black uppercase tracking-[0.14em] ${form.price_auto_calculate ? 'border-emerald-100 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-500'}`}
+                  >
+                    {form.price_auto_calculate ? 'Auto Harga Aktif' : 'Override Manual'}
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <Field label="Harga utama dihitung dari">
+                    <select value={form.price_basis || 'PORSI'} onChange={(e) => updateForm('price_basis', e.target.value)} className={inputClass}>
+                      <option value="PORSI">Harga / Porsi</option>
+                      <option value="PCS">Harga / PCS</option>
+                      <option value="MIKA">Harga / Mika</option>
+                    </select>
+                  </Field>
+                  <Field label="Harga Mitra / Reseller" help="Harga khusus boleh manual, tidak wajib ikut harga normal.">
+                    <input value={form.price_mitra || form.price_reseller} onChange={(e) => { updateForm('price_mitra', e.target.value); updateForm('price_reseller', e.target.value); }} className={inputClass} placeholder="2000" />
+                  </Field>
+                  <Field label="Harga / Porsi"><input value={form.price_porsi} onChange={(e) => updateForm('price_porsi', e.target.value)} className={inputClass} placeholder="8500" /></Field>
+                  <Field label="Harga / PCS"><input value={form.price_pcs} onChange={(e) => updateForm('price_pcs', e.target.value)} className={inputClass} placeholder="2125" /></Field>
+                  <Field label="Harga / Mika"><input value={form.price_mika} onChange={(e) => updateForm('price_mika', e.target.value)} className={inputClass} placeholder="106250" /></Field>
+                  <Field label="Modal Patokan / PCS" help="Fallback saja. Modal final dari produksi tetap pakai lot/adukan."><input value={form.current_hpp || form.fallback_hpp} onChange={(e) => { updateForm('current_hpp', e.target.value); updateForm('fallback_hpp', e.target.value); }} className={inputClass} placeholder="1080" /></Field>
+                  <Field label="Target Margin %"><input value={form.target_margin_percent} onChange={(e) => updateForm('target_margin_percent', e.target.value)} className={inputClass} placeholder="30" /></Field>
+                </div>
+
+                <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4 text-[11px] font-bold leading-relaxed text-amber-900">
+                  Contoh: isi Harga / Porsi Rp8.500 → Harga / PCS Rp2.125 → Harga / Mika Rp106.250. Harga Mitra/Reseller tetap boleh disesuaikan manual.
+                </div>
+              </div>
+
+              <div className="space-y-4 rounded-[1.75rem] border border-slate-100 bg-slate-50/50 p-5">
+                <h3 className="text-sm font-black text-slate-900">3. Aturan Stok & Produksi</h3>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  {[
+                    ['is_sellable', 'Bisa dijual di Kasir'],
+                    ['is_stock_tracked', 'Stok dipantau'],
+                    ['uses_adukan', 'Pakai proses Adukan'],
+                    ['is_production_output', 'Hasil produksi/adukan'],
+                    ['is_resto_menu', 'Menu outlet/resto'],
+                    ['is_purchasable', 'Dibeli dari supplier'],
+                  ].map(([key, label]) => (
+                    <button key={key} type="button" onClick={() => updateForm(key, !form[key])} className={`flex items-center justify-between rounded-2xl border p-4 text-left text-xs font-black transition-all ${form[key] ? 'border-red-100 bg-red-50 text-red-700' : 'border-slate-200 bg-white text-slate-500'}`}>
+                      <span>{label}</span>
+                      <span>{form[key] ? 'YA' : 'TIDAK'}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-4 rounded-[1.75rem] border border-slate-100 bg-slate-50/50 p-5">
+                <h3 className="text-sm font-black text-slate-900">4. Konversi Adukan</h3>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <Field label="Ayam / Adukan"><input value={form.chicken_kg_per_adukan} onChange={(e) => updateForm('chicken_kg_per_adukan', e.target.value)} className={inputClass} placeholder="30" /></Field>
+                  <Field label="Target Hasil / Adukan"><input value={form.default_yield_pcs} onChange={(e) => updateForm('default_yield_pcs', e.target.value)} className={inputClass} placeholder="1000" /></Field>
+                  <Field label="PCS / Porsi"><input value={form.pcs_per_porsi} onChange={(e) => updateForm('pcs_per_porsi', e.target.value)} className={inputClass} placeholder="4" /></Field>
+                  <Field label="PCS / Mika"><input value={form.pcs_per_mika} onChange={(e) => updateForm('pcs_per_mika', e.target.value)} className={inputClass} placeholder="50" /></Field>
+                </div>
+                <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-xs font-bold text-emerald-900">
+                  Produk yang dicentang “Pakai proses Adukan” akan muncul otomatis di menu Produksi/Adukan.
+                </div>
+              </div>
+
+              <div className="xl:col-span-2">
+                <Field label="Catatan"><textarea value={form.notes} onChange={(e) => updateForm('notes', e.target.value)} rows={3} className={`${inputClass} resize-none`} placeholder="Catatan internal produk..." /></Field>
+              </div>
+            </div>
+
+            <div className="sticky bottom-0 flex items-center justify-end gap-3 border-t border-slate-100 bg-white/95 p-5 backdrop-blur">
+              <button type="button" onClick={() => setIsFormOpen(false)} className="rounded-2xl border border-slate-200 px-5 py-3 text-xs font-black text-slate-500 hover:bg-slate-50">Batal</button>
+              <button type="submit" className="flex items-center gap-2 rounded-2xl bg-red-600 px-5 py-3 text-xs font-black uppercase tracking-[0.14em] text-white shadow-sm hover:bg-red-700"><Save size={16} /> Simpan Produk</button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
