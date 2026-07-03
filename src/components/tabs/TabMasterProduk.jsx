@@ -56,12 +56,38 @@ const DEFAULT_FORM = {
 };
 
 const PRODUCT_TYPES = [
-  { id: 'MENU_JUAL', label: 'Menu Jual' },
-  { id: 'HASIL_ADUKAN', label: 'Hasil Adukan' },
-  { id: 'MENU_TURUNAN', label: 'Menu Turunan' },
-  { id: 'BAHAN_PENDUKUNG', label: 'Bahan / Saos' },
-  { id: 'PAKET', label: 'Paket' },
+  {
+    id: 'HASIL_ADUKAN',
+    label: 'Hasil Adukan',
+    short: 'Lahir dari proses adukan',
+    description: 'Contoh: Dimsum Original Mix / Dimsum Ayam Mix. Produk ini muncul di Produksi / Adukan dan bisa menjadi stok jadi freezer.',
+  },
+  {
+    id: 'MENU_JUAL',
+    label: 'Menu Jual',
+    short: 'Dijual langsung di Kasir',
+    description: 'Contoh: Dimsum Ayam Mix isi 4, Udang Keju, Lumpia Goreng. Produk ini boleh muncul di Kasir / Order.',
+  },
+  {
+    id: 'MENU_TURUNAN',
+    label: 'Menu Turunan',
+    short: 'Dari produk dasar + finishing',
+    description: 'Contoh: Dimsum Mentai atau produk goreng. Biasanya berasal dari stok dasar lalu ditambah topping/proses finishing.',
+  },
+  {
+    id: 'BAHAN_PENDUKUNG',
+    label: 'Bahan / Saos',
+    short: 'Bahan pendukung, bukan menu utama',
+    description: 'Contoh: saos, mentai, chili oil, mika, tepung, bumbu. Dipantau sebagai bahan/stok, bukan wajib muncul di Kasir.',
+  },
+  {
+    id: 'PAKET',
+    label: 'Paket',
+    short: 'Bundling beberapa produk',
+    description: 'Contoh: paket reseller, paket promo, paket mix. Isi paket bisa diturunkan dari beberapa produk lain.',
+  },
 ];
+
 
 const CATEGORIES = [
   'DIMSUM',
@@ -122,6 +148,76 @@ const slugCode = (value) => normalizeCode(value)
   .replace(/[./-]+/g, '_')
   .replace(/^_+|_+$/g, '')
   .slice(0, 24);
+
+const PRODUCT_TYPE_META = PRODUCT_TYPES.reduce((map, item) => ({ ...map, [item.id]: item }), {});
+
+const getProductTypeMeta = (productType) => PRODUCT_TYPE_META[normalizeCode(productType || 'MENU_JUAL')] || PRODUCT_TYPE_META.MENU_JUAL;
+
+const applyProductTypeTemplate = (draft, productType) => {
+  const next = { ...draft, product_type: productType };
+  const normalized = normalizeCode(productType);
+
+  if (normalized === 'HASIL_ADUKAN') {
+    next.is_sellable = true;
+    next.is_stock_tracked = true;
+    next.uses_adukan = true;
+    next.is_production_output = true;
+    next.is_production_item = true;
+    next.adukan_conversion_active = true;
+    next.production_process = 'ADUKAN';
+    next.default_unit = next.default_unit || 'pcs';
+    next.selling_unit = next.selling_unit || 'pcs';
+    next.production_unit = next.production_unit || 'pcs';
+    next.default_yield_pcs = next.default_yield_pcs || '1000';
+    next.chicken_kg_per_adukan = next.chicken_kg_per_adukan || '30';
+    next.pcs_per_porsi = next.pcs_per_porsi || '4';
+    next.pcs_per_mika = next.pcs_per_mika || '50';
+  }
+
+  if (normalized === 'MENU_JUAL') {
+    next.is_sellable = true;
+    next.is_resto_menu = true;
+    next.is_stock_tracked = true;
+    next.is_purchasable = false;
+  }
+
+  if (normalized === 'MENU_TURUNAN') {
+    next.is_sellable = true;
+    next.is_resto_menu = true;
+    next.is_stock_tracked = true;
+    next.is_purchasable = false;
+    if (!next.production_process || normalizeCode(next.production_process) === 'ADUKAN') {
+      next.production_process = 'FINISHING';
+    }
+  }
+
+  if (normalized === 'BAHAN_PENDUKUNG') {
+    next.is_sellable = false;
+    next.is_resto_menu = false;
+    next.is_stock_tracked = true;
+    next.is_purchasable = true;
+    next.uses_adukan = false;
+    next.is_production_output = false;
+    next.is_production_item = false;
+    next.adukan_conversion_active = false;
+    next.production_process = '';
+  }
+
+  if (normalized === 'PAKET') {
+    next.is_sellable = true;
+    next.is_resto_menu = true;
+    next.is_stock_tracked = false;
+    next.is_purchasable = false;
+    next.uses_adukan = false;
+    next.is_production_output = false;
+    next.is_production_item = false;
+    next.adukan_conversion_active = false;
+    next.production_process = 'BUNDLE';
+  }
+
+  return next;
+};
+
 
 const getRawProducts = (props) => [
   ...safeArray(props.masterProducts),
@@ -286,6 +382,7 @@ export default function TabMasterProduk(props) {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState('');
   const [form, setForm] = useState(DEFAULT_FORM);
+  const activeProductTypeMeta = getProductTypeMeta(form.product_type);
 
   const productRecords = useMemo(() => {
     const uniqueMap = new Map();
@@ -356,6 +453,10 @@ export default function TabMasterProduk(props) {
 
       if (key === 'product_name' && !prev.product_code) {
         next.product_code = slugCode(value);
+      }
+
+      if (key === 'product_type') {
+        return applyProductTypeTemplate(next, value);
       }
 
       if (key === 'uses_adukan' || key === 'is_production_output') {
@@ -659,7 +760,7 @@ export default function TabMasterProduk(props) {
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white/95 p-5 backdrop-blur">
               <div>
                 <h2 className="text-lg font-black text-slate-900">{editingId ? 'Edit Produk' : 'Tambah Produk'}</h2>
-                <p className="mt-1 text-xs font-bold text-slate-400">Isi detail produk dengan bahasa operasional. Angka modal tetap dipakai mesin keuangan.</p>
+                <p className="mt-1 text-xs font-bold text-slate-400">Isi produk dengan bahasa operasional. Jenis produk menentukan produk muncul di Kasir, Produksi/Adukan, atau stok bahan.</p>
               </div>
               <button type="button" onClick={() => setIsFormOpen(false)} className="rounded-xl bg-slate-100 p-2 text-slate-500 hover:bg-red-50 hover:text-red-600"><X size={18} /></button>
             </div>
@@ -670,7 +771,15 @@ export default function TabMasterProduk(props) {
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <Field label="Nama Produk"><input value={form.product_name} onChange={(e) => updateForm('product_name', e.target.value)} className={inputClass} placeholder="Contoh: Dimsum Ayam Mix" /></Field>
                   <Field label="Kode Produk"><input value={form.product_code} onChange={(e) => updateForm('product_code', slugCode(e.target.value))} className={inputClass} placeholder="DIMSUM_AYAM_MIX" /></Field>
-                  <Field label="Jenis Produk"><select value={form.product_type} onChange={(e) => updateForm('product_type', e.target.value)} className={inputClass}>{PRODUCT_TYPES.map((type) => <option key={type.id} value={type.id}>{type.label}</option>)}</select></Field>
+                  <Field label="Jenis Produk" help="Pilih posisi produk di alur kerja. Sistem akan bantu set aturan default, tetap bisa kamu ubah manual.">
+                    <select value={form.product_type} onChange={(e) => updateForm('product_type', e.target.value)} className={inputClass}>
+                      {PRODUCT_TYPES.map((type) => <option key={type.id} value={type.id}>{type.label}</option>)}
+                    </select>
+                    <div className="mt-2 rounded-2xl border border-blue-100 bg-blue-50 p-3 text-[11px] font-bold leading-relaxed text-blue-800">
+                      <div className="font-black uppercase tracking-[0.12em]">{activeProductTypeMeta.label} · {activeProductTypeMeta.short}</div>
+                      <div className="mt-1">{activeProductTypeMeta.description}</div>
+                    </div>
+                  </Field>
                   <Field label="Kategori"><select value={form.category} onChange={(e) => updateForm('category', e.target.value)} className={inputClass}>{CATEGORIES.map((cat) => <option key={cat} value={cat}>{cat}</option>)}</select></Field>
                   <Field label="Status"><select value={form.status} onChange={(e) => updateForm('status', e.target.value)} className={inputClass}><option value="Active">Aktif</option><option value="Non Active">Nonaktif</option></select></Field>
                   <Field label="Satuan Utama"><input value={form.default_unit} onChange={(e) => updateForm('default_unit', e.target.value)} className={inputClass} placeholder="pcs" /></Field>
