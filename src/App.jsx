@@ -26,6 +26,7 @@ import TabBusinessRadar from './components/tabs/TabBusinessRadar';
 import TabAccounting from './components/tabs/TabAccounting';
 import TabAccountingAudit from './components/tabs/TabAccountingAudit';
 import TabMasterData from './components/tabs/TabMasterData';
+import TabMasterProduk from './components/tabs/TabMasterProduk';
 import TabStokOutlet from './components/tabs/TabStokOutlet';
 import TabSetoranCabang from './components/tabs/TabSetoranCabang';
 import TabDiscrepancy from './components/tabs/TabDiscrepancy';
@@ -609,6 +610,42 @@ export default function App() {
             sendToSheet={sendToSheet}
             setPrintData={setPrintData}
             showToast={showToast}
+            {...dbData}
+          />
+        );
+
+      case 'master_produk':
+        return (
+          <TabMasterProduk
+            user={user}
+            sendToSheet={sendToSheet}
+            showToast={showToast}
+            {...dbData}
+          />
+        );
+
+      case 'master_pelanggan':
+        return (
+          <TabMasterCustomer
+            user={user}
+            sendToSheet={sendToSheet}
+            setPrintData={setPrintData}
+            showToast={showToast}
+            {...dbData}
+          />
+        );
+
+      case 'master_cabang':
+      case 'master_gudang':
+      case 'master_supplier':
+      case 'master_bahan_baku':
+      case 'master_resep_bom':
+        return (
+          <TabMasterData
+            user={user}
+            sendToSheet={sendToSheet}
+            showToast={showToast}
+            activeSubMenu={activeTab}
             {...dbData}
           />
         );
