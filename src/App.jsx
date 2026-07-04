@@ -6,6 +6,7 @@ import { logoutUser } from "./lib/api/actions";
 import AppShell from "./layouts/AppShell";
 import LoginPage from "./modules/auth/LoginPage";
 import ModulePlaceholder from "./modules/common/ModulePlaceholder";
+import PapanPusatPage from "./modules/owner/PapanPusatPage";
 
 export default function App() {
   const [session, setSession] = useState(() => getSavedSession());
@@ -44,6 +45,20 @@ export default function App() {
     }
   };
 
+  const renderPage = () => {
+    if (activePage === "papan-pusat") {
+      return <PapanPusatPage session={session} />;
+    }
+
+    return (
+      <ModulePlaceholder
+        page={selectedPage}
+        activePage={activePage}
+        availablePages={flatPages}
+      />
+    );
+  };
+
   if (!session?.sessionToken) {
     return <LoginPage onLoginSuccess={handleLoginSuccess} />;
   }
@@ -56,11 +71,7 @@ export default function App() {
       onChangePage={setActivePage}
       onLogout={handleLogout}
     >
-      <ModulePlaceholder
-        page={selectedPage}
-        activePage={activePage}
-        availablePages={flatPages}
-      />
+      {renderPage()}
     </AppShell>
   );
 }
