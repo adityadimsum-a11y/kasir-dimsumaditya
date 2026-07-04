@@ -11,10 +11,10 @@ body,
 
 body {
   font-family: var(--da-font-main);
-  background:
-    radial-gradient(circle at top left, rgba(244, 196, 48, 0.16), transparent 28rem),
-    var(--da-color-bg);
+  background: var(--da-color-bg);
   color: var(--da-color-text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
 }
 
 button,
@@ -40,7 +40,7 @@ button {
 }
 
 .da-content {
-  padding: 24px;
+  padding: 28px;
 }
 
 .da-card {
@@ -50,72 +50,90 @@ button {
   box-shadow: var(--da-shadow-card);
 }
 
+.da-card-padding {
+  padding: 20px;
+}
+
 .da-muted {
   color: var(--da-color-muted);
 }
 
 .da-grid {
   display: grid;
-  gap: 16px;
+  gap: 18px;
 }
 
 .da-grid-3 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-@media (max-width: 980px) {
-  .da-main {
-    margin-left: 0;
-  }
-
-  .da-grid-3 {
-    grid-template-columns: 1fr;
-  }
-}
+/* SIDEBAR */
 
 .da-sidebar {
   position: fixed;
   inset: 0 auto 0 0;
   width: var(--da-sidebar-width);
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--da-color-surface);
   border-right: 1px solid var(--da-color-border);
-  padding: 18px;
+  padding: 18px 16px;
   overflow-y: auto;
-  backdrop-filter: blur(16px);
 }
 
 .da-sidebar-brand {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 8px 22px;
+  padding: 8px 8px 24px;
 }
 
 .da-brand-mark {
-  width: 44px;
-  height: 44px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, var(--da-color-primary), var(--da-color-gold));
-  color: white;
-  font-weight: 900;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: var(--da-color-surface);
+  border: 1px solid var(--da-color-border);
   display: grid;
   place-items: center;
-  box-shadow: var(--da-shadow-soft);
+  overflow: hidden;
+  box-shadow: var(--da-shadow-card);
+  flex: 0 0 auto;
+}
+
+.da-brand-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.da-brand-fallback {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(
+    135deg,
+    var(--da-color-accent),
+    var(--da-color-primary)
+  );
+  color: white;
+  font-weight: 900;
 }
 
 .da-brand-title {
-  font-weight: 900;
-  letter-spacing: -0.02em;
+  font-weight: 850;
+  letter-spacing: -0.03em;
+  color: var(--da-color-heading);
 }
 
 .da-brand-subtitle {
   color: var(--da-color-muted);
   font-size: 12px;
   margin-top: 2px;
+  font-weight: 500;
 }
 
 .da-sidebar-group {
-  margin-bottom: 18px;
+  margin-bottom: 22px;
 }
 
 .da-sidebar-group-title {
@@ -124,7 +142,7 @@ button {
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  margin: 0 0 8px 8px;
+  margin: 0 0 8px 10px;
 }
 
 .da-sidebar-item {
@@ -135,43 +153,59 @@ button {
   text-align: left;
   padding: 11px 12px;
   border-radius: var(--da-radius-md);
-  font-weight: 700;
+  font-weight: 750;
   margin-bottom: 4px;
+  transition: 0.15s ease;
 }
 
 .da-sidebar-item:hover {
-  background: var(--da-color-primary-soft);
+  background: var(--da-color-surface-soft);
 }
 
 .da-sidebar-item.active {
-  background: var(--da-color-primary);
-  color: white;
-  box-shadow: var(--da-shadow-soft);
+  background: var(--da-color-primary-soft);
+  color: var(--da-color-primary-dark);
+  box-shadow: none;
 }
+
+.da-sidebar-item.active::before {
+  content: "";
+  display: inline-block;
+  width: 4px;
+  height: 16px;
+  background: var(--da-color-primary);
+  border-radius: 99px;
+  margin-right: 9px;
+  vertical-align: -3px;
+}
+
+/* TOPBAR */
 
 .da-topbar {
   height: var(--da-topbar-height);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
-  background: rgba(255, 250, 242, 0.82);
+  padding: 0 28px;
+  background: var(--da-color-surface);
   border-bottom: 1px solid var(--da-color-border);
-  backdrop-filter: blur(16px);
   position: sticky;
   top: 0;
   z-index: 10;
 }
 
 .da-topbar-title {
-  font-weight: 900;
+  font-weight: 850;
   font-size: 18px;
+  color: var(--da-color-heading);
+  letter-spacing: -0.03em;
 }
 
 .da-topbar-subtitle {
   color: var(--da-color-muted);
   font-size: 13px;
-  margin-top: 2px;
+  margin-top: 3px;
+  font-weight: 500;
 }
 
 .da-topbar-user {
@@ -183,19 +217,23 @@ button {
 
 .da-user-name {
   font-weight: 800;
+  color: var(--da-color-heading);
 }
 
 .da-user-label {
   color: var(--da-color-muted);
   font-size: 12px;
+  margin-top: 2px;
 }
 
+/* BUTTON */
+
 .da-button {
-  border: 0;
   border-radius: var(--da-radius-md);
-  padding: 10px 14px;
+  padding: 10px 16px;
   font-weight: 800;
   transition: 0.16s ease;
+  border: 1px solid transparent;
 }
 
 .da-button:disabled {
@@ -206,7 +244,7 @@ button {
 .da-button-primary {
   background: var(--da-color-primary);
   color: white;
-  box-shadow: var(--da-shadow-soft);
+  box-shadow: none;
 }
 
 .da-button-primary:hover {
@@ -214,28 +252,26 @@ button {
 }
 
 .da-button-ghost {
-  background: white;
+  background: var(--da-color-surface);
   color: var(--da-color-text);
-  border: 1px solid var(--da-color-border);
+  border-color: var(--da-color-border-strong);
 }
 
 .da-button-ghost:hover {
   background: var(--da-color-surface-soft);
 }
 
-.da-card-padding {
-  padding: 18px;
-}
+/* BADGE */
 
 .da-badge {
   display: inline-flex;
   align-items: center;
   border-radius: 999px;
-  padding: 5px 10px;
+  padding: 6px 11px;
   font-size: 12px;
   font-weight: 800;
-  background: var(--da-color-surface-soft);
-  color: var(--da-color-muted);
+  background: var(--da-color-primary-soft);
+  color: var(--da-color-primary-dark);
 }
 
 .da-badge-success {
@@ -244,8 +280,8 @@ button {
 }
 
 .da-badge-warning {
-  background: #fef3c7;
-  color: var(--da-color-warning);
+  background: var(--da-color-accent-soft);
+  color: var(--da-color-accent);
 }
 
 .da-badge-danger {
@@ -253,16 +289,18 @@ button {
   color: var(--da-color-danger);
 }
 
+/* PAGE */
+
 .da-page-header {
   display: flex;
   justify-content: space-between;
   gap: 18px;
   align-items: flex-start;
-  margin-bottom: 20px;
+  margin-bottom: 22px;
 }
 
 .da-page-kicker {
-  color: var(--da-color-primary);
+  color: var(--da-color-primary-dark);
   font-size: 12px;
   font-weight: 900;
   letter-spacing: 0.08em;
@@ -270,55 +308,87 @@ button {
 }
 
 .da-page-header h1 {
-  margin: 4px 0 6px;
-  font-size: 30px;
-  letter-spacing: -0.04em;
+  margin: 4px 0 7px;
+  font-size: 31px;
+  line-height: 1.15;
+  color: var(--da-color-heading);
+  letter-spacing: -0.05em;
+  font-weight: 850;
 }
 
 .da-page-header p {
   margin: 0;
   color: var(--da-color-muted);
-  max-width: 680px;
-  line-height: 1.55;
+  max-width: 720px;
+  line-height: 1.6;
+  font-weight: 500;
 }
 
+/* EMPTY STATE */
+
 .da-empty-state {
-  min-height: 240px;
+  min-height: 245px;
   display: grid;
   place-items: center;
   text-align: center;
-  padding: 32px;
-  border: 1px dashed var(--da-color-border);
+  padding: 34px;
+  border: 1px dashed var(--da-color-border-strong);
   border-radius: var(--da-radius-lg);
-  background: rgba(255, 255, 255, 0.62);
+  background: var(--da-color-surface);
 }
 
 .da-empty-icon {
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
   border-radius: 999px;
   display: grid;
   place-items: center;
-  background: var(--da-color-gold-soft);
-  color: var(--da-color-warning);
-  margin-bottom: 10px;
+  background: var(--da-color-primary-soft);
+  color: var(--da-color-primary);
+  margin-bottom: 12px;
+  font-weight: 900;
 }
 
 .da-empty-state h3 {
-  margin: 0 0 6px;
+  margin: 0 0 8px;
+  color: var(--da-color-heading);
+  font-weight: 850;
 }
 
 .da-empty-state p {
   margin: 0 0 14px;
   color: var(--da-color-muted);
-  max-width: 520px;
+  max-width: 560px;
+  line-height: 1.55;
+  font-weight: 500;
 }
+
+.da-mini-title {
+  color: var(--da-color-muted);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.da-big-text {
+  font-size: 23px;
+  font-weight: 900;
+  margin: 9px 0 7px;
+  color: var(--da-color-heading);
+  letter-spacing: -0.04em;
+}
+
+/* LOGIN */
 
 .da-login-page {
   min-height: 100vh;
   display: grid;
   place-items: center;
   padding: 24px;
+  background:
+    radial-gradient(circle at top left, rgba(0, 177, 79, 0.12), transparent 28rem),
+    var(--da-color-bg);
 }
 
 .da-login-card {
@@ -333,26 +403,34 @@ button {
 }
 
 .da-login-mark {
-  width: 54px;
-  height: 54px;
-  border-radius: 18px;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
   display: grid;
   place-items: center;
-  background: linear-gradient(135deg, var(--da-color-primary), var(--da-color-gold));
-  color: white;
-  font-weight: 900;
-  font-size: 18px;
+  background: var(--da-color-surface);
+  border: 1px solid var(--da-color-border);
+  overflow: hidden;
+}
+
+.da-login-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .da-login-brand h1 {
   margin: 0;
   font-size: 24px;
+  color: var(--da-color-heading);
   letter-spacing: -0.04em;
+  font-weight: 850;
 }
 
 .da-login-brand p {
   margin: 4px 0 0;
   color: var(--da-color-muted);
+  font-weight: 500;
 }
 
 .da-login-form {
@@ -365,14 +443,16 @@ button {
   gap: 7px;
   font-weight: 800;
   font-size: 13px;
+  color: var(--da-color-heading);
 }
 
 .da-login-form input {
-  border: 1px solid var(--da-color-border);
+  border: 1px solid var(--da-color-border-strong);
   border-radius: var(--da-radius-md);
   padding: 12px 13px;
   font-size: 14px;
   outline: none;
+  background: var(--da-color-surface);
 }
 
 .da-login-form input:focus {
@@ -392,19 +472,19 @@ button {
   margin-top: 14px;
   color: var(--da-color-muted);
   font-size: 12px;
+  font-weight: 500;
 }
 
-.da-mini-title {
-  color: var(--da-color-muted);
-  font-size: 12px;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
+@media (max-width: 980px) {
+  .da-sidebar {
+    display: none;
+  }
 
-.da-big-text {
-  font-size: 22px;
-  font-weight: 900;
-  margin: 8px 0 6px;
-  letter-spacing: -0.03em;
+  .da-main {
+    margin-left: 0;
+  }
+
+  .da-grid-3 {
+    grid-template-columns: 1fr;
+  }
 }
