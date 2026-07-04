@@ -189,3 +189,36 @@ button {
   color: var(--da-color-muted);
   font-size: 12px;
 }
+
+.da-button {
+  border: 0;
+  border-radius: var(--da-radius-md);
+  padding: 10px 14px;
+  font-weight: 800;
+  transition: 0.16s ease;
+}
+
+.da-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.da-button-primary {
+  background: var(--da-color-primary);
+  color: white;
+  box-shadow: var(--da-shadow-soft);
+}
+
+.da-button-primary:hover {
+  background: var(--da-color-primary-dark);
+}
+
+.da-button-ghost {
+  background: white;
+  color: var(--da-color-text);
+  border: 1px solid var(--da-color-border);
+}
+
+.da-button-ghost:hover {
+  background: var(--da-color-surface-soft);
+}
