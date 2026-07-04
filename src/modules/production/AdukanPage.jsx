@@ -103,7 +103,6 @@ function uniqueLotsById(lots) {
     const existingRemaining = numberValue(existing.remaining_kg);
     const currentRemaining = numberValue(lot.remaining_kg);
 
-    // Kalau backend kirim lot dobel, ambil data yang paling lengkap/aman.
     if (currentRemaining > existingRemaining) {
       map.set(lot.id, lot);
       return;
@@ -192,6 +191,8 @@ function buildProductionPreview(form, lots) {
     selectedLot,
     production_date: form.production_date,
     total_adukan: totalAdukan,
+    kg_per_adukan: kgPerAdukan,
+    pcs_per_adukan: pcsPerAdukan,
     planned_chicken_kg: plannedChickenKg,
     planned_output_pcs: plannedOutputPcs,
     actual_output_pcs: actualOutputPcs,
@@ -199,6 +200,33 @@ function buildProductionPreview(form, lots) {
     hpp_ayam_per_pcs: hppAyamPerPcs,
     remaining_after_use: remainingAfterUse,
     note: form.note,
+  };
+}
+
+function buildLiveProductionPayload({ preview, session }) {
+  return {
+    production: {
+      location_id: session?.user?.location_id || "",
+      production_date: preview.production_date,
+
+      chicken_lot_id: preview.selectedLot?.id || "",
+      source_chicken_lot_id: preview.selectedLot?.id || "",
+
+      total_adukan: preview.total_adukan,
+      kg_per_adukan: preview.kg_per_adukan,
+      chicken_kg_used: preview.planned_chicken_kg,
+
+      planned_output_pcs: preview.planned_output_pcs,
+      actual_output_pcs: preview.actual_output_pcs,
+
+      chicken_unit_cost: preview.selectedLot?.unit_cost || 0,
+      chicken_cost: preview.modal_ayam,
+      estimated_chicken_cost_per_pcs: preview.hpp_ayam_per_pcs,
+
+      product_code: "DIMSUM_AYAM_MIX",
+      output_unit: "pcs",
+      notes: preview.note,
+    },
   };
 }
 
@@ -228,6 +256,15 @@ function getStatusTone(status) {
   return "warning";
 }
 
+function PayloadRow({ label, value }) {
+  return (
+    <div className="da-payload-row">
+      <span>{label}</span>
+      <strong>{safeText(value)}</strong>
+    </div>
+  );
+}
+
 export default function AdukanPage({ session, onSessionExpired }) {
   const [loading, setLoading] = useState(true);
   const [bootstrap, setBootstrap] = useState(null);
@@ -249,6 +286,10 @@ export default function AdukanPage({ session, onSessionExpired }) {
     return buildProductionPreview(form, lots);
   }, [form, lots]);
 
+  const livePayload = useMemo(() => {
+    return buildLiveProductionPayload({ preview, session });
+  }, [preview, session]);
+
   const validationErrors = useMemo(() => {
     return validateForm(form, preview);
   }, [form, preview]);
@@ -260,7 +301,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
     setError("");
 
     const result = await getProductionBootstrap(session?.sessionToken, {
-      source: "frontend_part_3a_produksi_adukan_foundation_dedupe_lot",
+      source: "frontend_part_3b_1_preview_payload_produksi_adukan",
     });
 
     if (!result.success) {
@@ -364,7 +405,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
       <PageHeader
         title="Produksi / Adukan"
         description="Catat ayam dipakai produksi dari lot harga aktual, lalu hasil produksi masuk sebagai stok jadi."
-        badge="Read Only Foundation"
+        badge="Payload Preview"
       />
 
       <div className="da-dashboard-banner">
@@ -374,8 +415,8 @@ export default function AdukanPage({ session, onSessionExpired }) {
             Lot Ayam → Adukan → Stok Jadi
           </div>
           <div className="da-dashboard-banner-desc">
-            Tahap ini membaca lot ayam dan batch produksi. Form masih preview,
-            belum memotong stok ayam.
+            Tahap ini menyiapkan payload live produksi. Belum memotong stok ayam
+            dan belum membuat batch produksi.
           </div>
         </div>
 
@@ -461,7 +502,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
             </p>
           </div>
 
-          <Badge tone="warning">Preview Only</Badge>
+          <Badge tone="warning">Payload Preview</Badge>
         </div>
 
         <form onSubmit={handlePreviewSubmit}>
@@ -626,7 +667,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
             </p>
           </div>
 
-          <Badge tone="warning">Preview Only</Badge>
+          <Badge tone="warning">Payload Preview</Badge>
         </div>
 
         <div className="da-detail-grid">
@@ -652,17 +693,32 @@ export default function AdukanPage({ session, onSessionExpired }) {
           </div>
 
           <div className="da-detail-box">
-            <div className="da-mini-title">Payload Part 3B</div>
-            <p><strong>Action:</strong> legacyCreateProductionBatchFromOldFactory</p>
-            <p><strong>Status:</strong> Preview saja, belum submit.</p>
-            <p><strong>Catatan:</strong> {safeText(preview.note, "Tidak ada catatan")}</p>
+            <div className="da-mini-title">Yang Akan Dibuat Backend</div>
+            <p><strong>Batch Produksi:</strong> Ya</p>
+            <p><strong>Potong Kg Ayam Lot:</strong> Ya, nanti di Part 3B-2</p>
+            <p><strong>Barang Jadi Masuk:</strong> Ya, nanti di Part 3B-2</p>
+            <p><strong>Arsip & Audit:</strong> Ya</p>
           </div>
         </div>
 
+        <div className="da-payload-preview">
+          <div className="da-mini-title">Payload Live Part 3B-2</div>
+
+          <PayloadRow label="Action" value="legacyCreateProductionBatchFromOldFactory" />
+          <PayloadRow label="location_id" value={livePayload.production.location_id} />
+          <PayloadRow label="production_date" value={livePayload.production.production_date} />
+          <PayloadRow label="chicken_lot_id" value={livePayload.production.chicken_lot_id} />
+          <PayloadRow label="total_adukan" value={livePayload.production.total_adukan} />
+          <PayloadRow label="chicken_kg_used" value={livePayload.production.chicken_kg_used} />
+          <PayloadRow label="actual_output_pcs" value={livePayload.production.actual_output_pcs} />
+          <PayloadRow label="chicken_unit_cost" value={formatRupiah(livePayload.production.chicken_unit_cost)} />
+          <PayloadRow label="chicken_cost" value={formatRupiah(livePayload.production.chicken_cost)} />
+          <PayloadRow label="product_code" value={livePayload.production.product_code} />
+        </div>
+
         <div className="da-modal-note" style={{ marginTop: 14 }}>
-          Kalau nanti disimpan di Part 3B, backend harus memotong kg ayam dari lot,
-          membuat batch produksi, menambah stok jadi, mengunci modal batch, dan masuk
-          arsip/audit.
+          Tahap ini hanya menampilkan payload. Tombol simpan live masih dikunci supaya
+          kita pastikan dulu mapping backend aman sebelum stok ayam benar-benar dipotong.
         </div>
 
         <div className="da-form-actions">
@@ -671,7 +727,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
           </Button>
 
           <Button type="button" disabled>
-            Simpan Live di Part 3B
+            Simpan Live di Part 3B-2
           </Button>
         </div>
       </Modal>
