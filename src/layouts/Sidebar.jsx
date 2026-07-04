@@ -4,7 +4,18 @@ export default function Sidebar({ menuGroups, activePage, onChangePage }) {
   return (
     <aside className="da-sidebar">
       <div className="da-sidebar-brand">
-        <div className="da-brand-mark">{APP_BRAND.shortName}</div>
+        <div className="da-brand-mark">
+          {APP_BRAND.logoUrl ? (
+            <img
+              src={APP_BRAND.logoUrl}
+              alt={APP_BRAND.name}
+              className="da-brand-logo"
+            />
+          ) : (
+            <div className="da-brand-fallback">{APP_BRAND.shortName}</div>
+          )}
+        </div>
+
         <div>
           <div className="da-brand-title">{APP_BRAND.name}</div>
           <div className="da-brand-subtitle">Merchant OS</div>
