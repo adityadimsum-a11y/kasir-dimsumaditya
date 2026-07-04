@@ -15,6 +15,8 @@ import DataTable from "../../components/ui/DataTable";
 const initialForm = {
   production_date: new Date().toISOString().slice(0, 10),
   chicken_lot_id: "",
+  production_pic_id: "",
+  production_pic_name: "",
   total_adukan: "",
   actual_output_pcs: "",
   note: "",
@@ -144,6 +146,106 @@ function getActiveLotsFromData(data) {
   });
 }
 
+function normalizePerson(row) {
+  const id =
+    row.employee_id ||
+    row.karyawan_id ||
+    row.user_id ||
+    row.staff_id ||
+    row.person_id ||
+    row.id ||
+    row.username ||
+    "";
+
+  const name =
+    row.employee_name ||
+    row.nama_karyawan ||
+    row.display_name ||
+    row.full_name ||
+    row.name ||
+    row.username ||
+    "";
+
+  return {
+    id: String(id || "").trim(),
+    name: String(name || "").trim(),
+    role:
+      row.role_name ||
+      row.position ||
+      row.jabatan ||
+      row.role ||
+      "",
+    location_id:
+      row.location_id ||
+      row.work_location_id ||
+      row.branch_id ||
+      "",
+    status: row.status || row.is_active || "ACTIVE",
+    raw: row,
+  };
+}
+
+function uniquePeopleById(people) {
+  const map = new Map();
+
+  asArray(people).forEach((person) => {
+    if (!person?.id && !person?.name) return;
+
+    const key = person.id || person.name;
+    const existing = map.get(key);
+
+    if (!existing) {
+      map.set(key, person);
+      return;
+    }
+
+    map.set(key, {
+      ...existing,
+      ...person,
+      name: person.name || existing.name,
+      role: person.role || existing.role,
+      location_id: person.location_id || existing.location_id,
+    });
+  });
+
+  return Array.from(map.values());
+}
+
+function getProductionPeopleFromData(data, session) {
+  const sources = [
+    ...asArray(data?.employees),
+    ...asArray(data?.karyawan),
+    ...asArray(data?.users),
+    ...asArray(data?.staff),
+    ...asArray(data?.team_members),
+    ...asArray(data?.production_team),
+    ...asArray(data?.pic_options),
+    ...asArray(data?.production_pics),
+  ];
+
+  const homeLocationId = session?.user?.location_id || "";
+
+  const people = sources
+    .map(normalizePerson)
+    .filter((person) => person.id || person.name)
+    .filter((person) => {
+      const status = String(person.status || "").toUpperCase();
+
+      return (
+        !status.includes("INACTIVE") &&
+        !status.includes("NONAKTIF") &&
+        !status.includes("VOID") &&
+        !status.includes("DELETE")
+      );
+    })
+    .filter((person) => {
+      if (!homeLocationId || !person.location_id) return true;
+      return String(person.location_id) === String(homeLocationId);
+    });
+
+  return uniquePeopleById(people);
+}
+
 function buildSummary(data) {
   const activeLots = getActiveLotsFromData(data);
   const batches = asArray(data?.production_batches);
@@ -171,8 +273,22 @@ function buildSummary(data) {
   };
 }
 
-function buildProductionPreview(form, lots) {
+function buildProductionPreview(form, lots, people) {
   const selectedLot = lots.find((lot) => lot.id === form.chicken_lot_id);
+  const selectedPic = people.find((person) => person.id === form.production_pic_id);
+
+  const manualPicName = String(form.production_pic_name || "").trim();
+
+  const productionPic = selectedPic
+    ? selectedPic
+    : manualPicName
+      ? {
+          id: "",
+          name: manualPicName,
+          role: "PIC Produksi",
+        }
+      : null;
+
   const totalAdukan = numberValue(form.total_adukan);
 
   const kgPerAdukan = 30;
@@ -192,6 +308,7 @@ function buildProductionPreview(form, lots) {
 
   return {
     selectedLot,
+    productionPic,
     production_date: form.production_date,
     total_adukan: totalAdukan,
     kg_per_adukan: kgPerAdukan,
@@ -207,29 +324,54 @@ function buildProductionPreview(form, lots) {
 }
 
 function buildLiveProductionPayload({ preview, session }) {
+  const picId = preview.productionPic?.id || "";
+  const picName = preview.productionPic?.name || "";
+
+  const production = {
+    location_id: session?.user?.location_id || "",
+    production_date: preview.production_date,
+
+    chicken_lot_id: preview.selectedLot?.id || "",
+    source_chicken_lot_id: preview.selectedLot?.id || "",
+
+    total_adukan: preview.total_adukan,
+    kg_per_adukan: preview.kg_per_adukan,
+    chicken_kg_used: preview.planned_chicken_kg,
+
+    planned_output_pcs: preview.planned_output_pcs,
+    actual_output_pcs: preview.actual_output_pcs,
+
+    chicken_unit_cost: preview.selectedLot?.unit_cost || 0,
+    chicken_cost: preview.modal_ayam,
+    estimated_chicken_cost_per_pcs: preview.hpp_ayam_per_pcs,
+
+    product_code: "DIMSUM_AYAM_MIX",
+    output_unit: "pcs",
+
+    production_pic_id: picId,
+    production_pic_name: picName,
+    pic_produksi_id: picId,
+    pic_produksi: picName,
+    kepala_dapur_id: picId,
+    kepala_dapur: picName,
+    kepala_dapur_name: picName,
+    pic_name: picName,
+
+    notes: preview.note,
+  };
+
   return {
-    production: {
-      location_id: session?.user?.location_id || "",
-      production_date: preview.production_date,
+    production,
 
-      chicken_lot_id: preview.selectedLot?.id || "",
-      source_chicken_lot_id: preview.selectedLot?.id || "",
-
-      total_adukan: preview.total_adukan,
-      kg_per_adukan: preview.kg_per_adukan,
-      chicken_kg_used: preview.planned_chicken_kg,
-
-      planned_output_pcs: preview.planned_output_pcs,
-      actual_output_pcs: preview.actual_output_pcs,
-
-      chicken_unit_cost: preview.selectedLot?.unit_cost || 0,
-      chicken_cost: preview.modal_ayam,
-      estimated_chicken_cost_per_pcs: preview.hpp_ayam_per_pcs,
-
-      product_code: "DIMSUM_AYAM_MIX",
-      output_unit: "pcs",
-      notes: preview.note,
-    },
+    // Alias top-level untuk jaga-jaga kalau backend baca field lama/flat.
+    production_pic_id: picId,
+    production_pic_name: picName,
+    pic_produksi_id: picId,
+    pic_produksi: picName,
+    kepala_dapur_id: picId,
+    kepala_dapur: picName,
+    kepala_dapur_name: picName,
+    pic_name: picName,
   };
 }
 
@@ -238,6 +380,7 @@ function validateForm(form, preview) {
 
   if (!form.production_date) errors.push("Tanggal produksi wajib diisi.");
   if (!form.chicken_lot_id) errors.push("Lot ayam wajib dipilih.");
+  if (!preview.productionPic?.name) errors.push("PIC Produksi Hari Ini wajib diisi.");
   if (preview.total_adukan <= 0) errors.push("Jumlah adukan harus lebih dari 0.");
   if (preview.planned_chicken_kg <= 0) errors.push("Kg ayam dipakai harus lebih dari 0.");
   if (preview.selectedLot && preview.planned_chicken_kg > preview.selectedLot.remaining_kg) {
@@ -283,13 +426,17 @@ export default function AdukanPage({ session, onSessionExpired }) {
     return getActiveLotsFromData(bootstrap);
   }, [bootstrap]);
 
+  const productionPeople = useMemo(() => {
+    return getProductionPeopleFromData(bootstrap, session);
+  }, [bootstrap, session]);
+
   const productionBatches = asArray(bootstrap?.production_batches);
 
   const summary = useMemo(() => buildSummary(bootstrap), [bootstrap]);
 
   const preview = useMemo(() => {
-    return buildProductionPreview(form, lots);
-  }, [form, lots]);
+    return buildProductionPreview(form, lots, productionPeople);
+  }, [form, lots, productionPeople]);
 
   const livePayload = useMemo(() => {
     return buildLiveProductionPayload({ preview, session });
@@ -306,7 +453,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
     setError("");
 
     const result = await getProductionBootstrap(session?.sessionToken, {
-      source: "frontend_part_3b_2_submit_live_produksi_adukan",
+      source: "frontend_part_3b_2a_pic_produksi_hari_ini",
     });
 
     if (!result.success) {
@@ -458,8 +605,8 @@ export default function AdukanPage({ session, onSessionExpired }) {
             Lot Ayam → Adukan → Stok Jadi
           </div>
           <div className="da-dashboard-banner-desc">
-            Form ini sudah bisa menyimpan produksi hidup. Pastikan adukan, lot ayam,
-            dan hasil pcs benar sebelum klik Simpan Live.
+            Form ini sudah bisa menyimpan produksi hidup. Pastikan PIC Produksi,
+            adukan, lot ayam, dan hasil pcs benar sebelum klik Simpan Live.
           </div>
         </div>
 
@@ -553,7 +700,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
             <div className="da-mini-title">Form Produksi</div>
             <div className="da-big-text">Input Adukan</div>
             <p className="da-muted">
-              Pilih lot ayam yang akan dipakai. Sistem menghitung 1 adukan = 30 kg ayam
+              Pilih lot ayam dan PIC Produksi Hari Ini. Sistem menghitung 1 adukan = 30 kg ayam
               dan estimasi 1.000 pcs. Simpan live akan memotong kg ayam dari lot.
             </p>
           </div>
@@ -594,6 +741,40 @@ export default function AdukanPage({ session, onSessionExpired }) {
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div className="da-drop-field">
+              <label>PIC Produksi Hari Ini</label>
+              {productionPeople.length > 0 ? (
+                <select
+                  className="da-select"
+                  value={form.production_pic_id}
+                  onChange={(event) => {
+                    updateForm("production_pic_id", event.target.value);
+                    updateForm("production_pic_name", "");
+                  }}
+                  disabled={submitting}
+                >
+                  <option value="">Pilih PIC produksi</option>
+                  {productionPeople.map((person) => (
+                    <option key={person.id || person.name} value={person.id}>
+                      {person.name}
+                      {person.role ? ` · ${person.role}` : ""}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  className="da-input"
+                  value={form.production_pic_name}
+                  placeholder="Ketik nama PIC produksi hari ini"
+                  onChange={(event) => {
+                    updateForm("production_pic_name", event.target.value);
+                    updateForm("production_pic_id", "");
+                  }}
+                  disabled={submitting}
+                />
+              )}
             </div>
 
             <div className="da-drop-field">
@@ -661,8 +842,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
               <div className="da-mini-title">Modal Ayam Batch</div>
               <div className="da-big-text">{formatRupiah(preview.modal_ayam)}</div>
               <p className="da-muted">
-                Est. modal ayam/pcs:{" "}
-                <strong>{formatRupiah(preview.hpp_ayam_per_pcs)}</strong>
+                PIC: <strong>{safeText(preview.productionPic?.name, "Belum dipilih")}</strong>
               </p>
             </div>
           </div>
@@ -685,7 +865,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
               Reset Form
             </Button>
 
-            <Button type="submit" disabled={!canOpenConfirmation || submitting}>
+            <Button type="submit" disabled={submitting}>
               Preview & Konfirmasi
             </Button>
           </div>
@@ -742,6 +922,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
           <div className="da-detail-box">
             <div className="da-mini-title">Produksi</div>
             <p><strong>Tanggal:</strong> {formatDisplayDate(preview.production_date)}</p>
+            <p><strong>PIC:</strong> {safeText(preview.productionPic?.name)}</p>
             <p><strong>Adukan:</strong> {preview.total_adukan.toLocaleString("id-ID")}</p>
             <p><strong>Ayam dipakai:</strong> {preview.planned_chicken_kg.toLocaleString("id-ID")} kg</p>
           </div>
@@ -776,6 +957,8 @@ export default function AdukanPage({ session, onSessionExpired }) {
           <PayloadRow label="location_id" value={livePayload.production.location_id} />
           <PayloadRow label="production_date" value={livePayload.production.production_date} />
           <PayloadRow label="chicken_lot_id" value={livePayload.production.chicken_lot_id} />
+          <PayloadRow label="PIC Produksi" value={livePayload.production.production_pic_name} />
+          <PayloadRow label="kepala_dapur" value={livePayload.production.kepala_dapur} />
           <PayloadRow label="total_adukan" value={livePayload.production.total_adukan} />
           <PayloadRow label="chicken_kg_used" value={livePayload.production.chicken_kg_used} />
           <PayloadRow label="actual_output_pcs" value={livePayload.production.actual_output_pcs} />
