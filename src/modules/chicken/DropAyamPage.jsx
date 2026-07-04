@@ -9,6 +9,17 @@ import Badge from "../../components/ui/Badge";
 import Modal from "../../components/ui/Modal";
 import DataTable from "../../components/ui/DataTable";
 
+const initialForm = {
+  drop_date: new Date().toISOString().slice(0, 10),
+  supplier_id: "",
+  invoice_no: "",
+  qty_kg: "",
+  unit_cost: "",
+  amount_paid: "0",
+  payment_wallet_id: "",
+  note: "",
+};
+
 function asArray(value) {
   return Array.isArray(value) ? value : [];
 }
@@ -55,6 +66,17 @@ function isAuthRequired(result) {
   );
 }
 
+function getMoneyValue(row) {
+  return (
+    row?.remaining_amount ||
+    row?.outstanding_amount ||
+    row?.total_amount ||
+    row?.amount ||
+    row?.original_amount ||
+    0
+  );
+}
+
 function buildSummary(data) {
   const purchases = asArray(data?.purchases);
   const lots = asArray(data?.chicken_lots);
@@ -84,26 +106,108 @@ function buildSummary(data) {
   };
 }
 
+function normalizeSupplier(row) {
+  return {
+    id: row.supplier_id || row.id || row.code || "",
+    name: row.supplier_name || row.name || row.nama_supplier || row.vendor_name || "",
+  };
+}
+
+function normalizeWallet(row) {
+  return {
+    id: row.wallet_id || row.id || row.code || "",
+    name: row.wallet_name || row.name || row.nama_dompet || row.account_name || "",
+  };
+}
+
+function buildDropPreview(form, suppliers, wallets) {
+  const qtyKg = numberValue(form.qty_kg);
+  const unitCost = numberValue(form.unit_cost);
+  const amountPaid = numberValue(form.amount_paid);
+
+  const totalAmount = qtyKg * unitCost;
+  const remainingAmount = Math.max(totalAmount - amountPaid, 0);
+
+  const supplier = suppliers.find((item) => item.id === form.supplier_id);
+  const wallet = wallets.find((item) => item.id === form.payment_wallet_id);
+
+  let paymentStatus = "BELUM DIBAYAR";
+  if (totalAmount > 0 && amountPaid >= totalAmount) paymentStatus = "LUNAS";
+  if (amountPaid > 0 && amountPaid < totalAmount) paymentStatus = "BAYAR SEBAGIAN";
+
+  return {
+    drop_date: form.drop_date,
+    supplier_id: form.supplier_id,
+    supplier_name: supplier?.name || "",
+    invoice_no: form.invoice_no,
+    qty_kg: qtyKg,
+    unit_cost: unitCost,
+    total_amount: totalAmount,
+    amount_paid: amountPaid,
+    remaining_amount: remainingAmount,
+    payment_status: paymentStatus,
+    payment_wallet_id: form.payment_wallet_id,
+    payment_wallet_name: wallet?.name || "",
+    note: form.note,
+  };
+}
+
+function validateDropForm(form, preview) {
+  const errors = [];
+
+  if (!form.drop_date) errors.push("Tanggal DROP wajib diisi.");
+  if (!form.supplier_id) errors.push("Supplier wajib dipilih.");
+  if (preview.qty_kg <= 0) errors.push("Kg ayam harus lebih dari 0.");
+  if (preview.unit_cost <= 0) errors.push("Harga/kg aktual harus lebih dari 0.");
+  if (preview.amount_paid < 0) errors.push("Bayar saat DROP tidak boleh minus.");
+  if (preview.amount_paid > preview.total_amount) {
+    errors.push("Bayar saat DROP tidak boleh lebih besar dari total modal ayam.");
+  }
+  if (preview.amount_paid > 0 && !form.payment_wallet_id) {
+    errors.push("Kalau ada pembayaran, dompet pembayaran wajib dipilih.");
+  }
+
+  return errors;
+}
+
 export default function DropAyamPage({ session, onSessionExpired }) {
   const [loading, setLoading] = useState(true);
   const [bootstrap, setBootstrap] = useState(null);
   const [error, setError] = useState("");
   const [selectedDrop, setSelectedDrop] = useState(null);
+  const [form, setForm] = useState(initialForm);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const purchases = asArray(bootstrap?.purchases);
   const lots = asArray(bootstrap?.chicken_lots);
   const payables = asArray(bootstrap?.payables);
-  const suppliers = asArray(bootstrap?.suppliers);
-  const wallets = asArray(bootstrap?.wallets);
+
+  const suppliers = asArray(bootstrap?.suppliers)
+    .map(normalizeSupplier)
+    .filter((item) => item.id);
+
+  const wallets = asArray(bootstrap?.wallets)
+    .map(normalizeWallet)
+    .filter((item) => item.id);
 
   const summary = useMemo(() => buildSummary(bootstrap), [bootstrap]);
+
+  const preview = useMemo(() => {
+    return buildDropPreview(form, suppliers, wallets);
+  }, [form, suppliers, wallets]);
+
+  const validationErrors = useMemo(() => {
+    return validateDropForm(form, preview);
+  }, [form, preview]);
+
+  const canOpenConfirmation = validationErrors.length === 0;
 
   const loadData = async () => {
     setLoading(true);
     setError("");
 
     const result = await getDropAyamBootstrap(session?.sessionToken, {
-      source: "frontend_part_2a_drop_ayam_read_only",
+      source: "frontend_part_2b_1_drop_ayam_form_preview",
     });
 
     if (!result.success) {
@@ -126,6 +230,28 @@ export default function DropAyamPage({ session, onSessionExpired }) {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.sessionToken]);
+
+  const updateForm = (field, value) => {
+    setForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  };
+
+  const handlePreviewSubmit = (event) => {
+    event.preventDefault();
+
+    if (!canOpenConfirmation) {
+      return;
+    }
+
+    setConfirmOpen(true);
+  };
+
+  const handleResetForm = () => {
+    setForm(initialForm);
+    setConfirmOpen(false);
+  };
 
   const getLinkedLot = (drop) => {
     return lots.find((lot) => {
@@ -189,7 +315,7 @@ export default function DropAyamPage({ session, onSessionExpired }) {
       <PageHeader
         title="DROP Ayam"
         description="Catatan ayam masuk dari supplier. Harga ayam dikunci per nota/drop agar transaksi lama tidak berubah saat harga baru berubah."
-        badge="Read Only Foundation"
+        badge="Form Preview"
       />
 
       <div className="da-dashboard-banner">
@@ -199,8 +325,8 @@ export default function DropAyamPage({ session, onSessionExpired }) {
             DROP Ayam → Lot Harga Aktual
           </div>
           <div className="da-dashboard-banner-desc">
-            Tahap ini baru membaca data hidup dari backend. Tombol simpan DROP Ayam
-            akan dipasang di Part 2B setelah layar ini aman.
+            Tahap ini sudah mengaktifkan form dan preview. Tombol simpan transaksi
+            hidup baru dipasang di Part 2B-2.
           </div>
         </div>
 
@@ -280,57 +406,159 @@ export default function DropAyamPage({ session, onSessionExpired }) {
             <div className="da-mini-title">Form DROP Ayam</div>
             <div className="da-big-text">Input DROP Ayam</div>
             <p className="da-muted">
-              Form simpan belum diaktifkan. Ini sengaja supaya kita cek field dan
-              alur dulu sebelum membuat transaksi hidup.
+              Isi data nota ayam. Sistem akan menghitung total modal dan sisa hutang.
+              Tahap ini belum menyimpan transaksi hidup.
             </p>
           </div>
 
-          <Badge tone="warning">Part 2B</Badge>
+          <Badge tone="warning">Preview Only</Badge>
         </div>
 
-        <div className="da-drop-form-preview">
-          <div className="da-drop-field">
-            <label>Tanggal DROP</label>
-            <input className="da-input" value="Akan diisi di Part 2B" disabled />
+        <form onSubmit={handlePreviewSubmit}>
+          <div className="da-drop-form-preview">
+            <div className="da-drop-field">
+              <label>Tanggal DROP</label>
+              <input
+                type="date"
+                className="da-input"
+                value={form.drop_date}
+                onChange={(event) => updateForm("drop_date", event.target.value)}
+              />
+            </div>
+
+            <div className="da-drop-field">
+              <label>Supplier</label>
+              <select
+                className="da-select"
+                value={form.supplier_id}
+                onChange={(event) => updateForm("supplier_id", event.target.value)}
+              >
+                <option value="">Pilih supplier</option>
+                {suppliers.map((supplier) => (
+                  <option key={supplier.id} value={supplier.id}>
+                    {supplier.name || supplier.id}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="da-drop-field">
+              <label>No Nota Supplier</label>
+              <input
+                className="da-input"
+                value={form.invoice_no}
+                placeholder="Contoh: NANA-2026-001"
+                onChange={(event) => updateForm("invoice_no", event.target.value)}
+              />
+            </div>
+
+            <div className="da-drop-field">
+              <label>Kg Ayam</label>
+              <input
+                className="da-input"
+                inputMode="decimal"
+                value={form.qty_kg}
+                placeholder="Contoh: 1020"
+                onChange={(event) => updateForm("qty_kg", event.target.value)}
+              />
+            </div>
+
+            <div className="da-drop-field">
+              <label>Harga / Kg Aktual</label>
+              <input
+                className="da-input"
+                inputMode="numeric"
+                value={form.unit_cost}
+                placeholder="Contoh: 36500"
+                onChange={(event) => updateForm("unit_cost", event.target.value)}
+              />
+            </div>
+
+            <div className="da-drop-field">
+              <label>Bayar Saat DROP</label>
+              <input
+                className="da-input"
+                inputMode="numeric"
+                value={form.amount_paid}
+                placeholder="0 kalau belum bayar"
+                onChange={(event) => updateForm("amount_paid", event.target.value)}
+              />
+            </div>
+
+            <div className="da-drop-field">
+              <label>Dompet Pembayaran</label>
+              <select
+                className="da-select"
+                value={form.payment_wallet_id}
+                onChange={(event) =>
+                  updateForm("payment_wallet_id", event.target.value)
+                }
+              >
+                <option value="">Pilih kalau ada pembayaran</option>
+                {wallets.map((wallet) => (
+                  <option key={wallet.id} value={wallet.id}>
+                    {wallet.name || wallet.id}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="da-drop-field da-drop-field-wide">
+              <label>Catatan</label>
+              <input
+                className="da-input"
+                value={form.note}
+                placeholder="Contoh: turun ayam pagi / titip travel / nota berjalan"
+                onChange={(event) => updateForm("note", event.target.value)}
+              />
+            </div>
           </div>
 
-          <div className="da-drop-field">
-            <label>Supplier</label>
-            <select className="da-select" disabled>
-              <option>
-                {suppliers.length > 0
-                  ? `${suppliers.length} supplier terbaca`
-                  : "NANA CHICKEN"}
-              </option>
-            </select>
+          <div className="da-drop-preview-panel">
+            <div>
+              <div className="da-mini-title">Preview Modal Ayam</div>
+              <div className="da-big-text">{formatRupiah(preview.total_amount)}</div>
+              <p className="da-muted">
+                {preview.qty_kg.toLocaleString("id-ID")} kg ×{" "}
+                {formatRupiah(preview.unit_cost)} / kg
+              </p>
+            </div>
+
+            <div>
+              <div className="da-mini-title">Bayar Saat DROP</div>
+              <div className="da-big-text">{formatRupiah(preview.amount_paid)}</div>
+              <p className="da-muted">
+                Sisa hutang: <strong>{formatRupiah(preview.remaining_amount)}</strong>
+              </p>
+            </div>
+
+            <div>
+              <div className="da-mini-title">Status Bayar</div>
+              <div className="da-big-text">{preview.payment_status}</div>
+              <p className="da-muted">
+                Status ini masih preview dan belum tersimpan.
+              </p>
+            </div>
           </div>
 
-          <div className="da-drop-field">
-            <label>Kg Ayam</label>
-            <input className="da-input" value="Contoh: 1020" disabled />
-          </div>
+          {validationErrors.length > 0 ? (
+            <div className="da-form-warning">
+              {validationErrors.map((item) => (
+                <div key={item}>• {item}</div>
+              ))}
+            </div>
+          ) : null}
 
-          <div className="da-drop-field">
-            <label>Harga / Kg Aktual</label>
-            <input className="da-input" value="Contoh: 36500" disabled />
-          </div>
+          <div className="da-form-actions">
+            <Button type="button" variant="ghost" onClick={handleResetForm}>
+              Reset Form
+            </Button>
 
-          <div className="da-drop-field">
-            <label>Bayar Saat DROP</label>
-            <input className="da-input" value="Boleh 0 / partial / lunas" disabled />
+            <Button type="submit" disabled={!canOpenConfirmation}>
+              Preview & Konfirmasi
+            </Button>
           </div>
-
-          <div className="da-drop-field">
-            <label>Dompet Pembayaran</label>
-            <select className="da-select" disabled>
-              <option>
-                {wallets.length > 0
-                  ? `${wallets.length} dompet terbaca`
-                  : "Pilih dompet"}
-              </option>
-            </select>
-          </div>
-        </div>
+        </form>
       </Card>
 
       <div style={{ height: 16 }} />
@@ -358,8 +586,75 @@ export default function DropAyamPage({ session, onSessionExpired }) {
       </Card>
 
       <Modal
+        open={confirmOpen}
+        title="Konfirmasi Preview DROP Ayam"
+        subtitle="Belum menyimpan transaksi hidup"
+        onClose={() => setConfirmOpen(false)}
+      >
+        <div className="da-modal-summary">
+          <div>
+            <div className="da-mini-title">Total Modal Ayam</div>
+            <div className="da-big-text">{formatRupiah(preview.total_amount)}</div>
+            <p className="da-muted">
+              Harga/kg aktual ini nanti akan dikunci untuk nota/drop ini.
+            </p>
+          </div>
+
+          <Badge tone={preview.remaining_amount > 0 ? "warning" : "success"}>
+            {preview.payment_status}
+          </Badge>
+        </div>
+
+        <div className="da-detail-grid">
+          <div className="da-detail-box">
+            <div className="da-mini-title">DROP</div>
+            <p><strong>Tanggal:</strong> {safeText(preview.drop_date)}</p>
+            <p><strong>Supplier:</strong> {safeText(preview.supplier_name)}</p>
+            <p><strong>No Nota:</strong> {safeText(preview.invoice_no, "Belum diisi")}</p>
+          </div>
+
+          <div className="da-detail-box">
+            <div className="da-mini-title">Ayam Masuk</div>
+            <p><strong>Kg:</strong> {preview.qty_kg.toLocaleString("id-ID")} kg</p>
+            <p><strong>Harga/kg:</strong> {formatRupiah(preview.unit_cost)}</p>
+            <p><strong>Total modal:</strong> {formatRupiah(preview.total_amount)}</p>
+          </div>
+
+          <div className="da-detail-box">
+            <div className="da-mini-title">Pembayaran</div>
+            <p><strong>Dibayar:</strong> {formatRupiah(preview.amount_paid)}</p>
+            <p><strong>Dompet:</strong> {safeText(preview.payment_wallet_name, "Belum bayar")}</p>
+            <p><strong>Sisa hutang:</strong> {formatRupiah(preview.remaining_amount)}</p>
+          </div>
+
+          <div className="da-detail-box">
+            <div className="da-mini-title">Payload Part 2B-2</div>
+            <p><strong>Action:</strong> legacyCreateChickenDropFromOldPurchase</p>
+            <p><strong>Status:</strong> Preview saja, belum submit.</p>
+            <p><strong>Catatan:</strong> {safeText(preview.note, "Tidak ada catatan")}</p>
+          </div>
+        </div>
+
+        <div className="da-modal-note" style={{ marginTop: 14 }}>
+          Kalau nanti di Part 2B-2 disimpan, backend akan membuat DROP Ayam, Lot Harga
+          Aktual, stok ayam masuk, hutang Nana jika belum lunas, mutasi dompet jika ada
+          pembayaran, arsip, dan audit.
+        </div>
+
+        <div className="da-form-actions">
+          <Button variant="ghost" onClick={() => setConfirmOpen(false)}>
+            Koreksi Lagi
+          </Button>
+
+          <Button type="button" disabled>
+            Simpan Live di Part 2B-2
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
         open={Boolean(selectedDrop)}
-        title={selectedDrop ? `Detail DROP Ayam` : ""}
+        title={selectedDrop ? "Detail DROP Ayam" : ""}
         subtitle={selectedDrop?.purchase_id || ""}
         onClose={() => setSelectedDrop(null)}
       >
