@@ -1,0 +1,74 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--da-font-main);
+  background:
+    radial-gradient(circle at top left, rgba(244, 196, 48, 0.16), transparent 28rem),
+    var(--da-color-bg);
+  color: var(--da-color-text);
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+.da-app {
+  min-height: 100vh;
+  display: flex;
+}
+
+.da-main {
+  flex: 1;
+  min-width: 0;
+  margin-left: var(--da-sidebar-width);
+}
+
+.da-content {
+  padding: 24px;
+}
+
+.da-card {
+  background: var(--da-color-surface);
+  border: 1px solid var(--da-color-border);
+  border-radius: var(--da-radius-lg);
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-muted {
+  color: var(--da-color-muted);
+}
+
+.da-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.da-grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 980px) {
+  .da-main {
+    margin-left: 0;
+  }
+
+  .da-grid-3 {
+    grid-template-columns: 1fr;
+  }
+}
