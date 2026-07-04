@@ -7,6 +7,7 @@ import AppShell from "./layouts/AppShell";
 import LoginPage from "./modules/auth/LoginPage";
 import ModulePlaceholder from "./modules/common/ModulePlaceholder";
 import PapanPusatPage from "./modules/owner/PapanPusatPage";
+import DropAyamPage from "./modules/chicken/DropAyamPage";
 
 export default function App() {
   const [session, setSession] = useState(() => getSavedSession());
@@ -55,6 +56,15 @@ export default function App() {
     if (activePage === "papan-pusat") {
       return (
         <PapanPusatPage
+          session={session}
+          onSessionExpired={handleSessionExpired}
+        />
+      );
+    }
+
+    if (activePage === "drop-ayam") {
+      return (
+        <DropAyamPage
           session={session}
           onSessionExpired={handleSessionExpired}
         />
