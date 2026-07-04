@@ -148,3 +148,44 @@ button {
   color: white;
   box-shadow: var(--da-shadow-soft);
 }
+
+.da-topbar {
+  height: var(--da-topbar-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  background: rgba(255, 250, 242, 0.82);
+  border-bottom: 1px solid var(--da-color-border);
+  backdrop-filter: blur(16px);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.da-topbar-title {
+  font-weight: 900;
+  font-size: 18px;
+}
+
+.da-topbar-subtitle {
+  color: var(--da-color-muted);
+  font-size: 13px;
+  margin-top: 2px;
+}
+
+.da-topbar-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: right;
+}
+
+.da-user-name {
+  font-weight: 800;
+}
+
+.da-user-label {
+  color: var(--da-color-muted);
+  font-size: 12px;
+}
