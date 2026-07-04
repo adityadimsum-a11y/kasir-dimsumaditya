@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { getProductionBootstrap } from "../../lib/api/actions";
+import {
+  createProductionBatch,
+  getProductionBootstrap,
+} from "../../lib/api/actions";
 import { formatRupiah } from "../../lib/format/money";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
@@ -273,6 +276,8 @@ export default function AdukanPage({ session, onSessionExpired }) {
   const [showValidationErrors, setShowValidationErrors] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [selectedBatch, setSelectedBatch] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitResult, setSubmitResult] = useState(null);
 
   const lots = useMemo(() => {
     return getActiveLotsFromData(bootstrap);
@@ -301,7 +306,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
     setError("");
 
     const result = await getProductionBootstrap(session?.sessionToken, {
-      source: "frontend_part_3b_1_preview_payload_produksi_adukan",
+      source: "frontend_part_3b_2_submit_live_produksi_adukan",
     });
 
     if (!result.success) {
@@ -335,6 +340,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
   const handlePreviewSubmit = (event) => {
     event.preventDefault();
     setShowValidationErrors(true);
+    setSubmitResult(null);
 
     if (!canOpenConfirmation) return;
 
@@ -345,6 +351,43 @@ export default function AdukanPage({ session, onSessionExpired }) {
     setForm(initialForm);
     setShowValidationErrors(false);
     setConfirmOpen(false);
+    setSubmitResult(null);
+  };
+
+  const handleLiveSubmit = async () => {
+    if (submitting || validationErrors.length > 0) return;
+
+    setSubmitting(true);
+    setSubmitResult(null);
+
+    const result = await createProductionBatch(session?.sessionToken, livePayload);
+
+    if (!result.success) {
+      if (isAuthRequired(result)) {
+        onSessionExpired?.();
+        return;
+      }
+
+      setSubmitResult({
+        success: false,
+        message: result.message || "Gagal menyimpan Produksi / Adukan.",
+        data: result.data || null,
+      });
+      setSubmitting(false);
+      return;
+    }
+
+    setSubmitResult({
+      success: true,
+      message: result.message || "Produksi / Adukan berhasil disimpan.",
+      data: result.data || null,
+    });
+
+    setConfirmOpen(false);
+    setSubmitting(false);
+    setForm(initialForm);
+    setShowValidationErrors(false);
+    await loadData();
   };
 
   const columns = [
@@ -405,7 +448,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
       <PageHeader
         title="Produksi / Adukan"
         description="Catat ayam dipakai produksi dari lot harga aktual, lalu hasil produksi masuk sebagai stok jadi."
-        badge="Payload Preview"
+        badge="Live Submit"
       />
 
       <div className="da-dashboard-banner">
@@ -415,8 +458,8 @@ export default function AdukanPage({ session, onSessionExpired }) {
             Lot Ayam → Adukan → Stok Jadi
           </div>
           <div className="da-dashboard-banner-desc">
-            Tahap ini menyiapkan payload live produksi. Belum memotong stok ayam
-            dan belum membuat batch produksi.
+            Form ini sudah bisa menyimpan produksi hidup. Pastikan adukan, lot ayam,
+            dan hasil pcs benar sebelum klik Simpan Live.
           </div>
         </div>
 
@@ -425,7 +468,11 @@ export default function AdukanPage({ session, onSessionExpired }) {
             {error ? "Perlu Dicek" : "Terhubung"}
           </Badge>
 
-          <Button variant="ghost" onClick={loadData} disabled={loading}>
+          <Button
+            variant="ghost"
+            onClick={loadData}
+            disabled={loading || submitting}
+          >
             {loading ? "Membaca..." : "Refresh Data"}
           </Button>
         </div>
@@ -434,6 +481,15 @@ export default function AdukanPage({ session, onSessionExpired }) {
       {error ? (
         <div className="da-login-error" style={{ marginBottom: 16 }}>
           {error}
+        </div>
+      ) : null}
+
+      {submitResult ? (
+        <div
+          className={submitResult.success ? "da-form-success" : "da-form-warning"}
+          style={{ marginBottom: 16 }}
+        >
+          {submitResult.message}
         </div>
       ) : null}
 
@@ -498,11 +554,11 @@ export default function AdukanPage({ session, onSessionExpired }) {
             <div className="da-big-text">Input Adukan</div>
             <p className="da-muted">
               Pilih lot ayam yang akan dipakai. Sistem menghitung 1 adukan = 30 kg ayam
-              dan estimasi 1.000 pcs. Tahap ini belum simpan live.
+              dan estimasi 1.000 pcs. Simpan live akan memotong kg ayam dari lot.
             </p>
           </div>
 
-          <Badge tone="warning">Payload Preview</Badge>
+          <Badge tone="danger">Live Transaction</Badge>
         </div>
 
         <form onSubmit={handlePreviewSubmit}>
@@ -516,6 +572,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
                 onChange={(event) =>
                   updateForm("production_date", event.target.value)
                 }
+                disabled={submitting}
               />
             </div>
 
@@ -527,6 +584,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
                 onChange={(event) =>
                   updateForm("chicken_lot_id", event.target.value)
                 }
+                disabled={submitting}
               >
                 <option value="">Pilih lot ayam</option>
                 {lots.map((lot) => (
@@ -548,6 +606,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
                 onChange={(event) =>
                   updateForm("total_adukan", event.target.value)
                 }
+                disabled={submitting}
               />
             </div>
 
@@ -561,6 +620,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
                 onChange={(event) =>
                   updateForm("actual_output_pcs", event.target.value)
                 }
+                disabled={submitting}
               />
             </div>
 
@@ -571,6 +631,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
                 value={form.note}
                 placeholder="Contoh: produksi pagi / hasil lebih / ada susut"
                 onChange={(event) => updateForm("note", event.target.value)}
+                disabled={submitting}
               />
             </div>
           </div>
@@ -615,11 +676,16 @@ export default function AdukanPage({ session, onSessionExpired }) {
           ) : null}
 
           <div className="da-form-actions">
-            <Button type="button" variant="ghost" onClick={handleResetForm}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={handleResetForm}
+              disabled={submitting}
+            >
               Reset Form
             </Button>
 
-            <Button type="submit" disabled={!canOpenConfirmation}>
+            <Button type="submit" disabled={!canOpenConfirmation || submitting}>
               Preview & Konfirmasi
             </Button>
           </div>
@@ -634,11 +700,11 @@ export default function AdukanPage({ session, onSessionExpired }) {
             <div className="da-mini-title">Daftar Produksi</div>
             <div className="da-big-text">Adukan yang Terbaca</div>
             <p className="da-muted">
-              Klik baris untuk melihat detail popup tengah. Tahap ini read-only.
+              Klik baris untuk melihat detail popup tengah.
             </p>
           </div>
 
-          <Badge tone="warning">Read Only</Badge>
+          <Badge tone="warning">Live Data</Badge>
         </div>
 
         <DataTable
@@ -651,9 +717,11 @@ export default function AdukanPage({ session, onSessionExpired }) {
 
       <Modal
         open={confirmOpen}
-        title="Konfirmasi Preview Produksi"
-        subtitle="Belum menyimpan transaksi hidup"
-        onClose={() => setConfirmOpen(false)}
+        title="Konfirmasi Simpan Produksi"
+        subtitle="Ini akan membuat transaksi hidup"
+        onClose={() => {
+          if (!submitting) setConfirmOpen(false);
+        }}
       >
         <div className="da-modal-summary">
           <div>
@@ -667,7 +735,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
             </p>
           </div>
 
-          <Badge tone="warning">Payload Preview</Badge>
+          <Badge tone="danger">Live Submit</Badge>
         </div>
 
         <div className="da-detail-grid">
@@ -693,16 +761,16 @@ export default function AdukanPage({ session, onSessionExpired }) {
           </div>
 
           <div className="da-detail-box">
-            <div className="da-mini-title">Yang Akan Dibuat Backend</div>
+            <div className="da-mini-title">Yang Dibuat Backend</div>
             <p><strong>Batch Produksi:</strong> Ya</p>
-            <p><strong>Potong Kg Ayam Lot:</strong> Ya, nanti di Part 3B-2</p>
-            <p><strong>Barang Jadi Masuk:</strong> Ya, nanti di Part 3B-2</p>
+            <p><strong>Potong Kg Ayam Lot:</strong> Ya</p>
+            <p><strong>Barang Jadi Masuk:</strong> Ya</p>
             <p><strong>Arsip & Audit:</strong> Ya</p>
           </div>
         </div>
 
         <div className="da-payload-preview">
-          <div className="da-mini-title">Payload Live Part 3B-2</div>
+          <div className="da-mini-title">Payload Live</div>
 
           <PayloadRow label="Action" value="legacyCreateProductionBatchFromOldFactory" />
           <PayloadRow label="location_id" value={livePayload.production.location_id} />
@@ -717,17 +785,31 @@ export default function AdukanPage({ session, onSessionExpired }) {
         </div>
 
         <div className="da-modal-note" style={{ marginTop: 14 }}>
-          Tahap ini hanya menampilkan payload. Tombol simpan live masih dikunci supaya
-          kita pastikan dulu mapping backend aman sebelum stok ayam benar-benar dipotong.
+          Setelah disimpan, backend akan memotong kg ayam dari lot, membuat batch produksi,
+          menambah stok jadi, mengunci modal batch, membuat catatan stok, arsip, dan audit.
         </div>
 
+        {submitResult && !submitResult.success ? (
+          <div className="da-form-warning" style={{ marginTop: 14 }}>
+            {submitResult.message}
+          </div>
+        ) : null}
+
         <div className="da-form-actions">
-          <Button variant="ghost" onClick={() => setConfirmOpen(false)}>
+          <Button
+            variant="ghost"
+            onClick={() => setConfirmOpen(false)}
+            disabled={submitting}
+          >
             Koreksi Lagi
           </Button>
 
-          <Button type="button" disabled>
-            Simpan Live di Part 3B-2
+          <Button
+            type="button"
+            onClick={handleLiveSubmit}
+            disabled={submitting}
+          >
+            {submitting ? "Menyimpan..." : "Simpan Live Produksi"}
           </Button>
         </div>
       </Modal>
