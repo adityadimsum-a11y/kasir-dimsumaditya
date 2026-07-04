@@ -222,3 +222,7 @@ button {
 .da-button-ghost:hover {
   background: var(--da-color-surface-soft);
 }
+
+.da-card-padding {
+  padding: 18px;
+}
