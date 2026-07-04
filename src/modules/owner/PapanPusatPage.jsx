@@ -1,22 +1,42 @@
 import { useEffect, useMemo, useState } from "react";
 import { getLegacyBootstrap, pingBackend } from "../../lib/api/actions";
 import { buildBootstrapSummary } from "../../lib/bootstrap/summary";
+import { formatRupiah } from "../../lib/format/money";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import PageHeader from "../../components/ui/PageHeader";
 import StatCard from "../../components/ui/StatCard";
 import Badge from "../../components/ui/Badge";
+import Modal from "../../components/ui/Modal";
 
 function isAuthRequired(result) {
-  const message = String(result?.message || result?.error?.message || "")
-    .toUpperCase();
-
+  const message = String(result?.message || result?.error?.message || "").toUpperCase();
   const code = String(result?.error?.code || result?.code || "").toUpperCase();
 
   return (
     code.includes("AUTH_REQUIRED") ||
     message.includes("AUTH_REQUIRED") ||
-    message.includes("SESSION") && message.includes("TIDAK AKTIF")
+    (message.includes("SESSION") && message.includes("TIDAK AKTIF"))
+  );
+}
+
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function safeText(value, fallback = "-") {
+  const text = String(value || "").trim();
+  return text || fallback;
+}
+
+function getMoneyValue(row) {
+  return (
+    row?.remaining_amount ||
+    row?.outstanding_amount ||
+    row?.total_amount ||
+    row?.amount ||
+    row?.original_amount ||
+    0
   );
 }
 
@@ -43,15 +63,120 @@ function FlowCard({ number, title, description, status = "Siap dipasang" }) {
   );
 }
 
+function buildActionItems(summary) {
+  return [
+    {
+      key: "hutang-nana",
+      tone: "warning",
+      title: "Pantau Sisa Hutang",
+      value: summary.money.totalHutangTerbukaLabel,
+      description:
+        "Ada hutang supplier terbuka. Nanti card ini menjadi pintu cepat ke detail Hutang Nana.",
+    },
+    {
+      key: "drop-ayam",
+      tone: summary.counts.dropAyam > 0 ? "success" : "danger",
+      title: "DROP Ayam Belum Aktif",
+      value: `${summary.counts.dropAyam} drop`,
+      description:
+        "Belum ada DROP Ayam terbaca di bootstrap. Modul ini akan jadi awal nyawa usaha.",
+    },
+    {
+      key: "produksi",
+      tone: summary.counts.produksi > 0 ? "success" : "warning",
+      title: "Produksi / Adukan",
+      value: `${summary.counts.produksi} batch`,
+      description:
+        "Produksi akan menghubungkan ayam dipakai, barang masuk freezer, dan stok jadi.",
+    },
+    {
+      key: "arsip",
+      tone: "success",
+      title: "Arsip & Audit",
+      value: `${summary.counts.searchIndex} index`,
+      description:
+        "Search index sudah terbaca. Ini dasar semua transaksi bisa dicari dan diklik.",
+    },
+  ];
+}
+
+function getSupportRows(actionKey, bootstrap) {
+  const data = bootstrap || {};
+
+  if (actionKey === "hutang-nana") {
+    return asArray(data.payables).slice(0, 8).map((row, index) => ({
+      no: index + 1,
+      id: safeText(row.payable_id || row.id || row.transaction_id),
+      name: safeText(row.supplier_name || row.supplier_id || row.vendor_name),
+      amount: formatRupiah(getMoneyValue(row)),
+      status: safeText(row.status || row.payable_status),
+    }));
+  }
+
+  if (actionKey === "drop-ayam") {
+    return asArray(data.purchases).slice(0, 8).map((row, index) => ({
+      no: index + 1,
+      id: safeText(row.purchase_id || row.id || row.transaction_id),
+      name: safeText(row.supplier_name || row.supplier_id || "Supplier"),
+      amount: formatRupiah(getMoneyValue(row)),
+      status: safeText(row.status || row.payment_status),
+    }));
+  }
+
+  if (actionKey === "produksi") {
+    return asArray(data.production_batches).slice(0, 8).map((row, index) => ({
+      no: index + 1,
+      id: safeText(row.production_id || row.batch_id || row.id),
+      name: safeText(row.product_name || row.location_name || "Produksi"),
+      amount: safeText(row.actual_output_pcs || row.output_pcs || row.qty),
+      status: safeText(row.status || "Tercatat"),
+    }));
+  }
+
+  if (actionKey === "arsip") {
+    return asArray(data.search_index || data.archives).slice(0, 8).map((row, index) => ({
+      no: index + 1,
+      id: safeText(row.archive_id || row.ref_id || row.transaction_id || row.id),
+      name: safeText(row.title || row.module || row.type || "Arsip"),
+      amount: safeText(row.created_at || row.timestamp || row.date),
+      status: safeText(row.status || "Index"),
+    }));
+  }
+
+  return [];
+}
+
+function ActionCenterCard({ item, onClick }) {
+  return (
+    <button type="button" className="da-action-card" onClick={() => onClick(item)}>
+      <div className="da-action-card-top">
+        <Badge tone={item.tone}>{item.title}</Badge>
+        <span className="da-action-arrow">›</span>
+      </div>
+      <div className="da-action-value">{item.value}</div>
+      <div className="da-action-desc">{item.description}</div>
+    </button>
+  );
+}
+
 export default function PapanPusatPage({ session, onSessionExpired }) {
   const [loading, setLoading] = useState(true);
   const [ping, setPing] = useState(null);
   const [bootstrap, setBootstrap] = useState(null);
   const [error, setError] = useState("");
+  const [selectedAction, setSelectedAction] = useState(null);
 
   const summary = useMemo(() => {
     return buildBootstrapSummary(bootstrap);
   }, [bootstrap]);
+
+  const actionItems = useMemo(() => {
+    return buildActionItems(summary);
+  }, [summary]);
+
+  const supportRows = useMemo(() => {
+    return getSupportRows(selectedAction?.key, bootstrap);
+  }, [selectedAction, bootstrap]);
 
   const loadData = async () => {
     setLoading(true);
@@ -61,7 +186,7 @@ export default function PapanPusatPage({ session, onSessionExpired }) {
     setPing(pingResult);
 
     const bootstrapResult = await getLegacyBootstrap(session?.sessionToken, {
-      source: "frontend_foundation_part_1a_3_dashboard_polish",
+      source: "frontend_foundation_part_1a_4_action_center",
     });
 
     if (!bootstrapResult.success) {
@@ -119,12 +244,10 @@ export default function PapanPusatPage({ session, onSessionExpired }) {
       <div className="da-dashboard-banner">
         <div>
           <div className="da-dashboard-banner-kicker">Mesin usaha</div>
-          <div className="da-dashboard-banner-title">
-            Backend {backendStatus}
-          </div>
+          <div className="da-dashboard-banner-title">Backend {backendStatus}</div>
           <div className="da-dashboard-banner-desc">
-            Papan ini hanya membaca data dari Apps Script dan Google Sheet.
-            Belum membuat transaksi apa pun.
+            Papan ini hanya membaca data dari Apps Script dan Google Sheet. Belum
+            membuat transaksi apa pun.
           </div>
         </div>
 
@@ -183,6 +306,32 @@ export default function PapanPusatPage({ session, onSessionExpired }) {
           description="Hutang terbuka, termasuk hutang supplier jika sudah tercatat."
         />
       </div>
+
+      <div style={{ height: 16 }} />
+
+      <Card>
+        <div className="da-section-heading">
+          <div>
+            <div className="da-mini-title">Owner Action Center</div>
+            <div className="da-big-text">Yang Perlu Dipantau</div>
+            <p className="da-muted">
+              Klik kartu untuk membuka detail popup tengah. Tahap ini masih read-only.
+            </p>
+          </div>
+
+          <Badge tone="warning">Modal Foundation</Badge>
+        </div>
+
+        <div className="da-action-grid">
+          {actionItems.map((item) => (
+            <ActionCenterCard
+              key={item.key}
+              item={item}
+              onClick={setSelectedAction}
+            />
+          ))}
+        </div>
+      </Card>
 
       <div style={{ height: 16 }} />
 
@@ -314,6 +463,66 @@ export default function PapanPusatPage({ session, onSessionExpired }) {
           </table>
         </div>
       </Card>
+
+      <Modal
+        open={Boolean(selectedAction)}
+        title={selectedAction?.title}
+        subtitle="Detail popup tengah — read-only foundation"
+        onClose={() => setSelectedAction(null)}
+      >
+        <div className="da-modal-summary">
+          <div>
+            <div className="da-mini-title">Nilai Ringkas</div>
+            <div className="da-big-text">{selectedAction?.value}</div>
+            <p className="da-muted">{selectedAction?.description}</p>
+          </div>
+
+          <Badge tone={selectedAction?.tone || "warning"}>Read Only</Badge>
+        </div>
+
+        <div className="da-modal-note">
+          Tahap ini belum membuka halaman transaksi penuh. Popup ini menjadi pola
+          dasar detail transaksi ERP: klik kartu / baris → lihat detail tengah →
+          nanti bisa lanjut ke arsip, audit, print, atau tindakan sesuai izin.
+        </div>
+
+        <div className="da-table-card">
+          <table className="da-table">
+            <thead>
+              <tr>
+                <th>No</th>
+                <th>ID / Sumber</th>
+                <th>Nama</th>
+                <th>Nilai / Qty</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {supportRows.length === 0 ? (
+                <tr>
+                  <td colSpan="5">
+                    <span className="da-muted">
+                      Belum ada baris pendukung yang terbaca untuk area ini.
+                    </span>
+                  </td>
+                </tr>
+              ) : (
+                supportRows.map((row) => (
+                  <tr key={`${row.no}-${row.id}`}>
+                    <td>{row.no}</td>
+                    <td style={{ fontWeight: 800 }}>{row.id}</td>
+                    <td>{row.name}</td>
+                    <td>{row.amount}</td>
+                    <td>
+                      <Badge tone="warning">{row.status}</Badge>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Modal>
     </div>
   );
 }
