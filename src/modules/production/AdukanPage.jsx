@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+import {
   createProductionBatch,
   getProductionBootstrap,
+  getProducts,
 } from "../../lib/api/actions";
 import { formatRupiah } from "../../lib/format/money";
 import Button from "../../components/ui/Button";
@@ -571,6 +573,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
   const [selectedBatch, setSelectedBatch] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState(null);
+  const [fallbackProducts, setFallbackProducts] = useState([]);
 
   const lots = useMemo(() => {
     return getActiveLotsFromData(bootstrap);
@@ -581,8 +584,14 @@ export default function AdukanPage({ session, onSessionExpired }) {
   }, [bootstrap, session]);
 
   const productionProducts = useMemo(() => {
-    return getProductionProductsFromData(bootstrap);
-  }, [bootstrap]);
+  const fromProductionBootstrap = getProductionProductsFromData(bootstrap);
+
+  if (fromProductionBootstrap.length > 0) {
+    return fromProductionBootstrap;
+  }
+
+  return fallbackProducts;
+}, [bootstrap, fallbackProducts]);
 
   const productionBatches = asArray(bootstrap?.production_batches);
 
@@ -621,7 +630,31 @@ export default function AdukanPage({ session, onSessionExpired }) {
     }
 
     setBootstrap(result.data || {});
-    setLoading(false);
+
+const productResult = await getProducts(session?.sessionToken, {
+  source: "frontend_part_3b_2c_produk_hasil_adukan_fallback",
+});
+
+if (productResult?.success) {
+  const productPayload = productResult.data || {};
+  const productRows = Array.isArray(productPayload)
+    ? productPayload
+    : productPayload.products ||
+      productPayload.rows ||
+      productPayload.items ||
+      productPayload.data ||
+      [];
+
+  setFallbackProducts(
+    getProductionProductsFromData({
+      products: productRows,
+    })
+  );
+} else {
+  setFallbackProducts([]);
+}
+
+setLoading(false);
   };
 
   useEffect(() => {
