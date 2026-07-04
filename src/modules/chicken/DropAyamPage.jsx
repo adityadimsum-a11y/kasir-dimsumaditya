@@ -34,6 +34,19 @@ function safeText(value, fallback = "-") {
   return text || fallback;
 }
 
+function formatDisplayDate(value) {
+  if (!value) return "-";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
+
 function sumRows(rows, fields) {
   return asArray(rows).reduce((total, row) => {
     for (const field of fields) {
@@ -93,7 +106,7 @@ function buildSummary(data) {
     "amount",
   ]);
 
-  const totalKgSisa = sumRows(lots, ["qty_kg_remaining"]);
+  const totalKgSisa = sumRows(lots, ["qty_kg_remaining", "remaining_kg"]);
 
   return {
     totalDrop: purchases.length,
@@ -190,6 +203,51 @@ function buildLivePayload({ preview, session }) {
   };
 }
 
+function findLinkedLot(drop, lots) {
+  return lots.find((lot) => {
+    const lotId = String(lot.chicken_lot_id || lot.lot_id || "");
+    const purchaseLotId = String(drop.chicken_lot_id || drop.lot_id || "");
+    const lotSourceId = String(lot.source_id || lot.purchase_id || lot.ref_id || "");
+    const purchaseId = String(drop.purchase_id || "");
+
+    return (
+      (lotId && purchaseLotId && lotId === purchaseLotId) ||
+      (lotSourceId && purchaseId && lotSourceId === purchaseId)
+    );
+  });
+}
+
+function findLinkedPayable(drop, payables) {
+  return payables.find((payable) => {
+    const payableId = String(payable.payable_id || "");
+    const dropPayableId = String(drop.payable_id || "");
+    const sourceId = String(payable.source_id || payable.purchase_id || payable.ref_id || "");
+    const purchaseId = String(drop.purchase_id || "");
+
+    return (
+      (payableId && dropPayableId && payableId === dropPayableId) ||
+      (sourceId && purchaseId && sourceId === purchaseId)
+    );
+  });
+}
+
+function TraceItem({ label, value, tone = "warning" }) {
+  const hasValue = value && value !== "-";
+
+  return (
+    <div className="da-trace-item">
+      <div>
+        <div className="da-trace-label">{label}</div>
+        <div className="da-trace-value">{safeText(value, "Belum terbaca")}</div>
+      </div>
+
+      <Badge tone={hasValue ? tone : "warning"}>
+        {hasValue ? "Ada" : "N/A"}
+      </Badge>
+    </div>
+  );
+}
+
 export default function DropAyamPage({ session, onSessionExpired }) {
   const [loading, setLoading] = useState(true);
   const [bootstrap, setBootstrap] = useState(null);
@@ -199,6 +257,7 @@ export default function DropAyamPage({ session, onSessionExpired }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState(null);
+  const [showValidationErrors, setShowValidationErrors] = useState(false);
 
   const purchases = asArray(bootstrap?.purchases);
   const lots = asArray(bootstrap?.chicken_lots);
@@ -223,6 +282,7 @@ export default function DropAyamPage({ session, onSessionExpired }) {
   }, [form, preview]);
 
   const canOpenConfirmation = validationErrors.length === 0;
+
   const livePayload = useMemo(() => {
     return buildLivePayload({ preview, session });
   }, [preview, session]);
@@ -232,7 +292,7 @@ export default function DropAyamPage({ session, onSessionExpired }) {
     setError("");
 
     const result = await getDropAyamBootstrap(session?.sessionToken, {
-      source: "frontend_part_2b_2_drop_ayam_live_submit",
+      source: "frontend_part_2b_3_drop_ayam_trace_cleanup",
     });
 
     if (!result.success) {
@@ -265,6 +325,7 @@ export default function DropAyamPage({ session, onSessionExpired }) {
 
   const handlePreviewSubmit = (event) => {
     event.preventDefault();
+    setShowValidationErrors(true);
 
     if (!canOpenConfirmation) {
       return;
@@ -277,6 +338,7 @@ export default function DropAyamPage({ session, onSessionExpired }) {
     setForm(initialForm);
     setConfirmOpen(false);
     setSubmitResult(null);
+    setShowValidationErrors(false);
   };
 
   const handleLiveSubmit = async () => {
@@ -311,29 +373,18 @@ export default function DropAyamPage({ session, onSessionExpired }) {
     setConfirmOpen(false);
     setSubmitting(false);
     setForm(initialForm);
+    setShowValidationErrors(false);
     await loadData();
   };
 
-  const getLinkedLot = (drop) => {
-    return lots.find((lot) => {
-      return String(lot.chicken_lot_id || "") === String(drop.chicken_lot_id || "");
-    });
-  };
-
-  const getLinkedPayable = (drop) => {
-    return payables.find((payable) => {
-      return (
-        String(payable.payable_id || "") === String(drop.payable_id || "") ||
-        String(payable.source_id || "") === String(drop.purchase_id || "")
-      );
-    });
-  };
+  const getLinkedLot = (drop) => findLinkedLot(drop, lots);
+  const getLinkedPayable = (drop) => findLinkedPayable(drop, payables);
 
   const columns = [
     {
       key: "purchase_date",
       label: "Tanggal",
-      render: (row) => safeText(row.purchase_date || row.drop_date || row.date),
+      render: (row) => formatDisplayDate(row.purchase_date || row.drop_date || row.date),
     },
     {
       key: "purchase_id",
@@ -617,7 +668,7 @@ export default function DropAyamPage({ session, onSessionExpired }) {
             </div>
           </div>
 
-          {validationErrors.length > 0 ? (
+          {showValidationErrors && validationErrors.length > 0 ? (
             <div className="da-form-warning">
               {validationErrors.map((item) => (
                 <div key={item}>• {item}</div>
@@ -691,7 +742,7 @@ export default function DropAyamPage({ session, onSessionExpired }) {
         <div className="da-detail-grid">
           <div className="da-detail-box">
             <div className="da-mini-title">DROP</div>
-            <p><strong>Tanggal:</strong> {safeText(preview.drop_date)}</p>
+            <p><strong>Tanggal:</strong> {formatDisplayDate(preview.drop_date)}</p>
             <p><strong>Supplier:</strong> {safeText(preview.supplier_name)}</p>
             <p><strong>No Nota:</strong> {safeText(preview.invoice_no, "Belum diisi")}</p>
           </div>
@@ -751,82 +802,121 @@ export default function DropAyamPage({ session, onSessionExpired }) {
         onClose={() => setSelectedDrop(null)}
       >
         {selectedDrop ? (
-          <div>
-            <div className="da-modal-summary">
-              <div>
-                <div className="da-mini-title">Total Modal Ayam</div>
-                <div className="da-big-text">
-                  {formatRupiah(selectedDrop.total_amount)}
-                </div>
-                <p className="da-muted">
-                  Harga/kg dikunci di nota ini:{" "}
-                  <strong>{formatRupiah(selectedDrop.unit_cost)}</strong>.
-                </p>
-              </div>
-
-              <Badge tone={getStatusTone(selectedDrop.payment_status)}>
-                {safeText(selectedDrop.payment_status)}
-              </Badge>
-            </div>
-
-            <div className="da-detail-grid">
-              <div className="da-detail-box">
-                <div className="da-mini-title">DROP</div>
-                <p><strong>ID:</strong> {safeText(selectedDrop.purchase_id)}</p>
-                <p><strong>Tanggal:</strong> {safeText(selectedDrop.purchase_date)}</p>
-                <p><strong>Supplier:</strong> {safeText(selectedDrop.supplier_name)}</p>
-                <p><strong>No Nota:</strong> {safeText(selectedDrop.invoice_no)}</p>
-              </div>
-
-              <div className="da-detail-box">
-                <div className="da-mini-title">Ayam Masuk</div>
-                <p><strong>Kg:</strong> {numberValue(selectedDrop.qty_kg).toLocaleString("id-ID")} kg</p>
-                <p><strong>Harga/kg:</strong> {formatRupiah(selectedDrop.unit_cost)}</p>
-                <p><strong>Total:</strong> {formatRupiah(selectedDrop.total_amount)}</p>
-                <p><strong>Dibayar:</strong> {formatRupiah(selectedDrop.amount_paid)}</p>
-              </div>
-
-              <div className="da-detail-box">
-                <div className="da-mini-title">Lot Harga Aktual</div>
-                {(() => {
-                  const lot = getLinkedLot(selectedDrop);
-                  return lot ? (
-                    <>
-                      <p><strong>Lot ID:</strong> {safeText(lot.chicken_lot_id)}</p>
-                      <p><strong>Sisa kg:</strong> {numberValue(lot.qty_kg_remaining).toLocaleString("id-ID")} kg</p>
-                      <p><strong>Status:</strong> {safeText(lot.status)}</p>
-                    </>
-                  ) : (
-                    <p className="da-muted">Lot belum terbaca di bootstrap.</p>
-                  );
-                })()}
-              </div>
-
-              <div className="da-detail-box">
-                <div className="da-mini-title">Hutang Nana</div>
-                {(() => {
-                  const payable = getLinkedPayable(selectedDrop);
-                  return payable ? (
-                    <>
-                      <p><strong>Hutang ID:</strong> {safeText(payable.payable_id)}</p>
-                      <p><strong>Nominal:</strong> {formatRupiah(getMoneyValue(payable))}</p>
-                      <p><strong>Status:</strong> {safeText(payable.status)}</p>
-                    </>
-                  ) : (
-                    <p className="da-muted">Tidak ada hutang terkait / sudah lunas.</p>
-                  );
-                })()}
-              </div>
-            </div>
-
-            <div className="da-modal-note" style={{ marginTop: 14 }}>
-              Rantai transaksi ini harus tetap terkunci: DROP Ayam → Lot Harga
-              Aktual → Produksi/Adukan → Stok Jadi → Order → Uang Masuk → Hutang
-              Nana → 4 Amplop.
-            </div>
-          </div>
+          <DropDetailModal
+            selectedDrop={selectedDrop}
+            linkedLot={getLinkedLot(selectedDrop)}
+            linkedPayable={getLinkedPayable(selectedDrop)}
+          />
         ) : null}
       </Modal>
+    </div>
+  );
+}
+
+function DropDetailModal({ selectedDrop, linkedLot, linkedPayable }) {
+  const dropId = selectedDrop.purchase_id;
+  const lotId =
+    linkedLot?.chicken_lot_id ||
+    selectedDrop.chicken_lot_id ||
+    selectedDrop.lot_id ||
+    "-";
+
+  const payableId =
+    linkedPayable?.payable_id ||
+    selectedDrop.payable_id ||
+    "-";
+
+  const stockMovementId =
+    selectedDrop.stock_movement_id ||
+    selectedDrop.raw_stock_movement_id ||
+    linkedLot?.stock_movement_id ||
+    "-";
+
+  const costLayerId =
+    selectedDrop.cost_layer_id ||
+    selectedDrop.inventory_cost_layer_id ||
+    linkedLot?.cost_layer_id ||
+    linkedLot?.inventory_cost_layer_id ||
+    "-";
+
+  return (
+    <div>
+      <div className="da-modal-summary">
+        <div>
+          <div className="da-mini-title">Total Modal Ayam</div>
+          <div className="da-big-text">
+            {formatRupiah(selectedDrop.total_amount)}
+          </div>
+          <p className="da-muted">
+            Harga/kg dikunci di nota ini:{" "}
+            <strong>{formatRupiah(selectedDrop.unit_cost)}</strong>.
+          </p>
+        </div>
+
+        <Badge tone={getStatusTone(selectedDrop.payment_status)}>
+          {safeText(selectedDrop.payment_status)}
+        </Badge>
+      </div>
+
+      <div className="da-trace-strip">
+        <TraceItem label="DROP Ayam" value={dropId} tone="success" />
+        <TraceItem label="Lot Harga Aktual" value={lotId} tone="success" />
+        <TraceItem label="Hutang Nana" value={payableId} tone="warning" />
+        <TraceItem label="Stok Ayam" value={stockMovementId} tone="success" />
+        <TraceItem label="Modal Lot" value={costLayerId} tone="success" />
+      </div>
+
+      <div className="da-detail-grid">
+        <div className="da-detail-box">
+          <div className="da-mini-title">DROP</div>
+          <p><strong>ID:</strong> {safeText(selectedDrop.purchase_id)}</p>
+          <p><strong>Tanggal:</strong> {formatDisplayDate(selectedDrop.purchase_date)}</p>
+          <p><strong>Supplier:</strong> {safeText(selectedDrop.supplier_name)}</p>
+          <p><strong>No Nota:</strong> {safeText(selectedDrop.invoice_no)}</p>
+        </div>
+
+        <div className="da-detail-box">
+          <div className="da-mini-title">Ayam Masuk</div>
+          <p><strong>Kg:</strong> {numberValue(selectedDrop.qty_kg).toLocaleString("id-ID")} kg</p>
+          <p><strong>Harga/kg:</strong> {formatRupiah(selectedDrop.unit_cost)}</p>
+          <p><strong>Total:</strong> {formatRupiah(selectedDrop.total_amount)}</p>
+          <p><strong>Dibayar:</strong> {formatRupiah(selectedDrop.amount_paid)}</p>
+        </div>
+
+        <div className="da-detail-box">
+          <div className="da-mini-title">Lot Harga Aktual</div>
+          {linkedLot ? (
+            <>
+              <p><strong>Lot ID:</strong> {safeText(linkedLot.chicken_lot_id)}</p>
+              <p><strong>Sisa kg:</strong> {numberValue(linkedLot.qty_kg_remaining || linkedLot.remaining_kg).toLocaleString("id-ID")} kg</p>
+              <p><strong>Harga/kg:</strong> {formatRupiah(linkedLot.unit_cost || selectedDrop.unit_cost)}</p>
+              <p><strong>Status:</strong> {safeText(linkedLot.status)}</p>
+            </>
+          ) : (
+            <p className="da-muted">Lot belum terbaca di bootstrap.</p>
+          )}
+        </div>
+
+        <div className="da-detail-box">
+          <div className="da-mini-title">Hutang Nana</div>
+          {linkedPayable ? (
+            <>
+              <p><strong>Hutang ID:</strong> {safeText(linkedPayable.payable_id)}</p>
+              <p><strong>Nominal:</strong> {formatRupiah(getMoneyValue(linkedPayable))}</p>
+              <p><strong>Status:</strong> {safeText(linkedPayable.status || linkedPayable.payable_status)}</p>
+              <p><strong>Sumber:</strong> {safeText(linkedPayable.source_id || linkedPayable.purchase_id)}</p>
+            </>
+          ) : (
+            <p className="da-muted">Tidak ada hutang terkait / sudah lunas.</p>
+          )}
+        </div>
+      </div>
+
+      <div className="da-modal-note" style={{ marginTop: 14 }}>
+        Rantai transaksi ini harus tetap terkunci: DROP Ayam → Lot Harga
+        Aktual → Produksi/Adukan → Stok Jadi → Order → Uang Masuk → Hutang
+        Nana → 4 Amplop.
+      </div>
     </div>
   );
 }
