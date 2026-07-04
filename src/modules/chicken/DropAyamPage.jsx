@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { getDropAyamBootstrap } from "../../lib/api/actions";
+import { createDropAyam, getDropAyamBootstrap } from "../../lib/api/actions";
 import { formatRupiah } from "../../lib/format/money";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
@@ -41,6 +41,7 @@ function sumRows(rows, fields) {
         return total + numberValue(row[field]);
       }
     }
+
     return total;
   }, 0);
 }
@@ -49,7 +50,7 @@ function getStatusTone(status) {
   const value = String(status || "").toUpperCase();
 
   if (value.includes("LUNAS") || value.includes("PAID")) return "success";
-  if (value.includes("PARTIAL")) return "warning";
+  if (value.includes("PARTIAL") || value.includes("SEBAGIAN")) return "warning";
   if (value.includes("OPEN") || value.includes("BELUM")) return "danger";
 
   return "warning";
@@ -170,6 +171,25 @@ function validateDropForm(form, preview) {
   return errors;
 }
 
+function buildLivePayload({ preview, session }) {
+  return {
+    purchase: {
+      location_id: session?.user?.location_id || "",
+      purchase_date: preview.drop_date,
+      drop_date: preview.drop_date,
+      supplier_id: preview.supplier_id,
+      supplier_name: preview.supplier_name,
+      invoice_no: preview.invoice_no,
+      qty_kg: preview.qty_kg,
+      unit: "kg",
+      unit_cost: preview.unit_cost,
+      amount_paid: preview.amount_paid,
+      wallet_id: preview.payment_wallet_id,
+      notes: preview.note,
+    },
+  };
+}
+
 export default function DropAyamPage({ session, onSessionExpired }) {
   const [loading, setLoading] = useState(true);
   const [bootstrap, setBootstrap] = useState(null);
@@ -177,6 +197,8 @@ export default function DropAyamPage({ session, onSessionExpired }) {
   const [selectedDrop, setSelectedDrop] = useState(null);
   const [form, setForm] = useState(initialForm);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitResult, setSubmitResult] = useState(null);
 
   const purchases = asArray(bootstrap?.purchases);
   const lots = asArray(bootstrap?.chicken_lots);
@@ -201,13 +223,16 @@ export default function DropAyamPage({ session, onSessionExpired }) {
   }, [form, preview]);
 
   const canOpenConfirmation = validationErrors.length === 0;
+  const livePayload = useMemo(() => {
+    return buildLivePayload({ preview, session });
+  }, [preview, session]);
 
   const loadData = async () => {
     setLoading(true);
     setError("");
 
     const result = await getDropAyamBootstrap(session?.sessionToken, {
-      source: "frontend_part_2b_1_drop_ayam_form_preview",
+      source: "frontend_part_2b_2_drop_ayam_live_submit",
     });
 
     if (!result.success) {
@@ -251,6 +276,42 @@ export default function DropAyamPage({ session, onSessionExpired }) {
   const handleResetForm = () => {
     setForm(initialForm);
     setConfirmOpen(false);
+    setSubmitResult(null);
+  };
+
+  const handleLiveSubmit = async () => {
+    if (submitting || validationErrors.length > 0) return;
+
+    setSubmitting(true);
+    setSubmitResult(null);
+
+    const result = await createDropAyam(session?.sessionToken, livePayload);
+
+    if (!result.success) {
+      if (isAuthRequired(result)) {
+        onSessionExpired?.();
+        return;
+      }
+
+      setSubmitResult({
+        success: false,
+        message: result.message || "Gagal menyimpan DROP Ayam.",
+        data: result.data || null,
+      });
+      setSubmitting(false);
+      return;
+    }
+
+    setSubmitResult({
+      success: true,
+      message: result.message || "DROP Ayam berhasil disimpan.",
+      data: result.data || null,
+    });
+
+    setConfirmOpen(false);
+    setSubmitting(false);
+    setForm(initialForm);
+    await loadData();
   };
 
   const getLinkedLot = (drop) => {
@@ -315,7 +376,7 @@ export default function DropAyamPage({ session, onSessionExpired }) {
       <PageHeader
         title="DROP Ayam"
         description="Catatan ayam masuk dari supplier. Harga ayam dikunci per nota/drop agar transaksi lama tidak berubah saat harga baru berubah."
-        badge="Form Preview"
+        badge="Live Submit"
       />
 
       <div className="da-dashboard-banner">
@@ -325,8 +386,8 @@ export default function DropAyamPage({ session, onSessionExpired }) {
             DROP Ayam → Lot Harga Aktual
           </div>
           <div className="da-dashboard-banner-desc">
-            Tahap ini sudah mengaktifkan form dan preview. Tombol simpan transaksi
-            hidup baru dipasang di Part 2B-2.
+            Form ini sudah bisa menyimpan transaksi hidup. Pastikan data nota ayam
+            benar sebelum klik Simpan Live.
           </div>
         </div>
 
@@ -334,7 +395,7 @@ export default function DropAyamPage({ session, onSessionExpired }) {
           <Badge tone={error ? "danger" : "success"}>
             {error ? "Perlu Dicek" : "Terhubung"}
           </Badge>
-          <Button variant="ghost" onClick={loadData} disabled={loading}>
+          <Button variant="ghost" onClick={loadData} disabled={loading || submitting}>
             {loading ? "Membaca..." : "Refresh Data"}
           </Button>
         </div>
@@ -343,6 +404,15 @@ export default function DropAyamPage({ session, onSessionExpired }) {
       {error ? (
         <div className="da-login-error" style={{ marginBottom: 16 }}>
           {error}
+        </div>
+      ) : null}
+
+      {submitResult ? (
+        <div
+          className={submitResult.success ? "da-form-success" : "da-form-warning"}
+          style={{ marginBottom: 16 }}
+        >
+          {submitResult.message}
         </div>
       ) : null}
 
@@ -407,11 +477,11 @@ export default function DropAyamPage({ session, onSessionExpired }) {
             <div className="da-big-text">Input DROP Ayam</div>
             <p className="da-muted">
               Isi data nota ayam. Sistem akan menghitung total modal dan sisa hutang.
-              Tahap ini belum menyimpan transaksi hidup.
+              Harga/kg akan dikunci sebagai harga aktual lot ayam.
             </p>
           </div>
 
-          <Badge tone="warning">Preview Only</Badge>
+          <Badge tone="danger">Live Transaction</Badge>
         </div>
 
         <form onSubmit={handlePreviewSubmit}>
@@ -423,6 +493,7 @@ export default function DropAyamPage({ session, onSessionExpired }) {
                 className="da-input"
                 value={form.drop_date}
                 onChange={(event) => updateForm("drop_date", event.target.value)}
+                disabled={submitting}
               />
             </div>
 
@@ -432,6 +503,7 @@ export default function DropAyamPage({ session, onSessionExpired }) {
                 className="da-select"
                 value={form.supplier_id}
                 onChange={(event) => updateForm("supplier_id", event.target.value)}
+                disabled={submitting}
               >
                 <option value="">Pilih supplier</option>
                 {suppliers.map((supplier) => (
@@ -449,6 +521,7 @@ export default function DropAyamPage({ session, onSessionExpired }) {
                 value={form.invoice_no}
                 placeholder="Contoh: NANA-2026-001"
                 onChange={(event) => updateForm("invoice_no", event.target.value)}
+                disabled={submitting}
               />
             </div>
 
@@ -460,6 +533,7 @@ export default function DropAyamPage({ session, onSessionExpired }) {
                 value={form.qty_kg}
                 placeholder="Contoh: 1020"
                 onChange={(event) => updateForm("qty_kg", event.target.value)}
+                disabled={submitting}
               />
             </div>
 
@@ -471,6 +545,7 @@ export default function DropAyamPage({ session, onSessionExpired }) {
                 value={form.unit_cost}
                 placeholder="Contoh: 36500"
                 onChange={(event) => updateForm("unit_cost", event.target.value)}
+                disabled={submitting}
               />
             </div>
 
@@ -482,6 +557,7 @@ export default function DropAyamPage({ session, onSessionExpired }) {
                 value={form.amount_paid}
                 placeholder="0 kalau belum bayar"
                 onChange={(event) => updateForm("amount_paid", event.target.value)}
+                disabled={submitting}
               />
             </div>
 
@@ -493,6 +569,7 @@ export default function DropAyamPage({ session, onSessionExpired }) {
                 onChange={(event) =>
                   updateForm("payment_wallet_id", event.target.value)
                 }
+                disabled={submitting}
               >
                 <option value="">Pilih kalau ada pembayaran</option>
                 {wallets.map((wallet) => (
@@ -510,6 +587,7 @@ export default function DropAyamPage({ session, onSessionExpired }) {
                 value={form.note}
                 placeholder="Contoh: turun ayam pagi / titip travel / nota berjalan"
                 onChange={(event) => updateForm("note", event.target.value)}
+                disabled={submitting}
               />
             </div>
           </div>
@@ -535,9 +613,7 @@ export default function DropAyamPage({ session, onSessionExpired }) {
             <div>
               <div className="da-mini-title">Status Bayar</div>
               <div className="da-big-text">{preview.payment_status}</div>
-              <p className="da-muted">
-                Status ini masih preview dan belum tersimpan.
-              </p>
+              <p className="da-muted">Status ini akan dikirim ke backend saat simpan.</p>
             </div>
           </div>
 
@@ -550,11 +626,16 @@ export default function DropAyamPage({ session, onSessionExpired }) {
           ) : null}
 
           <div className="da-form-actions">
-            <Button type="button" variant="ghost" onClick={handleResetForm}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={handleResetForm}
+              disabled={submitting}
+            >
               Reset Form
             </Button>
 
-            <Button type="submit" disabled={!canOpenConfirmation}>
+            <Button type="submit" disabled={!canOpenConfirmation || submitting}>
               Preview & Konfirmasi
             </Button>
           </div>
@@ -574,7 +655,7 @@ export default function DropAyamPage({ session, onSessionExpired }) {
             </p>
           </div>
 
-          <Badge tone="warning">Read Only</Badge>
+          <Badge tone="warning">Live Data</Badge>
         </div>
 
         <DataTable
@@ -587,16 +668,18 @@ export default function DropAyamPage({ session, onSessionExpired }) {
 
       <Modal
         open={confirmOpen}
-        title="Konfirmasi Preview DROP Ayam"
-        subtitle="Belum menyimpan transaksi hidup"
-        onClose={() => setConfirmOpen(false)}
+        title="Konfirmasi Simpan DROP Ayam"
+        subtitle="Ini akan membuat transaksi hidup"
+        onClose={() => {
+          if (!submitting) setConfirmOpen(false);
+        }}
       >
         <div className="da-modal-summary">
           <div>
             <div className="da-mini-title">Total Modal Ayam</div>
             <div className="da-big-text">{formatRupiah(preview.total_amount)}</div>
             <p className="da-muted">
-              Harga/kg aktual ini nanti akan dikunci untuk nota/drop ini.
+              Harga/kg aktual ini akan dikunci untuk nota/drop ini.
             </p>
           </div>
 
@@ -628,26 +711,35 @@ export default function DropAyamPage({ session, onSessionExpired }) {
           </div>
 
           <div className="da-detail-box">
-            <div className="da-mini-title">Payload Part 2B-2</div>
-            <p><strong>Action:</strong> legacyCreateChickenDropFromOldPurchase</p>
-            <p><strong>Status:</strong> Preview saja, belum submit.</p>
-            <p><strong>Catatan:</strong> {safeText(preview.note, "Tidak ada catatan")}</p>
+            <div className="da-mini-title">Yang Dibuat Backend</div>
+            <p><strong>DROP Ayam:</strong> Ya</p>
+            <p><strong>Lot Harga Aktual:</strong> Ya</p>
+            <p><strong>Hutang Nana:</strong> {preview.remaining_amount > 0 ? "Ya" : "Tidak"}</p>
+            <p><strong>Mutasi Dompet:</strong> {preview.amount_paid > 0 ? "Ya" : "Tidak"}</p>
           </div>
         </div>
 
         <div className="da-modal-note" style={{ marginTop: 14 }}>
-          Kalau nanti di Part 2B-2 disimpan, backend akan membuat DROP Ayam, Lot Harga
-          Aktual, stok ayam masuk, hutang Nana jika belum lunas, mutasi dompet jika ada
-          pembayaran, arsip, dan audit.
+          Setelah disimpan, backend akan membuat DROP Ayam, Lot Harga Aktual,
+          stok ayam masuk, hutang Nana jika belum lunas, mutasi dompet jika ada
+          pembayaran, catatan keuangan otomatis, arsip, dan audit.
         </div>
 
+        {submitResult && !submitResult.success ? (
+          <div className="da-form-warning">{submitResult.message}</div>
+        ) : null}
+
         <div className="da-form-actions">
-          <Button variant="ghost" onClick={() => setConfirmOpen(false)}>
+          <Button
+            variant="ghost"
+            onClick={() => setConfirmOpen(false)}
+            disabled={submitting}
+          >
             Koreksi Lagi
           </Button>
 
-          <Button type="button" disabled>
-            Simpan Live di Part 2B-2
+          <Button type="button" onClick={handleLiveSubmit} disabled={submitting}>
+            {submitting ? "Menyimpan..." : "Simpan Live DROP Ayam"}
           </Button>
         </div>
       </Modal>
