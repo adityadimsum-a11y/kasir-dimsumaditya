@@ -393,3 +393,18 @@ button {
   color: var(--da-color-muted);
   font-size: 12px;
 }
+
+.da-mini-title {
+  color: var(--da-color-muted);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.da-big-text {
+  font-size: 22px;
+  font-weight: 900;
+  margin: 8px 0 6px;
+  letter-spacing: -0.03em;
+}
