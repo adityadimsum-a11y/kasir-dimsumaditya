@@ -1190,3 +1190,35 @@ button {
     grid-template-columns: 1fr;
   }
 }
+
+.da-payload-preview {
+  margin-top: 14px;
+  border: 1px solid var(--da-color-border);
+  border-radius: var(--da-radius-lg);
+  background: var(--da-color-surface-soft);
+  padding: 14px;
+}
+
+.da-payload-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  border-bottom: 1px solid var(--da-color-border);
+  padding: 10px 0;
+  font-size: 13px;
+}
+
+.da-payload-row:last-child {
+  border-bottom: 0;
+}
+
+.da-payload-row span {
+  color: var(--da-color-muted);
+  font-weight: 800;
+}
+
+.da-payload-row strong {
+  color: var(--da-color-heading);
+  text-align: right;
+  word-break: break-word;
+}
