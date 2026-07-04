@@ -33,6 +33,12 @@ export default function App() {
     setActivePage(firstAllowedPage);
   };
 
+  const handleSessionExpired = () => {
+    clearSession();
+    setSession(null);
+    setActivePage("papan-pusat");
+  };
+
   const handleLogout = async () => {
     try {
       if (session?.sessionToken) {
@@ -47,7 +53,12 @@ export default function App() {
 
   const renderPage = () => {
     if (activePage === "papan-pusat") {
-      return <PapanPusatPage session={session} />;
+      return (
+        <PapanPusatPage
+          session={session}
+          onSessionExpired={handleSessionExpired}
+        />
+      );
     }
 
     return (
