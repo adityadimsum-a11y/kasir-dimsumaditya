@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { APP_BRAND } from "../../config/theme.config";
 import { loginUser, getConfiguredApiUrl } from "../../lib/api/actions";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
@@ -42,9 +43,16 @@ export default function LoginPage({ onLoginSuccess }) {
     <div className="da-login-page">
       <Card className="da-login-card">
         <div className="da-login-brand">
-          <div className="da-login-mark">DA</div>
+          <div className="da-login-mark">
+            {APP_BRAND.logoUrl ? (
+              <img src={APP_BRAND.logoUrl} alt={APP_BRAND.name} />
+            ) : (
+              <strong>{APP_BRAND.shortName}</strong>
+            )}
+          </div>
+
           <div>
-            <h1>ERP Dimsum Aditya</h1>
+            <h1>{APP_BRAND.systemName}</h1>
             <p>Masuk ke papan kerja usaha.</p>
           </div>
         </div>
