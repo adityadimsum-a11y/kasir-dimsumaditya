@@ -1092,3 +1092,46 @@ button {
     grid-template-columns: 1fr;
   }
 }
+
+.da-drop-field-wide {
+  grid-column: span 2;
+}
+
+.da-drop-preview-panel {
+  margin-top: 16px;
+  border: 1px solid var(--da-color-border);
+  border-radius: var(--da-radius-lg);
+  background: var(--da-color-surface-soft);
+  padding: 16px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.da-form-warning {
+  margin-top: 14px;
+  border-radius: var(--da-radius-md);
+  background: var(--da-color-danger-soft);
+  color: var(--da-color-danger);
+  padding: 12px 14px;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.da-form-actions {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 920px) {
+  .da-drop-field-wide {
+    grid-column: span 1;
+  }
+
+  .da-drop-preview-panel {
+    grid-template-columns: 1fr;
+  }
+}
