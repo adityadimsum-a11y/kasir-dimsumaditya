@@ -1,867 +1,1237 @@
-import { useEffect, useMemo, useState } from "react";
-import {
-  createProductionBatch,
-  getProductionBootstrap,
-} from "../../lib/api/actions";
-import { formatRupiah } from "../../lib/format/money";
-import Button from "../../components/ui/Button";
-import Card from "../../components/ui/Card";
-import PageHeader from "../../components/ui/PageHeader";
-import StatCard from "../../components/ui/StatCard";
-import Badge from "../../components/ui/Badge";
-import Modal from "../../components/ui/Modal";
-import DataTable from "../../components/ui/DataTable";
-
-const initialForm = {
-  production_date: new Date().toISOString().slice(0, 10),
-  chicken_lot_id: "",
-  total_adukan: "",
-  actual_output_pcs: "",
-  note: "",
-};
-
-function asArray(value) {
-  return Array.isArray(value) ? value : [];
+* {
+  box-sizing: border-box;
 }
 
-function numberValue(value) {
-  const parsed = Number(String(value ?? "0").replace(/[^0-9.-]/g, ""));
-  return Number.isFinite(parsed) ? parsed : 0;
+html,
+body,
+#root {
+  min-height: 100%;
+  margin: 0;
 }
 
-function safeText(value, fallback = "-") {
-  const text = String(value || "").trim();
-  return text || fallback;
+body {
+  font-family: var(--da-font-main);
+  background: var(--da-color-bg);
+  color: var(--da-color-text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
 }
 
-function formatDisplayDate(value) {
-  if (!value) return "-";
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
-
-  return new Intl.DateTimeFormat("id-ID", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(date);
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
 }
 
-function isAuthRequired(result) {
-  const message = String(result?.message || result?.error?.message || "").toUpperCase();
-  const code = String(result?.error?.code || result?.code || "").toUpperCase();
-
-  return (
-    code.includes("AUTH_REQUIRED") ||
-    message.includes("AUTH_REQUIRED") ||
-    (message.includes("SESSION") && message.includes("TIDAK AKTIF"))
-  );
+button {
+  cursor: pointer;
 }
 
-function sumRows(rows, fields) {
-  return asArray(rows).reduce((total, row) => {
-    for (const field of fields) {
-      if (row?.[field] !== undefined && row?.[field] !== "") {
-        return total + numberValue(row[field]);
-      }
-    }
-
-    return total;
-  }, 0);
+button:disabled {
+  cursor: not-allowed;
 }
 
-function normalizeLot(row) {
-  return {
-    id: row.chicken_lot_id || row.lot_id || row.id || "",
-    label:
-      row.chicken_lot_id ||
-      row.lot_id ||
-      row.purchase_id ||
-      row.source_id ||
-      row.id ||
-      "",
-    supplier_name: row.supplier_name || row.supplier_id || "Supplier",
-    unit_cost: numberValue(row.unit_cost || row.price_per_kg || row.cost_per_kg),
-    remaining_kg: numberValue(
-      row.qty_kg_remaining || row.remaining_kg || row.qty_remaining || row.qty_kg
-    ),
-    status: row.status || "Aktif",
-    raw: row,
-  };
+.da-app {
+  min-height: 100vh;
+  display: flex;
+  background: var(--da-color-bg);
 }
 
-function uniqueLotsById(lots) {
-  const map = new Map();
-
-  asArray(lots).forEach((lot) => {
-    if (!lot?.id) return;
-
-    const existing = map.get(lot.id);
-
-    if (!existing) {
-      map.set(lot.id, lot);
-      return;
-    }
-
-    const existingRemaining = numberValue(existing.remaining_kg);
-    const currentRemaining = numberValue(lot.remaining_kg);
-
-    if (currentRemaining > existingRemaining) {
-      map.set(lot.id, lot);
-      return;
-    }
-
-    if (currentRemaining === existingRemaining) {
-      map.set(lot.id, {
-        ...existing,
-        ...lot,
-        remaining_kg: existingRemaining,
-        unit_cost: lot.unit_cost || existing.unit_cost,
-        label: lot.label || existing.label,
-        supplier_name: lot.supplier_name || existing.supplier_name,
-        status: lot.status || existing.status,
-      });
-    }
-  });
-
-  return Array.from(map.values());
+.da-main {
+  flex: 1;
+  min-width: 0;
+  margin-left: var(--da-sidebar-width);
 }
 
-function getActiveLotsFromData(data) {
-  const normalizedLots = asArray(data?.chicken_lots)
-    .map(normalizeLot)
-    .filter((lot) => lot.id);
-
-  return uniqueLotsById(normalizedLots).filter((lot) => {
-    const status = String(lot.status || "").toUpperCase();
-
-    return (
-      lot.remaining_kg > 0 &&
-      !status.includes("CLOSED") &&
-      !status.includes("VOID") &&
-      !status.includes("CANCEL")
-    );
-  });
+.da-content {
+  max-width: var(--da-content-max);
+  margin: 0 auto;
+  padding: 28px 34px 60px;
 }
 
-function buildSummary(data) {
-  const activeLots = getActiveLotsFromData(data);
-  const batches = asArray(data?.production_batches);
-  const stockMovements = asArray(data?.stock_movements);
+/* SIDEBAR */
 
-  const totalKgAvailable = activeLots.reduce((total, lot) => {
-    return total + numberValue(lot.remaining_kg);
-  }, 0);
-
-  const totalAdukan = sumRows(batches, ["total_adukan", "adukan_qty", "adukan"]);
-  const totalOutputPcs = sumRows(batches, [
-    "actual_output_pcs",
-    "output_pcs",
-    "finished_good_qty",
-    "qty_pcs",
-  ]);
-
-  return {
-    activeLotCount: activeLots.length,
-    totalKgAvailable,
-    batchCount: batches.length,
-    totalAdukan,
-    totalOutputPcs,
-    stockMovementCount: stockMovements.length,
-  };
+.da-sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: var(--da-sidebar-width);
+  background: var(--da-color-surface);
+  border-right: 1px solid var(--da-color-border);
+  padding: 18px 14px;
+  overflow-y: auto;
 }
 
-function buildProductionPreview(form, lots) {
-  const selectedLot = lots.find((lot) => lot.id === form.chicken_lot_id);
-  const totalAdukan = numberValue(form.total_adukan);
-
-  const kgPerAdukan = 30;
-  const pcsPerAdukan = 1000;
-
-  const plannedChickenKg = totalAdukan * kgPerAdukan;
-  const plannedOutputPcs = totalAdukan * pcsPerAdukan;
-  const actualOutputPcs = numberValue(form.actual_output_pcs) || plannedOutputPcs;
-
-  const modalAyam = selectedLot ? plannedChickenKg * selectedLot.unit_cost : 0;
-  const hppAyamPerPcs =
-    actualOutputPcs > 0 ? modalAyam / actualOutputPcs : 0;
-
-  const remainingAfterUse = selectedLot
-    ? selectedLot.remaining_kg - plannedChickenKg
-    : 0;
-
-  return {
-    selectedLot,
-    production_date: form.production_date,
-    total_adukan: totalAdukan,
-    kg_per_adukan: kgPerAdukan,
-    pcs_per_adukan: pcsPerAdukan,
-    planned_chicken_kg: plannedChickenKg,
-    planned_output_pcs: plannedOutputPcs,
-    actual_output_pcs: actualOutputPcs,
-    modal_ayam: modalAyam,
-    hpp_ayam_per_pcs: hppAyamPerPcs,
-    remaining_after_use: remainingAfterUse,
-    note: form.note,
-  };
+.da-sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 4px 26px;
 }
 
-function buildLiveProductionPayload({ preview, session }) {
-  return {
-    production: {
-      location_id: session?.user?.location_id || "",
-      production_date: preview.production_date,
-
-      chicken_lot_id: preview.selectedLot?.id || "",
-      source_chicken_lot_id: preview.selectedLot?.id || "",
-
-      total_adukan: preview.total_adukan,
-      kg_per_adukan: preview.kg_per_adukan,
-      chicken_kg_used: preview.planned_chicken_kg,
-
-      planned_output_pcs: preview.planned_output_pcs,
-      actual_output_pcs: preview.actual_output_pcs,
-
-      chicken_unit_cost: preview.selectedLot?.unit_cost || 0,
-      chicken_cost: preview.modal_ayam,
-      estimated_chicken_cost_per_pcs: preview.hpp_ayam_per_pcs,
-
-      product_code: "DIMSUM_AYAM_MIX",
-      output_unit: "pcs",
-      notes: preview.note,
-    },
-  };
+.da-brand-mark {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: var(--da-color-surface);
+  border: 1px solid var(--da-color-border);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  flex: 0 0 auto;
 }
 
-function validateForm(form, preview) {
-  const errors = [];
+.da-brand-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 
-  if (!form.production_date) errors.push("Tanggal produksi wajib diisi.");
-  if (!form.chicken_lot_id) errors.push("Lot ayam wajib dipilih.");
-  if (preview.total_adukan <= 0) errors.push("Jumlah adukan harus lebih dari 0.");
-  if (preview.planned_chicken_kg <= 0) errors.push("Kg ayam dipakai harus lebih dari 0.");
-  if (preview.selectedLot && preview.planned_chicken_kg > preview.selectedLot.remaining_kg) {
-    errors.push("Kg ayam dipakai melebihi sisa kg di lot ayam.");
+.da-brand-fallback {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  background: var(--da-color-primary);
+  color: white;
+  font-weight: 900;
+}
+
+.da-brand-title {
+  font-weight: 850;
+  letter-spacing: -0.03em;
+  color: var(--da-color-heading);
+  line-height: 1.1;
+}
+
+.da-brand-subtitle {
+  color: var(--da-color-muted);
+  font-size: 12px;
+  margin-top: 3px;
+  font-weight: 500;
+}
+
+.da-sidebar-group {
+  margin-bottom: 22px;
+}
+
+.da-sidebar-group-title {
+  color: var(--da-color-muted);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 0 0 8px 10px;
+}
+
+.da-sidebar-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: #475467;
+  text-align: left;
+  padding: 10px 10px;
+  border-radius: var(--da-radius-md);
+  font-weight: 650;
+  font-size: 14px;
+  margin-bottom: 4px;
+  transition: 0.15s ease;
+}
+
+.da-sidebar-item:hover {
+  background: var(--da-color-surface-soft);
+  color: var(--da-color-heading);
+}
+
+.da-sidebar-item.active {
+  background: var(--da-color-primary-soft);
+  color: var(--da-color-primary-dark);
+  font-weight: 850;
+}
+
+.da-sidebar-item.active::before {
+  content: "";
+  display: inline-block;
+  width: 4px;
+  height: 14px;
+  background: var(--da-color-primary);
+  border-radius: 99px;
+  margin-right: 8px;
+  vertical-align: -2px;
+}
+
+/* TOPBAR */
+
+.da-topbar {
+  height: var(--da-topbar-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 34px;
+  background: var(--da-color-surface);
+  border-bottom: 1px solid var(--da-color-border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.da-topbar-title {
+  font-weight: 850;
+  font-size: 17px;
+  color: var(--da-color-heading);
+  letter-spacing: -0.03em;
+}
+
+.da-topbar-subtitle {
+  color: var(--da-color-muted);
+  font-size: 12px;
+  margin-top: 3px;
+  font-weight: 500;
+}
+
+.da-topbar-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: right;
+}
+
+.da-user-name {
+  font-weight: 800;
+  color: var(--da-color-heading);
+  font-size: 14px;
+}
+
+.da-user-label {
+  color: var(--da-color-muted);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+/* COMMON */
+
+.da-card {
+  background: var(--da-color-surface);
+  border: 1px solid var(--da-color-border);
+  border-radius: var(--da-radius-lg);
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-card-padding {
+  padding: 20px;
+}
+
+.da-muted {
+  color: var(--da-color-muted);
+}
+
+.da-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.da-grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* BUTTON */
+
+.da-button {
+  border-radius: var(--da-radius-md);
+  padding: 10px 16px;
+  font-weight: 800;
+  font-size: 13px;
+  transition: 0.16s ease;
+  border: 1px solid transparent;
+}
+
+.da-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.da-button-primary {
+  background: var(--da-color-primary);
+  color: white;
+}
+
+.da-button-primary:hover {
+  background: var(--da-color-primary-dark);
+}
+
+.da-button-ghost {
+  background: var(--da-color-surface);
+  color: var(--da-color-text);
+  border-color: var(--da-color-border-strong);
+}
+
+.da-button-ghost:hover {
+  background: var(--da-color-surface-soft);
+}
+
+/* BADGE */
+
+.da-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  background: var(--da-color-primary-soft);
+  color: var(--da-color-primary-dark);
+  white-space: nowrap;
+}
+
+.da-badge-success {
+  background: var(--da-color-success-soft);
+  color: var(--da-color-success);
+}
+
+.da-badge-warning {
+  background: var(--da-color-accent-soft);
+  color: var(--da-color-accent-dark);
+}
+
+.da-badge-danger {
+  background: var(--da-color-danger-soft);
+  color: var(--da-color-danger);
+}
+
+/* PAGE */
+
+.da-page-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+  margin-bottom: 22px;
+}
+
+.da-page-kicker {
+  color: var(--da-color-primary);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.da-page-header h1 {
+  margin: 4px 0 7px;
+  font-size: 30px;
+  line-height: 1.15;
+  color: var(--da-color-heading);
+  letter-spacing: -0.055em;
+  font-weight: 850;
+}
+
+.da-page-header p {
+  margin: 0;
+  color: var(--da-color-muted);
+  max-width: 720px;
+  line-height: 1.6;
+  font-weight: 500;
+}
+
+/* TABS */
+
+.da-tabs {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  border-bottom: 1px solid var(--da-color-border);
+  margin-bottom: 20px;
+}
+
+.da-tab {
+  border: 0;
+  background: transparent;
+  padding: 14px 0 12px;
+  color: #475467;
+  font-weight: 650;
+  font-size: 14px;
+  position: relative;
+}
+
+.da-tab.active {
+  color: var(--da-color-primary-dark);
+  font-weight: 850;
+}
+
+.da-tab.active::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--da-color-primary);
+  border-radius: 99px 99px 0 0;
+}
+
+/* FILTER / INPUT */
+
+.da-filter-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.da-filter-control,
+.da-input,
+.da-select {
+  height: 38px;
+  border: 1px solid var(--da-color-border-strong);
+  border-radius: var(--da-radius-md);
+  background: var(--da-color-surface);
+  padding: 0 12px;
+  color: var(--da-color-text);
+  font-size: 13px;
+  outline: none;
+}
+
+.da-filter-control:focus,
+.da-input:focus,
+.da-select:focus {
+  border-color: var(--da-color-primary);
+  box-shadow: 0 0 0 3px var(--da-color-primary-soft);
+}
+
+.da-input:disabled,
+.da-select:disabled {
+  background: var(--da-color-surface-soft);
+  color: var(--da-color-muted);
+}
+
+/* TABLE */
+
+.da-table-card {
+  background: var(--da-color-surface);
+  border: 1px solid var(--da-color-border);
+  border-radius: var(--da-radius-lg);
+  overflow: hidden;
+}
+
+.da-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.da-table th,
+.da-table td {
+  border-bottom: 1px solid var(--da-color-border);
+  padding: 14px 14px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.da-table th {
+  color: var(--da-color-heading);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 850;
+  background: var(--da-color-surface);
+}
+
+.da-table tbody tr {
+  transition: 0.14s ease;
+}
+
+.da-table tbody tr:hover {
+  background: var(--da-color-surface-soft);
+}
+
+.da-table tbody tr.clickable {
+  cursor: pointer;
+}
+
+.da-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* STAT CARD */
+
+.da-stat-card {
+  background: var(--da-color-surface);
+  border: 1px solid var(--da-color-border);
+  border-radius: var(--da-radius-lg);
+  padding: 18px;
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-stat-card-primary {
+  background: var(--da-color-primary-faint);
+  border-color: var(--da-color-primary-soft);
+}
+
+.da-stat-card-warning {
+  background: var(--da-color-accent-soft);
+  border-color: #ffe7a3;
+}
+
+.da-stat-card-danger {
+  background: var(--da-color-danger-soft);
+  border-color: #fecaca;
+}
+
+.da-stat-label {
+  color: var(--da-color-muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.da-stat-value {
+  margin-top: 8px;
+  font-size: 25px;
+  font-weight: 900;
+  color: var(--da-color-heading);
+  letter-spacing: -0.05em;
+}
+
+.da-stat-desc {
+  margin-top: 6px;
+  color: var(--da-color-muted);
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 500;
+}
+
+/* MODAL TENGAH */
+
+.da-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.48);
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.da-modal {
+  width: min(920px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  background: var(--da-color-surface);
+  border-radius: var(--da-radius-xl);
+  box-shadow: var(--da-shadow-modal);
+  border: 1px solid var(--da-color-border);
+}
+
+.da-modal-header {
+  position: sticky;
+  top: 0;
+  background: var(--da-color-surface);
+  z-index: 1;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--da-color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.da-modal-title {
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  color: var(--da-color-heading);
+}
+
+.da-modal-subtitle {
+  margin-top: 3px;
+  color: var(--da-color-muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.da-modal-close {
+  border: 1px solid var(--da-color-border-strong);
+  background: var(--da-color-surface);
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  font-weight: 900;
+}
+
+.da-modal-body {
+  padding: 22px;
+}
+
+.da-modal-summary {
+  border: 1px solid var(--da-color-border);
+  border-radius: var(--da-radius-lg);
+  padding: 16px;
+  background: var(--da-color-surface-soft);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.da-modal-note {
+  border-radius: var(--da-radius-md);
+  background: var(--da-color-primary-faint);
+  color: var(--da-color-primary-dark);
+  padding: 12px 14px;
+  font-weight: 650;
+  line-height: 1.5;
+  margin-bottom: 14px;
+}
+
+/* EMPTY STATE */
+
+.da-empty-state {
+  min-height: 245px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 34px;
+  border: 1px dashed var(--da-color-border-strong);
+  border-radius: var(--da-radius-lg);
+  background: var(--da-color-surface);
+}
+
+.da-empty-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--da-color-primary-soft);
+  color: var(--da-color-primary);
+  margin-bottom: 12px;
+  font-weight: 900;
+}
+
+.da-empty-state h3 {
+  margin: 0 0 8px;
+  color: var(--da-color-heading);
+  font-weight: 850;
+}
+
+.da-empty-state p {
+  margin: 0 0 14px;
+  color: var(--da-color-muted);
+  max-width: 560px;
+  line-height: 1.55;
+  font-weight: 500;
+}
+
+/* TEXT HELPERS */
+
+.da-mini-title {
+  color: var(--da-color-muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.da-big-text {
+  font-size: 23px;
+  font-weight: 900;
+  margin: 9px 0 7px;
+  color: var(--da-color-heading);
+  letter-spacing: -0.04em;
+}
+
+/* LOGIN */
+
+.da-login-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--da-color-page);
+}
+
+.da-login-card {
+  width: min(440px, 100%);
+}
+
+.da-login-brand {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 22px;
+}
+
+.da-login-mark {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  background: var(--da-color-surface);
+  border: 1px solid var(--da-color-border);
+  overflow: hidden;
+}
+
+.da-login-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.da-login-brand h1 {
+  margin: 0;
+  font-size: 24px;
+  color: var(--da-color-heading);
+  letter-spacing: -0.04em;
+  font-weight: 850;
+}
+
+.da-login-brand p {
+  margin: 4px 0 0;
+  color: var(--da-color-muted);
+  font-weight: 500;
+}
+
+.da-login-form {
+  display: grid;
+  gap: 14px;
+}
+
+.da-login-form label {
+  display: grid;
+  gap: 7px;
+  font-weight: 800;
+  font-size: 13px;
+  color: var(--da-color-heading);
+}
+
+.da-login-form input {
+  border: 1px solid var(--da-color-border-strong);
+  border-radius: var(--da-radius-md);
+  padding: 12px 13px;
+  font-size: 14px;
+  outline: none;
+  background: var(--da-color-surface);
+}
+
+.da-login-form input:focus {
+  border-color: var(--da-color-primary);
+  box-shadow: 0 0 0 4px var(--da-color-primary-soft);
+}
+
+.da-login-error {
+  background: var(--da-color-danger-soft);
+  color: var(--da-color-danger);
+  border-radius: var(--da-radius-md);
+  padding: 10px 12px;
+  font-weight: 700;
+}
+
+.da-login-api {
+  margin-top: 14px;
+  color: var(--da-color-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* BACKEND PANEL */
+
+.da-backend-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.da-backend-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.da-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 800;
+  background: var(--da-color-success-soft);
+  color: var(--da-color-success);
+}
+
+.da-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--da-color-success);
+}
+
+.da-small-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.da-small-table th,
+.da-small-table td {
+  border-bottom: 1px solid var(--da-color-border);
+  padding: 11px 8px;
+  text-align: left;
+}
+
+.da-small-table th {
+  color: var(--da-color-muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.da-small-table td:last-child,
+.da-small-table th:last-child {
+  text-align: right;
+}
+
+/* DASHBOARD */
+
+.da-dashboard-banner {
+  min-height: 96px;
+  border-radius: var(--da-radius-lg);
+  border: 1px solid var(--da-color-border);
+  background:
+    linear-gradient(135deg, var(--da-color-primary-faint), #ffffff 52%),
+    var(--da-color-surface);
+  padding: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.da-dashboard-banner-kicker {
+  color: var(--da-color-primary);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.da-dashboard-banner-title {
+  margin-top: 4px;
+  font-size: 23px;
+  font-weight: 900;
+  letter-spacing: -0.05em;
+  color: var(--da-color-heading);
+}
+
+.da-dashboard-banner-desc {
+  margin-top: 5px;
+  color: var(--da-color-muted);
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.da-dashboard-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.da-dashboard-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.55fr);
+  gap: 16px;
+}
+
+.da-section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.da-flow-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.da-flow-card {
+  border: 1px solid var(--da-color-border);
+  border-radius: var(--da-radius-md);
+  padding: 14px;
+  display: flex;
+  gap: 12px;
+  background: var(--da-color-surface);
+}
+
+.da-flow-number {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--da-color-primary-soft);
+  color: var(--da-color-primary-dark);
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+  font-size: 13px;
+}
+
+.da-flow-title {
+  font-weight: 900;
+  color: var(--da-color-heading);
+  letter-spacing: -0.03em;
+}
+
+.da-flow-desc {
+  margin-top: 4px;
+  color: var(--da-color-muted);
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 500;
+}
+
+.da-flow-status {
+  margin-top: 8px;
+  color: var(--da-color-primary-dark);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.da-health-list {
+  display: grid;
+  gap: 12px;
+}
+
+.da-mini-info {
+  border-bottom: 1px solid var(--da-color-border);
+  padding-bottom: 12px;
+}
+
+.da-mini-info:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.da-mini-info-label {
+  color: var(--da-color-muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.da-mini-info-value {
+  margin-top: 4px;
+  font-size: 24px;
+  font-weight: 900;
+  color: var(--da-color-heading);
+  letter-spacing: -0.05em;
+}
+
+.da-mini-info-desc {
+  margin-top: 3px;
+  color: var(--da-color-muted);
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 500;
+}
+
+/* ACTION CENTER */
+
+.da-action-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.da-action-card {
+  border: 1px solid var(--da-color-border);
+  border-radius: var(--da-radius-lg);
+  padding: 16px;
+  background: var(--da-color-surface);
+  text-align: left;
+  transition: 0.15s ease;
+}
+
+.da-action-card:hover {
+  background: var(--da-color-surface-soft);
+  border-color: var(--da-color-border-strong);
+  transform: translateY(-1px);
+}
+
+.da-action-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.da-action-arrow {
+  color: var(--da-color-muted);
+  font-size: 22px;
+  line-height: 1;
+}
+
+.da-action-value {
+  font-size: 24px;
+  font-weight: 900;
+  color: var(--da-color-heading);
+  letter-spacing: -0.05em;
+}
+
+.da-action-desc {
+  margin-top: 6px;
+  color: var(--da-color-muted);
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 500;
+}
+
+/* DROP / PRODUKSI FORM */
+
+.da-drop-form-preview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.da-drop-field {
+  display: grid;
+  gap: 7px;
+}
+
+.da-drop-field label {
+  font-size: 12px;
+  font-weight: 850;
+  color: var(--da-color-heading);
+}
+
+.da-drop-field-wide {
+  grid-column: span 2;
+}
+
+.da-drop-preview-panel {
+  margin-top: 16px;
+  border: 1px solid var(--da-color-border);
+  border-radius: var(--da-radius-lg);
+  background: var(--da-color-surface-soft);
+  padding: 16px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.da-form-warning {
+  margin-top: 14px;
+  border-radius: var(--da-radius-md);
+  background: var(--da-color-danger-soft);
+  color: var(--da-color-danger);
+  padding: 12px 14px;
+  font-weight: 700;
+  line-height: 1.55;
+}
+
+.da-form-success {
+  border-radius: var(--da-radius-md);
+  background: var(--da-color-success-soft);
+  color: var(--da-color-success);
+  padding: 12px 14px;
+  font-weight: 800;
+  line-height: 1.55;
+}
+
+.da-form-actions {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* DETAIL BOX */
+
+.da-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.da-detail-box {
+  border: 1px solid var(--da-color-border);
+  border-radius: var(--da-radius-lg);
+  padding: 14px;
+  background: var(--da-color-surface);
+}
+
+.da-detail-box p {
+  margin: 8px 0 0;
+  color: var(--da-color-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.da-detail-box strong {
+  color: var(--da-color-heading);
+}
+
+/* TRACE STRIP */
+
+.da-trace-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.da-trace-item {
+  border: 1px solid var(--da-color-border);
+  border-radius: var(--da-radius-lg);
+  padding: 12px;
+  background: var(--da-color-surface-soft);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.da-trace-label {
+  color: var(--da-color-muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.da-trace-value {
+  margin-top: 5px;
+  font-weight: 900;
+  color: var(--da-color-heading);
+  font-size: 12px;
+  word-break: break-word;
+}
+
+/* PAYLOAD PREVIEW */
+
+.da-payload-preview {
+  margin-top: 14px;
+  border: 1px solid var(--da-color-border);
+  border-radius: var(--da-radius-lg);
+  background: var(--da-color-surface-soft);
+  padding: 14px;
+}
+
+.da-payload-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  border-bottom: 1px solid var(--da-color-border);
+  padding: 10px 0;
+  font-size: 13px;
+}
+
+.da-payload-row:last-child {
+  border-bottom: 0;
+}
+
+.da-payload-row span {
+  color: var(--da-color-muted);
+  font-weight: 800;
+}
+
+.da-payload-row strong {
+  color: var(--da-color-heading);
+  text-align: right;
+  word-break: break-word;
+}
+
+/* RESPONSIVE */
+
+@media (max-width: 1100px) {
+  .da-dashboard-split {
+    grid-template-columns: 1fr;
   }
-  if (preview.actual_output_pcs <= 0) errors.push("Hasil pcs aktual harus lebih dari 0.");
 
-  return errors;
-}
-
-function getStatusTone(status) {
-  const value = String(status || "").toUpperCase();
-
-  if (value.includes("SELESAI") || value.includes("COMPLETED") || value.includes("ACTIVE")) {
-    return "success";
+  .da-flow-grid {
+    grid-template-columns: 1fr;
   }
-  if (value.includes("VOID") || value.includes("CANCEL")) return "danger";
 
-  return "warning";
+  .da-action-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .da-trace-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
-function PayloadRow({ label, value }) {
-  return (
-    <div className="da-payload-row">
-      <span>{label}</span>
-      <strong>{safeText(value)}</strong>
-    </div>
-  );
+@media (max-width: 980px) {
+  .da-sidebar {
+    display: none;
+  }
+
+  .da-main {
+    margin-left: 0;
+  }
+
+  .da-content {
+    padding: 22px;
+  }
+
+  .da-grid-3 {
+    grid-template-columns: 1fr;
+  }
+
+  .da-drop-form-preview,
+  .da-drop-preview-panel,
+  .da-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .da-drop-field-wide {
+    grid-column: span 1;
+  }
 }
 
-export default function AdukanPage({ session, onSessionExpired }) {
-  const [loading, setLoading] = useState(true);
-  const [bootstrap, setBootstrap] = useState(null);
-  const [error, setError] = useState("");
-  const [form, setForm] = useState(initialForm);
-  const [showValidationErrors, setShowValidationErrors] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [selectedBatch, setSelectedBatch] = useState(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitResult, setSubmitResult] = useState(null);
-
-  const lots = useMemo(() => {
-    return getActiveLotsFromData(bootstrap);
-  }, [bootstrap]);
-
-  const productionBatches = asArray(bootstrap?.production_batches);
-
-  const summary = useMemo(() => buildSummary(bootstrap), [bootstrap]);
-
-  const preview = useMemo(() => {
-    return buildProductionPreview(form, lots);
-  }, [form, lots]);
-
-  const livePayload = useMemo(() => {
-    return buildLiveProductionPayload({ preview, session });
-  }, [preview, session]);
-
-  const validationErrors = useMemo(() => {
-    return validateForm(form, preview);
-  }, [form, preview]);
-
-  const canOpenConfirmation = validationErrors.length === 0;
-
-  const loadData = async () => {
-    setLoading(true);
-    setError("");
-
-    const result = await getProductionBootstrap(session?.sessionToken, {
-      source: "frontend_part_3b_2_submit_live_produksi_adukan",
-    });
-
-    if (!result.success) {
-      if (isAuthRequired(result)) {
-        onSessionExpired?.();
-        return;
-      }
-
-      setError(result.message || "Gagal membaca data Produksi / Adukan.");
-      setBootstrap(null);
-      setLoading(false);
-      return;
-    }
-
-    setBootstrap(result.data || {});
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.sessionToken]);
-
-  const updateForm = (field, value) => {
-    setForm((current) => ({
-      ...current,
-      [field]: value,
-    }));
-  };
-
-  const handlePreviewSubmit = (event) => {
-    event.preventDefault();
-    setShowValidationErrors(true);
-    setSubmitResult(null);
-
-    if (!canOpenConfirmation) return;
-
-    setConfirmOpen(true);
-  };
-
-  const handleResetForm = () => {
-    setForm(initialForm);
-    setShowValidationErrors(false);
-    setConfirmOpen(false);
-    setSubmitResult(null);
-  };
-
-  const handleLiveSubmit = async () => {
-    if (submitting || validationErrors.length > 0) return;
-
-    setSubmitting(true);
-    setSubmitResult(null);
-
-    const result = await createProductionBatch(session?.sessionToken, livePayload);
-
-    if (!result.success) {
-      if (isAuthRequired(result)) {
-        onSessionExpired?.();
-        return;
-      }
-
-      setSubmitResult({
-        success: false,
-        message: result.message || "Gagal menyimpan Produksi / Adukan.",
-        data: result.data || null,
-      });
-      setSubmitting(false);
-      return;
-    }
-
-    setSubmitResult({
-      success: true,
-      message: result.message || "Produksi / Adukan berhasil disimpan.",
-      data: result.data || null,
-    });
-
-    setConfirmOpen(false);
-    setSubmitting(false);
-    setForm(initialForm);
-    setShowValidationErrors(false);
-    await loadData();
-  };
-
-  const columns = [
-    {
-      key: "production_date",
-      label: "Tanggal",
-      render: (row) => formatDisplayDate(row.production_date || row.date),
-    },
-    {
-      key: "production_id",
-      label: "Produksi ID",
-      render: (row) => (
-        <strong>{safeText(row.production_id || row.batch_id || row.id)}</strong>
-      ),
-    },
-    {
-      key: "chicken_lot_id",
-      label: "Lot Ayam",
-      render: (row) => safeText(row.chicken_lot_id || row.lot_id),
-    },
-    {
-      key: "total_adukan",
-      label: "Adukan",
-      render: (row) =>
-        `${numberValue(row.total_adukan || row.adukan_qty || row.adukan).toLocaleString(
-          "id-ID"
-        )} adukan`,
-    },
-    {
-      key: "chicken_kg_used",
-      label: "Ayam Dipakai",
-      render: (row) =>
-        `${numberValue(
-          row.chicken_kg_used || row.used_kg || row.raw_material_kg
-        ).toLocaleString("id-ID")} kg`,
-    },
-    {
-      key: "actual_output_pcs",
-      label: "Hasil Pcs",
-      render: (row) =>
-        `${numberValue(
-          row.actual_output_pcs || row.output_pcs || row.finished_good_qty
-        ).toLocaleString("id-ID")} pcs`,
-    },
-    {
-      key: "status",
-      label: "Status",
-      render: (row) => (
-        <Badge tone={getStatusTone(row.status)}>
-          {safeText(row.status || "Tercatat")}
-        </Badge>
-      ),
-    },
-  ];
-
-  return (
-    <div>
-      <PageHeader
-        title="Produksi / Adukan"
-        description="Catat ayam dipakai produksi dari lot harga aktual, lalu hasil produksi masuk sebagai stok jadi."
-        badge="Live Submit"
-      />
-
-      <div className="da-dashboard-banner">
-        <div>
-          <div className="da-dashboard-banner-kicker">Dapur produksi</div>
-          <div className="da-dashboard-banner-title">
-            Lot Ayam → Adukan → Stok Jadi
-          </div>
-          <div className="da-dashboard-banner-desc">
-            Form ini sudah bisa menyimpan produksi hidup. Pastikan adukan, lot ayam,
-            dan hasil pcs benar sebelum klik Simpan Live.
-          </div>
-        </div>
-
-        <div className="da-dashboard-banner-actions">
-          <Badge tone={error ? "danger" : "success"}>
-            {error ? "Perlu Dicek" : "Terhubung"}
-          </Badge>
-
-          <Button
-            variant="ghost"
-            onClick={loadData}
-            disabled={loading || submitting}
-          >
-            {loading ? "Membaca..." : "Refresh Data"}
-          </Button>
-        </div>
-      </div>
-
-      {error ? (
-        <div className="da-login-error" style={{ marginBottom: 16 }}>
-          {error}
-        </div>
-      ) : null}
-
-      {submitResult ? (
-        <div
-          className={submitResult.success ? "da-form-success" : "da-form-warning"}
-          style={{ marginBottom: 16 }}
-        >
-          {submitResult.message}
-        </div>
-      ) : null}
-
-      <div className="da-grid da-grid-3">
-        <StatCard
-          tone="primary"
-          label="Lot Ayam Aktif"
-          value={loading ? "..." : summary.activeLotCount}
-          description="Lot ayam yang masih punya sisa kg dan siap dipakai produksi."
-        />
-
-        <StatCard
-          label="Sisa Kg Ayam"
-          value={
-            loading
-              ? "..."
-              : `${summary.totalKgAvailable.toLocaleString("id-ID")} kg`
-          }
-          description="Total sisa kg ayam dari lot aktif."
-        />
-
-        <StatCard
-          tone="warning"
-          label="Batch Produksi"
-          value={loading ? "..." : summary.batchCount}
-          description="Jumlah produksi/adukan yang sudah tercatat."
-        />
-      </div>
-
-      <div style={{ height: 16 }} />
-
-      <div className="da-grid da-grid-3">
-        <StatCard
-          label="Total Adukan"
-          value={loading ? "..." : summary.totalAdukan}
-          description="Total adukan yang terbaca dari backend."
-        />
-
-        <StatCard
-          label="Hasil Produksi"
-          value={
-            loading
-              ? "..."
-              : `${summary.totalOutputPcs.toLocaleString("id-ID")} pcs`
-          }
-          description="Total hasil pcs yang tercatat."
-        />
-
-        <StatCard
-          label="Gerak Stok"
-          value={loading ? "..." : summary.stockMovementCount}
-          description="Jumlah catatan stok yang terkait produksi."
-        />
-      </div>
-
-      <div style={{ height: 16 }} />
-
-      <Card>
-        <div className="da-section-heading">
-          <div>
-            <div className="da-mini-title">Form Produksi</div>
-            <div className="da-big-text">Input Adukan</div>
-            <p className="da-muted">
-              Pilih lot ayam yang akan dipakai. Sistem menghitung 1 adukan = 30 kg ayam
-              dan estimasi 1.000 pcs. Simpan live akan memotong kg ayam dari lot.
-            </p>
-          </div>
-
-          <Badge tone="danger">Live Transaction</Badge>
-        </div>
-
-        <form onSubmit={handlePreviewSubmit}>
-          <div className="da-drop-form-preview">
-            <div className="da-drop-field">
-              <label>Tanggal Produksi</label>
-              <input
-                type="date"
-                className="da-input"
-                value={form.production_date}
-                onChange={(event) =>
-                  updateForm("production_date", event.target.value)
-                }
-                disabled={submitting}
-              />
-            </div>
-
-            <div className="da-drop-field">
-              <label>Lot Ayam</label>
-              <select
-                className="da-select"
-                value={form.chicken_lot_id}
-                onChange={(event) =>
-                  updateForm("chicken_lot_id", event.target.value)
-                }
-                disabled={submitting}
-              >
-                <option value="">Pilih lot ayam</option>
-                {lots.map((lot) => (
-                  <option key={lot.id} value={lot.id}>
-                    {lot.label} · sisa {lot.remaining_kg.toLocaleString("id-ID")} kg ·{" "}
-                    {formatRupiah(lot.unit_cost)}/kg
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="da-drop-field">
-              <label>Jumlah Adukan</label>
-              <input
-                className="da-input"
-                inputMode="decimal"
-                value={form.total_adukan}
-                placeholder="Contoh: 1"
-                onChange={(event) =>
-                  updateForm("total_adukan", event.target.value)
-                }
-                disabled={submitting}
-              />
-            </div>
-
-            <div className="da-drop-field">
-              <label>Hasil Aktual Pcs</label>
-              <input
-                className="da-input"
-                inputMode="numeric"
-                value={form.actual_output_pcs}
-                placeholder="Kosongkan untuk default 1.000 pcs/adukan"
-                onChange={(event) =>
-                  updateForm("actual_output_pcs", event.target.value)
-                }
-                disabled={submitting}
-              />
-            </div>
-
-            <div className="da-drop-field da-drop-field-wide">
-              <label>Catatan Produksi</label>
-              <input
-                className="da-input"
-                value={form.note}
-                placeholder="Contoh: produksi pagi / hasil lebih / ada susut"
-                onChange={(event) => updateForm("note", event.target.value)}
-                disabled={submitting}
-              />
-            </div>
-          </div>
-
-          <div className="da-drop-preview-panel">
-            <div>
-              <div className="da-mini-title">Ayam Dipakai</div>
-              <div className="da-big-text">
-                {preview.planned_chicken_kg.toLocaleString("id-ID")} kg
-              </div>
-              <p className="da-muted">
-                {preview.total_adukan.toLocaleString("id-ID")} adukan × 30 kg.
-              </p>
-            </div>
-
-            <div>
-              <div className="da-mini-title">Hasil Produksi</div>
-              <div className="da-big-text">
-                {preview.actual_output_pcs.toLocaleString("id-ID")} pcs
-              </div>
-              <p className="da-muted">
-                Estimasi default: {preview.planned_output_pcs.toLocaleString("id-ID")} pcs.
-              </p>
-            </div>
-
-            <div>
-              <div className="da-mini-title">Modal Ayam Batch</div>
-              <div className="da-big-text">{formatRupiah(preview.modal_ayam)}</div>
-              <p className="da-muted">
-                Est. modal ayam/pcs:{" "}
-                <strong>{formatRupiah(preview.hpp_ayam_per_pcs)}</strong>
-              </p>
-            </div>
-          </div>
-
-          {showValidationErrors && validationErrors.length > 0 ? (
-            <div className="da-form-warning">
-              {validationErrors.map((item) => (
-                <div key={item}>• {item}</div>
-              ))}
-            </div>
-          ) : null}
-
-          <div className="da-form-actions">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={handleResetForm}
-              disabled={submitting}
-            >
-              Reset Form
-            </Button>
-
-            <Button type="submit" disabled={!canOpenConfirmation || submitting}>
-              Preview & Konfirmasi
-            </Button>
-          </div>
-        </form>
-      </Card>
-
-      <div style={{ height: 16 }} />
-
-      <Card>
-        <div className="da-section-heading">
-          <div>
-            <div className="da-mini-title">Daftar Produksi</div>
-            <div className="da-big-text">Adukan yang Terbaca</div>
-            <p className="da-muted">
-              Klik baris untuk melihat detail popup tengah.
-            </p>
-          </div>
-
-          <Badge tone="warning">Live Data</Badge>
-        </div>
-
-        <DataTable
-          columns={columns}
-          rows={loading ? [] : productionBatches}
-          getRowKey={(row, index) => row.production_id || row.batch_id || index}
-          onRowClick={setSelectedBatch}
-        />
-      </Card>
-
-      <Modal
-        open={confirmOpen}
-        title="Konfirmasi Simpan Produksi"
-        subtitle="Ini akan membuat transaksi hidup"
-        onClose={() => {
-          if (!submitting) setConfirmOpen(false);
-        }}
-      >
-        <div className="da-modal-summary">
-          <div>
-            <div className="da-mini-title">Ayam Dipakai</div>
-            <div className="da-big-text">
-              {preview.planned_chicken_kg.toLocaleString("id-ID")} kg
-            </div>
-            <p className="da-muted">
-              Diambil dari lot:{" "}
-              <strong>{safeText(preview.selectedLot?.label, "Belum dipilih")}</strong>
-            </p>
-          </div>
-
-          <Badge tone="danger">Live Submit</Badge>
-        </div>
-
-        <div className="da-detail-grid">
-          <div className="da-detail-box">
-            <div className="da-mini-title">Produksi</div>
-            <p><strong>Tanggal:</strong> {formatDisplayDate(preview.production_date)}</p>
-            <p><strong>Adukan:</strong> {preview.total_adukan.toLocaleString("id-ID")}</p>
-            <p><strong>Ayam dipakai:</strong> {preview.planned_chicken_kg.toLocaleString("id-ID")} kg</p>
-          </div>
-
-          <div className="da-detail-box">
-            <div className="da-mini-title">Lot Ayam</div>
-            <p><strong>Lot:</strong> {safeText(preview.selectedLot?.label)}</p>
-            <p><strong>Harga/kg:</strong> {formatRupiah(preview.selectedLot?.unit_cost || 0)}</p>
-            <p><strong>Sisa setelah pakai:</strong> {preview.remaining_after_use.toLocaleString("id-ID")} kg</p>
-          </div>
-
-          <div className="da-detail-box">
-            <div className="da-mini-title">Hasil Produksi</div>
-            <p><strong>Default pcs:</strong> {preview.planned_output_pcs.toLocaleString("id-ID")} pcs</p>
-            <p><strong>Aktual pcs:</strong> {preview.actual_output_pcs.toLocaleString("id-ID")} pcs</p>
-            <p><strong>Modal ayam/pcs:</strong> {formatRupiah(preview.hpp_ayam_per_pcs)}</p>
-          </div>
-
-          <div className="da-detail-box">
-            <div className="da-mini-title">Yang Dibuat Backend</div>
-            <p><strong>Batch Produksi:</strong> Ya</p>
-            <p><strong>Potong Kg Ayam Lot:</strong> Ya</p>
-            <p><strong>Barang Jadi Masuk:</strong> Ya</p>
-            <p><strong>Arsip & Audit:</strong> Ya</p>
-          </div>
-        </div>
-
-        <div className="da-payload-preview">
-          <div className="da-mini-title">Payload Live</div>
-
-          <PayloadRow label="Action" value="legacyCreateProductionBatchFromOldFactory" />
-          <PayloadRow label="location_id" value={livePayload.production.location_id} />
-          <PayloadRow label="production_date" value={livePayload.production.production_date} />
-          <PayloadRow label="chicken_lot_id" value={livePayload.production.chicken_lot_id} />
-          <PayloadRow label="total_adukan" value={livePayload.production.total_adukan} />
-          <PayloadRow label="chicken_kg_used" value={livePayload.production.chicken_kg_used} />
-          <PayloadRow label="actual_output_pcs" value={livePayload.production.actual_output_pcs} />
-          <PayloadRow label="chicken_unit_cost" value={formatRupiah(livePayload.production.chicken_unit_cost)} />
-          <PayloadRow label="chicken_cost" value={formatRupiah(livePayload.production.chicken_cost)} />
-          <PayloadRow label="product_code" value={livePayload.production.product_code} />
-        </div>
-
-        <div className="da-modal-note" style={{ marginTop: 14 }}>
-          Setelah disimpan, backend akan memotong kg ayam dari lot, membuat batch produksi,
-          menambah stok jadi, mengunci modal batch, membuat catatan stok, arsip, dan audit.
-        </div>
-
-        {submitResult && !submitResult.success ? (
-          <div className="da-form-warning" style={{ marginTop: 14 }}>
-            {submitResult.message}
-          </div>
-        ) : null}
-
-        <div className="da-form-actions">
-          <Button
-            variant="ghost"
-            onClick={() => setConfirmOpen(false)}
-            disabled={submitting}
-          >
-            Koreksi Lagi
-          </Button>
-
-          <Button
-            type="button"
-            onClick={handleLiveSubmit}
-            disabled={submitting}
-          >
-            {submitting ? "Menyimpan..." : "Simpan Live Produksi"}
-          </Button>
-        </div>
-      </Modal>
-
-      <Modal
-        open={Boolean(selectedBatch)}
-        title="Detail Produksi / Adukan"
-        subtitle={selectedBatch?.production_id || selectedBatch?.batch_id || ""}
-        onClose={() => setSelectedBatch(null)}
-      >
-        {selectedBatch ? (
-          <div>
-            <div className="da-modal-summary">
-              <div>
-                <div className="da-mini-title">Hasil Produksi</div>
-                <div className="da-big-text">
-                  {numberValue(
-                    selectedBatch.actual_output_pcs ||
-                      selectedBatch.output_pcs ||
-                      selectedBatch.finished_good_qty
-                  ).toLocaleString("id-ID")}{" "}
-                  pcs
-                </div>
-                <p className="da-muted">
-                  Lot ayam:{" "}
-                  <strong>{safeText(selectedBatch.chicken_lot_id || selectedBatch.lot_id)}</strong>
-                </p>
-              </div>
-
-              <Badge tone={getStatusTone(selectedBatch.status)}>
-                {safeText(selectedBatch.status || "Tercatat")}
-              </Badge>
-            </div>
-
-            <div className="da-detail-grid">
-              <div className="da-detail-box">
-                <div className="da-mini-title">Produksi</div>
-                <p><strong>ID:</strong> {safeText(selectedBatch.production_id || selectedBatch.batch_id)}</p>
-                <p><strong>Tanggal:</strong> {formatDisplayDate(selectedBatch.production_date || selectedBatch.date)}</p>
-                <p><strong>Adukan:</strong> {safeText(selectedBatch.total_adukan || selectedBatch.adukan_qty || selectedBatch.adukan)}</p>
-              </div>
-
-              <div className="da-detail-box">
-                <div className="da-mini-title">Ayam Dipakai</div>
-                <p><strong>Kg:</strong> {numberValue(selectedBatch.chicken_kg_used || selectedBatch.used_kg).toLocaleString("id-ID")} kg</p>
-                <p><strong>Lot:</strong> {safeText(selectedBatch.chicken_lot_id || selectedBatch.lot_id)}</p>
-                <p><strong>Modal ayam:</strong> {formatRupiah(selectedBatch.chicken_cost || selectedBatch.modal_ayam)}</p>
-              </div>
-            </div>
-          </div>
-        ) : null}
-      </Modal>
-    </div>
-  );
+@media (max-width: 720px) {
+  .da-dashboard-banner {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .da-dashboard-banner-actions {
+    justify-content: flex-start;
+  }
+
+  .da-action-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .da-modal-summary {
+    flex-direction: column;
+  }
+
+  .da-trace-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .da-page-header {
+    flex-direction: column;
+  }
+
+  .da-topbar {
+    padding: 0 18px;
+  }
+
+  .da-topbar-user {
+    gap: 8px;
+  }
 }
