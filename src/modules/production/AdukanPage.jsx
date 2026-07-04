@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-import {
   createProductionBatch,
   getProductionBootstrap,
   getProducts,
@@ -259,6 +258,7 @@ function normalizeProduct(row) {
     row.product_id ||
     row.item_id ||
     row.sku_id ||
+    row.menu_id ||
     row.id ||
     row.product_code ||
     row.code ||
@@ -269,6 +269,7 @@ function normalizeProduct(row) {
     row.sku ||
     row.code ||
     row.item_code ||
+    row.menu_code ||
     id ||
     "";
 
@@ -278,6 +279,7 @@ function normalizeProduct(row) {
     row.name ||
     row.nama_produk ||
     row.menu_name ||
+    row.nama_menu ||
     code ||
     "";
 
@@ -285,7 +287,7 @@ function normalizeProduct(row) {
     id: String(id || "").trim(),
     code: String(code || "").trim(),
     name: String(name || "").trim(),
-    category: row.category || row.product_category || row.type || "",
+    category: row.category || row.product_category || row.type || row.product_type || "",
     status: row.status || row.is_active || "ACTIVE",
     raw: row,
   };
@@ -326,6 +328,8 @@ function getProductionProductsFromData(data) {
     ...asArray(data?.menus),
     ...asArray(data?.finished_products),
     ...asArray(data?.output_products),
+    ...asArray(data?.productRows),
+    ...asArray(data?.rows),
   ];
 
   const products = sources
@@ -356,6 +360,19 @@ function getProductionProductsFromData(data) {
   });
 
   return productionLike.length > 0 ? productionLike : uniqueProducts;
+}
+
+function extractProductRows(result) {
+  const payload = result?.data || {};
+
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload.products)) return payload.products;
+  if (Array.isArray(payload.rows)) return payload.rows;
+  if (Array.isArray(payload.items)) return payload.items;
+  if (Array.isArray(payload.data)) return payload.data;
+  if (Array.isArray(payload.master_products)) return payload.master_products;
+
+  return [];
 }
 
 /**
@@ -566,6 +583,7 @@ function PayloadRow({ label, value }) {
 export default function AdukanPage({ session, onSessionExpired }) {
   const [loading, setLoading] = useState(true);
   const [bootstrap, setBootstrap] = useState(null);
+  const [fallbackProducts, setFallbackProducts] = useState([]);
   const [error, setError] = useState("");
   const [form, setForm] = useState(initialForm);
   const [showValidationErrors, setShowValidationErrors] = useState(false);
@@ -573,7 +591,6 @@ export default function AdukanPage({ session, onSessionExpired }) {
   const [selectedBatch, setSelectedBatch] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState(null);
-  const [fallbackProducts, setFallbackProducts] = useState([]);
 
   const lots = useMemo(() => {
     return getActiveLotsFromData(bootstrap);
@@ -584,14 +601,14 @@ export default function AdukanPage({ session, onSessionExpired }) {
   }, [bootstrap, session]);
 
   const productionProducts = useMemo(() => {
-  const fromProductionBootstrap = getProductionProductsFromData(bootstrap);
+    const fromProductionBootstrap = getProductionProductsFromData(bootstrap);
 
-  if (fromProductionBootstrap.length > 0) {
-    return fromProductionBootstrap;
-  }
+    if (fromProductionBootstrap.length > 0) {
+      return fromProductionBootstrap;
+    }
 
-  return fallbackProducts;
-}, [bootstrap, fallbackProducts]);
+    return fallbackProducts;
+  }, [bootstrap, fallbackProducts]);
 
   const productionBatches = asArray(bootstrap?.production_batches);
 
@@ -614,7 +631,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
     setError("");
 
     const result = await getProductionBootstrap(session?.sessionToken, {
-      source: "frontend_part_3b_2b_produk_hasil_adukan",
+      source: "frontend_part_3b_2c_produk_hasil_adukan_fallback",
     });
 
     if (!result.success) {
@@ -625,36 +642,30 @@ export default function AdukanPage({ session, onSessionExpired }) {
 
       setError(result.message || "Gagal membaca data Produksi / Adukan.");
       setBootstrap(null);
+      setFallbackProducts([]);
       setLoading(false);
       return;
     }
 
     setBootstrap(result.data || {});
 
-const productResult = await getProducts(session?.sessionToken, {
-  source: "frontend_part_3b_2c_produk_hasil_adukan_fallback",
-});
+    const productResult = await getProducts(session?.sessionToken, {
+      source: "frontend_part_3b_2c_produk_hasil_adukan_get_products",
+    });
 
-if (productResult?.success) {
-  const productPayload = productResult.data || {};
-  const productRows = Array.isArray(productPayload)
-    ? productPayload
-    : productPayload.products ||
-      productPayload.rows ||
-      productPayload.items ||
-      productPayload.data ||
-      [];
+    if (productResult?.success) {
+      const productRows = extractProductRows(productResult);
 
-  setFallbackProducts(
-    getProductionProductsFromData({
-      products: productRows,
-    })
-  );
-} else {
-  setFallbackProducts([]);
-}
+      setFallbackProducts(
+        getProductionProductsFromData({
+          products: productRows,
+        })
+      );
+    } else {
+      setFallbackProducts([]);
+    }
 
-setLoading(false);
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -976,9 +987,15 @@ setLoading(false);
                   updateForm("output_product_code", product?.code || "");
                   updateForm("output_product_name", product?.name || "");
                 }}
-                disabled={submitting}
+                disabled={submitting || loading}
               >
-                <option value="">Pilih produk hasil</option>
+                <option value="">
+                  {loading
+                    ? "Membaca produk..."
+                    : productionProducts.length > 0
+                      ? "Pilih produk hasil"
+                      : "Produk belum terbaca"}
+                </option>
                 {productionProducts.map((product) => (
                   <option key={product.id || product.code} value={product.id}>
                     {product.name}
@@ -1077,7 +1094,7 @@ setLoading(false);
               Reset Form
             </Button>
 
-            <Button type="submit" disabled={submitting}>
+            <Button type="submit" disabled={submitting || loading}>
               Preview & Konfirmasi
             </Button>
           </div>
