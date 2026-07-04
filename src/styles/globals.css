@@ -865,12 +865,3 @@ export default function AdukanPage({ session, onSessionExpired }) {
     </div>
   );
 }
-
-.da-form-success {
-  border-radius: var(--da-radius-md);
-  background: var(--da-color-success-soft);
-  color: var(--da-color-success);
-  padding: 12px 14px;
-  font-weight: 800;
-  line-height: 1.55;
-}
