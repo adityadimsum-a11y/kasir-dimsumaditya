@@ -17,6 +17,9 @@ const initialForm = {
   chicken_lot_id: "",
   production_pic_id: "",
   production_pic_name: "",
+  output_product_id: "",
+  output_product_code: "",
+  output_product_name: "",
   total_adukan: "",
   actual_output_pcs: "",
   note: "",
@@ -71,6 +74,10 @@ function sumRows(rows, fields) {
     return total;
   }, 0);
 }
+
+/**
+ * LOT AYAM
+ */
 
 function normalizeLot(row) {
   return {
@@ -146,6 +153,10 @@ function getActiveLotsFromData(data) {
   });
 }
 
+/**
+ * PIC PRODUKSI
+ */
+
 function normalizePerson(row) {
   const id =
     row.employee_id ||
@@ -169,17 +180,8 @@ function normalizePerson(row) {
   return {
     id: String(id || "").trim(),
     name: String(name || "").trim(),
-    role:
-      row.role_name ||
-      row.position ||
-      row.jabatan ||
-      row.role ||
-      "",
-    location_id:
-      row.location_id ||
-      row.work_location_id ||
-      row.branch_id ||
-      "",
+    role: row.role_name || row.position || row.jabatan || row.role || "",
+    location_id: row.location_id || row.work_location_id || row.branch_id || "",
     status: row.status || row.is_active || "ACTIVE",
     raw: row,
   };
@@ -246,6 +248,118 @@ function getProductionPeopleFromData(data, session) {
   return uniquePeopleById(people);
 }
 
+/**
+ * PRODUK HASIL ADUKAN
+ */
+
+function normalizeProduct(row) {
+  const id =
+    row.product_id ||
+    row.item_id ||
+    row.sku_id ||
+    row.id ||
+    row.product_code ||
+    row.code ||
+    "";
+
+  const code =
+    row.product_code ||
+    row.sku ||
+    row.code ||
+    row.item_code ||
+    id ||
+    "";
+
+  const name =
+    row.product_name ||
+    row.item_name ||
+    row.name ||
+    row.nama_produk ||
+    row.menu_name ||
+    code ||
+    "";
+
+  return {
+    id: String(id || "").trim(),
+    code: String(code || "").trim(),
+    name: String(name || "").trim(),
+    category: row.category || row.product_category || row.type || "",
+    status: row.status || row.is_active || "ACTIVE",
+    raw: row,
+  };
+}
+
+function uniqueProductsById(products) {
+  const map = new Map();
+
+  asArray(products).forEach((product) => {
+    if (!product?.id && !product?.code) return;
+
+    const key = product.id || product.code;
+    const existing = map.get(key);
+
+    if (!existing) {
+      map.set(key, product);
+      return;
+    }
+
+    map.set(key, {
+      ...existing,
+      ...product,
+      id: product.id || existing.id,
+      code: product.code || existing.code,
+      name: product.name || existing.name,
+      category: product.category || existing.category,
+    });
+  });
+
+  return Array.from(map.values());
+}
+
+function getProductionProductsFromData(data) {
+  const sources = [
+    ...asArray(data?.products),
+    ...asArray(data?.master_products),
+    ...asArray(data?.items),
+    ...asArray(data?.menus),
+    ...asArray(data?.finished_products),
+    ...asArray(data?.output_products),
+  ];
+
+  const products = sources
+    .map(normalizeProduct)
+    .filter((product) => product.id || product.code)
+    .filter((product) => {
+      const status = String(product.status || "").toUpperCase();
+
+      return (
+        !status.includes("INACTIVE") &&
+        !status.includes("NONAKTIF") &&
+        !status.includes("VOID") &&
+        !status.includes("DELETE")
+      );
+    });
+
+  const uniqueProducts = uniqueProductsById(products);
+
+  const productionLike = uniqueProducts.filter((product) => {
+    const text = `${product.name} ${product.code} ${product.category}`.toUpperCase();
+
+    return (
+      text.includes("DIMSUM") ||
+      text.includes("AYAM MIX") ||
+      text.includes("ORIGINAL") ||
+      text.includes("ADUKAN")
+    );
+  });
+
+  return productionLike.length > 0 ? productionLike : uniqueProducts;
+}
+
+/**
+ * SUMMARY & PREVIEW
+ */
+
 function buildSummary(data) {
   const activeLots = getActiveLotsFromData(data);
   const batches = asArray(data?.production_batches);
@@ -273,9 +387,10 @@ function buildSummary(data) {
   };
 }
 
-function buildProductionPreview(form, lots, people) {
+function buildProductionPreview(form, lots, people, products) {
   const selectedLot = lots.find((lot) => lot.id === form.chicken_lot_id);
   const selectedPic = people.find((person) => person.id === form.production_pic_id);
+  const selectedProduct = products.find((product) => product.id === form.output_product_id);
 
   const manualPicName = String(form.production_pic_name || "").trim();
 
@@ -309,6 +424,7 @@ function buildProductionPreview(form, lots, people) {
   return {
     selectedLot,
     productionPic,
+    outputProduct: selectedProduct || null,
     production_date: form.production_date,
     total_adukan: totalAdukan,
     kg_per_adukan: kgPerAdukan,
@@ -326,6 +442,10 @@ function buildProductionPreview(form, lots, people) {
 function buildLiveProductionPayload({ preview, session }) {
   const picId = preview.productionPic?.id || "";
   const picName = preview.productionPic?.name || "";
+
+  const productId = preview.outputProduct?.id || "";
+  const productCode = preview.outputProduct?.code || "";
+  const productName = preview.outputProduct?.name || "";
 
   const production = {
     location_id: session?.user?.location_id || "",
@@ -345,7 +465,22 @@ function buildLiveProductionPayload({ preview, session }) {
     chicken_cost: preview.modal_ayam,
     estimated_chicken_cost_per_pcs: preview.hpp_ayam_per_pcs,
 
-    product_code: "DIMSUM_AYAM_MIX",
+    product_id: productId,
+    product_code: productCode,
+    product_name: productName,
+
+    output_product_id: productId,
+    output_product_code: productCode,
+    output_product_name: productName,
+
+    finished_product_id: productId,
+    finished_product_code: productCode,
+    finished_product_name: productName,
+
+    finished_good_product_id: productId,
+    finished_good_product_code: productCode,
+    finished_good_product_name: productName,
+
     output_unit: "pcs",
 
     production_pic_id: picId,
@@ -363,7 +498,6 @@ function buildLiveProductionPayload({ preview, session }) {
   return {
     production,
 
-    // Alias top-level untuk jaga-jaga kalau backend baca field lama/flat.
     production_pic_id: picId,
     production_pic_name: picName,
     pic_produksi_id: picId,
@@ -372,6 +506,19 @@ function buildLiveProductionPayload({ preview, session }) {
     kepala_dapur: picName,
     kepala_dapur_name: picName,
     pic_name: picName,
+
+    product_id: productId,
+    product_code: productCode,
+    product_name: productName,
+    output_product_id: productId,
+    output_product_code: productCode,
+    output_product_name: productName,
+    finished_product_id: productId,
+    finished_product_code: productCode,
+    finished_product_name: productName,
+    finished_good_product_id: productId,
+    finished_good_product_code: productCode,
+    finished_good_product_name: productName,
   };
 }
 
@@ -381,6 +528,9 @@ function validateForm(form, preview) {
   if (!form.production_date) errors.push("Tanggal produksi wajib diisi.");
   if (!form.chicken_lot_id) errors.push("Lot ayam wajib dipilih.");
   if (!preview.productionPic?.name) errors.push("PIC Produksi Hari Ini wajib diisi.");
+  if (!preview.outputProduct?.id && !preview.outputProduct?.code) {
+    errors.push("Produk hasil adukan wajib dipilih.");
+  }
   if (preview.total_adukan <= 0) errors.push("Jumlah adukan harus lebih dari 0.");
   if (preview.planned_chicken_kg <= 0) errors.push("Kg ayam dipakai harus lebih dari 0.");
   if (preview.selectedLot && preview.planned_chicken_kg > preview.selectedLot.remaining_kg) {
@@ -430,13 +580,17 @@ export default function AdukanPage({ session, onSessionExpired }) {
     return getProductionPeopleFromData(bootstrap, session);
   }, [bootstrap, session]);
 
+  const productionProducts = useMemo(() => {
+    return getProductionProductsFromData(bootstrap);
+  }, [bootstrap]);
+
   const productionBatches = asArray(bootstrap?.production_batches);
 
   const summary = useMemo(() => buildSummary(bootstrap), [bootstrap]);
 
   const preview = useMemo(() => {
-    return buildProductionPreview(form, lots, productionPeople);
-  }, [form, lots, productionPeople]);
+    return buildProductionPreview(form, lots, productionPeople, productionProducts);
+  }, [form, lots, productionPeople, productionProducts]);
 
   const livePayload = useMemo(() => {
     return buildLiveProductionPayload({ preview, session });
@@ -446,14 +600,12 @@ export default function AdukanPage({ session, onSessionExpired }) {
     return validateForm(form, preview);
   }, [form, preview]);
 
-  const canOpenConfirmation = validationErrors.length === 0;
-
   const loadData = async () => {
     setLoading(true);
     setError("");
 
     const result = await getProductionBootstrap(session?.sessionToken, {
-      source: "frontend_part_3b_2a_pic_produksi_hari_ini",
+      source: "frontend_part_3b_2b_produk_hasil_adukan",
     });
 
     if (!result.success) {
@@ -489,7 +641,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
     setShowValidationErrors(true);
     setSubmitResult(null);
 
-    if (!canOpenConfirmation) return;
+    if (validationErrors.length > 0) return;
 
     setConfirmOpen(true);
   };
@@ -605,8 +757,8 @@ export default function AdukanPage({ session, onSessionExpired }) {
             Lot Ayam → Adukan → Stok Jadi
           </div>
           <div className="da-dashboard-banner-desc">
-            Form ini sudah bisa menyimpan produksi hidup. Pastikan PIC Produksi,
-            adukan, lot ayam, dan hasil pcs benar sebelum klik Simpan Live.
+            Form ini sudah bisa menyimpan produksi hidup. Pastikan produk hasil,
+            PIC Produksi, adukan, lot ayam, dan hasil pcs benar sebelum klik Simpan Live.
           </div>
         </div>
 
@@ -700,8 +852,8 @@ export default function AdukanPage({ session, onSessionExpired }) {
             <div className="da-mini-title">Form Produksi</div>
             <div className="da-big-text">Input Adukan</div>
             <p className="da-muted">
-              Pilih lot ayam dan PIC Produksi Hari Ini. Sistem menghitung 1 adukan = 30 kg ayam
-              dan estimasi 1.000 pcs. Simpan live akan memotong kg ayam dari lot.
+              Pilih produk hasil, lot ayam, dan PIC Produksi Hari Ini. Sistem
+              menghitung 1 adukan = 30 kg ayam dan estimasi 1.000 pcs.
             </p>
           </div>
 
@@ -778,6 +930,32 @@ export default function AdukanPage({ session, onSessionExpired }) {
             </div>
 
             <div className="da-drop-field">
+              <label>Produk Hasil Adukan</label>
+              <select
+                className="da-select"
+                value={form.output_product_id}
+                onChange={(event) => {
+                  const product = productionProducts.find(
+                    (item) => item.id === event.target.value
+                  );
+
+                  updateForm("output_product_id", event.target.value);
+                  updateForm("output_product_code", product?.code || "");
+                  updateForm("output_product_name", product?.name || "");
+                }}
+                disabled={submitting}
+              >
+                <option value="">Pilih produk hasil</option>
+                {productionProducts.map((product) => (
+                  <option key={product.id || product.code} value={product.id}>
+                    {product.name}
+                    {product.code ? ` · ${product.code}` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="da-drop-field">
               <label>Jumlah Adukan</label>
               <input
                 className="da-input"
@@ -834,7 +1012,8 @@ export default function AdukanPage({ session, onSessionExpired }) {
                 {preview.actual_output_pcs.toLocaleString("id-ID")} pcs
               </div>
               <p className="da-muted">
-                Estimasi default: {preview.planned_output_pcs.toLocaleString("id-ID")} pcs.
+                Produk:{" "}
+                <strong>{safeText(preview.outputProduct?.name, "Belum dipilih")}</strong>
               </p>
             </div>
 
@@ -923,6 +1102,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
             <div className="da-mini-title">Produksi</div>
             <p><strong>Tanggal:</strong> {formatDisplayDate(preview.production_date)}</p>
             <p><strong>PIC:</strong> {safeText(preview.productionPic?.name)}</p>
+            <p><strong>Produk:</strong> {safeText(preview.outputProduct?.name)}</p>
             <p><strong>Adukan:</strong> {preview.total_adukan.toLocaleString("id-ID")}</p>
             <p><strong>Ayam dipakai:</strong> {preview.planned_chicken_kg.toLocaleString("id-ID")} kg</p>
           </div>
@@ -959,12 +1139,14 @@ export default function AdukanPage({ session, onSessionExpired }) {
           <PayloadRow label="chicken_lot_id" value={livePayload.production.chicken_lot_id} />
           <PayloadRow label="PIC Produksi" value={livePayload.production.production_pic_name} />
           <PayloadRow label="kepala_dapur" value={livePayload.production.kepala_dapur} />
+          <PayloadRow label="product_id" value={livePayload.production.product_id} />
+          <PayloadRow label="product_code" value={livePayload.production.product_code} />
+          <PayloadRow label="product_name" value={livePayload.production.product_name} />
           <PayloadRow label="total_adukan" value={livePayload.production.total_adukan} />
           <PayloadRow label="chicken_kg_used" value={livePayload.production.chicken_kg_used} />
           <PayloadRow label="actual_output_pcs" value={livePayload.production.actual_output_pcs} />
           <PayloadRow label="chicken_unit_cost" value={formatRupiah(livePayload.production.chicken_unit_cost)} />
           <PayloadRow label="chicken_cost" value={formatRupiah(livePayload.production.chicken_cost)} />
-          <PayloadRow label="product_code" value={livePayload.production.product_code} />
         </div>
 
         <div className="da-modal-note" style={{ marginTop: 14 }}>
