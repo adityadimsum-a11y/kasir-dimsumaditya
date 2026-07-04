@@ -87,15 +87,65 @@ function normalizeLot(row) {
   };
 }
 
+function uniqueLotsById(lots) {
+  const map = new Map();
+
+  asArray(lots).forEach((lot) => {
+    if (!lot?.id) return;
+
+    const existing = map.get(lot.id);
+
+    if (!existing) {
+      map.set(lot.id, lot);
+      return;
+    }
+
+    const existingRemaining = numberValue(existing.remaining_kg);
+    const currentRemaining = numberValue(lot.remaining_kg);
+
+    // Kalau backend kirim lot dobel, ambil data yang paling lengkap/aman.
+    if (currentRemaining > existingRemaining) {
+      map.set(lot.id, lot);
+      return;
+    }
+
+    if (currentRemaining === existingRemaining) {
+      map.set(lot.id, {
+        ...existing,
+        ...lot,
+        remaining_kg: existingRemaining,
+        unit_cost: lot.unit_cost || existing.unit_cost,
+        label: lot.label || existing.label,
+        supplier_name: lot.supplier_name || existing.supplier_name,
+        status: lot.status || existing.status,
+      });
+    }
+  });
+
+  return Array.from(map.values());
+}
+
+function getActiveLotsFromData(data) {
+  const normalizedLots = asArray(data?.chicken_lots)
+    .map(normalizeLot)
+    .filter((lot) => lot.id);
+
+  return uniqueLotsById(normalizedLots).filter((lot) => {
+    const status = String(lot.status || "").toUpperCase();
+
+    return (
+      lot.remaining_kg > 0 &&
+      !status.includes("CLOSED") &&
+      !status.includes("VOID") &&
+      !status.includes("CANCEL")
+    );
+  });
+}
+
 function buildSummary(data) {
-  const lots = asArray(data?.chicken_lots).map(normalizeLot);
+  const activeLots = getActiveLotsFromData(data);
   const batches = asArray(data?.production_batches);
   const stockMovements = asArray(data?.stock_movements);
-
-  const activeLots = lots.filter((lot) => {
-    const status = String(lot.status || "").toUpperCase();
-    return lot.remaining_kg > 0 && !status.includes("CLOSED") && !status.includes("VOID");
-  });
 
   const totalKgAvailable = activeLots.reduce((total, lot) => {
     return total + numberValue(lot.remaining_kg);
@@ -187,8 +237,10 @@ export default function AdukanPage({ session, onSessionExpired }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [selectedBatch, setSelectedBatch] = useState(null);
 
-  const rawLots = asArray(bootstrap?.chicken_lots);
-  const lots = rawLots.map(normalizeLot).filter((lot) => lot.id);
+  const lots = useMemo(() => {
+    return getActiveLotsFromData(bootstrap);
+  }, [bootstrap]);
+
   const productionBatches = asArray(bootstrap?.production_batches);
 
   const summary = useMemo(() => buildSummary(bootstrap), [bootstrap]);
@@ -208,7 +260,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
     setError("");
 
     const result = await getProductionBootstrap(session?.sessionToken, {
-      source: "frontend_part_3a_produksi_adukan_foundation",
+      source: "frontend_part_3a_produksi_adukan_foundation_dedupe_lot",
     });
 
     if (!result.success) {
