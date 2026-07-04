@@ -466,23 +466,53 @@ function buildLiveProductionPayload({ preview, session }) {
   const productCode = preview.outputProduct?.code || "";
   const productName = preview.outputProduct?.name || "";
 
+  const locationId = session?.user?.location_id || "";
+  const productionDate = preview.production_date;
+  const chickenLotId = preview.selectedLot?.id || "";
+
+  const totalAdukan = Number(preview.total_adukan || 0);
+  const kgPerAdukan = Number(preview.kg_per_adukan || 30);
+  const chickenKgUsed = Number(preview.planned_chicken_kg || 0);
+  const plannedOutputPcs = Number(preview.planned_output_pcs || 0);
+  const actualOutputPcs = Number(preview.actual_output_pcs || 0);
+  const chickenUnitCost = Number(preview.selectedLot?.unit_cost || 0);
+  const chickenCost = Number(preview.modal_ayam || 0);
+  const chickenCostPerPcs = Number(preview.hpp_ayam_per_pcs || 0);
+
   const production = {
-    location_id: session?.user?.location_id || "",
-    production_date: preview.production_date,
+    location_id: locationId,
+    production_date: productionDate,
 
-    chicken_lot_id: preview.selectedLot?.id || "",
-    source_chicken_lot_id: preview.selectedLot?.id || "",
+    chicken_lot_id: chickenLotId,
+    source_chicken_lot_id: chickenLotId,
+    lot_id: chickenLotId,
 
-    total_adukan: preview.total_adukan,
-    kg_per_adukan: preview.kg_per_adukan,
-    chicken_kg_used: preview.planned_chicken_kg,
+    total_adukan: totalAdukan,
+    jumlah_adukan: totalAdukan,
+    adukan_qty: totalAdukan,
+    adukan: totalAdukan,
 
-    planned_output_pcs: preview.planned_output_pcs,
-    actual_output_pcs: preview.actual_output_pcs,
+    kg_per_adukan: kgPerAdukan,
+    chicken_kg_used: chickenKgUsed,
+    kg_ayam_dipakai: chickenKgUsed,
+    used_kg: chickenKgUsed,
+    raw_material_kg: chickenKgUsed,
 
-    chicken_unit_cost: preview.selectedLot?.unit_cost || 0,
-    chicken_cost: preview.modal_ayam,
-    estimated_chicken_cost_per_pcs: preview.hpp_ayam_per_pcs,
+    planned_output_pcs: plannedOutputPcs,
+    actual_output_pcs: actualOutputPcs,
+    output_pcs: actualOutputPcs,
+    hasil_pcs: actualOutputPcs,
+    finished_good_qty: actualOutputPcs,
+    qty_pcs: actualOutputPcs,
+
+    chicken_unit_cost: chickenUnitCost,
+    unit_cost: chickenUnitCost,
+    harga_ayam_per_kg: chickenUnitCost,
+
+    chicken_cost: chickenCost,
+    modal_ayam: chickenCost,
+    batch_chicken_cost: chickenCost,
+    estimated_chicken_cost_per_pcs: chickenCostPerPcs,
 
     product_id: productId,
     product_code: productCode,
@@ -512,10 +542,46 @@ function buildLiveProductionPayload({ preview, session }) {
     pic_name: picName,
 
     notes: preview.note,
+    note: preview.note,
   };
 
   return {
     production,
+
+    // Alias top-level untuk backend lama/adapter yang baca field flat.
+    location_id: locationId,
+    production_date: productionDate,
+
+    chicken_lot_id: chickenLotId,
+    source_chicken_lot_id: chickenLotId,
+    lot_id: chickenLotId,
+
+    total_adukan: totalAdukan,
+    jumlah_adukan: totalAdukan,
+    adukan_qty: totalAdukan,
+    adukan: totalAdukan,
+
+    kg_per_adukan: kgPerAdukan,
+    chicken_kg_used: chickenKgUsed,
+    kg_ayam_dipakai: chickenKgUsed,
+    used_kg: chickenKgUsed,
+    raw_material_kg: chickenKgUsed,
+
+    planned_output_pcs: plannedOutputPcs,
+    actual_output_pcs: actualOutputPcs,
+    output_pcs: actualOutputPcs,
+    hasil_pcs: actualOutputPcs,
+    finished_good_qty: actualOutputPcs,
+    qty_pcs: actualOutputPcs,
+
+    chicken_unit_cost: chickenUnitCost,
+    unit_cost: chickenUnitCost,
+    harga_ayam_per_kg: chickenUnitCost,
+
+    chicken_cost: chickenCost,
+    modal_ayam: chickenCost,
+    batch_chicken_cost: chickenCost,
+    estimated_chicken_cost_per_pcs: chickenCostPerPcs,
 
     production_pic_id: picId,
     production_pic_name: picName,
@@ -529,15 +595,23 @@ function buildLiveProductionPayload({ preview, session }) {
     product_id: productId,
     product_code: productCode,
     product_name: productName,
+
     output_product_id: productId,
     output_product_code: productCode,
     output_product_name: productName,
+
     finished_product_id: productId,
     finished_product_code: productCode,
     finished_product_name: productName,
+
     finished_good_product_id: productId,
     finished_good_product_code: productCode,
     finished_good_product_name: productName,
+
+    output_unit: "pcs",
+
+    notes: preview.note,
+    note: preview.note,
   };
 }
 
