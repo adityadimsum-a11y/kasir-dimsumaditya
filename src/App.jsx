@@ -8,6 +8,7 @@ import LoginPage from "./modules/auth/LoginPage";
 import ModulePlaceholder from "./modules/common/ModulePlaceholder";
 import PapanPusatPage from "./modules/owner/PapanPusatPage";
 import DropAyamPage from "./modules/chicken/DropAyamPage";
+import AdukanPage from "./modules/production/AdukanPage";
 
 export default function App() {
   const [session, setSession] = useState(() => getSavedSession());
@@ -70,6 +71,15 @@ export default function App() {
         />
       );
     }
+
+    if (activePage === "produksi-adukan") {
+  return (
+    <AdukanPage
+      session={session}
+      onSessionExpired={handleSessionExpired}
+    />
+  );
+}
 
     return (
       <ModulePlaceholder
