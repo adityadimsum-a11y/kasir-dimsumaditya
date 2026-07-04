@@ -252,3 +252,32 @@ button {
   background: #fee2e2;
   color: var(--da-color-danger);
 }
+
+.da-page-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+.da-page-kicker {
+  color: var(--da-color-primary);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.da-page-header h1 {
+  margin: 4px 0 6px;
+  font-size: 30px;
+  letter-spacing: -0.04em;
+}
+
+.da-page-header p {
+  margin: 0;
+  color: var(--da-color-muted);
+  max-width: 680px;
+  line-height: 1.55;
+}
