@@ -195,6 +195,14 @@ export async function getKasDompetBootstrap(sessionToken, payload = {}) {
   return apiRequest("getLegacyWalletBootstrap", payload, sessionToken);
 }
 
+export async function getKasKeluarBootstrap(sessionToken, payload = {}) {
+  return apiRequest("getLegacyCashExpenseBootstrap", payload, sessionToken);
+}
+
+export async function createKasKeluar(sessionToken, payload = {}) {
+  return apiRequest("legacyCreateCashExpenseFromOldExpense", payload, sessionToken);
+}
+
 /**
  * FINANCE / UANG
  */
