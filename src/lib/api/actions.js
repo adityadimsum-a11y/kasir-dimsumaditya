@@ -127,6 +127,14 @@ export async function createPOStockPlan(sessionToken, payload = {}) {
 }
 
 /**
+ * STOK JADI / BARANG MASUK FREEZER
+ */
+
+export async function getFinishedStockBootstrap(sessionToken, payload = {}) {
+  return apiRequest("getLegacyFinishedStockBootstrap", payload, sessionToken);
+}
+
+/**
  * KASIR / ORDER
  */
 
