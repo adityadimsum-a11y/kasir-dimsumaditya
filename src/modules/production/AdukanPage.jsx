@@ -96,8 +96,22 @@ function normalizeLot(row) {
       row.qty_kg_remaining || row.remaining_kg || row.qty_remaining || row.qty_kg
     ),
     status: row.status || "Aktif",
+    source_sheet: row._source_sheet || row.source_sheet || row.source_module || "",
     raw: row,
   };
+}
+
+function getLotSourcePriority(lot) {
+  const source = String(
+    lot?.source_sheet || lot?.raw?._source_sheet || lot?.raw?.source_module || ""
+  ).toUpperCase();
+
+  if (source.includes("CHICKEN_LOTS") || source.includes("TABCHICKENLOTS")) return 30;
+  if (source.includes("CHICKEN_LOT")) return 25;
+  if (source.includes("CHICKEN_DROP") || source.includes("DROP")) return 20;
+  if (source.includes("INVENTORY_COST_LAYERS") || source.includes("COST_LAYER")) return 10;
+
+  return 1;
 }
 
 function uniqueLotsById(lots) {
@@ -113,11 +127,28 @@ function uniqueLotsById(lots) {
       return;
     }
 
+    const existingPriority = getLotSourcePriority(existing);
+    const currentPriority = getLotSourcePriority(lot);
+
+    if (currentPriority > existingPriority) {
+      map.set(lot.id, lot);
+      return;
+    }
+
+    if (currentPriority < existingPriority) {
+      return;
+    }
+
     const existingRemaining = numberValue(existing.remaining_kg);
     const currentRemaining = numberValue(lot.remaining_kg);
 
-    if (currentRemaining > existingRemaining) {
-      map.set(lot.id, lot);
+    // Kalau sumber sama-sama kuat, ambil angka sisa terkecil agar stok tidak kebaca lebih besar dari kondisi aman.
+    if (currentRemaining < existingRemaining) {
+      map.set(lot.id, {
+        ...existing,
+        ...lot,
+        remaining_kg: currentRemaining,
+      });
       return;
     }
 
@@ -328,6 +359,8 @@ function getProductionProductsFromData(data) {
     ...asArray(data?.menus),
     ...asArray(data?.finished_products),
     ...asArray(data?.output_products),
+    ...asArray(data?.adukan_products),
+    ...asArray(data?.adukanProducts),
     ...asArray(data?.productRows),
     ...asArray(data?.rows),
   ];
@@ -391,9 +424,12 @@ function buildSummary(data) {
   const totalAdukan = sumRows(batches, ["total_adukan", "adukan_qty", "adukan"]);
   const totalOutputPcs = sumRows(batches, [
     "actual_output_pcs",
+    "actual_pcs",
     "output_pcs",
+    "hasil_pcs",
     "finished_good_qty",
     "qty_pcs",
+    "qty",
   ]);
 
   return {
@@ -846,7 +882,13 @@ export default function AdukanPage({ session, onSessionExpired }) {
       label: "Hasil Pcs",
       render: (row) =>
         `${numberValue(
-          row.actual_output_pcs || row.output_pcs || row.finished_good_qty
+          row.actual_output_pcs ||
+            row.actual_pcs ||
+            row.output_pcs ||
+            row.hasil_pcs ||
+            row.finished_good_qty ||
+            row.qty_pcs ||
+            row.qty
         ).toLocaleString("id-ID")} pcs`,
     },
     {
@@ -1317,8 +1359,12 @@ export default function AdukanPage({ session, onSessionExpired }) {
                 <div className="da-big-text">
                   {numberValue(
                     selectedBatch.actual_output_pcs ||
+                      selectedBatch.actual_pcs ||
                       selectedBatch.output_pcs ||
-                      selectedBatch.finished_good_qty
+                      selectedBatch.hasil_pcs ||
+                      selectedBatch.finished_good_qty ||
+                      selectedBatch.qty_pcs ||
+                      selectedBatch.qty
                   ).toLocaleString("id-ID")}{" "}
                   pcs
                 </div>
@@ -1338,7 +1384,9 @@ export default function AdukanPage({ session, onSessionExpired }) {
                 <div className="da-mini-title">Produksi</div>
                 <p><strong>ID:</strong> {safeText(selectedBatch.production_id || selectedBatch.batch_id)}</p>
                 <p><strong>Tanggal:</strong> {formatDisplayDate(selectedBatch.production_date || selectedBatch.date)}</p>
+                <p><strong>Produk:</strong> {safeText(selectedBatch.product_name || selectedBatch.output_product_name)}</p>
                 <p><strong>Adukan:</strong> {safeText(selectedBatch.total_adukan || selectedBatch.adukan_qty || selectedBatch.adukan)}</p>
+                <p><strong>Hasil pcs:</strong> {numberValue(selectedBatch.actual_output_pcs || selectedBatch.actual_pcs || selectedBatch.output_pcs || selectedBatch.hasil_pcs || selectedBatch.finished_good_qty || selectedBatch.qty_pcs || selectedBatch.qty).toLocaleString("id-ID")} pcs</p>
               </div>
 
               <div className="da-detail-box">
