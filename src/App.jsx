@@ -12,6 +12,8 @@ import AdukanPage from "./modules/production/AdukanPage";
 import FreezerInPage from "./modules/stock/FreezerInPage";
 import FinishedStockPage from "./modules/stock/FinishedStockPage";
 import OrderPage from "./modules/sales/OrderPage";
+import UangMasukPage from "./modules/finance/UangMasukPage";
+import KasDompetPage from "./modules/finance/KasDompetPage";
 
 export default function App() {
   const [session, setSession] = useState(() => getSavedSession());
@@ -105,6 +107,24 @@ export default function App() {
     if (activePage === "kasir-order") {
       return (
         <OrderPage
+          session={session}
+          onSessionExpired={handleSessionExpired}
+        />
+      );
+    }
+
+    if (activePage === "uang-masuk") {
+      return (
+        <UangMasukPage
+          session={session}
+          onSessionExpired={handleSessionExpired}
+        />
+      );
+    }
+
+    if (activePage === "kas-dompet") {
+      return (
+        <KasDompetPage
           session={session}
           onSessionExpired={handleSessionExpired}
         />
