@@ -138,6 +138,10 @@ export async function getFinishedStockBootstrap(sessionToken, payload = {}) {
  * KASIR / ORDER
  */
 
+export async function getOrderBootstrap(sessionToken, payload = {}) {
+  return apiRequest("getLegacyOrderBootstrap", payload, sessionToken);
+}
+
 export async function createOrder(sessionToken, payload = {}) {
   return apiRequest("legacyCreateOrderFromOldPos", payload, sessionToken);
 }
