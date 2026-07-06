@@ -1235,3 +1235,58 @@ button:disabled {
     gap: 8px;
   }
 }
+
+/* PART 4D - BELANJA & KAS KELUAR */
+.da-form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.da-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  color: var(--da-color-muted);
+  font-size: 12px;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.da-field input,
+.da-field select,
+.da-field textarea,
+.da-table input,
+.da-table select {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--da-color-border-strong);
+  border-radius: var(--da-radius-md);
+  background: var(--da-color-surface);
+  padding: 8px 10px;
+  color: var(--da-color-text);
+  font-size: 13px;
+  font-weight: 650;
+  outline: none;
+}
+
+.da-field input:focus,
+.da-field select:focus,
+.da-field textarea:focus,
+.da-table input:focus,
+.da-table select:focus {
+  border-color: var(--da-color-primary);
+  box-shadow: 0 0 0 3px var(--da-color-primary-soft);
+}
+
+.da-table input,
+.da-table select {
+  min-width: 90px;
+}
+
+@media (max-width: 980px) {
+  .da-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
