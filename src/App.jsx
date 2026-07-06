@@ -14,6 +14,7 @@ import FinishedStockPage from "./modules/stock/FinishedStockPage";
 import OrderPage from "./modules/sales/OrderPage";
 import UangMasukPage from "./modules/finance/UangMasukPage";
 import KasDompetPage from "./modules/finance/KasDompetPage";
+import BelanjaKasKeluarPage from "./modules/finance/BelanjaKasKeluarPage";
 
 export default function App() {
   const [session, setSession] = useState(() => getSavedSession());
@@ -125,6 +126,15 @@ export default function App() {
     if (activePage === "kas-dompet") {
       return (
         <KasDompetPage
+          session={session}
+          onSessionExpired={handleSessionExpired}
+        />
+      );
+    }
+
+    if (activePage === "kas-keluar") {
+      return (
+        <BelanjaKasKeluarPage
           session={session}
           onSessionExpired={handleSessionExpired}
         />
