@@ -11,6 +11,7 @@ import DropAyamPage from "./modules/chicken/DropAyamPage";
 import AdukanPage from "./modules/production/AdukanPage";
 import FreezerInPage from "./modules/stock/FreezerInPage";
 import FinishedStockPage from "./modules/stock/FinishedStockPage";
+import OrderPage from "./modules/sales/OrderPage";
 
 export default function App() {
   const [session, setSession] = useState(() => getSavedSession());
@@ -95,6 +96,15 @@ export default function App() {
     if (activePage === "stok-jadi") {
       return (
         <FinishedStockPage
+          session={session}
+          onSessionExpired={handleSessionExpired}
+        />
+      );
+    }
+
+    if (activePage === "kasir-order") {
+      return (
+        <OrderPage
           session={session}
           onSessionExpired={handleSessionExpired}
         />
