@@ -182,6 +182,19 @@ export async function getWallets(sessionToken, payload = {}) {
   return apiRequest("getWallets", payload, sessionToken);
 }
 
+
+/**
+ * UANG MASUK / PIUTANG CUSTOMER
+ */
+
+export async function getMoneyInBootstrap(sessionToken, payload = {}) {
+  return apiRequest("getLegacyMoneyInBootstrap", payload, sessionToken);
+}
+
+export async function getKasDompetBootstrap(sessionToken, payload = {}) {
+  return apiRequest("getLegacyWalletBootstrap", payload, sessionToken);
+}
+
 /**
  * FINANCE / UANG
  */
