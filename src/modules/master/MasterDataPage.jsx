@@ -163,6 +163,19 @@ function safeText(value, fallback = "-") {
   return text || fallback;
 }
 
+function cleanValue(value) {
+  return String(value ?? "").trim();
+}
+
+function hasMeaningfulRow(row, moduleType) {
+  if (!row) return false;
+  if (moduleType === "produk") return Boolean(cleanValue(row.product_id || row.product_code || row.product_name));
+  if (moduleType === "customer") return Boolean(cleanValue(row.customer_id || row.customer_name || row.phone || row.area));
+  if (moduleType === "supplier") return Boolean(cleanValue(row.supplier_id || row.supplier_name || row.phone || row.default_wallet));
+  return Boolean(cleanValue(row.location_id || row.location_code || row.location_name));
+}
+
+
 function formatMoney(value) {
   return new Intl.NumberFormat("id-ID", {
     style: "currency",
@@ -184,74 +197,96 @@ function isAuthRequired(result) {
 function normalizeRow(row, moduleType) {
   const activeRaw = row.active ?? row.is_active ?? row.status ?? "TRUE";
   const activeText = String(activeRaw).trim().toUpperCase();
-  const active = !(activeText === "FALSE" || activeText === "NO" || activeText === "0" || activeText === "NONAKTIF" || activeText === "INACTIVE");
+  const active = !(activeText === "FALSE" || activeText === "NO" || activeText === "0" || activeText === "NONAKTIF" || activeText === "INACTIVE" || activeText === "DELETED");
 
   if (moduleType === "produk") {
+    const productId = cleanValue(row.product_id || row.id);
+    const productCode = cleanValue(row.product_code || row.code || row.sku);
+    const productName = cleanValue(row.product_name || row.name || row.nama || row.item_name);
     return {
       ...row,
-      id: row.product_id || row.id || row.product_code || row.code || "",
-      product_id: row.product_id || row.id || "",
-      product_code: row.product_code || row.code || row.sku || "",
-      product_name: row.product_name || row.name || row.nama || row.item_name || "Produk",
-      category: row.category || row.kategori || row.product_type || "Produk Jadi",
-      unit: row.unit || row.satuan || "pcs",
+      id: productId || productCode,
+      master_id: productId,
+      missing_id: Boolean(row.missing_id ?? !productId),
+      product_id: productId,
+      product_code: productCode,
+      product_name: productName,
+      category: cleanValue(row.category || row.kategori || row.product_type),
+      unit: cleanValue(row.unit || row.satuan),
       selling_price: numberValue(row.selling_price || row.price || row.harga_jual || 0),
       active,
-      notes: row.notes || row.catatan || "",
+      notes: cleanValue(row.notes || row.catatan),
     };
   }
 
   if (moduleType === "customer") {
+    const customerId = cleanValue(row.customer_id || row.id);
+    const customerName = cleanValue(row.customer_name || row.name || row.nama);
     return {
       ...row,
-      id: row.customer_id || row.id || row.customer_code || row.customer_name || "",
-      customer_id: row.customer_id || row.id || "",
-      customer_name: row.customer_name || row.name || row.nama || "Customer",
-      phone: row.phone || row.whatsapp || row.no_hp || row.contact || "",
-      area: row.area || row.city || row.location || row.alamat || "",
-      price_type: row.price_type || row.tipe_harga || row.customer_type || "Normal",
+      id: customerId || customerName,
+      master_id: customerId,
+      missing_id: Boolean(row.missing_id ?? !customerId),
+      customer_id: customerId,
+      customer_name: customerName,
+      phone: cleanValue(row.phone || row.whatsapp || row.no_hp || row.contact),
+      area: cleanValue(row.area || row.city || row.location || row.alamat),
+      price_type: cleanValue(row.price_type || row.tipe_harga || row.customer_type),
       active,
-      notes: row.notes || row.catatan || "",
+      notes: cleanValue(row.notes || row.catatan),
     };
   }
 
   if (moduleType === "supplier") {
+    const supplierId = cleanValue(row.supplier_id || row.id);
+    const supplierName = cleanValue(row.supplier_name || row.name || row.nama);
     return {
       ...row,
-      id: row.supplier_id || row.id || row.supplier_code || row.supplier_name || "",
-      supplier_id: row.supplier_id || row.id || "",
-      supplier_name: row.supplier_name || row.name || row.nama || "Supplier",
-      supplier_type: row.supplier_type || row.type || row.kategori || "Supplier",
-      phone: row.phone || row.no_hp || row.contact || "",
-      default_wallet: row.default_wallet || row.wallet || row.rekening || "",
+      id: supplierId || supplierName,
+      master_id: supplierId,
+      missing_id: Boolean(row.missing_id ?? !supplierId),
+      supplier_id: supplierId,
+      supplier_name: supplierName,
+      supplier_type: cleanValue(row.supplier_type || row.type || row.kategori),
+      phone: cleanValue(row.phone || row.no_hp || row.contact),
+      default_wallet: cleanValue(row.default_wallet || row.wallet || row.rekening),
       active,
-      notes: row.notes || row.catatan || "",
+      notes: cleanValue(row.notes || row.catatan),
     };
   }
 
+  const locationId = cleanValue(row.location_id || row.id);
+  const locationCode = cleanValue(row.location_code || row.code);
+  const locationName = cleanValue(row.location_name || row.name || row.nama);
   return {
     ...row,
-    id: row.location_id || row.id || row.location_code || row.code || "",
-    location_id: row.location_id || row.id || row.location_code || row.code || "",
-    location_code: row.location_code || row.code || row.location_id || row.id || "",
-    location_name: row.location_name || row.name || row.nama || row.location_code || "Lokasi",
-    location_type: row.location_type || row.type || row.kategori || "Lokasi",
-    parent_location: row.parent_location || row.parent_code || row.parent || "",
+    id: locationId || locationCode,
+    master_id: locationId,
+    missing_id: Boolean(row.missing_id ?? !locationId),
+    location_id: locationId || locationCode,
+    location_code: locationCode || locationId,
+    location_name: locationName,
+    location_type: cleanValue(row.location_type || row.type || row.kategori),
+    parent_location: cleanValue(row.parent_location || row.parent_code || row.parent),
     active,
-    notes: row.notes || row.catatan || "",
+    notes: cleanValue(row.notes || row.catatan),
   };
 }
 
 function normalizePayload(payload, moduleType) {
   const data = payload?.data || payload || {};
-  const rows = asArray(data.rows || data.items || data[moduleType] || []).map((row) => normalizeRow(row, moduleType));
+  const normalizedRows = asArray(data.rows || data.items || data[moduleType] || [])
+    .map((row) => normalizeRow(row, moduleType));
+  const rows = normalizedRows.filter((row) => hasMeaningfulRow(row, moduleType));
+  const hiddenBlankRows = numberValue(data.summary?.hidden_blank_rows ?? Math.max(0, normalizedRows.length - rows.length));
   return {
     rows,
     summary: {
       total_rows: numberValue(data.summary?.total_rows ?? rows.length),
       active_rows: numberValue(data.summary?.active_rows ?? rows.filter((row) => row.active).length),
       inactive_rows: numberValue(data.summary?.inactive_rows ?? rows.filter((row) => !row.active).length),
-      missing_id_rows: numberValue(data.summary?.missing_id_rows ?? rows.filter((row) => !row.id).length),
+      missing_id_rows: numberValue(data.summary?.missing_id_rows ?? rows.filter((row) => row.missing_id || !row.master_id).length),
+      hidden_blank_rows: hiddenBlankRows,
     },
     warnings: asArray(data.warnings),
   };
@@ -269,6 +304,16 @@ export default function MasterDataPage({ moduleType = "produk", session, onSessi
   const [bootstrap, setBootstrap] = useState(() => normalizePayload({}, moduleType));
   const [draft, setDraft] = useState(() => ({ ...config.defaultDraft }));
   const [selected, setSelected] = useState(null);
+
+  const viewColumns = useMemo(() => {
+    return (config.columns || []).map((column) => {
+      if (column.render) return column;
+      return {
+        ...column,
+        render: (row) => safeText(row[column.key]),
+      };
+    });
+  }, [config.columns]);
 
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -371,11 +416,14 @@ export default function MasterDataPage({ moduleType = "produk", session, onSessi
 
       {error ? <div className="da-form-warning">{error}</div> : null}
       {success ? <div className="da-form-success">{success}</div> : null}
+      {bootstrap.summary.hidden_blank_rows ? (
+        <div className="da-form-warning">{bootstrap.summary.hidden_blank_rows} baris kosong/formatting disembunyikan supaya master data tidak menampilkan angka yatim.</div>
+      ) : null}
 
       <div className="da-grid da-grid-3">
-        <StatCard label="Total Data" value={bootstrap.summary.total_rows} description="Jumlah baris master terbaca." />
+        <StatCard label="Total Data Bersih" value={bootstrap.summary.total_rows} description="Hanya baris master yang punya nama/kode." />
         <StatCard label="Aktif" value={bootstrap.summary.active_rows} description="Data yang bisa dipakai transaksi." />
-        <StatCard tone="warning" label="Perlu ID" value={bootstrap.summary.missing_id_rows} description="Harus dibereskan agar tidak jadi angka yatim." />
+        <StatCard tone={bootstrap.summary.missing_id_rows ? "warning" : "default"} label="Perlu ID" value={bootstrap.summary.missing_id_rows} description="Baris nyata yang belum punya ID master." />
       </div>
 
       <Card>
@@ -431,7 +479,7 @@ export default function MasterDataPage({ moduleType = "produk", session, onSessi
         </div>
 
         <DataTable
-          columns={config.columns}
+          columns={viewColumns}
           rows={filteredRows}
           getRowKey={(row, index) => row.id || `${moduleType}-${index}`}
           onRowClick={(row) => setSelected(row)}
