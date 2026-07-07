@@ -20,6 +20,7 @@ import BelanjaKasKeluarPage from "./modules/finance/BelanjaKasKeluarPage";
 import HutangNanaPage from "./modules/finance/HutangNanaPage";
 import EmpatAmplopPage from "./modules/finance/EmpatAmplopPage";
 import LaporanHarianPage from "./modules/branch/LaporanHarianPage";
+import SetoranCabangPage from "./modules/branch/SetoranCabangPage";
 
 export default function App() {
   const [session, setSession] = useState(() => getSavedSession());
@@ -186,6 +187,16 @@ export default function App() {
     if (activePage === "laporan-harian") {
       return (
         <LaporanHarianPage
+          session={session}
+          onSessionExpired={handleSessionExpired}
+        />
+      );
+    }
+
+
+    if (activePage === "setoran-cabang") {
+      return (
+        <SetoranCabangPage
           session={session}
           onSessionExpired={handleSessionExpired}
         />
