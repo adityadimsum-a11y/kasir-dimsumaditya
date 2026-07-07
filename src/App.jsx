@@ -14,6 +14,7 @@ import AdukanPage from "./modules/production/AdukanPage";
 import FreezerInPage from "./modules/stock/FreezerInPage";
 import FinishedStockPage from "./modules/stock/FinishedStockPage";
 import OrderPage from "./modules/sales/OrderPage";
+import POQueuePage from "./modules/sales/POQueuePage";
 import UangMasukPage from "./modules/finance/UangMasukPage";
 import KasDompetPage from "./modules/finance/KasDompetPage";
 import BelanjaKasKeluarPage from "./modules/finance/BelanjaKasKeluarPage";
@@ -133,6 +134,15 @@ export default function App() {
     if (activePage === "kasir-order") {
       return (
         <OrderPage
+          session={session}
+          onSessionExpired={handleSessionExpired}
+        />
+      );
+    }
+
+    if (activePage === "antrian-po") {
+      return (
+        <POQueuePage
           session={session}
           onSessionExpired={handleSessionExpired}
         />
