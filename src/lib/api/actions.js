@@ -390,3 +390,15 @@ export async function createPOQueue(sessionToken, payload = {}) {
 export async function cancelPOQueue(sessionToken, payload = {}) {
   return apiRequest("legacyCancelPOQueue", payload, sessionToken);
 }
+
+/**
+ * MASTER DATA CORE / FOUNDATION
+ */
+
+export async function getMasterDataCoreBootstrap(sessionToken, payload = {}) {
+  return apiRequest("getLegacyMasterDataCoreBootstrap", payload, sessionToken);
+}
+
+export async function createMasterDataCoreRecord(sessionToken, payload = {}) {
+  return apiRequest("legacyCreateMasterDataCoreRecord", payload, sessionToken);
+}
