@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { getLegacyBootstrap, pingBackend } from "../../lib/api/actions";
-import { buildBootstrapSummary } from "../../lib/bootstrap/summary";
+import { getOwnerControlBootstrap } from "../../lib/api/actions";
 import { formatRupiah } from "../../lib/format/money";
+import { formatDate } from "../../lib/format/date";
+import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
+import DataTable from "../../components/ui/DataTable";
+import Modal from "../../components/ui/Modal";
 import PageHeader from "../../components/ui/PageHeader";
 import StatCard from "../../components/ui/StatCard";
-import Badge from "../../components/ui/Badge";
-import Modal from "../../components/ui/Modal";
 
 function isAuthRequired(result) {
   const message = String(result?.message || result?.error?.message || "").toUpperCase();
@@ -24,184 +25,230 @@ function asArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
-function safeText(value, fallback = "-") {
-  const text = String(value || "").trim();
-  return text || fallback;
+function numberValue(value) {
+  const clean = String(value ?? "0").replace(/[^0-9.-]/g, "");
+  const parsed = Number(clean);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function getMoneyValue(row) {
-  return (
-    row?.remaining_amount ||
-    row?.outstanding_amount ||
-    row?.total_amount ||
-    row?.amount ||
-    row?.original_amount ||
-    0
-  );
+function formatNumber(value, suffix = "") {
+  return `${Number(value || 0).toLocaleString("id-ID")}${suffix ? ` ${suffix}` : ""}`;
 }
 
-function MiniInfo({ label, value, description }) {
-  return (
-    <div className="da-mini-info">
-      <div className="da-mini-info-label">{label}</div>
-      <div className="da-mini-info-value">{value}</div>
-      {description ? <div className="da-mini-info-desc">{description}</div> : null}
-    </div>
-  );
+function getToneByStatus(status) {
+  const text = String(status || "").toUpperCase();
+  if (text.includes("AMAN") || text.includes("SEHAT") || text.includes("LUNAS") || text.includes("READY")) return "success";
+  if (text.includes("PERLU") || text.includes("BELUM") || text.includes("WARNING") || text.includes("KURANG")) return "warning";
+  if (text.includes("BAHAYA") || text.includes("ERROR") || text.includes("MINUS")) return "danger";
+  return "default";
 }
 
-function FlowCard({ number, title, description, status = "Siap dipasang" }) {
-  return (
-    <div className="da-flow-card">
-      <div className="da-flow-number">{number}</div>
-      <div>
-        <div className="da-flow-title">{title}</div>
-        <div className="da-flow-desc">{description}</div>
-        <div className="da-flow-status">{status}</div>
-      </div>
-    </div>
-  );
+function normalizeSummary(data) {
+  return data?.summary || {};
 }
 
-function buildActionItems(summary) {
+function getRadar(summary) {
+  const hutang = numberValue(summary?.obligations?.hutang_remaining);
+  const ready = numberValue(summary?.stock?.ready_pcs);
+  const sisaAyam = numberValue(summary?.chicken?.remaining_kg);
+  const uangBelumDibagi = numberValue(summary?.amplop?.unallocated);
+  const poKurang = numberValue(summary?.po?.shortage_qty);
+  const requestPending = numberValue(summary?.branch?.request_pending_count);
+  const setoranPending = numberValue(summary?.branch?.deposit_pending);
+
+  const items = [
+    {
+      key: "hutang",
+      title: "Sisa Hutang Nana",
+      value: formatRupiah(hutang),
+      status: hutang > 0 ? "Perlu Dipantau" : "Aman",
+      description: "Pastikan jadwal bayar ayam tidak putus dari uang masuk aktual.",
+    },
+    {
+      key: "stok",
+      title: "Stok Ready",
+      value: formatNumber(ready, "pcs"),
+      status: ready > 0 ? "Ready" : "Kosong",
+      description: "Stok jadi bebas untuk kasir/order. Bukan stok PO yang ditahan.",
+    },
+    {
+      key: "ayam",
+      title: "Sisa Ayam Mentah",
+      value: formatNumber(sisaAyam, "kg"),
+      status: sisaAyam > 0 ? "Masih Ada" : "Kosong",
+      description: "Sisa ayam dari lot aktif yang belum dipakai adukan.",
+    },
+    {
+      key: "amplop",
+      title: "Belum Dibagi 4 Amplop",
+      value: formatRupiah(uangBelumDibagi),
+      status: uangBelumDibagi > 0 ? "Perlu Dibagi" : "Aman",
+      description: "Hanya dari uang masuk aktual yang sudah punya sumber mutasi.",
+    },
+    {
+      key: "po",
+      title: "Kekurangan PO",
+      value: formatNumber(poKurang, "pcs"),
+      status: poKurang > 0 ? "Perlu Produksi" : "Aman",
+      description: "PO customer yang belum cukup stoknya harus masuk radar produksi.",
+    },
+    {
+      key: "request",
+      title: "Request Cabang Pending",
+      value: formatNumber(requestPending),
+      status: requestPending > 0 ? "Perlu Approve" : "Aman",
+      description: "Permintaan barang cabang dipisah dari PO customer.",
+    },
+    {
+      key: "setoran",
+      title: "Setoran Pending",
+      value: formatRupiah(setoranPending),
+      status: setoranPending > 0 ? "Perlu Approve" : "Aman",
+      description: "Setoran belum menjadi uang pusat sebelum owner/Tangerang approve.",
+    },
+  ];
+
+  return items;
+}
+
+function getBenangMerah(summary) {
   return [
     {
-      key: "hutang-nana",
-      tone: "warning",
-      title: "Pantau Sisa Hutang",
-      value: summary.money.totalHutangTerbukaLabel,
-      description:
-        "Ada hutang supplier terbuka. Nanti card ini menjadi pintu cepat ke detail Hutang Nana.",
+      title: "DROP Ayam",
+      value: formatRupiah(summary?.chicken?.total_drop_amount || 0),
+      description: `${formatNumber(summary?.chicken?.total_drop_kg || 0, "kg")} ayam masuk dari nota aktual.`,
+      status: `${formatNumber(summary?.chicken?.drops_count || 0)} nota`,
     },
     {
-      key: "drop-ayam",
-      tone: summary.counts.dropAyam > 0 ? "success" : "danger",
-      title: "DROP Ayam Belum Aktif",
-      value: `${summary.counts.dropAyam} drop`,
-      description:
-        "Belum ada DROP Ayam terbaca di bootstrap. Modul ini akan jadi awal nyawa usaha.",
+      title: "Stok Ayam / Lot",
+      value: formatNumber(summary?.chicken?.remaining_kg || 0, "kg"),
+      description: `${formatNumber(summary?.chicken?.used_kg || 0, "kg")} sudah dipakai produksi.`,
+      status: `${formatNumber(summary?.chicken?.active_lots_count || 0)} lot aktif`,
     },
     {
-      key: "produksi",
-      tone: summary.counts.produksi > 0 ? "success" : "warning",
       title: "Produksi / Adukan",
-      value: `${summary.counts.produksi} batch`,
-      description:
-        "Produksi akan menghubungkan ayam dipakai, barang masuk freezer, dan stok jadi.",
+      value: formatNumber(summary?.production?.output_pcs || 0, "pcs"),
+      description: `${formatNumber(summary?.production?.total_adukan || 0)} adukan sudah diproses.`,
+      status: `${formatNumber(summary?.production?.batches_count || 0)} batch`,
     },
     {
-      key: "arsip",
-      tone: "success",
-      title: "Arsip & Audit",
-      value: `${summary.counts.searchIndex} index`,
-      description:
-        "Search index sudah terbaca. Ini dasar semua transaksi bisa dicari dan diklik.",
+      title: "Stok Jadi Ready",
+      value: formatNumber(summary?.stock?.ready_pcs || 0, "pcs"),
+      description: "Barang siap jual dari gerak stok produk jadi.",
+      status: formatRupiah(summary?.stock?.stock_value || 0),
+    },
+    {
+      title: "PO Customer",
+      value: formatNumber(summary?.po?.po_qty || 0, "pcs"),
+      description: "PO menahan stok/kebutuhan. Belum jadi invoice dan bukan uang masuk.",
+      status: `${formatNumber(summary?.po?.shortage_qty || 0, "pcs")} kurang`,
+    },
+    {
+      title: "Kasir / Order",
+      value: formatRupiah(summary?.sales?.invoice_total || 0),
+      description: "Order dari stok ready, lalu invoice/payment/piutang.",
+      status: `${formatNumber(summary?.sales?.orders_count || 0)} order`,
+    },
+    {
+      title: "Uang Masuk",
+      value: formatRupiah(summary?.wallet?.money_in || 0),
+      description: "Uang aktual yang sudah masuk dompet/bank.",
+      status: `${formatNumber(summary?.wallet?.mutation_count || 0)} mutasi`,
+    },
+    {
+      title: "Setoran Cabang",
+      value: formatRupiah(summary?.branch?.deposit_pending || 0),
+      description: "Pending belum menjadi uang pusat sampai owner approve.",
+      status: `${formatNumber(summary?.branch?.deposit_count || 0)} setoran`,
+    },
+    {
+      title: "Hutang Nana",
+      value: formatRupiah(summary?.obligations?.hutang_remaining || 0),
+      description: "Sisa hutang ayam setelah pembayaran supplier.",
+      status: summary?.obligations?.hutang_remaining > 0 ? "Belum Lunas" : "Aman",
+    },
+    {
+      title: "4 Amplop",
+      value: formatRupiah(summary?.amplop?.allocated_total || 0),
+      description: "Pembagian hanya dari uang masuk aktual yang bersumber jelas.",
+      status: `${formatRupiah(summary?.amplop?.unallocated || 0)} belum dibagi`,
     },
   ];
 }
 
-function getSupportRows(actionKey, bootstrap) {
-  const data = bootstrap || {};
-
-  if (actionKey === "hutang-nana") {
-    return asArray(data.payables).slice(0, 8).map((row, index) => ({
-      no: index + 1,
-      id: safeText(row.payable_id || row.id || row.transaction_id),
-      name: safeText(row.supplier_name || row.supplier_id || row.vendor_name),
-      amount: formatRupiah(getMoneyValue(row)),
-      status: safeText(row.status || row.payable_status),
-    }));
-  }
-
-  if (actionKey === "drop-ayam") {
-    return asArray(data.purchases).slice(0, 8).map((row, index) => ({
-      no: index + 1,
-      id: safeText(row.purchase_id || row.id || row.transaction_id),
-      name: safeText(row.supplier_name || row.supplier_id || "Supplier"),
-      amount: formatRupiah(getMoneyValue(row)),
-      status: safeText(row.status || row.payment_status),
-    }));
-  }
-
-  if (actionKey === "produksi") {
-    return asArray(data.production_batches).slice(0, 8).map((row, index) => ({
-      no: index + 1,
-      id: safeText(row.production_id || row.batch_id || row.id),
-      name: safeText(row.product_name || row.location_name || "Produksi"),
-      amount: safeText(row.actual_output_pcs || row.output_pcs || row.qty),
-      status: safeText(row.status || "Tercatat"),
-    }));
-  }
-
-  if (actionKey === "arsip") {
-    return asArray(data.search_index || data.archives).slice(0, 8).map((row, index) => ({
-      no: index + 1,
-      id: safeText(row.archive_id || row.ref_id || row.transaction_id || row.id),
-      name: safeText(row.title || row.module || row.type || "Arsip"),
-      amount: safeText(row.created_at || row.timestamp || row.date),
-      status: safeText(row.status || "Index"),
-    }));
-  }
-
-  return [];
+function FlowCard({ index, item }) {
+  return (
+    <div className="da-flow-card">
+      <div className="da-flow-number">{index}</div>
+      <div>
+        <div className="da-flow-title">{item.title}</div>
+        <div className="da-flow-desc">{item.description}</div>
+        <div className="da-flow-status"><strong>{item.value}</strong> · {item.status}</div>
+      </div>
+    </div>
+  );
 }
 
-function ActionCenterCard({ item, onClick }) {
+function RadarCard({ item, onClick }) {
   return (
     <button type="button" className="da-action-card" onClick={() => onClick(item)}>
       <div className="da-action-card-top">
-        <Badge tone={item.tone}>{item.title}</Badge>
+        <Badge tone={getToneByStatus(item.status)}>{item.status}</Badge>
         <span className="da-action-arrow">›</span>
       </div>
-      <div className="da-action-value">{item.value}</div>
+      <div className="da-action-value">{item.title}</div>
       <div className="da-action-desc">{item.description}</div>
+      <div className="da-action-desc" style={{ marginTop: 8, fontWeight: 850 }}>{item.value}</div>
     </button>
   );
 }
 
+function recentColumns() {
+  return [
+    { key: "date", label: "Tanggal", render: (row) => formatDate(row.date) },
+    { key: "module", label: "Modul" },
+    { key: "id", label: "ID" },
+    { key: "description", label: "Keterangan" },
+    { key: "amount", label: "Nominal", render: (row) => formatRupiah(row.amount || 0) },
+    { key: "status", label: "Status", render: (row) => <Badge tone={getToneByStatus(row.status)}>{row.status || "Tercatat"}</Badge> },
+  ];
+}
+
 export default function PapanPusatPage({ session, onSessionExpired }) {
   const [loading, setLoading] = useState(true);
-  const [ping, setPing] = useState(null);
-  const [bootstrap, setBootstrap] = useState(null);
   const [error, setError] = useState("");
-  const [selectedAction, setSelectedAction] = useState(null);
+  const [data, setData] = useState(null);
+  const [selectedRadar, setSelectedRadar] = useState(null);
 
-  const summary = useMemo(() => {
-    return buildBootstrapSummary(bootstrap);
-  }, [bootstrap]);
-
-  const actionItems = useMemo(() => {
-    return buildActionItems(summary);
-  }, [summary]);
-
-  const supportRows = useMemo(() => {
-    return getSupportRows(selectedAction?.key, bootstrap);
-  }, [selectedAction, bootstrap]);
+  const summary = useMemo(() => normalizeSummary(data), [data]);
+  const radar = useMemo(() => getRadar(summary), [summary]);
+  const chain = useMemo(() => getBenangMerah(summary), [summary]);
+  const recent = useMemo(() => asArray(data?.recent_transactions).slice(0, 8), [data]);
+  const health = data?.health || {};
+  const counts = data?.counts || {};
 
   const loadData = async () => {
     setLoading(true);
     setError("");
 
-    const pingResult = await pingBackend();
-    setPing(pingResult);
-
-    const bootstrapResult = await getLegacyBootstrap(session?.sessionToken, {
-      source: "frontend_foundation_part_1a_4_action_center",
+    const result = await getOwnerControlBootstrap(session?.sessionToken, {
+      source: "frontend_part_4w_papan_pantau_refresh_clean",
+      limit: 12,
     });
 
-    if (!bootstrapResult.success) {
-      if (isAuthRequired(bootstrapResult)) {
+    if (!result.success) {
+      if (isAuthRequired(result)) {
         onSessionExpired?.();
         return;
       }
 
-      setError(bootstrapResult.message || "Gagal membaca data dari backend.");
-      setBootstrap(null);
+      setError(result.message || "Gagal membaca Papan Pantau.");
+      setData(null);
       setLoading(false);
       return;
     }
 
-    setBootstrap(bootstrapResult.data || {});
+    setData(result.data || {});
     setLoading(false);
   };
 
@@ -210,317 +257,150 @@ export default function PapanPusatPage({ session, onSessionExpired }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.sessionToken]);
 
-  const backendStatus = loading ? "Mengecek..." : error ? "Perlu Dicek" : "Terhubung";
-
-  const dataRows = [
-    ["Lokasi", summary.counts.lokasi],
-    ["Produk", summary.counts.produk],
-    ["Customer", summary.counts.customer],
-    ["Supplier", summary.counts.supplier],
-    ["Dompet", summary.counts.dompet],
-    ["DROP Ayam", summary.counts.dropAyam],
-    ["Lot Ayam", summary.counts.lotAyam],
-    ["Produksi / Adukan", summary.counts.produksi],
-    ["Gerak Stok", summary.counts.stokGerak],
-    ["Order", summary.counts.order],
-    ["Invoice", summary.counts.invoice],
-    ["Payment", summary.counts.payment],
-    ["Piutang", summary.counts.piutang],
-    ["Hutang", summary.counts.hutang],
-    ["Kas Keluar", summary.counts.kasKeluar],
-    ["Setoran Cabang", summary.counts.setoranCabang],
-    ["Arsip", summary.counts.arsip],
-    ["Search Index", summary.counts.searchIndex],
-  ];
-
   return (
-    <div>
+    <div className="da-page">
       <PageHeader
         title="Papan Pantau"
-        description="Pusat pantau owner untuk melihat kondisi data hidup: uang masuk, hutang, stok, produksi, dan arsip."
-        badge="Live Backend"
+        description="Ringkasan cepat owner untuk melihat uang, stok, produksi, PO, hutang, setoran, dan 4 Amplop dalam satu halaman ringan. Read-only, tidak membuat transaksi."
+        badge="Live Dashboard"
       />
 
-      <div className="da-dashboard-banner">
+      <Card className="da-dashboard-banner">
         <div>
-          <div className="da-dashboard-banner-kicker">Mesin usaha</div>
-          <div className="da-dashboard-banner-title">Backend {backendStatus}</div>
-          <div className="da-dashboard-banner-desc">
-            Papan ini hanya membaca data dari Apps Script dan Google Sheet. Belum
-            membuat transaksi apa pun.
-          </div>
+          <div className="da-dashboard-banner-kicker">PUSAT PANTAU HARIAN</div>
+          <h2>Owner Summary → Radar Masalah → Benang Merah</h2>
+          <p className="da-dashboard-banner-desc">
+            Papan ini memakai data bersih dari Owner Control, jadi baris kosong/formatting tidak ikut dihitung sebagai transaksi hidup.
+          </p>
         </div>
-
         <div className="da-dashboard-banner-actions">
-          <Badge tone={ping?.success ? "success" : "danger"}>
-            {ping?.success ? "Ping aktif" : "Ping belum aktif"}
-          </Badge>
-
-          <Button variant="ghost" onClick={loadData} disabled={loading}>
-            {loading ? "Membaca..." : "Refresh Data"}
-          </Button>
+          <Badge tone={error ? "danger" : "success"}>{loading ? "Membaca..." : error ? "Perlu Dicek" : "Terhubung"}</Badge>
+          <Button variant="ghost" onClick={loadData}>Refresh Data</Button>
         </div>
-      </div>
+      </Card>
 
       {error ? (
-        <div className="da-login-error" style={{ marginBottom: 16 }}>
-          {error}
-        </div>
+        <Card style={{ marginTop: 16 }}>
+          <Badge tone="danger">Error</Badge>
+          <p className="da-muted" style={{ marginTop: 12 }}>{error}</p>
+        </Card>
       ) : null}
 
-      <div className="da-filter-row">
-        <select className="da-select" defaultValue="today">
-          <option value="today">Hari ini</option>
-          <option value="month">Bulan ini</option>
-          <option value="all">Semua data</option>
-        </select>
-
-        <select className="da-select" defaultValue="all">
-          <option value="all">Semua lokasi</option>
-          <option value="TGR">Tangerang HO</option>
-          <option value="PML">Produksi Pemalang</option>
-          <option value="CBN">Resto Cibinong</option>
-        </select>
-
-        <Badge tone="warning">Read Only</Badge>
-      </div>
-
-      <div className="da-grid da-grid-3">
+      <div className="da-grid da-grid-3" style={{ marginTop: 16 }}>
         <StatCard
           tone="primary"
           label="Uang Masuk Aktual"
-          value={loading ? "..." : summary.money.totalUangMasukLabel}
-          description="Hanya dari payment backend. Bukan dari PO, stok, atau piutang."
+          value={loading ? "..." : formatRupiah(summary?.wallet?.money_in || 0)}
+          description="Uang yang benar-benar masuk dompet/bank. Ini bahan 4 Amplop."
         />
-
-        <StatCard
-          label="Sisa Piutang"
-          value={loading ? "..." : summary.money.totalPiutangTerbukaLabel}
-          description="Tagihan customer yang belum lunas menurut data backend."
-        />
-
         <StatCard
           tone="warning"
-          label="Sisa Hutang"
-          value={loading ? "..." : summary.money.totalHutangTerbukaLabel}
-          description="Hutang terbuka, termasuk hutang supplier jika sudah tercatat."
+          label="Sisa Hutang Nana"
+          value={loading ? "..." : formatRupiah(summary?.obligations?.hutang_remaining || 0)}
+          description="Sisa nota ayam yang belum dibayar."
+        />
+        <StatCard
+          label="Stok Ready"
+          value={loading ? "..." : formatNumber(summary?.stock?.ready_pcs || 0, "pcs")}
+          description="Stok jadi bebas berdasarkan gerak stok."
+        />
+        <StatCard
+          label="Sisa Ayam"
+          value={loading ? "..." : formatNumber(summary?.chicken?.remaining_kg || 0, "kg")}
+          description="Sisa kg dari lot ayam aktif."
+        />
+        <StatCard
+          label="PO Customer"
+          value={loading ? "..." : formatNumber(summary?.po?.po_count || 0)}
+          description={`${formatNumber(summary?.po?.reserved_qty || 0, "pcs")} ditahan, ${formatNumber(summary?.po?.shortage_qty || 0, "pcs")} kurang.`}
+        />
+        <StatCard
+          tone={health?.status === "Perlu Dicek" ? "warning" : "default"}
+          label="Kesehatan Kabel"
+          value={loading ? "..." : health?.status || "-"}
+          description={health?.message || "Membaca koneksi antar modul."}
         />
       </div>
 
-      <div style={{ height: 16 }} />
-
-      <Card>
-        <div className="da-section-heading">
-          <div>
-            <div className="da-mini-title">Owner Action Center</div>
-            <div className="da-big-text">Yang Perlu Dipantau</div>
-            <p className="da-muted">
-              Klik kartu untuk membuka detail popup tengah. Tahap ini masih read-only.
-            </p>
+      <div className="da-dashboard-split" style={{ marginTop: 16 }}>
+        <Card>
+          <div className="da-section-heading">
+            <div>
+              <div className="da-page-kicker">RADAR OWNER</div>
+              <h2 style={{ margin: 0 }}>Yang Perlu Dilihat Cepat</h2>
+              <p className="da-muted" style={{ margin: "6px 0 0" }}>
+                Klik kartu untuk catatan ringkas. Tindakan tetap dilakukan di modul masing-masing.
+              </p>
+            </div>
+            <Badge tone="success">Live Data</Badge>
           </div>
 
-          <Badge tone="warning">Modal Foundation</Badge>
+          <div className="da-action-grid">
+            {radar.map((item) => (
+              <RadarCard key={item.key} item={item} onClick={setSelectedRadar} />
+            ))}
+          </div>
+        </Card>
+
+        <Card>
+          <div className="da-page-kicker">RINGKASAN OPERASI</div>
+          <h2 style={{ margin: "4px 0 12px" }}>Saldo & Pergerakan</h2>
+          <div className="da-detail-grid" style={{ gridTemplateColumns: "1fr" }}>
+            <div className="da-detail-box"><p>Saldo Dompet</p><strong>{formatRupiah(summary?.wallet?.wallet_balance_total || 0)}</strong></div>
+            <div className="da-detail-box"><p>Uang Keluar</p><strong>{formatRupiah(summary?.wallet?.money_out || 0)}</strong></div>
+            <div className="da-detail-box"><p>Piutang Terbuka</p><strong>{formatRupiah(summary?.sales?.receivable_open || 0)}</strong></div>
+            <div className="da-detail-box"><p>Setoran Pending</p><strong>{formatRupiah(summary?.branch?.deposit_pending || 0)}</strong></div>
+            <div className="da-detail-box"><p>Request Cabang</p><strong>{formatNumber(summary?.branch?.request_count || 0)}</strong></div>
+            <div className="da-detail-box"><p>Arsip/Jejak Terbaca</p><strong>{formatNumber(counts?.recent_transactions || recent.length || 0)}</strong></div>
+          </div>
+        </Card>
+      </div>
+
+      <Card style={{ marginTop: 16 }}>
+        <div className="da-section-heading">
+          <div>
+            <div className="da-page-kicker">BENANG MERAH USAHA</div>
+            <h2 style={{ margin: 0 }}>DROP → Produksi → Stok → Order → Uang → Hutang → 4 Amplop</h2>
+            <p className="da-muted" style={{ margin: "6px 0 0" }}>
+              Ini peta cepat. Detail lengkap tetap dibuka lewat Owner Control atau Arsip Digital.
+            </p>
+          </div>
+          <Badge tone="warning">Read Only</Badge>
         </div>
 
-        <div className="da-action-grid">
-          {actionItems.map((item) => (
-            <ActionCenterCard
-              key={item.key}
-              item={item}
-              onClick={setSelectedAction}
-            />
+        <div className="da-flow-grid">
+          {chain.map((item, index) => (
+            <FlowCard key={item.title} index={index + 1} item={item} />
           ))}
         </div>
       </Card>
 
-      <div style={{ height: 16 }} />
-
-      <div className="da-dashboard-split">
-        <Card>
-          <div className="da-section-heading">
-            <div>
-              <div className="da-mini-title">Nyawa Usaha</div>
-              <div className="da-big-text">Rantai Transaksi</div>
-            </div>
-            <Badge tone="success">Traceable</Badge>
-          </div>
-
-          <div className="da-flow-grid">
-            <FlowCard
-              number="1"
-              title="DROP Ayam"
-              description="Ayam masuk, nota supplier, harga aktual, dan hutang Nana."
-              status={`${summary.counts.dropAyam} drop terbaca`}
-            />
-
-            <FlowCard
-              number="2"
-              title="Lot Harga Aktual"
-              description="Harga ayam terkunci per nota/drop agar transaksi lama tidak berubah."
-              status={`${summary.counts.lotAyam} lot terbaca`}
-            />
-
-            <FlowCard
-              number="3"
-              title="Produksi / Adukan"
-              description="Ayam dipakai produksi, barang jadi masuk freezer, stok siap jual."
-              status={`${summary.counts.produksi} batch terbaca`}
-            />
-
-            <FlowCard
-              number="4"
-              title="Kasir / Order"
-              description="Order memotong stok nyata, lalu membuat invoice dan payment."
-              status={`${summary.counts.order} order terbaca`}
-            />
-
-            <FlowCard
-              number="5"
-              title="Hutang Nana"
-              description="Pantau sisa nota ayam berjalan dan hutang lama supplier."
-              status={`${summary.counts.hutang} hutang terbaca`}
-            />
-
-            <FlowCard
-              number="6"
-              title="Arsip & Audit"
-              description="Semua transaksi wajib punya ID, audit, arsip, dan bisa diklik."
-              status={`${summary.counts.searchIndex} index arsip`}
-            />
-          </div>
-        </Card>
-
-        <Card>
-          <div className="da-section-heading">
-            <div>
-              <div className="da-mini-title">Kesehatan Data</div>
-              <div className="da-big-text">Yang Sudah Terbaca</div>
-            </div>
-          </div>
-
-          <div className="da-health-list">
-            <MiniInfo
-              label="Master Produk"
-              value={loading ? "..." : summary.counts.produk}
-              description="Produk aktif sebagai dasar order dan stok."
-            />
-
-            <MiniInfo
-              label="Customer"
-              value={loading ? "..." : summary.counts.customer}
-              description="Pelanggan dan potensi harga khusus."
-            />
-
-            <MiniInfo
-              label="Dompet"
-              value={loading ? "..." : summary.counts.dompet}
-              description="Cash, BCA, BRI, dan dompet cabang."
-            />
-
-            <MiniInfo
-              label="Arsip Digital"
-              value={loading ? "..." : summary.counts.arsip}
-              description="Riwayat transaksi yang sudah masuk arsip."
-            />
-          </div>
-        </Card>
-      </div>
-
-      <div style={{ height: 16 }} />
-
-      <Card>
+      <Card style={{ marginTop: 16 }}>
         <div className="da-section-heading">
           <div>
-            <div className="da-mini-title">Bootstrap Reader</div>
-            <div className="da-big-text">Data Hidup yang Terbaca</div>
-            <p className="da-muted">
-              Ringkasan jumlah baris dari Google Sheet lewat Apps Script.
-              Ini tetap read-only dan belum membuat transaksi.
+            <div className="da-page-kicker">TRANSAKSI TERBARU</div>
+            <h2 style={{ margin: 0 }}>Jejak ID Terakhir</h2>
+            <p className="da-muted" style={{ margin: "6px 0 0" }}>
+              Baris kosong/formatting tidak ikut dihitung. Klik detail lengkap lewat Arsip Digital.
             </p>
           </div>
-
-          <Badge tone="warning">Read Only</Badge>
+          <Badge tone="success">Archive Hook</Badge>
         </div>
-
-        <div className="da-table-card">
-          <table className="da-table">
-            <thead>
-              <tr>
-                <th>Area Data</th>
-                <th style={{ textAlign: "right" }}>Jumlah</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dataRows.map(([label, value]) => (
-                <tr key={label}>
-                  <td>{label}</td>
-                  <td style={{ textAlign: "right", fontWeight: 800 }}>
-                    {loading ? "..." : value}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable columns={recentColumns()} rows={recent} getRowKey={(row, index) => `${row.module}-${row.id}-${index}`} />
       </Card>
 
       <Modal
-        open={Boolean(selectedAction)}
-        title={selectedAction?.title}
-        subtitle="Detail popup tengah — read-only foundation"
-        onClose={() => setSelectedAction(null)}
+        open={Boolean(selectedRadar)}
+        title={selectedRadar?.title || "Radar Owner"}
+        subtitle={selectedRadar?.description || "Catatan ringkas dari Papan Pantau."}
+        onClose={() => setSelectedRadar(null)}
       >
-        <div className="da-modal-summary">
-          <div>
-            <div className="da-mini-title">Nilai Ringkas</div>
-            <div className="da-big-text">{selectedAction?.value}</div>
-            <p className="da-muted">{selectedAction?.description}</p>
-          </div>
-
-          <Badge tone={selectedAction?.tone || "warning"}>Read Only</Badge>
+        <div className="da-detail-grid">
+          <div className="da-detail-box"><p>Status</p><strong>{selectedRadar?.status || "-"}</strong></div>
+          <div className="da-detail-box"><p>Nilai</p><strong>{selectedRadar?.value || "-"}</strong></div>
         </div>
-
-        <div className="da-modal-note">
-          Tahap ini belum membuka halaman transaksi penuh. Popup ini menjadi pola
-          dasar detail transaksi ERP: klik kartu / baris → lihat detail tengah →
-          nanti bisa lanjut ke arsip, audit, print, atau tindakan sesuai izin.
-        </div>
-
-        <div className="da-table-card">
-          <table className="da-table">
-            <thead>
-              <tr>
-                <th>No</th>
-                <th>ID / Sumber</th>
-                <th>Nama</th>
-                <th>Nilai / Qty</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {supportRows.length === 0 ? (
-                <tr>
-                  <td colSpan="5">
-                    <span className="da-muted">
-                      Belum ada baris pendukung yang terbaca untuk area ini.
-                    </span>
-                  </td>
-                </tr>
-              ) : (
-                supportRows.map((row) => (
-                  <tr key={`${row.no}-${row.id}`}>
-                    <td>{row.no}</td>
-                    <td style={{ fontWeight: 800 }}>{row.id}</td>
-                    <td>{row.name}</td>
-                    <td>{row.amount}</td>
-                    <td>
-                      <Badge tone="warning">{row.status}</Badge>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+        <div className="da-modal-note" style={{ marginTop: 16 }}>
+          Papan Pantau hanya memberi alarm cepat. Untuk input, pembayaran, approval, atau koreksi, buka modul sumbernya agar rantai ID tetap rapi dan tidak ada angka yatim.
         </div>
       </Modal>
     </div>
