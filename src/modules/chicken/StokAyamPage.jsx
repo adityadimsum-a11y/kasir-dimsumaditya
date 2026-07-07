@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { getChickenStockBootstrap, getDropAyamBootstrap, getProductionBootstrap } from "../../lib/api/actions";
+import { getDropAyamBootstrap, getProductionBootstrap } from "../../lib/api/actions";
 import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
@@ -198,12 +198,7 @@ function normalizeFallbackDrop(dropResult, productionResult) {
       chicken_lots: normalizedLots,
       chicken_movements: movements,
       production_usages: productions,
-      warnings: [
-        {
-          code: "STOK_AYAM_FALLBACK",
-          message: "Catatan: halaman sementara membaca dari DROP Ayam + Produksi karena endpoint Stok Ayam khusus belum terbaca normal.",
-        },
-      ],
+      warnings: [],
       filter: {},
     },
   };
@@ -235,18 +230,10 @@ export default function StokAyamPage({ session, onSessionExpired }) {
     setError("");
 
     try {
-      const result = await getChickenStockBootstrap(sessionToken, filter);
-      if (isAuthRequired(result)) {
-        onSessionExpired?.();
-        return;
-      }
-      if (result?.success) {
-        setBootstrap(normalizeBootstrap(result));
-        return;
-      }
-
-      // Fallback aman: kalau endpoint Stok Ayam baru belum kebaca normal,
-      // halaman tetap bisa jalan dari data DROP Ayam + Produksi yang sudah hijau.
+      // Hotfix 4O-2:
+      // Jangan panggil endpoint Stok Ayam khusus dulu karena di beberapa deploy Apps Script
+      // masih memunculkan Failed to fetch. Data Stok Ayam sudah valid dibaca dari
+      // rantai hidup yang sudah hijau: DROP Ayam + Produksi/Adukan.
       const [dropResult, productionResult] = await Promise.all([
         getDropAyamBootstrap(sessionToken, filter),
         getProductionBootstrap(sessionToken, filter),
@@ -260,18 +247,20 @@ export default function StokAyamPage({ session, onSessionExpired }) {
       if (dropResult?.success || productionResult?.success) {
         const fallbackResult = normalizeFallbackDrop(dropResult, productionResult);
         setBootstrap(normalizeBootstrap(fallbackResult));
-        setError(result?.message || result?.error?.message || "Endpoint Stok Ayam khusus belum normal, data dibaca lewat fallback.");
+        setError("");
         return;
       }
 
-      setError(result?.message || result?.error?.message || "Gagal membaca stok ayam.");
+      const message =
+        dropResult?.message ||
+        dropResult?.error?.message ||
+        productionResult?.message ||
+        productionResult?.error?.message ||
+        "Gagal membaca stok ayam dari DROP Ayam dan Produksi.";
+      setError(message);
       setBootstrap(normalizeBootstrap({}));
     } catch (err) {
-      setError(
-        err?.message === "Failed to fetch"
-          ? "Koneksi endpoint Stok Ayam gagal. Pastikan Router.js dan Api_LegacyChickenStockBridge.js sudah masuk Apps Script lalu deploy versi baru."
-          : err?.message || "Gagal membaca stok ayam."
-      );
+      setError(err?.message || "Gagal membaca stok ayam dari DROP Ayam dan Produksi.");
       setBootstrap(normalizeBootstrap({}));
     } finally {
       setLoading(false);
