@@ -336,6 +336,31 @@ export async function getOwnerControlBootstrap(sessionToken, payload = {}) {
   return apiRequest("getLegacyOwnerControlBootstrap", payload, sessionToken);
 }
 
+
+/**
+ * REQUEST BARANG CABANG / DO ANTAR LOKASI
+ */
+
+export async function getRequestDOStockBootstrap(sessionToken, payload = {}) {
+  return apiRequest("getLegacyRequestDOStockBootstrap", payload, sessionToken);
+}
+
+export async function createBranchGoodsRequest(sessionToken, payload = {}) {
+  return apiRequest("legacyCreateBranchGoodsRequest", payload, sessionToken);
+}
+
+export async function approveBranchGoodsRequest(sessionToken, payload = {}) {
+  return apiRequest("legacyApproveBranchGoodsRequest", payload, sessionToken);
+}
+
+export async function createDeliveryOrderFromRequest(sessionToken, payload = {}) {
+  return apiRequest("legacyCreateDeliveryOrderFromRequest", payload, sessionToken);
+}
+
+export async function receiveDeliveryOrder(sessionToken, payload = {}) {
+  return apiRequest("legacyReceiveDeliveryOrder", payload, sessionToken);
+}
+
 export { getConfiguredApiUrl };
 
 /**
