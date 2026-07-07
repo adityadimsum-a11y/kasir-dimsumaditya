@@ -349,3 +349,19 @@ export async function getHutangNanaBootstrap(sessionToken, payload = {}) {
 export async function recordHutangNanaPayment(sessionToken, payload = {}) {
   return apiRequest("legacyRecordHutangNanaPayment", payload, sessionToken);
 }
+
+/**
+ * ANTRIAN PO / STOK RESERVED / PO KARANTINA
+ */
+
+export async function getPOQueueBootstrap(sessionToken, payload = {}) {
+  return apiRequest("getLegacyPOQueueBootstrap", payload, sessionToken);
+}
+
+export async function createPOQueue(sessionToken, payload = {}) {
+  return apiRequest("legacyCreatePOQueueFromOrder", payload, sessionToken);
+}
+
+export async function cancelPOQueue(sessionToken, payload = {}) {
+  return apiRequest("legacyCancelPOQueue", payload, sessionToken);
+}
