@@ -402,3 +402,7 @@ export async function getMasterDataCoreBootstrap(sessionToken, payload = {}) {
 export async function createMasterDataCoreRecord(sessionToken, payload = {}) {
   return apiRequest("legacyCreateMasterDataCoreRecord", payload, sessionToken);
 }
+
+export async function seedMasterDataCoreDefaults(sessionToken, payload = {}) {
+  return apiRequest("legacySeedMasterDataCoreDefaults", payload, sessionToken);
+}
