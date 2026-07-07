@@ -143,7 +143,7 @@ export async function getOrderBootstrap(sessionToken, payload = {}) {
 }
 
 export async function createOrder(sessionToken, payload = {}) {
-  return apiRequest("legacyCreateOrderFromOldPos", payload, sessionToken);
+  return apiRequest("legacyCreateOrderHardenedFromOldPos", payload, sessionToken);
 }
 
 export async function voidOrder(sessionToken, payload = {}) {
