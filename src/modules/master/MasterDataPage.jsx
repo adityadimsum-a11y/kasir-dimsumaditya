@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   createMasterDataCoreRecord,
   getMasterDataCoreBootstrap,
+  seedMasterDataCoreDefaults,
 } from "../../lib/api/actions";
 import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
@@ -298,6 +299,7 @@ export default function MasterDataPage({ moduleType = "produk", session, onSessi
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [seeding, setSeeding] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [search, setSearch] = useState("");
@@ -395,6 +397,33 @@ export default function MasterDataPage({ moduleType = "produk", session, onSessi
     }
   };
 
+
+  const handleSeedDefaults = async () => {
+    if (seeding) return;
+    setError("");
+    setSuccess("");
+    setSeeding(true);
+    try {
+      const result = await seedMasterDataCoreDefaults(sessionToken, { module_type: "all" });
+      if (isAuthRequired(result)) {
+        onSessionExpired?.();
+        return;
+      }
+      if (!result?.success) {
+        setError(result?.message || "Data dasar awal belum bisa disiapkan.");
+        return;
+      }
+      const createdCount = Number(result?.data?.created_count || 0);
+      const skippedCount = Number(result?.data?.skipped_count || 0);
+      setSuccess(`Data dasar awal dicek. Baru dibuat: ${createdCount}. Sudah ada/dilewati: ${skippedCount}.`);
+      await loadData();
+    } catch (err) {
+      setError(err?.message || "Gagal menyiapkan data dasar awal.");
+    } finally {
+      setSeeding(false);
+    }
+  };
+
   return (
     <div>
       <PageHeader title={config.title} description={config.description} badge={config.badge} />
@@ -410,6 +439,9 @@ export default function MasterDataPage({ moduleType = "produk", session, onSessi
           <div className="da-dashboard-banner-actions">
             <Badge tone={error ? "danger" : "success"}>{error ? "Perlu Cek" : "Terhubung"}</Badge>
             <Button variant="ghost" onClick={loadData} disabled={loading}>Refresh Data</Button>
+            <Button variant="ghost" onClick={handleSeedDefaults} disabled={seeding}>
+              {seeding ? "Menyiapkan..." : "Isi Data Dasar"}
+            </Button>
           </div>
         </div>
       </Card>
@@ -418,6 +450,11 @@ export default function MasterDataPage({ moduleType = "produk", session, onSessi
       {success ? <div className="da-form-success">{success}</div> : null}
       {bootstrap.summary.hidden_blank_rows ? (
         <div className="da-form-warning">{bootstrap.summary.hidden_blank_rows} baris kosong/formatting disembunyikan supaya master data tidak menampilkan angka yatim.</div>
+      ) : null}
+      {!loading && bootstrap.summary.total_rows === 0 ? (
+        <div className="da-form-warning">
+          Master bersih masih kosong. Klik <strong>Isi Data Dasar</strong> untuk membuat data awal penting: TGR, PML, CBN, Dimsum Ayam Mix, Nana Ayam, dan Customer Umum.
+        </div>
       ) : null}
 
       <div className="da-grid da-grid-3">
