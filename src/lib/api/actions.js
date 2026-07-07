@@ -203,6 +203,15 @@ export async function createKasKeluar(sessionToken, payload = {}) {
   return apiRequest("legacyCreateCashExpenseFromOldExpense", payload, sessionToken);
 }
 
+
+/**
+ * UANG MASUK / BAYAR PIUTANG LIVE
+ */
+
+export async function recordCustomerReceivablePayment(sessionToken, payload = {}) {
+  return apiRequest("legacyRecordCustomerReceivablePayment", payload, sessionToken);
+}
+
 /**
  * 4 AMPLOP
  */
