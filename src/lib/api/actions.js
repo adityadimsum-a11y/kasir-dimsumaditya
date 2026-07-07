@@ -272,3 +272,15 @@ export async function rebuildArchiveIndex(sessionToken, payload = {}) {
 }
 
 export { getConfiguredApiUrl };
+
+/**
+ * HUTANG NANA / SUPPLIER AYAM
+ */
+
+export async function getHutangNanaBootstrap(sessionToken, payload = {}) {
+  return apiRequest("getLegacyHutangNanaBootstrap", payload, sessionToken);
+}
+
+export async function recordHutangNanaPayment(sessionToken, payload = {}) {
+  return apiRequest("legacyRecordHutangNanaPayment", payload, sessionToken);
+}
