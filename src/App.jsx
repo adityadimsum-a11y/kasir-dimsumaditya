@@ -23,6 +23,7 @@ import EmpatAmplopPage from "./modules/finance/EmpatAmplopPage";
 import LaporanHarianPage from "./modules/branch/LaporanHarianPage";
 import SetoranCabangPage from "./modules/branch/SetoranCabangPage";
 import RequestDOPage from "./modules/branch/RequestDOPage";
+import MasterDataPage from "./modules/master/MasterDataPage";
 
 export default function App() {
   const [session, setSession] = useState(() => getSavedSession());
@@ -217,6 +218,46 @@ export default function App() {
     if (activePage === "request-do") {
       return (
         <RequestDOPage
+          session={session}
+          onSessionExpired={handleSessionExpired}
+        />
+      );
+    }
+
+    if (activePage === "master-produk") {
+      return (
+        <MasterDataPage
+          moduleType="produk"
+          session={session}
+          onSessionExpired={handleSessionExpired}
+        />
+      );
+    }
+
+    if (activePage === "master-customer") {
+      return (
+        <MasterDataPage
+          moduleType="customer"
+          session={session}
+          onSessionExpired={handleSessionExpired}
+        />
+      );
+    }
+
+    if (activePage === "master-supplier") {
+      return (
+        <MasterDataPage
+          moduleType="supplier"
+          session={session}
+          onSessionExpired={handleSessionExpired}
+        />
+      );
+    }
+
+    if (activePage === "master-lokasi") {
+      return (
+        <MasterDataPage
+          moduleType="lokasi"
           session={session}
           onSessionExpired={handleSessionExpired}
         />
