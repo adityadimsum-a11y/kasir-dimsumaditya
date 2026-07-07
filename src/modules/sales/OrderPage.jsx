@@ -35,6 +35,14 @@ function safeText(value, fallback = "-") {
   return text || fallback;
 }
 
+function generateRequestId(session) {
+  const location =
+    session?.user?.location_code ||
+    session?.user?.location_id ||
+    "LOC";
+  return `ORDER-${location}-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+}
+
 function formatDisplayDate(value) {
   if (!value) return "-";
 
@@ -183,51 +191,78 @@ function buildCartTotals(cart, paidAmount) {
   };
 }
 
-function buildOrderPayload({ form, cart, totals, session }) {
-  const operationId = `ORDER-${session?.user?.location_code || session?.user?.location_id || "LOC"}-${Date.now()}`;
+function buildOrderPayload({ form, cart, totals, session, requestId }) {
+  const operationId = requestId || generateRequestId(session);
   const customerName = safeText(form.customer_name, "UMUM");
+  const locationId = session?.user?.location_id || session?.user?.location_code || "";
+  const paymentMethod = form.payment_method || (totals.paid_amount > 0 ? "CASH" : "");
+
+  const items = cart.map((item) => ({
+    product_id: item.product_id,
+    product_code: item.product_code,
+    product_name: item.product_name,
+    name: item.product_name,
+    qty: item.qty,
+    quantity: item.qty,
+    qty_pcs: item.qty,
+    unit: "pcs",
+    unit_price: item.unit_price,
+    price: item.unit_price,
+    line_total: item.line_total,
+    stock_pcs_snapshot: item.stock_pcs,
+  }));
+
+  const order = {
+    location_id: locationId,
+    location_code: session?.user?.location_code || locationId,
+    order_date: form.order_date,
+    date: form.order_date,
+    order_type: "KASIR_READY",
+    order_mode: "JUAL_STOK_READY",
+    sales_channel: "Kasir / Offline",
+    customer_id: form.customer_id,
+    customer_name: customerName,
+    subtotal: totals.subtotal,
+    grand_total: totals.grand_total,
+    total_amount: totals.grand_total,
+    paid_amount: totals.paid_amount,
+    amount_paid: totals.paid_amount,
+    remaining_amount: totals.remaining_amount,
+    sisa_tagihan: totals.remaining_amount,
+    payment_status: totals.payment_status,
+    payment_method: paymentMethod,
+    notes: form.notes,
+    request_id: operationId,
+    operation_id: operationId,
+    client_request_id: operationId,
+    idempotency_key: operationId,
+  };
 
   return {
     request_id: operationId,
     operation_id: operationId,
-    order: {
-      location_id: session?.user?.location_id || "",
-      order_date: form.order_date,
-      order_type: "REGULAR",
-      order_mode: "REGULAR",
-      sales_channel: "Kasir / Offline",
-      customer_id: form.customer_id,
-      customer_name: customerName,
-      subtotal: totals.subtotal,
-      grand_total: totals.grand_total,
-      total_amount: totals.grand_total,
-      paid_amount: totals.paid_amount,
-      amount_paid: totals.paid_amount,
-      remaining_amount: totals.remaining_amount,
-      payment_method: form.payment_method,
-      notes: form.notes,
-      request_id: operationId,
-      operation_id: operationId,
-    },
-    items: cart.map((item) => ({
-      product_id: item.product_id,
-      product_code: item.product_code,
-      product_name: item.product_name,
-      name: item.product_name,
-      qty: item.qty,
-      quantity: item.qty,
-      unit: "pcs",
-      unit_price: item.unit_price,
-      price: item.unit_price,
-      line_total: item.line_total,
-    })),
+    client_request_id: operationId,
+    idempotency_key: operationId,
+    source: "frontend_part_4p_kasir_order_hardening",
+    location_id: locationId,
+    order_date: form.order_date,
+    customer_id: form.customer_id,
+    customer_name: customerName,
+    grand_total: totals.grand_total,
+    paid_amount: totals.paid_amount,
+    remaining_amount: totals.remaining_amount,
+    payment_status: totals.payment_status,
+    payment_method: paymentMethod,
+    order,
+    items,
     payment_breakdown:
       totals.paid_amount > 0
         ? [
             {
-              method: form.payment_method || "CASH",
-              payment_method: form.payment_method || "CASH",
+              method: paymentMethod || "CASH",
+              payment_method: paymentMethod || "CASH",
               amount: totals.paid_amount,
+              request_id: operationId,
             },
           ]
         : [],
@@ -254,6 +289,7 @@ export default function OrderPage({ session, onSessionExpired }) {
   const [submitting, setSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [requestId, setRequestId] = useState(() => generateRequestId(session));
 
   const products = useMemo(() => {
     return asArray(bootstrap?.products).map(normalizeProduct).filter((item) => item.id);
@@ -273,7 +309,7 @@ export default function OrderPage({ session, onSessionExpired }) {
 
   const summary = useMemo(() => buildSummary(bootstrap), [bootstrap]);
   const totals = useMemo(() => buildCartTotals(cart, form.paid_amount), [cart, form.paid_amount]);
-  const livePayload = useMemo(() => buildOrderPayload({ form, cart, totals, session }), [form, cart, totals, session]);
+  const livePayload = useMemo(() => buildOrderPayload({ form, cart, totals, session, requestId }), [form, cart, totals, session, requestId]);
 
   const selectedProduct = products.find((item) => item.id === form.product_id);
 
@@ -282,26 +318,43 @@ export default function OrderPage({ session, onSessionExpired }) {
     if (!form.order_date) errors.push("Tanggal order wajib diisi.");
     if (!form.customer_id && !String(form.customer_name || "").trim()) errors.push("Nama customer wajib diisi.");
     if (cart.length === 0) errors.push("Keranjang masih kosong.");
+    if (totals.grand_total <= 0) errors.push("Total order harus lebih dari Rp0.");
     if (totals.paid_amount > totals.grand_total) errors.push("Uang dibayar tidak boleh lebih besar dari total tagihan.");
     if (totals.paid_amount > 0 && !form.payment_method) errors.push("Metode pembayaran wajib dipilih kalau ada uang masuk.");
 
+    const qtyByProduct = {};
+    const stockByProduct = {};
+
     cart.forEach((item, index) => {
-      if (numberValue(item.qty) <= 0) errors.push(`Qty item ke-${index + 1} harus lebih dari 0.`);
-      if (numberValue(item.unit_price) <= 0) errors.push(`Harga item ke-${index + 1} harus lebih dari 0.`);
-      if (numberValue(item.stock_pcs) > 0 && numberValue(item.qty) > numberValue(item.stock_pcs)) {
-        errors.push(`Qty ${item.product_name} melebihi stok ready.`);
+      const qty = numberValue(item.qty);
+      const unitPrice = numberValue(item.unit_price);
+      const productKey = item.product_id || item.product_code || item.product_name || `item-${index}`;
+
+      if (qty <= 0) errors.push(`Qty item ke-${index + 1} harus lebih dari 0.`);
+      if (unitPrice <= 0) errors.push(`Harga item ke-${index + 1} harus lebih dari 0.`);
+
+      qtyByProduct[productKey] = (qtyByProduct[productKey] || 0) + qty;
+      stockByProduct[productKey] = Math.max(stockByProduct[productKey] || 0, numberValue(item.stock_pcs));
+    });
+
+    Object.keys(qtyByProduct).forEach((productKey) => {
+      const stock = stockByProduct[productKey] || 0;
+      if (stock > 0 && qtyByProduct[productKey] > stock) {
+        const productName = cart.find((item) => (item.product_id || item.product_code || item.product_name) === productKey)?.product_name || productKey;
+        errors.push(`Total qty ${productName} melebihi stok ready.`);
       }
     });
 
     return errors;
   }, [form, cart, totals]);
 
+
   const loadData = async () => {
     setLoading(true);
     setError("");
 
     const result = await getOrderBootstrap(session?.sessionToken, {
-      source: "frontend_part_4a_kasir_order_live_foundation",
+      source: "frontend_part_4p_kasir_order_hardening",
     });
 
     if (!result.success) {
@@ -372,26 +425,50 @@ export default function OrderPage({ session, onSessionExpired }) {
       return;
     }
 
-    if (product.stock_pcs > 0 && qty > product.stock_pcs) {
+    const existingQty = cart
+      .filter((item) => item.product_id === product.id)
+      .reduce((total, item) => total + numberValue(item.qty), 0);
+
+    if (product.stock_pcs > 0 && existingQty + qty > product.stock_pcs) {
       setSubmitResult({
         success: false,
-        message: "Qty melebihi stok ready produk ini.",
+        message: `Qty melebihi stok ready. Stok ${product.name}: ${product.stock_pcs.toLocaleString("id-ID")} pcs, sudah di keranjang ${existingQty.toLocaleString("id-ID")} pcs.`,
       });
       return;
     }
 
-    const item = {
-      cart_id: `${product.id}-${Date.now()}`,
-      product_id: product.id,
-      product_code: product.code,
-      product_name: product.name,
-      qty,
-      unit_price: unitPrice,
-      line_total: qty * unitPrice,
-      stock_pcs: product.stock_pcs,
-    };
+    const cartKey = `${product.id}-${unitPrice}`;
 
-    setCart((current) => [...current, item]);
+    setCart((current) => {
+      const existing = current.find((item) => item.cart_key === cartKey);
+      if (existing) {
+        return current.map((item) => {
+          if (item.cart_key !== cartKey) return item;
+          const nextQty = numberValue(item.qty) + qty;
+          return {
+            ...item,
+            qty: nextQty,
+            line_total: nextQty * unitPrice,
+          };
+        });
+      }
+
+      return [
+        ...current,
+        {
+          cart_id: `${product.id}-${Date.now()}`,
+          cart_key: cartKey,
+          product_id: product.id,
+          product_code: product.code,
+          product_name: product.name,
+          qty,
+          unit_price: unitPrice,
+          line_total: qty * unitPrice,
+          stock_pcs: product.stock_pcs,
+        },
+      ];
+    });
+
     setForm((current) => ({
       ...current,
       product_id: "",
@@ -399,6 +476,7 @@ export default function OrderPage({ session, onSessionExpired }) {
       unit_price: "",
     }));
   };
+
 
   const handleRemoveItem = (cartId) => {
     setCart((current) => current.filter((item) => item.cart_id !== cartId));
@@ -419,6 +497,7 @@ export default function OrderPage({ session, onSessionExpired }) {
     setShowValidationErrors(false);
     setConfirmOpen(false);
     setSubmitResult(null);
+    setRequestId(generateRequestId(session));
   };
 
   const handleLiveSubmit = async () => {
@@ -455,6 +534,7 @@ export default function OrderPage({ session, onSessionExpired }) {
     setForm(initialForm);
     setCart([]);
     setShowValidationErrors(false);
+    setRequestId(generateRequestId(session));
     await loadData();
   };
 
@@ -527,7 +607,7 @@ export default function OrderPage({ session, onSessionExpired }) {
     <div>
       <PageHeader
         title="Kasir / Order"
-        description="Input order dari stok ready. Uang masuk aktual akan masuk dompet, dan sisa belum bayar menjadi piutang."
+        description="Input order dari stok ready dengan validasi stok, anti-double-submit, invoice, payment, piutang, dan stok keluar yang saling tersambung."
         badge="Live Submit"
       />
 
@@ -536,7 +616,7 @@ export default function OrderPage({ session, onSessionExpired }) {
           <div className="da-dashboard-banner-kicker">Penjualan</div>
           <div className="da-dashboard-banner-title">Stok Jadi → Order → Invoice → Uang Masuk</div>
           <div className="da-dashboard-banner-desc">
-            Halaman ini untuk jual barang dari stok ready hari ini. PO karantina/stok tahan akan masuk tahap Antrian PO.
+            Halaman ini khusus jual stok ready. Sistem memblok order kosong, qty lebih dari stok, dan request ganda supaya tidak ada order 0 pcs/Rp0.
           </div>
         </div>
 
@@ -614,7 +694,7 @@ export default function OrderPage({ session, onSessionExpired }) {
               Tambahkan produk ke keranjang, isi pembayaran aktual, lalu simpan. Sistem akan membuat Order, Invoice, Uang Masuk/Piutang, dan stok keluar.
             </p>
           </div>
-          <Badge tone="danger">Live Transaction</Badge>
+          <Badge tone="danger">Live + Anti Dobel</Badge>
         </div>
 
         <form onSubmit={handlePreviewSubmit}>
@@ -867,7 +947,8 @@ export default function OrderPage({ session, onSessionExpired }) {
 
         <div className="da-payload-preview">
           <div className="da-mini-title">Payload Live</div>
-          <PayloadRow label="Action" value="legacyCreateOrderFromOldPos" />
+          <PayloadRow label="Action" value="legacyCreateOrderHardenedFromOldPos" />
+          <PayloadRow label="request_id" value={livePayload.request_id} />
           <PayloadRow label="customer_name" value={livePayload.order.customer_name} />
           <PayloadRow label="grand_total" value={formatRupiah(livePayload.order.grand_total)} />
           <PayloadRow label="paid_amount" value={formatRupiah(livePayload.order.paid_amount)} />
@@ -876,7 +957,7 @@ export default function OrderPage({ session, onSessionExpired }) {
         </div>
 
         <div className="da-modal-note" style={{ marginTop: 14 }}>
-          Setelah disimpan, backend akan membuat Order, Invoice, stok keluar, Payment/Wallet Mutation jika ada uang masuk, atau Piutang jika belum lunas.
+          Setelah disimpan, backend hardening akan validasi request_id, cart, stok ready, lalu membuat Order, Invoice, stok keluar, Payment/Wallet Mutation jika ada uang masuk, atau Piutang jika belum lunas.
         </div>
 
         {submitResult && !submitResult.success ? (
