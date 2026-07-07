@@ -10,6 +10,7 @@ import PapanPusatPage from "./modules/owner/PapanPusatPage";
 import OwnerControlPage from "./modules/owner/OwnerControlPage";
 import ArchiveDigitalPage from "./modules/archive/ArchiveDigitalPage";
 import DropAyamPage from "./modules/chicken/DropAyamPage";
+import StokAyamPage from "./modules/chicken/StokAyamPage";
 import AdukanPage from "./modules/production/AdukanPage";
 import FreezerInPage from "./modules/stock/FreezerInPage";
 import FinishedStockPage from "./modules/stock/FinishedStockPage";
@@ -100,6 +101,15 @@ export default function App() {
     if (activePage === "drop-ayam") {
       return (
         <DropAyamPage
+          session={session}
+          onSessionExpired={handleSessionExpired}
+        />
+      );
+    }
+
+    if (activePage === "stok-ayam") {
+      return (
+        <StokAyamPage
           session={session}
           onSessionExpired={handleSessionExpired}
         />
