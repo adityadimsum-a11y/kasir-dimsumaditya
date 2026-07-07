@@ -19,6 +19,7 @@ import KasDompetPage from "./modules/finance/KasDompetPage";
 import BelanjaKasKeluarPage from "./modules/finance/BelanjaKasKeluarPage";
 import HutangNanaPage from "./modules/finance/HutangNanaPage";
 import EmpatAmplopPage from "./modules/finance/EmpatAmplopPage";
+import LaporanHarianPage from "./modules/branch/LaporanHarianPage";
 
 export default function App() {
   const [session, setSession] = useState(() => getSavedSession());
@@ -176,6 +177,15 @@ export default function App() {
     if (activePage === "empat-amplop") {
       return (
         <EmpatAmplopPage
+          session={session}
+          onSessionExpired={handleSessionExpired}
+        />
+      );
+    }
+
+    if (activePage === "laporan-harian") {
+      return (
+        <LaporanHarianPage
           session={session}
           onSessionExpired={handleSessionExpired}
         />
