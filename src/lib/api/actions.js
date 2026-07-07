@@ -195,6 +195,10 @@ export async function getKasDompetBootstrap(sessionToken, payload = {}) {
   return apiRequest("getLegacyWalletBootstrap", payload, sessionToken);
 }
 
+export async function getKasDompetMutationDetail(sessionToken, payload = {}) {
+  return apiRequest("getLegacyWalletMutationDetail", payload, sessionToken);
+}
+
 export async function getKasKeluarBootstrap(sessionToken, payload = {}) {
   return apiRequest("getLegacyCashExpenseBootstrap", payload, sessionToken);
 }
