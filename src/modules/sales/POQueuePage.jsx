@@ -334,18 +334,18 @@ export default function POQueuePage({ session, onSessionExpired }) {
     <>
       <PageHeader
         eyebrow="DIMSUM ADITYA"
-        title="Antrian PO"
-        description="Catat PO harian/besar, tahan stok ready jika tersedia, dan tampilkan kekurangan produksi tanpa mencampur dengan kasir biasa."
+        title="Antrian PO Customer"
+        description="Catat PO customer, PO besar, atau PO karantina. Request Barang Cabang dipisah nanti ke modul DO / Request Barang supaya tidak bercampur dengan invoice dan uang masuk."
         badge="Live Reserve"
       />
 
       <Card>
         <div className="da-card-header-inline">
           <div>
-            <div className="da-section-eyebrow">PO & STOK DITAHAN</div>
-            <h2 className="da-section-title">Order Dulu → Tahan Stok → Siap Kirim</h2>
+            <div className="da-section-eyebrow">PO CUSTOMER & STOK DITAHAN</div>
+            <h2 className="da-section-title">Customer Pesan → Tahan Stok → Siap Kirim</h2>
             <p className="da-section-desc">
-              PO tidak membuat uang masuk dan tidak membuat invoice otomatis. PO hanya mencatat kebutuhan customer dan memisahkan stok bebas dengan stok ditahan.
+              Halaman ini khusus pesanan customer. PO tidak membuat uang masuk dan tidak membuat invoice otomatis. Request Barang Cabang nanti lewat DO / Request Barang, bukan dari sini.
             </p>
           </div>
           <div className="da-header-actions">
@@ -410,8 +410,8 @@ export default function POQueuePage({ session, onSessionExpired }) {
         <div className="da-card-header-inline">
           <div>
             <div className="da-section-eyebrow">INPUT LIVE</div>
-            <h2 className="da-section-title">Tambah PO / Stok Ditahan</h2>
-            <p className="da-section-desc">Simpan PO akan membuat catatan PO. Jika stok bebas tersedia, sistem membuat alokasi stok ditahan.</p>
+            <h2 className="da-section-title">Tambah PO Customer / Stok Ditahan</h2>
+            <p className="da-section-desc">Simpan PO customer akan membuat catatan PO. Jika stok bebas tersedia, sistem membuat alokasi stok ditahan. Permintaan barang cabang dipisah ke modul DO / Request Barang.</p>
           </div>
           <Badge tone="warning">Reserve Stok</Badge>
         </div>
@@ -426,12 +426,12 @@ export default function POQueuePage({ session, onSessionExpired }) {
             <input type="date" value={draft.target_date} onChange={(event) => setDraft((current) => ({ ...current, target_date: event.target.value }))} />
           </label>
           <label className="da-form-field">
-            <span>Tipe PO</span>
+            <span>Tipe PO Customer</span>
             <select value={draft.po_type} onChange={(event) => setDraft((current) => ({ ...current, po_type: event.target.value }))}>
               <option>PO Harian</option>
               <option>PO Besar</option>
               <option>PO Karantina</option>
-              <option>PO Cabang</option>
+              <option>PO Future / Perlu Produksi</option>
             </select>
           </label>
           <label className="da-form-field">
@@ -495,8 +495,8 @@ export default function POQueuePage({ session, onSessionExpired }) {
       <Card>
         <div className="da-card-header-inline">
           <div>
-            <div className="da-section-eyebrow">ANTRIAN PO</div>
-            <h2 className="da-section-title">PO yang Tercatat</h2>
+            <div className="da-section-eyebrow">ANTRIAN PO CUSTOMER</div>
+            <h2 className="da-section-title">PO Customer yang Tercatat</h2>
             <p className="da-section-desc">Klik baris untuk melihat stok yang ditahan, shortage, dan rantai ID.</p>
           </div>
           <Badge tone="warning">Karantina / Reserved</Badge>
@@ -529,7 +529,7 @@ export default function POQueuePage({ session, onSessionExpired }) {
             </div>
 
             <div className="da-alert-note">
-              Rantai ini harus bisa ditelusuri: PO → Stok Allocation → Stok Jadi → Produksi/Freezer → Order/Kasir nanti.
+              Rantai ini harus bisa ditelusuri: PO Customer → Stok Allocation → Stok Jadi → Produksi/Freezer → Order/Kasir nanti. Request Barang Cabang dipisah ke DO / Request Barang.
             </div>
 
             <div>
