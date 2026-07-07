@@ -15,6 +15,7 @@ import OrderPage from "./modules/sales/OrderPage";
 import UangMasukPage from "./modules/finance/UangMasukPage";
 import KasDompetPage from "./modules/finance/KasDompetPage";
 import BelanjaKasKeluarPage from "./modules/finance/BelanjaKasKeluarPage";
+import HutangNanaPage from "./modules/finance/HutangNanaPage";
 
 export default function App() {
   const [session, setSession] = useState(() => getSavedSession());
@@ -135,6 +136,15 @@ export default function App() {
     if (activePage === "kas-keluar") {
       return (
         <BelanjaKasKeluarPage
+          session={session}
+          onSessionExpired={handleSessionExpired}
+        />
+      );
+    }
+
+    if (activePage === "hutang-nana") {
+      return (
+        <HutangNanaPage
           session={session}
           onSessionExpired={handleSessionExpired}
         />
