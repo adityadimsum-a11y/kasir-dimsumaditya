@@ -95,6 +95,20 @@ function normalizeMutation(row) {
   };
 }
 
+function isRealNormalizedMutation(row) {
+  const mutationId = String(row?.mutation_id || "").trim();
+  const sourceId = String(row?.source_id || "").trim();
+  const amount = numberValue(row?.amount);
+  const wallet = String(row?.wallet_id || row?.wallet_name || "").trim();
+  const date = String(row?.date || row?.created_at || "").trim();
+  const note = String(row?.description || "").trim();
+
+  if (!mutationId && !sourceId) return false;
+  if (amount <= 0) return false;
+  if (!wallet && !date && !note) return false;
+  return true;
+}
+
 function buildSummary(data) {
   const summary = data?.summary || {};
   return {
@@ -176,7 +190,7 @@ export default function KasDompetPage({ session, onSessionExpired }) {
   const summary = useMemo(() => buildSummary(bootstrap), [bootstrap]);
 
   const wallets = useMemo(() => asArray(bootstrap?.wallets).map(normalizeWallet), [bootstrap]);
-  const mutations = useMemo(() => asArray(bootstrap?.wallet_mutations).map(normalizeMutation), [bootstrap]);
+  const mutations = useMemo(() => asArray(bootstrap?.wallet_mutations).map(normalizeMutation).filter(isRealNormalizedMutation), [bootstrap]);
   const filteredMutations = useMemo(() => filterMutations(mutations, activeTab, selectedWalletId), [mutations, activeTab, selectedWalletId]);
 
   const needSourceCount = useMemo(() => mutations.filter((row) => !row.source_id).length, [mutations]);
