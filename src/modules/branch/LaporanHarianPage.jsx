@@ -87,6 +87,10 @@ function normalizeBootstrap(payload) {
   return {
     summary: {
       report_date: summary.report_date || data.report_date || "",
+      date_start: summary.date_start || data.date_start || summary.report_date || data.report_date || "",
+      date_end: summary.date_end || data.date_end || summary.report_date || data.report_date || "",
+      period_label: summary.period_label || data.period_label || summary.report_date || data.report_date || "",
+      is_period: Boolean(summary.is_period || data.is_period),
       location_code: summary.location_code || data.location_code || "",
       location_name: summary.location_name || data.location_name || "",
       total_cash_in: numberValue(summary.total_cash_in || 0),
@@ -137,9 +141,15 @@ const DETAIL_COLUMNS = [
 export default function LaporanHarianPage({ session, onSessionExpired }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [filter, setFilter] = useState({
-    report_date: todayInputValue(),
-    location_code: session?.user?.location_code || session?.user?.location_id || "TGR",
+  const [filter, setFilter] = useState(() => {
+    const today = todayInputValue();
+    return {
+      report_mode: "daily",
+      report_date: today,
+      date_start: today,
+      date_end: today,
+      location_code: session?.user?.location_code || session?.user?.location_id || "TGR",
+    };
   });
   const [bootstrap, setBootstrap] = useState(() => normalizeBootstrap({}));
   const [activeCategory, setActiveCategory] = useState(null);
@@ -155,7 +165,13 @@ export default function LaporanHarianPage({ session, onSessionExpired }) {
     setError("");
 
     try {
-      const result = await getDailyReportBootstrap(sessionToken, filter);
+      const requestPayload = {
+        ...filter,
+        report_date: filter.report_mode === "period" ? filter.date_start : filter.report_date,
+        date_start: filter.report_mode === "period" ? filter.date_start : filter.report_date,
+        date_end: filter.report_mode === "period" ? filter.date_end : filter.report_date,
+      };
+      const result = await getDailyReportBootstrap(sessionToken, requestPayload);
 
       if (isAuthRequired(result)) {
         onSessionExpired?.();
@@ -186,7 +202,7 @@ export default function LaporanHarianPage({ session, onSessionExpired }) {
     <div className="da-page-stack">
       <PageHeader
         title="Laporan Harian"
-        description="Tarik transaksi hari ini dari order, uang masuk, kas keluar, piutang, hutang, produksi, dan stok. Admin tidak perlu input ulang detail transaksi."
+        description="Tarik transaksi harian atau periode dari order, uang masuk, kas keluar, piutang, hutang, produksi, dan stok. Admin tidak perlu input ulang detail transaksi."
         badge="Auto Pull"
       />
 
@@ -194,9 +210,9 @@ export default function LaporanHarianPage({ session, onSessionExpired }) {
         <div className="da-card-header-row">
           <div>
             <div className="da-section-kicker">Laporan Cabang</div>
-            <h2>Tarik Transaksi Hari Ini</h2>
+            <h2>Tarik Transaksi Harian / Periode</h2>
             <p className="da-muted">
-              Gerbang 1 menampilkan ringkasan. Klik kategori untuk membuka Gerbang 2 berisi baris transaksi sumber.
+              Pilih tanggal harian atau rentang periode. Gerbang 1 menampilkan ringkasan, Gerbang 2 membuka baris transaksi sumber.
             </p>
           </div>
           <div className="da-card-actions">
@@ -209,11 +225,18 @@ export default function LaporanHarianPage({ session, onSessionExpired }) {
 
         <div className="da-detail-grid" style={{ marginTop: 16 }}>
           <label className="da-detail-box">
-            <strong>Tanggal Laporan</strong>
-            <input
-              type="date"
-              value={filter.report_date}
-              onChange={(event) => setFilter((current) => ({ ...current, report_date: event.target.value }))}
+            <strong>Mode Laporan</strong>
+            <select
+              value={filter.report_mode}
+              onChange={(event) => {
+                const mode = event.target.value;
+                setFilter((current) => ({
+                  ...current,
+                  report_mode: mode,
+                  date_start: current.date_start || current.report_date,
+                  date_end: mode === "period" ? (current.date_end || current.report_date) : current.report_date,
+                }));
+              }}
               style={{
                 width: "100%",
                 marginTop: 10,
@@ -222,8 +245,66 @@ export default function LaporanHarianPage({ session, onSessionExpired }) {
                 padding: "10px 12px",
                 fontWeight: 800,
               }}
-            />
+            >
+              <option value="daily">Harian / 1 Tanggal</option>
+              <option value="period">Periode / Rentang Tanggal</option>
+            </select>
+            <p>{filter.report_mode === "period" ? "Cocok untuk cek beberapa hari sekaligus." : "Cocok untuk closing harian cabang."}</p>
           </label>
+
+          {filter.report_mode === "period" ? (
+            <>
+              <label className="da-detail-box">
+                <strong>Tanggal Mulai</strong>
+                <input
+                  type="date"
+                  value={filter.date_start}
+                  onChange={(event) => setFilter((current) => ({ ...current, date_start: event.target.value }))}
+                  style={{
+                    width: "100%",
+                    marginTop: 10,
+                    border: "1px solid var(--da-color-border)",
+                    borderRadius: 12,
+                    padding: "10px 12px",
+                    fontWeight: 800,
+                  }}
+                />
+              </label>
+              <label className="da-detail-box">
+                <strong>Tanggal Sampai</strong>
+                <input
+                  type="date"
+                  value={filter.date_end}
+                  onChange={(event) => setFilter((current) => ({ ...current, date_end: event.target.value }))}
+                  style={{
+                    width: "100%",
+                    marginTop: 10,
+                    border: "1px solid var(--da-color-border)",
+                    borderRadius: 12,
+                    padding: "10px 12px",
+                    fontWeight: 800,
+                  }}
+                />
+              </label>
+            </>
+          ) : (
+            <label className="da-detail-box">
+              <strong>Tanggal Laporan</strong>
+              <input
+                type="date"
+                value={filter.report_date}
+                onChange={(event) => setFilter((current) => ({ ...current, report_date: event.target.value, date_start: event.target.value, date_end: event.target.value }))}
+                style={{
+                  width: "100%",
+                  marginTop: 10,
+                  border: "1px solid var(--da-color-border)",
+                  borderRadius: 12,
+                  padding: "10px 12px",
+                  fontWeight: 800,
+                }}
+              />
+            </label>
+          )}
 
           <label className="da-detail-box">
             <strong>Lokasi / Cabang</strong>
@@ -247,7 +328,7 @@ export default function LaporanHarianPage({ session, onSessionExpired }) {
 
         <div className="da-form-actions">
           <Button variant="primary" onClick={loadData} disabled={loading}>
-            {loading ? "Menarik Transaksi..." : "Tarik Transaksi Hari Ini"}
+            {loading ? "Menarik Transaksi..." : filter.report_mode === "period" ? "Tarik Transaksi Periode" : "Tarik Transaksi Hari Ini"}
           </Button>
         </div>
 
@@ -295,7 +376,7 @@ export default function LaporanHarianPage({ session, onSessionExpired }) {
         <div className="da-card-header-row">
           <div>
             <div className="da-section-kicker">Gerbang 1</div>
-            <h2>Ringkasan Kategori Harian</h2>
+            <h2>Ringkasan Kategori Harian / Periode</h2>
             <p className="da-muted">Klik kartu untuk melihat transaksi pendukung per kategori.</p>
           </div>
           <Badge tone="warning">Read Only</Badge>
@@ -341,7 +422,7 @@ export default function LaporanHarianPage({ session, onSessionExpired }) {
         <div className="da-card-header-row">
           <div>
             <div className="da-section-kicker">Gerbang 2 Cepat</div>
-            <h2>Transaksi Terbaru Hari Ini</h2>
+            <h2>Transaksi Terbaru dari Filter Ini</h2>
             <p className="da-muted">Baris ini hanya ringkasan. Detail lengkap tetap lewat Arsip Digital/ID transaksi.</p>
           </div>
           <Badge tone="success">Live Data</Badge>
