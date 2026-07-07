@@ -284,6 +284,18 @@ export async function rebuildArchiveIndex(sessionToken, payload = {}) {
   return apiRequest("rebuildArchiveIndex", payload, sessionToken);
 }
 
+/**
+ * ARSIP DIGITAL UNIVERSAL / DETAIL ID CLICKABLE
+ */
+
+export async function getArchiveUniversalBootstrap(sessionToken, payload = {}) {
+  return apiRequest("getLegacyArchiveUniversalBootstrap", payload, sessionToken);
+}
+
+export async function getArchiveUniversalDetail(sessionToken, payload = {}) {
+  return apiRequest("getLegacyArchiveUniversalDetail", payload, sessionToken);
+}
+
 
 /**
  * OWNER CONTROL / BENANG MERAH
