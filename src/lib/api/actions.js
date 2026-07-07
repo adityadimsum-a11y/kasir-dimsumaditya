@@ -264,6 +264,15 @@ export async function rejectBranchDeposit(sessionToken, payload = {}) {
   return apiRequest("rejectBranchDeposit", payload, sessionToken);
 }
 
+
+/**
+ * LAPORAN HARIAN / SETORAN CABANG
+ */
+
+export async function getDailyReportBootstrap(sessionToken, payload = {}) {
+  return apiRequest("getLegacyDailyReportBootstrap", payload, sessionToken);
+}
+
 /**
  * ARSIP DIGITAL
  */
