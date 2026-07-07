@@ -273,6 +273,28 @@ export async function getDailyReportBootstrap(sessionToken, payload = {}) {
   return apiRequest("getLegacyDailyReportBootstrap", payload, sessionToken);
 }
 
+
+
+/**
+ * SETORAN CABANG AUTO PULL
+ */
+
+export async function getSetoranCabangBootstrap(sessionToken, payload = {}) {
+  return apiRequest("getLegacyBranchDepositBootstrap", payload, sessionToken);
+}
+
+export async function createSetoranCabang(sessionToken, payload = {}) {
+  return apiRequest("legacyCreateBranchDepositFromDailyReport", payload, sessionToken);
+}
+
+export async function approveSetoranCabang(sessionToken, payload = {}) {
+  return apiRequest("legacyApproveBranchDeposit", payload, sessionToken);
+}
+
+export async function rejectSetoranCabang(sessionToken, payload = {}) {
+  return apiRequest("legacyRejectBranchDeposit", payload, sessionToken);
+}
+
 /**
  * ARSIP DIGITAL
  */
