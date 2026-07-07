@@ -284,6 +284,15 @@ export async function rebuildArchiveIndex(sessionToken, payload = {}) {
   return apiRequest("rebuildArchiveIndex", payload, sessionToken);
 }
 
+
+/**
+ * OWNER CONTROL / BENANG MERAH
+ */
+
+export async function getOwnerControlBootstrap(sessionToken, payload = {}) {
+  return apiRequest("getLegacyOwnerControlBootstrap", payload, sessionToken);
+}
+
 export { getConfiguredApiUrl };
 
 /**
