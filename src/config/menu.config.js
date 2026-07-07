@@ -117,6 +117,11 @@ export const MENU_GROUPS = [
         label: "Setoran Cabang",
         description: "Setoran, validasi, approval, dan bukti uang.",
       },
+      {
+        key: "request-do",
+        label: "Request & DO",
+        description: "Permintaan barang cabang, approval pusat, kirim, dan terima barang.",
+      },
     ],
   },
   {
