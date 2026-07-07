@@ -26,6 +26,36 @@ function safeText(value, fallback = "-") {
   return text || fallback;
 }
 
+function looksLikeFallbackId(value) {
+  return /^Tab[A-Za-z0-9_]+-ROW-\d+$/i.test(String(value || "").trim());
+}
+
+function isRealPayable(row) {
+  const id = String(row?.payable_id || row?.payable_no || "").trim();
+  const amount = numberValue(row?.original_amount || row?.remaining_amount || row?.paid_amount || 0);
+  return Boolean(id) && !looksLikeFallbackId(id) && amount > 0;
+}
+
+function isRealPayment(row) {
+  const id = String(row?.payable_payment_id || row?.payable_payment_no || "").trim();
+  const amount = numberValue(row?.amount || 0);
+  return Boolean(id) && !looksLikeFallbackId(id) && amount > 0;
+}
+
+function isRealWalletMutation(row) {
+  const id = String(row?.mutation_id || "").trim();
+  const amount = numberValue(row?.amount || 0);
+  return Boolean(id) && !looksLikeFallbackId(id) && amount > 0;
+}
+
+function hasPaymentMutation(payment) {
+  return Boolean(String(payment?.wallet_mutation_id || payment?.mutation_id || "").trim());
+}
+
+function createOperationId() {
+  return `HUTNANA-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 function todayInputValue() {
   const date = new Date();
   const year = date.getFullYear();
@@ -169,10 +199,10 @@ export default function HutangNanaPage({ session, onSessionExpired }) {
     notes: "",
   });
 
-  const payables = useMemo(() => asArray(bootstrap?.payables).map(normalizePayable), [bootstrap]);
-  const payments = useMemo(() => asArray(bootstrap?.payments || bootstrap?.payable_payments).map(normalizePayment), [bootstrap]);
-  const wallets = useMemo(() => asArray(bootstrap?.wallets).map(normalizeWallet), [bootstrap]);
-  const walletMutations = useMemo(() => asArray(bootstrap?.wallet_mutations).map(normalizeMutation), [bootstrap]);
+  const payables = useMemo(() => asArray(bootstrap?.payables).map(normalizePayable).filter(isRealPayable), [bootstrap]);
+  const payments = useMemo(() => asArray(bootstrap?.payments || bootstrap?.payable_payments).map(normalizePayment).filter(isRealPayment), [bootstrap]);
+  const wallets = useMemo(() => asArray(bootstrap?.wallets).map(normalizeWallet).filter((wallet) => Boolean(wallet.wallet_id)), [bootstrap]);
+  const walletMutations = useMemo(() => asArray(bootstrap?.wallet_mutations).map(normalizeMutation).filter(isRealWalletMutation), [bootstrap]);
   const summary = useMemo(() => {
     const fromBackend = bootstrap?.summary || {};
     const computed = buildSummary(payables, payments);
@@ -185,6 +215,8 @@ export default function HutangNanaPage({ session, onSessionExpired }) {
       open_count: numberValue(fromBackend.open_count ?? computed.open_count),
       payment_count: numberValue(fromBackend.payment_count ?? computed.payment_count),
       payable_count: numberValue(fromBackend.payable_count ?? computed.payable_count),
+      hidden_rows: numberValue(fromBackend.hidden_rows || fromBackend.hiddenRows || 0),
+      needs_mutation_count: payments.filter((payment) => !hasPaymentMutation(payment)).length,
     };
   }, [bootstrap, payables, payments]);
 
@@ -192,8 +224,11 @@ export default function HutangNanaPage({ session, onSessionExpired }) {
   const visiblePayables = useMemo(() => {
     if (activeFilter === "paid") return payables.filter((row) => numberValue(row.remaining_amount) <= 0);
     if (activeFilter === "partial") return payables.filter((row) => numberValue(row.paid_amount) > 0 && numberValue(row.remaining_amount) > 0);
+    if (activeFilter === "needs_mutation") {
+      return payables.filter((row) => payments.some((payment) => payment.payable_id === row.payable_id && !hasPaymentMutation(payment)));
+    }
     return openPayables;
-  }, [activeFilter, payables, openPayables]);
+  }, [activeFilter, payables, payments, openPayables]);
 
   const chosenPayable = useMemo(() => {
     return payables.find((row) => row.payable_id === form.payable_id) || null;
@@ -292,6 +327,7 @@ export default function HutangNanaPage({ session, onSessionExpired }) {
       payment_method: form.payment_method,
       notes: form.notes || `Bayar Hutang Nana ${chosenPayable.payable_no}`,
       vendor_name: chosenPayable.vendor_name,
+      operation_id: createOperationId(),
     });
     setSaving(false);
 
@@ -340,6 +376,11 @@ export default function HutangNanaPage({ session, onSessionExpired }) {
 
       {error ? <div className="da-form-warning">{error}</div> : null}
       {success ? <div className="da-form-success">{success}</div> : null}
+      {summary.hidden_rows > 0 ? (
+        <div className="da-form-warning">
+          {summary.hidden_rows} baris kosong/formatting disembunyikan supaya Hutang Nana tidak menampilkan angka yatim.
+        </div>
+      ) : null}
 
       <div className="da-grid da-grid-3" style={{ marginBottom: 16 }}>
         <StatCard
@@ -355,10 +396,10 @@ export default function HutangNanaPage({ session, onSessionExpired }) {
           tone="primary"
         />
         <StatCard
-          label="Nota Terbuka"
-          value={loading ? "..." : summary.open_count}
-          description="Jumlah nota/hutang yang masih perlu dibayar."
-          tone="warning"
+          label="Pembayaran Perlu Mutasi"
+          value={loading ? "..." : summary.needs_mutation_count}
+          description="Bayar hutang nyata yang belum punya mutasi dompet."
+          tone={summary.needs_mutation_count > 0 ? "warning" : "success"}
         />
       </div>
 
@@ -500,6 +541,7 @@ export default function HutangNanaPage({ session, onSessionExpired }) {
               ["open", "Belum Lunas"],
               ["partial", "Partial"],
               ["paid", "Lunas"],
+              ["needs_mutation", "Perlu Mutasi"],
             ].map(([key, label]) => (
               <Button
                 key={key}
@@ -603,7 +645,7 @@ export default function HutangNanaPage({ session, onSessionExpired }) {
                   { key: "wallet_name", label: "Dompet", render: (row) => safeText(row.wallet_name || row.wallet_id) },
                   { key: "amount", label: "Nominal", render: (row) => formatRupiah(row.amount) },
                   { key: "payment_method", label: "Metode", render: (row) => row.payment_method },
-                  { key: "status", label: "Status", render: (row) => <Badge tone="success">{row.status}</Badge> },
+                  { key: "status", label: "Status", render: (row) => <Badge tone={hasPaymentMutation(row) ? "success" : "warning"}>{hasPaymentMutation(row) ? row.status : "Perlu Mutasi"}</Badge> },
                 ]}
               />
             </div>
