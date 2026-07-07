@@ -92,10 +92,10 @@ function buildChain(summary) {
       status: `${formatNumber(summary?.chicken?.drops_count || 0)} nota`,
     },
     {
-      title: "Lot Ayam Aktif",
+      title: "Stok Ayam / Lot",
       value: formatNumber(summary?.chicken?.remaining_kg || 0, "kg"),
-      description: "Sisa ayam harus turun saat produksi/adukan diposting.",
-      status: `${formatNumber(summary?.chicken?.active_lots_count || 0)} lot`,
+      description: `${formatNumber(summary?.chicken?.used_kg || 0, "kg")} sudah dipakai produksi.`,
+      status: `${formatNumber(summary?.chicken?.active_lots_count || 0)} lot aktif`,
     },
     {
       title: "Produksi / Adukan",
@@ -104,10 +104,16 @@ function buildChain(summary) {
       status: `${formatNumber(summary?.production?.batches_count || 0)} batch`,
     },
     {
-      title: "Stok Jadi",
+      title: "Stok Jadi Ready",
       value: formatNumber(summary?.stock?.ready_pcs || 0, "pcs"),
-      description: "Barang siap jual dari gerak stok masuk-keluar.",
+      description: "Barang siap jual dari gerak stok produk jadi, bukan kg ayam mentah.",
       status: formatRupiah(summary?.stock?.stock_value || 0),
+    },
+    {
+      title: "PO Customer",
+      value: formatNumber(summary?.po?.po_qty || 0, "pcs"),
+      description: "PO hanya menahan stok/kebutuhan. Bukan uang masuk dan bukan invoice.",
+      status: `${formatNumber(summary?.po?.shortage_qty || 0, "pcs")} kurang`,
     },
     {
       title: "Kasir / Order",
@@ -122,6 +128,12 @@ function buildChain(summary) {
       status: `${formatNumber(summary?.wallet?.mutation_count || 0)} mutasi`,
     },
     {
+      title: "Setoran Cabang",
+      value: formatRupiah(summary?.branch?.deposit_pending || 0),
+      description: "Pending belum menjadi uang pusat sampai owner/Tangerang approve.",
+      status: `${formatNumber(summary?.branch?.deposit_count || 0)} setoran`,
+    },
+    {
       title: "Hutang Nana",
       value: formatRupiah(summary?.obligations?.hutang_remaining || 0),
       description: "Sisa hutang ayam setelah pembayaran supplier.",
@@ -130,7 +142,7 @@ function buildChain(summary) {
     {
       title: "4 Amplop",
       value: formatRupiah(summary?.amplop?.allocated_total || 0),
-      description: "Pembagian hanya dari uang masuk aktual.",
+      description: "Pembagian hanya dari uang masuk aktual yang bersumber jelas.",
       status: `${formatRupiah(summary?.amplop?.unallocated || 0)} belum dibagi`,
     },
   ];
@@ -158,13 +170,14 @@ export default function OwnerControlPage({ session, onSessionExpired }) {
   const actions = useMemo(() => asArray(data?.action_queue), [data]);
   const recent = useMemo(() => asArray(data?.recent_transactions), [data]);
   const health = data?.health || {};
+  const counts = data?.counts || {};
 
   const loadData = async () => {
     setLoading(true);
     setError("");
 
     const result = await getOwnerControlBootstrap(session?.sessionToken, {
-      source: "frontend_part_4g_owner_control",
+      source: "frontend_part_4v_owner_control_clean",
       limit: 20,
     });
 
@@ -195,16 +208,16 @@ export default function OwnerControlPage({ session, onSessionExpired }) {
     <div className="da-page">
       <PageHeader
         title="Owner Control"
-        description="Pusat kendali benang merah: ayam, produksi, stok, order, uang masuk, hutang Nana, dan 4 Amplop. Read-only dulu supaya owner bisa pantau semua kabel utama."
+        description="Pusat kendali benang merah usaha: ayam, produksi, stok, PO, order, uang masuk, setoran, hutang Nana, dan 4 Amplop. Read-only supaya owner bisa pantau semua kabel utama."
         badge="Live Monitor"
       />
 
       <Card className="da-dashboard-banner">
         <div>
           <div className="da-dashboard-banner-kicker">BENANG MERAH USAHA</div>
-          <h2>DROP Ayam → Produksi → Stok → Order → Uang → Hutang Nana → 4 Amplop</h2>
+          <h2>DROP Ayam → Produksi → Stok → PO/Order → Uang/Setoran → Hutang Nana → 4 Amplop</h2>
           <p className="da-dashboard-banner-desc">
-            Halaman ini tidak membuat transaksi baru. Fungsinya membaca semua sumber hidup dan menampilkan apakah rantai usaha sudah nyambung.
+            Halaman ini tidak membuat transaksi baru. Fungsinya membaca sumber hidup, menyaring baris kosong, dan menampilkan apakah rantai usaha sudah nyambung.
           </p>
         </div>
         <div className="da-dashboard-banner-actions">
@@ -253,6 +266,22 @@ export default function OwnerControlPage({ session, onSessionExpired }) {
           label="Kesehatan Kabel"
           value={health?.status || "-"}
           description={health?.message || "Membaca koneksi antar modul."}
+        />
+        <StatCard
+          label="PO Customer Aktif"
+          value={formatNumber(summary?.po?.po_count || 0)}
+          description={`${formatNumber(summary?.po?.reserved_qty || 0, "pcs")} ditahan, ${formatNumber(summary?.po?.shortage_qty || 0, "pcs")} kurang.`}
+        />
+        <StatCard
+          tone={summary?.branch?.deposit_pending > 0 ? "warning" : "default"}
+          label="Setoran Pending"
+          value={formatRupiah(summary?.branch?.deposit_pending || 0)}
+          description={`${formatNumber(counts?.branch_deposits || 0)} setoran terbaca. Approve dulu sebelum jadi uang pusat.`}
+        />
+        <StatCard
+          label="Request & DO"
+          value={formatNumber(summary?.branch?.request_count || 0)}
+          description={`${formatNumber(summary?.branch?.delivery_order_count || 0)} DO antar lokasi terbaca.`}
         />
       </div>
 
@@ -333,7 +362,7 @@ export default function OwnerControlPage({ session, onSessionExpired }) {
             <div className="da-page-kicker">TRANSAKSI TERBARU</div>
             <h2 style={{ margin: 0 }}>Jejak ID Terakhir</h2>
             <p className="da-muted" style={{ margin: "6px 0 0" }}>
-              Ini ringkasan saja. Arsip detail universal nanti jadi pintu untuk membuka seluruh rantai ID.
+              Ini ringkasan saja. Arsip Digital menjadi pintu untuk membuka seluruh rantai ID. Baris kosong/formatting tidak ikut dihitung sebagai transaksi.
             </p>
           </div>
           <Badge tone="success">Archive Hook</Badge>
