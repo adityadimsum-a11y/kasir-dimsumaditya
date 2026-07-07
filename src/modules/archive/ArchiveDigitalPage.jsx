@@ -190,6 +190,7 @@ export default function ArchiveDigitalPage({ session, onSessionExpired }) {
 
   const results = useMemo(() => asArray(data?.results || data?.recent_records), [data]);
   const modules = useMemo(() => asArray(data?.module_stats), [data]);
+  const warnings = useMemo(() => asArray(data?.warnings), [data]);
   const summary = data?.summary || {};
 
   const loadData = async (nextFilters = filters) => {
@@ -298,10 +299,28 @@ export default function ArchiveDigitalPage({ session, onSessionExpired }) {
       ) : null}
 
       <div className="da-grid da-grid-3">
-        <StatCard label="Total Arsip Terbaca" value={formatNumber(summary.total_records || 0)} description="Jumlah baris transaksi dari sumber hidup." />
+        <StatCard label="Total Arsip Bersih" value={formatNumber(summary.total_records || 0)} description="Hanya transaksi dengan ID asli." />
         <StatCard label="Modul Aktif" value={formatNumber(summary.modules_count || modules.length || 0)} description="Jumlah modul yang punya arsip/ID." />
-        <StatCard label="Hasil Ditampilkan" value={formatNumber(results.length)} description="Sesuai limit dan filter halaman ini." tone="warning" />
+        <StatCard label="Baris Perlu ID" value={formatNumber(summary.rows_without_transaction_id || 0)} description="Tidak ditampilkan sebagai transaksi normal." tone={(summary.rows_without_transaction_id || 0) ? "warning" : "success"} />
       </div>
+
+      {(summary.rows_without_transaction_id || 0) ? (
+        <Card style={{ marginTop: 14 }}>
+          <Badge tone="warning">Perlu Rapih ID</Badge>
+          <p className="da-muted" style={{ marginTop: 10 }}>
+            Ada {formatNumber(summary.rows_without_transaction_id || 0)} baris lama/awal yang belum punya ID transaksi asli, jadi sengaja disembunyikan dari daftar arsip normal. Ini menjaga Arsip Digital tetap bersih dari ID buatan seperti TabOrders-ROW-2.
+          </p>
+          {warnings.length ? (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+              {warnings.slice(0, 12).map((item) => (
+                <span key={item.source_module} className="da-badge da-badge-warning">
+                  {moduleLabel(item.source_module)}: {formatNumber(item.count)}
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </Card>
+      ) : null}
 
       <Card style={{ marginTop: 14 }}>
         <div className="da-mini-title">Cari Arsip</div>
