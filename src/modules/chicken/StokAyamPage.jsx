@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { getChickenStockBootstrap } from "../../lib/api/actions";
+import { getChickenStockBootstrap, getDropAyamBootstrap, getProductionBootstrap } from "../../lib/api/actions";
 import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
@@ -142,6 +142,73 @@ function normalizeBootstrap(result) {
   };
 }
 
+
+function normalizeFallbackDrop(dropResult, productionResult) {
+  const dropData = dropResult?.data || dropResult || {};
+  const productionData = productionResult?.data || productionResult || {};
+
+  const lots = asArray(dropData.chicken_lots || dropData.lots).map(normalizeLot);
+  const movements = asArray(productionData.stock_movements || productionData.movements || productionData.chicken_movements).map(normalizeMovement);
+  const productions = asArray(productionData.production_batches || productionData.production_usages || productionData.productions).map(normalizeProduction);
+
+  const usedByLot = productions.reduce((acc, row) => {
+    const lotId = String(row.chicken_lot_id || "").trim();
+    if (!lotId) return acc;
+    acc[lotId] = (acc[lotId] || 0) + numberValue(row.chicken_kg_used);
+    return acc;
+  }, {});
+
+  const normalizedLots = lots.map((lot) => {
+    const lotId = String(lot.chicken_lot_id || "").trim();
+    const fallbackUsed = usedByLot[lotId] || 0;
+    const qtyIn = numberValue(lot.qty_kg || lot.qty_kg_in);
+    const qtyOut = numberValue(lot.qty_kg_out) || fallbackUsed;
+    const remaining = numberValue(lot.qty_kg_remaining) || Math.max(qtyIn - qtyOut, 0);
+
+    return {
+      ...lot,
+      qty_kg: qtyIn,
+      qty_kg_out: qtyOut,
+      qty_kg_remaining: remaining,
+    };
+  });
+
+  const total_in_kg = normalizedLots.reduce((total, lot) => total + numberValue(lot.qty_kg), 0);
+  const total_used_kg = normalizedLots.reduce((total, lot) => total + numberValue(lot.qty_kg_out), 0);
+  const total_remaining_kg = normalizedLots.reduce((total, lot) => total + numberValue(lot.qty_kg_remaining), 0);
+  const total_remaining_value = normalizedLots.reduce(
+    (total, lot) => total + numberValue(lot.qty_kg_remaining) * numberValue(lot.unit_cost),
+    0
+  );
+
+  return {
+    success: true,
+    message: "Stok ayam dibaca dari fallback DROP Ayam + Produksi.",
+    data: {
+      summary: {
+        total_in_kg,
+        total_used_kg,
+        total_remaining_kg,
+        total_remaining_value,
+        active_lot_count: normalizedLots.filter((lot) => numberValue(lot.qty_kg_remaining) > 0).length,
+        consumed_lot_count: normalizedLots.filter((lot) => numberValue(lot.qty_kg_remaining) <= 0).length,
+        movement_count: movements.length,
+        production_count: productions.length,
+      },
+      chicken_lots: normalizedLots,
+      chicken_movements: movements,
+      production_usages: productions,
+      warnings: [
+        {
+          code: "STOK_AYAM_FALLBACK",
+          message: "Catatan: halaman sementara membaca dari DROP Ayam + Produksi karena endpoint Stok Ayam khusus belum terbaca normal.",
+        },
+      ],
+      filter: {},
+    },
+  };
+}
+
 function badgeTone(status) {
   const text = String(status || "").toLowerCase();
   if (text.includes("active") || text.includes("posted")) return "success";
@@ -173,14 +240,38 @@ export default function StokAyamPage({ session, onSessionExpired }) {
         onSessionExpired?.();
         return;
       }
-      if (!result?.success) {
-        setError(result?.message || result?.error?.message || "Gagal membaca stok ayam.");
-        setBootstrap(normalizeBootstrap({}));
+      if (result?.success) {
+        setBootstrap(normalizeBootstrap(result));
         return;
       }
-      setBootstrap(normalizeBootstrap(result));
+
+      // Fallback aman: kalau endpoint Stok Ayam baru belum kebaca normal,
+      // halaman tetap bisa jalan dari data DROP Ayam + Produksi yang sudah hijau.
+      const [dropResult, productionResult] = await Promise.all([
+        getDropAyamBootstrap(sessionToken, filter),
+        getProductionBootstrap(sessionToken, filter),
+      ]);
+
+      if (isAuthRequired(dropResult) || isAuthRequired(productionResult)) {
+        onSessionExpired?.();
+        return;
+      }
+
+      if (dropResult?.success || productionResult?.success) {
+        const fallbackResult = normalizeFallbackDrop(dropResult, productionResult);
+        setBootstrap(normalizeBootstrap(fallbackResult));
+        setError(result?.message || result?.error?.message || "Endpoint Stok Ayam khusus belum normal, data dibaca lewat fallback.");
+        return;
+      }
+
+      setError(result?.message || result?.error?.message || "Gagal membaca stok ayam.");
+      setBootstrap(normalizeBootstrap({}));
     } catch (err) {
-      setError(err?.message || "Gagal membaca stok ayam.");
+      setError(
+        err?.message === "Failed to fetch"
+          ? "Koneksi endpoint Stok Ayam gagal. Pastikan Router.js dan Api_LegacyChickenStockBridge.js sudah masuk Apps Script lalu deploy versi baru."
+          : err?.message || "Gagal membaca stok ayam."
+      );
       setBootstrap(normalizeBootstrap({}));
     } finally {
       setLoading(false);
