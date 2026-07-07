@@ -204,6 +204,19 @@ export async function createKasKeluar(sessionToken, payload = {}) {
 }
 
 /**
+ * 4 AMPLOP
+ */
+
+
+export async function getAmplopBootstrap(sessionToken, payload = {}) {
+  return apiRequest("getLegacyAmplopBootstrap", payload, sessionToken);
+}
+
+export async function createAmplopAllocation(sessionToken, payload = {}) {
+  return apiRequest("legacyCreateAmplopAllocation", payload, sessionToken);
+}
+
+/**
  * FINANCE / UANG
  */
 
