@@ -8,6 +8,7 @@ import LoginPage from "./modules/auth/LoginPage";
 import ModulePlaceholder from "./modules/common/ModulePlaceholder";
 import PapanPusatPage from "./modules/owner/PapanPusatPage";
 import OwnerControlPage from "./modules/owner/OwnerControlPage";
+import ArchiveDigitalPage from "./modules/archive/ArchiveDigitalPage";
 import DropAyamPage from "./modules/chicken/DropAyamPage";
 import AdukanPage from "./modules/production/AdukanPage";
 import FreezerInPage from "./modules/stock/FreezerInPage";
@@ -76,6 +77,15 @@ export default function App() {
     if (activePage === "owner-control") {
       return (
         <OwnerControlPage
+          session={session}
+          onSessionExpired={handleSessionExpired}
+        />
+      );
+    }
+
+    if (activePage === "arsip-digital") {
+      return (
+        <ArchiveDigitalPage
           session={session}
           onSessionExpired={handleSessionExpired}
         />
