@@ -406,3 +406,11 @@ export async function createMasterDataCoreRecord(sessionToken, payload = {}) {
 export async function seedMasterDataCoreDefaults(sessionToken, payload = {}) {
   return apiRequest("legacySeedMasterDataCoreDefaults", payload, sessionToken);
 }
+
+/**
+ * STOK AYAM / LOT AYAM
+ */
+
+export async function getChickenStockBootstrap(sessionToken, payload = {}) {
+  return apiRequest("getLegacyChickenStockBootstrap", payload, sessionToken);
+}
