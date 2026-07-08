@@ -408,6 +408,24 @@ export async function createHRDPayrollPayment(sessionToken, payload = {}) {
   return apiRequest("legacyPayClosedHRDPayroll", payload, sessionToken);
 }
 
+
+
+/**
+ * KEWAJIBAN OWNER / CICILAN USAHA
+ */
+
+export async function getOwnerObligationBootstrap(sessionToken, payload = {}) {
+  return apiRequest("getLegacyOwnerObligationBootstrap", payload, sessionToken);
+}
+
+export async function createOwnerObligation(sessionToken, payload = {}) {
+  return apiRequest("legacyCreateOwnerObligation", payload, sessionToken);
+}
+
+export async function payOwnerObligation(sessionToken, payload = {}) {
+  return apiRequest("legacyPayOwnerObligation", payload, sessionToken);
+}
+
 export { getConfiguredApiUrl };
 
 /**
