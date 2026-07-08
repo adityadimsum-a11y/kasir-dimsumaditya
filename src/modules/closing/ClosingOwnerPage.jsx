@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  createOwnerPeriodClosingRevision,
   createOwnerPeriodClosingSnapshot,
   getOwnerPeriodReportBootstrap,
 } from "../../lib/api/actions";
@@ -54,6 +55,11 @@ function makeOperationId() {
 export default function ClosingOwnerPage({ session, onSessionExpired }) {
   const [loading, setLoading] = useState(true);
   const [locking, setLocking] = useState(false);
+  const [revisionSaving, setRevisionSaving] = useState(false);
+  const [revisionDraft, setRevisionDraft] = useState({
+    revision_type: "CATATAN_REVISI",
+    reason: "",
+  });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [data, setData] = useState({});
@@ -70,6 +76,7 @@ export default function ClosingOwnerPage({ session, onSessionExpired }) {
   const records = data.recent_records || [];
   const locationOptions = data.location_options || [];
   const periodClosings = data.period_closings || [];
+  const closingRevisions = data.closing_revisions || [];
   const currentClosing = data.current_closing || null;
   const isLocked = Boolean(health.closing_locked || currentClosing?.closing_id || summary.closing_id);
   const rowsWithoutSource = number(health.rows_without_source || health.wallet_mutations_without_source);
@@ -159,6 +166,55 @@ export default function ClosingOwnerPage({ session, onSessionExpired }) {
     }
   }
 
+  async function handleCreateRevision(event) {
+    event.preventDefault();
+    setError("");
+    setSuccess("");
+
+    if (!isLocked) {
+      setError("Periode belum lock. Catatan revisi hanya dibuat setelah snapshot/closing tersimpan.");
+      return;
+    }
+
+    const reason = text(revisionDraft.reason, "");
+    if (!reason || reason === "-") {
+      setError("Alasan/catatan revisi wajib diisi.");
+      return;
+    }
+
+    const ok = window.confirm(
+      `Catat revisi untuk periode ${periodLabel}?\n\nCatatan ini tidak membuka kunci transaksi dan tidak mengubah angka. Perbaikan tetap dilakukan dari modul sumber.`
+    );
+    if (!ok) return;
+
+    setRevisionSaving(true);
+    try {
+      const result = await createOwnerPeriodClosingRevision(sessionToken, {
+        ...filters,
+        closing_id: currentClosing?.closing_id || summary.closing_id || "",
+        revision_type: revisionDraft.revision_type,
+        reason,
+        operation_id: `OP-REV-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+      });
+      if (isAuthRequired(result)) {
+        onSessionExpired?.();
+        return;
+      }
+      if (!result?.success) {
+        setError(result?.message || "Gagal mencatat revisi closing.");
+        return;
+      }
+      const revisionId = result?.data?.revision?.revision_id || result?.data?.revision_id || "";
+      setSuccess(revisionId ? `Catatan revisi tersimpan: ${revisionId}` : "Catatan revisi berhasil tersimpan.");
+      setRevisionDraft({ revision_type: "CATATAN_REVISI", reason: "" });
+      await loadData(filters);
+    } catch (err) {
+      setError(err?.message || "Gagal koneksi saat mencatat revisi closing.");
+    } finally {
+      setRevisionSaving(false);
+    }
+  }
+
   const moneyRows = sections.money_flow || [];
   const obligationRows = sections.obligations || [];
   const stockRows = sections.stock_flow || [];
@@ -242,6 +298,60 @@ export default function ClosingOwnerPage({ session, onSessionExpired }) {
           <StatCard label="Jumlah Jejak" value={number(summary.records_count).toLocaleString("id-ID")} description="Record sumber yang ikut dibaca." />
           <StatCard label="Status" value={isLocked ? "LOCKED" : "DRAFT"} description="Status laporan periode." tone={isLocked ? "success" : "warning"} />
         </div>
+      </Card>
+
+      <Card>
+        <div className="da-section-title-row">
+          <div>
+            <h2>Revisi / Catatan Setelah Lock</h2>
+            <p className="da-muted">
+              Setelah periode dikunci, angka tidak diedit langsung. Catat alasan revisi di sini, lalu koreksi transaksi dari modul sumber.
+            </p>
+          </div>
+          <Badge tone={isLocked ? "warning" : "default"}>{isLocked ? "Audit Revisi" : "Menunggu Lock"}</Badge>
+        </div>
+        <form className="da-form-grid" onSubmit={handleCreateRevision}>
+          <label className="da-form-field">
+            <span>Jenis Catatan</span>
+            <select
+              value={revisionDraft.revision_type}
+              onChange={(event) => setRevisionDraft((old) => ({ ...old, revision_type: event.target.value }))}
+              disabled={!isLocked || revisionSaving}
+            >
+              <option value="CATATAN_REVISI">Catatan Revisi</option>
+              <option value="PERLU_KOREKSI_SUMBER">Perlu Koreksi Sumber</option>
+              <option value="BUKA_PANTAUAN">Buka Pantauan Owner</option>
+            </select>
+          </label>
+          <label className="da-form-field da-form-field-wide">
+            <span>Alasan / Catatan</span>
+            <input
+              value={revisionDraft.reason}
+              onChange={(event) => setRevisionDraft((old) => ({ ...old, reason: event.target.value }))}
+              placeholder="Contoh: ada kas keluar yang belum masuk periode ini, koreksi dilakukan dari Belanja & Kas Keluar."
+              disabled={!isLocked || revisionSaving}
+            />
+          </label>
+          <div className="da-form-actions">
+            <Button type="submit" disabled={!isLocked || revisionSaving}>
+              {revisionSaving ? "Menyimpan..." : "Simpan Catatan Revisi"}
+            </Button>
+          </div>
+        </form>
+        {!isLocked ? (
+          <div className="da-form-info">Catatan revisi baru aktif setelah periode dikunci/snapshot tersimpan.</div>
+        ) : null}
+        <DataTable
+          rows={closingRevisions}
+          getRowKey={(row, index) => row.revision_id || index}
+          columns={[
+            { key: "created_at", label: "Tanggal", render: (row) => text(row.created_at || row.date) },
+            { key: "revision_id", label: "Revision ID", render: (row) => <strong>{text(row.revision_id)}</strong> },
+            { key: "revision_type", label: "Jenis", render: (row) => text(row.revision_type) },
+            { key: "reason", label: "Catatan", render: (row) => text(row.reason || row.note) },
+            { key: "status", label: "Status", render: (row) => <Badge tone="warning">{text(row.status || "OPEN")}</Badge> },
+          ]}
+        />
       </Card>
 
       <Card className="da-print-area">
