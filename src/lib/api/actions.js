@@ -400,6 +400,10 @@ export async function createHRDPayrollDraft(sessionToken, payload = {}) {
   return apiRequest("legacyCreateHRDPayrollDraft", payload, sessionToken);
 }
 
+export async function createHRDPayrollClosing(sessionToken, payload = {}) {
+  return apiRequest("legacyCloseHRDPayrollDraft", payload, sessionToken);
+}
+
 export { getConfiguredApiUrl };
 
 /**
