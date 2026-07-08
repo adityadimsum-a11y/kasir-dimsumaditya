@@ -124,6 +124,19 @@ export const MENU_GROUPS = [
       },
     ],
   },
+
+  {
+    key: "hrd-payroll",
+    title: "HRD & Payroll",
+    visibleFor: ["OWNER", "TANGERANG"],
+    items: [
+      {
+        key: "hrd-payroll",
+        label: "HRD / Payroll",
+        description: "Data karyawan, kasbon, pinjaman, rekap gaji, dan slip gaji.",
+      },
+    ],
+  },
   {
     key: "master-data",
     title: "Master Data",
