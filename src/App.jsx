@@ -25,6 +25,7 @@ import LaporanHarianPage from "./modules/branch/LaporanHarianPage";
 import SetoranCabangPage from "./modules/branch/SetoranCabangPage";
 import RequestDOPage from "./modules/branch/RequestDOPage";
 import MasterDataPage from "./modules/master/MasterDataPage";
+import HRDPayrollPage from "./modules/hrd/HRDPayrollPage";
 
 export default function App() {
   const [session, setSession] = useState(() => getSavedSession());
@@ -228,6 +229,17 @@ export default function App() {
     if (activePage === "request-do") {
       return (
         <RequestDOPage
+          session={session}
+          onSessionExpired={handleSessionExpired}
+        />
+      );
+    }
+
+
+
+    if (activePage === "hrd-payroll") {
+      return (
+        <HRDPayrollPage
           session={session}
           onSessionExpired={handleSessionExpired}
         />
