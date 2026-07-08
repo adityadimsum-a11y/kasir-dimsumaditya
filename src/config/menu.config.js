@@ -19,6 +19,11 @@ export const MENU_GROUPS = [
         label: "Arsip Digital",
         description: "Cari transaksi, bukti, audit, dan riwayat ID.",
       },
+      {
+        key: "closing-owner",
+        label: "Laporan Owner",
+        description: "Tarik laporan periode, cek benang merah, dan cetak A4 owner.",
+      },
     ],
   },
   {
