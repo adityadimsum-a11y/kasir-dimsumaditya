@@ -96,6 +96,11 @@ export const MENU_GROUPS = [
         description: "Sisa hutang ayam, nota berjalan, dan pembayaran supplier.",
       },
       {
+        key: "kewajiban-owner",
+        label: "Kewajiban Owner",
+        description: "Cicilan usaha, tagihan rutin, jatuh tempo, dan bayar dari dompet.",
+      },
+      {
         key: "empat-amplop",
         label: "4 Amplop",
         description: "Pembagian uang aktual: ayam, operasional, cicilan, owner.",
