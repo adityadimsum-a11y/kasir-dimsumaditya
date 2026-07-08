@@ -388,6 +388,10 @@ export async function createHRDEmployee(sessionToken, payload = {}) {
   return apiRequest("legacyCreateHRDEmployee", payload, sessionToken);
 }
 
+export async function createHRDKasbonNote(sessionToken, payload = {}) {
+  return apiRequest("legacyCreateHRDKasbonNote", payload, sessionToken);
+}
+
 export { getConfiguredApiUrl };
 
 /**
