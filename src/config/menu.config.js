@@ -24,6 +24,11 @@ export const MENU_GROUPS = [
         label: "Laporan Owner",
         description: "Tarik laporan periode, cek benang merah, dan cetak A4 owner.",
       },
+      {
+        key: "system-health",
+        label: "Data Health",
+        description: "Cek ID, sumber transaksi, ghost row, dan kesehatan kabel ERP.",
+      },
     ],
   },
   {
