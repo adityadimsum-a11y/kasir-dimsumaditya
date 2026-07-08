@@ -396,6 +396,10 @@ export async function createHRDLoanNote(sessionToken, payload = {}) {
   return apiRequest("legacyCreateHRDLoanNote", payload, sessionToken);
 }
 
+export async function createHRDPayrollDraft(sessionToken, payload = {}) {
+  return apiRequest("legacyCreateHRDPayrollDraft", payload, sessionToken);
+}
+
 export { getConfiguredApiUrl };
 
 /**
