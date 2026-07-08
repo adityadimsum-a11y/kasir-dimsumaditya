@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { getOwnerPeriodReportBootstrap } from "../../lib/api/actions";
+import {
+  createOwnerPeriodClosingSnapshot,
+  getOwnerPeriodReportBootstrap,
+} from "../../lib/api/actions";
 import { formatRupiah } from "../../lib/format/money";
 import { formatDate } from "../../lib/format/date";
 import Badge from "../../components/ui/Badge";
@@ -44,9 +47,15 @@ function printOwnerReport() {
   window.print();
 }
 
+function makeOperationId() {
+  return `OP-CLOSE-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+}
+
 export default function ClosingOwnerPage({ session, onSessionExpired }) {
   const [loading, setLoading] = useState(true);
+  const [locking, setLocking] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [data, setData] = useState({});
   const [filters, setFilters] = useState({
     date_start: firstDayThisMonth(),
@@ -60,6 +69,10 @@ export default function ClosingOwnerPage({ session, onSessionExpired }) {
   const sections = data.sections || {};
   const records = data.recent_records || [];
   const locationOptions = data.location_options || [];
+  const periodClosings = data.period_closings || [];
+  const currentClosing = data.current_closing || null;
+  const isLocked = Boolean(health.closing_locked || currentClosing?.closing_id || summary.closing_id);
+  const rowsWithoutSource = number(health.rows_without_source || health.wallet_mutations_without_source);
 
   const periodLabel = useMemo(() => {
     return `${formatDate(filters.date_start)} - ${formatDate(filters.date_end)}`;
@@ -99,7 +112,51 @@ export default function ClosingOwnerPage({ session, onSessionExpired }) {
 
   function handlePullPeriod(event) {
     event.preventDefault();
+    setSuccess("");
     loadData(filters);
+  }
+
+  async function handleLockPeriod() {
+    setError("");
+    setSuccess("");
+
+    if (isLocked) {
+      setError("Periode ini sudah punya snapshot/lock closing.");
+      return;
+    }
+
+    if (rowsWithoutSource > 0) {
+      setError("Masih ada mutasi perlu sumber. Rapihkan dulu sebelum lock closing periode.");
+      return;
+    }
+
+    const ok = window.confirm(
+      `Simpan snapshot dan lock laporan owner periode ${periodLabel}?\n\nLock ini tidak membuat transaksi baru, tapi mengunci angka laporan periode supaya bisa diaudit.`
+    );
+    if (!ok) return;
+
+    setLocking(true);
+    try {
+      const result = await createOwnerPeriodClosingSnapshot(sessionToken, {
+        ...filters,
+        operation_id: makeOperationId(),
+      });
+      if (isAuthRequired(result)) {
+        onSessionExpired?.();
+        return;
+      }
+      if (!result?.success) {
+        setError(result?.message || "Gagal lock closing periode.");
+        return;
+      }
+      const closingId = result?.data?.closing?.closing_id || result?.data?.closing_id || "";
+      setSuccess(closingId ? `Snapshot periode tersimpan: ${closingId}` : "Snapshot periode berhasil tersimpan.");
+      await loadData(filters);
+    } catch (err) {
+      setError(err?.message || "Gagal koneksi saat lock closing periode.");
+    } finally {
+      setLocking(false);
+    }
   }
 
   const moneyRows = sections.money_flow || [];
@@ -114,7 +171,7 @@ export default function ClosingOwnerPage({ session, onSessionExpired }) {
           <p className="da-kicker">Closing & Laporan Owner</p>
           <h1>Laporan Owner Periode</h1>
           <p className="da-muted">
-            Tarik data periode dari transaksi hidup. Part ini masih read-only: belum mengunci periode dan belum membuat transaksi baru.
+            Tarik data periode dari transaksi hidup. Setelah dicek bersih, owner bisa simpan snapshot/lock periode.
           </p>
         </div>
         <Badge tone={loading ? "warning" : error ? "danger" : "success"}>
@@ -123,6 +180,7 @@ export default function ClosingOwnerPage({ session, onSessionExpired }) {
       </section>
 
       {error ? <div className="da-form-error">{error}</div> : null}
+      {success ? <div className="da-form-success">{success}</div> : null}
 
       <Card>
         <form className="da-form-grid" onSubmit={handlePullPeriod}>
@@ -159,8 +217,31 @@ export default function ClosingOwnerPage({ session, onSessionExpired }) {
           <div className="da-form-actions">
             <Button type="submit" disabled={loading}>{loading ? "Menarik..." : "Tarik Data Periode"}</Button>
             <Button type="button" variant="secondary" onClick={printOwnerReport}>Cetak A4</Button>
+            <Button type="button" variant={isLocked ? "secondary" : "primary"} disabled={loading || locking || isLocked} onClick={handleLockPeriod}>
+              {locking ? "Menyimpan..." : isLocked ? "Sudah Lock" : "Lock / Simpan Snapshot"}
+            </Button>
           </div>
         </form>
+      </Card>
+
+      <Card>
+        <div className="da-section-title-row">
+          <div>
+            <h2>Status Closing Periode</h2>
+            <p className="da-muted">
+              Lock closing hanya menyimpan snapshot laporan. Tidak membuat uang keluar/masuk dan tidak mengubah 4 Amplop.
+            </p>
+          </div>
+          <Badge tone={isLocked ? "success" : rowsWithoutSource > 0 ? "danger" : "warning"}>
+            {isLocked ? "Periode Sudah Lock" : rowsWithoutSource > 0 ? "Perlu Rapih Sumber" : "Siap Dicek"}
+          </Badge>
+        </div>
+        <div className="da-stat-grid">
+          <StatCard label="Closing ID" value={text(currentClosing?.closing_id || summary.closing_id)} description="ID snapshot periode." />
+          <StatCard label="Perlu Sumber" value={rowsWithoutSource.toLocaleString("id-ID")} description="Harus 0 sebelum lock." tone={rowsWithoutSource > 0 ? "danger" : "success"} />
+          <StatCard label="Jumlah Jejak" value={number(summary.records_count).toLocaleString("id-ID")} description="Record sumber yang ikut dibaca." />
+          <StatCard label="Status" value={isLocked ? "LOCKED" : "DRAFT"} description="Status laporan periode." tone={isLocked ? "success" : "warning"} />
+        </div>
       </Card>
 
       <Card className="da-print-area">
@@ -169,7 +250,7 @@ export default function ClosingOwnerPage({ session, onSessionExpired }) {
             <h2>Ringkasan Owner</h2>
             <p className="da-muted">Periode: {periodLabel}</p>
           </div>
-          <Badge tone="warning">Belum Lock Closing</Badge>
+          <Badge tone={isLocked ? "success" : "warning"}>{isLocked ? "Sudah Lock Closing" : "Belum Lock Closing"}</Badge>
         </div>
         <div className="da-stat-grid">
           <StatCard label="Uang Masuk Aktual" value={formatRupiah(summary.money_in_actual)} description="Dari mutasi dompet IN." tone="success" />
@@ -265,10 +346,10 @@ export default function ClosingOwnerPage({ session, onSessionExpired }) {
         <div className="da-section-title-row">
           <div>
             <h2>Jejak Transaksi Terbaru</h2>
-            <p className="da-muted">Dipakai untuk cek sumber sebelum nanti periode dikunci.</p>
+            <p className="da-muted">Dipakai untuk cek sumber sebelum periode dikunci.</p>
           </div>
-          <Badge tone={number(health.rows_without_source) > 0 ? "warning" : "success"}>
-            Perlu Sumber: {number(health.rows_without_source)}
+          <Badge tone={rowsWithoutSource > 0 ? "warning" : "success"}>
+            Perlu Sumber: {rowsWithoutSource}
           </Badge>
         </div>
         <DataTable
@@ -285,8 +366,28 @@ export default function ClosingOwnerPage({ session, onSessionExpired }) {
       </Card>
 
       <Card>
+        <div className="da-section-title-row">
+          <div>
+            <h2>Riwayat Snapshot / Lock Periode</h2>
+            <p className="da-muted">Snapshot yang sudah tersimpan tidak mengubah transaksi lama, hanya mengunci laporan periode.</p>
+          </div>
+        </div>
+        <DataTable
+          rows={periodClosings}
+          getRowKey={(row, index) => row.closing_id || row.source_id || index}
+          columns={[
+            { key: "date_start", label: "Periode", render: (row) => `${formatDate(row.date_start)} - ${formatDate(row.date_end)}` },
+            { key: "closing_id", label: "Closing ID", render: (row) => <strong>{text(row.closing_id || row.source_id)}</strong> },
+            { key: "location_id", label: "Lokasi", render: (row) => text(row.location_id || row.location) },
+            { key: "money_in_actual", label: "Uang Masuk", render: (row) => formatRupiah(row.money_in_actual || row.amount) },
+            { key: "status", label: "Status", render: (row) => <Badge tone="success">{text(row.status || "LOCKED")}</Badge> },
+          ]}
+        />
+      </Card>
+
+      <Card>
         <p className="da-muted">
-          Catatan: Part 5M ini hanya menarik dan mencetak laporan owner. Lock closing, snapshot periode, dan koreksi setelah closing disambungkan di part berikutnya supaya aman dan tidak mengunci data terlalu cepat.
+          Catatan: Lock closing owner hanya menyimpan snapshot angka periode ke arsip closing. Transaksi kas, stok, hutang, payroll, dan 4 Amplop tetap berasal dari modul aslinya masing-masing.
         </p>
       </Card>
     </div>
