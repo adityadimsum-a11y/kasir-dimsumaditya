@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { createHRDEmployee, getHRDPayrollBootstrap } from "../../lib/api/actions";
+import { createHRDEmployee, createHRDKasbonNote, getHRDPayrollBootstrap } from "../../lib/api/actions";
 import { formatRupiah } from "../../lib/format/money";
 import { formatDate } from "../../lib/format/date";
 import Badge from "../../components/ui/Badge";
@@ -34,9 +34,17 @@ function makeOperationId(prefix = "HRD") {
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+function todayInput() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function monthInput() {
+  return new Date().toISOString().slice(0, 7);
+}
+
 function badgeTone(status) {
   const text = String(status || "").toUpperCase();
-  if (text.includes("AKTIF") || text.includes("LUNAS") || text.includes("CLOSED")) return "success";
+  if (text.includes("AKTIF") || text.includes("LUNAS") || text.includes("CLOSED") || text.includes("PAID")) return "success";
   if (text.includes("DRAFT") || text.includes("OPEN") || text.includes("BELUM")) return "warning";
   if (text.includes("NON") || text.includes("VOID") || text.includes("STOP")) return "danger";
   return "default";
@@ -46,11 +54,41 @@ function normalizeEmployee(row) {
   return {
     employee_id: textValue(row.employee_id || row.karyawan_id || row.id, ""),
     employee_name: textValue(row.employee_name || row.nama_karyawan || row.name || row.nama, "-"),
+    location_id: textValue(row.location_id || row.lokasi || row.cabang, "TGR"),
     location_name: textValue(row.location_name || row.lokasi || row.location_id || row.cabang, "-"),
     position: textValue(row.position || row.jabatan || row.role_name || row.role, "-"),
     payroll_day: textValue(row.payroll_day || row.tanggal_gajian || row.pay_day, "-"),
     base_salary: numberValue(row.base_salary || row.gaji_pokok || row.salary),
+    meal_allowance: numberValue(row.meal_allowance || row.uang_makan || row.tunjangan_makan),
+    job_allowance: numberValue(row.job_allowance || row.uang_jabatan || row.tunjangan_jabatan),
     status: textValue(row.status || row.employee_status, "Aktif"),
+    raw: row,
+  };
+}
+
+function normalizeKasbon(row) {
+  return {
+    kasbon_id: textValue(row.kasbon_id || row.id, ""),
+    employee_id: textValue(row.employee_id || row.karyawan_id, ""),
+    employee_name: textValue(row.employee_name || row.nama_karyawan, "-"),
+    date: textValue(row.date || row.kasbon_date || row.tanggal, ""),
+    amount: numberValue(row.amount || row.nominal || row.kasbon_amount),
+    notes: textValue(row.notes || row.catatan, "-"),
+    status: textValue(row.status, "Open"),
+    source_id: textValue(row.source_id || row.kasbon_id || row.id, ""),
+    raw: row,
+  };
+}
+
+function normalizeLoan(row) {
+  return {
+    loan_id: textValue(row.loan_id || row.pinjaman_id || row.id, ""),
+    employee_id: textValue(row.employee_id || row.karyawan_id, ""),
+    employee_name: textValue(row.employee_name || row.nama_karyawan, "-"),
+    original_amount: numberValue(row.original_amount || row.amount || row.nominal),
+    remaining_amount: numberValue(row.remaining_amount || row.sisa || row.amount),
+    installment_amount: numberValue(row.installment_amount || row.cicilan),
+    status: textValue(row.status, "Open"),
     raw: row,
   };
 }
@@ -63,7 +101,7 @@ function employeeColumns(onSelect) {
     { key: "payroll_day", label: "Tgl Gajian" },
     { key: "base_salary", label: "Gaji Pokok", render: (row) => formatRupiah(row.base_salary || 0) },
     { key: "status", label: "Status", render: (row) => <Badge tone={badgeTone(row.status)}>{row.status}</Badge> },
-    { key: "action", label: "Aksi", render: (row) => <Button variant="secondary" onClick={() => onSelect(row)}>Detail</Button> },
+    { key: "action", label: "Aksi", render: (row) => <Button variant="secondary" onClick={() => onSelect(row)}>Buku Catatan</Button> },
   ];
 }
 
@@ -77,13 +115,26 @@ function NoteBox({ children, tone = "warning" }) {
   );
 }
 
+function MiniMetric({ label, value, tone = "default" }) {
+  const bg = tone === "danger" ? "#fef2f2" : tone === "success" ? "#ecfdf5" : tone === "warning" ? "#fffbeb" : "#f8fafc";
+  return (
+    <div style={{ background: bg, border: "1px solid #e5e7eb", borderRadius: 14, padding: 14 }}>
+      <div className="da-eyebrow">{label}</div>
+      <strong style={{ fontSize: 18 }}>{value}</strong>
+    </div>
+  );
+}
+
 export default function HRDPayrollPage({ session, onSessionExpired }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingKasbon, setSavingKasbon] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [data, setData] = useState(null);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [period, setPeriod] = useState(monthInput());
+  const [kasbonForm, setKasbonForm] = useState({ date: todayInput(), amount: "0", notes: "Kasbon karyawan." });
   const [form, setForm] = useState({
     employee_name: "",
     location_id: "TGR",
@@ -99,16 +150,42 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
   const summary = data?.summary || {};
   const employees = useMemo(() => asArray(data?.employees).map(normalizeEmployee), [data]);
   const payrollRecaps = useMemo(() => asArray(data?.payroll_recaps), [data]);
-  const kasbonRows = useMemo(() => asArray(data?.kasbon_rows), [data]);
-  const loanRows = useMemo(() => asArray(data?.loan_rows), [data]);
+  const kasbonRows = useMemo(() => asArray(data?.kasbon_rows).map(normalizeKasbon), [data]);
+  const loanRows = useMemo(() => asArray(data?.loan_rows).map(normalizeLoan), [data]);
+
+  const selectedKasbonRows = useMemo(() => {
+    if (!selectedEmployee?.employee_id) return [];
+    return kasbonRows.filter((row) => row.employee_id === selectedEmployee.employee_id || row.employee_name === selectedEmployee.employee_name);
+  }, [kasbonRows, selectedEmployee]);
+
+  const selectedLoanRows = useMemo(() => {
+    if (!selectedEmployee?.employee_id) return [];
+    return loanRows.filter((row) => row.employee_id === selectedEmployee.employee_id || row.employee_name === selectedEmployee.employee_name);
+  }, [loanRows, selectedEmployee]);
+
+  const selectedOpenKasbon = useMemo(() => {
+    return selectedKasbonRows.reduce((total, row) => {
+      const status = String(row.status || "Open").toUpperCase();
+      if (["CLOSED", "LUNAS", "VOID"].includes(status)) return total;
+      return total + numberValue(row.amount);
+    }, 0);
+  }, [selectedKasbonRows]);
+
+  const selectedOpenLoan = useMemo(() => {
+    return selectedLoanRows.reduce((total, row) => {
+      const status = String(row.status || "Open").toUpperCase();
+      if (["CLOSED", "LUNAS", "VOID"].includes(status)) return total;
+      return total + numberValue(row.remaining_amount || row.original_amount);
+    }, 0);
+  }, [selectedLoanRows]);
 
   const loadData = async () => {
     setLoading(true);
     setError("");
 
     const result = await getHRDPayrollBootstrap(session?.sessionToken, {
-      source: "frontend_part_5a_hrd_payroll_foundation",
-      period: new Date().toISOString().slice(0, 7),
+      source: "frontend_part_5b_hrd_buku_catatan_kasbon",
+      period,
       location_id: session?.user?.location_id || "TGR",
     });
 
@@ -133,6 +210,10 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
 
   const updateForm = (key, value) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const updateKasbonForm = (key, value) => {
+    setKasbonForm((prev) => ({ ...prev, [key]: value }));
   };
 
   const handleSaveEmployee = async () => {
@@ -176,6 +257,50 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
     setSaving(false);
   };
 
+  const handleSaveKasbon = async () => {
+    setError("");
+    setNotice("");
+
+    if (!selectedEmployee?.employee_id) {
+      setError("Pilih karyawan dulu untuk catat kasbon.");
+      return;
+    }
+
+    const amount = numberValue(kasbonForm.amount);
+    if (amount <= 0) {
+      setError("Nominal kasbon harus lebih dari 0.");
+      return;
+    }
+
+    setSavingKasbon(true);
+    const payload = {
+      operation_id: makeOperationId("KASBON"),
+      kasbon: {
+        employee_id: selectedEmployee.employee_id,
+        employee_name: selectedEmployee.employee_name,
+        location_id: selectedEmployee.location_id || "TGR",
+        date: kasbonForm.date || todayInput(),
+        amount,
+        notes: kasbonForm.notes || "Kasbon karyawan.",
+        status: "Open",
+      },
+    };
+
+    const result = await createHRDKasbonNote(session?.sessionToken, payload);
+    if (!result.success) {
+      if (isAuthRequired(result)) {
+        onSessionExpired?.();
+        return;
+      }
+      setError(result.message || "Kasbon belum berhasil disimpan.");
+    } else {
+      setNotice(result.message || "Kasbon karyawan berhasil dicatat.");
+      setKasbonForm({ date: todayInput(), amount: "0", notes: "Kasbon karyawan." });
+      await loadData();
+    }
+    setSavingKasbon(false);
+  };
+
   return (
     <div className="da-page">
       <div className="da-page-header">
@@ -184,15 +309,15 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
           <h1>HRD / Payroll</h1>
           <p>Data karyawan, buku catatan karyawan, kasbon, pinjaman, rekap gaji, dan slip gaji. Payroll tetap owner/Tangerang.</p>
         </div>
-        <Badge tone="warning">Foundation</Badge>
+        <Badge tone="warning">Buku Catatan</Badge>
       </div>
 
       <Card>
         <div className="da-card-header-row">
           <div>
             <div className="da-eyebrow">HRD & PAYROLL</div>
-            <h2>Data Karyawan → Buku Catatan → Payroll</h2>
-            <p className="da-muted">Model tampilan mengikuti patokan payroll yang sudah kamu suka: rekap bulanan, kasbon, pinjaman, closing, dan slip print. Part ini fondasi data dulu.</p>
+            <h2>Data Karyawan → Buku Catatan → Kasbon → Payroll</h2>
+            <p className="da-muted">Kasbon sekarang bisa dicatat dari Buku Catatan Karyawan. Print slip tetap belum memotong ledger; closing payroll nanti yang mengunci potongan.</p>
           </div>
           <div className="da-inline-actions">
             <Badge tone={error ? "danger" : "success"}>{error ? "Perlu Dicek" : "Terhubung"}</Badge>
@@ -217,17 +342,23 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
           <div>
             <div className="da-eyebrow">ALUR PAYROLL BULANAN</div>
             <h2>Cetak Dulu → Closing Belakangan</h2>
-            <p className="da-muted">Print slip tidak memotong ledger. Closing payroll nanti yang mengunci potongan kasbon/cicilan supaya tidak dobel.</p>
+            <p className="da-muted">Kasbon bisa dicatat harian/bulanan. Slip nanti membaca catatan ini, tapi potongan final baru terkunci saat closing payroll.</p>
           </div>
-          <Badge tone="warning">Read First</Badge>
+          <Badge tone="warning">Aman Dulu</Badge>
         </div>
         <div className="da-flow-grid">
-          {["Pilih periode & karyawan", "Input bonus/lembur/absen", "Cek THP dan rekap area", "Cetak slip", "Closing payroll"].map((title, index) => (
+          {[
+            "Data karyawan hidup",
+            "Catat kasbon/cicilan",
+            "Cek THP dan rekap area",
+            "Cetak slip gaji",
+            "Closing payroll",
+          ].map((title, index) => (
             <div className="da-flow-card" key={title}>
               <div className="da-flow-number">{index + 1}</div>
               <div>
                 <div className="da-flow-title">{title}</div>
-                <div className="da-flow-desc">Fondasi payroll disiapkan bertahap supaya aman dan tidak dobel potong.</div>
+                <div className="da-flow-desc">Setiap langkah tetap punya ID dan tidak dobel potong.</div>
               </div>
             </div>
           ))}
@@ -298,7 +429,7 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
           <div>
             <div className="da-eyebrow">DATA KARYAWAN</div>
             <h2>Karyawan Terdaftar</h2>
-            <p className="da-muted">Klik Detail untuk membuka buku catatan karyawan.</p>
+            <p className="da-muted">Klik Buku Catatan untuk catat kasbon dan lihat riwayat karyawan.</p>
           </div>
           <Badge tone="success">Live Data</Badge>
         </div>
@@ -311,17 +442,18 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
             <div>
               <div className="da-eyebrow">KASBON</div>
               <h2>Kasbon Bulanan</h2>
-              <p className="da-muted">Part ini baru baca ringkasan. Input kasbon live kita sambungkan di step berikutnya supaya tidak dobel dengan kas keluar.</p>
+              <p className="da-muted">Kasbon dicatat dari Buku Catatan Karyawan supaya tidak tercampur dengan belanja umum.</p>
             </div>
+            <Badge tone="warning">Belum Closing</Badge>
           </div>
           <DataTable
             columns={[
-              { key: "date", label: "Tanggal", render: (row) => formatDate(row.date || row.kasbon_date) },
+              { key: "date", label: "Tanggal", render: (row) => formatDate(row.date) },
               { key: "employee_name", label: "Karyawan" },
               { key: "amount", label: "Nominal", render: (row) => formatRupiah(row.amount || 0) },
               { key: "status", label: "Status", render: (row) => <Badge tone={badgeTone(row.status)}>{row.status || "Open"}</Badge> },
             ]}
-            rows={kasbonRows.slice(0, 6)}
+            rows={kasbonRows.slice(0, 8)}
             getRowKey={(row, idx) => row.kasbon_id || idx}
           />
         </Card>
@@ -336,11 +468,11 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
           <DataTable
             columns={[
               { key: "employee_name", label: "Karyawan" },
-              { key: "original_amount", label: "Awal", render: (row) => formatRupiah(row.original_amount || row.amount || 0) },
+              { key: "original_amount", label: "Awal", render: (row) => formatRupiah(row.original_amount || 0) },
               { key: "remaining_amount", label: "Sisa", render: (row) => formatRupiah(row.remaining_amount || 0) },
               { key: "status", label: "Status", render: (row) => <Badge tone={badgeTone(row.status)}>{row.status || "Open"}</Badge> },
             ]}
-            rows={loanRows.slice(0, 6)}
+            rows={loanRows.slice(0, 8)}
             getRowKey={(row, idx) => row.loan_id || idx}
           />
         </Card>
@@ -351,9 +483,12 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
           <div>
             <div className="da-eyebrow">REKAP PAYROLL</div>
             <h2>Rekap Bulanan</h2>
-            <p className="da-muted">Nanti lanjut ke slip A5/Epson-safe dan rekapan payroll A4 seperti contoh yang kamu upload.</p>
+            <p className="da-muted">Periode payroll disiapkan untuk slip A5/Epson-safe dan rekapan payroll A4.</p>
           </div>
-          <Badge tone="warning">Next Payroll</Badge>
+          <div className="da-inline-actions">
+            <input value={period} type="month" onChange={(e) => setPeriod(e.target.value)} />
+            <Button variant="secondary" onClick={loadData}>Tarik Periode</Button>
+          </div>
         </div>
         <DataTable
           columns={[
@@ -370,20 +505,102 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
 
       <Modal open={Boolean(selectedEmployee)} title="Buku Catatan Karyawan" onClose={() => setSelectedEmployee(null)}>
         {selectedEmployee ? (
-          <div className="da-detail-grid">
-            <div className="da-detail-box">
-              <div className="da-eyebrow">KARYAWAN</div>
-              <h3>{selectedEmployee.employee_name}</h3>
-              <p>Lokasi: <strong>{selectedEmployee.location_name}</strong></p>
-              <p>Jabatan: <strong>{selectedEmployee.position}</strong></p>
-              <p>Tanggal gajian: <strong>{selectedEmployee.payroll_day}</strong></p>
+          <div style={{ display: "grid", gap: 16 }}>
+            <div className="da-detail-grid">
+              <div className="da-detail-box">
+                <div className="da-eyebrow">KARYAWAN</div>
+                <h3>{selectedEmployee.employee_name}</h3>
+                <p>Lokasi: <strong>{selectedEmployee.location_name}</strong></p>
+                <p>Jabatan: <strong>{selectedEmployee.position}</strong></p>
+                <p>Tanggal gajian: <strong>{selectedEmployee.payroll_day}</strong></p>
+              </div>
+              <div className="da-detail-box">
+                <div className="da-eyebrow">PAYROLL</div>
+                <p>Gaji pokok: <strong>{formatRupiah(selectedEmployee.base_salary)}</strong></p>
+                <p>Uang makan/tunjangan: <strong>{formatRupiah(selectedEmployee.meal_allowance)}</strong></p>
+                <p>Uang jabatan: <strong>{formatRupiah(selectedEmployee.job_allowance)}</strong></p>
+                <p>Status: <Badge tone={badgeTone(selectedEmployee.status)}>{selectedEmployee.status}</Badge></p>
+              </div>
             </div>
-            <div className="da-detail-box">
-              <div className="da-eyebrow">PAYROLL</div>
-              <p>Gaji pokok: <strong>{formatRupiah(selectedEmployee.base_salary)}</strong></p>
-              <p>Status: <Badge tone={badgeTone(selectedEmployee.status)}>{selectedEmployee.status}</Badge></p>
-              <p className="da-muted">Kasbon, pinjaman, dan slip print akan disambungkan di step berikutnya.</p>
+
+            <div className="da-grid-2">
+              <MiniMetric label="Kasbon Terbuka" value={formatRupiah(selectedOpenKasbon)} tone="warning" />
+              <MiniMetric label="Sisa Pinjaman Panjang" value={formatRupiah(selectedOpenLoan)} />
             </div>
+
+            <Card>
+              <div className="da-section-title">
+                <div>
+                  <div className="da-eyebrow">KASBON BULANAN</div>
+                  <h2>Catat Pengambilan Kasbon</h2>
+                  <p className="da-muted">Catatan ini belum memotong dompet/payroll. Nanti closing payroll yang mengunci potongan supaya tidak dobel.</p>
+                </div>
+                <Badge tone="success">Live Input</Badge>
+              </div>
+              <div className="da-form-grid">
+                <label className="da-field">
+                  <span>Tanggal Ambil</span>
+                  <input type="date" value={kasbonForm.date} onChange={(e) => updateKasbonForm("date", e.target.value)} />
+                </label>
+                <label className="da-field">
+                  <span>Nominal Kasbon</span>
+                  <input value={kasbonForm.amount} onChange={(e) => updateKasbonForm("amount", e.target.value)} placeholder="0" />
+                </label>
+                <label className="da-field">
+                  <span>Keterangan</span>
+                  <input value={kasbonForm.notes} onChange={(e) => updateKasbonForm("notes", e.target.value)} placeholder="Contoh: kasbon bensin / kebutuhan" />
+                </label>
+              </div>
+              <div className="da-form-summary">
+                Preview kasbon: {selectedEmployee.employee_name} · {formatRupiah(numberValue(kasbonForm.amount))} · status Open
+              </div>
+              <div className="da-form-actions">
+                <Button variant="secondary" onClick={() => setKasbonForm({ date: todayInput(), amount: "0", notes: "Kasbon karyawan." })}>Reset Kasbon</Button>
+                <Button onClick={handleSaveKasbon} disabled={savingKasbon}>{savingKasbon ? "Menyimpan..." : "Simpan Kasbon"}</Button>
+              </div>
+            </Card>
+
+            <Card>
+              <div className="da-section-title">
+                <div>
+                  <div className="da-eyebrow">RIWAYAT KASBON</div>
+                  <h2>Kasbon Karyawan Ini</h2>
+                </div>
+              </div>
+              <DataTable
+                columns={[
+                  { key: "date", label: "Tanggal", render: (row) => formatDate(row.date) },
+                  { key: "kasbon_id", label: "Kasbon ID" },
+                  { key: "amount", label: "Nominal", render: (row) => formatRupiah(row.amount || 0) },
+                  { key: "notes", label: "Catatan" },
+                  { key: "status", label: "Status", render: (row) => <Badge tone={badgeTone(row.status)}>{row.status || "Open"}</Badge> },
+                ]}
+                rows={selectedKasbonRows}
+                getRowKey={(row, idx) => row.kasbon_id || idx}
+              />
+            </Card>
+
+            <Card>
+              <div className="da-section-title">
+                <div>
+                  <div className="da-eyebrow">PINJAMAN PANJANG</div>
+                  <h2>Cicilan / Pinjaman Karyawan Ini</h2>
+                  <p className="da-muted">Input pinjaman panjang live kita sambungkan di step berikutnya.</p>
+                </div>
+                <Badge tone="warning">Next</Badge>
+              </div>
+              <DataTable
+                columns={[
+                  { key: "loan_id", label: "Loan ID" },
+                  { key: "original_amount", label: "Awal", render: (row) => formatRupiah(row.original_amount || 0) },
+                  { key: "remaining_amount", label: "Sisa", render: (row) => formatRupiah(row.remaining_amount || 0) },
+                  { key: "installment_amount", label: "Cicilan", render: (row) => formatRupiah(row.installment_amount || 0) },
+                  { key: "status", label: "Status", render: (row) => <Badge tone={badgeTone(row.status)}>{row.status || "Open"}</Badge> },
+                ]}
+                rows={selectedLoanRows}
+                getRowKey={(row, idx) => row.loan_id || idx}
+              />
+            </Card>
           </div>
         ) : null}
       </Modal>
