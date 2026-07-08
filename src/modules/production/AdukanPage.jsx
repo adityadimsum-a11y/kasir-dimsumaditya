@@ -76,6 +76,50 @@ function sumRows(rows, fields) {
   }, 0);
 }
 
+
+function isRealProductionBatch(row) {
+  if (!row || typeof row !== "object") return false;
+
+  const id = String(
+    row.production_id || row.production_no || row.batch_id || row.id || row.source_id || ""
+  ).trim();
+  const productName = String(
+    row.product_name || row.output_product_name || row.finished_product_name || row.item_name || ""
+  ).trim();
+  const lotId = String(row.chicken_lot_id || row.lot_id || row.source_chicken_lot_id || "").trim();
+  const status = String(row.status || "").toUpperCase();
+  const totalAdukan = numberValue(row.total_adukan || row.adukan_qty || row.jumlah_adukan || row.adukan);
+  const outputPcs = numberValue(row.actual_output_pcs || row.actual_pcs || row.output_pcs || row.hasil_pcs || row.finished_good_qty || row.qty_pcs || row.qty);
+  const chickenKg = numberValue(row.chicken_kg_used || row.kg_ayam_dipakai || row.used_kg || row.raw_material_kg);
+
+  if (!id && !productName && !lotId && totalAdukan === 0 && outputPcs === 0 && chickenKg === 0) return false;
+  if (!id && totalAdukan === 0 && outputPcs === 0 && chickenKg === 0) return false;
+  if (status.includes("VOID") || status.includes("CANCEL") || status.includes("DELETE")) return false;
+
+  return true;
+}
+
+function cleanProductionBatches(rows) {
+  return asArray(rows).filter(isRealProductionBatch);
+}
+
+function isRealStockMovement(row) {
+  if (!row || typeof row !== "object") return false;
+
+  const id = String(row.movement_id || row.stock_movement_id || row.mutation_id || row.id || "").trim();
+  const source = String(row.source_id || row.ref_id || row.production_id || row.batch_id || "").trim();
+  const qty = numberValue(row.qty || row.qty_effect || row.quantity);
+  const totalCost = numberValue(row.total_cost || row.amount || row.value);
+  const direction = String(row.direction || row.movement_type || "").trim();
+
+  if (!id && !source && qty === 0 && totalCost === 0 && !direction) return false;
+  return true;
+}
+
+function cleanStockMovements(rows) {
+  return asArray(rows).filter(isRealStockMovement);
+}
+
 /**
  * LOT AYAM
  */
@@ -414,14 +458,14 @@ function extractProductRows(result) {
 
 function buildSummary(data) {
   const activeLots = getActiveLotsFromData(data);
-  const batches = asArray(data?.production_batches);
-  const stockMovements = asArray(data?.stock_movements);
+  const batches = cleanProductionBatches(data?.production_batches);
+  const stockMovements = cleanStockMovements(data?.stock_movements);
 
   const totalKgAvailable = activeLots.reduce((total, lot) => {
     return total + numberValue(lot.remaining_kg);
   }, 0);
 
-  const totalAdukan = sumRows(batches, ["total_adukan", "adukan_qty", "adukan"]);
+  const totalAdukan = sumRows(batches, ["total_adukan", "adukan_qty", "jumlah_adukan", "adukan"]);
   const totalOutputPcs = sumRows(batches, [
     "actual_output_pcs",
     "actual_pcs",
@@ -720,9 +764,21 @@ export default function AdukanPage({ session, onSessionExpired }) {
     return fallbackProducts;
   }, [bootstrap, fallbackProducts]);
 
-  const productionBatches = asArray(bootstrap?.production_batches);
+  const rawProductionBatches = useMemo(() => {
+    return asArray(bootstrap?.production_batches);
+  }, [bootstrap?.production_batches]);
+  const productionBatches = useMemo(() => {
+    return cleanProductionBatches(rawProductionBatches);
+  }, [rawProductionBatches]);
+  const hiddenProductionRows = Math.max(0, rawProductionBatches.length - productionBatches.length);
 
-  const summary = useMemo(() => buildSummary(bootstrap), [bootstrap]);
+  const summary = useMemo(() => {
+    return buildSummary({
+      ...(bootstrap || {}),
+      production_batches: productionBatches,
+      stock_movements: cleanStockMovements(bootstrap?.stock_movements),
+    });
+  }, [bootstrap, productionBatches]);
 
   const preview = useMemo(() => {
     return buildProductionPreview(form, lots, productionPeople, productionProducts);
@@ -940,6 +996,12 @@ export default function AdukanPage({ session, onSessionExpired }) {
       {error ? (
         <div className="da-login-error" style={{ marginBottom: 16 }}>
           {error}
+        </div>
+      ) : null}
+
+      {!error && hiddenProductionRows > 0 ? (
+        <div className="da-form-warning" style={{ marginBottom: 16 }}>
+          {hiddenProductionRows} baris kosong/formatting produksi disembunyikan supaya adukan tidak menampilkan angka yatim.
         </div>
       ) : null}
 
@@ -1225,7 +1287,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
             <div className="da-mini-title">Daftar Produksi</div>
             <div className="da-big-text">Adukan yang Terbaca</div>
             <p className="da-muted">
-              Klik baris untuk melihat detail popup tengah.
+              Klik baris untuk melihat detail: lot ayam, hasil pcs, modal ayam, gerak stok, dan arsip ID terkait.
             </p>
           </div>
 
@@ -1391,10 +1453,23 @@ export default function AdukanPage({ session, onSessionExpired }) {
 
               <div className="da-detail-box">
                 <div className="da-mini-title">Ayam Dipakai</div>
-                <p><strong>Kg:</strong> {numberValue(selectedBatch.chicken_kg_used || selectedBatch.used_kg).toLocaleString("id-ID")} kg</p>
+                <p><strong>Kg:</strong> {numberValue(selectedBatch.chicken_kg_used || selectedBatch.used_kg || selectedBatch.kg_ayam_dipakai).toLocaleString("id-ID")} kg</p>
                 <p><strong>Lot:</strong> {safeText(selectedBatch.chicken_lot_id || selectedBatch.lot_id)}</p>
-                <p><strong>Modal ayam:</strong> {formatRupiah(selectedBatch.chicken_cost || selectedBatch.modal_ayam)}</p>
+                <p><strong>Modal ayam:</strong> {formatRupiah(selectedBatch.chicken_cost || selectedBatch.modal_ayam || selectedBatch.total_batch_cost)}</p>
+                <p><strong>Modal/pcs:</strong> {formatRupiah(selectedBatch.hpp_per_pcs || selectedBatch.estimated_chicken_cost_per_pcs)}</p>
               </div>
+
+              <div className="da-detail-box">
+                <div className="da-mini-title">Rantai ID</div>
+                <p><strong>Produksi:</strong> {safeText(selectedBatch.production_id || selectedBatch.batch_id)}</p>
+                <p><strong>Lot ayam:</strong> {safeText(selectedBatch.chicken_lot_id || selectedBatch.lot_id)}</p>
+                <p><strong>Gerak stok:</strong> {safeText(selectedBatch.stock_movement_id || selectedBatch.finished_stock_movement_id || selectedBatch.movement_id)}</p>
+                <p><strong>Layer modal:</strong> {safeText(selectedBatch.cost_layer_id || selectedBatch.finished_cost_layer_id || selectedBatch.layer_id)}</p>
+              </div>
+            </div>
+
+            <div className="da-modal-note" style={{ marginTop: 14 }}>
+              Rantai ini harus bisa ditelusuri: Lot Ayam → Produksi/Adukan → Gerak Stok IN → Stok Jadi → Order/Kasir.
             </div>
           </div>
         ) : null}
