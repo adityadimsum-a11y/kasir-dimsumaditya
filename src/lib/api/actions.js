@@ -374,6 +374,20 @@ export async function receiveDeliveryOrder(sessionToken, payload = {}) {
   return apiRequest("legacyReceiveDeliveryOrder", payload, sessionToken);
 }
 
+
+
+/**
+ * HRD / PAYROLL FOUNDATION
+ */
+
+export async function getHRDPayrollBootstrap(sessionToken, payload = {}) {
+  return apiRequest("getLegacyHRDPayrollBootstrap", payload, sessionToken);
+}
+
+export async function createHRDEmployee(sessionToken, payload = {}) {
+  return apiRequest("legacyCreateHRDEmployee", payload, sessionToken);
+}
+
 export { getConfiguredApiUrl };
 
 /**
