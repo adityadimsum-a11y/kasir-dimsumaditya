@@ -4,6 +4,7 @@ import {
   createHRDKasbonNote,
   createHRDLoanNote,
   createHRDPayrollDraft,
+  createHRDPayrollClosing,
   getHRDPayrollBootstrap,
 } from "../../lib/api/actions";
 import { formatRupiah } from "../../lib/format/money";
@@ -142,6 +143,7 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
   const [savingKasbon, setSavingKasbon] = useState(false);
   const [savingLoan, setSavingLoan] = useState(false);
   const [savingPayrollDraft, setSavingPayrollDraft] = useState(false);
+  const [savingClosing, setSavingClosing] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [data, setData] = useState(null);
@@ -166,6 +168,7 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
   const summary = data?.summary || {};
   const employees = useMemo(() => asArray(data?.employees).map(normalizeEmployee), [data]);
   const payrollRecaps = useMemo(() => asArray(data?.payroll_recaps), [data]);
+  const payrollDrafts = useMemo(() => asArray(data?.payroll_drafts), [data]);
   const kasbonRows = useMemo(() => asArray(data?.kasbon_rows).map(normalizeKasbon), [data]);
   const loanRows = useMemo(() => asArray(data?.loan_rows).map(normalizeLoan), [data]);
 
@@ -202,6 +205,21 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
       return total + numberValue(row.installment_amount || 0);
     }, 0);
   }, [selectedLoanRows]);
+
+  const selectedPayrollDraft = useMemo(() => {
+    if (!selectedEmployee?.employee_id) return null;
+    return payrollDrafts.find((row) => {
+      const sameEmployee = String(row.employee_id || row.karyawan_id || "") === selectedEmployee.employee_id;
+      const samePeriod = String(row.period || row.periode || "") === String(period || "");
+      const status = String(row.status || "Draft").toUpperCase();
+      return sameEmployee && samePeriod && !["VOID", "CANCELLED"].includes(status);
+    }) || null;
+  }, [payrollDrafts, selectedEmployee, period]);
+
+  const selectedPayrollDraftClosed = useMemo(() => {
+    const status = String(selectedPayrollDraft?.status || "").toUpperCase();
+    return ["CLOSED", "CLOSING", "LOCKED", "LUNAS"].includes(status);
+  }, [selectedPayrollDraft]);
 
   const payrollPreview = useMemo(() => {
     if (!selectedEmployee) {
@@ -242,7 +260,7 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
     setError("");
 
     const result = await getHRDPayrollBootstrap(session?.sessionToken, {
-      source: "frontend_part_5d_hrd_payroll_draft_slip_preview",
+      source: "frontend_part_5f_hrd_payroll_closing_safe",
       period,
       location_id: session?.user?.location_id || "TGR",
     });
@@ -475,6 +493,58 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
   const triggerPrint = (payload) => {
     setPrintPayload(payload);
     window.setTimeout(() => window.print(), 120);
+  };
+
+  const handleClosePayroll = async () => {
+    setError("");
+    setNotice("");
+
+    if (!selectedEmployee?.employee_id) {
+      setError("Pilih karyawan dulu untuk closing payroll.");
+      return;
+    }
+
+    if (!selectedPayrollDraft?.payroll_run_id) {
+      setError("Simpan Draft Payroll dulu sebelum closing.");
+      return;
+    }
+
+    if (selectedPayrollDraftClosed) {
+      setError("Payroll periode ini sudah closing/terkunci.");
+      return;
+    }
+
+    const ok = window.confirm("Closing payroll akan mengunci draft dan menutup potongan kasbon/cicilan yang dipakai slip. Lanjutkan?");
+    if (!ok) return;
+
+    setSavingClosing(true);
+    const payload = {
+      operation_id: makeOperationId("PAYCLOSE"),
+      closing: {
+        payroll_run_id: selectedPayrollDraft.payroll_run_id,
+        period,
+        employee_id: selectedEmployee.employee_id,
+        employee_name: selectedEmployee.employee_name,
+        location_id: selectedEmployee.location_id || "TGR",
+        take_home_pay: payrollPreview.thp,
+        kasbon_deduction: payrollPreview.kasbonDeduction,
+        loan_deduction: payrollPreview.loanDeduction,
+        notes: payrollForm.notes || "Closing payroll periode ini.",
+      },
+    };
+
+    const result = await createHRDPayrollClosing(session?.sessionToken, payload);
+    if (!result.success) {
+      if (isAuthRequired(result)) {
+        onSessionExpired?.();
+        return;
+      }
+      setError(result.message || "Closing payroll belum berhasil.");
+    } else {
+      setNotice(result.message || "Payroll berhasil closing. Potongan kasbon/cicilan sudah dikunci.");
+      await loadData();
+    }
+    setSavingClosing(false);
   };
 
   const handlePrintSlip = () => {
@@ -966,6 +1036,12 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
               </div>
 
               <div className="da-detail-grid" style={{ marginTop: 14 }}>
+                <MiniMetric label="Draft Payroll" value={selectedPayrollDraft?.payroll_run_id || "Belum ada draft"} />
+                <MiniMetric label="Status Closing" value={selectedPayrollDraftClosed ? "Sudah Closing" : selectedPayrollDraft ? "Siap Closing" : "Simpan draft dulu"} tone={selectedPayrollDraftClosed ? "success" : "warning"} />
+                <MiniMetric label="Kas/Dompet" value="Belum potong dompet" />
+              </div>
+
+              <div className="da-detail-grid" style={{ marginTop: 14 }}>
                 <div className="da-detail-box">
                   <div className="da-eyebrow">PENGHASILAN</div>
                   <p>Gaji pokok: <strong>{formatRupiah(payrollPreview.baseSalary)}</strong></p>
@@ -982,11 +1058,15 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
                 </div>
               </div>
 
-              <NoteBox>Print slip boleh disiapkan dari draft ini, tapi ledger kasbon/cicilan baru terkunci saat closing payroll nanti.</NoteBox>
+              <NoteBox>Print slip boleh disiapkan dari draft ini. Closing payroll yang mengunci potongan supaya kasbon/cicilan tidak dobel.</NoteBox>
+              <NoteBox tone="danger">Closing payroll belum membuat Kas Keluar gaji/dompet. Part berikutnya akan sambungkan pembayaran gaji ke Kas & Dompet.</NoteBox>
               <div className="da-form-actions">
                 <Button variant="secondary" onClick={() => setPayrollForm({ absence_days: "0", bonus: "0", overtime: "0", extra_deduction: "0", notes: "Draft payroll periode ini." })}>Reset Draft</Button>
                 <Button variant="secondary" onClick={handlePrintSlip}>Cetak Preview Slip A5</Button>
-                <Button onClick={handleSavePayrollDraft} disabled={savingPayrollDraft}>{savingPayrollDraft ? "Menyimpan..." : "Simpan Draft Payroll"}</Button>
+                <Button onClick={handleSavePayrollDraft} disabled={savingPayrollDraft || selectedPayrollDraftClosed}>{savingPayrollDraft ? "Menyimpan..." : "Simpan Draft Payroll"}</Button>
+                <Button variant="secondary" onClick={handleClosePayroll} disabled={savingClosing || !selectedPayrollDraft || selectedPayrollDraftClosed}>
+                  {savingClosing ? "Closing..." : selectedPayrollDraftClosed ? "Sudah Closing" : "Closing Payroll"}
+                </Button>
               </div>
             </Card>
 
