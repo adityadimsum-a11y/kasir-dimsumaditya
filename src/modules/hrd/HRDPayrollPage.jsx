@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { createHRDEmployee, createHRDKasbonNote, getHRDPayrollBootstrap } from "../../lib/api/actions";
+import { createHRDEmployee, createHRDKasbonNote, createHRDLoanNote, getHRDPayrollBootstrap } from "../../lib/api/actions";
 import { formatRupiah } from "../../lib/format/money";
 import { formatDate } from "../../lib/format/date";
 import Badge from "../../components/ui/Badge";
@@ -85,10 +85,15 @@ function normalizeLoan(row) {
     loan_id: textValue(row.loan_id || row.pinjaman_id || row.id, ""),
     employee_id: textValue(row.employee_id || row.karyawan_id, ""),
     employee_name: textValue(row.employee_name || row.nama_karyawan, "-"),
+    loan_date: textValue(row.loan_date || row.date || row.tanggal, ""),
     original_amount: numberValue(row.original_amount || row.amount || row.nominal),
     remaining_amount: numberValue(row.remaining_amount || row.sisa || row.amount),
     installment_amount: numberValue(row.installment_amount || row.cicilan),
+    tenor_total: numberValue(row.tenor_total || row.tenor || row.total_tenor),
+    tenor_paid: numberValue(row.tenor_paid || row.tenor_terbayar || row.paid_tenor),
+    notes: textValue(row.notes || row.catatan, "-"),
     status: textValue(row.status, "Open"),
+    source_id: textValue(row.source_id || row.loan_id || row.pinjaman_id || row.id, ""),
     raw: row,
   };
 }
@@ -129,12 +134,14 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingKasbon, setSavingKasbon] = useState(false);
+  const [savingLoan, setSavingLoan] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [data, setData] = useState(null);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [period, setPeriod] = useState(monthInput());
   const [kasbonForm, setKasbonForm] = useState({ date: todayInput(), amount: "0", notes: "Kasbon karyawan." });
+  const [loanForm, setLoanForm] = useState({ loan_date: todayInput(), amount: "0", installment_amount: "0", tenor_total: "0", notes: "Pinjaman panjang karyawan." });
   const [form, setForm] = useState({
     employee_name: "",
     location_id: "TGR",
@@ -214,6 +221,10 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
 
   const updateKasbonForm = (key, value) => {
     setKasbonForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const updateLoanForm = (key, value) => {
+    setLoanForm((prev) => ({ ...prev, [key]: value }));
   };
 
   const handleSaveEmployee = async () => {
@@ -301,6 +312,55 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
     setSavingKasbon(false);
   };
 
+  const handleSaveLoan = async () => {
+    setError("");
+    setNotice("");
+
+    if (!selectedEmployee?.employee_id) {
+      setError("Pilih karyawan dulu untuk catat pinjaman panjang.");
+      return;
+    }
+
+    const amount = numberValue(loanForm.amount);
+    const installmentAmount = numberValue(loanForm.installment_amount);
+    if (amount <= 0) {
+      setError("Nominal pinjaman harus lebih dari 0.");
+      return;
+    }
+
+    setSavingLoan(true);
+    const payload = {
+      operation_id: makeOperationId("PINJAMAN"),
+      loan: {
+        employee_id: selectedEmployee.employee_id,
+        employee_name: selectedEmployee.employee_name,
+        location_id: selectedEmployee.location_id || "TGR",
+        loan_date: loanForm.loan_date || todayInput(),
+        original_amount: amount,
+        remaining_amount: amount,
+        installment_amount: installmentAmount,
+        tenor_total: numberValue(loanForm.tenor_total),
+        tenor_paid: 0,
+        notes: loanForm.notes || "Pinjaman panjang karyawan.",
+        status: "Open",
+      },
+    };
+
+    const result = await createHRDLoanNote(session?.sessionToken, payload);
+    if (!result.success) {
+      if (isAuthRequired(result)) {
+        onSessionExpired?.();
+        return;
+      }
+      setError(result.message || "Pinjaman panjang belum berhasil disimpan.");
+    } else {
+      setNotice(result.message || "Pinjaman panjang karyawan berhasil dicatat.");
+      setLoanForm({ loan_date: todayInput(), amount: "0", installment_amount: "0", tenor_total: "0", notes: "Pinjaman panjang karyawan." });
+      await loadData();
+    }
+    setSavingLoan(false);
+  };
+
   return (
     <div className="da-page">
       <div className="da-page-header">
@@ -316,8 +376,8 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
         <div className="da-card-header-row">
           <div>
             <div className="da-eyebrow">HRD & PAYROLL</div>
-            <h2>Data Karyawan → Buku Catatan → Kasbon → Payroll</h2>
-            <p className="da-muted">Kasbon sekarang bisa dicatat dari Buku Catatan Karyawan. Print slip tetap belum memotong ledger; closing payroll nanti yang mengunci potongan.</p>
+            <h2>Data Karyawan → Buku Catatan → Kasbon/Pinjaman → Payroll</h2>
+            <p className="da-muted">Kasbon dan pinjaman panjang dicatat dari Buku Catatan Karyawan. Print slip tetap belum memotong ledger; closing payroll nanti yang mengunci potongan.</p>
           </div>
           <div className="da-inline-actions">
             <Badge tone={error ? "danger" : "success"}>{error ? "Perlu Dicek" : "Terhubung"}</Badge>
@@ -585,16 +645,49 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
                 <div>
                   <div className="da-eyebrow">PINJAMAN PANJANG</div>
                   <h2>Cicilan / Pinjaman Karyawan Ini</h2>
-                  <p className="da-muted">Input pinjaman panjang live kita sambungkan di step berikutnya.</p>
+                  <p className="da-muted">Pinjaman panjang dicatat terpisah dari kasbon bulanan. Payroll closing nanti yang memotong cicilan supaya tidak dobel.</p>
                 </div>
-                <Badge tone="warning">Next</Badge>
+                <Badge tone="success">Live Input</Badge>
               </div>
+
+              <div className="da-form-grid">
+                <label className="da-field">
+                  <span>Tanggal Pinjam</span>
+                  <input type="date" value={loanForm.loan_date} onChange={(e) => updateLoanForm("loan_date", e.target.value)} />
+                </label>
+                <label className="da-field">
+                  <span>Nominal Pinjaman</span>
+                  <input value={loanForm.amount} onChange={(e) => updateLoanForm("amount", e.target.value)} placeholder="0" />
+                </label>
+                <label className="da-field">
+                  <span>Cicilan per Bulan</span>
+                  <input value={loanForm.installment_amount} onChange={(e) => updateLoanForm("installment_amount", e.target.value)} placeholder="0" />
+                </label>
+                <label className="da-field">
+                  <span>Total Tenor</span>
+                  <input value={loanForm.tenor_total} onChange={(e) => updateLoanForm("tenor_total", e.target.value)} placeholder="0" />
+                </label>
+                <label className="da-field da-span-2">
+                  <span>Catatan</span>
+                  <input value={loanForm.notes} onChange={(e) => updateLoanForm("notes", e.target.value)} placeholder="Catatan pinjaman panjang" />
+                </label>
+              </div>
+              <div className="da-form-summary">
+                Preview pinjaman: {selectedEmployee.employee_name} · awal {formatRupiah(numberValue(loanForm.amount))} · cicilan {formatRupiah(numberValue(loanForm.installment_amount))} · tenor {numberValue(loanForm.tenor_total)}x
+              </div>
+              <div className="da-form-actions">
+                <Button variant="secondary" onClick={() => setLoanForm({ loan_date: todayInput(), amount: "0", installment_amount: "0", tenor_total: "0", notes: "Pinjaman panjang karyawan." })}>Reset Pinjaman</Button>
+                <Button onClick={handleSaveLoan} disabled={savingLoan}>{savingLoan ? "Menyimpan..." : "Simpan Pinjaman"}</Button>
+              </div>
+
               <DataTable
                 columns={[
+                  { key: "loan_date", label: "Tanggal", render: (row) => formatDate(row.loan_date) },
                   { key: "loan_id", label: "Loan ID" },
                   { key: "original_amount", label: "Awal", render: (row) => formatRupiah(row.original_amount || 0) },
                   { key: "remaining_amount", label: "Sisa", render: (row) => formatRupiah(row.remaining_amount || 0) },
                   { key: "installment_amount", label: "Cicilan", render: (row) => formatRupiah(row.installment_amount || 0) },
+                  { key: "tenor_total", label: "Tenor", render: (row) => `${row.tenor_paid || 0}/${row.tenor_total || 0}` },
                   { key: "status", label: "Status", render: (row) => <Badge tone={badgeTone(row.status)}>{row.status || "Open"}</Badge> },
                 ]}
                 rows={selectedLoanRows}
