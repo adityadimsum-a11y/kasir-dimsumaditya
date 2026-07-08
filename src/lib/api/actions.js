@@ -447,6 +447,10 @@ export async function createOwnerPeriodClosingSnapshot(sessionToken, payload = {
   return apiRequest("legacyCreateOwnerPeriodClosingSnapshot", payload, sessionToken);
 }
 
+export async function createOwnerPeriodClosingRevision(sessionToken, payload = {}) {
+  return apiRequest("legacyCreateOwnerPeriodClosingRevision", payload, sessionToken);
+}
+
 export { getConfiguredApiUrl };
 
 /**
