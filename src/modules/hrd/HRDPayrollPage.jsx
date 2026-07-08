@@ -150,6 +150,7 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
   const [kasbonForm, setKasbonForm] = useState({ date: todayInput(), amount: "0", notes: "Kasbon karyawan." });
   const [loanForm, setLoanForm] = useState({ loan_date: todayInput(), amount: "0", installment_amount: "0", tenor_total: "0", notes: "Pinjaman panjang karyawan." });
   const [payrollForm, setPayrollForm] = useState({ absence_days: "0", bonus: "0", overtime: "0", extra_deduction: "0", notes: "Draft payroll periode ini." });
+  const [printPayload, setPrintPayload] = useState(null);
   const [form, setForm] = useState({
     employee_name: "",
     location_id: "TGR",
@@ -263,6 +264,12 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
   useEffect(() => {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const clearPrint = () => setPrintPayload(null);
+    window.addEventListener("afterprint", clearPrint);
+    return () => window.removeEventListener("afterprint", clearPrint);
   }, []);
 
   const updateForm = (key, value) => {
@@ -465,8 +472,230 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
     setSavingPayrollDraft(false);
   };
 
+  const triggerPrint = (payload) => {
+    setPrintPayload(payload);
+    window.setTimeout(() => window.print(), 120);
+  };
+
+  const handlePrintSlip = () => {
+    setError("");
+    setNotice("");
+    if (!selectedEmployee?.employee_id) {
+      setError("Pilih karyawan dulu untuk cetak preview slip.");
+      return;
+    }
+
+    triggerPrint({
+      type: "slip",
+      period,
+      employee: selectedEmployee,
+      preview: payrollPreview,
+      form: payrollForm,
+      kasbonRows: selectedKasbonRows,
+      loanRows: selectedLoanRows,
+      printedAt: new Date().toISOString(),
+    });
+  };
+
+  const handlePrintRecap = () => {
+    setError("");
+    setNotice("");
+    triggerPrint({
+      type: "recap",
+      period,
+      employees,
+      summary,
+      kasbonRows,
+      loanRows,
+      payrollRecaps,
+      printedAt: new Date().toISOString(),
+    });
+  };
+
+  const printDateText = (iso) => {
+    try {
+      return new Date(iso || Date.now()).toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" });
+    } catch (err) {
+      return formatDate(todayInput());
+    }
+  };
+
+  const printPeriodText = (value) => {
+    if (!value) return "-";
+    const parts = String(value).split("-");
+    if (parts.length < 2) return value;
+    const date = new Date(Number(parts[0]), Number(parts[1]) - 1, 1);
+    return date.toLocaleDateString("id-ID", { month: "long", year: "numeric" });
+  };
+
+  const renderPrintArea = () => {
+    if (!printPayload) return null;
+
+    if (printPayload.type === "slip") {
+      const employee = printPayload.employee || {};
+      const preview = printPayload.preview || {};
+      return (
+        <div className="hrd-print-root">
+          <div className="hrd-slip-print">
+            <div className="hrd-print-header">
+              <div>
+                <h1>DIMSUM ADITYA</h1>
+                <p>Slip Gaji Karyawan</p>
+              </div>
+              <div className="hrd-print-title">
+                <strong>SLIP GAJI</strong>
+                <span>Periode {printPeriodText(printPayload.period)}</span>
+              </div>
+            </div>
+
+            <div className="hrd-print-info">
+              <div><span>Nama Karyawan</span><strong>{employee.employee_name}</strong></div>
+              <div><span>Lokasi</span><strong>{employee.location_name || employee.location_id}</strong></div>
+              <div><span>Jabatan</span><strong>{employee.position}</strong></div>
+              <div><span>Tanggal Cetak</span><strong>{printDateText(printPayload.printedAt)}</strong></div>
+            </div>
+
+            <div className="hrd-print-two-col">
+              <div>
+                <h3>Penghasilan</h3>
+                <div className="hrd-print-row"><span>Gaji Pokok</span><strong>{formatRupiah(preview.baseSalary || 0)}</strong></div>
+                <div className="hrd-print-row"><span>Uang Makan / Tunjangan</span><strong>{formatRupiah(preview.mealAllowance || 0)}</strong></div>
+                <div className="hrd-print-row"><span>Uang Jabatan</span><strong>{formatRupiah(preview.jobAllowance || 0)}</strong></div>
+                <div className="hrd-print-row"><span>Bonus / Insentif</span><strong>{formatRupiah(preview.bonus || 0)}</strong></div>
+                <div className="hrd-print-row"><span>Uang Lembur</span><strong>{formatRupiah(preview.overtime || 0)}</strong></div>
+                <div className="hrd-print-row total"><span>Total Penghasilan</span><strong>{formatRupiah(preview.income || 0)}</strong></div>
+              </div>
+              <div>
+                <h3>Potongan</h3>
+                <div className="hrd-print-row"><span>Potongan Absen ({preview.absenceDays || 0} hari)</span><strong>{formatRupiah(preview.absenceDeduction || 0)}</strong></div>
+                <div className="hrd-print-row"><span>Kasbon Bulanan</span><strong>{formatRupiah(preview.kasbonDeduction || 0)}</strong></div>
+                <div className="hrd-print-row"><span>Cicilan Pinjaman</span><strong>{formatRupiah(preview.loanDeduction || 0)}</strong></div>
+                <div className="hrd-print-row"><span>Potongan Tambahan</span><strong>{formatRupiah(preview.extraDeduction || 0)}</strong></div>
+                <div className="hrd-print-row total danger"><span>Total Potongan</span><strong>{formatRupiah(preview.deductions || 0)}</strong></div>
+              </div>
+            </div>
+
+            <div className="hrd-print-bottom">
+              <div className="hrd-print-note">
+                <strong>Catatan:</strong> {printPayload.form?.notes || "Slip preview payroll."}<br />
+                Print slip tidak memotong kasbon/cicilan. Potongan final terkunci saat closing payroll.
+              </div>
+              <div className="hrd-print-thp">
+                <span>Take Home Pay</span>
+                <strong>{formatRupiah(preview.thp || 0)}</strong>
+              </div>
+            </div>
+
+            <div className="hrd-print-signatures">
+              <div><span>Owner / Tangerang</span><strong>Dimsum Aditya</strong></div>
+              <div><span>Karyawan</span><strong>{employee.employee_name}</strong></div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const rows = printPayload.employees || [];
+    return (
+      <div className="hrd-print-root">
+        <div className="hrd-recap-print">
+          <div className="hrd-print-header">
+            <div>
+              <h1>DIMSUM ADITYA</h1>
+              <p>Rekap Payroll Bulanan</p>
+            </div>
+            <div className="hrd-print-title">
+              <strong>REKAP A4</strong>
+              <span>Periode {printPeriodText(printPayload.period)}</span>
+            </div>
+          </div>
+
+          <div className="hrd-print-info">
+            <div><span>Karyawan Aktif</span><strong>{printPayload.summary?.active_employees || rows.length || 0}</strong></div>
+            <div><span>Total Gaji Pokok</span><strong>{formatRupiah(printPayload.summary?.total_base_salary || 0)}</strong></div>
+            <div><span>Kasbon Terbuka</span><strong>{formatRupiah(printPayload.summary?.open_kasbon || 0)}</strong></div>
+            <div><span>Pinjaman Panjang</span><strong>{formatRupiah(printPayload.summary?.open_loans || 0)}</strong></div>
+          </div>
+
+          <table className="hrd-print-table">
+            <thead>
+              <tr>
+                <th>No</th>
+                <th>Karyawan</th>
+                <th>Lokasi</th>
+                <th>Jabatan</th>
+                <th>Tgl Gajian</th>
+                <th>Gaji Pokok</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.length ? rows.map((employee, index) => (
+                <tr key={employee.employee_id || employee.employee_name || index}>
+                  <td>{index + 1}</td>
+                  <td>{employee.employee_name}</td>
+                  <td>{employee.location_name || employee.location_id}</td>
+                  <td>{employee.position}</td>
+                  <td>{employee.payroll_day}</td>
+                  <td>{formatRupiah(employee.base_salary || 0)}</td>
+                  <td>{employee.status}</td>
+                </tr>
+              )) : (
+                <tr><td colSpan="7">Belum ada karyawan aktif untuk periode ini.</td></tr>
+              )}
+            </tbody>
+          </table>
+
+          <div className="hrd-print-note">
+            Rekap ini adalah preview A4. Closing payroll tetap dilakukan terpisah agar kasbon/cicilan tidak dobel potong.
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="da-page">
+      <style>{`
+        @media screen { .hrd-print-root { display: none; } }
+        @media print {
+          body * { visibility: hidden !important; }
+          .hrd-print-root, .hrd-print-root * { visibility: visible !important; }
+          .hrd-print-root { display: block !important; position: absolute; left: 0; top: 0; width: 100%; background: #fff; color: #111827; padding: 0; }
+          @page { size: A4 portrait; margin: 10mm; }
+        }
+        .hrd-slip-print, .hrd-recap-print { font-family: Inter, Arial, sans-serif; max-width: 190mm; margin: 0 auto; background: #fff; color: #111827; }
+        .hrd-slip-print { font-size: 10px; }
+        .hrd-recap-print { font-size: 11px; }
+        .hrd-print-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; margin-bottom: 12px; }
+        .hrd-print-header h1 { font-size: 22px; margin: 0; font-weight: 950; letter-spacing: -0.8px; }
+        .hrd-print-header p { margin: 4px 0 0; color: #6b7280; font-weight: 800; text-transform: uppercase; font-size: 10px; }
+        .hrd-print-title { text-align: right; display: grid; gap: 3px; }
+        .hrd-print-title strong { color: #d9251c; font-size: 18px; font-weight: 950; }
+        .hrd-print-title span { color: #6b7280; font-weight: 800; }
+        .hrd-print-info { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; background: #f9fafb; border: 1px solid #eef2f7; border-radius: 12px; padding: 10px; margin-bottom: 12px; }
+        .hrd-print-info div { display: grid; gap: 3px; }
+        .hrd-print-info span { color: #6b7280; font-size: 8px; text-transform: uppercase; font-weight: 900; letter-spacing: 0.4px; }
+        .hrd-print-info strong { font-size: 11px; font-weight: 900; }
+        .hrd-print-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 10px; }
+        .hrd-print-two-col h3 { font-size: 11px; text-transform: uppercase; color: #6b7280; margin: 0 0 6px; border-bottom: 2px solid #e5e7eb; padding-bottom: 5px; }
+        .hrd-print-row { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; border-bottom: 1px solid #f3f4f6; font-weight: 650; }
+        .hrd-print-row strong { font-weight: 900; }
+        .hrd-print-row.total { border-top: 1px dashed #d1d5db; border-bottom: 0; margin-top: 4px; padding-top: 7px; font-weight: 950; }
+        .hrd-print-row.danger strong { color: #dc2626; }
+        .hrd-print-bottom { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 12px; align-items: stretch; margin-top: 10px; }
+        .hrd-print-note { background: #f9fafb; border: 1px solid #eef2f7; border-radius: 10px; padding: 10px; color: #4b5563; line-height: 1.45; font-weight: 700; }
+        .hrd-print-thp { background: #ecfdf5; border-left: 5px solid #00b14f; border-radius: 10px; padding: 10px 12px; text-align: right; display: grid; align-content: center; }
+        .hrd-print-thp span { color: #047857; font-size: 9px; text-transform: uppercase; font-weight: 950; }
+        .hrd-print-thp strong { color: #00b14f; font-size: 22px; font-weight: 950; letter-spacing: -0.7px; }
+        .hrd-print-signatures { display: flex; justify-content: space-between; margin-top: 28px; padding: 0 28px; text-align: center; font-size: 10px; font-weight: 800; }
+        .hrd-print-signatures div { display: grid; gap: 26px; }
+        .hrd-print-signatures strong { min-width: 150px; border-top: 1px solid #111827; padding-top: 5px; }
+        .hrd-print-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        .hrd-print-table th { background: #f9fafb; color: #4b5563; text-transform: uppercase; font-size: 9px; letter-spacing: 0.35px; }
+        .hrd-print-table th, .hrd-print-table td { border: 1px solid #e5e7eb; padding: 7px 8px; text-align: left; }
+      `}</style>
+      {renderPrintArea()}
       <div className="da-page-header">
         <div>
           <div className="da-eyebrow">DIMSUM ADITYA</div>
@@ -652,6 +881,7 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
           <div className="da-inline-actions">
             <input value={period} type="month" onChange={(e) => setPeriod(e.target.value)} />
             <Button variant="secondary" onClick={loadData}>Tarik Periode</Button>
+            <Button variant="secondary" onClick={handlePrintRecap}>Cetak Rekap A4</Button>
           </div>
         </div>
         <DataTable
@@ -755,6 +985,7 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
               <NoteBox>Print slip boleh disiapkan dari draft ini, tapi ledger kasbon/cicilan baru terkunci saat closing payroll nanti.</NoteBox>
               <div className="da-form-actions">
                 <Button variant="secondary" onClick={() => setPayrollForm({ absence_days: "0", bonus: "0", overtime: "0", extra_deduction: "0", notes: "Draft payroll periode ini." })}>Reset Draft</Button>
+                <Button variant="secondary" onClick={handlePrintSlip}>Cetak Preview Slip A5</Button>
                 <Button onClick={handleSavePayrollDraft} disabled={savingPayrollDraft}>{savingPayrollDraft ? "Menyimpan..." : "Simpan Draft Payroll"}</Button>
               </div>
             </Card>
