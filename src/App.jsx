@@ -27,6 +27,7 @@ import SetoranCabangPage from "./modules/branch/SetoranCabangPage";
 import RequestDOPage from "./modules/branch/RequestDOPage";
 import MasterDataPage from "./modules/master/MasterDataPage";
 import HRDPayrollPage from "./modules/hrd/HRDPayrollPage";
+import ClosingOwnerPage from "./modules/closing/ClosingOwnerPage";
 
 export default function App() {
   const [session, setSession] = useState(() => getSavedSession());
@@ -94,6 +95,17 @@ export default function App() {
     if (activePage === "arsip-digital") {
       return (
         <ArchiveDigitalPage
+          session={session}
+          onSessionExpired={handleSessionExpired}
+        />
+      );
+    }
+
+
+
+    if (activePage === "closing-owner") {
+      return (
+        <ClosingOwnerPage
           session={session}
           onSessionExpired={handleSessionExpired}
         />
