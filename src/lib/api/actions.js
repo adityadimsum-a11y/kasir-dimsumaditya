@@ -434,6 +434,15 @@ export async function getOwnerObligationDetail(sessionToken, payload = {}) {
   return apiRequest("getLegacyOwnerObligationDetail", payload, sessionToken);
 }
 
+
+/**
+ * LAPORAN OWNER / CLOSING PERIODE READ-ONLY
+ */
+
+export async function getOwnerPeriodReportBootstrap(sessionToken, payload = {}) {
+  return apiRequest("getLegacyOwnerPeriodReportBootstrap", payload, sessionToken);
+}
+
 export { getConfiguredApiUrl };
 
 /**
