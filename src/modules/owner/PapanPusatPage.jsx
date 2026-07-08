@@ -55,6 +55,8 @@ function getRadar(summary) {
   const poKurang = numberValue(summary?.po?.shortage_qty);
   const requestPending = numberValue(summary?.branch?.request_pending_count);
   const setoranPending = numberValue(summary?.branch?.deposit_pending);
+  const kewajibanOwner = numberValue(summary?.owner_obligations?.due_this_month);
+  const payrollBelumDibayar = numberValue(summary?.payroll?.unpaid_total);
 
   const items = [
     {
@@ -105,6 +107,20 @@ function getRadar(summary) {
       value: formatRupiah(setoranPending),
       status: setoranPending > 0 ? "Perlu Approve" : "Aman",
       description: "Setoran belum menjadi uang pusat sebelum owner/Tangerang approve.",
+    },
+    {
+      key: "kewajiban-owner",
+      title: "Kewajiban Owner Bulan Ini",
+      value: formatRupiah(kewajibanOwner),
+      status: kewajibanOwner > 0 ? "Jatuh Tempo" : "Aman",
+      description: "Cicilan/tagihan owner dibayar lewat Kewajiban Owner supaya masuk KASOUT dan Mutasi Dompet.",
+    },
+    {
+      key: "payroll",
+      title: "Payroll Belum Dibayar",
+      value: formatRupiah(payrollBelumDibayar),
+      status: payrollBelumDibayar > 0 ? "Perlu Bayar" : "Aman",
+      description: "Payroll closing baru jadi uang keluar setelah dibayar dari dompet.",
     },
   ];
 
@@ -166,6 +182,18 @@ function getBenangMerah(summary) {
       value: formatRupiah(summary?.obligations?.hutang_remaining || 0),
       description: "Sisa hutang ayam setelah pembayaran supplier.",
       status: summary?.obligations?.hutang_remaining > 0 ? "Belum Lunas" : "Aman",
+    },
+    {
+      title: "Kewajiban Owner",
+      value: formatRupiah(summary?.owner_obligations?.total_remaining || 0),
+      description: "Cicilan/tagihan owner → KASOUT → Mutasi Dompet → Arsip.",
+      status: `${formatNumber(summary?.owner_obligations?.active_count || 0)} aktif`,
+    },
+    {
+      title: "HRD / Payroll",
+      value: formatRupiah(summary?.payroll?.unpaid_total || 0),
+      description: "Payroll closing → Bayar Gaji → KASOUT → Mutasi Dompet.",
+      status: `${formatNumber(summary?.payroll?.draft_count || 0)} draft`,
     },
     {
       title: "4 Amplop",
@@ -261,7 +289,7 @@ export default function PapanPusatPage({ session, onSessionExpired }) {
     <div className="da-page">
       <PageHeader
         title="Papan Pantau"
-        description="Ringkasan cepat owner untuk melihat uang, stok, produksi, PO, hutang, setoran, dan 4 Amplop dalam satu halaman ringan. Read-only, tidak membuat transaksi."
+        description="Ringkasan cepat owner untuk melihat uang, stok, produksi, PO, hutang, kewajiban owner, payroll, setoran, dan 4 Amplop dalam satu halaman ringan. Read-only, tidak membuat transaksi."
         badge="Live Dashboard"
       />
 
@@ -315,6 +343,18 @@ export default function PapanPusatPage({ session, onSessionExpired }) {
           description={`${formatNumber(summary?.po?.reserved_qty || 0, "pcs")} ditahan, ${formatNumber(summary?.po?.shortage_qty || 0, "pcs")} kurang.`}
         />
         <StatCard
+          tone={summary?.owner_obligations?.due_this_month > 0 ? "warning" : "default"}
+          label="Kewajiban Owner"
+          value={loading ? "..." : formatRupiah(summary?.owner_obligations?.due_this_month || 0)}
+          description="Jatuh tempo bulan ini dari kewajiban/cicilan owner."
+        />
+        <StatCard
+          tone={summary?.payroll?.unpaid_total > 0 ? "warning" : "default"}
+          label="Payroll Belum Dibayar"
+          value={loading ? "..." : formatRupiah(summary?.payroll?.unpaid_total || 0)}
+          description="Payroll closing yang belum dibayar dari dompet."
+        />
+        <StatCard
           tone={health?.status === "Perlu Dicek" ? "warning" : "default"}
           label="Kesehatan Kabel"
           value={loading ? "..." : health?.status || "-"}
@@ -351,6 +391,8 @@ export default function PapanPusatPage({ session, onSessionExpired }) {
             <div className="da-detail-box"><p>Piutang Terbuka</p><strong>{formatRupiah(summary?.sales?.receivable_open || 0)}</strong></div>
             <div className="da-detail-box"><p>Setoran Pending</p><strong>{formatRupiah(summary?.branch?.deposit_pending || 0)}</strong></div>
             <div className="da-detail-box"><p>Request Cabang</p><strong>{formatNumber(summary?.branch?.request_count || 0)}</strong></div>
+            <div className="da-detail-box"><p>Kewajiban Owner</p><strong>{formatRupiah(summary?.owner_obligations?.total_remaining || 0)}</strong></div>
+            <div className="da-detail-box"><p>Payroll Belum Dibayar</p><strong>{formatRupiah(summary?.payroll?.unpaid_total || 0)}</strong></div>
             <div className="da-detail-box"><p>Arsip/Jejak Terbaca</p><strong>{formatNumber(counts?.recent_transactions || recent.length || 0)}</strong></div>
           </div>
         </Card>
@@ -360,7 +402,7 @@ export default function PapanPusatPage({ session, onSessionExpired }) {
         <div className="da-section-heading">
           <div>
             <div className="da-page-kicker">BENANG MERAH USAHA</div>
-            <h2 style={{ margin: 0 }}>DROP → Produksi → Stok → Order → Uang → Hutang → 4 Amplop</h2>
+            <h2 style={{ margin: 0 }}>DROP → Produksi → Stok → Order → Uang → Hutang/Kewajiban → Payroll → 4 Amplop</h2>
             <p className="da-muted" style={{ margin: "6px 0 0" }}>
               Ini peta cepat. Detail lengkap tetap dibuka lewat Owner Control atau Arsip Digital.
             </p>
