@@ -3,6 +3,7 @@ import {
   createOwnerObligation,
   getOwnerObligationBootstrap,
   payOwnerObligation,
+  seedOwnerObligations,
 } from "../../lib/api/actions";
 import { formatRupiah } from "../../lib/format/money";
 import { formatDate } from "../../lib/format/date";
@@ -66,6 +67,7 @@ const emptyPaymentForm = {
 export default function KewajibanOwnerPage({ session, onSessionExpired }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [seeding, setSeeding] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [data, setData] = useState({});
@@ -167,6 +169,34 @@ export default function KewajibanOwnerPage({ session, onSessionExpired }) {
     }
   }
 
+
+  async function handleSeedDefaults() {
+    setSeeding(true);
+    setError("");
+    setMessage("");
+    try {
+      const result = await seedOwnerObligations(sessionToken, {
+        location_id: session?.user?.location_id || "TGR",
+      });
+      if (isAuthRequired(result)) {
+        onSessionExpired?.();
+        return;
+      }
+      if (!result?.success) {
+        setError(result?.message || "Gagal mengisi kewajiban dasar.");
+        return;
+      }
+      const created = result?.data?.created_count ?? 0;
+      const skipped = result?.data?.skipped_count ?? 0;
+      setMessage(`${result.message || "Data kewajiban dasar dicek."} Baru dibuat: ${created}. Sudah ada/dilewati: ${skipped}.`);
+      await loadData();
+    } catch (err) {
+      setError(err?.message || "Gagal mengisi kewajiban dasar.");
+    } finally {
+      setSeeding(false);
+    }
+  }
+
   async function handlePayObligation(event) {
     event.preventDefault();
     setSaving(true);
@@ -238,6 +268,9 @@ export default function KewajibanOwnerPage({ session, onSessionExpired }) {
           <div className="da-actions">
             <Badge tone={error ? "danger" : "success"}>{error ? "Perlu Dicek" : "Terhubung"}</Badge>
             <Button variant="secondary" onClick={loadData} disabled={loading}>{loading ? "Memuat..." : "Refresh Data"}</Button>
+            <Button variant="secondary" onClick={handleSeedDefaults} disabled={seeding || saving}>
+              {seeding ? "Mengisi..." : "Isi Kewajiban Dasar"}
+            </Button>
           </div>
         </div>
       </Card>
