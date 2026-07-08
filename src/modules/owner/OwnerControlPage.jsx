@@ -140,6 +140,18 @@ function buildChain(summary) {
       status: summary?.obligations?.hutang_remaining > 0 ? "Belum Lunas" : "Aman",
     },
     {
+      title: "Kewajiban Owner",
+      value: formatRupiah(summary?.owner_obligations?.total_remaining || 0),
+      description: "Cicilan/tagihan owner yang dibayar lewat Kewajiban Owner → KASOUT → Mutasi Dompet.",
+      status: `${formatNumber(summary?.owner_obligations?.active_count || 0)} aktif`,
+    },
+    {
+      title: "HRD / Payroll",
+      value: formatRupiah(summary?.payroll?.unpaid_total || 0),
+      description: "Payroll closing yang belum dibayar ke karyawan dari dompet.",
+      status: `${formatNumber(summary?.payroll?.draft_count || 0)} draft`,
+    },
+    {
       title: "4 Amplop",
       value: formatRupiah(summary?.amplop?.allocated_total || 0),
       description: "Pembagian hanya dari uang masuk aktual yang bersumber jelas.",
@@ -208,14 +220,14 @@ export default function OwnerControlPage({ session, onSessionExpired }) {
     <div className="da-page">
       <PageHeader
         title="Owner Control"
-        description="Pusat kendali benang merah usaha: ayam, produksi, stok, PO, order, uang masuk, setoran, hutang Nana, dan 4 Amplop. Read-only supaya owner bisa pantau semua kabel utama."
+        description="Pusat kendali benang merah usaha: ayam, produksi, stok, PO, order, uang masuk, setoran, hutang Nana, kewajiban owner, HRD/Payroll, dan 4 Amplop. Read-only supaya owner bisa pantau semua kabel utama."
         badge="Live Monitor"
       />
 
       <Card className="da-dashboard-banner">
         <div>
           <div className="da-dashboard-banner-kicker">BENANG MERAH USAHA</div>
-          <h2>DROP Ayam → Produksi → Stok → PO/Order → Uang/Setoran → Hutang Nana → 4 Amplop</h2>
+          <h2>DROP Ayam → Produksi → Stok → PO/Order → Uang/Setoran → Hutang/Kewajiban → Payroll → 4 Amplop</h2>
           <p className="da-dashboard-banner-desc">
             Halaman ini tidak membuat transaksi baru. Fungsinya membaca sumber hidup, menyaring baris kosong, dan menampilkan apakah rantai usaha sudah nyambung.
           </p>
@@ -282,6 +294,18 @@ export default function OwnerControlPage({ session, onSessionExpired }) {
           label="Request & DO"
           value={formatNumber(summary?.branch?.request_count || 0)}
           description={`${formatNumber(summary?.branch?.delivery_order_count || 0)} DO antar lokasi terbaca.`}
+        />
+        <StatCard
+          tone={summary?.owner_obligations?.due_this_month > 0 ? "warning" : "default"}
+          label="Kewajiban Owner"
+          value={formatRupiah(summary?.owner_obligations?.total_remaining || 0)}
+          description={`${formatNumber(summary?.owner_obligations?.active_count || 0)} kewajiban aktif. ${formatRupiah(summary?.owner_obligations?.due_this_month || 0)} jatuh tempo bulan ini.`}
+        />
+        <StatCard
+          tone={summary?.payroll?.unpaid_total > 0 ? "warning" : "default"}
+          label="Payroll Belum Dibayar"
+          value={formatRupiah(summary?.payroll?.unpaid_total || 0)}
+          description={`${formatNumber(summary?.payroll?.closing_count || 0)} closing, ${formatNumber(summary?.payroll?.payment_count || 0)} pembayaran gaji.`}
         />
       </div>
 
@@ -351,6 +375,14 @@ export default function OwnerControlPage({ session, onSessionExpired }) {
             <div className="da-detail-box">
               <p>Total Belanja/Kas Keluar</p>
               <strong>{formatRupiah(summary?.obligations?.cash_expense_total || 0)}</strong>
+            </div>
+            <div className="da-detail-box">
+              <p>Kewajiban Owner</p>
+              <strong>{formatRupiah(summary?.owner_obligations?.total_remaining || 0)}</strong>
+            </div>
+            <div className="da-detail-box">
+              <p>Payroll Belum Dibayar</p>
+              <strong>{formatRupiah(summary?.payroll?.unpaid_total || 0)}</strong>
             </div>
           </div>
         </Card>
