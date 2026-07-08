@@ -28,6 +28,7 @@ import RequestDOPage from "./modules/branch/RequestDOPage";
 import MasterDataPage from "./modules/master/MasterDataPage";
 import HRDPayrollPage from "./modules/hrd/HRDPayrollPage";
 import ClosingOwnerPage from "./modules/closing/ClosingOwnerPage";
+import SystemHealthPage from "./modules/system/SystemHealthPage";
 
 export default function App() {
   const [session, setSession] = useState(() => getSavedSession());
@@ -106,6 +107,15 @@ export default function App() {
     if (activePage === "closing-owner") {
       return (
         <ClosingOwnerPage
+          session={session}
+          onSessionExpired={handleSessionExpired}
+        />
+      );
+    }
+
+    if (activePage === "system-health") {
+      return (
+        <SystemHealthPage
           session={session}
           onSessionExpired={handleSessionExpired}
         />
