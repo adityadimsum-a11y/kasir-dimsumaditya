@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   createOwnerObligation,
   getOwnerObligationBootstrap,
+  getOwnerObligationDetail,
   payOwnerObligation,
   seedOwnerObligations,
 } from "../../lib/api/actions";
@@ -74,6 +75,8 @@ export default function KewajibanOwnerPage({ session, onSessionExpired }) {
   const [obligationForm, setObligationForm] = useState(emptyObligationForm);
   const [paymentForm, setPaymentForm] = useState(emptyPaymentForm);
   const [detail, setDetail] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState("");
 
   const sessionToken = session?.sessionToken || session?.session_token || "";
   const summary = data.summary || {};
@@ -197,6 +200,29 @@ export default function KewajibanOwnerPage({ session, onSessionExpired }) {
     }
   }
 
+  async function openObligationDetail(row) {
+    setDetail(row);
+    setDetailError("");
+    if (!row?.obligation_id) return;
+    setDetailLoading(true);
+    try {
+      const result = await getOwnerObligationDetail(sessionToken, { obligation_id: row.obligation_id });
+      if (isAuthRequired(result)) {
+        onSessionExpired?.();
+        return;
+      }
+      if (!result?.success) {
+        setDetailError(result?.message || "Gagal membaca detail kewajiban.");
+        return;
+      }
+      setDetail({ ...row, ...(result.data || {}), obligation: result.data?.obligation || row });
+    } catch (err) {
+      setDetailError(err?.message || "Gagal membaca detail kewajiban.");
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
   async function handlePayObligation(event) {
     event.preventDefault();
     setSaving(true);
@@ -243,6 +269,33 @@ export default function KewajibanOwnerPage({ session, onSessionExpired }) {
     { key: "status", label: "Status", render: (row) => <Badge tone="success">{text(row.status, "Paid")}</Badge> },
   ];
 
+
+  const cashExpenseColumns = [
+    { key: "date", label: "Tanggal", render: (row) => formatDate(row.date || row.transaction_date) },
+    { key: "id", label: "KASOUT ID", render: (row) => <strong>{text(row.cash_expense_id)}</strong> },
+    { key: "desc", label: "Keterangan", render: (row) => text(row.description || row.recipient) },
+    { key: "wallet", label: "Dompet", render: (row) => text(row.wallet_id) },
+    { key: "amount", label: "Nominal", render: (row) => formatRupiah(row.amount) },
+    { key: "status", label: "Status", render: (row) => <Badge tone="success">{text(row.status, "POSTED")}</Badge> },
+  ];
+
+  const mutationColumns = [
+    { key: "date", label: "Tanggal", render: (row) => formatDate(row.date || row.transaction_date) },
+    { key: "id", label: "Mutasi ID", render: (row) => <strong>{text(row.mutation_id || row.wallet_mutation_id)}</strong> },
+    { key: "wallet", label: "Dompet", render: (row) => text(row.wallet_name || row.wallet_id) },
+    { key: "direction", label: "Arah", render: () => <Badge tone="danger">OUT</Badge> },
+    { key: "amount", label: "Nominal", render: (row) => formatRupiah(row.amount) },
+    { key: "source", label: "Sumber", render: (row) => text(row.source_id || row.source_ref) },
+  ];
+
+  const traceColumns = [
+    { key: "step", label: "Step", render: (row) => row.step },
+    { key: "label", label: "Rantai", render: (row) => <strong>{text(row.label)}</strong> },
+    { key: "id", label: "ID", render: (row) => text(row.id) },
+    { key: "amount", label: "Nominal", render: (row) => formatRupiah(row.amount) },
+    { key: "status", label: "Status", render: (row) => <Badge tone={String(row.status).toUpperCase().includes("BELUM") ? "warning" : "success"}>{text(row.status)}</Badge> },
+  ];
+
   return (
     <div className="da-page da-page-wide">
       <div className="da-page-header">
@@ -260,7 +313,7 @@ export default function KewajibanOwnerPage({ session, onSessionExpired }) {
         <div className="da-card-header-row">
           <div>
             <div className="da-kicker">KEWAJIBAN USAHA</div>
-            <h2>Jatuh Tempo → Bayar → Kas Keluar → Mutasi Dompet</h2>
+            <h2>Jatuh Tempo → Bayar → Kas Keluar → Mutasi Dompet → Owner Control → Arsip</h2>
             <p className="da-muted">
               Modul ini untuk BPJS, cicilan mobil/bank, wifi, kontrakan, parkir, listrik, dan kewajiban owner lain. 4 Amplop tetap hanya dari uang masuk aktual; pembayaran kewajiban baru memotong dompet saat dibayar.
             </p>
@@ -414,7 +467,7 @@ export default function KewajibanOwnerPage({ session, onSessionExpired }) {
           </div>
           <Badge tone="success">Live Data</Badge>
         </div>
-        <DataTable columns={obligationColumns} rows={obligations} getRowKey={(row) => row.obligation_id} onRowClick={setDetail} />
+        <DataTable columns={obligationColumns} rows={obligations} getRowKey={(row) => row.obligation_id} onRowClick={openObligationDetail} />
       </Card>
 
       <Card>
@@ -430,35 +483,64 @@ export default function KewajibanOwnerPage({ session, onSessionExpired }) {
       </Card>
 
       {detail && (
-        <Modal open={!!detail} title="Detail Kewajiban Owner" onClose={() => setDetail(null)}>
-          <div className="da-detail-grid">
-            <div className="da-detail-box da-detail-box-full">
-              <span className="da-detail-label">Kewajiban</span>
-              <h2>{text(detail.obligation_name)}</h2>
-              <Badge tone={String(detail.status).toUpperCase() === "LUNAS" ? "success" : "warning"}>{text(detail.status, "Active")}</Badge>
-            </div>
-            <div className="da-detail-box">
-              <span className="da-detail-label">Nominal Bulanan</span>
-              <strong>{formatRupiah(detail.monthly_amount)}</strong>
-            </div>
-            <div className="da-detail-box">
-              <span className="da-detail-label">Sisa Kewajiban</span>
-              <strong>{formatRupiah(detail.remaining_balance)}</strong>
-            </div>
-            <div className="da-detail-box">
-              <span className="da-detail-label">Tenor</span>
-              <strong>{toNumber(detail.paid_tenor)} / {toNumber(detail.total_tenor)}</strong>
-            </div>
-            <div className="da-detail-box da-detail-box-full">
-              <span className="da-detail-label">Rantai</span>
-              <p>Kewajiban Owner → Pembayaran → KASOUT → Mutasi Dompet OUT → Kas & Dompet / Arsip Digital.</p>
-            </div>
-          </div>
-          <DataTable
-            columns={paymentColumns}
-            rows={payments.filter((row) => row.obligation_id === detail.obligation_id)}
-            getRowKey={(row) => row.payment_id}
-          />
+        <Modal open={!!detail} title="Detail Kewajiban Owner" onClose={() => { setDetail(null); setDetailError(""); }}>
+          {detailLoading && <div className="da-alert da-alert-warning">Membaca rantai detail kewajiban...</div>}
+          {detailError && <div className="da-alert da-alert-danger">{detailError}</div>}
+          {(() => {
+            const activeDetail = detail.obligation || detail;
+            const detailPayments = detail.payments || payments.filter((row) => row.obligation_id === activeDetail.obligation_id);
+            const detailCash = detail.cash_expenses || [];
+            const detailMutations = detail.wallet_mutations || [];
+            const detailTrace = detail.trace || [];
+            const detailSummary = detail.summary || {};
+            return (
+              <>
+                <div className="da-detail-grid">
+                  <div className="da-detail-box da-detail-box-full">
+                    <span className="da-detail-label">Kewajiban</span>
+                    <h2>{text(activeDetail.obligation_name)}</h2>
+                    <Badge tone={String(activeDetail.status).toUpperCase() === "LUNAS" ? "success" : "warning"}>{text(activeDetail.status, "Active")}</Badge>
+                  </div>
+                  <div className="da-detail-box">
+                    <span className="da-detail-label">Nominal Bulanan</span>
+                    <strong>{formatRupiah(activeDetail.monthly_amount)}</strong>
+                  </div>
+                  <div className="da-detail-box">
+                    <span className="da-detail-label">Sisa Kewajiban</span>
+                    <strong>{formatRupiah(activeDetail.remaining_balance)}</strong>
+                  </div>
+                  <div className="da-detail-box">
+                    <span className="da-detail-label">Total Dibayar</span>
+                    <strong>{formatRupiah(detailSummary.paid_total || 0)}</strong>
+                  </div>
+                  <div className="da-detail-box">
+                    <span className="da-detail-label">KASOUT</span>
+                    <strong>{detailSummary.cashout_count || detailCash.length} catatan</strong>
+                  </div>
+                  <div className="da-detail-box">
+                    <span className="da-detail-label">Mutasi OUT</span>
+                    <strong>{detailSummary.mutation_count || detailMutations.length} catatan</strong>
+                  </div>
+                  <div className="da-detail-box da-detail-box-full">
+                    <span className="da-detail-label">Rantai yang harus bisa ditelusuri</span>
+                    <p>Kewajiban Owner → Pembayaran → KASOUT → Mutasi Dompet OUT → Kas & Dompet → Owner Control → Arsip Digital.</p>
+                  </div>
+                </div>
+
+                <h3 className="da-section-title">Peta Rantai</h3>
+                <DataTable columns={traceColumns} rows={detailTrace} getRowKey={(row) => `${row.step}-${row.label}`} />
+
+                <h3 className="da-section-title">Pembayaran Kewajiban</h3>
+                <DataTable columns={paymentColumns} rows={detailPayments} getRowKey={(row) => row.payment_id} />
+
+                <h3 className="da-section-title">Kas Keluar / KASOUT Terkait</h3>
+                <DataTable columns={cashExpenseColumns} rows={detailCash} getRowKey={(row) => row.cash_expense_id} />
+
+                <h3 className="da-section-title">Mutasi Dompet OUT Terkait</h3>
+                <DataTable columns={mutationColumns} rows={detailMutations} getRowKey={(row) => row.mutation_id || row.wallet_mutation_id} />
+              </>
+            );
+          })()}
         </Modal>
       )}
     </div>
