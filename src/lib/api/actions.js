@@ -443,6 +443,10 @@ export async function getOwnerPeriodReportBootstrap(sessionToken, payload = {}) 
   return apiRequest("getLegacyOwnerPeriodReportBootstrap", payload, sessionToken);
 }
 
+export async function createOwnerPeriodClosingSnapshot(sessionToken, payload = {}) {
+  return apiRequest("legacyCreateOwnerPeriodClosingSnapshot", payload, sessionToken);
+}
+
 export { getConfiguredApiUrl };
 
 /**
