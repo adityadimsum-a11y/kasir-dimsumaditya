@@ -430,6 +430,10 @@ export async function seedOwnerObligations(sessionToken, payload = {}) {
   return apiRequest("legacySeedOwnerObligations", payload, sessionToken);
 }
 
+export async function getOwnerObligationDetail(sessionToken, payload = {}) {
+  return apiRequest("getLegacyOwnerObligationDetail", payload, sessionToken);
+}
+
 export { getConfiguredApiUrl };
 
 /**
