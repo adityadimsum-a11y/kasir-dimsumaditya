@@ -5,6 +5,7 @@ import {
   createHRDLoanNote,
   createHRDPayrollDraft,
   createHRDPayrollClosing,
+  createHRDPayrollPayment,
   getHRDPayrollBootstrap,
 } from "../../lib/api/actions";
 import { formatRupiah } from "../../lib/format/money";
@@ -144,6 +145,7 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
   const [savingLoan, setSavingLoan] = useState(false);
   const [savingPayrollDraft, setSavingPayrollDraft] = useState(false);
   const [savingClosing, setSavingClosing] = useState(false);
+  const [savingPayrollPayment, setSavingPayrollPayment] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [data, setData] = useState(null);
@@ -152,6 +154,7 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
   const [kasbonForm, setKasbonForm] = useState({ date: todayInput(), amount: "0", notes: "Kasbon karyawan." });
   const [loanForm, setLoanForm] = useState({ loan_date: todayInput(), amount: "0", installment_amount: "0", tenor_total: "0", notes: "Pinjaman panjang karyawan." });
   const [payrollForm, setPayrollForm] = useState({ absence_days: "0", bonus: "0", overtime: "0", extra_deduction: "0", notes: "Draft payroll periode ini." });
+  const [payrollPaymentForm, setPayrollPaymentForm] = useState({ payment_date: todayInput(), wallet_id: "", payment_method: "Cash", notes: "Pembayaran gaji karyawan." });
   const [printPayload, setPrintPayload] = useState(null);
   const [form, setForm] = useState({
     employee_name: "",
@@ -169,6 +172,8 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
   const employees = useMemo(() => asArray(data?.employees).map(normalizeEmployee), [data]);
   const payrollRecaps = useMemo(() => asArray(data?.payroll_recaps), [data]);
   const payrollDrafts = useMemo(() => asArray(data?.payroll_drafts), [data]);
+  const payrollPayments = useMemo(() => asArray(data?.payroll_payments), [data]);
+  const wallets = useMemo(() => asArray(data?.wallets), [data]);
   const kasbonRows = useMemo(() => asArray(data?.kasbon_rows).map(normalizeKasbon), [data]);
   const loanRows = useMemo(() => asArray(data?.loan_rows).map(normalizeLoan), [data]);
 
@@ -220,6 +225,20 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
     const status = String(selectedPayrollDraft?.status || "").toUpperCase();
     return ["CLOSED", "CLOSING", "LOCKED", "LUNAS"].includes(status);
   }, [selectedPayrollDraft]);
+
+  const selectedPayrollPayment = useMemo(() => {
+    if (!selectedPayrollDraft?.payroll_run_id) return null;
+    return payrollPayments.find((row) => {
+      const rowPayroll = String(row.payroll_run_id || row.payroll_id || "");
+      const status = String(row.status || "Paid").toUpperCase();
+      return rowPayroll === String(selectedPayrollDraft.payroll_run_id) && !["VOID", "CANCELLED"].includes(status);
+    }) || null;
+  }, [payrollPayments, selectedPayrollDraft]);
+
+  const selectedPayrollDraftPaid = useMemo(() => {
+    const status = String(selectedPayrollDraft?.payment_status || selectedPayrollPayment?.status || "").toUpperCase();
+    return Boolean(selectedPayrollPayment?.payment_id) || ["PAID", "DIBAYAR", "LUNAS"].includes(status);
+  }, [selectedPayrollDraft, selectedPayrollPayment]);
 
   const payrollPreview = useMemo(() => {
     if (!selectedEmployee) {
@@ -304,6 +323,10 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
 
   const updatePayrollForm = (key, value) => {
     setPayrollForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const updatePayrollPaymentForm = (key, value) => {
+    setPayrollPaymentForm((prev) => ({ ...prev, [key]: value }));
   };
 
   const handleSaveEmployee = async () => {
@@ -545,6 +568,81 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
       await loadData();
     }
     setSavingClosing(false);
+  };
+
+  const handlePayPayroll = async () => {
+    setError("");
+    setNotice("");
+
+    if (!selectedEmployee?.employee_id) {
+      setError("Pilih karyawan dulu untuk bayar gaji.");
+      return;
+    }
+
+    if (!selectedPayrollDraft?.payroll_run_id) {
+      setError("Draft payroll belum ditemukan. Simpan draft dan closing dulu.");
+      return;
+    }
+
+    if (!selectedPayrollDraftClosed) {
+      setError("Payroll harus closing dulu sebelum gaji dibayar dari dompet.");
+      return;
+    }
+
+    if (selectedPayrollDraftPaid) {
+      setError("Payroll periode ini sudah dibayar/tercatat.");
+      return;
+    }
+
+    const walletId = String(payrollPaymentForm.wallet_id || "").trim();
+    if (!walletId) {
+      setError("Pilih dompet pembayaran gaji dulu.");
+      return;
+    }
+
+    const amount = numberValue(selectedPayrollDraft.take_home_pay || payrollPreview.thp || 0);
+    if (amount <= 0) {
+      setError("Nominal THP harus lebih dari 0 untuk membuat pembayaran gaji.");
+      return;
+    }
+
+    const wallet = wallets.find((item) => String(item.wallet_id || item.id || item.code || item.wallet_code || "") === walletId) || {};
+    const ok = window.confirm(`Bayar gaji ${selectedEmployee.employee_name} sebesar ${formatRupiah(amount)} dari ${wallet.wallet_name || wallet.name || walletId}?`);
+    if (!ok) return;
+
+    setSavingPayrollPayment(true);
+    const payload = {
+      operation_id: makeOperationId("PAYGAJI"),
+      payment: {
+        payroll_run_id: selectedPayrollDraft.payroll_run_id,
+        closing_id: selectedPayrollDraft.closing_id || selectedPayrollPayment?.closing_id || "",
+        period,
+        employee_id: selectedEmployee.employee_id,
+        employee_name: selectedEmployee.employee_name,
+        location_id: selectedEmployee.location_id || "TGR",
+        location_name: selectedEmployee.location_name || selectedEmployee.location_id || "TGR",
+        wallet_id: walletId,
+        wallet_name: wallet.wallet_name || wallet.name || wallet.wallet_code || walletId,
+        payment_date: payrollPaymentForm.payment_date || todayInput(),
+        payment_method: payrollPaymentForm.payment_method || "Cash",
+        amount,
+        notes: payrollPaymentForm.notes || "Pembayaran gaji karyawan.",
+      },
+    };
+
+    const result = await createHRDPayrollPayment(session?.sessionToken, payload);
+    if (!result.success) {
+      if (isAuthRequired(result)) {
+        onSessionExpired?.();
+        return;
+      }
+      setError(result.message || "Pembayaran gaji belum berhasil dicatat.");
+    } else {
+      setNotice(result.message || "Pembayaran gaji berhasil dicatat ke Kas & Dompet.");
+      setPayrollPaymentForm({ payment_date: todayInput(), wallet_id: "", payment_method: "Cash", notes: "Pembayaran gaji karyawan." });
+      await loadData();
+    }
+    setSavingPayrollPayment(false);
   };
 
   const handlePrintSlip = () => {
@@ -1059,13 +1157,65 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
               </div>
 
               <NoteBox>Print slip boleh disiapkan dari draft ini. Closing payroll yang mengunci potongan supaya kasbon/cicilan tidak dobel.</NoteBox>
-              <NoteBox tone="danger">Closing payroll belum membuat Kas Keluar gaji/dompet. Part berikutnya akan sambungkan pembayaran gaji ke Kas & Dompet.</NoteBox>
+
+              <div className="da-detail-box" style={{ marginTop: 14 }}>
+                <div className="da-section-title">
+                  <div>
+                    <div className="da-eyebrow">PEMBAYARAN GAJI</div>
+                    <h2>Bayar Gaji dari Kas & Dompet</h2>
+                    <p className="da-muted">Pembayaran gaji hanya aktif setelah payroll closing. Saat dibayar, sistem membuat catatan pembayaran, KASOUT payroll, dan mutasi dompet OUT.</p>
+                  </div>
+                  <Badge tone={selectedPayrollDraftPaid ? "success" : selectedPayrollDraftClosed ? "warning" : "danger"}>
+                    {selectedPayrollDraftPaid ? "Sudah Dibayar" : selectedPayrollDraftClosed ? "Siap Bayar" : "Closing Dulu"}
+                  </Badge>
+                </div>
+                <div className="da-form-grid">
+                  <label className="da-field">
+                    <span>Tanggal Bayar</span>
+                    <input type="date" value={payrollPaymentForm.payment_date} onChange={(e) => updatePayrollPaymentForm("payment_date", e.target.value)} />
+                  </label>
+                  <label className="da-field">
+                    <span>Dompet Pembayaran</span>
+                    <select value={payrollPaymentForm.wallet_id} onChange={(e) => updatePayrollPaymentForm("wallet_id", e.target.value)}>
+                      <option value="">Pilih dompet</option>
+                      {wallets.map((wallet, idx) => {
+                        const id = wallet.wallet_id || wallet.id || wallet.code || wallet.wallet_code || `WALLET-${idx}`;
+                        const name = wallet.wallet_name || wallet.name || wallet.nama_dompet || wallet.wallet_code || id;
+                        return <option value={id} key={id}>{name}</option>;
+                      })}
+                    </select>
+                  </label>
+                  <label className="da-field">
+                    <span>Metode</span>
+                    <select value={payrollPaymentForm.payment_method} onChange={(e) => updatePayrollPaymentForm("payment_method", e.target.value)}>
+                      <option value="Cash">Cash</option>
+                      <option value="Transfer">Transfer</option>
+                      <option value="BCA">BCA</option>
+                      <option value="BRI">BRI</option>
+                    </select>
+                  </label>
+                  <label className="da-field da-span-2">
+                    <span>Catatan Pembayaran</span>
+                    <input value={payrollPaymentForm.notes} onChange={(e) => updatePayrollPaymentForm("notes", e.target.value)} placeholder="Pembayaran gaji karyawan" />
+                  </label>
+                </div>
+                <div className="da-form-summary">
+                  THP dibayar: {formatRupiah(numberValue(selectedPayrollDraft?.take_home_pay || payrollPreview.thp || 0))} · Payroll: {selectedPayrollDraft?.payroll_run_id || "-"} · Status: {selectedPayrollDraftPaid ? "Sudah dibayar" : selectedPayrollDraftClosed ? "Siap dibayar" : "Belum closing"}
+                </div>
+                {selectedPayrollPayment ? (
+                  <NoteBox tone="success">Pembayaran sudah tercatat: {selectedPayrollPayment.payment_id || "-"} · KASOUT {selectedPayrollPayment.cash_expense_id || "-"} · Mutasi {selectedPayrollPayment.wallet_mutation_id || "-"}</NoteBox>
+                ) : null}
+              </div>
+
               <div className="da-form-actions">
                 <Button variant="secondary" onClick={() => setPayrollForm({ absence_days: "0", bonus: "0", overtime: "0", extra_deduction: "0", notes: "Draft payroll periode ini." })}>Reset Draft</Button>
                 <Button variant="secondary" onClick={handlePrintSlip}>Cetak Preview Slip A5</Button>
                 <Button onClick={handleSavePayrollDraft} disabled={savingPayrollDraft || selectedPayrollDraftClosed}>{savingPayrollDraft ? "Menyimpan..." : "Simpan Draft Payroll"}</Button>
                 <Button variant="secondary" onClick={handleClosePayroll} disabled={savingClosing || !selectedPayrollDraft || selectedPayrollDraftClosed}>
                   {savingClosing ? "Closing..." : selectedPayrollDraftClosed ? "Sudah Closing" : "Closing Payroll"}
+                </Button>
+                <Button onClick={handlePayPayroll} disabled={savingPayrollPayment || !selectedPayrollDraftClosed || selectedPayrollDraftPaid}>
+                  {savingPayrollPayment ? "Membayar..." : selectedPayrollDraftPaid ? "Sudah Dibayar" : "Bayar Gaji"}
                 </Button>
               </div>
             </Card>
