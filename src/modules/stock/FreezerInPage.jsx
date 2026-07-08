@@ -23,6 +23,15 @@ function safeText(value, fallback = "-") {
   return text || fallback;
 }
 
+function isRealTransactionId(value) {
+  const text = String(value || "").trim();
+  if (!text || text === "-") return false;
+  if (/^ROW[-_]?\d+$/i.test(text)) return false;
+  if (/^Tab[A-Za-z0-9_]+-ROW-\d+$/i.test(text)) return false;
+  if (/^\d+$/.test(text)) return false;
+  return /[A-Z]{2,}|[-_]/i.test(text);
+}
+
 function formatPcs(value) {
   return `${numberValue(value).toLocaleString("id-ID")} pcs`;
 }
@@ -52,8 +61,16 @@ function getSummary(data) {
   return data?.summary || {};
 }
 
+function isRealFreezerRow(row) {
+  const movementId = row?.movement_id || row?.stock_movement_id || row?.id;
+  const sourceId = row?.source_id || row?.production_id;
+  const product = row?.product_id || row?.product_code || row?.product_name || row?.item_name;
+  const qty = numberValue(row?.qty_pcs || row?.qty || row?.quantity);
+  return (isRealTransactionId(movementId) || isRealTransactionId(sourceId)) && product && qty > 0;
+}
+
 function getFreezerRows(data) {
-  return asArray(data?.freezer_in).sort((a, b) => {
+  return asArray(data?.freezer_in).filter(isRealFreezerRow).sort((a, b) => {
     return String(b.movement_date || b.created_at || "").localeCompare(
       String(a.movement_date || a.created_at || "")
     );
@@ -174,6 +191,11 @@ export default function FreezerInPage({ session, onSessionExpired }) {
       </div>
 
       {error ? <div className="da-login-error" style={{ marginBottom: 16 }}>{error}</div> : null}
+      {!error && numberValue(summary.hidden_rows) > 0 ? (
+        <div className="da-login-error" style={{ marginBottom: 16 }}>
+          {numberValue(summary.hidden_rows).toLocaleString("id-ID")} baris kosong/formatting disembunyikan supaya freezer tidak menampilkan angka yatim.
+        </div>
+      ) : null}
 
       <div className="da-grid da-grid-3">
         <StatCard
@@ -209,9 +231,9 @@ export default function FreezerInPage({ session, onSessionExpired }) {
           description="Stok yang sudah dialokasikan untuk PO/antrian."
         />
         <StatCard
-          label="Gerak Stok"
-          value={loading ? "..." : numberValue(summary.stock_movement_count).toLocaleString("id-ID")}
-          description="Catatan stok jadi masuk/keluar yang terbaca."
+          label="Perlu Source"
+          value={loading ? "..." : numberValue(summary.need_source_count).toLocaleString("id-ID")}
+          description="Gerak stok nyata yang belum punya sumber jelas."
         />
       </div>
 
