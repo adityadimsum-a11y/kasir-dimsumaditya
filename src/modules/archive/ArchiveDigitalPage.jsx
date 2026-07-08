@@ -113,7 +113,7 @@ function DetailModal({ detail, loading, onClose, onOpenRelated }) {
           </div>
 
           <div className="da-modal-note">
-            Arsip ini harus bisa ditelusuri dari ID utama ke ID terkait: order, invoice, payment, stok, hutang, kas/dompet, sampai 4 Amplop kalau ada sumbernya.
+            Arsip ini harus bisa ditelusuri dari ID utama ke ID terkait: order, invoice, payment, stok, hutang, kewajiban owner, payroll, kas/dompet, sampai 4 Amplop kalau ada sumbernya.
           </div>
 
           <Card style={{ marginBottom: 14 }}>
@@ -282,7 +282,7 @@ export default function ArchiveDigitalPage({ session, onSessionExpired }) {
           <div className="da-dashboard-banner-kicker">BUKU ARSIP DIGITAL</div>
           <h2>Search Global → Detail ID → Timeline → Audit</h2>
           <p className="da-dashboard-banner-desc">
-            Halaman ini tidak membuat transaksi baru. Fungsinya membuka nota digital dan rantai ID dari modul DROP, produksi, stok, order, uang, hutang, dan 4 Amplop.
+            Halaman ini tidak membuat transaksi baru. Fungsinya membuka nota digital dan rantai ID dari modul DROP, produksi, stok, order, uang, hutang, kewajiban owner, HRD/payroll, dan 4 Amplop.
           </p>
         </div>
         <div className="da-dashboard-banner-actions">
