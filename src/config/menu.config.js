@@ -29,6 +29,11 @@ export const MENU_GROUPS = [
         label: "Data Health",
         description: "Cek ID, sumber transaksi, ghost row, dan kesehatan kabel ERP.",
       },
+      {
+        key: "backup-export",
+        label: "Backup & Export",
+        description: "Backup Google Sheet, export ringkasan, dan riwayat pengamanan data.",
+      },
     ],
   },
   {
