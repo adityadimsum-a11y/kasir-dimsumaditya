@@ -23,6 +23,15 @@ function safeText(value, fallback = "-") {
   return text || fallback;
 }
 
+function isRealTransactionId(value) {
+  const text = String(value || "").trim();
+  if (!text || text === "-") return false;
+  if (/^ROW[-_]?\d+$/i.test(text)) return false;
+  if (/^Tab[A-Za-z0-9_]+-ROW-\d+$/i.test(text)) return false;
+  if (/^\d+$/.test(text)) return false;
+  return /[A-Z]{2,}|[-_]/i.test(text);
+}
+
 function formatPcs(value) {
   return `${numberValue(value).toLocaleString("id-ID")} pcs`;
 }
@@ -52,8 +61,18 @@ function getSummary(data) {
   return data?.summary || {};
 }
 
+function isRealStockRow(row) {
+  const product = row?.product_id || row?.product_code || row?.product_name || row?.item_name;
+  const total = numberValue(row?.total_pcs);
+  const masuk = numberValue(row?.in_pcs);
+  const keluar = numberValue(row?.out_pcs);
+  const held = numberValue(row?.held_pcs);
+  const movementId = row?.last_movement_id || row?.last_source_id || row?.stock_key;
+  return product && (total > 0 || masuk > 0 || keluar > 0 || held > 0 || isRealTransactionId(movementId));
+}
+
 function getFinishedStockRows(data) {
-  return asArray(data?.finished_stock).sort((a, b) => {
+  return asArray(data?.finished_stock).filter(isRealStockRow).sort((a, b) => {
     return numberValue(b.total_pcs) - numberValue(a.total_pcs);
   });
 }
@@ -171,6 +190,11 @@ export default function FinishedStockPage({ session, onSessionExpired }) {
       </div>
 
       {error ? <div className="da-login-error" style={{ marginBottom: 16 }}>{error}</div> : null}
+      {!error && numberValue(summary.hidden_rows) > 0 ? (
+        <div className="da-login-error" style={{ marginBottom: 16 }}>
+          {numberValue(summary.hidden_rows).toLocaleString("id-ID")} baris kosong/formatting disembunyikan supaya stok jadi tidak menampilkan angka yatim.
+        </div>
+      ) : null}
 
       <div className="da-grid da-grid-3">
         <StatCard
