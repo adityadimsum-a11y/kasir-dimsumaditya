@@ -392,6 +392,10 @@ export async function createHRDKasbonNote(sessionToken, payload = {}) {
   return apiRequest("legacyCreateHRDKasbonNote", payload, sessionToken);
 }
 
+export async function createHRDLoanNote(sessionToken, payload = {}) {
+  return apiRequest("legacyCreateHRDLoanNote", payload, sessionToken);
+}
+
 export { getConfiguredApiUrl };
 
 /**
