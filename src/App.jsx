@@ -29,6 +29,7 @@ import MasterDataPage from "./modules/master/MasterDataPage";
 import HRDPayrollPage from "./modules/hrd/HRDPayrollPage";
 import ClosingOwnerPage from "./modules/closing/ClosingOwnerPage";
 import SystemHealthPage from "./modules/system/SystemHealthPage";
+import BackupExportPage from "./modules/system/BackupExportPage";
 
 export default function App() {
   const [session, setSession] = useState(() => getSavedSession());
@@ -116,6 +117,15 @@ export default function App() {
     if (activePage === "system-health") {
       return (
         <SystemHealthPage
+          session={session}
+          onSessionExpired={handleSessionExpired}
+        />
+      );
+    }
+
+    if (activePage === "backup-export") {
+      return (
+        <BackupExportPage
           session={session}
           onSessionExpired={handleSessionExpired}
         />
