@@ -21,6 +21,7 @@ import KasDompetPage from "./modules/finance/KasDompetPage";
 import BelanjaKasKeluarPage from "./modules/finance/BelanjaKasKeluarPage";
 import HutangNanaPage from "./modules/finance/HutangNanaPage";
 import EmpatAmplopPage from "./modules/finance/EmpatAmplopPage";
+import KewajibanOwnerPage from "./modules/finance/KewajibanOwnerPage";
 import LaporanHarianPage from "./modules/branch/LaporanHarianPage";
 import SetoranCabangPage from "./modules/branch/SetoranCabangPage";
 import RequestDOPage from "./modules/branch/RequestDOPage";
@@ -201,6 +202,16 @@ export default function App() {
     if (activePage === "empat-amplop") {
       return (
         <EmpatAmplopPage
+          session={session}
+          onSessionExpired={handleSessionExpired}
+        />
+      );
+    }
+
+
+    if (activePage === "kewajiban-owner") {
+      return (
+        <KewajibanOwnerPage
           session={session}
           onSessionExpired={handleSessionExpired}
         />
