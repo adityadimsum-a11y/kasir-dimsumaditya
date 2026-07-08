@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { createHRDEmployee, createHRDKasbonNote, createHRDLoanNote, getHRDPayrollBootstrap } from "../../lib/api/actions";
+import {
+  createHRDEmployee,
+  createHRDKasbonNote,
+  createHRDLoanNote,
+  createHRDPayrollDraft,
+  getHRDPayrollBootstrap,
+} from "../../lib/api/actions";
 import { formatRupiah } from "../../lib/format/money";
 import { formatDate } from "../../lib/format/date";
 import Badge from "../../components/ui/Badge";
@@ -135,6 +141,7 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
   const [saving, setSaving] = useState(false);
   const [savingKasbon, setSavingKasbon] = useState(false);
   const [savingLoan, setSavingLoan] = useState(false);
+  const [savingPayrollDraft, setSavingPayrollDraft] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [data, setData] = useState(null);
@@ -142,6 +149,7 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
   const [period, setPeriod] = useState(monthInput());
   const [kasbonForm, setKasbonForm] = useState({ date: todayInput(), amount: "0", notes: "Kasbon karyawan." });
   const [loanForm, setLoanForm] = useState({ loan_date: todayInput(), amount: "0", installment_amount: "0", tenor_total: "0", notes: "Pinjaman panjang karyawan." });
+  const [payrollForm, setPayrollForm] = useState({ absence_days: "0", bonus: "0", overtime: "0", extra_deduction: "0", notes: "Draft payroll periode ini." });
   const [form, setForm] = useState({
     employee_name: "",
     location_id: "TGR",
@@ -186,12 +194,54 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
     }, 0);
   }, [selectedLoanRows]);
 
+  const selectedOpenLoanInstallment = useMemo(() => {
+    return selectedLoanRows.reduce((total, row) => {
+      const status = String(row.status || "Open").toUpperCase();
+      if (["CLOSED", "LUNAS", "VOID"].includes(status)) return total;
+      return total + numberValue(row.installment_amount || 0);
+    }, 0);
+  }, [selectedLoanRows]);
+
+  const payrollPreview = useMemo(() => {
+    if (!selectedEmployee) {
+      return { income: 0, deductions: 0, thp: 0, absenceDeduction: 0, kasbonDeduction: 0, loanDeduction: 0 };
+    }
+
+    const baseSalary = numberValue(selectedEmployee.base_salary);
+    const mealAllowance = numberValue(selectedEmployee.meal_allowance);
+    const jobAllowance = numberValue(selectedEmployee.job_allowance);
+    const bonus = numberValue(payrollForm.bonus);
+    const overtime = numberValue(payrollForm.overtime);
+    const absenceDays = numberValue(payrollForm.absence_days);
+    const absenceDeduction = Math.round((baseSalary / 26) * absenceDays);
+    const kasbonDeduction = selectedOpenKasbon;
+    const loanDeduction = selectedOpenLoanInstallment;
+    const extraDeduction = numberValue(payrollForm.extra_deduction);
+    const income = baseSalary + mealAllowance + jobAllowance + bonus + overtime;
+    const deductions = absenceDeduction + kasbonDeduction + loanDeduction + extraDeduction;
+    return {
+      baseSalary,
+      mealAllowance,
+      jobAllowance,
+      bonus,
+      overtime,
+      absenceDays,
+      absenceDeduction,
+      kasbonDeduction,
+      loanDeduction,
+      extraDeduction,
+      income,
+      deductions,
+      thp: Math.max(0, income - deductions),
+    };
+  }, [payrollForm, selectedEmployee, selectedOpenKasbon, selectedOpenLoanInstallment]);
+
   const loadData = async () => {
     setLoading(true);
     setError("");
 
     const result = await getHRDPayrollBootstrap(session?.sessionToken, {
-      source: "frontend_part_5b_hrd_buku_catatan_kasbon",
+      source: "frontend_part_5d_hrd_payroll_draft_slip_preview",
       period,
       location_id: session?.user?.location_id || "TGR",
     });
@@ -225,6 +275,10 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
 
   const updateLoanForm = (key, value) => {
     setLoanForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const updatePayrollForm = (key, value) => {
+    setPayrollForm((prev) => ({ ...prev, [key]: value }));
   };
 
   const handleSaveEmployee = async () => {
@@ -359,6 +413,56 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
       await loadData();
     }
     setSavingLoan(false);
+  };
+
+  const handleSavePayrollDraft = async () => {
+    setError("");
+    setNotice("");
+
+    if (!selectedEmployee?.employee_id) {
+      setError("Pilih karyawan dulu untuk buat draft payroll.");
+      return;
+    }
+
+    setSavingPayrollDraft(true);
+    const payload = {
+      operation_id: makeOperationId("PAYROLL"),
+      draft: {
+        period,
+        employee_id: selectedEmployee.employee_id,
+        employee_name: selectedEmployee.employee_name,
+        location_id: selectedEmployee.location_id || "TGR",
+        location_name: selectedEmployee.location_name || selectedEmployee.location_id || "TGR",
+        base_salary: payrollPreview.baseSalary,
+        meal_allowance: payrollPreview.mealAllowance,
+        job_allowance: payrollPreview.jobAllowance,
+        bonus: payrollPreview.bonus,
+        overtime: payrollPreview.overtime,
+        absence_days: payrollPreview.absenceDays,
+        absence_deduction: payrollPreview.absenceDeduction,
+        kasbon_deduction: payrollPreview.kasbonDeduction,
+        loan_deduction: payrollPreview.loanDeduction,
+        extra_deduction: payrollPreview.extraDeduction,
+        total_income: payrollPreview.income,
+        total_deduction: payrollPreview.deductions,
+        take_home_pay: payrollPreview.thp,
+        notes: payrollForm.notes || "Draft payroll periode ini.",
+        status: "Draft",
+      },
+    };
+
+    const result = await createHRDPayrollDraft(session?.sessionToken, payload);
+    if (!result.success) {
+      if (isAuthRequired(result)) {
+        onSessionExpired?.();
+        return;
+      }
+      setError(result.message || "Draft payroll belum berhasil disimpan.");
+    } else {
+      setNotice(result.message || "Draft payroll berhasil disimpan. Slip boleh dicek/cetak nanti, closing belum dilakukan.");
+      await loadData();
+    }
+    setSavingPayrollDraft(false);
   };
 
   return (
@@ -587,6 +691,73 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
               <MiniMetric label="Kasbon Terbuka" value={formatRupiah(selectedOpenKasbon)} tone="warning" />
               <MiniMetric label="Sisa Pinjaman Panjang" value={formatRupiah(selectedOpenLoan)} />
             </div>
+
+            <Card>
+              <div className="da-section-title">
+                <div>
+                  <div className="da-eyebrow">PAYROLL DRAFT</div>
+                  <h2>Preview Slip Gaji Periode Ini</h2>
+                  <p className="da-muted">Draft ini hanya menghitung THP dan menyiapkan slip. Belum memotong kasbon/cicilan, belum membuat kas keluar, dan belum closing.</p>
+                </div>
+                <Badge tone="warning">Belum Closing</Badge>
+              </div>
+
+              <div className="da-form-grid">
+                <label className="da-field">
+                  <span>Periode Payroll</span>
+                  <input value={period} type="month" onChange={(e) => setPeriod(e.target.value)} />
+                </label>
+                <label className="da-field">
+                  <span>Hari Absen</span>
+                  <input value={payrollForm.absence_days} onChange={(e) => updatePayrollForm("absence_days", e.target.value)} placeholder="0" />
+                </label>
+                <label className="da-field">
+                  <span>Bonus / Insentif</span>
+                  <input value={payrollForm.bonus} onChange={(e) => updatePayrollForm("bonus", e.target.value)} placeholder="0" />
+                </label>
+                <label className="da-field">
+                  <span>Uang Lembur</span>
+                  <input value={payrollForm.overtime} onChange={(e) => updatePayrollForm("overtime", e.target.value)} placeholder="0" />
+                </label>
+                <label className="da-field">
+                  <span>Potongan Tambahan</span>
+                  <input value={payrollForm.extra_deduction} onChange={(e) => updatePayrollForm("extra_deduction", e.target.value)} placeholder="0" />
+                </label>
+                <label className="da-field">
+                  <span>Catatan Slip</span>
+                  <input value={payrollForm.notes} onChange={(e) => updatePayrollForm("notes", e.target.value)} placeholder="Catatan payroll" />
+                </label>
+              </div>
+
+              <div className="da-detail-grid" style={{ marginTop: 14 }}>
+                <MiniMetric label="Total Penghasilan" value={formatRupiah(payrollPreview.income)} tone="success" />
+                <MiniMetric label="Total Potongan" value={formatRupiah(payrollPreview.deductions)} tone="warning" />
+                <MiniMetric label="Take Home Pay" value={formatRupiah(payrollPreview.thp)} tone="success" />
+              </div>
+
+              <div className="da-detail-grid" style={{ marginTop: 14 }}>
+                <div className="da-detail-box">
+                  <div className="da-eyebrow">PENGHASILAN</div>
+                  <p>Gaji pokok: <strong>{formatRupiah(payrollPreview.baseSalary)}</strong></p>
+                  <p>Uang makan/tunjangan: <strong>{formatRupiah(payrollPreview.mealAllowance)}</strong></p>
+                  <p>Uang jabatan: <strong>{formatRupiah(payrollPreview.jobAllowance)}</strong></p>
+                  <p>Bonus/lembur: <strong>{formatRupiah(payrollPreview.bonus + payrollPreview.overtime)}</strong></p>
+                </div>
+                <div className="da-detail-box">
+                  <div className="da-eyebrow">POTONGAN</div>
+                  <p>Absen {payrollPreview.absenceDays} hari: <strong>{formatRupiah(payrollPreview.absenceDeduction)}</strong></p>
+                  <p>Kasbon terbuka: <strong>{formatRupiah(payrollPreview.kasbonDeduction)}</strong></p>
+                  <p>Cicilan bulan ini: <strong>{formatRupiah(payrollPreview.loanDeduction)}</strong></p>
+                  <p>Potongan tambahan: <strong>{formatRupiah(payrollPreview.extraDeduction)}</strong></p>
+                </div>
+              </div>
+
+              <NoteBox>Print slip boleh disiapkan dari draft ini, tapi ledger kasbon/cicilan baru terkunci saat closing payroll nanti.</NoteBox>
+              <div className="da-form-actions">
+                <Button variant="secondary" onClick={() => setPayrollForm({ absence_days: "0", bonus: "0", overtime: "0", extra_deduction: "0", notes: "Draft payroll periode ini." })}>Reset Draft</Button>
+                <Button onClick={handleSavePayrollDraft} disabled={savingPayrollDraft}>{savingPayrollDraft ? "Menyimpan..." : "Simpan Draft Payroll"}</Button>
+              </div>
+            </Card>
 
             <Card>
               <div className="da-section-title">
