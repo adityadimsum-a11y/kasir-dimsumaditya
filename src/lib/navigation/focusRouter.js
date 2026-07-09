@@ -23,7 +23,11 @@ const PAGE_LABELS = {
   "system-health": "Data Health",
   "go-live-check": "Go-Live Check",
   "permission-role-check": "Permission & Role",
+  "print-backup": "Print & Backup",
   "print-backup-safety": "Print & Backup",
+  "print-export-backup": "Print & Backup",
+  "backup-safety": "Print & Backup",
+  "backup-export": "Print & Backup",
   "drop-ayam": "DROP Ayam",
   "stok-ayam": "Stok Ayam",
   "produksi-adukan": "Produksi / Adukan",
@@ -91,9 +95,9 @@ const MODULE_TO_PAGE = {
   PAYROLL: "hrd-payroll",
   CLOSING: "closing-owner",
   ARSIP: "arsip-digital",
-  BACKUP: "print-backup-safety",
-  EXPORT: "print-backup-safety",
-  PRINT: "print-backup-safety",
+  BACKUP: "print-backup",
+  EXPORT: "print-backup",
+  PRINT: "print-backup",
 };
 
 export function getPageLabel(pageKey) {
