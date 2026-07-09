@@ -13,7 +13,7 @@ export default function DataTable({ columns = [], rows = [], getRowKey, onRowCli
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={columns.length}>
+              <td colSpan={columns.length || 1}>
                 <span className="da-muted">Belum ada data.</span>
               </td>
             </tr>
@@ -25,11 +25,12 @@ export default function DataTable({ columns = [], rows = [], getRowKey, onRowCli
                 <tr
                   key={key}
                   className={onRowClick ? "clickable" : ""}
+                  data-clickable={onRowClick ? "true" : "false"}
                   onClick={() => onRowClick?.(row)}
                 >
                   {columns.map((column) => (
                     <td key={column.key}>
-                      {column.render ? column.render(row) : row[column.key]}
+                      {column.render ? column.render(row, index) : row[column.key]}
                     </td>
                   ))}
                 </tr>
