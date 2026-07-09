@@ -1,13 +1,27 @@
-const getApiUrl = () => {
-  const localOverride =
-    typeof window !== "undefined"
-      ? window.localStorage.getItem("dimsum_erp_api_url")
-      : "";
+const readLocalApiUrl = () => {
+  if (typeof window === "undefined") return "";
 
   return (
-    localOverride ||
-    import.meta.env.VITE_ERP_API_URL ||
-    import.meta.env.VITE_GAS_API_URL ||
+    window.localStorage.getItem("dimsum_erp_api_url") ||
+    window.localStorage.getItem("DA_API_URL") ||
+    window.localStorage.getItem("VITE_ERP_API_URL") ||
+    window.localStorage.getItem("VITE_APPS_SCRIPT_URL") ||
+    window.localStorage.getItem("VITE_API_URL") ||
+    ""
+  ).trim();
+};
+
+const getApiUrl = () => {
+  const env = import.meta.env || {};
+
+  return (
+    readLocalApiUrl() ||
+    env.VITE_ERP_API_URL ||
+    env.VITE_APPS_SCRIPT_URL ||
+    env.VITE_GOOGLE_SCRIPT_URL ||
+    env.VITE_GAS_API_URL ||
+    env.VITE_GAS_URL ||
+    env.VITE_API_URL ||
     ""
   ).trim();
 };
@@ -50,7 +64,7 @@ export async function apiRequest(action, payload = {}, sessionToken = "") {
     return {
       success: false,
       message:
-        "URL backend belum diset. Isi VITE_ERP_API_URL di .env atau Environment Variable Vercel.",
+        "URL backend belum diset. Isi VITE_ERP_API_URL atau VITE_APPS_SCRIPT_URL di Environment Variable Vercel.",
       data: null,
       error: {
         code: "MISSING_API_URL",
@@ -66,9 +80,12 @@ export async function apiRequest(action, payload = {}, sessionToken = "") {
       },
       body: JSON.stringify({
         action,
+        route: action,
         payload,
+        data: payload,
         sessionToken,
         session_token: sessionToken,
+        token: sessionToken,
       }),
     });
 
