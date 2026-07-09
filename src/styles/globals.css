@@ -2109,3 +2109,314 @@ a {
     font-size: 20px;
   }
 }
+
+
+/* =========================================================
+   Part 6F — Penjualan Merchant Polish Pack
+   Scope: Kasir / Order, Antrian PO, invoice/payment-like sales views.
+   CSS-only safe polish.
+   ========================================================= */
+
+.da-sales-page,
+.da-order-page,
+.da-po-page,
+.da-cashier-page {
+  --sales-soft-border: #fedf89;
+}
+
+.da-sales-hero,
+.da-order-hero,
+.da-po-hero,
+.da-cashier-hero,
+.da-content [class*="sales"][class*="hero"],
+.da-content [class*="order"][class*="hero"],
+.da-content [class*="po"][class*="hero"],
+.da-content [class*="kasir"][class*="hero"] {
+  background: var(--da-hero-soft-gradient) !important;
+  border: 1px solid #fedf89 !important;
+  border-radius: 24px !important;
+  padding: 20px !important;
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-sales-summary-grid,
+.da-order-summary-grid,
+.da-po-summary-grid,
+.da-cashier-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin: 16px 0;
+}
+
+/* Generic sales stat cards */
+.da-sales-stat,
+.da-order-stat,
+.da-po-stat,
+.da-cashier-stat {
+  background: #fff;
+  border: 1px solid var(--da-color-border);
+  border-radius: 20px;
+  padding: 16px;
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-sales-stat.warning,
+.da-order-stat.warning,
+.da-po-stat.warning,
+.da-cashier-stat.warning {
+  border-color: #fedf89;
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%);
+}
+
+.da-sales-stat.success,
+.da-order-stat.success,
+.da-po-stat.success,
+.da-cashier-stat.success {
+  border-color: #abefc6;
+  background: linear-gradient(135deg, #fff 0%, #ecfdf3 100%);
+}
+
+/* Kasir / order form polish */
+.da-content [class*="kasir"] input,
+.da-content [class*="Kasir"] input,
+.da-content [class*="order"] input,
+.da-content [class*="Order"] input,
+.da-content [class*="sales"] input,
+.da-content [class*="Sales"] input,
+.da-content [class*="po"] input,
+.da-content [class*="PO"] input,
+.da-content [class*="kasir"] select,
+.da-content [class*="Kasir"] select,
+.da-content [class*="order"] select,
+.da-content [class*="Order"] select,
+.da-content [class*="sales"] select,
+.da-content [class*="Sales"] select,
+.da-content [class*="po"] select,
+.da-content [class*="PO"] select,
+.da-content [class*="kasir"] textarea,
+.da-content [class*="Kasir"] textarea,
+.da-content [class*="order"] textarea,
+.da-content [class*="Order"] textarea,
+.da-content [class*="sales"] textarea,
+.da-content [class*="Sales"] textarea,
+.da-content [class*="po"] textarea,
+.da-content [class*="PO"] textarea {
+  width: 100%;
+}
+
+/* Product/menu cards used in cashier */
+.da-menu-card,
+.da-product-card,
+.da-sales-menu-card,
+.da-order-item-card,
+.da-content [class*="menu-card"],
+.da-content [class*="product-card"],
+.da-content [class*="order-item"],
+.da-content [class*="cart-item"] {
+  background: #fff;
+  border: 1px solid var(--da-color-border);
+  border-radius: 18px;
+  padding: 14px;
+  box-shadow: var(--da-shadow-card);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+.da-menu-card:hover,
+.da-product-card:hover,
+.da-sales-menu-card:hover,
+.da-order-item-card:hover,
+.da-content [class*="menu-card"]:hover,
+.da-content [class*="product-card"]:hover,
+.da-content [class*="order-item"]:hover,
+.da-content [class*="cart-item"]:hover {
+  transform: translateY(-1px);
+  border-color: #fedf89;
+  box-shadow: var(--da-shadow-soft);
+}
+
+/* Cart / payment / invoice side panels */
+.da-cart-panel,
+.da-payment-panel,
+.da-invoice-panel,
+.da-sales-side-panel,
+.da-content [class*="cart-panel"],
+.da-content [class*="payment-panel"],
+.da-content [class*="invoice-panel"],
+.da-content [class*="side-panel"] {
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%);
+  border: 1px solid #fedf89;
+  border-radius: 22px;
+  padding: 18px;
+  box-shadow: var(--da-shadow-card);
+}
+
+/* Sales timeline / PO queue */
+.da-po-queue,
+.da-order-queue,
+.da-sales-timeline,
+.da-content [class*="queue"],
+.da-content [class*="timeline"] {
+  display: grid;
+  gap: 12px;
+}
+
+.da-po-card,
+.da-queue-card,
+.da-sales-timeline-card,
+.da-content [class*="queue-card"],
+.da-content [class*="timeline-card"] {
+  background: #fff;
+  border: 1px solid var(--da-color-border);
+  border-radius: 18px;
+  padding: 14px;
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-po-card.warning,
+.da-queue-card.warning,
+.da-sales-timeline-card.warning {
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%);
+  border-color: #fedf89;
+}
+
+/* Tables in sales pages */
+.da-content table th:nth-child(1),
+.da-content .da-table th:nth-child(1) {
+  white-space: nowrap;
+}
+
+.da-content [class*="kasir"] table,
+.da-content [class*="Kasir"] table,
+.da-content [class*="order"] table,
+.da-content [class*="Order"] table,
+.da-content [class*="sales"] table,
+.da-content [class*="Sales"] table,
+.da-content [class*="po"] table,
+.da-content [class*="PO"] table {
+  box-shadow: var(--da-shadow-card);
+}
+
+/* Status pills for common order/payment statuses */
+.da-content .status-paid,
+.da-content .status-lunas,
+.da-content .status-posted,
+.da-content .status-ready {
+  background: var(--da-color-success-soft) !important;
+  color: #067647 !important;
+  border-color: #abefc6 !important;
+}
+
+.da-content .status-open,
+.da-content .status-belum,
+.da-content .status-pending,
+.da-content .status-partial {
+  background: var(--da-color-warning-soft) !important;
+  color: #93370d !important;
+  border-color: #fedf89 !important;
+}
+
+.da-content .status-cancel,
+.da-content .status-void,
+.da-content .status-error {
+  background: var(--da-color-danger-soft) !important;
+  color: #912018 !important;
+  border-color: #fecdca !important;
+}
+
+/* Sales action buttons */
+.da-content button[class*="checkout"],
+.da-content button[class*="Checkout"],
+.da-content button[class*="bayar"],
+.da-content button[class*="Bayar"],
+.da-content button[class*="simpan-order"],
+.da-content button[class*="SimpanOrder"] {
+  background: var(--da-color-primary) !important;
+  color: #fff !important;
+  border-color: var(--da-color-primary) !important;
+}
+
+/* Avoid giant red blocks in sales modules */
+.da-content [class*="kasir"][style*="background: #b42318"],
+.da-content [class*="Kasir"][style*="background: #b42318"],
+.da-content [class*="order"][style*="background: #b42318"],
+.da-content [class*="Order"][style*="background: #b42318"],
+.da-content [class*="sales"][style*="background: #b42318"],
+.da-content [class*="Sales"][style*="background: #b42318"],
+.da-content [class*="po"][style*="background: #b42318"],
+.da-content [class*="PO"][style*="background: #b42318"] {
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%) !important;
+  color: var(--da-color-heading) !important;
+  border-color: #fedf89 !important;
+}
+
+/* Compact receipt-like boxes */
+.da-receipt-box,
+.da-sales-receipt-box,
+.da-order-summary-box,
+.da-content [class*="receipt"],
+.da-content [class*="struk"],
+.da-content [class*="nota-box"] {
+  background: #fff;
+  border: 1px dashed #d0d5dd;
+  border-radius: 18px;
+  padding: 16px;
+}
+
+.da-receipt-box strong,
+.da-sales-receipt-box strong,
+.da-order-summary-box strong,
+.da-content [class*="receipt"] strong,
+.da-content [class*="struk"] strong,
+.da-content [class*="nota-box"] strong {
+  color: var(--da-color-heading);
+}
+
+/* PO reserved/karantina hints */
+.da-reserved-card,
+.da-karantina-card,
+.da-po-risk-card,
+.da-content [class*="reserved"],
+.da-content [class*="karantina"],
+.da-content [class*="Karantina"] {
+  border-radius: 18px;
+}
+
+.da-reserved-card,
+.da-content [class*="reserved"] {
+  background: linear-gradient(135deg, #fff 0%, #eff6ff 100%);
+  border: 1px solid #bfdbfe;
+}
+
+.da-karantina-card,
+.da-po-risk-card,
+.da-content [class*="karantina"],
+.da-content [class*="Karantina"] {
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%);
+  border: 1px solid #fedf89;
+}
+
+@media (max-width: 1180px) {
+  .da-sales-summary-grid,
+  .da-order-summary-grid,
+  .da-po-summary-grid,
+  .da-cashier-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .da-sales-summary-grid,
+  .da-order-summary-grid,
+  .da-po-summary-grid,
+  .da-cashier-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .da-cart-panel,
+  .da-payment-panel,
+  .da-invoice-panel,
+  .da-sales-side-panel {
+    padding: 14px;
+  }
+}
