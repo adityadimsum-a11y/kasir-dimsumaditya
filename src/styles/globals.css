@@ -47,7 +47,8 @@ a {
   min-height: 100vh;
   display: flex;
   background:
-    radial-gradient(circle at top left, rgba(246, 181, 30, 0.08), transparent 30%),
+    radial-gradient(circle at 16% 0%, rgba(246, 181, 30, 0.11), transparent 28%),
+    radial-gradient(circle at 92% 8%, rgba(198, 40, 29, 0.035), transparent 24%),
     linear-gradient(180deg, #ffffff 0%, var(--da-color-page) 100%);
 }
 
@@ -378,7 +379,7 @@ a {
   color: var(--da-color-muted);
 }
 
-/* UI primitives restored/improved */
+/* UI primitives */
 
 .da-muted {
   color: var(--da-color-muted);
@@ -569,10 +570,13 @@ a {
   border-bottom: 0;
 }
 
-/* Buttons */
+/* Buttons
+   Part 6B-1 important:
+   Jangan paksa semua button di halaman menjadi merah. Banyak card/radar/filter lama
+   ternyata dibuat dengan elemen button, jadi style global merah bikin tampilan terlalu bold.
+*/
 
-.da-button,
-.da-content button:not(.da-sidebar-item):not(.da-sidebar-close):not(.da-mobile-menu-btn) {
+.da-button {
   border-radius: var(--da-radius-md);
   padding: 10px 16px;
   font-weight: 850;
@@ -588,15 +592,13 @@ a {
   cursor: not-allowed;
 }
 
-.da-button-primary,
-.da-content button:not(.da-button):not(.da-sidebar-item):not(.da-sidebar-close):not(.da-mobile-menu-btn) {
+.da-button-primary {
   background: var(--da-color-primary);
   color: white;
   border-color: var(--da-color-primary);
 }
 
-.da-button-primary:hover,
-.da-content button:not(.da-button):not(.da-sidebar-item):not(.da-sidebar-close):not(.da-mobile-menu-btn):hover {
+.da-button-primary:hover {
   background: var(--da-color-primary-dark);
   border-color: var(--da-color-primary-dark);
 }
@@ -617,6 +619,34 @@ a {
   background: var(--da-color-primary-soft);
   color: var(--da-color-primary-dark);
   border-color: #ffd6d0;
+}
+
+/* Legacy/generic buttons become neutral by default, not red */
+.da-content button:not(.da-button):not(.da-sidebar-item):not(.da-sidebar-close):not(.da-mobile-menu-btn) {
+  min-height: 38px;
+  border-radius: var(--da-radius-md);
+  padding: 9px 14px;
+  border: 1px solid var(--da-color-border);
+  background: #fff;
+  color: var(--da-color-heading);
+  font-weight: 850;
+  font-size: 12.5px;
+  transition: 0.16s ease;
+}
+
+.da-content button:not(.da-button):not(.da-sidebar-item):not(.da-sidebar-close):not(.da-mobile-menu-btn):hover {
+  background: var(--da-color-surface-soft);
+  border-color: var(--da-color-border-strong);
+}
+
+/* keep obvious primary submit/action red, but only when explicit */
+.da-content button[type="submit"],
+.da-content button[data-primary="true"],
+.da-content button.primary,
+.da-content button.btn-primary {
+  background: var(--da-color-primary) !important;
+  color: #fff !important;
+  border-color: var(--da-color-primary) !important;
 }
 
 /* Forms */
@@ -686,6 +716,52 @@ a {
   border: 1px solid var(--da-color-border);
   border-radius: var(--da-radius-xl);
   box-shadow: var(--da-shadow-card);
+}
+
+/* Part 6B-1: soften old red cards/buttons that got caught by global styling */
+.da-content button[style*="background: #b42318"],
+.da-content button[style*="background:#b42318"],
+.da-content button[style*="background: rgb(180, 35, 24)"],
+.da-content button[style*="background-color: #b42318"],
+.da-content button[style*="backgroundColor: #b42318"],
+.da-content [style*="background: #b42318"]:not(.da-button-primary),
+.da-content [style*="background:#b42318"]:not(.da-button-primary),
+.da-content [style*="background: rgb(180, 35, 24)"]:not(.da-button-primary),
+.da-content [style*="background-color: #b42318"]:not(.da-button-primary),
+.da-content [style*="backgroundColor: #b42318"]:not(.da-button-primary),
+.da-content button[style*="background: #c6281d"],
+.da-content button[style*="background:#c6281d"],
+.da-content [style*="background: #c6281d"]:not(.da-button-primary),
+.da-content [style*="background:#c6281d"]:not(.da-button-primary) {
+  background: var(--da-danger-accent-gradient) !important;
+  color: var(--da-color-heading) !important;
+  border-color: #fedf89 !important;
+}
+
+/* Keep actual tiny status badges readable if they were inside softened cards */
+.da-content [style*="background: #b42318"] .da-badge,
+.da-content [style*="background:#b42318"] .da-badge,
+.da-content [style*="background: #c6281d"] .da-badge,
+.da-content [style*="background:#c6281d"] .da-badge {
+  background: #fff !important;
+  color: var(--da-color-heading) !important;
+}
+
+/* Generic old module cards: make red/orange maps feel like yellow merchant cards */
+.da-content [class*="radar"],
+.da-content [class*="Radar"],
+.da-content [class*="module-card"],
+.da-content [class*="ModuleCard"] {
+  border-radius: var(--da-radius-xl);
+}
+
+/* Archive module cards and radar boards often are plain buttons/divs. Give them a softer look if not explicitly table rows. */
+.da-content button[style*="width: 100%"]:not(.da-sidebar-item):not(.da-button-primary),
+.da-content button[style*="text-align: left"]:not(.da-sidebar-item):not(.da-button-primary),
+.da-content button[style*="textAlign: left"]:not(.da-sidebar-item):not(.da-button-primary) {
+  background: var(--da-card-soft-gradient) !important;
+  color: var(--da-color-heading) !important;
+  border-color: #fedf89 !important;
 }
 
 /* Archive/detail modal safety */
