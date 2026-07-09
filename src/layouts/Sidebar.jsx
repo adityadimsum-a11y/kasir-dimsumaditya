@@ -1,8 +1,14 @@
 import { APP_BRAND } from "../config/theme.config";
 
-export default function Sidebar({ menuGroups, activePage, onChangePage }) {
+export default function Sidebar({
+  menuGroups,
+  activePage,
+  onChangePage,
+  open = false,
+  onClose,
+}) {
   return (
-    <aside className="da-sidebar">
+    <aside className={`da-sidebar ${open ? "is-open" : ""}`}>
       <div className="da-sidebar-brand">
         <div className="da-brand-mark">
           {APP_BRAND.logoUrl ? (
@@ -16,13 +22,22 @@ export default function Sidebar({ menuGroups, activePage, onChangePage }) {
           )}
         </div>
 
-        <div>
+        <div className="da-brand-copy">
           <div className="da-brand-title">{APP_BRAND.name}</div>
           <div className="da-brand-subtitle">Merchant OS</div>
         </div>
+
+        <button
+          type="button"
+          className="da-sidebar-close"
+          aria-label="Tutup menu"
+          onClick={onClose}
+        >
+          ×
+        </button>
       </div>
 
-      <nav className="da-sidebar-nav">
+      <nav className="da-sidebar-nav" aria-label="Menu utama ERP">
         {menuGroups.map((group) => (
           <section key={group.key} className="da-sidebar-group">
             <div className="da-sidebar-group-title">{group.title}</div>
@@ -36,8 +51,9 @@ export default function Sidebar({ menuGroups, activePage, onChangePage }) {
                   type="button"
                   className={`da-sidebar-item ${active ? "active" : ""}`}
                   onClick={() => onChangePage(item.key)}
+                  title={item.description || item.label}
                 >
-                  <span>{item.label}</span>
+                  <span className="da-sidebar-item-text">{item.label}</span>
                 </button>
               );
             })}
