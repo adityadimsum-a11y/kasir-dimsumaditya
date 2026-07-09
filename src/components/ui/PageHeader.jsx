@@ -1,15 +1,19 @@
 import Badge from "./Badge";
 
-export default function PageHeader({ title, description, badge }) {
+export default function PageHeader({ title, description, badge, badgeTone = "warning", actions }) {
   return (
     <div className="da-page-header">
       <div>
         <div className="da-page-kicker">Dimsum Aditya</div>
         <h1>{title}</h1>
-        <p>{description}</p>
+        {description ? <p>{description}</p> : null}
       </div>
 
-      {badge ? <Badge tone="warning">{badge}</Badge> : null}
+      {actions ? (
+        <div className="da-page-actions">{actions}</div>
+      ) : badge ? (
+        <Badge tone={badgeTone}>{badge}</Badge>
+      ) : null}
     </div>
   );
 }
