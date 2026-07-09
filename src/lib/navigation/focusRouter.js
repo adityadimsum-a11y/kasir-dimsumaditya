@@ -22,6 +22,7 @@ const PAGE_LABELS = {
   "closing-owner": "Laporan Owner",
   "system-health": "Data Health",
   "go-live-check": "Go-Live Check",
+  "permission-role-check": "Permission & Role",
   "drop-ayam": "DROP Ayam",
   "stok-ayam": "Stok Ayam",
   "produksi-adukan": "Produksi / Adukan",
