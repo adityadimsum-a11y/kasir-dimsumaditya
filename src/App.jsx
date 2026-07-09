@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { MENU_GROUPS, PAGE_META } from "./config/menu.config";
 import { getSavedSession, saveSession, clearSession } from "./lib/auth/session";
 import { getAllowedMenuGroups } from "./lib/auth/permissions";
@@ -29,10 +29,18 @@ import MasterDataPage from "./modules/master/MasterDataPage";
 import HRDPayrollPage from "./modules/hrd/HRDPayrollPage";
 import ClosingOwnerPage from "./modules/closing/ClosingOwnerPage";
 import SystemHealthPage from "./modules/system/SystemHealthPage";
+import CrossModuleFocusBanner from "./components/navigation/CrossModuleFocusBanner";
+import {
+  FOCUS_EVENT_NAME,
+  clearFocusUrl,
+  readFocusFromLocation,
+} from "./lib/navigation/focusRouter";
 
 export default function App() {
+  const initialFocus = useMemo(() => readFocusFromLocation(), []);
   const [session, setSession] = useState(() => getSavedSession());
-  const [activePage, setActivePage] = useState("papan-pusat");
+  const [activePage, setActivePage] = useState(() => initialFocus?.pageKey || "papan-pusat");
+  const [focusRequest, setFocusRequest] = useState(() => initialFocus);
 
   const allowedMenuGroups = useMemo(() => {
     return getAllowedMenuGroups(MENU_GROUPS, session);
@@ -42,22 +50,60 @@ export default function App() {
     return allowedMenuGroups.flatMap((group) => group.items || []);
   }, [allowedMenuGroups]);
 
+  useEffect(() => {
+    const applyFocus = (event) => {
+      const nextFocus = event?.detail || readFocusFromLocation();
+      if (!nextFocus?.pageKey) return;
+
+      setFocusRequest({ ...nextFocus, createdAt: Date.now() });
+      setActivePage(nextFocus.pageKey);
+    };
+
+    const handlePopState = () => {
+      const nextFocus = readFocusFromLocation();
+      if (nextFocus?.pageKey) {
+        setFocusRequest({ ...nextFocus, createdAt: Date.now() });
+        setActivePage(nextFocus.pageKey);
+      } else {
+        setFocusRequest(null);
+      }
+    };
+
+    window.addEventListener(FOCUS_EVENT_NAME, applyFocus);
+    window.addEventListener("popstate", handlePopState);
+
+    return () => {
+      window.removeEventListener(FOCUS_EVENT_NAME, applyFocus);
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, []);
+
   const selectedPage = PAGE_META[activePage] || PAGE_META["papan-pusat"];
 
   const handleLoginSuccess = (nextSession) => {
     saveSession(nextSession);
     setSession(nextSession);
 
-    const firstAllowedPage =
-      getAllowedMenuGroups(MENU_GROUPS, nextSession)
-        .flatMap((group) => group.items || [])[0]?.key || "papan-pusat";
+    const allowedPages = getAllowedMenuGroups(MENU_GROUPS, nextSession).flatMap(
+      (group) => group.items || []
+    );
 
+    const pendingFocus = readFocusFromLocation();
+    if (pendingFocus?.pageKey && allowedPages.some((item) => item.key === pendingFocus.pageKey)) {
+      setFocusRequest(pendingFocus);
+      setActivePage(pendingFocus.pageKey);
+      return;
+    }
+
+    const firstAllowedPage = allowedPages[0]?.key || "papan-pusat";
+    setFocusRequest(null);
     setActivePage(firstAllowedPage);
   };
 
   const handleSessionExpired = () => {
     clearSession();
     setSession(null);
+    setFocusRequest(null);
     setActivePage("papan-pusat");
   };
 
@@ -69,16 +115,34 @@ export default function App() {
     } finally {
       clearSession();
       setSession(null);
+      setFocusRequest(null);
       setActivePage("papan-pusat");
     }
+  };
+
+  const handleChangePage = (nextPage) => {
+    setFocusRequest(null);
+    clearFocusUrl();
+    setActivePage(nextPage);
+  };
+
+  const handleClearFocus = () => {
+    setFocusRequest(null);
+    clearFocusUrl();
+  };
+
+  const pageProps = {
+    session,
+    onSessionExpired: handleSessionExpired,
+    focusRequest,
+    onClearFocus: handleClearFocus,
   };
 
   const renderPage = () => {
     if (activePage === "papan-pusat") {
       return (
         <PapanPusatPage
-          session={session}
-          onSessionExpired={handleSessionExpired}
+          {...pageProps}
         />
       );
     }
@@ -87,8 +151,7 @@ export default function App() {
     if (activePage === "owner-control") {
       return (
         <OwnerControlPage
-          session={session}
-          onSessionExpired={handleSessionExpired}
+          {...pageProps}
         />
       );
     }
@@ -96,8 +159,7 @@ export default function App() {
     if (activePage === "arsip-digital") {
       return (
         <ArchiveDigitalPage
-          session={session}
-          onSessionExpired={handleSessionExpired}
+          {...pageProps}
         />
       );
     }
@@ -107,8 +169,7 @@ export default function App() {
     if (activePage === "closing-owner") {
       return (
         <ClosingOwnerPage
-          session={session}
-          onSessionExpired={handleSessionExpired}
+          {...pageProps}
         />
       );
     }
@@ -116,8 +177,7 @@ export default function App() {
     if (activePage === "system-health") {
       return (
         <SystemHealthPage
-          session={session}
-          onSessionExpired={handleSessionExpired}
+          {...pageProps}
         />
       );
     }
@@ -125,8 +185,7 @@ export default function App() {
     if (activePage === "drop-ayam") {
       return (
         <DropAyamPage
-          session={session}
-          onSessionExpired={handleSessionExpired}
+          {...pageProps}
         />
       );
     }
@@ -134,8 +193,7 @@ export default function App() {
     if (activePage === "stok-ayam") {
       return (
         <StokAyamPage
-          session={session}
-          onSessionExpired={handleSessionExpired}
+          {...pageProps}
         />
       );
     }
@@ -143,8 +201,7 @@ export default function App() {
     if (activePage === "produksi-adukan") {
       return (
         <AdukanPage
-          session={session}
-          onSessionExpired={handleSessionExpired}
+          {...pageProps}
         />
       );
     }
@@ -152,8 +209,7 @@ export default function App() {
     if (activePage === "barang-freezer") {
       return (
         <FreezerInPage
-          session={session}
-          onSessionExpired={handleSessionExpired}
+          {...pageProps}
         />
       );
     }
@@ -161,8 +217,7 @@ export default function App() {
     if (activePage === "stok-jadi") {
       return (
         <FinishedStockPage
-          session={session}
-          onSessionExpired={handleSessionExpired}
+          {...pageProps}
         />
       );
     }
@@ -170,8 +225,7 @@ export default function App() {
     if (activePage === "kasir-order") {
       return (
         <OrderPage
-          session={session}
-          onSessionExpired={handleSessionExpired}
+          {...pageProps}
         />
       );
     }
@@ -179,8 +233,7 @@ export default function App() {
     if (activePage === "antrian-po") {
       return (
         <POQueuePage
-          session={session}
-          onSessionExpired={handleSessionExpired}
+          {...pageProps}
         />
       );
     }
@@ -188,8 +241,7 @@ export default function App() {
     if (activePage === "uang-masuk") {
       return (
         <UangMasukPage
-          session={session}
-          onSessionExpired={handleSessionExpired}
+          {...pageProps}
         />
       );
     }
@@ -197,8 +249,7 @@ export default function App() {
     if (activePage === "kas-dompet") {
       return (
         <KasDompetPage
-          session={session}
-          onSessionExpired={handleSessionExpired}
+          {...pageProps}
         />
       );
     }
@@ -206,8 +257,7 @@ export default function App() {
     if (activePage === "kas-keluar") {
       return (
         <BelanjaKasKeluarPage
-          session={session}
-          onSessionExpired={handleSessionExpired}
+          {...pageProps}
         />
       );
     }
@@ -215,8 +265,7 @@ export default function App() {
     if (activePage === "hutang-nana") {
       return (
         <HutangNanaPage
-          session={session}
-          onSessionExpired={handleSessionExpired}
+          {...pageProps}
         />
       );
     }
@@ -224,8 +273,7 @@ export default function App() {
     if (activePage === "empat-amplop") {
       return (
         <EmpatAmplopPage
-          session={session}
-          onSessionExpired={handleSessionExpired}
+          {...pageProps}
         />
       );
     }
@@ -234,8 +282,7 @@ export default function App() {
     if (activePage === "kewajiban-owner") {
       return (
         <KewajibanOwnerPage
-          session={session}
-          onSessionExpired={handleSessionExpired}
+          {...pageProps}
         />
       );
     }
@@ -243,8 +290,7 @@ export default function App() {
     if (activePage === "laporan-harian") {
       return (
         <LaporanHarianPage
-          session={session}
-          onSessionExpired={handleSessionExpired}
+          {...pageProps}
         />
       );
     }
@@ -253,8 +299,7 @@ export default function App() {
     if (activePage === "setoran-cabang") {
       return (
         <SetoranCabangPage
-          session={session}
-          onSessionExpired={handleSessionExpired}
+          {...pageProps}
         />
       );
     }
@@ -262,8 +307,7 @@ export default function App() {
     if (activePage === "request-do") {
       return (
         <RequestDOPage
-          session={session}
-          onSessionExpired={handleSessionExpired}
+          {...pageProps}
         />
       );
     }
@@ -273,8 +317,7 @@ export default function App() {
     if (activePage === "hrd-payroll") {
       return (
         <HRDPayrollPage
-          session={session}
-          onSessionExpired={handleSessionExpired}
+          {...pageProps}
         />
       );
     }
@@ -283,8 +326,7 @@ export default function App() {
       return (
         <MasterDataPage
           moduleType="produk"
-          session={session}
-          onSessionExpired={handleSessionExpired}
+          {...pageProps}
         />
       );
     }
@@ -293,8 +335,7 @@ export default function App() {
       return (
         <MasterDataPage
           moduleType="customer"
-          session={session}
-          onSessionExpired={handleSessionExpired}
+          {...pageProps}
         />
       );
     }
@@ -303,8 +344,7 @@ export default function App() {
       return (
         <MasterDataPage
           moduleType="supplier"
-          session={session}
-          onSessionExpired={handleSessionExpired}
+          {...pageProps}
         />
       );
     }
@@ -313,8 +353,7 @@ export default function App() {
       return (
         <MasterDataPage
           moduleType="lokasi"
-          session={session}
-          onSessionExpired={handleSessionExpired}
+          {...pageProps}
         />
       );
     }
@@ -337,10 +376,16 @@ export default function App() {
       session={session}
       menuGroups={allowedMenuGroups}
       activePage={activePage}
-      onChangePage={setActivePage}
+      onChangePage={handleChangePage}
       onLogout={handleLogout}
     >
-      {renderPage()}
+      <div className="da-page-stack">
+        <CrossModuleFocusBanner
+          focusRequest={focusRequest}
+          onClear={handleClearFocus}
+        />
+        {renderPage()}
+      </div>
     </AppShell>
   );
 }
