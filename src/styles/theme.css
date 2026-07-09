@@ -8,6 +8,7 @@
   --da-color-accent: #f6b51e;
   --da-color-accent-dark: #b97700;
   --da-color-accent-soft: #fff7df;
+  --da-color-accent-faint: #fffcf0;
 
   /* Merchant clean base */
   --da-color-bg: #ffffff;
@@ -59,4 +60,12 @@
   --da-table-header: #f8fafc;
   --da-table-hover: #fff7ed;
   --da-input-height: 42px;
+
+  /* Part 6B-1 tone control */
+  --da-hero-soft-gradient:
+    linear-gradient(135deg, #ffffff 0%, #fffaf0 48%, #fff4df 100%);
+  --da-card-soft-gradient:
+    linear-gradient(135deg, #ffffff 0%, #fffaf0 100%);
+  --da-danger-accent-gradient:
+    linear-gradient(135deg, #fffdf7 0%, #fff7df 58%, #fff1c7 100%);
 }
