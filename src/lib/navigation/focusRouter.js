@@ -21,6 +21,7 @@ const PAGE_LABELS = {
   "arsip-digital": "Arsip Digital",
   "closing-owner": "Laporan Owner",
   "system-health": "Data Health",
+  "go-live-check": "Go-Live Check",
   "drop-ayam": "DROP Ayam",
   "stok-ayam": "Stok Ayam",
   "produksi-adukan": "Produksi / Adukan",
