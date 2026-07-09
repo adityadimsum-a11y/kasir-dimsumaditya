@@ -30,6 +30,7 @@ import HRDPayrollPage from "./modules/hrd/HRDPayrollPage";
 import ClosingOwnerPage from "./modules/closing/ClosingOwnerPage";
 import SystemHealthPage from "./modules/system/SystemHealthPage";
 import CrossModuleFocusBanner from "./components/navigation/CrossModuleFocusBanner";
+import FocusDetailAutoOpen from "./components/navigation/FocusDetailAutoOpen";
 import {
   FOCUS_EVENT_NAME,
   clearFocusUrl,
@@ -383,6 +384,11 @@ export default function App() {
         <CrossModuleFocusBanner
           focusRequest={focusRequest}
           onClear={handleClearFocus}
+        />
+        <FocusDetailAutoOpen
+          session={session}
+          focusRequest={focusRequest}
+          onSessionExpired={handleSessionExpired}
         />
         {renderPage()}
       </div>
