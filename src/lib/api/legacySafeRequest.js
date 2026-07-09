@@ -1,34 +1,59 @@
 // ======================================================
 // legacySafeRequest.js - ERP DIMSUM ADITYA
-// Part 5R-1: Fetch Hotfix untuk Data Health / Action Hub
+// Part 5R-2: API URL Unifier untuk Data Health / Action Hub
 //
 // Tujuan:
-// - Memanggil Apps Script dengan cara aman untuk Web App
-// - Pakai text/plain supaya tidak kena preflight CORS
-// - Tidak mengubah transaksi, hanya helper request frontend
+// - Menyatukan pembacaan URL Apps Script dengan client.js
+// - Memperbaiki kasus Data Health / Action Hub gagal fetch karena env memakai VITE_ERP_API_URL
+// - Tetap aman untuk Apps Script Web App: POST text/plain agar tidak kena preflight CORS
+//
+// Aman:
+// - Tidak membuat transaksi baru
+// - Tidak memotong dompet
+// - Tidak mengubah stok/payroll/closing
 // ======================================================
 
-function getApiUrl() {
+function readLocalStorage(keys) {
+  if (typeof window === "undefined") return "";
+
+  for (const key of keys) {
+    const value = window.localStorage.getItem(key);
+    if (String(value || "").trim()) return String(value || "").trim();
+  }
+
+  return "";
+}
+
+export function getLegacyApiUrl() {
   const env = import.meta.env || {};
 
-  return (
-    env.VITE_APPS_SCRIPT_URL ||
-    env.VITE_GOOGLE_SCRIPT_URL ||
-    env.VITE_GAS_URL ||
-    env.VITE_API_URL ||
-    localStorage.getItem("DA_API_URL") ||
-    localStorage.getItem("VITE_APPS_SCRIPT_URL") ||
-    ""
+  return String(
+    env.VITE_ERP_API_URL ||
+      env.VITE_APPS_SCRIPT_URL ||
+      env.VITE_GOOGLE_SCRIPT_URL ||
+      env.VITE_GAS_API_URL ||
+      env.VITE_GAS_URL ||
+      env.VITE_API_URL ||
+      readLocalStorage([
+        "dimsum_erp_api_url",
+        "DA_API_URL",
+        "VITE_ERP_API_URL",
+        "VITE_APPS_SCRIPT_URL",
+        "VITE_API_URL",
+      ]) ||
+      ""
   ).trim();
 }
 
 function normalizeToken(sessionToken) {
   return String(
     sessionToken ||
-      localStorage.getItem("sessionToken") ||
-      localStorage.getItem("session_token") ||
-      localStorage.getItem("da_session_token") ||
-      localStorage.getItem("token") ||
+      readLocalStorage([
+        "sessionToken",
+        "session_token",
+        "da_session_token",
+        "token",
+      ]) ||
       ""
   ).trim();
 }
@@ -57,10 +82,8 @@ function normalizeResult(json) {
     };
   }
 
-  // Format normal ERP: { success, message, data }
   if (Object.prototype.hasOwnProperty.call(json, "success")) return json;
 
-  // Format alternatif: { ok, result }
   if (Object.prototype.hasOwnProperty.call(json, "ok")) {
     return {
       success: Boolean(json.ok),
@@ -71,7 +94,6 @@ function normalizeResult(json) {
     };
   }
 
-  // Kalau backend langsung balikin object data.
   return {
     success: true,
     message: "Berhasil.",
@@ -106,13 +128,13 @@ async function readResponseSafely(res) {
 }
 
 export async function legacySafeRequest(action, payload = {}, sessionToken = "") {
-  const apiUrl = getApiUrl();
+  const apiUrl = getLegacyApiUrl();
 
   if (!apiUrl) {
     return {
       success: false,
       code: "API_URL_MISSING",
-      message: "URL Apps Script belum terbaca di frontend. Cek VITE_APPS_SCRIPT_URL / VITE_API_URL di Vercel.",
+      message: "URL Apps Script belum terbaca di frontend. Isi VITE_ERP_API_URL atau VITE_APPS_SCRIPT_URL di Vercel.",
       data: {},
     };
   }
@@ -120,7 +142,6 @@ export async function legacySafeRequest(action, payload = {}, sessionToken = "")
   try {
     const res = await fetch(apiUrl, {
       method: "POST",
-      // Apps Script Web App lebih aman pakai text/plain agar tidak kena preflight CORS.
       headers: {
         "Content-Type": "text/plain;charset=utf-8",
       },
