@@ -1,281 +1,394 @@
-/********************************************************
- * goLiveChecklistRules.js
- * ERP DIMSUM ADITYA — Part 5U
- *
- * Tujuan:
- * - Mengubah hasil Data Health + Action Hub menjadi checklist go-live.
- * - Read-only, tidak membuat/mengubah transaksi.
- ********************************************************/
+import { useEffect, useMemo, useState } from "react";
+import Badge from "../../components/ui/Badge";
+import Button from "../../components/ui/Button";
+import Card from "../../components/ui/Card";
+import DataTable from "../../components/ui/DataTable";
+import StatCard from "../../components/ui/StatCard";
+import { legacySafeRequest, isLegacyAuthRequired } from "../../lib/api/legacySafeRequest";
+import { formatDate } from "../../lib/format/date";
+import { openFocusRoute } from "../../lib/navigation/focusRouter";
+import {
+  GO_LIVE_MANUAL_CHECKS,
+  buildSystemGoLiveChecklist,
+  summarizeGoLiveReadiness,
+} from "../../lib/golive/goLiveChecklistRules";
 
-function asNumber(value) {
-  const cleaned = String(value ?? "0").replace(/[^0-9.-]/g, "");
-  const n = Number(cleaned);
-  return Number.isFinite(n) ? n : 0;
+const MANUAL_STORAGE_KEY = "da_go_live_manual_checks_v1";
+
+function today() {
+  return new Date().toISOString().slice(0, 10);
 }
 
-function findModule(modules, keys) {
-  const targets = keys.map((key) => String(key || "").toLowerCase());
-  return (modules || []).find((row) => {
-    const text = `${row.module || ""} ${row.tab || ""} ${row.source || ""}`.toLowerCase();
-    return targets.some((target) => text.includes(target));
+function firstDayThisMonth() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+}
+
+function readManualState() {
+  if (typeof window === "undefined") return {};
+
+  try {
+    return JSON.parse(window.localStorage.getItem(MANUAL_STORAGE_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveManualState(nextState) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(MANUAL_STORAGE_KEY, JSON.stringify(nextState || {}));
+}
+
+function renderStatus(row) {
+  return <Badge tone={row.tone || "default"}>{row.status_label || row.status || "-"}</Badge>;
+}
+
+function MiniProgress({ value }) {
+  const pct = Math.max(0, Math.min(100, Number(value || 0)));
+
+  return (
+    <div style={styles.progressWrap}>
+      <div style={{ ...styles.progressBar, width: `${pct}%` }} />
+    </div>
+  );
+}
+
+export default function GoLiveChecklistPage({ session, onSessionExpired }) {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [healthData, setHealthData] = useState({});
+  const [actionHub, setActionHub] = useState({});
+  const [manualState, setManualState] = useState(() => readManualState());
+  const [activeTab, setActiveTab] = useState("system");
+  const [copyMessage, setCopyMessage] = useState("");
+  const [filters, setFilters] = useState({
+    date_start: firstDayThisMonth(),
+    date_end: today(),
+    location_id: "ALL",
   });
-}
 
-function statusFromCounts({ blockers = 0, warnings = 0, passWhenClean = true }) {
-  if (blockers > 0) return "BLOCKER";
-  if (warnings > 0) return "WARNING";
-  return passWhenClean ? "PASS" : "MANUAL";
-}
+  const sessionToken = session?.sessionToken || session?.session_token || "";
 
-function labelStatus(status) {
-  if (status === "PASS") return "Aman";
-  if (status === "WARNING") return "Perlu Dirapikan";
-  if (status === "BLOCKER") return "Jangan Go-Live Dulu";
-  return "Manual Check";
-}
+  const systemItems = useMemo(() => {
+    return buildSystemGoLiveChecklist(healthData, actionHub);
+  }, [healthData, actionHub]);
 
-function toneStatus(status) {
-  if (status === "PASS") return "success";
-  if (status === "BLOCKER") return "danger";
-  if (status === "WARNING") return "warning";
-  return "default";
-}
+  const readiness = useMemo(() => {
+    return summarizeGoLiveReadiness(systemItems, manualState);
+  }, [systemItems, manualState]);
 
-function buildItem(key, title, owner, status, note, source = "Sistem") {
-  return {
-    key,
-    title,
-    owner,
-    status,
-    status_label: labelStatus(status),
-    tone: toneStatus(status),
-    note,
-    source,
-  };
-}
+  const manualRows = useMemo(() => {
+    return GO_LIVE_MANUAL_CHECKS.map((item) => ({
+      ...item,
+      done: Boolean(manualState[item.key]),
+      status_label: manualState[item.key] ? "Selesai" : "Belum",
+      tone: manualState[item.key] ? "success" : "warning",
+    }));
+  }, [manualState]);
 
-export function buildSystemGoLiveChecklist(healthData = {}, actionHub = {}) {
-  const summary = healthData.summary || {};
-  const modules = healthData.modules || [];
-  const checks = healthData.checks || [];
-  const recent = healthData.recent || [];
-  const issues = healthData.issues || [];
-  const actionSummary = actionHub.summary || {};
+  async function loadData(nextFilters = filters) {
+    setLoading(true);
+    setError("");
+    setCopyMessage("");
 
-  const errorCount = asNumber(summary.error_count);
-  const warningCount = asNumber(summary.warning_count);
-  const ghostRows = asNumber(summary.ghost_rows);
-  const realRows = asNumber(summary.real_rows);
-  const modulesChecked = asNumber(summary.modules_checked);
-  const actionCritical = asNumber(actionSummary.CRITICAL);
-  const actionWarning = asNumber(actionSummary.WARNING);
-  const actionCards = asNumber(actionHub.total_cards || (actionHub.cards || []).length);
+    try {
+      const [healthResult, actionResult] = await Promise.all([
+        legacySafeRequest("getLegacySystemHealthBootstrap", nextFilters, sessionToken),
+        legacySafeRequest("getLegacySystemHealthActionHub", { ...nextFilters, limit: 100 }, sessionToken),
+      ]);
 
-  const idProblemModules = modules.filter((row) => asNumber(row.missing_id) > 0);
-  const ghostProblemModules = modules.filter((row) => asNumber(row.ghost_rows) > 0);
+      if (isLegacyAuthRequired(healthResult) || isLegacyAuthRequired(actionResult)) {
+        onSessionExpired?.();
+        return;
+      }
 
-  const walletModule = findModule(modules, ["mutasi dompet", "walletmutations", "wallet"]);
-  const orderModule = findModule(modules, ["order", "invoice", "payment", "piutang"]);
-  const stockModule = findModule(modules, ["gerak stok", "stockmovements", "layer modal", "inventorycostlayers", "produksi"]);
-  const archiveModule = findModule(modules, ["arsip", "archive"]);
-  const payrollModule = findModule(modules, ["payroll", "hrd"]);
-  const closingModule = findModule(modules, ["closing"]);
+      if (!healthResult?.success) {
+        setError(healthResult?.message || "Gagal membaca Data Health untuk Go-Live Check.");
+        setHealthData({});
+      } else {
+        setHealthData(healthResult.data || {});
+      }
 
-  const moneyChecks = checks.filter((row) => /uang|kas|hutang|kewajiban|payroll/i.test(row.label || ""));
-  const stockChecks = checks.filter((row) => /stok|ayam|ready|produksi/i.test(row.label || ""));
-
-  return [
-    buildItem(
-      "api-cable",
-      "Kabel API, proxy, dan Apps Script",
-      "Owner / Tech",
-      realRows > 0 && modulesChecked > 0 ? "PASS" : "BLOCKER",
-      realRows > 0
-        ? `Backend sudah membaca ${realRows.toLocaleString("id-ID")} baris nyata dari ${modulesChecked.toLocaleString("id-ID")} modul.`
-        : "Data Health belum membaca baris nyata. Jangan go-live sebelum kabel data hijau.",
-      "Data Health"
-    ),
-    buildItem(
-      "fatal-issues",
-      "Masalah bahaya / error besar",
-      "Owner / Admin HO",
-      statusFromCounts({ blockers: errorCount }),
-      errorCount > 0
-        ? `${errorCount.toLocaleString("id-ID")} masalah bahaya masih ada.`
-        : "Tidak ada masalah bahaya dari Data Health.",
-      "Data Health"
-    ),
-    buildItem(
-      "id-cleanup",
-      "ID transaksi dan source ID",
-      "Admin HO",
-      statusFromCounts({ warnings: warningCount + idProblemModules.length }),
-      warningCount + idProblemModules.length > 0
-        ? `${warningCount.toLocaleString("id-ID")} catatan perlu cek. Modul dengan ID/source belum bersih: ${idProblemModules.length.toLocaleString("id-ID")}.`
-        : "ID/source utama sudah bersih untuk periode ini.",
-      "Data Health"
-    ),
-    buildItem(
-      "ghost-row",
-      "Ghost row / baris format kosong",
-      "Admin HO",
-      statusFromCounts({ warnings: ghostRows + ghostProblemModules.length }),
-      ghostRows > 0
-        ? `${ghostRows.toLocaleString("id-ID")} ghost row terdeteksi. Tidak dihitung transaksi, tapi sebaiknya dirapikan sebelum go-live final.`
-        : "Tidak ada ghost row yang mengganggu pembacaan.",
-      "Data Health"
-    ),
-    buildItem(
-      "action-hub",
-      "Action Hub transaksi yang belum nyambung",
-      "Owner / Admin HO",
-      statusFromCounts({ blockers: actionCritical, warnings: actionWarning }),
-      actionCards > 0
-        ? `${actionCards.toLocaleString("id-ID")} kartu aktif. Critical: ${actionCritical}, Warning: ${actionWarning}.`
-        : "Action Hub aman, tidak ada kartu tindakan aktif.",
-      "Action Hub"
-    ),
-    buildItem(
-      "order-payment",
-      "Order → Invoice → Uang Masuk → Piutang",
-      "Kasir / Admin HO",
-      orderModule ? statusFromCounts({ warnings: asNumber(orderModule.missing_id) }) : "WARNING",
-      orderModule
-        ? `Modul penjualan terbaca dari ${orderModule.tab || orderModule.module}. Perlu ID: ${asNumber(orderModule.missing_id)}.`
-        : "Modul penjualan belum terbaca di Data Health.",
-      "Benang Merah Penjualan"
-    ),
-    buildItem(
-      "wallet-chain",
-      "Kas keluar/masuk → Mutasi Dompet",
-      "Owner / Admin HO",
-      walletModule ? statusFromCounts({ warnings: asNumber(walletModule.missing_id) }) : "WARNING",
-      walletModule
-        ? `Mutasi dompet terbaca. Checklist uang: ${moneyChecks.length.toLocaleString("id-ID")} baris.`
-        : "Mutasi dompet belum terbaca. Cek Kas & Dompet sebelum go-live.",
-      "Benang Merah Uang"
-    ),
-    buildItem(
-      "stock-chain",
-      "DROP Ayam → Produksi → Stok Jadi",
-      "Produksi / Admin HO",
-      stockModule ? statusFromCounts({ warnings: asNumber(stockModule.missing_id) }) : "WARNING",
-      stockModule
-        ? `Stok/produksi terbaca. Checklist stok: ${stockChecks.length.toLocaleString("id-ID")} baris.`
-        : "Rantai stok belum terbaca. Cek DROP Ayam, Produksi, dan Stok Jadi.",
-      "Benang Merah Stok"
-    ),
-    buildItem(
-      "archive-hook",
-      "Arsip Digital dan timeline ID",
-      "Owner / Admin HO",
-      archiveModule && recent.length > 0 ? statusFromCounts({ warnings: asNumber(archiveModule.missing_id) }) : "WARNING",
-      archiveModule
-        ? `Arsip terbaca dari ${archiveModule.tab || archiveModule.module}. Jejak terakhir: ${recent.length.toLocaleString("id-ID")} item.`
-        : "Arsip belum terbaca. Detail ID/timeline belum boleh dianggap final.",
-      "Arsip Digital"
-    ),
-    buildItem(
-      "payroll-closing",
-      "Payroll, kewajiban, dan closing",
-      "Owner / Admin HO",
-      payrollModule || closingModule ? "MANUAL" : "MANUAL",
-      "Wajib simulasi manual: buat periode payroll, cek kasbon/pinjaman, cek kewajiban owner, lalu closing tanpa mengubah data live sembarangan.",
-      "Manual + Data Health"
-    ),
-  ];
-}
-
-export const GO_LIVE_MANUAL_CHECKS = [
-  {
-    key: "saldo-awal",
-    title: "Saldo awal uang dan stok sudah diisi",
-    owner: "Owner / Admin HO",
-    note: "Cash, BCA, BRI, stok ayam, stok freezer, piutang lama, hutang lama, kasbon, dan kewajiban aktif sudah masuk sebagai saldo awal/opening balance.",
-  },
-  {
-    key: "master-data",
-    title: "Master data inti sudah bersih",
-    owner: "Admin HO",
-    note: "Produk, customer, supplier, lokasi, wallet, kategori transaksi, channel penjualan, dan reason code sudah aktif/tidak aktif dengan benar.",
-  },
-  {
-    key: "role-permission",
-    title: "Role dan permission sudah dites",
-    owner: "Owner / Tech",
-    note: "Owner, Tangerang, Pemalang, Cibinong sudah login sesuai hak akses. Cabang tidak melihat payroll/4 Amplop/owner-only data.",
-  },
-  {
-    key: "daily-operation",
-    title: "Simulasi operasional harian sudah jalan",
-    owner: "Admin Operasional",
-    note: "DROP Ayam, Produksi/Adukan, Stok Jadi, Kasir/Order, Pembayaran, Belanja, Hutang Nana, dan Arsip sudah dicoba end-to-end.",
-  },
-  {
-    key: "branch-flow",
-    title: "Cabang dan setoran sudah disimulasi",
-    owner: "Admin Cabang / Owner",
-    note: "Laporan harian, setoran cabang, validasi Tangerang, request/DO, dan penerimaan barang sudah dicoba minimal satu skenario.",
-  },
-  {
-    key: "print-export",
-    title: "Print, export, dan backup siap",
-    owner: "Owner / Admin HO",
-    note: "Nota/customer invoice, laporan owner, closing, payroll/slip, dan backup sheet/export sudah dicek formatnya.",
-  },
-  {
-    key: "cutover-plan",
-    title: "Tanggal cutover dan aturan input sudah diputuskan",
-    owner: "Owner",
-    note: "Sudah jelas kapan sistem mulai dipakai harian, siapa input apa, dan data lama mana yang hanya jadi arsip/referensi.",
-  },
-];
-
-export function summarizeGoLiveReadiness(systemItems, manualState) {
-  const manualValues = Object.values(manualState || {});
-  const manualDone = manualValues.filter(Boolean).length;
-  const manualTotal = GO_LIVE_MANUAL_CHECKS.length;
-  const blockers = (systemItems || []).filter((item) => item.status === "BLOCKER").length;
-  const warnings = (systemItems || []).filter((item) => item.status === "WARNING").length;
-  const systemPass = (systemItems || []).filter((item) => item.status === "PASS").length;
-  const systemTotal = (systemItems || []).length;
-
-  const systemScore = systemTotal ? Math.round((systemPass / systemTotal) * 60) : 0;
-  const manualScore = manualTotal ? Math.round((manualDone / manualTotal) * 40) : 0;
-  const score = Math.min(100, systemScore + manualScore);
-
-  let status = "Belum Siap Go-Live";
-  let tone = "danger";
-  let note = "Masih ada blocker sistem. Bereskan dulu sebelum uji operasional final.";
-
-  if (blockers === 0 && warnings > 0) {
-    status = "Siap UAT / Simulasi Terarah";
-    tone = "warning";
-    note = "Tidak ada blocker besar, tapi masih ada data yang perlu dirapikan sebelum go-live final.";
+      if (!actionResult?.success) {
+        setActionHub({
+          total_cards: 0,
+          cards: [],
+          summary: {},
+          warning_message: actionResult?.message || "Action Hub belum terbaca.",
+        });
+      } else {
+        setActionHub(actionResult.data || {});
+      }
+    } catch (err) {
+      setError(err?.message || "Gagal koneksi ke backend.");
+      setHealthData({});
+      setActionHub({});
+    } finally {
+      setLoading(false);
+    }
   }
 
-  if (blockers === 0 && warnings === 0 && manualDone < manualTotal) {
-    status = "Mesin Siap, Manual Checklist Belum Lengkap";
-    tone = "warning";
-    note = "Kabel sistem aman. Lengkapi checklist manual sebelum tanggal cutover.";
+  useEffect(() => {
+    if (sessionToken) loadData(filters);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionToken]);
+
+  function updateFilter(field, value) {
+    setFilters((old) => ({ ...old, [field]: value }));
   }
 
-  if (blockers === 0 && warnings === 0 && manualDone === manualTotal) {
-    status = "Siap Go-Live Bertahap";
-    tone = "success";
-    note = "Kabel sistem dan checklist manual sudah hijau. Masuk go-live bertahap sesuai cabang/modul prioritas.";
+  function handleSubmit(event) {
+    event.preventDefault();
+    loadData(filters);
   }
 
-  return {
-    score,
-    status,
-    tone,
-    note,
-    blockers,
-    warnings,
-    system_pass: systemPass,
-    system_total: systemTotal,
-    manual_done: manualDone,
-    manual_total: manualTotal,
-  };
+  function toggleManual(key) {
+    setManualState((old) => {
+      const next = { ...old, [key]: !old[key] };
+      saveManualState(next);
+      return next;
+    });
+  }
+
+  function resetManual() {
+    setManualState({});
+    saveManualState({});
+  }
+
+  function buildSummaryText() {
+    const lines = [
+      "GO-LIVE CHECK ERP DIMSUM ADITYA",
+      `Periode: ${formatDate(filters.date_start)} - ${formatDate(filters.date_end)}`,
+      `Status: ${readiness.status}`,
+      `Score: ${readiness.score}/100`,
+      `Blocker: ${readiness.blockers}`,
+      `Perlu dirapikan: ${readiness.warnings}`,
+      `Manual checklist: ${readiness.manual_done}/${readiness.manual_total}`,
+      "",
+      "Checklist Sistem:",
+      ...systemItems.map((item) => `- ${item.title}: ${item.status_label} — ${item.note}`),
+      "",
+      "Checklist Manual:",
+      ...manualRows.map((item) => `- ${item.title}: ${item.done ? "Selesai" : "Belum"}`),
+    ];
+
+    return lines.join("\n");
+  }
+
+  async function copySummary() {
+    const text = buildSummaryText();
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyMessage("Ringkasan berhasil dicopy.");
+    } catch {
+      setCopyMessage("Browser tidak mengizinkan copy otomatis. Salin manual dari checklist di layar.");
+    }
+  }
+
+  function goToDataHealth() {
+    openFocusRoute({ pageKey: "system-health" });
+  }
+
+  function goToArchive() {
+    openFocusRoute({ pageKey: "arsip-digital" });
+  }
+
+  return (
+    <div className="da-page-stack">
+      <section className="da-page-header">
+        <div>
+          <p className="da-kicker">Dimsum Aditya</p>
+          <h1>Go-Live Check</h1>
+          <p className="da-muted">
+            Checklist kesiapan sebelum sistem dipakai harian. Halaman ini membaca Data Health dan Action Hub, lalu digabung dengan checklist manual owner.
+          </p>
+        </div>
+        <Badge tone={readiness.tone}>{loading ? "Mengecek" : readiness.status}</Badge>
+      </section>
+
+      {error ? <div className="da-form-error">{error}</div> : null}
+
+      <Card>
+        <div className="da-section-header">
+          <div>
+            <p className="da-kicker">Cutover Control</p>
+            <h2>Kesiapan Go-Live Bertahap</h2>
+            <p className="da-muted">
+              Layout ini masih alat kontrol data/kabel/logic. Final merchant layout tetap bisa dipoles di batch berikutnya setelah mesin ERP hijau.
+            </p>
+          </div>
+          <Badge tone={readiness.tone}>{readiness.score}/100</Badge>
+        </div>
+
+        <MiniProgress value={readiness.score} />
+
+        <p className="da-muted" style={{ marginTop: 12 }}>
+          {readiness.note}
+        </p>
+
+        <form className="da-form-grid" onSubmit={handleSubmit} style={{ marginTop: 16 }}>
+          <label className="da-form-field">
+            <span>Tanggal Mulai</span>
+            <input type="date" value={filters.date_start} onChange={(e) => updateFilter("date_start", e.target.value)} />
+          </label>
+          <label className="da-form-field">
+            <span>Tanggal Sampai</span>
+            <input type="date" value={filters.date_end} onChange={(e) => updateFilter("date_end", e.target.value)} />
+          </label>
+          <label className="da-form-field">
+            <span>Lokasi</span>
+            <input value={filters.location_id} onChange={(e) => updateFilter("location_id", e.target.value)} placeholder="ALL / TGR / PML / CBN" />
+          </label>
+          <div className="da-form-actions">
+            <Button type="submit" disabled={loading}>{loading ? "Mengecek..." : "Refresh Check"}</Button>
+          </div>
+        </form>
+      </Card>
+
+      <section className="da-grid da-grid-3">
+        <StatCard label="Score Go-Live" value={`${readiness.score}/100`} tone={readiness.tone === "success" ? "default" : readiness.tone} />
+        <StatCard label="Blocker" value={readiness.blockers.toLocaleString("id-ID")} tone={readiness.blockers ? "danger" : "default"} />
+        <StatCard label="Perlu Dirapikan" value={readiness.warnings.toLocaleString("id-ID")} tone={readiness.warnings ? "warning" : "default"} />
+        <StatCard label="Checklist Sistem" value={`${readiness.system_pass}/${readiness.system_total}`} />
+        <StatCard label="Checklist Manual" value={`${readiness.manual_done}/${readiness.manual_total}`} tone={readiness.manual_done === readiness.manual_total ? "default" : "warning"} />
+        <StatCard label="Periode" value={`${formatDate(filters.date_start)} - ${formatDate(filters.date_end)}`} />
+      </section>
+
+      <Card>
+        <div className="da-section-header">
+          <div>
+            <p className="da-kicker">Mode Cek</p>
+            <h2>Checklist Go-Live</h2>
+          </div>
+          <div style={styles.buttonRow}>
+            <Button variant={activeTab === "system" ? "primary" : "secondary"} onClick={() => setActiveTab("system")}>Sistem</Button>
+            <Button variant={activeTab === "manual" ? "primary" : "secondary"} onClick={() => setActiveTab("manual")}>Manual</Button>
+            <Button variant={activeTab === "cutover" ? "primary" : "secondary"} onClick={() => setActiveTab("cutover")}>Cutover</Button>
+          </div>
+        </div>
+
+        {activeTab === "system" ? (
+          <DataTable
+            columns={[
+              { key: "status", label: "Status", render: renderStatus },
+              { key: "title", label: "Cek Sistem" },
+              { key: "owner", label: "PIC" },
+              { key: "note", label: "Catatan" },
+              { key: "source", label: "Sumber" },
+            ]}
+            rows={systemItems}
+            emptyMessage="Checklist sistem belum terbaca."
+          />
+        ) : null}
+
+        {activeTab === "manual" ? (
+          <div className="da-page-stack">
+            <DataTable
+              columns={[
+                {
+                  key: "done",
+                  label: "Done",
+                  render: (row) => (
+                    <input
+                      type="checkbox"
+                      checked={row.done}
+                      onChange={() => toggleManual(row.key)}
+                      aria-label={`Checklist ${row.title}`}
+                    />
+                  ),
+                },
+                { key: "status", label: "Status", render: renderStatus },
+                { key: "title", label: "Cek Manual" },
+                { key: "owner", label: "PIC" },
+                { key: "note", label: "Catatan" },
+              ]}
+              rows={manualRows}
+              emptyMessage="Checklist manual belum ada."
+            />
+            <div style={styles.buttonRow}>
+              <Button variant="secondary" onClick={resetManual}>Reset Manual Checklist</Button>
+            </div>
+          </div>
+        ) : null}
+
+        {activeTab === "cutover" ? (
+          <div className="da-grid da-grid-2">
+            <div style={styles.cutoverBox}>
+              <p className="da-kicker">Urutan Aman</p>
+              <h3>Go-Live Bertahap</h3>
+              <ol style={styles.list}>
+                <li>Tangerang/Owner pakai dulu untuk input nyata dan cek benang merah.</li>
+                <li>DROP Ayam → Produksi/Adukan → Stok Jadi → Order dicoba 1 hari penuh.</li>
+                <li>Pemalang/Cibinong masuk setelah laporan harian dan setoran valid.</li>
+                <li>Payroll, kewajiban, closing, dan 4 Amplop aktif setelah data operasional stabil.</li>
+              </ol>
+            </div>
+            <div style={styles.cutoverBox}>
+              <p className="da-kicker">Jangan Dilakukan</p>
+              <h3>Safety Rules</h3>
+              <ol style={styles.list}>
+                <li>Jangan hapus transaksi live. Gunakan batal/void/koreksi dengan alasan.</li>
+                <li>Jangan edit langsung data setelah closing tanpa flow revisi.</li>
+                <li>Jangan isi Kas Masuk manual untuk pembayaran penjualan; harus dari invoice/payment.</li>
+                <li>Jangan ubah HPP/modal lama setelah transaksi berjalan.</li>
+              </ol>
+            </div>
+          </div>
+        ) : null}
+      </Card>
+
+      <Card>
+        <div className="da-section-header">
+          <div>
+            <p className="da-kicker">Tindak Lanjut</p>
+            <h2>Shortcut Pemeriksaan</h2>
+            <p className="da-muted">
+              Kalau masih ada blocker/perlu dirapikan, buka Data Health dan Arsip Digital untuk melihat sumber ID-nya.
+            </p>
+          </div>
+          <Badge tone="success">Read Only</Badge>
+        </div>
+        <div style={styles.buttonRow}>
+          <Button onClick={goToDataHealth}>Buka Data Health</Button>
+          <Button variant="secondary" onClick={goToArchive}>Buka Arsip Digital</Button>
+          <Button variant="secondary" onClick={copySummary}>Copy Ringkasan</Button>
+        </div>
+        {copyMessage ? <p className="da-muted" style={{ marginTop: 10 }}>{copyMessage}</p> : null}
+      </Card>
+    </div>
+  );
 }
+
+const styles = {
+  progressWrap: {
+    height: 12,
+    borderRadius: 999,
+    background: "#f1f5f9",
+    overflow: "hidden",
+    border: "1px solid #e5e7eb",
+  },
+  progressBar: {
+    height: "100%",
+    borderRadius: 999,
+    background: "linear-gradient(90deg, #dc2626, #f97316, #22c55e)",
+    transition: "width 0.25s ease",
+  },
+  buttonRow: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 8,
+    alignItems: "center",
+  },
+  cutoverBox: {
+    border: "1px solid #e5e7eb",
+    borderRadius: 18,
+    padding: 16,
+    background: "#fff",
+  },
+  list: {
+    margin: "10px 0 0 18px",
+    padding: 0,
+    color: "#475569",
+    lineHeight: 1.7,
+  },
+};
