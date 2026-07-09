@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   buildCopySummary,
   getGoLiveReadiness,
@@ -7,20 +7,18 @@ import {
 const BRAND = {
   red: "#b42318",
   redSoft: "#fef2f2",
-  orange: "#f97316",
   goldSoft: "#fffbeb",
-  green: "#16a34a",
   greenSoft: "#f0fdf4",
-  blue: "#2563eb",
   blueSoft: "#eff6ff",
   ink: "#111827",
   muted: "#64748b",
   line: "#e5e7eb",
-  bg: "#fff7ed",
 };
 
-function getSessionToken() {
+function getSessionToken(session) {
   return (
+    session?.sessionToken ||
+    session?.session_token ||
     localStorage.getItem("sessionToken") ||
     localStorage.getItem("da_session_token") ||
     localStorage.getItem("token") ||
@@ -28,10 +26,10 @@ function getSessionToken() {
   );
 }
 
-async function callBackend(action, payload = {}) {
+async function callBackend(action, payload = {}, session) {
   const body = {
     action,
-    sessionToken: getSessionToken(),
+    sessionToken: getSessionToken(session),
     payload,
   };
 
@@ -70,7 +68,7 @@ function firstDayOfMonthISO() {
     .slice(0, 10);
 }
 
-export default function GoLiveChecklistPage() {
+export default function GoLiveChecklistPage({ session }) {
   const [healthData, setHealthData] = useState(null);
   const [actionHubData, setActionHubData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -79,9 +77,9 @@ export default function GoLiveChecklistPage() {
 
   const period = useMemo(
     () => ({
-      start_date: firstDayOfMonthISO(),
-      end_date: todayISO(),
-      location: "ALL",
+      date_start: firstDayOfMonthISO(),
+      date_end: todayISO(),
+      location_id: "ALL",
       limit: 100,
     }),
     []
@@ -93,10 +91,14 @@ export default function GoLiveChecklistPage() {
 
     try {
       const [health, hub] = await Promise.all([
-        callBackend("getLegacySystemHealthBootstrap", period),
-        callBackend("getLegacySystemHealthActionHub", {
-          limit: 100,
-        }),
+        callBackend("getLegacySystemHealthBootstrap", period, session),
+        callBackend(
+          "getLegacySystemHealthActionHub",
+          {
+            limit: 100,
+          },
+          session
+        ),
       ]);
 
       setHealthData(health);
@@ -171,7 +173,7 @@ export default function GoLiveChecklistPage() {
 
           <button
             style={styles.secondaryBtn}
-            onClick={() => openPage("data-health")}
+            onClick={() => openPage("system-health")}
           >
             Buka Data Health
           </button>
