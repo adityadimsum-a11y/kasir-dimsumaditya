@@ -908,3 +908,354 @@ a {
     min-width: 640px;
   }
 }
+
+
+/* =========================================================
+   Part 6C — Papan Pantau / Radar Owner Merchant Polish
+   Scope: owner dashboard page only.
+   ========================================================= */
+
+.da-owner-dashboard {
+  --owner-soft-border: #fedf89;
+  --owner-soft-bg: #fffcf2;
+}
+
+.da-owner-hero-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 310px;
+  gap: 18px;
+  align-items: stretch;
+  background: var(--da-hero-soft-gradient);
+  border-color: #fedf89;
+}
+
+.da-owner-hero-main h2 {
+  margin: 4px 0 8px;
+  font-size: 22px;
+}
+
+.da-owner-hero-main p {
+  margin: 0;
+  max-width: 760px;
+  line-height: 1.6;
+}
+
+.da-owner-hero-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.da-owner-hero-status {
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid #fedf89;
+  border-radius: 18px;
+  padding: 16px;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.da-owner-hero-status strong {
+  color: var(--da-color-heading);
+  line-height: 1.35;
+}
+
+.da-owner-hero-status span {
+  color: var(--da-color-muted);
+  font-size: 12.5px;
+}
+
+.da-owner-error-card {
+  margin-top: 16px;
+  border-color: #fecdca;
+  background: #fff8f7;
+}
+
+.da-owner-error-card p {
+  margin: 10px 0 0;
+}
+
+.da-owner-kpi-grid {
+  margin-top: 16px;
+}
+
+.da-owner-radar-layout {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(280px, 0.8fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.da-owner-section-heading,
+.da-section-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.da-owner-section-heading h2,
+.da-section-heading h2 {
+  margin: 0;
+}
+
+.da-owner-section-heading p,
+.da-section-heading p {
+  margin: 6px 0 0;
+  color: var(--da-color-muted);
+  line-height: 1.55;
+}
+
+.da-owner-radar-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.da-owner-radar-card {
+  min-height: 154px;
+  border: 1px solid #fedf89 !important;
+  background: linear-gradient(135deg, #ffffff 0%, #fffbeb 100%) !important;
+  color: var(--da-color-heading) !important;
+  border-radius: 18px !important;
+  padding: 14px !important;
+  text-align: left;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  box-shadow: var(--da-shadow-card);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+.da-owner-radar-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--da-shadow-soft);
+  border-color: #fdb022 !important;
+  background: linear-gradient(135deg, #ffffff 0%, #fff7df 100%) !important;
+}
+
+.da-owner-radar-card-warning {
+  background: linear-gradient(135deg, #ffffff 0%, #fff4d6 100%) !important;
+  border-color: #fdb022 !important;
+}
+
+.da-owner-radar-card-danger {
+  background: linear-gradient(135deg, #ffffff 0%, #fee4e2 100%) !important;
+  border-color: #fecdca !important;
+}
+
+.da-owner-radar-card-success {
+  background: linear-gradient(135deg, #ffffff 0%, #ecfdf3 100%) !important;
+  border-color: #abefc6 !important;
+}
+
+.da-owner-radar-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.da-owner-radar-arrow {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: #fff;
+  border: 1px solid var(--da-color-border);
+  color: var(--da-color-muted);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.da-owner-radar-title {
+  color: var(--da-color-heading);
+  font-weight: 900;
+  font-size: 14px;
+}
+
+.da-owner-radar-value {
+  color: var(--da-color-heading);
+  font-weight: 950;
+  font-size: 22px;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+}
+
+.da-owner-radar-desc {
+  color: var(--da-color-muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.da-owner-side-panel h2 {
+  margin: 4px 0 14px;
+}
+
+.da-owner-mini-list {
+  display: grid;
+  gap: 10px;
+}
+
+.da-owner-mini-list > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--da-color-border);
+  background: #fff;
+  border-radius: 14px;
+}
+
+.da-owner-mini-list span {
+  color: var(--da-color-muted);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.da-owner-mini-list strong {
+  color: var(--da-color-heading);
+  font-size: 13px;
+  text-align: right;
+}
+
+.da-owner-flow-panel,
+.da-owner-recent-panel {
+  margin-top: 16px;
+}
+
+.da-owner-flow-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.da-owner-flow-card {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--da-color-border);
+  border-radius: 18px;
+  background: #fff;
+}
+
+.da-owner-flow-number {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: var(--da-color-accent-soft);
+  color: var(--da-color-accent-dark);
+  font-weight: 950;
+  font-size: 13px;
+}
+
+.da-owner-flow-title {
+  color: var(--da-color-heading);
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.da-owner-flow-desc {
+  color: var(--da-color-muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+  margin-top: 5px;
+}
+
+.da-owner-flow-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: var(--da-color-muted);
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+.da-owner-flow-status strong {
+  color: var(--da-color-heading);
+}
+
+.da-owner-modal-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.da-owner-modal-summary > div {
+  border: 1px solid var(--da-color-border);
+  border-radius: 16px;
+  padding: 14px;
+  background: #fff;
+}
+
+.da-owner-modal-summary span {
+  display: block;
+  color: var(--da-color-muted);
+  font-size: 12px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.da-owner-modal-summary strong {
+  color: var(--da-color-heading);
+  font-size: 18px;
+}
+
+.da-owner-next-action {
+  margin-top: 14px;
+  border: 1px solid #fedf89;
+  background: #fffbeb;
+  border-radius: 16px;
+  padding: 14px;
+}
+
+.da-owner-next-action p {
+  margin: 4px 0 0;
+  color: var(--da-color-heading);
+  line-height: 1.55;
+}
+
+.da-modal-note {
+  margin-top: 14px;
+  color: var(--da-color-muted);
+  background: #f8fafc;
+  border: 1px solid var(--da-color-border);
+  border-radius: 16px;
+  padding: 14px;
+  line-height: 1.55;
+}
+
+@media (max-width: 1180px) {
+  .da-owner-hero-card {
+    grid-template-columns: 1fr;
+  }
+
+  .da-owner-radar-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .da-owner-flow-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 860px) {
+  .da-owner-radar-grid,
+  .da-owner-flow-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .da-owner-modal-summary {
+    grid-template-columns: 1fr;
+  }
+}
