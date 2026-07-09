@@ -1,11 +1,10 @@
 // ======================================================
 // legacySafeRequest.js - ERP DIMSUM ADITYA
-// Part 5R-3: Same-Origin Apps Script Proxy / CORS Fix
+// Part 5R-4: Apps Script Proxy Diagnostic Fix
 //
 // Tujuan:
-// - Data Health / Action Hub tidak fetch langsung ke script.google.com dari browser
-// - Jika URL backend adalah Apps Script, request masuk dulu ke /api/apps-script
-// - Vercel proxy meneruskan ke Apps Script dari server-side supaya tidak kena CORS browser
+// - Data Health / Action Hub lewat /api/apps-script jika target Apps Script
+// - Pesan error lebih jelas jika Apps Script membalas HTML/login/error
 //
 // Aman:
 // - Tidak membuat transaksi baru
@@ -134,6 +133,34 @@ function normalizeResult(json) {
   };
 }
 
+function friendlyProxyMessage(json) {
+  const code = String(json?.code || json?.error?.code || "").toUpperCase();
+  const baseMessage = json?.message || "Backend belum bisa dibaca.";
+
+  if (code === "WEB_APP_ACCESS_NOT_ANYONE") {
+    return (
+      baseMessage +
+      " Di Apps Script buka Deploy > Manage deployments > Edit, set Who has access: Anyone / Siapa saja, lalu Deploy new version."
+    );
+  }
+
+  if (code === "UPSTREAM_HTML_RESPONSE") {
+    return (
+      baseMessage +
+      " Buka /api/apps-script-diagnostics untuk melihat apakah yang balik halaman login/error HTML."
+    );
+  }
+
+  if (code === "APPS_SCRIPT_FUNCTION_NOT_FOUND") {
+    return (
+      baseMessage +
+      " Pastikan Code.gs punya doPost(e), Router.js terbaru sudah masuk, lalu Deploy new version."
+    );
+  }
+
+  return baseMessage;
+}
+
 async function readResponseSafely(res) {
   const text = await res.text();
 
@@ -147,13 +174,20 @@ async function readResponseSafely(res) {
   }
 
   try {
-    return normalizeResult(JSON.parse(text));
+    const json = normalizeResult(JSON.parse(text));
+    if (json.success === false) {
+      return {
+        ...json,
+        message: friendlyProxyMessage(json),
+      };
+    }
+    return json;
   } catch (err) {
     return {
       success: false,
       code: "INVALID_JSON",
       message:
-        "Backend tidak mengirim JSON valid. Biasanya Apps Script error, deployment belum baru, atau akses Web App salah.",
+        "Backend tidak mengirim JSON valid. Buka /api/apps-script-diagnostics untuk cek apakah Apps Script membalas halaman login/error HTML.",
       data: {},
       raw_text: text.slice(0, 500),
     };
@@ -201,7 +235,7 @@ export async function legacySafeRequest(action, payload = {}, sessionToken = "")
       success: false,
       code: "FETCH_FAILED",
       message:
-        "Failed to fetch. Jika target Apps Script, cek file /api/apps-script.js sudah ikut deploy Vercel. Jika belum, browser masih kena CORS.",
+        "Failed to fetch. Pastikan file root api/apps-script.js sudah ikut deploy Vercel dan request Network mengarah ke /api/apps-script.",
       detail: err?.message || String(err),
       data: {},
     };
