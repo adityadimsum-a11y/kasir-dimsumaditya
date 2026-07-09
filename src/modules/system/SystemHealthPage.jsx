@@ -7,6 +7,7 @@ import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import DataTable from "../../components/ui/DataTable";
 import StatCard from "../../components/ui/StatCard";
+import SystemHealthActionHub from "./SystemHealthActionHub";
 
 function isAuthRequired(result) {
   const code = String(result?.code || result?.error?.code || "").toUpperCase();
@@ -248,6 +249,11 @@ export default function SystemHealthPage({ session, onSessionExpired }) {
           />
         </Card>
       </section>
+
+      <SystemHealthActionHub
+        session={session}
+        onSessionExpired={onSessionExpired}
+      />
 
       <Card>
         <p className="da-muted">
