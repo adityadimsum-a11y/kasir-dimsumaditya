@@ -1259,3 +1259,186 @@ a {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* =========================================================
+   Part 6C-1 — Radar Detail Center Modal Hotfix
+   Replaces distracting bottom sheet behavior with clean centered modal.
+   ========================================================= */
+
+.da-radar-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background:
+    radial-gradient(circle at 50% 16%, rgba(246, 181, 30, 0.18), transparent 30%),
+    rgba(15, 23, 42, 0.42);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  backdrop-filter: blur(8px);
+}
+
+.da-radar-modal {
+  position: relative;
+  width: min(720px, calc(100vw - 32px));
+  max-height: min(760px, calc(100vh - 40px));
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #fedf89;
+  border-radius: 26px;
+  box-shadow: 0 30px 90px rgba(15, 23, 42, 0.28);
+  padding: 22px;
+}
+
+.da-radar-modal::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 110px;
+  background: linear-gradient(135deg, #fffdf7 0%, #fff7df 65%, #fff1c7 100%);
+  border-radius: 26px 26px 0 0;
+  pointer-events: none;
+}
+
+.da-radar-modal > * {
+  position: relative;
+}
+
+.da-radar-modal-close {
+  position: absolute !important;
+  top: 16px;
+  right: 16px;
+  z-index: 2;
+  width: 38px !important;
+  height: 38px !important;
+  min-height: 38px !important;
+  padding: 0 !important;
+  display: grid !important;
+  place-items: center;
+  border-radius: 999px !important;
+  background: #fff !important;
+  color: var(--da-color-heading) !important;
+  border: 1px solid var(--da-color-border) !important;
+  font-size: 22px !important;
+  line-height: 1 !important;
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-radar-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 4px 48px 18px 0;
+  border-bottom: 1px solid rgba(254, 223, 137, 0.9);
+}
+
+.da-radar-modal-head h2 {
+  margin: 2px 0 8px;
+  font-size: 28px;
+  line-height: 1.05;
+  letter-spacing: -0.055em;
+}
+
+.da-radar-modal-head p {
+  margin: 0;
+  color: var(--da-color-muted);
+  line-height: 1.55;
+  max-width: 560px;
+}
+
+.da-radar-modal-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.da-radar-modal-stat {
+  background: #fff;
+  border: 1px solid var(--da-color-border);
+  border-radius: 18px;
+  padding: 16px;
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-radar-modal-stat span {
+  display: block;
+  color: var(--da-color-muted);
+  font-size: 11px;
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 8px;
+}
+
+.da-radar-modal-stat strong {
+  display: block;
+  color: var(--da-color-heading);
+  font-size: 22px;
+  line-height: 1.1;
+  letter-spacing: -0.04em;
+}
+
+.da-radar-modal-action {
+  margin-top: 14px;
+  border: 1px solid #fedf89;
+  border-radius: 20px;
+  padding: 16px;
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%);
+}
+
+.da-radar-modal-action p {
+  margin: 6px 0 0;
+  color: var(--da-color-heading);
+  line-height: 1.6;
+  font-weight: 720;
+}
+
+.da-radar-modal-note {
+  margin-top: 14px;
+  color: var(--da-color-muted);
+  background: #f8fafc;
+  border: 1px solid var(--da-color-border);
+  border-radius: 18px;
+  padding: 15px;
+  line-height: 1.55;
+}
+
+.da-radar-modal-footer {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 640px) {
+  .da-radar-modal-backdrop {
+    align-items: end;
+    padding: 12px;
+  }
+
+  .da-radar-modal {
+    width: 100%;
+    max-height: calc(100vh - 24px);
+    border-radius: 24px;
+    padding: 18px;
+  }
+
+  .da-radar-modal::before {
+    border-radius: 24px 24px 0 0;
+  }
+
+  .da-radar-modal-head {
+    display: block;
+    padding-right: 44px;
+  }
+
+  .da-radar-modal-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .da-radar-modal-head h2 {
+    font-size: 24px;
+  }
+}
