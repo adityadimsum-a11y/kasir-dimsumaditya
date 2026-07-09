@@ -55,4 +55,8 @@
   --da-topbar-height: 72px;
   --da-content-max: 1240px;
   --da-content-wide: 1360px;
+
+  --da-table-header: #f8fafc;
+  --da-table-hover: #fff7ed;
+  --da-input-height: 42px;
 }
