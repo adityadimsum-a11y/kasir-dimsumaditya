@@ -31,6 +31,15 @@ import ClosingOwnerPage from "./modules/closing/ClosingOwnerPage";
 import SystemHealthPage from "./modules/system/SystemHealthPage";
 import GoLiveChecklistPage from "./modules/system/GoLiveChecklistPage";
 import PermissionRoleCheckPage from "./modules/system/PermissionRoleCheckPage";
+import PrintExportBackupSafetyPage from "./modules/system/PrintExportBackupSafetyPage";
+
+const PRINT_BACKUP_PAGE_KEYS = [
+  "print-backup",
+  "print-backup-safety",
+  "print-export-backup",
+  "backup-safety",
+  "backup-export",
+];
 import CrossModuleFocusBanner from "./components/navigation/CrossModuleFocusBanner";
 import FocusDetailAutoOpen from "./components/navigation/FocusDetailAutoOpen";
 import {
@@ -196,6 +205,14 @@ export default function App() {
     if (activePage === "permission-role-check") {
       return (
         <PermissionRoleCheckPage
+          {...pageProps}
+        />
+      );
+    }
+
+    if (PRINT_BACKUP_PAGE_KEYS.includes(activePage)) {
+      return (
+        <PrintExportBackupSafetyPage
           {...pageProps}
         />
       );
