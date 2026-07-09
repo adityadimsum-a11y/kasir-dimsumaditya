@@ -2420,3 +2420,433 @@ a {
     padding: 14px;
   }
 }
+
+
+/* =========================================================
+   Part 6G — Uang & Kewajiban Merchant Polish Pack
+   Scope: Uang Masuk, Kas & Dompet, Belanja & Kas Keluar,
+          Hutang Nana, Kewajiban Owner, 4 Amplop.
+   CSS-only safe polish.
+   ========================================================= */
+
+.da-finance-page,
+.da-wallet-page,
+.da-cash-page,
+.da-expense-page,
+.da-payable-page,
+.da-obligation-page,
+.da-amplop-page {
+  --finance-soft-border: #fedf89;
+  --finance-green-border: #abefc6;
+  --finance-blue-border: #bfdbfe;
+}
+
+.da-finance-hero,
+.da-wallet-hero,
+.da-cash-hero,
+.da-expense-hero,
+.da-payable-hero,
+.da-obligation-hero,
+.da-amplop-hero,
+.da-content [class*="finance"][class*="hero"],
+.da-content [class*="wallet"][class*="hero"],
+.da-content [class*="cash"][class*="hero"],
+.da-content [class*="expense"][class*="hero"],
+.da-content [class*="payable"][class*="hero"],
+.da-content [class*="obligation"][class*="hero"],
+.da-content [class*="amplop"][class*="hero"] {
+  background: var(--da-hero-soft-gradient) !important;
+  border: 1px solid #fedf89 !important;
+  border-radius: 24px !important;
+  padding: 20px !important;
+  box-shadow: var(--da-shadow-card);
+}
+
+/* Summary cards for money modules */
+.da-finance-summary-grid,
+.da-wallet-summary-grid,
+.da-cash-summary-grid,
+.da-expense-summary-grid,
+.da-payable-summary-grid,
+.da-obligation-summary-grid,
+.da-amplop-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin: 16px 0;
+}
+
+.da-finance-stat,
+.da-wallet-stat,
+.da-cash-stat,
+.da-expense-stat,
+.da-payable-stat,
+.da-obligation-stat,
+.da-amplop-stat {
+  background: #fff;
+  border: 1px solid var(--da-color-border);
+  border-radius: 20px;
+  padding: 16px;
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-finance-stat.in,
+.da-wallet-stat.in,
+.da-cash-stat.in,
+.da-amplop-stat.in {
+  border-color: #abefc6;
+  background: linear-gradient(135deg, #fff 0%, #ecfdf3 100%);
+}
+
+.da-finance-stat.out,
+.da-wallet-stat.out,
+.da-cash-stat.out,
+.da-expense-stat.out {
+  border-color: #fecdca;
+  background: linear-gradient(135deg, #fff 0%, #fff7f5 100%);
+}
+
+.da-finance-stat.warning,
+.da-payable-stat.warning,
+.da-obligation-stat.warning,
+.da-amplop-stat.warning {
+  border-color: #fedf89;
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%);
+}
+
+/* Ledger/drilldown cards */
+.da-ledger-card,
+.da-wallet-ledger-card,
+.da-cash-ledger-card,
+.da-payable-ledger-card,
+.da-obligation-ledger-card,
+.da-content [class*="ledger"],
+.da-content [class*="Ledger"],
+.da-content [class*="riwayat"],
+.da-content [class*="history"] {
+  background: #fff;
+  border: 1px solid var(--da-color-border);
+  border-radius: 20px;
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-ledger-row,
+.da-wallet-ledger-row,
+.da-cash-ledger-row,
+.da-payable-ledger-row,
+.da-obligation-ledger-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.7fr) minmax(0, 1fr) minmax(130px, 0.7fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border-bottom: 1px solid var(--da-color-border);
+}
+
+.da-ledger-row:last-child,
+.da-wallet-ledger-row:last-child,
+.da-cash-ledger-row:last-child,
+.da-payable-ledger-row:last-child,
+.da-obligation-ledger-row:last-child {
+  border-bottom: 0;
+}
+
+/* Wallet movement status */
+.da-money-in,
+.da-wallet-in,
+.da-cash-in,
+.da-mutasi-in {
+  color: #067647 !important;
+  background: #ecfdf3 !important;
+  border-color: #abefc6 !important;
+}
+
+.da-money-out,
+.da-wallet-out,
+.da-cash-out,
+.da-mutasi-out {
+  color: #912018 !important;
+  background: #fff7f5 !important;
+  border-color: #fecdca !important;
+}
+
+.da-money-transfer,
+.da-wallet-transfer,
+.da-cash-transfer,
+.da-mutasi-transfer {
+  color: #065986 !important;
+  background: #eff6ff !important;
+  border-color: #bfdbfe !important;
+}
+
+/* Finance form polish */
+.da-content [class*="finance"] input,
+.da-content [class*="Finance"] input,
+.da-content [class*="wallet"] input,
+.da-content [class*="Wallet"] input,
+.da-content [class*="cash"] input,
+.da-content [class*="Cash"] input,
+.da-content [class*="expense"] input,
+.da-content [class*="Expense"] input,
+.da-content [class*="payable"] input,
+.da-content [class*="Payable"] input,
+.da-content [class*="obligation"] input,
+.da-content [class*="Obligation"] input,
+.da-content [class*="amplop"] input,
+.da-content [class*="Amplop"] input,
+.da-content [class*="finance"] select,
+.da-content [class*="Finance"] select,
+.da-content [class*="wallet"] select,
+.da-content [class*="Wallet"] select,
+.da-content [class*="cash"] select,
+.da-content [class*="Cash"] select,
+.da-content [class*="expense"] select,
+.da-content [class*="Expense"] select,
+.da-content [class*="payable"] select,
+.da-content [class*="Payable"] select,
+.da-content [class*="obligation"] select,
+.da-content [class*="Obligation"] select,
+.da-content [class*="amplop"] select,
+.da-content [class*="Amplop"] select,
+.da-content [class*="finance"] textarea,
+.da-content [class*="Finance"] textarea,
+.da-content [class*="wallet"] textarea,
+.da-content [class*="Wallet"] textarea,
+.da-content [class*="cash"] textarea,
+.da-content [class*="Cash"] textarea,
+.da-content [class*="expense"] textarea,
+.da-content [class*="Expense"] textarea,
+.da-content [class*="payable"] textarea,
+.da-content [class*="Payable"] textarea,
+.da-content [class*="obligation"] textarea,
+.da-content [class*="Obligation"] textarea,
+.da-content [class*="amplop"] textarea,
+.da-content [class*="Amplop"] textarea {
+  width: 100%;
+}
+
+/* Hutang Nana / supplier debt control room */
+.da-supplier-debt-card,
+.da-payable-card,
+.da-hutang-card,
+.da-nana-card,
+.da-content [class*="hutang"],
+.da-content [class*="Hutang"],
+.da-content [class*="payable"],
+.da-content [class*="Payable"],
+.da-content [class*="supplier-debt"],
+.da-content [class*="SupplierDebt"] {
+  border-radius: 20px;
+}
+
+.da-supplier-debt-card.warning,
+.da-payable-card.warning,
+.da-hutang-card.warning,
+.da-nana-card.warning {
+  border-color: #fedf89;
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%);
+}
+
+/* Owner obligations / cicilan */
+.da-obligation-card,
+.da-cicilan-card,
+.da-kewajiban-card,
+.da-content [class*="cicilan"],
+.da-content [class*="Cicilan"],
+.da-content [class*="kewajiban"],
+.da-content [class*="Kewajiban"],
+.da-content [class*="obligation"],
+.da-content [class*="Obligation"] {
+  border-radius: 20px;
+}
+
+.da-obligation-card.due,
+.da-cicilan-card.due,
+.da-kewajiban-card.due {
+  border: 1px solid #fedf89;
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%);
+}
+
+.da-obligation-card.paid,
+.da-cicilan-card.paid,
+.da-kewajiban-card.paid {
+  border: 1px solid #abefc6;
+  background: linear-gradient(135deg, #fff 0%, #ecfdf3 100%);
+}
+
+/* 4 Amplop cards */
+.da-amplop-grid,
+.da-envelope-grid,
+.da-content [class*="amplop-grid"],
+.da-content [class*="AmplopGrid"] {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.da-amplop-card,
+.da-envelope-card,
+.da-content [class*="amplop-card"],
+.da-content [class*="AmplopCard"],
+.da-content [class*="envelope-card"],
+.da-content [class*="EnvelopeCard"] {
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%);
+  border: 1px solid #fedf89;
+  border-radius: 22px;
+  padding: 16px;
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-amplop-card strong,
+.da-envelope-card strong {
+  color: var(--da-color-heading);
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+/* Allocation/progress bars */
+.da-progress,
+.da-amplop-progress,
+.da-payment-progress,
+.da-debt-progress,
+.da-content [class*="progress"] {
+  height: 10px;
+  border-radius: 999px;
+  background: #f2f4f7;
+  overflow: hidden;
+}
+
+.da-progress-bar,
+.da-amplop-progress-bar,
+.da-payment-progress-bar,
+.da-debt-progress-bar,
+.da-content [class*="progress-bar"] {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--da-color-accent), var(--da-color-primary));
+}
+
+/* Tables in finance modules */
+.da-content [class*="finance"] table,
+.da-content [class*="Finance"] table,
+.da-content [class*="wallet"] table,
+.da-content [class*="Wallet"] table,
+.da-content [class*="cash"] table,
+.da-content [class*="Cash"] table,
+.da-content [class*="expense"] table,
+.da-content [class*="Expense"] table,
+.da-content [class*="payable"] table,
+.da-content [class*="Payable"] table,
+.da-content [class*="obligation"] table,
+.da-content [class*="Obligation"] table,
+.da-content [class*="amplop"] table,
+.da-content [class*="Amplop"] table {
+  box-shadow: var(--da-shadow-card);
+}
+
+/* Nominal alignment */
+.da-content td.nominal,
+.da-content th.nominal,
+.da-content .nominal,
+.da-content .amount,
+.da-content .rupiah {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Important finance actions: explicit red only for submit/pay/approve */
+.da-content button[class*="approve"],
+.da-content button[class*="Approve"],
+.da-content button[class*="bayar"],
+.da-content button[class*="Bayar"],
+.da-content button[class*="pay"],
+.da-content button[class*="Pay"],
+.da-content button[class*="submit-payment"],
+.da-content button[class*="SubmitPayment"] {
+  background: var(--da-color-primary) !important;
+  color: #fff !important;
+  border-color: var(--da-color-primary) !important;
+}
+
+/* Avoid giant red blocks in finance modules */
+.da-content [class*="finance"][style*="background: #b42318"],
+.da-content [class*="Finance"][style*="background: #b42318"],
+.da-content [class*="wallet"][style*="background: #b42318"],
+.da-content [class*="Wallet"][style*="background: #b42318"],
+.da-content [class*="cash"][style*="background: #b42318"],
+.da-content [class*="Cash"][style*="background: #b42318"],
+.da-content [class*="expense"][style*="background: #b42318"],
+.da-content [class*="Expense"][style*="background: #b42318"],
+.da-content [class*="payable"][style*="background: #b42318"],
+.da-content [class*="Payable"][style*="background: #b42318"],
+.da-content [class*="obligation"][style*="background: #b42318"],
+.da-content [class*="Obligation"][style*="background: #b42318"],
+.da-content [class*="amplop"][style*="background: #b42318"],
+.da-content [class*="Amplop"][style*="background: #b42318"] {
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%) !important;
+  color: var(--da-color-heading) !important;
+  border-color: #fedf89 !important;
+}
+
+/* Approval/revision/reject panels */
+.da-approval-panel,
+.da-revision-panel,
+.da-reject-panel,
+.da-content [class*="approval"],
+.da-content [class*="Approval"],
+.da-content [class*="revision"],
+.da-content [class*="Revision"] {
+  border-radius: 20px;
+}
+
+.da-approval-panel {
+  background: linear-gradient(135deg, #fff 0%, #ecfdf3 100%);
+  border: 1px solid #abefc6;
+}
+
+.da-revision-panel {
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%);
+  border: 1px solid #fedf89;
+}
+
+.da-reject-panel {
+  background: linear-gradient(135deg, #fff 0%, #fff7f5 100%);
+  border: 1px solid #fecdca;
+}
+
+@media (max-width: 1180px) {
+  .da-finance-summary-grid,
+  .da-wallet-summary-grid,
+  .da-cash-summary-grid,
+  .da-expense-summary-grid,
+  .da-payable-summary-grid,
+  .da-obligation-summary-grid,
+  .da-amplop-summary-grid,
+  .da-amplop-grid,
+  .da-envelope-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .da-ledger-row,
+  .da-wallet-ledger-row,
+  .da-cash-ledger-row,
+  .da-payable-ledger-row,
+  .da-obligation-ledger-row {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+}
+
+@media (max-width: 760px) {
+  .da-finance-summary-grid,
+  .da-wallet-summary-grid,
+  .da-cash-summary-grid,
+  .da-expense-summary-grid,
+  .da-payable-summary-grid,
+  .da-obligation-summary-grid,
+  .da-amplop-summary-grid,
+  .da-amplop-grid,
+  .da-envelope-grid {
+    grid-template-columns: 1fr;
+  }
+}
