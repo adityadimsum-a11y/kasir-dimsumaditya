@@ -40,7 +40,7 @@ export const MENU_GROUPS = [
         description: "Cek final akses Owner, Tangerang, Pemalang, Cibinong, dan Staff sebelum go-live.",
       },
       {
-        key: "print-backup-safety",
+        key: "print-backup",
         label: "Print & Backup",
         description: "Cetak laporan safety, export ringkasan, dan cek backup sebelum operasional live.",
       },
