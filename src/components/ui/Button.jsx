@@ -4,13 +4,16 @@ export default function Button({
   variant = "primary",
   disabled = false,
   onClick,
+  className = "",
+  title,
 }) {
   return (
     <button
       type={type}
-      className={`da-button da-button-${variant}`}
+      className={`da-button da-button-${variant} ${className}`.trim()}
       disabled={disabled}
       onClick={onClick}
+      title={title}
     >
       {children}
     </button>
