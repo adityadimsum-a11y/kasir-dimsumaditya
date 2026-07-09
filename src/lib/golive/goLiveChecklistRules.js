@@ -40,7 +40,7 @@ function saveManualState(nextState) {
 }
 
 function renderStatus(row) {
-  return <Badge tone={row.tone || "default"}>{row.status_label || row.status || "-"}</Badge>;
+  return row.status_label || row.status || "-";
 }
 
 function MiniProgress({ value }) {
