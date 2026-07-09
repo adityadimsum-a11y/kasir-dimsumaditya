@@ -29,6 +29,7 @@ import MasterDataPage from "./modules/master/MasterDataPage";
 import HRDPayrollPage from "./modules/hrd/HRDPayrollPage";
 import ClosingOwnerPage from "./modules/closing/ClosingOwnerPage";
 import SystemHealthPage from "./modules/system/SystemHealthPage";
+import GoLiveChecklistPage from "./modules/system/GoLiveChecklistPage";
 import CrossModuleFocusBanner from "./components/navigation/CrossModuleFocusBanner";
 import FocusDetailAutoOpen from "./components/navigation/FocusDetailAutoOpen";
 import {
@@ -178,6 +179,14 @@ export default function App() {
     if (activePage === "system-health") {
       return (
         <SystemHealthPage
+          {...pageProps}
+        />
+      );
+    }
+
+    if (activePage === "go-live-check") {
+      return (
+        <GoLiveChecklistPage
           {...pageProps}
         />
       );
