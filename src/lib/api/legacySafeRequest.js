@@ -1,17 +1,19 @@
 // ======================================================
 // legacySafeRequest.js - ERP DIMSUM ADITYA
-// Part 5R-2: API URL Unifier untuk Data Health / Action Hub
+// Part 5R-3: Same-Origin Apps Script Proxy / CORS Fix
 //
 // Tujuan:
-// - Menyatukan pembacaan URL Apps Script dengan client.js
-// - Memperbaiki kasus Data Health / Action Hub gagal fetch karena env memakai VITE_ERP_API_URL
-// - Tetap aman untuk Apps Script Web App: POST text/plain agar tidak kena preflight CORS
+// - Data Health / Action Hub tidak fetch langsung ke script.google.com dari browser
+// - Jika URL backend adalah Apps Script, request masuk dulu ke /api/apps-script
+// - Vercel proxy meneruskan ke Apps Script dari server-side supaya tidak kena CORS browser
 //
 // Aman:
 // - Tidak membuat transaksi baru
 // - Tidak memotong dompet
 // - Tidak mengubah stok/payroll/closing
 // ======================================================
+
+const PROXY_ENDPOINT = "/api/apps-script";
 
 function readLocalStorage(keys) {
   if (typeof window === "undefined") return "";
@@ -45,6 +47,29 @@ export function getLegacyApiUrl() {
   ).trim();
 }
 
+function isAppsScriptUrl(urlText) {
+  try {
+    const url = new URL(urlText);
+    return (
+      url.hostname === "script.google.com" ||
+      url.hostname === "script.googleusercontent.com"
+    );
+  } catch {
+    return false;
+  }
+}
+
+function shouldUseProxy(apiUrl) {
+  if (!apiUrl) return false;
+  if (typeof window === "undefined") return false;
+  return isAppsScriptUrl(apiUrl);
+}
+
+function getRequestEndpoint(apiUrl) {
+  if (shouldUseProxy(apiUrl)) return PROXY_ENDPOINT;
+  return apiUrl;
+}
+
 function normalizeToken(sessionToken) {
   return String(
     sessionToken ||
@@ -58,10 +83,10 @@ function normalizeToken(sessionToken) {
   ).trim();
 }
 
-function buildBody(action, payload, sessionToken) {
+function buildBody(action, payload, sessionToken, apiUrl) {
   const token = normalizeToken(sessionToken);
 
-  return {
+  const body = {
     action,
     route: action,
     sessionToken: token,
@@ -70,6 +95,13 @@ function buildBody(action, payload, sessionToken) {
     payload: payload || {},
     data: payload || {},
   };
+
+  if (shouldUseProxy(apiUrl)) {
+    body.__proxy = "vercel-apps-script";
+    body.__targetApiUrl = apiUrl;
+  }
+
+  return body;
 }
 
 function normalizeResult(json) {
@@ -120,7 +152,8 @@ async function readResponseSafely(res) {
     return {
       success: false,
       code: "INVALID_JSON",
-      message: "Backend tidak mengirim JSON valid. Biasanya Apps Script error, deployment belum baru, atau akses Web App salah.",
+      message:
+        "Backend tidak mengirim JSON valid. Biasanya Apps Script error, deployment belum baru, atau akses Web App salah.",
       data: {},
       raw_text: text.slice(0, 500),
     };
@@ -129,23 +162,25 @@ async function readResponseSafely(res) {
 
 export async function legacySafeRequest(action, payload = {}, sessionToken = "") {
   const apiUrl = getLegacyApiUrl();
+  const requestEndpoint = getRequestEndpoint(apiUrl);
 
   if (!apiUrl) {
     return {
       success: false,
       code: "API_URL_MISSING",
-      message: "URL Apps Script belum terbaca di frontend. Isi VITE_ERP_API_URL atau VITE_APPS_SCRIPT_URL di Vercel.",
+      message:
+        "URL Apps Script belum terbaca di frontend. Isi VITE_ERP_API_URL atau VITE_APPS_SCRIPT_URL di Vercel.",
       data: {},
     };
   }
 
   try {
-    const res = await fetch(apiUrl, {
+    const res = await fetch(requestEndpoint, {
       method: "POST",
       headers: {
         "Content-Type": "text/plain;charset=utf-8",
       },
-      body: JSON.stringify(buildBody(action, payload, sessionToken)),
+      body: JSON.stringify(buildBody(action, payload, sessionToken, apiUrl)),
     });
 
     const json = await readResponseSafely(res);
@@ -166,7 +201,7 @@ export async function legacySafeRequest(action, payload = {}, sessionToken = "")
       success: false,
       code: "FETCH_FAILED",
       message:
-        "Failed to fetch. Biasanya karena URL Apps Script salah/belum redeploy, akses Web App bukan Anyone, atau browser kena CORS. Cek URL deployment Vercel dan deployment Apps Script terbaru.",
+        "Failed to fetch. Jika target Apps Script, cek file /api/apps-script.js sudah ikut deploy Vercel. Jika belum, browser masih kena CORS.",
       detail: err?.message || String(err),
       data: {},
     };
