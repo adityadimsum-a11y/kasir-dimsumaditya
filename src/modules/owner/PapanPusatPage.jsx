@@ -37,14 +37,46 @@ function formatNumber(value, suffix = "") {
 
 function getToneByStatus(status) {
   const text = String(status || "").toUpperCase();
-  if (text.includes("AMAN") || text.includes("SEHAT") || text.includes("LUNAS") || text.includes("READY")) return "success";
-  if (text.includes("PERLU") || text.includes("BELUM") || text.includes("WARNING") || text.includes("KURANG")) return "warning";
-  if (text.includes("BAHAYA") || text.includes("ERROR") || text.includes("MINUS")) return "danger";
+
+  if (
+    text.includes("AMAN") ||
+    text.includes("SEHAT") ||
+    text.includes("LUNAS") ||
+    text.includes("READY") ||
+    text.includes("TERHUBUNG")
+  ) {
+    return "success";
+  }
+
+  if (
+    text.includes("PERLU") ||
+    text.includes("BELUM") ||
+    text.includes("WARNING") ||
+    text.includes("KURANG") ||
+    text.includes("OPEN") ||
+    text.includes("JATUH")
+  ) {
+    return "warning";
+  }
+
+  if (
+    text.includes("BAHAYA") ||
+    text.includes("ERROR") ||
+    text.includes("MINUS") ||
+    text.includes("GAGAL")
+  ) {
+    return "danger";
+  }
+
   return "default";
 }
 
 function normalizeSummary(data) {
   return data?.summary || {};
+}
+
+function getHealthTone(health) {
+  return getToneByStatus(health?.status || "Aman");
 }
 
 function getRadar(summary) {
@@ -58,73 +90,98 @@ function getRadar(summary) {
   const kewajibanOwner = numberValue(summary?.owner_obligations?.due_this_month);
   const payrollBelumDibayar = numberValue(summary?.payroll?.unpaid_total);
 
-  const items = [
+  return [
     {
       key: "hutang",
       title: "Sisa Hutang Nana",
       value: formatRupiah(hutang),
+      rawValue: hutang,
       status: hutang > 0 ? "Perlu Dipantau" : "Aman",
+      priority: hutang > 0 ? "warning" : "success",
       description: "Pastikan jadwal bayar ayam tidak putus dari uang masuk aktual.",
+      nextAction: "Cek Hutang Nana dan pembayaran supplier sebelum alokasi besar lain.",
     },
     {
       key: "stok",
       title: "Stok Ready",
       value: formatNumber(ready, "pcs"),
+      rawValue: ready,
       status: ready > 0 ? "Ready" : "Kosong",
+      priority: ready > 0 ? "success" : "warning",
       description: "Stok jadi bebas untuk kasir/order. Bukan stok PO yang ditahan.",
+      nextAction: "Cek Stok Jadi dan PO agar barang ready tidak bentrok dengan order tertahan.",
     },
     {
       key: "ayam",
       title: "Sisa Ayam Mentah",
       value: formatNumber(sisaAyam, "kg"),
+      rawValue: sisaAyam,
       status: sisaAyam > 0 ? "Masih Ada" : "Kosong",
+      priority: sisaAyam > 0 ? "success" : "warning",
       description: "Sisa ayam dari lot aktif yang belum dipakai adukan.",
+      nextAction: "Cek DROP Ayam, lot aktif, dan Produksi/Adukan.",
     },
     {
       key: "amplop",
       title: "Belum Dibagi 4 Amplop",
       value: formatRupiah(uangBelumDibagi),
+      rawValue: uangBelumDibagi,
       status: uangBelumDibagi > 0 ? "Perlu Dibagi" : "Aman",
+      priority: uangBelumDibagi > 0 ? "warning" : "success",
       description: "Hanya dari uang masuk aktual yang sudah punya sumber mutasi.",
+      nextAction: "Cek 4 Amplop setelah uang masuk dan mutasi dompet jelas sumbernya.",
     },
     {
       key: "po",
       title: "Kekurangan PO",
       value: formatNumber(poKurang, "pcs"),
+      rawValue: poKurang,
       status: poKurang > 0 ? "Perlu Produksi" : "Aman",
+      priority: poKurang > 0 ? "warning" : "success",
       description: "PO customer yang belum cukup stoknya harus masuk radar produksi.",
+      nextAction: "Buka Antrian PO dan Produksi/Adukan.",
     },
     {
       key: "request",
       title: "Request Cabang Pending",
       value: formatNumber(requestPending),
+      rawValue: requestPending,
       status: requestPending > 0 ? "Perlu Approve" : "Aman",
+      priority: requestPending > 0 ? "warning" : "success",
       description: "Permintaan barang cabang dipisah dari PO customer.",
+      nextAction: "Buka Request & DO atau Setoran Cabang sesuai sumbernya.",
     },
     {
       key: "setoran",
       title: "Setoran Pending",
       value: formatRupiah(setoranPending),
+      rawValue: setoranPending,
       status: setoranPending > 0 ? "Perlu Approve" : "Aman",
+      priority: setoranPending > 0 ? "warning" : "success",
       description: "Setoran belum menjadi uang pusat sebelum owner/Tangerang approve.",
+      nextAction: "Buka Validasi Setoran Cabang untuk cek rincian.",
     },
     {
       key: "kewajiban-owner",
       title: "Kewajiban Owner Bulan Ini",
       value: formatRupiah(kewajibanOwner),
+      rawValue: kewajibanOwner,
       status: kewajibanOwner > 0 ? "Jatuh Tempo" : "Aman",
+      priority: kewajibanOwner > 0 ? "warning" : "success",
       description: "Cicilan/tagihan owner dibayar lewat Kewajiban Owner supaya masuk KASOUT dan Mutasi Dompet.",
+      nextAction: "Buka Kewajiban Owner sebelum closing owner.",
     },
     {
       key: "payroll",
       title: "Payroll Belum Dibayar",
       value: formatRupiah(payrollBelumDibayar),
+      rawValue: payrollBelumDibayar,
       status: payrollBelumDibayar > 0 ? "Perlu Bayar" : "Aman",
+      priority: payrollBelumDibayar > 0 ? "warning" : "success",
       description: "Payroll closing baru jadi uang keluar setelah dibayar dari dompet.",
+      nextAction: "Buka HRD/Payroll hanya untuk owner/Tangerang.",
     },
   ];
-
-  return items;
 }
 
 function getBenangMerah(summary) {
@@ -204,14 +261,44 @@ function getBenangMerah(summary) {
   ];
 }
 
+function getPrioritySummary(radar) {
+  const warnings = radar.filter((item) => item.priority === "warning" && item.rawValue > 0);
+  const danger = radar.filter((item) => item.priority === "danger" && item.rawValue > 0);
+
+  if (danger.length > 0) {
+    return {
+      tone: "danger",
+      label: `${danger.length} bahaya`,
+      text: "Ada alarm penting yang harus dicek dari modul sumber.",
+    };
+  }
+
+  if (warnings.length > 0) {
+    return {
+      tone: "warning",
+      label: `${warnings.length} pantauan`,
+      text: "Ada beberapa hal yang perlu dipantau owner sebelum keputusan kas/stok.",
+    };
+  }
+
+  return {
+    tone: "success",
+    label: "Aman",
+    text: "Tidak ada alarm besar. Tetap cek transaksi terbaru dan arsip.",
+  };
+}
+
 function FlowCard({ index, item }) {
   return (
-    <div className="da-flow-card">
-      <div className="da-flow-number">{index}</div>
+    <div className="da-owner-flow-card">
+      <div className="da-owner-flow-number">{index}</div>
       <div>
-        <div className="da-flow-title">{item.title}</div>
-        <div className="da-flow-desc">{item.description}</div>
-        <div className="da-flow-status"><strong>{item.value}</strong> · {item.status}</div>
+        <div className="da-owner-flow-title">{item.title}</div>
+        <div className="da-owner-flow-desc">{item.description}</div>
+        <div className="da-owner-flow-status">
+          <strong>{item.value}</strong>
+          <span>{item.status}</span>
+        </div>
       </div>
     </div>
   );
@@ -219,14 +306,19 @@ function FlowCard({ index, item }) {
 
 function RadarCard({ item, onClick }) {
   return (
-    <button type="button" className="da-action-card" onClick={() => onClick(item)}>
-      <div className="da-action-card-top">
+    <button
+      type="button"
+      className={`da-owner-radar-card da-owner-radar-card-${item.priority || "default"}`}
+      onClick={() => onClick(item)}
+    >
+      <div className="da-owner-radar-top">
         <Badge tone={getToneByStatus(item.status)}>{item.status}</Badge>
-        <span className="da-action-arrow">›</span>
+        <span className="da-owner-radar-arrow">›</span>
       </div>
-      <div className="da-action-value">{item.title}</div>
-      <div className="da-action-desc">{item.description}</div>
-      <div className="da-action-desc" style={{ marginTop: 8, fontWeight: 850 }}>{item.value}</div>
+
+      <div className="da-owner-radar-title">{item.title}</div>
+      <div className="da-owner-radar-value">{item.value}</div>
+      <div className="da-owner-radar-desc">{item.description}</div>
     </button>
   );
 }
@@ -238,7 +330,15 @@ function recentColumns() {
     { key: "id", label: "ID" },
     { key: "description", label: "Keterangan" },
     { key: "amount", label: "Nominal", render: (row) => formatRupiah(row.amount || 0) },
-    { key: "status", label: "Status", render: (row) => <Badge tone={getToneByStatus(row.status)}>{row.status || "Tercatat"}</Badge> },
+    {
+      key: "status",
+      label: "Status",
+      render: (row) => (
+        <Badge tone={getToneByStatus(row.status)}>
+          {row.status || "Tercatat"}
+        </Badge>
+      ),
+    },
   ];
 }
 
@@ -251,6 +351,7 @@ export default function PapanPusatPage({ session, onSessionExpired }) {
   const summary = useMemo(() => normalizeSummary(data), [data]);
   const radar = useMemo(() => getRadar(summary), [summary]);
   const chain = useMemo(() => getBenangMerah(summary), [summary]);
+  const priority = useMemo(() => getPrioritySummary(radar), [radar]);
   const recent = useMemo(() => asArray(data?.recent_transactions).slice(0, 8), [data]);
   const health = data?.health || {};
   const counts = data?.counts || {};
@@ -260,7 +361,7 @@ export default function PapanPusatPage({ session, onSessionExpired }) {
     setError("");
 
     const result = await getOwnerControlBootstrap(session?.sessionToken, {
-      source: "frontend_part_4w_papan_pantau_refresh_clean",
+      source: "frontend_part_6c_papan_pantau_radar_owner_polish",
       limit: 12,
     });
 
@@ -286,53 +387,67 @@ export default function PapanPusatPage({ session, onSessionExpired }) {
   }, [session?.sessionToken]);
 
   return (
-    <div className="da-page">
+    <div className="da-page da-owner-dashboard">
       <PageHeader
         title="Papan Pantau"
-        description="Ringkasan cepat owner untuk melihat uang, stok, produksi, PO, hutang, kewajiban owner, payroll, setoran, dan 4 Amplop dalam satu halaman ringan. Read-only, tidak membuat transaksi."
+        description="Ringkasan owner untuk melihat uang, stok, produksi, PO, hutang, kewajiban owner, payroll, setoran, dan 4 Amplop dalam satu dashboard ringan. Read-only, tidak membuat transaksi."
         badge="Live Dashboard"
+        badgeTone="warning"
       />
 
-      <Card className="da-dashboard-banner">
-        <div>
-          <div className="da-dashboard-banner-kicker">PUSAT PANTAU HARIAN</div>
+      <Card className="da-owner-hero-card">
+        <div className="da-owner-hero-main">
+          <div className="da-page-kicker">PUSAT PANTAU HARIAN</div>
           <h2>Owner Summary → Radar Masalah → Benang Merah</h2>
-          <p className="da-dashboard-banner-desc">
-            Papan ini memakai data bersih dari Owner Control, jadi baris kosong/formatting tidak ikut dihitung sebagai transaksi hidup.
+          <p>
+            Papan ini memakai data bersih dari Owner Control. Baris kosong/formatting tidak ikut dihitung sebagai transaksi hidup.
           </p>
+
+          <div className="da-owner-hero-actions">
+            <Badge tone={error ? "danger" : loading ? "warning" : "success"}>
+              {loading ? "Membaca..." : error ? "Perlu Dicek" : "Terhubung"}
+            </Badge>
+            <Button variant="ghost" onClick={loadData}>
+              Refresh Data
+            </Button>
+          </div>
         </div>
-        <div className="da-dashboard-banner-actions">
-          <Badge tone={error ? "danger" : "success"}>{loading ? "Membaca..." : error ? "Perlu Dicek" : "Terhubung"}</Badge>
-          <Button variant="ghost" onClick={loadData}>Refresh Data</Button>
+
+        <div className="da-owner-hero-status">
+          <Badge tone={priority.tone}>{priority.label}</Badge>
+          <strong>{priority.text}</strong>
+          <span>Kesehatan kabel: {health?.status || "Membaca..."}</span>
         </div>
       </Card>
 
       {error ? (
-        <Card style={{ marginTop: 16 }}>
+        <Card className="da-owner-error-card">
           <Badge tone="danger">Error</Badge>
-          <p className="da-muted" style={{ marginTop: 12 }}>{error}</p>
+          <p>{error}</p>
         </Card>
       ) : null}
 
-      <div className="da-grid da-grid-3" style={{ marginTop: 16 }}>
+      <div className="da-grid da-grid-4 da-owner-kpi-grid">
         <StatCard
-          tone="primary"
+          tone="default"
           label="Uang Masuk Aktual"
           value={loading ? "..." : formatRupiah(summary?.wallet?.money_in || 0)}
-          description="Uang yang benar-benar masuk dompet/bank. Ini bahan 4 Amplop."
+          description="Uang benar-benar masuk dompet/bank. Bahan 4 Amplop."
         />
         <StatCard
-          tone="warning"
+          tone={summary?.obligations?.hutang_remaining > 0 ? "warning" : "success"}
           label="Sisa Hutang Nana"
           value={loading ? "..." : formatRupiah(summary?.obligations?.hutang_remaining || 0)}
           description="Sisa nota ayam yang belum dibayar."
         />
         <StatCard
+          tone="default"
           label="Stok Ready"
           value={loading ? "..." : formatNumber(summary?.stock?.ready_pcs || 0, "pcs")}
           description="Stok jadi bebas berdasarkan gerak stok."
         />
         <StatCard
+          tone="default"
           label="Sisa Ayam"
           value={loading ? "..." : formatNumber(summary?.chicken?.remaining_kg || 0, "kg")}
           description="Sisa kg dari lot ayam aktif."
@@ -355,80 +470,86 @@ export default function PapanPusatPage({ session, onSessionExpired }) {
           description="Payroll closing yang belum dibayar dari dompet."
         />
         <StatCard
-          tone={health?.status === "Perlu Dicek" ? "warning" : "default"}
+          tone={getHealthTone(health)}
           label="Kesehatan Kabel"
           value={loading ? "..." : health?.status || "-"}
           description={health?.message || "Membaca koneksi antar modul."}
         />
       </div>
 
-      <div className="da-dashboard-split" style={{ marginTop: 16 }}>
-        <Card>
-          <div className="da-section-heading">
+      <div className="da-owner-radar-layout">
+        <Card className="da-owner-radar-panel">
+          <div className="da-section-heading da-owner-section-heading">
             <div>
               <div className="da-page-kicker">RADAR OWNER</div>
-              <h2 style={{ margin: 0 }}>Yang Perlu Dilihat Cepat</h2>
-              <p className="da-muted" style={{ margin: "6px 0 0" }}>
-                Klik kartu untuk catatan ringkas. Tindakan tetap dilakukan di modul masing-masing.
+              <h2>Yang Perlu Dilihat Cepat</h2>
+              <p>
+                Klik kartu untuk catatan ringkas. Tindakan tetap dilakukan di modul masing-masing agar rantai ID tetap rapi.
               </p>
             </div>
             <Badge tone="success">Live Data</Badge>
           </div>
 
-          <div className="da-action-grid">
+          <div className="da-owner-radar-grid">
             {radar.map((item) => (
               <RadarCard key={item.key} item={item} onClick={setSelectedRadar} />
             ))}
           </div>
         </Card>
 
-        <Card>
+        <Card className="da-owner-side-panel">
           <div className="da-page-kicker">RINGKASAN OPERASI</div>
-          <h2 style={{ margin: "4px 0 12px" }}>Saldo & Pergerakan</h2>
-          <div className="da-detail-grid" style={{ gridTemplateColumns: "1fr" }}>
-            <div className="da-detail-box"><p>Saldo Dompet</p><strong>{formatRupiah(summary?.wallet?.wallet_balance_total || 0)}</strong></div>
-            <div className="da-detail-box"><p>Uang Keluar</p><strong>{formatRupiah(summary?.wallet?.money_out || 0)}</strong></div>
-            <div className="da-detail-box"><p>Piutang Terbuka</p><strong>{formatRupiah(summary?.sales?.receivable_open || 0)}</strong></div>
-            <div className="da-detail-box"><p>Setoran Pending</p><strong>{formatRupiah(summary?.branch?.deposit_pending || 0)}</strong></div>
-            <div className="da-detail-box"><p>Request Cabang</p><strong>{formatNumber(summary?.branch?.request_count || 0)}</strong></div>
-            <div className="da-detail-box"><p>Kewajiban Owner</p><strong>{formatRupiah(summary?.owner_obligations?.total_remaining || 0)}</strong></div>
-            <div className="da-detail-box"><p>Payroll Belum Dibayar</p><strong>{formatRupiah(summary?.payroll?.unpaid_total || 0)}</strong></div>
-            <div className="da-detail-box"><p>Arsip/Jejak Terbaca</p><strong>{formatNumber(counts?.recent_transactions || recent.length || 0)}</strong></div>
+          <h2>Saldo & Pergerakan</h2>
+
+          <div className="da-owner-mini-list">
+            <div><span>Saldo Dompet</span><strong>{formatRupiah(summary?.wallet?.wallet_balance_total || 0)}</strong></div>
+            <div><span>Uang Keluar</span><strong>{formatRupiah(summary?.wallet?.money_out || 0)}</strong></div>
+            <div><span>Piutang Terbuka</span><strong>{formatRupiah(summary?.sales?.receivable_open || 0)}</strong></div>
+            <div><span>Setoran Pending</span><strong>{formatRupiah(summary?.branch?.deposit_pending || 0)}</strong></div>
+            <div><span>Request Cabang</span><strong>{formatNumber(summary?.branch?.request_count || 0)}</strong></div>
+            <div><span>Kewajiban Owner</span><strong>{formatRupiah(summary?.owner_obligations?.total_remaining || 0)}</strong></div>
+            <div><span>Payroll Belum Dibayar</span><strong>{formatRupiah(summary?.payroll?.unpaid_total || 0)}</strong></div>
+            <div><span>Arsip/Jejak Terbaca</span><strong>{formatNumber(counts?.recent_transactions || recent.length || 0)}</strong></div>
           </div>
         </Card>
       </div>
 
-      <Card style={{ marginTop: 16 }}>
-        <div className="da-section-heading">
+      <Card className="da-owner-flow-panel">
+        <div className="da-section-heading da-owner-section-heading">
           <div>
             <div className="da-page-kicker">BENANG MERAH USAHA</div>
-            <h2 style={{ margin: 0 }}>DROP → Produksi → Stok → Order → Uang → Hutang/Kewajiban → Payroll → 4 Amplop</h2>
-            <p className="da-muted" style={{ margin: "6px 0 0" }}>
-              Ini peta cepat. Detail lengkap tetap dibuka lewat Owner Control atau Arsip Digital.
+            <h2>DROP → Produksi → Stok → Order → Uang → Hutang/Kewajiban → Payroll → 4 Amplop</h2>
+            <p>
+              Ini peta cepat usaha. Detail lengkap tetap dibuka lewat Owner Control atau Arsip Digital.
             </p>
           </div>
           <Badge tone="warning">Read Only</Badge>
         </div>
 
-        <div className="da-flow-grid">
+        <div className="da-owner-flow-grid">
           {chain.map((item, index) => (
             <FlowCard key={item.title} index={index + 1} item={item} />
           ))}
         </div>
       </Card>
 
-      <Card style={{ marginTop: 16 }}>
-        <div className="da-section-heading">
+      <Card className="da-owner-recent-panel">
+        <div className="da-section-heading da-owner-section-heading">
           <div>
             <div className="da-page-kicker">TRANSAKSI TERBARU</div>
-            <h2 style={{ margin: 0 }}>Jejak ID Terakhir</h2>
-            <p className="da-muted" style={{ margin: "6px 0 0" }}>
+            <h2>Jejak ID Terakhir</h2>
+            <p>
               Baris kosong/formatting tidak ikut dihitung. Klik detail lengkap lewat Arsip Digital.
             </p>
           </div>
           <Badge tone="success">Archive Hook</Badge>
         </div>
-        <DataTable columns={recentColumns()} rows={recent} getRowKey={(row, index) => `${row.module}-${row.id}-${index}`} />
+
+        <DataTable
+          columns={recentColumns()}
+          rows={recent}
+          getRowKey={(row, index) => `${row.module}-${row.id}-${index}`}
+        />
       </Card>
 
       <Modal
@@ -437,12 +558,24 @@ export default function PapanPusatPage({ session, onSessionExpired }) {
         subtitle={selectedRadar?.description || "Catatan ringkas dari Papan Pantau."}
         onClose={() => setSelectedRadar(null)}
       >
-        <div className="da-detail-grid">
-          <div className="da-detail-box"><p>Status</p><strong>{selectedRadar?.status || "-"}</strong></div>
-          <div className="da-detail-box"><p>Nilai</p><strong>{selectedRadar?.value || "-"}</strong></div>
+        <div className="da-owner-modal-summary">
+          <div>
+            <span>Status</span>
+            <strong>{selectedRadar?.status || "-"}</strong>
+          </div>
+          <div>
+            <span>Nilai</span>
+            <strong>{selectedRadar?.value || "-"}</strong>
+          </div>
         </div>
-        <div className="da-modal-note" style={{ marginTop: 16 }}>
-          Papan Pantau hanya memberi alarm cepat. Untuk input, pembayaran, approval, atau koreksi, buka modul sumbernya agar rantai ID tetap rapi dan tidak ada angka yatim.
+
+        <div className="da-owner-next-action">
+          <div className="da-page-kicker">ARAH TINDAKAN</div>
+          <p>{selectedRadar?.nextAction || "Buka modul sumber agar rantai ID tetap rapi."}</p>
+        </div>
+
+        <div className="da-modal-note">
+          Papan Pantau hanya memberi alarm cepat. Untuk input, pembayaran, approval, atau koreksi, buka modul sumbernya agar tidak ada angka yatim.
         </div>
       </Modal>
     </div>
