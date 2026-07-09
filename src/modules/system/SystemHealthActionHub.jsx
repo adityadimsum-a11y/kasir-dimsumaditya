@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { apiRequest } from "../../lib/api/client";
+import { legacySafeRequest, isLegacyAuthRequired } from "../../lib/api/legacySafeRequest";
 import { formatRupiah } from "../../lib/format/money";
 import { formatDate } from "../../lib/format/date";
 import Badge from "../../components/ui/Badge";
@@ -8,8 +8,7 @@ import Card from "../../components/ui/Card";
 import { openFocusRoute } from "../../lib/navigation/focusRouter";
 
 function isAuthRequired(result) {
-  const code = String(result?.code || result?.error?.code || "").toUpperCase();
-  return code === "UNAUTHORIZED" || code === "SESSION_EXPIRED" || code === "AUTH_REQUIRED";
+  return isLegacyAuthRequired(result);
 }
 
 function text(value, fallback = "-") {
@@ -56,7 +55,7 @@ export default function SystemHealthActionHub({ session, onSessionExpired }) {
     setLoading(true);
     setError("");
     try {
-      const result = await apiRequest("getLegacySystemHealthActionHub", { limit: 120 }, sessionToken);
+      const result = await legacySafeRequest("getLegacySystemHealthActionHub", { limit: 120 }, sessionToken);
       if (isAuthRequired(result)) {
         onSessionExpired?.();
         return;
