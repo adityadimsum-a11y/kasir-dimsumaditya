@@ -1,394 +1,538 @@
-import { useEffect, useMemo, useState } from "react";
-import Badge from "../../components/ui/Badge";
-import Button from "../../components/ui/Button";
-import Card from "../../components/ui/Card";
-import DataTable from "../../components/ui/DataTable";
-import StatCard from "../../components/ui/StatCard";
-import { legacySafeRequest, isLegacyAuthRequired } from "../../lib/api/legacySafeRequest";
-import { formatDate } from "../../lib/format/date";
-import { openFocusRoute } from "../../lib/navigation/focusRouter";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  GO_LIVE_MANUAL_CHECKS,
-  buildSystemGoLiveChecklist,
-  summarizeGoLiveReadiness,
+  buildCopySummary,
+  getGoLiveReadiness,
 } from "../../lib/golive/goLiveChecklistRules";
 
-const MANUAL_STORAGE_KEY = "da_go_live_manual_checks_v1";
+const BRAND = {
+  red: "#b42318",
+  redSoft: "#fef2f2",
+  orange: "#f97316",
+  goldSoft: "#fffbeb",
+  green: "#16a34a",
+  greenSoft: "#f0fdf4",
+  blue: "#2563eb",
+  blueSoft: "#eff6ff",
+  ink: "#111827",
+  muted: "#64748b",
+  line: "#e5e7eb",
+  bg: "#fff7ed",
+};
 
-function today() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function firstDayThisMonth() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
-}
-
-function readManualState() {
-  if (typeof window === "undefined") return {};
-
-  try {
-    return JSON.parse(window.localStorage.getItem(MANUAL_STORAGE_KEY) || "{}");
-  } catch {
-    return {};
-  }
-}
-
-function saveManualState(nextState) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(MANUAL_STORAGE_KEY, JSON.stringify(nextState || {}));
-}
-
-function renderStatus(row) {
-  return <Badge tone={row.tone || "default"}>{row.status_label || row.status || "-"}</Badge>;
-}
-
-function MiniProgress({ value }) {
-  const pct = Math.max(0, Math.min(100, Number(value || 0)));
-
+function getSessionToken() {
   return (
-    <div style={styles.progressWrap}>
-      <div style={{ ...styles.progressBar, width: `${pct}%` }} />
-    </div>
+    localStorage.getItem("sessionToken") ||
+    localStorage.getItem("da_session_token") ||
+    localStorage.getItem("token") ||
+    ""
   );
 }
 
-export default function GoLiveChecklistPage({ session, onSessionExpired }) {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [healthData, setHealthData] = useState({});
-  const [actionHub, setActionHub] = useState({});
-  const [manualState, setManualState] = useState(() => readManualState());
-  const [activeTab, setActiveTab] = useState("system");
-  const [copyMessage, setCopyMessage] = useState("");
-  const [filters, setFilters] = useState({
-    date_start: firstDayThisMonth(),
-    date_end: today(),
-    location_id: "ALL",
+async function callBackend(action, payload = {}) {
+  const body = {
+    action,
+    sessionToken: getSessionToken(),
+    payload,
+  };
+
+  const response = await fetch("/api/apps-script", {
+    method: "POST",
+    headers: {
+      "Content-Type": "text/plain;charset=utf-8",
+    },
+    body: JSON.stringify(body),
   });
 
-  const sessionToken = session?.sessionToken || session?.session_token || "";
+  const text = await response.text();
 
-  const systemItems = useMemo(() => {
-    return buildSystemGoLiveChecklist(healthData, actionHub);
-  }, [healthData, actionHub]);
+  let json;
+  try {
+    json = JSON.parse(text);
+  } catch (error) {
+    throw new Error("Proxy/API belum membalas JSON valid.");
+  }
 
-  const readiness = useMemo(() => {
-    return summarizeGoLiveReadiness(systemItems, manualState);
-  }, [systemItems, manualState]);
+  if (!response.ok || json.success === false || json.ok === false) {
+    throw new Error(json.message || json.error || "Request gagal.");
+  }
 
-  const manualRows = useMemo(() => {
-    return GO_LIVE_MANUAL_CHECKS.map((item) => ({
-      ...item,
-      done: Boolean(manualState[item.key]),
-      status_label: manualState[item.key] ? "Selesai" : "Belum",
-      tone: manualState[item.key] ? "success" : "warning",
-    }));
-  }, [manualState]);
+  return json.data || json.result || json;
+}
 
-  async function loadData(nextFilters = filters) {
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function firstDayOfMonthISO() {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), 1)
+    .toISOString()
+    .slice(0, 10);
+}
+
+export default function GoLiveChecklistPage() {
+  const [healthData, setHealthData] = useState(null);
+  const [actionHubData, setActionHubData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [errorText, setErrorText] = useState("");
+  const [lastRefresh, setLastRefresh] = useState("");
+
+  const period = useMemo(
+    () => ({
+      start_date: firstDayOfMonthISO(),
+      end_date: todayISO(),
+      location: "ALL",
+      limit: 100,
+    }),
+    []
+  );
+
+  async function load() {
     setLoading(true);
-    setError("");
-    setCopyMessage("");
+    setErrorText("");
 
     try {
-      const [healthResult, actionResult] = await Promise.all([
-        legacySafeRequest("getLegacySystemHealthBootstrap", nextFilters, sessionToken),
-        legacySafeRequest("getLegacySystemHealthActionHub", { ...nextFilters, limit: 100 }, sessionToken),
+      const [health, hub] = await Promise.all([
+        callBackend("getLegacySystemHealthBootstrap", period),
+        callBackend("getLegacySystemHealthActionHub", {
+          limit: 100,
+        }),
       ]);
 
-      if (isLegacyAuthRequired(healthResult) || isLegacyAuthRequired(actionResult)) {
-        onSessionExpired?.();
-        return;
-      }
-
-      if (!healthResult?.success) {
-        setError(healthResult?.message || "Gagal membaca Data Health untuk Go-Live Check.");
-        setHealthData({});
-      } else {
-        setHealthData(healthResult.data || {});
-      }
-
-      if (!actionResult?.success) {
-        setActionHub({
-          total_cards: 0,
-          cards: [],
-          summary: {},
-          warning_message: actionResult?.message || "Action Hub belum terbaca.",
-        });
-      } else {
-        setActionHub(actionResult.data || {});
-      }
-    } catch (err) {
-      setError(err?.message || "Gagal koneksi ke backend.");
-      setHealthData({});
-      setActionHub({});
+      setHealthData(health);
+      setActionHubData(hub);
+      setLastRefresh(new Date().toLocaleString("id-ID"));
+    } catch (error) {
+      setErrorText(error.message || "Gagal membaca Go-Live Check.");
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    if (sessionToken) loadData(filters);
+    load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionToken]);
+  }, []);
 
-  function updateFilter(field, value) {
-    setFilters((old) => ({ ...old, [field]: value }));
-  }
-
-  function handleSubmit(event) {
-    event.preventDefault();
-    loadData(filters);
-  }
-
-  function toggleManual(key) {
-    setManualState((old) => {
-      const next = { ...old, [key]: !old[key] };
-      saveManualState(next);
-      return next;
-    });
-  }
-
-  function resetManual() {
-    setManualState({});
-    saveManualState({});
-  }
-
-  function buildSummaryText() {
-    const lines = [
-      "GO-LIVE CHECK ERP DIMSUM ADITYA",
-      `Periode: ${formatDate(filters.date_start)} - ${formatDate(filters.date_end)}`,
-      `Status: ${readiness.status}`,
-      `Score: ${readiness.score}/100`,
-      `Blocker: ${readiness.blockers}`,
-      `Perlu dirapikan: ${readiness.warnings}`,
-      `Manual checklist: ${readiness.manual_done}/${readiness.manual_total}`,
-      "",
-      "Checklist Sistem:",
-      ...systemItems.map((item) => `- ${item.title}: ${item.status_label} — ${item.note}`),
-      "",
-      "Checklist Manual:",
-      ...manualRows.map((item) => `- ${item.title}: ${item.done ? "Selesai" : "Belum"}`),
-    ];
-
-    return lines.join("\n");
-  }
+  const report = useMemo(
+    () => getGoLiveReadiness({ healthData, actionHubData }),
+    [healthData, actionHubData]
+  );
 
   async function copySummary() {
-    const text = buildSummaryText();
     try {
-      await navigator.clipboard.writeText(text);
-      setCopyMessage("Ringkasan berhasil dicopy.");
-    } catch {
-      setCopyMessage("Browser tidak mengizinkan copy otomatis. Salin manual dari checklist di layar.");
+      await navigator.clipboard.writeText(buildCopySummary(report));
+      alert("Ringkasan Go-Live Check sudah disalin.");
+    } catch (error) {
+      alert("Browser belum mengizinkan copy otomatis.");
     }
   }
 
-  function goToDataHealth() {
-    openFocusRoute({ pageKey: "system-health" });
-  }
-
-  function goToArchive() {
-    openFocusRoute({ pageKey: "arsip-digital" });
+  function openPage(page) {
+    window.location.href = `/?page=${page}`;
   }
 
   return (
-    <div className="da-page-stack">
-      <section className="da-page-header">
+    <main style={styles.page}>
+      <section style={styles.hero}>
         <div>
-          <p className="da-kicker">Dimsum Aditya</p>
-          <h1>Go-Live Check</h1>
-          <p className="da-muted">
-            Checklist kesiapan sebelum sistem dipakai harian. Halaman ini membaca Data Health dan Action Hub, lalu digabung dengan checklist manual owner.
+          <div style={styles.kicker}>Pusat Kendali</div>
+          <h1 style={styles.title}>Go-Live Check</h1>
+          <p style={styles.desc}>
+            Pengecekan kesiapan sistem sebelum dipakai operasional. Halaman ini
+            read-only dan membaca Data Health, Action Hub, arsip, serta status
+            kabel utama ERP.
           </p>
         </div>
-        <Badge tone={readiness.tone}>{loading ? "Mengecek" : readiness.status}</Badge>
+
+        <Badge tone={report.tone}>{report.statusLabel}</Badge>
       </section>
 
-      {error ? <div className="da-form-error">{error}</div> : null}
+      {errorText ? <div style={styles.error}>{errorText}</div> : null}
 
-      <Card>
-        <div className="da-section-header">
-          <div>
-            <p className="da-kicker">Cutover Control</p>
-            <h2>Kesiapan Go-Live Bertahap</h2>
-            <p className="da-muted">
-              Layout ini masih alat kontrol data/kabel/logic. Final merchant layout tetap bisa dipoles di batch berikutnya setelah mesin ERP hijau.
-            </p>
+      <section style={styles.scoreCard}>
+        <div>
+          <div style={styles.scoreLabel}>Score Kesiapan</div>
+          <div style={styles.score}>
+            {report.score}
+            <span>/100</span>
           </div>
-          <Badge tone={readiness.tone}>{readiness.score}/100</Badge>
+          <p style={styles.scoreDesc}>
+            Status ini bukan tombol final go-live. Ini alat bantu owner untuk
+            melihat apakah data, kabel, dan benang merah sudah layak masuk UAT
+            atau go-live bertahap.
+          </p>
         </div>
 
-        <MiniProgress value={readiness.score} />
+        <div style={styles.actionBox}>
+          <button style={styles.primaryBtn} onClick={load} disabled={loading}>
+            {loading ? "Membaca..." : "Refresh Check"}
+          </button>
 
-        <p className="da-muted" style={{ marginTop: 12 }}>
-          {readiness.note}
-        </p>
+          <button
+            style={styles.secondaryBtn}
+            onClick={() => openPage("data-health")}
+          >
+            Buka Data Health
+          </button>
 
-        <form className="da-form-grid" onSubmit={handleSubmit} style={{ marginTop: 16 }}>
-          <label className="da-form-field">
-            <span>Tanggal Mulai</span>
-            <input type="date" value={filters.date_start} onChange={(e) => updateFilter("date_start", e.target.value)} />
-          </label>
-          <label className="da-form-field">
-            <span>Tanggal Sampai</span>
-            <input type="date" value={filters.date_end} onChange={(e) => updateFilter("date_end", e.target.value)} />
-          </label>
-          <label className="da-form-field">
-            <span>Lokasi</span>
-            <input value={filters.location_id} onChange={(e) => updateFilter("location_id", e.target.value)} placeholder="ALL / TGR / PML / CBN" />
-          </label>
-          <div className="da-form-actions">
-            <Button type="submit" disabled={loading}>{loading ? "Mengecek..." : "Refresh Check"}</Button>
+          <button
+            style={styles.secondaryBtn}
+            onClick={() => openPage("arsip-digital")}
+          >
+            Buka Arsip Digital
+          </button>
+
+          <button style={styles.ghostBtn} onClick={copySummary}>
+            Copy Ringkasan
+          </button>
+
+          <div style={styles.lastRefresh}>
+            Terakhir refresh: {lastRefresh || "-"}
           </div>
-        </form>
-      </Card>
-
-      <section className="da-grid da-grid-3">
-        <StatCard label="Score Go-Live" value={`${readiness.score}/100`} tone={readiness.tone === "success" ? "default" : readiness.tone} />
-        <StatCard label="Blocker" value={readiness.blockers.toLocaleString("id-ID")} tone={readiness.blockers ? "danger" : "default"} />
-        <StatCard label="Perlu Dirapikan" value={readiness.warnings.toLocaleString("id-ID")} tone={readiness.warnings ? "warning" : "default"} />
-        <StatCard label="Checklist Sistem" value={`${readiness.system_pass}/${readiness.system_total}`} />
-        <StatCard label="Checklist Manual" value={`${readiness.manual_done}/${readiness.manual_total}`} tone={readiness.manual_done === readiness.manual_total ? "default" : "warning"} />
-        <StatCard label="Periode" value={`${formatDate(filters.date_start)} - ${formatDate(filters.date_end)}`} />
+        </div>
       </section>
 
-      <Card>
-        <div className="da-section-header">
+      <section style={styles.grid}>
+        <MiniCard
+          label="Baris Nyata"
+          value={report.health.realRows}
+          note="Data hidup terbaca"
+        />
+
+        <MiniCard
+          label="Modul Dicek"
+          value={report.health.modulesChecked}
+          note="Tab/sumber diperiksa"
+        />
+
+        <MiniCard
+          label="Masalah Bahaya"
+          value={report.health.danger}
+          note="Harus nol sebelum live"
+          danger={report.health.danger > 0}
+        />
+
+        <MiniCard
+          label="Action Hub"
+          value={report.actionHub.totalCards}
+          note="Kartu tindak lanjut aktif"
+          danger={report.actionHub.critical > 0}
+        />
+      </section>
+
+      <section style={styles.panel}>
+        <div style={styles.panelHead}>
           <div>
-            <p className="da-kicker">Mode Cek</p>
-            <h2>Checklist Go-Live</h2>
-          </div>
-          <div style={styles.buttonRow}>
-            <Button variant={activeTab === "system" ? "primary" : "secondary"} onClick={() => setActiveTab("system")}>Sistem</Button>
-            <Button variant={activeTab === "manual" ? "primary" : "secondary"} onClick={() => setActiveTab("manual")}>Manual</Button>
-            <Button variant={activeTab === "cutover" ? "primary" : "secondary"} onClick={() => setActiveTab("cutover")}>Cutover</Button>
-          </div>
-        </div>
-
-        {activeTab === "system" ? (
-          <DataTable
-            columns={[
-              { key: "status", label: "Status", render: renderStatus },
-              { key: "title", label: "Cek Sistem" },
-              { key: "owner", label: "PIC" },
-              { key: "note", label: "Catatan" },
-              { key: "source", label: "Sumber" },
-            ]}
-            rows={systemItems}
-            emptyMessage="Checklist sistem belum terbaca."
-          />
-        ) : null}
-
-        {activeTab === "manual" ? (
-          <div className="da-page-stack">
-            <DataTable
-              columns={[
-                {
-                  key: "done",
-                  label: "Done",
-                  render: (row) => (
-                    <input
-                      type="checkbox"
-                      checked={row.done}
-                      onChange={() => toggleManual(row.key)}
-                      aria-label={`Checklist ${row.title}`}
-                    />
-                  ),
-                },
-                { key: "status", label: "Status", render: renderStatus },
-                { key: "title", label: "Cek Manual" },
-                { key: "owner", label: "PIC" },
-                { key: "note", label: "Catatan" },
-              ]}
-              rows={manualRows}
-              emptyMessage="Checklist manual belum ada."
-            />
-            <div style={styles.buttonRow}>
-              <Button variant="secondary" onClick={resetManual}>Reset Manual Checklist</Button>
-            </div>
-          </div>
-        ) : null}
-
-        {activeTab === "cutover" ? (
-          <div className="da-grid da-grid-2">
-            <div style={styles.cutoverBox}>
-              <p className="da-kicker">Urutan Aman</p>
-              <h3>Go-Live Bertahap</h3>
-              <ol style={styles.list}>
-                <li>Tangerang/Owner pakai dulu untuk input nyata dan cek benang merah.</li>
-                <li>DROP Ayam → Produksi/Adukan → Stok Jadi → Order dicoba 1 hari penuh.</li>
-                <li>Pemalang/Cibinong masuk setelah laporan harian dan setoran valid.</li>
-                <li>Payroll, kewajiban, closing, dan 4 Amplop aktif setelah data operasional stabil.</li>
-              </ol>
-            </div>
-            <div style={styles.cutoverBox}>
-              <p className="da-kicker">Jangan Dilakukan</p>
-              <h3>Safety Rules</h3>
-              <ol style={styles.list}>
-                <li>Jangan hapus transaksi live. Gunakan batal/void/koreksi dengan alasan.</li>
-                <li>Jangan edit langsung data setelah closing tanpa flow revisi.</li>
-                <li>Jangan isi Kas Masuk manual untuk pembayaran penjualan; harus dari invoice/payment.</li>
-                <li>Jangan ubah HPP/modal lama setelah transaksi berjalan.</li>
-              </ol>
-            </div>
-          </div>
-        ) : null}
-      </Card>
-
-      <Card>
-        <div className="da-section-header">
-          <div>
-            <p className="da-kicker">Tindak Lanjut</p>
-            <h2>Shortcut Pemeriksaan</h2>
-            <p className="da-muted">
-              Kalau masih ada blocker/perlu dirapikan, buka Data Health dan Arsip Digital untuk melihat sumber ID-nya.
+            <h2 style={styles.panelTitle}>Checklist Sistem</h2>
+            <p style={styles.panelDesc}>
+              Perbaikan tetap dilakukan dari modul sumber, bukan dari halaman
+              ini.
             </p>
           </div>
-          <Badge tone="success">Read Only</Badge>
+
+          <Badge tone={report.blockers.length ? "danger" : "success"}>
+            {report.blockers.length
+              ? `${report.blockers.length} blocker`
+              : "Tidak ada blocker"}
+          </Badge>
         </div>
-        <div style={styles.buttonRow}>
-          <Button onClick={goToDataHealth}>Buka Data Health</Button>
-          <Button variant="secondary" onClick={goToArchive}>Buka Arsip Digital</Button>
-          <Button variant="secondary" onClick={copySummary}>Copy Ringkasan</Button>
+
+        <div style={styles.tableWrap}>
+          <table style={styles.table}>
+            <thead>
+              <tr>
+                <th style={styles.th}>CEK</th>
+                <th style={styles.th}>DETAIL</th>
+                <th style={styles.th}>SUMBER</th>
+                <th style={styles.th}>STATUS</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {report.checks.map((row) => (
+                <tr key={row.id}>
+                  <td style={styles.td}>
+                    <b>{row.title}</b>
+                  </td>
+                  <td style={styles.td}>{row.detail}</td>
+                  <td style={styles.td}>{row.source}</td>
+                  <td style={styles.td}>
+                    <Badge tone={row.tone}>{row.status}</Badge>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-        {copyMessage ? <p className="da-muted" style={{ marginTop: 10 }}>{copyMessage}</p> : null}
-      </Card>
+      </section>
+
+      <section style={styles.noteBox}>
+        <b>Catatan layout final:</b> halaman ini masih alat audit/kabel/logic.
+        Untuk go-live staff, layout final tetap akan dipoles ke arah Merchant
+        Clean Layout / Dimsum Merchant OS yang lebih ringan dan operasional.
+      </section>
+    </main>
+  );
+}
+
+function MiniCard({ label, value, note, danger }) {
+  return (
+    <div
+      style={{
+        ...styles.miniCard,
+        borderColor: danger ? "#fecaca" : BRAND.line,
+        background: danger ? BRAND.redSoft : "#fff",
+      }}
+    >
+      <div style={styles.miniLabel}>{label}</div>
+      <div style={styles.miniValue}>{value ?? 0}</div>
+      <div style={styles.miniNote}>{note}</div>
     </div>
   );
 }
 
+function Badge({ children, tone = "default" }) {
+  const meta =
+    {
+      success: {
+        bg: BRAND.greenSoft,
+        color: "#15803d",
+        border: "#bbf7d0",
+      },
+      danger: {
+        bg: BRAND.redSoft,
+        color: "#991b1b",
+        border: "#fecaca",
+      },
+      warning: {
+        bg: BRAND.goldSoft,
+        color: "#92400e",
+        border: "#fde68a",
+      },
+      info: {
+        bg: BRAND.blueSoft,
+        color: "#1d4ed8",
+        border: "#bfdbfe",
+      },
+      default: {
+        bg: "#f8fafc",
+        color: BRAND.ink,
+        border: BRAND.line,
+      },
+    }[tone] || {
+      bg: "#f8fafc",
+      color: BRAND.ink,
+      border: BRAND.line,
+    };
+
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        borderRadius: 999,
+        padding: "6px 10px",
+        fontSize: 12,
+        fontWeight: 900,
+        background: meta.bg,
+        color: meta.color,
+        border: `1px solid ${meta.border}`,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
 const styles = {
-  progressWrap: {
-    height: 12,
-    borderRadius: 999,
-    background: "#f1f5f9",
-    overflow: "hidden",
-    border: "1px solid #e5e7eb",
+  page: {
+    padding: "28px 32px 48px",
+    color: BRAND.ink,
   },
-  progressBar: {
-    height: "100%",
-    borderRadius: 999,
-    background: "linear-gradient(90deg, #dc2626, #f97316, #22c55e)",
-    transition: "width 0.25s ease",
-  },
-  buttonRow: {
+  hero: {
     display: "flex",
-    flexWrap: "wrap",
-    gap: 8,
-    alignItems: "center",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 16,
+    marginBottom: 20,
   },
-  cutoverBox: {
-    border: "1px solid #e5e7eb",
+  kicker: {
+    color: BRAND.muted,
+    fontSize: 14,
+    fontWeight: 800,
+    marginBottom: 4,
+  },
+  title: {
+    margin: 0,
+    fontSize: 34,
+    lineHeight: 1.1,
+    fontWeight: 950,
+  },
+  desc: {
+    maxWidth: 820,
+    margin: "10px 0 0",
+    color: BRAND.muted,
+    lineHeight: 1.6,
+  },
+  error: {
+    background: BRAND.redSoft,
+    color: "#991b1b",
+    border: "1px solid #fecaca",
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 16,
+    fontWeight: 700,
+  },
+  scoreCard: {
+    display: "grid",
+    gridTemplateColumns: "1fr 290px",
+    gap: 18,
+    background: "linear-gradient(135deg, #fff 0%, #fff7ed 100%)",
+    border: "1px solid #fed7aa",
+    borderRadius: 24,
+    padding: 22,
+    boxShadow: "0 18px 45px rgba(124,45,18,0.08)",
+    marginBottom: 16,
+  },
+  scoreLabel: {
+    color: BRAND.muted,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    fontSize: 12,
+    letterSpacing: 0.7,
+  },
+  score: {
+    fontSize: 68,
+    fontWeight: 950,
+    color: BRAND.red,
+    lineHeight: 1,
+    marginTop: 8,
+  },
+  scoreDesc: {
+    color: BRAND.muted,
+    lineHeight: 1.55,
+    maxWidth: 720,
+    margin: "12px 0 0",
+  },
+  actionBox: {
+    display: "grid",
+    gap: 10,
+    alignContent: "start",
+  },
+  primaryBtn: {
+    border: "none",
+    borderRadius: 14,
+    padding: "12px 14px",
+    background: BRAND.red,
+    color: "#fff",
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  secondaryBtn: {
+    border: "1px solid #fed7aa",
+    borderRadius: 14,
+    padding: "12px 14px",
+    background: "#fff",
+    color: BRAND.ink,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  ghostBtn: {
+    border: `1px solid ${BRAND.line}`,
+    borderRadius: 14,
+    padding: "12px 14px",
+    background: "#f8fafc",
+    color: BRAND.ink,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+  lastRefresh: {
+    color: BRAND.muted,
+    fontSize: 12,
+    textAlign: "center",
+  },
+  grid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+    gap: 12,
+    marginBottom: 16,
+  },
+  miniCard: {
+    border: "1px solid",
     borderRadius: 18,
     padding: 16,
-    background: "#fff",
   },
-  list: {
-    margin: "10px 0 0 18px",
-    padding: 0,
-    color: "#475569",
-    lineHeight: 1.7,
+  miniLabel: {
+    color: BRAND.muted,
+    fontSize: 12,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  miniValue: {
+    fontSize: 30,
+    fontWeight: 950,
+    marginTop: 8,
+  },
+  miniNote: {
+    color: BRAND.muted,
+    fontSize: 13,
+    marginTop: 4,
+  },
+  panel: {
+    background: "#fff",
+    border: `1px solid ${BRAND.line}`,
+    borderRadius: 22,
+    padding: 18,
+    marginBottom: 16,
+  },
+  panelHead: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 16,
+    alignItems: "flex-start",
+    marginBottom: 12,
+  },
+  panelTitle: {
+    margin: 0,
+    fontSize: 20,
+    fontWeight: 950,
+  },
+  panelDesc: {
+    margin: "6px 0 0",
+    color: BRAND.muted,
+  },
+  tableWrap: {
+    overflowX: "auto",
+    border: `1px solid ${BRAND.line}`,
+    borderRadius: 16,
+  },
+  table: {
+    width: "100%",
+    borderCollapse: "collapse",
+    fontSize: 13,
+  },
+  th: {
+    textAlign: "left",
+    padding: "12px 14px",
+    background: "#f8fafc",
+    color: BRAND.ink,
+    borderBottom: `1px solid ${BRAND.line}`,
+    fontSize: 12,
+  },
+  td: {
+    padding: "12px 14px",
+    borderBottom: `1px solid ${BRAND.line}`,
+    verticalAlign: "top",
+  },
+  noteBox: {
+    background: "#f8fafc",
+    border: `1px solid ${BRAND.line}`,
+    borderRadius: 18,
+    padding: 16,
+    color: BRAND.muted,
+    lineHeight: 1.55,
   },
 };
