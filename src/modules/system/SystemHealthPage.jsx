@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { apiRequest } from "../../lib/api/client";
+import { legacySafeRequest, isLegacyAuthRequired } from "../../lib/api/legacySafeRequest";
 import { formatRupiah } from "../../lib/format/money";
 import { formatDate } from "../../lib/format/date";
 import Badge from "../../components/ui/Badge";
@@ -10,8 +10,7 @@ import StatCard from "../../components/ui/StatCard";
 import SystemHealthActionHub from "./SystemHealthActionHub";
 
 function isAuthRequired(result) {
-  const code = String(result?.code || result?.error?.code || "").toUpperCase();
-  return code === "UNAUTHORIZED" || code === "SESSION_EXPIRED" || code === "AUTH_REQUIRED";
+  return isLegacyAuthRequired(result);
 }
 
 function today() {
@@ -75,7 +74,7 @@ export default function SystemHealthPage({ session, onSessionExpired }) {
     setLoading(true);
     setError("");
     try {
-      const result = await apiRequest("getLegacySystemHealthBootstrap", nextFilters, sessionToken);
+      const result = await legacySafeRequest("getLegacySystemHealthBootstrap", nextFilters, sessionToken);
       if (isAuthRequired(result)) {
         onSessionExpired?.();
         return;
