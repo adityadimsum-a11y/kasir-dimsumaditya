@@ -34,6 +34,11 @@ export const MENU_GROUPS = [
         label: "Go-Live Check",
         description: "Checklist kesiapan data, role, backup, dan simulasi sebelum operasional live.",
       },
+      {
+        key: "permission-role-check",
+        label: "Permission & Role",
+        description: "Cek final akses Owner, Tangerang, Pemalang, Cibinong, dan Staff sebelum go-live.",
+      },
     ],
   },
   {
