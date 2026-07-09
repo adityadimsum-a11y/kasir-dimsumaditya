@@ -6,7 +6,6 @@ import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import DataTable from "../../components/ui/DataTable";
-import Modal from "../../components/ui/Modal";
 import PageHeader from "../../components/ui/PageHeader";
 import StatCard from "../../components/ui/StatCard";
 
@@ -342,6 +341,70 @@ function recentColumns() {
   ];
 }
 
+
+function RadarDetailOverlay({ item, onClose }) {
+  if (!item) return null;
+
+  return (
+    <div className="da-radar-modal-backdrop" role="presentation" onMouseDown={onClose}>
+      <section
+        className="da-radar-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="da-radar-modal-title"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <button
+          type="button"
+          className="da-radar-modal-close"
+          aria-label="Tutup detail radar"
+          onClick={onClose}
+        >
+          ×
+        </button>
+
+        <div className="da-radar-modal-head">
+          <div>
+            <div className="da-page-kicker">RADAR OWNER</div>
+            <h2 id="da-radar-modal-title">{item.title}</h2>
+            <p>{item.description}</p>
+          </div>
+
+          <Badge tone={getToneByStatus(item.status)}>{item.status}</Badge>
+        </div>
+
+        <div className="da-radar-modal-summary">
+          <div className="da-radar-modal-stat">
+            <span>Status</span>
+            <strong>{item.status || "-"}</strong>
+          </div>
+
+          <div className="da-radar-modal-stat">
+            <span>Nilai</span>
+            <strong>{item.value || "-"}</strong>
+          </div>
+        </div>
+
+        <div className="da-radar-modal-action">
+          <div className="da-page-kicker">ARAH TINDAKAN</div>
+          <p>{item.nextAction || "Buka modul sumber agar rantai ID tetap rapi."}</p>
+        </div>
+
+        <div className="da-radar-modal-note">
+          Papan Pantau hanya memberi alarm cepat. Untuk input, pembayaran, approval, atau koreksi, buka modul sumbernya agar tidak ada angka yatim.
+        </div>
+
+        <div className="da-radar-modal-footer">
+          <button type="button" className="da-button da-button-ghost" onClick={onClose}>
+            Tutup
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+
 export default function PapanPusatPage({ session, onSessionExpired }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -552,32 +615,10 @@ export default function PapanPusatPage({ session, onSessionExpired }) {
         />
       </Card>
 
-      <Modal
-        open={Boolean(selectedRadar)}
-        title={selectedRadar?.title || "Radar Owner"}
-        subtitle={selectedRadar?.description || "Catatan ringkas dari Papan Pantau."}
+      <RadarDetailOverlay
+        item={selectedRadar}
         onClose={() => setSelectedRadar(null)}
-      >
-        <div className="da-owner-modal-summary">
-          <div>
-            <span>Status</span>
-            <strong>{selectedRadar?.status || "-"}</strong>
-          </div>
-          <div>
-            <span>Nilai</span>
-            <strong>{selectedRadar?.value || "-"}</strong>
-          </div>
-        </div>
-
-        <div className="da-owner-next-action">
-          <div className="da-page-kicker">ARAH TINDAKAN</div>
-          <p>{selectedRadar?.nextAction || "Buka modul sumber agar rantai ID tetap rapi."}</p>
-        </div>
-
-        <div className="da-modal-note">
-          Papan Pantau hanya memberi alarm cepat. Untuk input, pembayaran, approval, atau koreksi, buka modul sumbernya agar tidak ada angka yatim.
-        </div>
-      </Modal>
+      />
     </div>
   );
 }
