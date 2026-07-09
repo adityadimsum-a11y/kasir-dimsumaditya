@@ -11,9 +11,11 @@
 
   /* Merchant clean base */
   --da-color-bg: #ffffff;
-  --da-color-page: #f7f8fa;
+  --da-color-page: #f8fafc;
+  --da-color-page-warm: #fffaf4;
   --da-color-surface: #ffffff;
   --da-color-surface-soft: #f9fafb;
+  --da-color-surface-warm: #fffbf5;
 
   --da-color-text: #111827;
   --da-color-heading: #050505;
@@ -43,11 +45,14 @@
   --da-radius-md: 10px;
   --da-radius-lg: 14px;
   --da-radius-xl: 20px;
+  --da-radius-2xl: 24px;
 
   --da-shadow-card: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --da-shadow-soft: 0 16px 42px rgba(16, 24, 40, 0.06);
   --da-shadow-modal: 0 24px 70px rgba(16, 24, 40, 0.24);
 
-  --da-sidebar-width: 224px;
-  --da-topbar-height: 68px;
-  --da-content-max: 1280px;
+  --da-sidebar-width: 232px;
+  --da-topbar-height: 72px;
+  --da-content-max: 1240px;
+  --da-content-wide: 1360px;
 }
