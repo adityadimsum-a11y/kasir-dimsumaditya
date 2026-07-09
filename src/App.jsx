@@ -30,6 +30,7 @@ import HRDPayrollPage from "./modules/hrd/HRDPayrollPage";
 import ClosingOwnerPage from "./modules/closing/ClosingOwnerPage";
 import SystemHealthPage from "./modules/system/SystemHealthPage";
 import GoLiveChecklistPage from "./modules/system/GoLiveChecklistPage";
+import PermissionRoleCheckPage from "./modules/system/PermissionRoleCheckPage";
 import CrossModuleFocusBanner from "./components/navigation/CrossModuleFocusBanner";
 import FocusDetailAutoOpen from "./components/navigation/FocusDetailAutoOpen";
 import {
@@ -187,6 +188,14 @@ export default function App() {
     if (activePage === "go-live-check") {
       return (
         <GoLiveChecklistPage
+          {...pageProps}
+        />
+      );
+    }
+
+    if (activePage === "permission-role-check") {
+      return (
+        <PermissionRoleCheckPage
           {...pageProps}
         />
       );
