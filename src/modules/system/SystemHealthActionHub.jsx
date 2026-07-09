@@ -5,6 +5,7 @@ import { formatDate } from "../../lib/format/date";
 import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
+import { openFocusRoute } from "../../lib/navigation/focusRouter";
 
 function isAuthRequired(result) {
   const code = String(result?.code || result?.error?.code || "").toUpperCase();
@@ -37,7 +38,7 @@ function severityLabel(severity) {
 
 function safeOpen(route) {
   if (!route) return;
-  window.location.href = route;
+  openFocusRoute(route);
 }
 
 export default function SystemHealthActionHub({ session, onSessionExpired }) {
