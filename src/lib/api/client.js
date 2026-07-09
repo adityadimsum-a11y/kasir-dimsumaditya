@@ -1,11 +1,9 @@
 // ======================================================
 // client.js - ERP DIMSUM ADITYA
-// Part 5R-3: API client pakai same-origin proxy untuk Apps Script
+// Part 5R-4: API client pakai same-origin proxy + diagnostic message
 //
-// Kenapa:
-// - Browser custom domain bisa kena CORS saat fetch langsung ke script.google.com
-// - Jika target API adalah Apps Script, request diarahkan ke /api/apps-script
-// - Proxy Vercel yang meneruskan ke Apps Script dari server-side
+// Jika backend URL adalah Apps Script, request diarahkan ke /api/apps-script
+// supaya browser custom domain tidak kena CORS.
 // ======================================================
 
 const PROXY_ENDPOINT = "/api/apps-script";
@@ -135,11 +133,12 @@ export async function apiRequest(action, payload = {}, sessionToken = "") {
     } catch {
       return {
         success: false,
-        message: "Response backend bukan JSON valid.",
+        message:
+          "Response backend bukan JSON valid. Buka /api/apps-script-diagnostics untuk cek proxy dan akses Web App.",
         data: null,
         error: {
           code: "INVALID_JSON_RESPONSE",
-          raw: text,
+          raw: text.slice(0, 500),
         },
       };
     }
