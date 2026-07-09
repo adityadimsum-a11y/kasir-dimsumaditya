@@ -29,6 +29,11 @@ export const MENU_GROUPS = [
         label: "Data Health",
         description: "Cek ID, sumber transaksi, ghost row, dan kesehatan kabel ERP.",
       },
+      {
+        key: "go-live-check",
+        label: "Go-Live Check",
+        description: "Checklist kesiapan data, role, backup, dan simulasi sebelum operasional live.",
+      },
     ],
   },
   {
