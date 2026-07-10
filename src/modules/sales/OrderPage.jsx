@@ -287,6 +287,7 @@ export default function OrderPage({ session, onSessionExpired }) {
   const [showValidationErrors, setShowValidationErrors] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [needsRefresh, setNeedsRefresh] = useState(false);
   const [submitResult, setSubmitResult] = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [requestId, setRequestId] = useState(() => generateRequestId(session));
@@ -370,6 +371,7 @@ export default function OrderPage({ session, onSessionExpired }) {
     }
 
     setBootstrap(result.data || {});
+    setNeedsRefresh(false);
     setLoading(false);
   };
 
@@ -535,7 +537,7 @@ export default function OrderPage({ session, onSessionExpired }) {
     setCart([]);
     setShowValidationErrors(false);
     setRequestId(generateRequestId(session));
-    await loadData();
+    setNeedsRefresh(true);
   };
 
   const cartColumns = [
@@ -640,6 +642,11 @@ export default function OrderPage({ session, onSessionExpired }) {
           style={{ marginBottom: 16 }}
         >
           {submitResult.message}
+          {submitResult.success && needsRefresh ? (
+            <div style={{ marginTop: 6, fontWeight: 700 }}>
+              Data sudah tersimpan cepat. Klik Refresh Data kalau mau tarik ulang stok/order terbaru.
+            </div>
+          ) : null}
         </div>
       ) : null}
 
