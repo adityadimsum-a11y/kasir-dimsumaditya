@@ -250,6 +250,7 @@ export default function BelanjaKasKeluarPage({ session, onSessionExpired }) {
   const [bootstrap, setBootstrap] = useState(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [needsRefresh, setNeedsRefresh] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [activeTab, setActiveTab] = useState("all");
@@ -311,6 +312,7 @@ export default function BelanjaKasKeluarPage({ session, onSessionExpired }) {
 
     const data = result.data || {};
     setBootstrap(data);
+    setNeedsRefresh(false);
     setLoading(false);
 
     const firstWallet = asArray(data.wallets).map(normalizeWallet).find((wallet) => wallet.wallet_id);
@@ -389,7 +391,7 @@ export default function BelanjaKasKeluarPage({ session, onSessionExpired }) {
     setSuccess(`Kas keluar berhasil dicatat${expenseId ? `: ${expenseId}` : ""}.`);
     setSaving(false);
     resetForm();
-    await loadData();
+    setNeedsRefresh(true);
   };
 
   const expenseColumns = [
@@ -437,7 +439,16 @@ export default function BelanjaKasKeluarPage({ session, onSessionExpired }) {
 
       {hiddenRowsCount > 0 ? <div className="da-login-error" style={{ marginBottom: 16 }}>{hiddenRowsCount} baris kosong/formatting disembunyikan supaya Kas Keluar tidak menampilkan angka yatim.</div> : null}
       {error ? <div className="da-login-error" style={{ marginBottom: 16 }}>{error}</div> : null}
-      {success ? <div className="da-form-success" style={{ marginBottom: 16 }}>{success}</div> : null}
+      {success ? (
+        <div className="da-form-success" style={{ marginBottom: 16 }}>
+          {success}
+          {needsRefresh ? (
+            <div style={{ marginTop: 6, fontWeight: 700 }}>
+              Data sudah tersimpan cepat. Klik Refresh Data kalau mau tarik ulang kas keluar dan mutasi dompet terbaru.
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="da-grid da-grid-3">
         <StatCard tone="warning" label="Total Kas Keluar" value={loading ? "..." : formatRupiah(summary.total_out)} description="Total kas keluar tercatat." />
