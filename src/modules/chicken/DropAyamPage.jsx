@@ -623,6 +623,7 @@ export default function DropAyamPage({ session, onSessionExpired }) {
   const [selectedDrop, setSelectedDrop] = useState(null);
   const [submitResult, setSubmitResult] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [needsRefresh, setNeedsRefresh] = useState(false);
 
   const mapped = useMemo(() => mapBootstrap(bootstrap), [bootstrap]);
   const { purchases, lots, payables, suppliers, wallets } = mapped;
@@ -650,6 +651,7 @@ export default function DropAyamPage({ session, onSessionExpired }) {
     }
 
     setBootstrap(result.data || {});
+    setNeedsRefresh(false);
     setLoading(false);
   }
 
@@ -717,7 +719,7 @@ export default function DropAyamPage({ session, onSessionExpired }) {
     });
     setConfirmOpen(false);
     setForm(initialForm);
-    await loadData();
+    setNeedsRefresh(true);
   }
 
   const columns = useMemo(
@@ -896,6 +898,11 @@ export default function DropAyamPage({ session, onSessionExpired }) {
           {submitResult ? (
             <div className={`da-drop-submit-result ${submitResult.success ? "success" : "danger"}`}>
               {submitResult.message}
+              {submitResult.success && needsRefresh ? (
+                <div style={{ marginTop: 6, fontWeight: 700 }}>
+                  Data sudah tersimpan cepat. Klik Refresh Data kalau mau tarik ulang DROP, lot ayam, dan hutang terbaru.
+                </div>
+              ) : null}
             </div>
           ) : null}
 
