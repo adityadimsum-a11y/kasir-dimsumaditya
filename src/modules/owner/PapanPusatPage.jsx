@@ -419,13 +419,18 @@ export default function PapanPusatPage({ session, onSessionExpired }) {
   const health = data?.health || {};
   const counts = data?.counts || {};
 
-  const loadData = async () => {
+  const loadData = async (options = {}) => {
     setLoading(true);
     setError("");
 
     const result = await getOwnerControlBootstrap(session?.sessionToken, {
-      source: "frontend_part_6c_papan_pantau_radar_owner_polish",
-      limit: 12,
+      source: "frontend_part_8c_papan_pantau_fast_dashboard",
+      view: "fast_dashboard",
+      mode: "fast_dashboard",
+      limit: 8,
+      cache_seconds: 45,
+      skip_health: true,
+      force_refresh: Boolean(options.forceRefresh),
     });
 
     if (!result.success) {
@@ -470,7 +475,7 @@ export default function PapanPusatPage({ session, onSessionExpired }) {
             <Badge tone={error ? "danger" : loading ? "warning" : "success"}>
               {loading ? "Membaca..." : error ? "Perlu Dicek" : "Terhubung"}
             </Badge>
-            <Button variant="ghost" onClick={loadData}>
+            <Button variant="ghost" onClick={() => loadData({ forceRefresh: true })}>
               Refresh Data
             </Button>
           </div>
