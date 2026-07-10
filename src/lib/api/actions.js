@@ -42,6 +42,18 @@ const withFastBootstrapPayload = (payload = {}, defaults = {}) => {
   };
 };
 
+const withArchiveDetailPayload = (payload = {}) => ({
+  source: payload.source || "frontend_part_8d_archive_lazy_detail",
+  detail_mode: payload.detail_mode || "fast",
+  timeline_limit: payload.timeline_limit ?? payload.timelineLimit ?? 35,
+  relation_limit: payload.relation_limit ?? payload.relationLimit ?? 80,
+  audit_limit: payload.audit_limit ?? payload.auditLimit ?? 20,
+  raw_preview_limit: payload.raw_preview_limit ?? payload.rawPreviewLimit ?? 80,
+  cache_seconds: payload.cache_seconds ?? payload.cacheSeconds ?? 60,
+  skip_audit: payload.skip_audit ?? payload.skipAudit ?? false,
+  ...payload,
+});
+
 /**
  * AUTH
  */
@@ -351,7 +363,7 @@ export async function getArchiveUniversalBootstrap(sessionToken, payload = {}) {
 }
 
 export async function getArchiveUniversalDetail(sessionToken, payload = {}) {
-  return apiRequest("getLegacyArchiveUniversalDetail", payload, sessionToken);
+  return apiRequest("getLegacyArchiveUniversalDetail", withArchiveDetailPayload(payload), sessionToken);
 }
 
 
