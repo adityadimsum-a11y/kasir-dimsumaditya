@@ -184,7 +184,7 @@ export default function ArchiveDigitalPage({ session, onSessionExpired }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [data, setData] = useState(null);
-  const [filters, setFilters] = useState({ query: "", module: "", limit: 60 });
+  const [filters, setFilters] = useState({ query: "", module: "", limit: 20 });
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
@@ -193,15 +193,18 @@ export default function ArchiveDigitalPage({ session, onSessionExpired }) {
   const warnings = useMemo(() => asArray(data?.warnings), [data]);
   const summary = data?.summary || {};
 
-  const loadData = async (nextFilters = filters) => {
+  const loadData = async (nextFilters = filters, options = {}) => {
     setLoading(true);
     setError("");
 
     const result = await getArchiveUniversalBootstrap(session?.sessionToken, {
-      source: "frontend_part_4h_archive_universal",
+      source: "frontend_part_8c_archive_lightweight",
       query: nextFilters.query,
       source_module: nextFilters.module,
-      limit: nextFilters.limit || 60,
+      limit: nextFilters.limit || 20,
+      skip_health: true,
+      cache_seconds: 45,
+      force_refresh: Boolean(options.forceRefresh),
     });
 
     if (!result.success) {
@@ -287,7 +290,7 @@ export default function ArchiveDigitalPage({ session, onSessionExpired }) {
         </div>
         <div className="da-dashboard-banner-actions">
           <Badge tone={error ? "danger" : "success"}>{loading ? "Membaca..." : error ? "Perlu Dicek" : "Terhubung"}</Badge>
-          <Button variant="ghost" onClick={() => loadData(filters)}>Refresh Data</Button>
+          <Button variant="ghost" onClick={() => loadData(filters, { forceRefresh: true })}>Refresh Data</Button>
         </div>
       </Card>
 
