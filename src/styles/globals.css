@@ -2850,3 +2850,483 @@ a {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* =========================================================
+   Part 6H — Cabang / Setoran / DO Merchant Polish Pack
+   Scope: Laporan Harian, Setoran Cabang, Request & DO,
+          Pantau Cabang, Distribusi Antar Cabang.
+   CSS-only safe polish.
+   ========================================================= */
+
+.da-branch-page,
+.da-setoran-page,
+.da-daily-report-page,
+.da-deposit-page,
+.da-do-page,
+.da-request-page,
+.da-transfer-page,
+.da-logistic-page {
+  --branch-soft-border: #fedf89;
+  --branch-blue-border: #bfdbfe;
+  --branch-green-border: #abefc6;
+}
+
+.da-branch-hero,
+.da-setoran-hero,
+.da-daily-report-hero,
+.da-deposit-hero,
+.da-do-hero,
+.da-request-hero,
+.da-transfer-hero,
+.da-logistic-hero,
+.da-content [class*="branch"][class*="hero"],
+.da-content [class*="Branch"][class*="hero"],
+.da-content [class*="setoran"][class*="hero"],
+.da-content [class*="Setoran"][class*="hero"],
+.da-content [class*="daily"][class*="hero"],
+.da-content [class*="Daily"][class*="hero"],
+.da-content [class*="deposit"][class*="hero"],
+.da-content [class*="Deposit"][class*="hero"],
+.da-content [class*="request"][class*="hero"],
+.da-content [class*="Request"][class*="hero"],
+.da-content [class*="do"][class*="hero"],
+.da-content [class*="DO"][class*="hero"],
+.da-content [class*="logistic"][class*="hero"],
+.da-content [class*="Logistic"][class*="hero"] {
+  background: var(--da-hero-soft-gradient) !important;
+  border: 1px solid #fedf89 !important;
+  border-radius: 24px !important;
+  padding: 20px !important;
+  box-shadow: var(--da-shadow-card);
+}
+
+/* Summary cards */
+.da-branch-summary-grid,
+.da-setoran-summary-grid,
+.da-daily-report-summary-grid,
+.da-deposit-summary-grid,
+.da-do-summary-grid,
+.da-request-summary-grid,
+.da-transfer-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin: 16px 0;
+}
+
+.da-branch-stat,
+.da-setoran-stat,
+.da-daily-report-stat,
+.da-deposit-stat,
+.da-do-stat,
+.da-request-stat,
+.da-transfer-stat {
+  background: #fff;
+  border: 1px solid var(--da-color-border);
+  border-radius: 20px;
+  padding: 16px;
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-branch-stat.pending,
+.da-setoran-stat.pending,
+.da-daily-report-stat.pending,
+.da-deposit-stat.pending,
+.da-do-stat.pending,
+.da-request-stat.pending,
+.da-transfer-stat.pending {
+  border-color: #fedf89;
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%);
+}
+
+.da-branch-stat.approved,
+.da-setoran-stat.approved,
+.da-daily-report-stat.approved,
+.da-deposit-stat.approved,
+.da-do-stat.approved,
+.da-request-stat.approved,
+.da-transfer-stat.approved {
+  border-color: #abefc6;
+  background: linear-gradient(135deg, #fff 0%, #ecfdf3 100%);
+}
+
+.da-branch-stat.info,
+.da-setoran-stat.info,
+.da-daily-report-stat.info,
+.da-deposit-stat.info,
+.da-do-stat.info,
+.da-request-stat.info,
+.da-transfer-stat.info {
+  border-color: #bfdbfe;
+  background: linear-gradient(135deg, #fff 0%, #eff6ff 100%);
+}
+
+/* Gate 1 / Gate 2 detail flow */
+.da-gate-card,
+.da-report-gate-card,
+.da-setoran-gate-card,
+.da-content [class*="gate"],
+.da-content [class*="Gate"],
+.da-content [class*="gerbang"],
+.da-content [class*="Gerbang"] {
+  background: #fff;
+  border: 1px solid var(--da-color-border);
+  border-radius: 22px;
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-gate-card.warning,
+.da-report-gate-card.warning,
+.da-setoran-gate-card.warning {
+  border-color: #fedf89;
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%);
+}
+
+.da-gate-card.success,
+.da-report-gate-card.success,
+.da-setoran-gate-card.success {
+  border-color: #abefc6;
+  background: linear-gradient(135deg, #fff 0%, #ecfdf3 100%);
+}
+
+.da-gate-summary-grid,
+.da-report-gate-summary-grid,
+.da-setoran-gate-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.da-gate-summary-item,
+.da-report-gate-summary-item,
+.da-setoran-gate-summary-item {
+  background: #fff;
+  border: 1px solid var(--da-color-border);
+  border-radius: 18px;
+  padding: 14px;
+}
+
+/* Branch daily category cards */
+.da-category-card,
+.da-report-category-card,
+.da-setoran-category-card,
+.da-content [class*="category-card"],
+.da-content [class*="CategoryCard"],
+.da-content [class*="kategori-card"],
+.da-content [class*="KategoriCard"] {
+  background: #fff;
+  border: 1px solid var(--da-color-border);
+  border-radius: 18px;
+  padding: 14px;
+  box-shadow: var(--da-shadow-card);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+.da-category-card:hover,
+.da-report-category-card:hover,
+.da-setoran-category-card:hover,
+.da-content [class*="category-card"]:hover,
+.da-content [class*="CategoryCard"]:hover,
+.da-content [class*="kategori-card"]:hover,
+.da-content [class*="KategoriCard"]:hover {
+  transform: translateY(-1px);
+  border-color: #fedf89;
+  box-shadow: var(--da-shadow-soft);
+}
+
+/* Cash/transfer/piutang/hutang category tones */
+.da-category-cash-in,
+.da-category-transfer-in,
+.da-report-cash-in,
+.da-report-transfer-in {
+  border-color: #abefc6 !important;
+  background: linear-gradient(135deg, #fff 0%, #ecfdf3 100%) !important;
+}
+
+.da-category-cash-out,
+.da-category-transfer-out,
+.da-report-cash-out,
+.da-report-transfer-out {
+  border-color: #fecdca !important;
+  background: linear-gradient(135deg, #fff 0%, #fff7f5 100%) !important;
+}
+
+.da-category-piutang,
+.da-category-merchant-pending,
+.da-report-piutang,
+.da-report-merchant-pending {
+  border-color: #bfdbfe !important;
+  background: linear-gradient(135deg, #fff 0%, #eff6ff 100%) !important;
+}
+
+.da-category-hutang,
+.da-report-hutang {
+  border-color: #fedf89 !important;
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%) !important;
+}
+
+/* Approval workflow */
+.da-approval-flow,
+.da-setoran-approval-flow,
+.da-report-approval-flow,
+.da-do-approval-flow,
+.da-content [class*="approval-flow"],
+.da-content [class*="ApprovalFlow"] {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.da-approval-step,
+.da-setoran-approval-step,
+.da-report-approval-step,
+.da-do-approval-step,
+.da-content [class*="approval-step"],
+.da-content [class*="ApprovalStep"] {
+  background: #fff;
+  border: 1px solid var(--da-color-border);
+  border-radius: 18px;
+  padding: 14px;
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-approval-step.active,
+.da-setoran-approval-step.active,
+.da-report-approval-step.active,
+.da-do-approval-step.active {
+  border-color: #fedf89;
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%);
+}
+
+.da-approval-step.done,
+.da-setoran-approval-step.done,
+.da-report-approval-step.done,
+.da-do-approval-step.done {
+  border-color: #abefc6;
+  background: linear-gradient(135deg, #fff 0%, #ecfdf3 100%);
+}
+
+/* DO / request / transfer cards */
+.da-do-card,
+.da-request-card,
+.da-transfer-card,
+.da-logistic-card,
+.da-content [class*="do-card"],
+.da-content [class*="DOCard"],
+.da-content [class*="request-card"],
+.da-content [class*="RequestCard"],
+.da-content [class*="transfer-card"],
+.da-content [class*="TransferCard"],
+.da-content [class*="logistic-card"],
+.da-content [class*="LogisticCard"] {
+  background: #fff;
+  border: 1px solid var(--da-color-border);
+  border-radius: 20px;
+  padding: 16px;
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-do-card.in-transit,
+.da-transfer-card.in-transit,
+.da-logistic-card.in-transit,
+.da-content [class*="in-transit"],
+.da-content [class*="InTransit"] {
+  border-color: #bfdbfe;
+  background: linear-gradient(135deg, #fff 0%, #eff6ff 100%);
+}
+
+.da-do-card.received,
+.da-transfer-card.received,
+.da-logistic-card.received {
+  border-color: #abefc6;
+  background: linear-gradient(135deg, #fff 0%, #ecfdf3 100%);
+}
+
+.da-do-card.pending,
+.da-request-card.pending,
+.da-transfer-card.pending,
+.da-logistic-card.pending {
+  border-color: #fedf89;
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%);
+}
+
+/* Branch form polish */
+.da-content [class*="branch"] input,
+.da-content [class*="Branch"] input,
+.da-content [class*="setoran"] input,
+.da-content [class*="Setoran"] input,
+.da-content [class*="daily"] input,
+.da-content [class*="Daily"] input,
+.da-content [class*="deposit"] input,
+.da-content [class*="Deposit"] input,
+.da-content [class*="request"] input,
+.da-content [class*="Request"] input,
+.da-content [class*="do"] input,
+.da-content [class*="DO"] input,
+.da-content [class*="transfer"] input,
+.da-content [class*="Transfer"] input,
+.da-content [class*="logistic"] input,
+.da-content [class*="Logistic"] input,
+.da-content [class*="branch"] select,
+.da-content [class*="Branch"] select,
+.da-content [class*="setoran"] select,
+.da-content [class*="Setoran"] select,
+.da-content [class*="daily"] select,
+.da-content [class*="Daily"] select,
+.da-content [class*="deposit"] select,
+.da-content [class*="Deposit"] select,
+.da-content [class*="request"] select,
+.da-content [class*="Request"] select,
+.da-content [class*="do"] select,
+.da-content [class*="DO"] select,
+.da-content [class*="transfer"] select,
+.da-content [class*="Transfer"] select,
+.da-content [class*="logistic"] select,
+.da-content [class*="Logistic"] select,
+.da-content [class*="branch"] textarea,
+.da-content [class*="Branch"] textarea,
+.da-content [class*="setoran"] textarea,
+.da-content [class*="Setoran"] textarea,
+.da-content [class*="daily"] textarea,
+.da-content [class*="Daily"] textarea,
+.da-content [class*="deposit"] textarea,
+.da-content [class*="Deposit"] textarea,
+.da-content [class*="request"] textarea,
+.da-content [class*="Request"] textarea,
+.da-content [class*="do"] textarea,
+.da-content [class*="DO"] textarea,
+.da-content [class*="transfer"] textarea,
+.da-content [class*="Transfer"] textarea,
+.da-content [class*="logistic"] textarea,
+.da-content [class*="Logistic"] textarea {
+  width: 100%;
+}
+
+/* Branch tables */
+.da-content [class*="branch"] table,
+.da-content [class*="Branch"] table,
+.da-content [class*="setoran"] table,
+.da-content [class*="Setoran"] table,
+.da-content [class*="daily"] table,
+.da-content [class*="Daily"] table,
+.da-content [class*="deposit"] table,
+.da-content [class*="Deposit"] table,
+.da-content [class*="request"] table,
+.da-content [class*="Request"] table,
+.da-content [class*="do"] table,
+.da-content [class*="DO"] table,
+.da-content [class*="transfer"] table,
+.da-content [class*="Transfer"] table,
+.da-content [class*="logistic"] table,
+.da-content [class*="Logistic"] table {
+  box-shadow: var(--da-shadow-card);
+}
+
+/* Setoran amount label alignment */
+.da-setoran-amount,
+.da-deposit-amount,
+.da-report-amount,
+.da-branch-amount,
+.da-content .setoran-amount,
+.da-content .deposit-amount,
+.da-content .report-amount,
+.da-content .branch-amount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+}
+
+/* Approval action buttons */
+.da-content button[class*="approve"],
+.da-content button[class*="Approve"],
+.da-content button[class*="terima"],
+.da-content button[class*="Terima"],
+.da-content button[class*="receive"],
+.da-content button[class*="Receive"],
+.da-content button[class*="submit-report"],
+.da-content button[class*="SubmitReport"],
+.da-content button[class*="submit-deposit"],
+.da-content button[class*="SubmitDeposit"] {
+  background: var(--da-color-primary) !important;
+  color: #fff !important;
+  border-color: var(--da-color-primary) !important;
+}
+
+/* Avoid giant red blocks in branch modules */
+.da-content [class*="branch"][style*="background: #b42318"],
+.da-content [class*="Branch"][style*="background: #b42318"],
+.da-content [class*="setoran"][style*="background: #b42318"],
+.da-content [class*="Setoran"][style*="background: #b42318"],
+.da-content [class*="daily"][style*="background: #b42318"],
+.da-content [class*="Daily"][style*="background: #b42318"],
+.da-content [class*="deposit"][style*="background: #b42318"],
+.da-content [class*="Deposit"][style*="background: #b42318"],
+.da-content [class*="request"][style*="background: #b42318"],
+.da-content [class*="Request"][style*="background: #b42318"],
+.da-content [class*="do"][style*="background: #b42318"],
+.da-content [class*="DO"][style*="background: #b42318"],
+.da-content [class*="transfer"][style*="background: #b42318"],
+.da-content [class*="Transfer"][style*="background: #b42318"],
+.da-content [class*="logistic"][style*="background: #b42318"],
+.da-content [class*="Logistic"][style*="background: #b42318"] {
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%) !important;
+  color: var(--da-color-heading) !important;
+  border-color: #fedf89 !important;
+}
+
+/* Compact location chips */
+.da-location-chip,
+.da-branch-chip,
+.da-content [class*="location-chip"],
+.da-content [class*="LocationChip"],
+.da-content [class*="branch-chip"],
+.da-content [class*="BranchChip"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--da-color-border);
+  background: #fff;
+  color: var(--da-color-heading);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 11.5px;
+  font-weight: 900;
+}
+
+@media (max-width: 1180px) {
+  .da-branch-summary-grid,
+  .da-setoran-summary-grid,
+  .da-daily-report-summary-grid,
+  .da-deposit-summary-grid,
+  .da-do-summary-grid,
+  .da-request-summary-grid,
+  .da-transfer-summary-grid,
+  .da-gate-summary-grid,
+  .da-report-gate-summary-grid,
+  .da-setoran-gate-summary-grid,
+  .da-approval-flow,
+  .da-setoran-approval-flow,
+  .da-report-approval-flow,
+  .da-do-approval-flow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .da-branch-summary-grid,
+  .da-setoran-summary-grid,
+  .da-daily-report-summary-grid,
+  .da-deposit-summary-grid,
+  .da-do-summary-grid,
+  .da-request-summary-grid,
+  .da-transfer-summary-grid,
+  .da-gate-summary-grid,
+  .da-report-gate-summary-grid,
+  .da-setoran-gate-summary-grid,
+  .da-approval-flow,
+  .da-setoran-approval-flow,
+  .da-report-approval-flow,
+  .da-do-approval-flow {
+    grid-template-columns: 1fr;
+  }
+}
