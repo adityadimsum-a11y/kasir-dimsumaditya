@@ -4461,3 +4461,557 @@ a {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* =========================================================
+   Part 6K — Payroll Next Level Polish Pack
+   Scope: HRD / Payroll page-level visual system.
+   CSS-only safe polish, inspired by Payroll V21 benchmark.
+   ========================================================= */
+
+.da-payroll-page,
+.da-hrd-payroll-page,
+.da-gaji-page,
+.da-salary-page,
+.da-content [class*="payroll-page"],
+.da-content [class*="PayrollPage"],
+.da-content [class*="gaji-page"],
+.da-content [class*="GajiPage"] {
+  --payroll-soft-border: #fedf89;
+  --payroll-green-border: #abefc6;
+  --payroll-blue-border: #bfdbfe;
+  --payroll-danger-border: #fecdca;
+}
+
+/* Payroll hero / top command center */
+.da-payroll-command,
+.da-payroll-hero,
+.da-hrd-payroll-hero,
+.da-gaji-hero,
+.da-content [class*="payroll-hero"],
+.da-content [class*="PayrollHero"],
+.da-content [class*="payroll-command"],
+.da-content [class*="PayrollCommand"],
+.da-content [class*="gaji-hero"],
+.da-content [class*="GajiHero"] {
+  background:
+    radial-gradient(circle at 12% 0%, rgba(246, 181, 30, 0.18), transparent 32%),
+    linear-gradient(135deg, #ffffff 0%, #fffaf0 58%, #fff1c7 100%) !important;
+  border: 1px solid #fedf89 !important;
+  border-radius: 26px !important;
+  padding: 22px !important;
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-payroll-command h1,
+.da-payroll-hero h1,
+.da-hrd-payroll-hero h1,
+.da-gaji-hero h1 {
+  letter-spacing: -0.06em;
+}
+
+.da-payroll-command p,
+.da-payroll-hero p,
+.da-hrd-payroll-hero p,
+.da-gaji-hero p {
+  color: var(--da-color-muted);
+  max-width: 860px;
+  line-height: 1.62;
+}
+
+/* Monthly workflow cards */
+.da-payroll-workflow,
+.da-payroll-flow,
+.da-gaji-flow,
+.da-content [class*="payroll-workflow"],
+.da-content [class*="PayrollWorkflow"],
+.da-content [class*="payroll-flow"],
+.da-content [class*="PayrollFlow"],
+.da-content [class*="gaji-flow"],
+.da-content [class*="GajiFlow"] {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.da-payroll-workflow-step,
+.da-payroll-flow-step,
+.da-gaji-flow-step,
+.da-content [class*="workflow-step"],
+.da-content [class*="WorkflowStep"],
+.da-content [class*="flow-step"],
+.da-content [class*="FlowStep"] {
+  background: #fff;
+  border: 1px solid var(--da-color-border);
+  border-radius: 20px;
+  padding: 14px;
+  box-shadow: var(--da-shadow-card);
+  min-height: 118px;
+}
+
+.da-payroll-workflow-step.active,
+.da-payroll-flow-step.active,
+.da-gaji-flow-step.active {
+  border-color: #fedf89;
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%);
+}
+
+.da-payroll-workflow-step.done,
+.da-payroll-flow-step.done,
+.da-gaji-flow-step.done {
+  border-color: #abefc6;
+  background: linear-gradient(135deg, #fff 0%, #ecfdf3 100%);
+}
+
+.da-payroll-workflow-step.locked,
+.da-payroll-flow-step.locked,
+.da-gaji-flow-step.locked {
+  border-color: #d0d5dd;
+  background: linear-gradient(135deg, #fff 0%, #f8fafc 100%);
+}
+
+/* Ringkasan Payroll Bulan Ini */
+.da-payroll-summary-board,
+.da-payroll-month-board,
+.da-gaji-summary-board,
+.da-content [class*="payroll-summary"],
+.da-content [class*="PayrollSummary"],
+.da-content [class*="month-board"],
+.da-content [class*="MonthBoard"],
+.da-content [class*="gaji-summary"],
+.da-content [class*="GajiSummary"] {
+  background: #fff;
+  border: 1px solid var(--da-color-border);
+  border-radius: 24px;
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-payroll-summary-grid,
+.da-payroll-month-grid,
+.da-gaji-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin: 16px 0;
+}
+
+.da-payroll-total-card,
+.da-payroll-summary-card,
+.da-payroll-kpi-card,
+.da-gaji-kpi-card,
+.da-content [class*="payroll-total"],
+.da-content [class*="PayrollTotal"],
+.da-content [class*="payroll-kpi"],
+.da-content [class*="PayrollKpi"],
+.da-content [class*="gaji-kpi"],
+.da-content [class*="GajiKpi"] {
+  background: #fff;
+  border: 1px solid var(--da-color-border);
+  border-radius: 22px;
+  padding: 18px;
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-payroll-total-card,
+.da-content [class*="payroll-total"],
+.da-content [class*="PayrollTotal"] {
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%);
+  border-color: #fedf89;
+}
+
+.da-payroll-total-value,
+.da-payroll-kpi-value,
+.da-gaji-kpi-value,
+.da-content [class*="payroll-total-value"],
+.da-content [class*="PayrollTotalValue"],
+.da-content [class*="payroll-kpi-value"],
+.da-content [class*="PayrollKpiValue"],
+.da-content [class*="gaji-kpi-value"],
+.da-content [class*="GajiKpiValue"] {
+  color: var(--da-color-heading);
+  font-size: clamp(26px, 4vw, 42px);
+  line-height: 1;
+  font-weight: 950;
+  letter-spacing: -0.065em;
+}
+
+/* Payroll date / area recaps */
+.da-payroll-recap-grid,
+.da-payroll-date-recap-grid,
+.da-payroll-area-recap-grid,
+.da-content [class*="payroll-recap-grid"],
+.da-content [class*="PayrollRecapGrid"],
+.da-content [class*="date-recap"],
+.da-content [class*="DateRecap"],
+.da-content [class*="area-recap"],
+.da-content [class*="AreaRecap"] {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.da-payroll-date-card,
+.da-payroll-area-card,
+.da-payroll-recap-card,
+.da-content [class*="payroll-date-card"],
+.da-content [class*="PayrollDateCard"],
+.da-content [class*="payroll-area-card"],
+.da-content [class*="PayrollAreaCard"],
+.da-content [class*="payroll-recap-card"],
+.da-content [class*="PayrollRecapCard"] {
+  background: #fff;
+  border: 1px solid var(--da-color-border);
+  border-radius: 20px;
+  padding: 16px;
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-payroll-date-card.due,
+.da-payroll-area-card.due,
+.da-payroll-recap-card.due,
+.da-payroll-date-card.warning,
+.da-payroll-area-card.warning,
+.da-payroll-recap-card.warning {
+  border-color: #fedf89;
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%);
+}
+
+.da-payroll-date-card.paid,
+.da-payroll-area-card.paid,
+.da-payroll-recap-card.paid,
+.da-payroll-date-card.success,
+.da-payroll-area-card.success,
+.da-payroll-recap-card.success {
+  border-color: #abefc6;
+  background: linear-gradient(135deg, #fff 0%, #ecfdf3 100%);
+}
+
+/* Employee payroll rows/cards */
+.da-payroll-employee-card,
+.da-payroll-staff-card,
+.da-gaji-karyawan-card,
+.da-content [class*="payroll-employee"],
+.da-content [class*="PayrollEmployee"],
+.da-content [class*="payroll-staff"],
+.da-content [class*="PayrollStaff"],
+.da-content [class*="gaji-karyawan"],
+.da-content [class*="GajiKaryawan"] {
+  background: #fff;
+  border: 1px solid var(--da-color-border);
+  border-radius: 20px;
+  padding: 16px;
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-payroll-employee-card.ready,
+.da-payroll-staff-card.ready,
+.da-gaji-karyawan-card.ready {
+  border-color: #abefc6;
+  background: linear-gradient(135deg, #fff 0%, #ecfdf3 100%);
+}
+
+.da-payroll-employee-card.need-check,
+.da-payroll-staff-card.need-check,
+.da-gaji-karyawan-card.need-check {
+  border-color: #fedf89;
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%);
+}
+
+/* Buku Catatan Karyawan modal/panel */
+.da-employee-note-book,
+.da-catatan-karyawan,
+.da-payroll-note-book,
+.da-content [class*="employee-note"],
+.da-content [class*="EmployeeNote"],
+.da-content [class*="catatan-karyawan"],
+.da-content [class*="CatatanKaryawan"],
+.da-content [class*="note-book"],
+.da-content [class*="NoteBook"] {
+  background: #fff;
+  border: 1px solid var(--da-color-border);
+  border-radius: 24px;
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-employee-note-book::before,
+.da-catatan-karyawan::before,
+.da-payroll-note-book::before {
+  content: "";
+  display: block;
+  height: 8px;
+  background: linear-gradient(90deg, var(--da-color-primary), var(--da-color-accent));
+  border-radius: 24px 24px 0 0;
+}
+
+/* Kasbon monthly / long loan progress */
+.da-payroll-kasbon-card,
+.da-payroll-loan-card,
+.da-payroll-installment-card,
+.da-kasbon-month-card,
+.da-pinjaman-panjang-card,
+.da-content [class*="payroll-kasbon"],
+.da-content [class*="PayrollKasbon"],
+.da-content [class*="payroll-loan"],
+.da-content [class*="PayrollLoan"],
+.da-content [class*="installment"],
+.da-content [class*="Installment"],
+.da-content [class*="pinjaman-panjang"],
+.da-content [class*="PinjamanPanjang"] {
+  background: #fff;
+  border: 1px solid var(--da-color-border);
+  border-radius: 20px;
+  padding: 16px;
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-payroll-kasbon-card.warning,
+.da-payroll-loan-card.warning,
+.da-payroll-installment-card.warning,
+.da-kasbon-month-card.warning,
+.da-pinjaman-panjang-card.warning {
+  border-color: #fedf89;
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%);
+}
+
+/* Allowance / tunjangan / uang jabatan / uang makan */
+.da-allowance-card,
+.da-tunjangan-card,
+.da-uang-makan-card,
+.da-uang-jabatan-card,
+.da-content [class*="allowance"],
+.da-content [class*="Allowance"],
+.da-content [class*="tunjangan"],
+.da-content [class*="Tunjangan"],
+.da-content [class*="uang-makan"],
+.da-content [class*="UangMakan"],
+.da-content [class*="uang-jabatan"],
+.da-content [class*="UangJabatan"] {
+  background: #fff;
+  border: 1px solid var(--da-color-border);
+  border-radius: 18px;
+  padding: 14px;
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-allowance-card.active,
+.da-tunjangan-card.active,
+.da-uang-makan-card.active,
+.da-uang-jabatan-card.active {
+  border-color: #bfdbfe;
+  background: linear-gradient(135deg, #fff 0%, #eff6ff 100%);
+}
+
+/* Payroll progress bars */
+.da-payroll-progress,
+.da-kasbon-progress,
+.da-loan-progress,
+.da-payroll-closing-progress,
+.da-content [class*="payroll-progress"],
+.da-content [class*="PayrollProgress"],
+.da-content [class*="kasbon-progress"],
+.da-content [class*="KasbonProgress"],
+.da-content [class*="loan-progress"],
+.da-content [class*="LoanProgress"] {
+  height: 10px;
+  border-radius: 999px;
+  background: #f2f4f7;
+  overflow: hidden;
+}
+
+.da-payroll-progress-bar,
+.da-kasbon-progress-bar,
+.da-loan-progress-bar,
+.da-payroll-closing-progress-bar,
+.da-content [class*="payroll-progress-bar"],
+.da-content [class*="PayrollProgressBar"],
+.da-content [class*="kasbon-progress-bar"],
+.da-content [class*="KasbonProgressBar"],
+.da-content [class*="loan-progress-bar"],
+.da-content [class*="LoanProgressBar"] {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--da-color-accent), var(--da-color-primary));
+}
+
+/* Payroll action hub */
+.da-payroll-action-hub,
+.da-gaji-action-hub,
+.da-content [class*="payroll-action"],
+.da-content [class*="PayrollAction"],
+.da-content [class*="gaji-action"],
+.da-content [class*="GajiAction"] {
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%);
+  border: 1px solid #fedf89;
+  border-radius: 24px;
+  padding: 18px;
+  box-shadow: var(--da-shadow-card);
+}
+
+/* Print slip and A4 recap visual */
+.da-payroll-print-area,
+.da-slip-gaji-print,
+.da-payroll-a4-recap,
+.da-content [class*="print-slip"],
+.da-content [class*="PrintSlip"],
+.da-content [class*="slip-gaji"],
+.da-content [class*="SlipGaji"],
+.da-content [class*="a4-recap"],
+.da-content [class*="A4Recap"] {
+  background: #fff;
+  border: 1px dashed #d0d5dd;
+  border-radius: 20px;
+  padding: 18px;
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-slip-gaji-print,
+.da-content [class*="slip-gaji"],
+.da-content [class*="SlipGaji"] {
+  max-width: 520px;
+}
+
+/* Tables in payroll */
+.da-content [class*="payroll"] table,
+.da-content [class*="Payroll"] table,
+.da-content [class*="gaji"] table,
+.da-content [class*="Gaji"] table,
+.da-content [class*="karyawan"] table,
+.da-content [class*="Karyawan"] table {
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-content [class*="payroll"] table td,
+.da-content [class*="Payroll"] table td,
+.da-content [class*="gaji"] table td,
+.da-content [class*="Gaji"] table td {
+  vertical-align: middle;
+}
+
+/* Payroll money alignment */
+.da-payroll-amount,
+.da-gaji-amount,
+.da-salary-amount,
+.da-potongan-amount,
+.da-content .payroll-amount,
+.da-content .gaji-amount,
+.da-content .salary-amount,
+.da-content .potongan-amount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+}
+
+/* Payroll forms */
+.da-content [class*="payroll"] input,
+.da-content [class*="Payroll"] input,
+.da-content [class*="payroll"] select,
+.da-content [class*="Payroll"] select,
+.da-content [class*="payroll"] textarea,
+.da-content [class*="Payroll"] textarea,
+.da-content [class*="gaji"] input,
+.da-content [class*="Gaji"] input,
+.da-content [class*="gaji"] select,
+.da-content [class*="Gaji"] select,
+.da-content [class*="gaji"] textarea,
+.da-content [class*="Gaji"] textarea {
+  width: 100%;
+}
+
+/* Safe action colors */
+.da-content button[class*="print-slip"],
+.da-content button[class*="PrintSlip"],
+.da-content button[class*="print-gaji"],
+.da-content button[class*="PrintGaji"],
+.da-content button[class*="preview-slip"],
+.da-content button[class*="PreviewSlip"],
+.da-content button[class*="reopen"],
+.da-content button[class*="Reopen"] {
+  background: #fff !important;
+  color: var(--da-color-heading) !important;
+  border-color: var(--da-color-border) !important;
+}
+
+.da-content button[class*="closing-payroll"],
+.da-content button[class*="ClosingPayroll"],
+.da-content button[class*="bayar-gaji"],
+.da-content button[class*="BayarGaji"],
+.da-content button[class*="finalize-payroll"],
+.da-content button[class*="FinalizePayroll"] {
+  background: var(--da-color-primary) !important;
+  color: #fff !important;
+  border-color: var(--da-color-primary) !important;
+}
+
+/* Avoid giant red blocks */
+.da-content [class*="payroll"][style*="background: #b42318"],
+.da-content [class*="Payroll"][style*="background: #b42318"],
+.da-content [class*="gaji"][style*="background: #b42318"],
+.da-content [class*="Gaji"][style*="background: #b42318"],
+.da-content [class*="salary"][style*="background: #b42318"],
+.da-content [class*="Salary"][style*="background: #b42318"],
+.da-content [class*="kasbon"][style*="background: #b42318"],
+.da-content [class*="Kasbon"][style*="background: #b42318"] {
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%) !important;
+  color: var(--da-color-heading) !important;
+  border-color: #fedf89 !important;
+}
+
+/* Payroll print mode */
+@media print {
+  .da-slip-gaji-print,
+  .da-payroll-print-area,
+  .da-payroll-a4-recap,
+  .da-content [class*="slip-gaji"],
+  .da-content [class*="SlipGaji"],
+  .da-content [class*="payroll-print"],
+  .da-content [class*="PayrollPrint"] {
+    box-shadow: none !important;
+    border-color: #111 !important;
+    border-radius: 0 !important;
+    padding: 8mm !important;
+    max-width: none !important;
+  }
+
+  .da-slip-gaji-print {
+    width: 148mm;
+    min-height: 105mm;
+  }
+}
+
+@media (max-width: 1180px) {
+  .da-payroll-workflow,
+  .da-payroll-flow,
+  .da-gaji-flow {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .da-payroll-summary-grid,
+  .da-payroll-month-grid,
+  .da-gaji-summary-grid,
+  .da-payroll-recap-grid,
+  .da-payroll-date-recap-grid,
+  .da-payroll-area-recap-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .da-payroll-workflow,
+  .da-payroll-flow,
+  .da-gaji-flow,
+  .da-payroll-summary-grid,
+  .da-payroll-month-grid,
+  .da-gaji-summary-grid,
+  .da-payroll-recap-grid,
+  .da-payroll-date-recap-grid,
+  .da-payroll-area-recap-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .da-payroll-command,
+  .da-payroll-hero,
+  .da-hrd-payroll-hero,
+  .da-gaji-hero {
+    padding: 16px !important;
+  }
+}
