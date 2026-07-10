@@ -188,6 +188,7 @@ export default function HutangNanaPage({ session, onSessionExpired }) {
   const [bootstrap, setBootstrap] = useState(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [needsRefresh, setNeedsRefresh] = useState(false);
   const [selectedPayable, setSelectedPayable] = useState(null);
   const [activeFilter, setActiveFilter] = useState("open");
   const [form, setForm] = useState({
@@ -275,6 +276,7 @@ export default function HutangNanaPage({ session, onSessionExpired }) {
 
     const data = result.data || {};
     setBootstrap(data);
+    setNeedsRefresh(false);
     setLoading(false);
 
     const nextPayables = asArray(data.payables).map(normalizePayable).filter((row) => numberValue(row.remaining_amount) > 0);
@@ -347,7 +349,7 @@ export default function HutangNanaPage({ session, onSessionExpired }) {
       amount: "",
       notes: "",
     }));
-    await loadData();
+    setNeedsRefresh(true);
   };
 
   return (
@@ -375,7 +377,16 @@ export default function HutangNanaPage({ session, onSessionExpired }) {
       </div>
 
       {error ? <div className="da-form-warning">{error}</div> : null}
-      {success ? <div className="da-form-success">{success}</div> : null}
+      {success ? (
+        <div className="da-form-success">
+          {success}
+          {needsRefresh ? (
+            <div style={{ marginTop: 6, fontWeight: 700 }}>
+              Data sudah tersimpan cepat. Klik Refresh Data kalau mau tarik ulang hutang, payment, dan mutasi dompet terbaru.
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       {summary.hidden_rows > 0 ? (
         <div className="da-form-warning">
           {summary.hidden_rows} baris kosong/formatting disembunyikan supaya Hutang Nana tidak menampilkan angka yatim.
