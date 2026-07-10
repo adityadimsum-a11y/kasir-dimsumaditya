@@ -3330,3 +3330,560 @@ a {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* =========================================================
+   Part 6I — Arsip / Audit / System Merchant Polish Pack
+   Scope: Arsip Digital, Data Health, Go-Live Check, Permission & Role,
+          Print & Backup, Audit/Activity system pages.
+   CSS-only safe polish.
+   ========================================================= */
+
+.da-system-page,
+.da-archive-page,
+.da-audit-page,
+.da-health-page,
+.da-golive-page,
+.da-permission-page,
+.da-backup-page,
+.da-print-page {
+  --system-soft-border: #fedf89;
+  --system-blue-border: #bfdbfe;
+  --system-green-border: #abefc6;
+}
+
+.da-system-hero,
+.da-archive-hero,
+.da-audit-hero,
+.da-health-hero,
+.da-golive-hero,
+.da-permission-hero,
+.da-backup-hero,
+.da-print-hero,
+.da-content [class*="system"][class*="hero"],
+.da-content [class*="archive"][class*="hero"],
+.da-content [class*="arsip"][class*="hero"],
+.da-content [class*="audit"][class*="hero"],
+.da-content [class*="health"][class*="hero"],
+.da-content [class*="golive"][class*="hero"],
+.da-content [class*="permission"][class*="hero"],
+.da-content [class*="backup"][class*="hero"],
+.da-content [class*="print"][class*="hero"] {
+  background: var(--da-hero-soft-gradient) !important;
+  border: 1px solid #fedf89 !important;
+  border-radius: 24px !important;
+  padding: 20px !important;
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-system-summary-grid,
+.da-archive-summary-grid,
+.da-audit-summary-grid,
+.da-health-summary-grid,
+.da-golive-summary-grid,
+.da-permission-summary-grid,
+.da-backup-summary-grid,
+.da-print-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin: 16px 0;
+}
+
+.da-system-stat,
+.da-archive-stat,
+.da-audit-stat,
+.da-health-stat,
+.da-golive-stat,
+.da-permission-stat,
+.da-backup-stat,
+.da-print-stat {
+  background: #fff;
+  border: 1px solid var(--da-color-border);
+  border-radius: 20px;
+  padding: 16px;
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-system-stat.success,
+.da-archive-stat.success,
+.da-audit-stat.success,
+.da-health-stat.success,
+.da-golive-stat.success,
+.da-permission-stat.success,
+.da-backup-stat.success,
+.da-print-stat.success {
+  border-color: #abefc6;
+  background: linear-gradient(135deg, #fff 0%, #ecfdf3 100%);
+}
+
+.da-system-stat.warning,
+.da-archive-stat.warning,
+.da-audit-stat.warning,
+.da-health-stat.warning,
+.da-golive-stat.warning,
+.da-permission-stat.warning,
+.da-backup-stat.warning,
+.da-print-stat.warning {
+  border-color: #fedf89;
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%);
+}
+
+.da-system-stat.info,
+.da-archive-stat.info,
+.da-audit-stat.info,
+.da-health-stat.info,
+.da-golive-stat.info,
+.da-permission-stat.info,
+.da-backup-stat.info,
+.da-print-stat.info {
+  border-color: #bfdbfe;
+  background: linear-gradient(135deg, #fff 0%, #eff6ff 100%);
+}
+
+.da-system-stat.danger,
+.da-archive-stat.danger,
+.da-audit-stat.danger,
+.da-health-stat.danger,
+.da-golive-stat.danger,
+.da-permission-stat.danger,
+.da-backup-stat.danger,
+.da-print-stat.danger {
+  border-color: #fecdca;
+  background: linear-gradient(135deg, #fff 0%, #fff7f5 100%);
+}
+
+/* Archive search / universal detail */
+.da-archive-search-card,
+.da-archive-filter-card,
+.da-archive-result-card,
+.da-archive-detail-card,
+.da-audit-result-card,
+.da-content [class*="archive-search"],
+.da-content [class*="ArchiveSearch"],
+.da-content [class*="archive-filter"],
+.da-content [class*="ArchiveFilter"],
+.da-content [class*="archive-result"],
+.da-content [class*="ArchiveResult"],
+.da-content [class*="archive-detail"],
+.da-content [class*="ArchiveDetail"],
+.da-content [class*="arsip-search"],
+.da-content [class*="ArsipSearch"],
+.da-content [class*="arsip-detail"],
+.da-content [class*="ArsipDetail"] {
+  background: #fff;
+  border: 1px solid var(--da-color-border);
+  border-radius: 22px;
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-archive-search-card,
+.da-archive-filter-card,
+.da-content [class*="archive-filter"],
+.da-content [class*="ArchiveFilter"],
+.da-content [class*="arsip-filter"],
+.da-content [class*="ArsipFilter"] {
+  padding: 16px;
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%);
+  border-color: #fedf89;
+}
+
+/* Search inputs inside archive/system */
+.da-content [class*="archive"] input[type="search"],
+.da-content [class*="Archive"] input[type="search"],
+.da-content [class*="arsip"] input[type="search"],
+.da-content [class*="Arsip"] input[type="search"],
+.da-content [class*="system"] input[type="search"],
+.da-content [class*="System"] input[type="search"] {
+  min-height: 46px;
+  border-radius: 14px;
+  padding-left: 14px;
+}
+
+/* Archive ID chips */
+.da-id-chip,
+.da-archive-id-chip,
+.da-transaction-id-chip,
+.da-source-id-chip,
+.da-content [class*="id-chip"],
+.da-content [class*="IdChip"],
+.da-content [class*="archive-id"],
+.da-content [class*="ArchiveId"],
+.da-content [class*="transaction-id"],
+.da-content [class*="TransactionId"],
+.da-content [class*="source-id"],
+.da-content [class*="SourceId"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #fff;
+  border: 1px solid var(--da-color-border);
+  border-radius: 999px;
+  color: var(--da-color-heading);
+  font-size: 11.5px;
+  font-weight: 900;
+  padding: 6px 10px;
+  overflow-wrap: anywhere;
+}
+
+.da-id-chip.success,
+.da-archive-id-chip.success,
+.da-transaction-id-chip.success,
+.da-source-id-chip.success {
+  background: #ecfdf3;
+  color: #067647;
+  border-color: #abefc6;
+}
+
+.da-id-chip.warning,
+.da-archive-id-chip.warning,
+.da-transaction-id-chip.warning,
+.da-source-id-chip.warning {
+  background: #fffbeb;
+  color: #93370d;
+  border-color: #fedf89;
+}
+
+/* Benang merah / timeline cards */
+.da-trace-chain,
+.da-archive-chain,
+.da-audit-chain,
+.da-health-chain,
+.da-content [class*="trace-chain"],
+.da-content [class*="TraceChain"],
+.da-content [class*="benang"],
+.da-content [class*="Benang"],
+.da-content [class*="timeline"],
+.da-content [class*="Timeline"] {
+  display: grid;
+  gap: 12px;
+}
+
+.da-trace-node,
+.da-archive-node,
+.da-audit-node,
+.da-health-node,
+.da-content [class*="trace-node"],
+.da-content [class*="TraceNode"],
+.da-content [class*="timeline-node"],
+.da-content [class*="TimelineNode"],
+.da-content [class*="chain-node"],
+.da-content [class*="ChainNode"] {
+  background: #fff;
+  border: 1px solid var(--da-color-border);
+  border-radius: 18px;
+  padding: 14px;
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-trace-node.active,
+.da-archive-node.active,
+.da-audit-node.active,
+.da-health-node.active {
+  border-color: #fedf89;
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%);
+}
+
+.da-trace-node.success,
+.da-archive-node.success,
+.da-audit-node.success,
+.da-health-node.success {
+  border-color: #abefc6;
+  background: linear-gradient(135deg, #fff 0%, #ecfdf3 100%);
+}
+
+/* Data Health module map */
+.da-health-module-grid,
+.da-module-map-grid,
+.da-content [class*="module-map"],
+.da-content [class*="ModuleMap"],
+.da-content [class*="peta-modul"],
+.da-content [class*="PetaModul"] {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.da-health-module-card,
+.da-module-map-card,
+.da-content [class*="module-card"],
+.da-content [class*="ModuleCard"],
+.da-content [class*="peta-card"],
+.da-content [class*="PetaCard"] {
+  background: #fff;
+  border: 1px solid var(--da-color-border);
+  border-radius: 18px;
+  padding: 14px;
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-health-module-card.success,
+.da-module-map-card.success {
+  border-color: #abefc6;
+  background: linear-gradient(135deg, #fff 0%, #ecfdf3 100%);
+}
+
+.da-health-module-card.warning,
+.da-module-map-card.warning {
+  border-color: #fedf89;
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%);
+}
+
+.da-health-module-card.danger,
+.da-module-map-card.danger {
+  border-color: #fecdca;
+  background: linear-gradient(135deg, #fff 0%, #fff7f5 100%);
+}
+
+/* Go-live / permission / backup checklist */
+.da-checklist,
+.da-golive-checklist,
+.da-permission-checklist,
+.da-backup-checklist,
+.da-content [class*="checklist"],
+.da-content [class*="Checklist"] {
+  display: grid;
+  gap: 12px;
+}
+
+.da-checklist-item,
+.da-golive-checklist-item,
+.da-permission-checklist-item,
+.da-backup-checklist-item,
+.da-content [class*="checklist-item"],
+.da-content [class*="ChecklistItem"] {
+  background: #fff;
+  border: 1px solid var(--da-color-border);
+  border-radius: 18px;
+  padding: 14px;
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-checklist-item.success,
+.da-golive-checklist-item.success,
+.da-permission-checklist-item.success,
+.da-backup-checklist-item.success {
+  border-color: #abefc6;
+  background: linear-gradient(135deg, #fff 0%, #ecfdf3 100%);
+}
+
+.da-checklist-item.warning,
+.da-golive-checklist-item.warning,
+.da-permission-checklist-item.warning,
+.da-backup-checklist-item.warning {
+  border-color: #fedf89;
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%);
+}
+
+.da-checklist-item.danger,
+.da-golive-checklist-item.danger,
+.da-permission-checklist-item.danger,
+.da-backup-checklist-item.danger {
+  border-color: #fecdca;
+  background: linear-gradient(135deg, #fff 0%, #fff7f5 100%);
+}
+
+/* Safety score / readiness big number */
+.da-score-card,
+.da-readiness-card,
+.da-golive-score-card,
+.da-permission-score-card,
+.da-backup-score-card,
+.da-content [class*="score-card"],
+.da-content [class*="ScoreCard"],
+.da-content [class*="readiness"],
+.da-content [class*="Readiness"] {
+  background: var(--da-hero-soft-gradient);
+  border: 1px solid #fedf89;
+  border-radius: 24px;
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-score-value,
+.da-readiness-value,
+.da-content [class*="score-value"],
+.da-content [class*="ScoreValue"],
+.da-content [class*="readiness-value"],
+.da-content [class*="ReadinessValue"] {
+  color: var(--da-color-primary);
+  font-size: clamp(42px, 7vw, 72px);
+  font-weight: 950;
+  letter-spacing: -0.07em;
+  line-height: 1;
+}
+
+/* Export/print action panels */
+.da-export-panel,
+.da-print-panel,
+.da-backup-panel,
+.da-content [class*="export-panel"],
+.da-content [class*="ExportPanel"],
+.da-content [class*="print-panel"],
+.da-content [class*="PrintPanel"],
+.da-content [class*="backup-panel"],
+.da-content [class*="BackupPanel"] {
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%);
+  border: 1px solid #fedf89;
+  border-radius: 22px;
+  box-shadow: var(--da-shadow-card);
+  padding: 16px;
+}
+
+/* Permission role chips/cards */
+.da-role-card,
+.da-permission-card,
+.da-scope-card,
+.da-content [class*="role-card"],
+.da-content [class*="RoleCard"],
+.da-content [class*="permission-card"],
+.da-content [class*="PermissionCard"],
+.da-content [class*="scope-card"],
+.da-content [class*="ScopeCard"] {
+  background: #fff;
+  border: 1px solid var(--da-color-border);
+  border-radius: 18px;
+  padding: 14px;
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-role-card.owner,
+.da-permission-card.owner,
+.da-scope-card.owner {
+  border-color: #fedf89;
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%);
+}
+
+/* System tables */
+.da-content [class*="system"] table,
+.da-content [class*="System"] table,
+.da-content [class*="archive"] table,
+.da-content [class*="Archive"] table,
+.da-content [class*="arsip"] table,
+.da-content [class*="Arsip"] table,
+.da-content [class*="audit"] table,
+.da-content [class*="Audit"] table,
+.da-content [class*="health"] table,
+.da-content [class*="Health"] table,
+.da-content [class*="golive"] table,
+.da-content [class*="GoLive"] table,
+.da-content [class*="permission"] table,
+.da-content [class*="Permission"] table,
+.da-content [class*="backup"] table,
+.da-content [class*="Backup"] table,
+.da-content [class*="print"] table,
+.da-content [class*="Print"] table {
+  box-shadow: var(--da-shadow-card);
+}
+
+/* Keep system action buttons clean */
+.da-content button[class*="export"],
+.da-content button[class*="Export"],
+.da-content button[class*="print"],
+.da-content button[class*="Print"],
+.da-content button[class*="backup"],
+.da-content button[class*="Backup"],
+.da-content button[class*="refresh"],
+.da-content button[class*="Refresh"],
+.da-content button[class*="copy"],
+.da-content button[class*="Copy"] {
+  background: #fff !important;
+  color: var(--da-color-heading) !important;
+  border-color: var(--da-color-border) !important;
+}
+
+.da-content button[class*="export"]:hover,
+.da-content button[class*="Export"]:hover,
+.da-content button[class*="print"]:hover,
+.da-content button[class*="Print"]:hover,
+.da-content button[class*="backup"]:hover,
+.da-content button[class*="Backup"]:hover,
+.da-content button[class*="refresh"]:hover,
+.da-content button[class*="Refresh"]:hover,
+.da-content button[class*="copy"]:hover,
+.da-content button[class*="Copy"]:hover {
+  background: #fffbeb !important;
+  border-color: #fedf89 !important;
+}
+
+/* Avoid giant red blocks in system/audit modules */
+.da-content [class*="system"][style*="background: #b42318"],
+.da-content [class*="System"][style*="background: #b42318"],
+.da-content [class*="archive"][style*="background: #b42318"],
+.da-content [class*="Archive"][style*="background: #b42318"],
+.da-content [class*="arsip"][style*="background: #b42318"],
+.da-content [class*="Arsip"][style*="background: #b42318"],
+.da-content [class*="audit"][style*="background: #b42318"],
+.da-content [class*="Audit"][style*="background: #b42318"],
+.da-content [class*="health"][style*="background: #b42318"],
+.da-content [class*="Health"][style*="background: #b42318"],
+.da-content [class*="golive"][style*="background: #b42318"],
+.da-content [class*="GoLive"][style*="background: #b42318"],
+.da-content [class*="permission"][style*="background: #b42318"],
+.da-content [class*="Permission"][style*="background: #b42318"],
+.da-content [class*="backup"][style*="background: #b42318"],
+.da-content [class*="Backup"][style*="background: #b42318"],
+.da-content [class*="print"][style*="background: #b42318"],
+.da-content [class*="Print"][style*="background: #b42318"] {
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%) !important;
+  color: var(--da-color-heading) !important;
+  border-color: #fedf89 !important;
+}
+
+/* Raw JSON / data mentah */
+.da-raw-box,
+.da-json-box,
+.da-content pre,
+.da-content code {
+  border-radius: 14px;
+}
+
+.da-content pre {
+  background: #0f172a;
+  color: #e2e8f0;
+  border: 1px solid #1e293b;
+  padding: 14px;
+  overflow-x: auto;
+  line-height: 1.55;
+}
+
+.da-content code {
+  background: #f8fafc;
+  border: 1px solid var(--da-color-border);
+  padding: 2px 6px;
+}
+
+.da-content pre code {
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+
+@media (max-width: 1180px) {
+  .da-system-summary-grid,
+  .da-archive-summary-grid,
+  .da-audit-summary-grid,
+  .da-health-summary-grid,
+  .da-golive-summary-grid,
+  .da-permission-summary-grid,
+  .da-backup-summary-grid,
+  .da-print-summary-grid,
+  .da-health-module-grid,
+  .da-module-map-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .da-system-summary-grid,
+  .da-archive-summary-grid,
+  .da-audit-summary-grid,
+  .da-health-summary-grid,
+  .da-golive-summary-grid,
+  .da-permission-summary-grid,
+  .da-backup-summary-grid,
+  .da-print-summary-grid,
+  .da-health-module-grid,
+  .da-module-map-grid {
+    grid-template-columns: 1fr;
+  }
+}
