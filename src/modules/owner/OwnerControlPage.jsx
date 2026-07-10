@@ -184,13 +184,18 @@ export default function OwnerControlPage({ session, onSessionExpired }) {
   const health = data?.health || {};
   const counts = data?.counts || {};
 
-  const loadData = async () => {
+  const loadData = async (options = {}) => {
     setLoading(true);
     setError("");
 
     const result = await getOwnerControlBootstrap(session?.sessionToken, {
-      source: "frontend_part_4v_owner_control_clean",
-      limit: 20,
+      source: "frontend_part_8c_owner_control_cached_full",
+      view: "owner_full",
+      mode: "owner_full",
+      limit: 16,
+      cache_seconds: 30,
+      skip_health: true,
+      force_refresh: Boolean(options.forceRefresh),
     });
 
     if (!result.success) {
@@ -234,7 +239,7 @@ export default function OwnerControlPage({ session, onSessionExpired }) {
         </div>
         <div className="da-dashboard-banner-actions">
           <Badge tone={error ? "danger" : "success"}>{loading ? "Membaca..." : error ? "Perlu Dicek" : "Terhubung"}</Badge>
-          <Button variant="ghost" onClick={loadData}>Refresh Data</Button>
+          <Button variant="ghost" onClick={() => loadData({ forceRefresh: true })}>Refresh Data</Button>
         </div>
       </Card>
 
