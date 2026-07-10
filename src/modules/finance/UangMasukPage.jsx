@@ -154,6 +154,7 @@ export default function UangMasukPage({ session, onSessionExpired }) {
   const [bootstrap, setBootstrap] = useState(null);
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [needsRefresh, setNeedsRefresh] = useState(false);
   const [activeTab, setActiveTab] = useState("payments");
   const [selectedPayment, setSelectedPayment] = useState(null);
   const [selectedReceivable, setSelectedReceivable] = useState(null);
@@ -213,6 +214,7 @@ export default function UangMasukPage({ session, onSessionExpired }) {
     }
 
     setBootstrap(result.data || {});
+    setNeedsRefresh(false);
     setLoading(false);
   };
 
@@ -301,7 +303,7 @@ export default function UangMasukPage({ session, onSessionExpired }) {
     setSaving(false);
     setForm({ ...defaultForm, payment_date: new Date().toISOString().slice(0, 10) });
     setActiveTab("payments");
-    await loadData();
+    setNeedsRefresh(true);
   };
 
   const fillPaymentFromReceivable = (receivable) => {
@@ -373,6 +375,11 @@ export default function UangMasukPage({ session, onSessionExpired }) {
       {successMessage ? (
         <div className="da-form-success" style={{ marginBottom: 16 }}>
           {successMessage}
+          {needsRefresh ? (
+            <div style={{ marginTop: 6, fontWeight: 700 }}>
+              Data sudah tersimpan cepat. Klik Refresh Data kalau mau tarik ulang payment, piutang, dan mutasi dompet terbaru.
+            </div>
+          ) : null}
         </div>
       ) : null}
 
