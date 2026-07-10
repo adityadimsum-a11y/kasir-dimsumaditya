@@ -113,7 +113,7 @@ function DetailModal({ detail, loading, onClose, onOpenRelated }) {
           </div>
 
           <div className="da-modal-note">
-            Arsip ini harus bisa ditelusuri dari ID utama ke ID terkait: order, invoice, payment, stok, hutang, kewajiban owner, payroll, kas/dompet, sampai 4 Amplop kalau ada sumbernya.
+            Arsip ini dibuka lazy saat ID diklik. Rantai detail dibatasi ringan agar cepat; kalau perlu data paling fresh, klik Refresh Detail / Refresh Data.
           </div>
 
           <Card style={{ marginBottom: 14 }}>
@@ -244,6 +244,13 @@ export default function ArchiveDigitalPage({ session, onSessionExpired }) {
     const result = await getArchiveUniversalDetail(session?.sessionToken, {
       source_id: sourceId,
       source_module: sourceModule || "",
+      source: "frontend_part_8d_archive_lazy_detail",
+      detail_mode: "fast",
+      timeline_limit: 35,
+      relation_limit: 80,
+      audit_limit: 20,
+      raw_preview_limit: 80,
+      cache_seconds: 60,
     });
 
     if (!result.success) {
