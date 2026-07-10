@@ -28,6 +28,20 @@ const normalizeLoginPayload = (result) => {
   };
 };
 
+const withFastBootstrapPayload = (payload = {}, defaults = {}) => {
+  const limit = payload.limit ?? payload.recent_limit ?? defaults.limit ?? 30;
+  return {
+    view: defaults.view || "fast",
+    mode: defaults.mode || "fast",
+    skip_health: defaults.skip_health ?? true,
+    cache_seconds: defaults.cache_seconds ?? 30,
+    ...defaults,
+    ...payload,
+    limit,
+    recent_limit: payload.recent_limit ?? payload.recentLimit ?? defaults.recent_limit ?? limit,
+  };
+};
+
 /**
  * AUTH
  */
@@ -78,7 +92,7 @@ export async function getLegacyBootstrap(sessionToken, payload = {}) {
  */
 
 export async function getDropAyamBootstrap(sessionToken, payload = {}) {
-  return apiRequest("getLegacyChickenPurchaseBootstrap", payload, sessionToken);
+  return apiRequest("getLegacyChickenPurchaseBootstrap", withFastBootstrapPayload(payload, { limit: 30 }), sessionToken);
 }
 
 export async function createDropAyam(sessionToken, payload = {}) {
@@ -95,7 +109,7 @@ export async function createDropAyam(sessionToken, payload = {}) {
  */
 
 export async function getProductionBootstrap(sessionToken, payload = {}) {
-  return apiRequest("getLegacyProductionBootstrap", payload, sessionToken);
+  return apiRequest("getLegacyProductionBootstrap", withFastBootstrapPayload(payload, { limit: 30 }), sessionToken);
 }
 
 export async function createProductionBatch(sessionToken, payload = {}) {
@@ -131,7 +145,7 @@ export async function createPOStockPlan(sessionToken, payload = {}) {
  */
 
 export async function getFinishedStockBootstrap(sessionToken, payload = {}) {
-  return apiRequest("getLegacyFinishedStockBootstrap", payload, sessionToken);
+  return apiRequest("getLegacyFinishedStockBootstrap", withFastBootstrapPayload(payload, { limit: 50 }), sessionToken);
 }
 
 /**
@@ -139,7 +153,7 @@ export async function getFinishedStockBootstrap(sessionToken, payload = {}) {
  */
 
 export async function getOrderBootstrap(sessionToken, payload = {}) {
-  return apiRequest("getLegacyOrderBootstrap", payload, sessionToken);
+  return apiRequest("getLegacyOrderBootstrap", withFastBootstrapPayload(payload, { limit: 30 }), sessionToken);
 }
 
 export async function createOrder(sessionToken, payload = {}) {
@@ -188,11 +202,11 @@ export async function getWallets(sessionToken, payload = {}) {
  */
 
 export async function getMoneyInBootstrap(sessionToken, payload = {}) {
-  return apiRequest("getLegacyMoneyInBootstrap", payload, sessionToken);
+  return apiRequest("getLegacyMoneyInBootstrap", withFastBootstrapPayload(payload, { limit: 30 }), sessionToken);
 }
 
 export async function getKasDompetBootstrap(sessionToken, payload = {}) {
-  return apiRequest("getLegacyWalletBootstrap", payload, sessionToken);
+  return apiRequest("getLegacyWalletBootstrap", withFastBootstrapPayload(payload, { limit: 60, cache_seconds: 20 }), sessionToken);
 }
 
 export async function getKasDompetMutationDetail(sessionToken, payload = {}) {
@@ -200,7 +214,7 @@ export async function getKasDompetMutationDetail(sessionToken, payload = {}) {
 }
 
 export async function getKasKeluarBootstrap(sessionToken, payload = {}) {
-  return apiRequest("getLegacyCashExpenseBootstrap", payload, sessionToken);
+  return apiRequest("getLegacyCashExpenseBootstrap", withFastBootstrapPayload(payload, { limit: 30 }), sessionToken);
 }
 
 export async function createKasKeluar(sessionToken, payload = {}) {
@@ -333,7 +347,7 @@ export async function rebuildArchiveIndex(sessionToken, payload = {}) {
  */
 
 export async function getArchiveUniversalBootstrap(sessionToken, payload = {}) {
-  return apiRequest("getLegacyArchiveUniversalBootstrap", payload, sessionToken);
+  return apiRequest("getLegacyArchiveUniversalBootstrap", withFastBootstrapPayload(payload, { limit: 20, skip_health: true, cache_seconds: 45 }), sessionToken);
 }
 
 export async function getArchiveUniversalDetail(sessionToken, payload = {}) {
@@ -458,7 +472,7 @@ export { getConfiguredApiUrl };
  */
 
 export async function getHutangNanaBootstrap(sessionToken, payload = {}) {
-  return apiRequest("getLegacyHutangNanaBootstrap", payload, sessionToken);
+  return apiRequest("getLegacyHutangNanaBootstrap", withFastBootstrapPayload(payload, { limit: 30 }), sessionToken);
 }
 
 export async function recordHutangNanaPayment(sessionToken, payload = {}) {
