@@ -3887,3 +3887,577 @@ a {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* =========================================================
+   Part 6J — HRD / Tim / Master Data Merchant Polish Pack
+   Scope: HRD, Payroll, Karyawan, Kasbon, CRM/Pelanggan,
+          Master Produk, Master Harga, Supplier, Pengaturan.
+   CSS-only safe polish.
+   ========================================================= */
+
+.da-hr-page,
+.da-hrd-page,
+.da-payroll-page,
+.da-employee-page,
+.da-kasbon-page,
+.da-master-page,
+.da-settings-page,
+.da-crm-page,
+.da-customer-page,
+.da-supplier-page,
+.da-product-page,
+.da-price-page {
+  --team-soft-border: #fedf89;
+  --team-green-border: #abefc6;
+  --team-blue-border: #bfdbfe;
+}
+
+.da-hr-hero,
+.da-hrd-hero,
+.da-payroll-hero,
+.da-employee-hero,
+.da-kasbon-hero,
+.da-master-hero,
+.da-settings-hero,
+.da-crm-hero,
+.da-customer-hero,
+.da-supplier-hero,
+.da-product-hero,
+.da-price-hero,
+.da-content [class*="hr"][class*="hero"],
+.da-content [class*="HR"][class*="hero"],
+.da-content [class*="hrd"][class*="hero"],
+.da-content [class*="HRD"][class*="hero"],
+.da-content [class*="payroll"][class*="hero"],
+.da-content [class*="Payroll"][class*="hero"],
+.da-content [class*="employee"][class*="hero"],
+.da-content [class*="Employee"][class*="hero"],
+.da-content [class*="karyawan"][class*="hero"],
+.da-content [class*="Karyawan"][class*="hero"],
+.da-content [class*="kasbon"][class*="hero"],
+.da-content [class*="Kasbon"][class*="hero"],
+.da-content [class*="master"][class*="hero"],
+.da-content [class*="Master"][class*="hero"],
+.da-content [class*="settings"][class*="hero"],
+.da-content [class*="Settings"][class*="hero"],
+.da-content [class*="crm"][class*="hero"],
+.da-content [class*="CRM"][class*="hero"],
+.da-content [class*="customer"][class*="hero"],
+.da-content [class*="Customer"][class*="hero"],
+.da-content [class*="pelanggan"][class*="hero"],
+.da-content [class*="Pelanggan"][class*="hero"],
+.da-content [class*="supplier"][class*="hero"],
+.da-content [class*="Supplier"][class*="hero"],
+.da-content [class*="product"][class*="hero"],
+.da-content [class*="Product"][class*="hero"],
+.da-content [class*="produk"][class*="hero"],
+.da-content [class*="Produk"][class*="hero"],
+.da-content [class*="harga"][class*="hero"],
+.da-content [class*="Harga"][class*="hero"] {
+  background: var(--da-hero-soft-gradient) !important;
+  border: 1px solid #fedf89 !important;
+  border-radius: 24px !important;
+  padding: 20px !important;
+  box-shadow: var(--da-shadow-card);
+}
+
+/* Summary grids */
+.da-hr-summary-grid,
+.da-hrd-summary-grid,
+.da-payroll-summary-grid,
+.da-employee-summary-grid,
+.da-kasbon-summary-grid,
+.da-master-summary-grid,
+.da-settings-summary-grid,
+.da-crm-summary-grid,
+.da-customer-summary-grid,
+.da-supplier-summary-grid,
+.da-product-summary-grid,
+.da-price-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin: 16px 0;
+}
+
+.da-hr-stat,
+.da-hrd-stat,
+.da-payroll-stat,
+.da-employee-stat,
+.da-kasbon-stat,
+.da-master-stat,
+.da-settings-stat,
+.da-crm-stat,
+.da-customer-stat,
+.da-supplier-stat,
+.da-product-stat,
+.da-price-stat {
+  background: #fff;
+  border: 1px solid var(--da-color-border);
+  border-radius: 20px;
+  padding: 16px;
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-hr-stat.success,
+.da-hrd-stat.success,
+.da-payroll-stat.success,
+.da-employee-stat.success,
+.da-kasbon-stat.success,
+.da-master-stat.success,
+.da-settings-stat.success,
+.da-crm-stat.success,
+.da-customer-stat.success,
+.da-supplier-stat.success,
+.da-product-stat.success,
+.da-price-stat.success {
+  border-color: #abefc6;
+  background: linear-gradient(135deg, #fff 0%, #ecfdf3 100%);
+}
+
+.da-hr-stat.warning,
+.da-hrd-stat.warning,
+.da-payroll-stat.warning,
+.da-employee-stat.warning,
+.da-kasbon-stat.warning,
+.da-master-stat.warning,
+.da-settings-stat.warning,
+.da-crm-stat.warning,
+.da-customer-stat.warning,
+.da-supplier-stat.warning,
+.da-product-stat.warning,
+.da-price-stat.warning {
+  border-color: #fedf89;
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%);
+}
+
+.da-hr-stat.info,
+.da-hrd-stat.info,
+.da-payroll-stat.info,
+.da-employee-stat.info,
+.da-kasbon-stat.info,
+.da-master-stat.info,
+.da-settings-stat.info,
+.da-crm-stat.info,
+.da-customer-stat.info,
+.da-supplier-stat.info,
+.da-product-stat.info,
+.da-price-stat.info {
+  border-color: #bfdbfe;
+  background: linear-gradient(135deg, #fff 0%, #eff6ff 100%);
+}
+
+/* Employee / staff cards */
+.da-employee-card,
+.da-staff-card,
+.da-karyawan-card,
+.da-hr-card,
+.da-content [class*="employee-card"],
+.da-content [class*="EmployeeCard"],
+.da-content [class*="staff-card"],
+.da-content [class*="StaffCard"],
+.da-content [class*="karyawan-card"],
+.da-content [class*="KaryawanCard"],
+.da-content [class*="hr-card"],
+.da-content [class*="HRCard"] {
+  background: #fff;
+  border: 1px solid var(--da-color-border);
+  border-radius: 20px;
+  padding: 16px;
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-employee-card.active,
+.da-staff-card.active,
+.da-karyawan-card.active {
+  border-color: #abefc6;
+  background: linear-gradient(135deg, #fff 0%, #ecfdf3 100%);
+}
+
+.da-employee-card.inactive,
+.da-staff-card.inactive,
+.da-karyawan-card.inactive {
+  border-color: #d0d5dd;
+  background: linear-gradient(135deg, #fff 0%, #f8fafc 100%);
+}
+
+/* Payroll recap / slip style */
+.da-payroll-recap-card,
+.da-payroll-run-card,
+.da-slip-card,
+.da-salary-card,
+.da-content [class*="payroll-recap"],
+.da-content [class*="PayrollRecap"],
+.da-content [class*="payroll-run"],
+.da-content [class*="PayrollRun"],
+.da-content [class*="slip-card"],
+.da-content [class*="SlipCard"],
+.da-content [class*="salary-card"],
+.da-content [class*="SalaryCard"],
+.da-content [class*="gaji-card"],
+.da-content [class*="GajiCard"] {
+  background: #fff;
+  border: 1px solid var(--da-color-border);
+  border-radius: 22px;
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-slip-card,
+.da-content [class*="slip-card"],
+.da-content [class*="SlipCard"] {
+  border: 1px dashed #d0d5dd;
+  background: #fff;
+}
+
+/* Payroll period cards */
+.da-payroll-period-grid,
+.da-payroll-date-grid,
+.da-gajian-grid,
+.da-content [class*="payroll-period"],
+.da-content [class*="PayrollPeriod"],
+.da-content [class*="gajian-grid"],
+.da-content [class*="GajianGrid"] {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.da-payroll-period-card,
+.da-payroll-date-card,
+.da-gajian-card,
+.da-content [class*="payroll-period-card"],
+.da-content [class*="PayrollPeriodCard"],
+.da-content [class*="gajian-card"],
+.da-content [class*="GajianCard"] {
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%);
+  border: 1px solid #fedf89;
+  border-radius: 18px;
+  padding: 14px;
+  box-shadow: var(--da-shadow-card);
+}
+
+/* Kasbon / loan progress */
+.da-kasbon-card,
+.da-loan-card,
+.da-cicilan-karyawan-card,
+.da-content [class*="kasbon-card"],
+.da-content [class*="KasbonCard"],
+.da-content [class*="loan-card"],
+.da-content [class*="LoanCard"],
+.da-content [class*="pinjaman-card"],
+.da-content [class*="PinjamanCard"] {
+  background: #fff;
+  border: 1px solid var(--da-color-border);
+  border-radius: 20px;
+  padding: 16px;
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-kasbon-card.warning,
+.da-loan-card.warning,
+.da-cicilan-karyawan-card.warning {
+  border-color: #fedf89;
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%);
+}
+
+/* Master data cards */
+.da-master-data-card,
+.da-master-product-card,
+.da-master-price-card,
+.da-master-supplier-card,
+.da-master-customer-card,
+.da-content [class*="master-data"],
+.da-content [class*="MasterData"],
+.da-content [class*="master-product"],
+.da-content [class*="MasterProduct"],
+.da-content [class*="master-price"],
+.da-content [class*="MasterPrice"],
+.da-content [class*="master-supplier"],
+.da-content [class*="MasterSupplier"],
+.da-content [class*="master-customer"],
+.da-content [class*="MasterCustomer"] {
+  background: #fff;
+  border: 1px solid var(--da-color-border);
+  border-radius: 20px;
+  padding: 16px;
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-master-data-card.locked,
+.da-master-product-card.locked,
+.da-master-price-card.locked,
+.da-master-supplier-card.locked,
+.da-master-customer-card.locked {
+  border-color: #bfdbfe;
+  background: linear-gradient(135deg, #fff 0%, #eff6ff 100%);
+}
+
+/* CRM / customer profile cards */
+.da-customer-card,
+.da-crm-card,
+.da-pelanggan-card,
+.da-agent-card,
+.da-content [class*="customer-card"],
+.da-content [class*="CustomerCard"],
+.da-content [class*="crm-card"],
+.da-content [class*="CRMCard"],
+.da-content [class*="pelanggan-card"],
+.da-content [class*="PelangganCard"],
+.da-content [class*="agent-card"],
+.da-content [class*="AgentCard"] {
+  background: #fff;
+  border: 1px solid var(--da-color-border);
+  border-radius: 20px;
+  padding: 16px;
+  box-shadow: var(--da-shadow-card);
+}
+
+.da-customer-card.warning,
+.da-crm-card.warning,
+.da-pelanggan-card.warning,
+.da-agent-card.warning {
+  border-color: #fedf89;
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%);
+}
+
+/* Settings / permission-like panels */
+.da-settings-panel,
+.da-system-setting-panel,
+.da-master-setting-panel,
+.da-content [class*="settings-panel"],
+.da-content [class*="SettingsPanel"],
+.da-content [class*="setting-panel"],
+.da-content [class*="SettingPanel"],
+.da-content [class*="pengaturan-panel"],
+.da-content [class*="PengaturanPanel"] {
+  background: #fff;
+  border: 1px solid var(--da-color-border);
+  border-radius: 22px;
+  padding: 16px;
+  box-shadow: var(--da-shadow-card);
+}
+
+/* Forms */
+.da-content [class*="hr"] input,
+.da-content [class*="HR"] input,
+.da-content [class*="hrd"] input,
+.da-content [class*="HRD"] input,
+.da-content [class*="payroll"] input,
+.da-content [class*="Payroll"] input,
+.da-content [class*="employee"] input,
+.da-content [class*="Employee"] input,
+.da-content [class*="karyawan"] input,
+.da-content [class*="Karyawan"] input,
+.da-content [class*="kasbon"] input,
+.da-content [class*="Kasbon"] input,
+.da-content [class*="master"] input,
+.da-content [class*="Master"] input,
+.da-content [class*="settings"] input,
+.da-content [class*="Settings"] input,
+.da-content [class*="crm"] input,
+.da-content [class*="CRM"] input,
+.da-content [class*="customer"] input,
+.da-content [class*="Customer"] input,
+.da-content [class*="pelanggan"] input,
+.da-content [class*="Pelanggan"] input,
+.da-content [class*="supplier"] input,
+.da-content [class*="Supplier"] input,
+.da-content [class*="product"] input,
+.da-content [class*="Product"] input,
+.da-content [class*="produk"] input,
+.da-content [class*="Produk"] input,
+.da-content [class*="harga"] input,
+.da-content [class*="Harga"] input,
+.da-content [class*="hr"] select,
+.da-content [class*="HR"] select,
+.da-content [class*="hrd"] select,
+.da-content [class*="HRD"] select,
+.da-content [class*="payroll"] select,
+.da-content [class*="Payroll"] select,
+.da-content [class*="employee"] select,
+.da-content [class*="Employee"] select,
+.da-content [class*="karyawan"] select,
+.da-content [class*="Karyawan"] select,
+.da-content [class*="kasbon"] select,
+.da-content [class*="Kasbon"] select,
+.da-content [class*="master"] select,
+.da-content [class*="Master"] select,
+.da-content [class*="settings"] select,
+.da-content [class*="Settings"] select,
+.da-content [class*="crm"] select,
+.da-content [class*="CRM"] select,
+.da-content [class*="customer"] select,
+.da-content [class*="Customer"] select,
+.da-content [class*="pelanggan"] select,
+.da-content [class*="Pelanggan"] select,
+.da-content [class*="supplier"] select,
+.da-content [class*="Supplier"] select,
+.da-content [class*="product"] select,
+.da-content [class*="Product"] select,
+.da-content [class*="produk"] select,
+.da-content [class*="Produk"] select,
+.da-content [class*="harga"] select,
+.da-content [class*="Harga"] select,
+.da-content [class*="hr"] textarea,
+.da-content [class*="HR"] textarea,
+.da-content [class*="hrd"] textarea,
+.da-content [class*="HRD"] textarea,
+.da-content [class*="payroll"] textarea,
+.da-content [class*="Payroll"] textarea,
+.da-content [class*="employee"] textarea,
+.da-content [class*="Employee"] textarea,
+.da-content [class*="karyawan"] textarea,
+.da-content [class*="Karyawan"] textarea,
+.da-content [class*="kasbon"] textarea,
+.da-content [class*="Kasbon"] textarea,
+.da-content [class*="master"] textarea,
+.da-content [class*="Master"] textarea,
+.da-content [class*="settings"] textarea,
+.da-content [class*="Settings"] textarea,
+.da-content [class*="crm"] textarea,
+.da-content [class*="CRM"] textarea,
+.da-content [class*="customer"] textarea,
+.da-content [class*="Customer"] textarea,
+.da-content [class*="pelanggan"] textarea,
+.da-content [class*="Pelanggan"] textarea,
+.da-content [class*="supplier"] textarea,
+.da-content [class*="Supplier"] textarea,
+.da-content [class*="product"] textarea,
+.da-content [class*="Product"] textarea,
+.da-content [class*="produk"] textarea,
+.da-content [class*="Produk"] textarea,
+.da-content [class*="harga"] textarea,
+.da-content [class*="Harga"] textarea {
+  width: 100%;
+}
+
+/* Tables */
+.da-content [class*="hr"] table,
+.da-content [class*="HR"] table,
+.da-content [class*="hrd"] table,
+.da-content [class*="HRD"] table,
+.da-content [class*="payroll"] table,
+.da-content [class*="Payroll"] table,
+.da-content [class*="employee"] table,
+.da-content [class*="Employee"] table,
+.da-content [class*="karyawan"] table,
+.da-content [class*="Karyawan"] table,
+.da-content [class*="kasbon"] table,
+.da-content [class*="Kasbon"] table,
+.da-content [class*="master"] table,
+.da-content [class*="Master"] table,
+.da-content [class*="settings"] table,
+.da-content [class*="Settings"] table,
+.da-content [class*="crm"] table,
+.da-content [class*="CRM"] table,
+.da-content [class*="customer"] table,
+.da-content [class*="Customer"] table,
+.da-content [class*="pelanggan"] table,
+.da-content [class*="Pelanggan"] table,
+.da-content [class*="supplier"] table,
+.da-content [class*="Supplier"] table,
+.da-content [class*="product"] table,
+.da-content [class*="Product"] table,
+.da-content [class*="produk"] table,
+.da-content [class*="Produk"] table,
+.da-content [class*="harga"] table,
+.da-content [class*="Harga"] table {
+  box-shadow: var(--da-shadow-card);
+}
+
+/* Important HR actions */
+.da-content button[class*="closing"],
+.da-content button[class*="Closing"],
+.da-content button[class*="payroll"],
+.da-content button[class*="Payroll"],
+.da-content button[class*="gaji"],
+.da-content button[class*="Gaji"],
+.da-content button[class*="save"],
+.da-content button[class*="Save"],
+.da-content button[class*="simpan"],
+.da-content button[class*="Simpan"] {
+  border-radius: var(--da-radius-md);
+}
+
+/* Use red only for explicit primary/critical actions */
+.da-content button[class*="closing-final"],
+.da-content button[class*="ClosingFinal"],
+.da-content button[class*="bayar-gaji"],
+.da-content button[class*="BayarGaji"],
+.da-content button[class*="submit-payroll"],
+.da-content button[class*="SubmitPayroll"] {
+  background: var(--da-color-primary) !important;
+  color: #fff !important;
+  border-color: var(--da-color-primary) !important;
+}
+
+/* Avoid giant red blocks */
+.da-content [class*="hr"][style*="background: #b42318"],
+.da-content [class*="HR"][style*="background: #b42318"],
+.da-content [class*="hrd"][style*="background: #b42318"],
+.da-content [class*="HRD"][style*="background: #b42318"],
+.da-content [class*="payroll"][style*="background: #b42318"],
+.da-content [class*="Payroll"][style*="background: #b42318"],
+.da-content [class*="employee"][style*="background: #b42318"],
+.da-content [class*="Employee"][style*="background: #b42318"],
+.da-content [class*="karyawan"][style*="background: #b42318"],
+.da-content [class*="Karyawan"][style*="background: #b42318"],
+.da-content [class*="kasbon"][style*="background: #b42318"],
+.da-content [class*="Kasbon"][style*="background: #b42318"],
+.da-content [class*="master"][style*="background: #b42318"],
+.da-content [class*="Master"][style*="background: #b42318"],
+.da-content [class*="settings"][style*="background: #b42318"],
+.da-content [class*="Settings"][style*="background: #b42318"],
+.da-content [class*="customer"][style*="background: #b42318"],
+.da-content [class*="Customer"][style*="background: #b42318"],
+.da-content [class*="supplier"][style*="background: #b42318"],
+.da-content [class*="Supplier"][style*="background: #b42318"],
+.da-content [class*="product"][style*="background: #b42318"],
+.da-content [class*="Product"][style*="background: #b42318"],
+.da-content [class*="harga"][style*="background: #b42318"],
+.da-content [class*="Harga"][style*="background: #b42318"] {
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%) !important;
+  color: var(--da-color-heading) !important;
+  border-color: #fedf89 !important;
+}
+
+@media (max-width: 1180px) {
+  .da-hr-summary-grid,
+  .da-hrd-summary-grid,
+  .da-payroll-summary-grid,
+  .da-employee-summary-grid,
+  .da-kasbon-summary-grid,
+  .da-master-summary-grid,
+  .da-settings-summary-grid,
+  .da-crm-summary-grid,
+  .da-customer-summary-grid,
+  .da-supplier-summary-grid,
+  .da-product-summary-grid,
+  .da-price-summary-grid,
+  .da-payroll-period-grid,
+  .da-payroll-date-grid,
+  .da-gajian-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .da-hr-summary-grid,
+  .da-hrd-summary-grid,
+  .da-payroll-summary-grid,
+  .da-employee-summary-grid,
+  .da-kasbon-summary-grid,
+  .da-master-summary-grid,
+  .da-settings-summary-grid,
+  .da-crm-summary-grid,
+  .da-customer-summary-grid,
+  .da-supplier-summary-grid,
+  .da-product-summary-grid,
+  .da-price-summary-grid,
+  .da-payroll-period-grid,
+  .da-payroll-date-grid,
+  .da-gajian-grid {
+    grid-template-columns: 1fr;
+  }
+}
