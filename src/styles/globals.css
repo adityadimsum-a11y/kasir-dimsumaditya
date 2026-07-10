@@ -5015,3 +5015,357 @@ a {
     padding: 16px !important;
   }
 }
+
+
+/* =========================================================
+   Part 6L — Merchant Theme Consolidation Guard
+   Scope: final visual compatibility guard after grouped polish packs.
+   CSS-only safe polish.
+   ========================================================= */
+
+/* Page rhythm guard */
+.da-page,
+.da-content > div {
+  min-width: 0;
+}
+
+.da-content > .da-page > * + *,
+.da-content > div > * + * {
+  margin-top: 16px;
+}
+
+.da-content > .da-page > .da-page-header + *,
+.da-content > div > .da-page-header + * {
+  margin-top: 0;
+}
+
+/* Hero consistency guard for pages that did not get exact class names */
+.da-content [class*="Hero"],
+.da-content [class*="hero"],
+.da-content [class*="HeaderCard"],
+.da-content [class*="header-card"],
+.da-content [class*="TopCard"],
+.da-content [class*="top-card"] {
+  border-radius: 22px;
+}
+
+/* Do not force all tiny row/action elements into hero style */
+.da-content .da-table [class*="hero"],
+.da-content table [class*="hero"],
+.da-content .da-table [class*="Hero"],
+.da-content table [class*="Hero"] {
+  border-radius: inherit;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+}
+
+/* Card consistency guard */
+.da-content [class*="Card"],
+.da-content [class*="card"],
+.da-content [class*="Panel"],
+.da-content [class*="panel"] {
+  min-width: 0;
+}
+
+.da-content [class*="Card"]:not(.da-badge):not(.da-button):not(.da-sidebar-item),
+.da-content [class*="card"]:not(.da-badge):not(.da-button):not(.da-sidebar-item),
+.da-content [class*="Panel"]:not(.da-badge):not(.da-button):not(.da-sidebar-item),
+.da-content [class*="panel"]:not(.da-badge):not(.da-button):not(.da-sidebar-item) {
+  overflow-wrap: anywhere;
+}
+
+/* Prevent merchant cards from becoming cramped */
+.da-content .da-card,
+.da-content .da-stat-card,
+.da-content .da-table-card,
+.da-content [class*="card"],
+.da-content [class*="Card"],
+.da-content [class*="panel"],
+.da-content [class*="Panel"] {
+  max-width: 100%;
+}
+
+/* Big number readability */
+.da-content [class*="value"],
+.da-content [class*="Value"],
+.da-content [class*="amount"],
+.da-content [class*="Amount"],
+.da-content [class*="total"],
+.da-content [class*="Total"] {
+  overflow-wrap: anywhere;
+}
+
+.da-content .da-stat-value,
+.da-content [class*="kpi-value"],
+.da-content [class*="KpiValue"],
+.da-content [class*="total-value"],
+.da-content [class*="TotalValue"],
+.da-content [class*="score-value"],
+.da-content [class*="ScoreValue"] {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Table guard */
+.da-content .da-table-card,
+.da-content [class*="table-card"],
+.da-content [class*="TableCard"] {
+  overflow-x: auto;
+}
+
+.da-content table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.da-content table td,
+.da-content table th {
+  max-width: 360px;
+}
+
+.da-content table td:first-child,
+.da-content table th:first-child {
+  max-width: 260px;
+}
+
+/* Clickable ID visual guard */
+.da-content [class*="id"],
+.da-content [class*="ID"],
+.da-content [class*="Id"] {
+  overflow-wrap: anywhere;
+}
+
+.da-content button[class*="id"],
+.da-content button[class*="ID"],
+.da-content button[class*="Id"],
+.da-content a[class*="id"],
+.da-content a[class*="ID"],
+.da-content a[class*="Id"] {
+  border-radius: 999px !important;
+}
+
+/* Button guard:
+   Keep explicit primary buttons red, but other module buttons stay soft/neutral.
+*/
+.da-content button:not(.da-button):not(.da-sidebar-item):not(.da-sidebar-close):not(.da-mobile-menu-btn)[style*="background: red"],
+.da-content button:not(.da-button):not(.da-sidebar-item):not(.da-sidebar-close):not(.da-mobile-menu-btn)[style*="background:red"],
+.da-content button:not(.da-button):not(.da-sidebar-item):not(.da-sidebar-close):not(.da-mobile-menu-btn)[style*="background-color: red"],
+.da-content button:not(.da-button):not(.da-sidebar-item):not(.da-sidebar-close):not(.da-mobile-menu-btn)[style*="backgroundColor: red"] {
+  background: #fff !important;
+  color: var(--da-color-heading) !important;
+  border-color: var(--da-color-border) !important;
+}
+
+/* Strong warning/danger panels stay soft, not solid */
+.da-content [style*="background: #dc2626"],
+.da-content [style*="background:#dc2626"],
+.da-content [style*="background: #ef4444"],
+.da-content [style*="background:#ef4444"],
+.da-content [style*="background: #991b1b"],
+.da-content [style*="background:#991b1b"] {
+  background: linear-gradient(135deg, #fff 0%, #fff7f5 100%) !important;
+  color: var(--da-color-heading) !important;
+  border-color: #fecdca !important;
+}
+
+.da-content [style*="background: #f59e0b"],
+.da-content [style*="background:#f59e0b"],
+.da-content [style*="background: #d97706"],
+.da-content [style*="background:#d97706"] {
+  background: linear-gradient(135deg, #fff 0%, #fffbeb 100%) !important;
+  color: var(--da-color-heading) !important;
+  border-color: #fedf89 !important;
+}
+
+/* Form guard */
+.da-content form {
+  min-width: 0;
+}
+
+.da-content form .da-grid,
+.da-content .da-card .da-grid,
+.da-content [class*="form"] .da-grid,
+.da-content [class*="Form"] .da-grid {
+  min-width: 0;
+}
+
+.da-content input,
+.da-content select,
+.da-content textarea {
+  max-width: 100%;
+}
+
+/* Filter/toolbars */
+.da-toolbar,
+.da-filter-bar,
+.da-action-bar,
+.da-content [class*="toolbar"],
+.da-content [class*="Toolbar"],
+.da-content [class*="filter-bar"],
+.da-content [class*="FilterBar"],
+.da-content [class*="action-bar"],
+.da-content [class*="ActionBar"] {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.da-toolbar > *,
+.da-filter-bar > *,
+.da-action-bar > * {
+  min-width: 0;
+}
+
+/* Tabs consistency */
+.da-tabs,
+.da-content [class*="tabs"],
+.da-content [class*="Tabs"] {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.da-tab,
+.da-content [class*="tab"] button,
+.da-content button[class*="tab"],
+.da-content button[class*="Tab"] {
+  border-radius: 999px !important;
+  background: #fff !important;
+  color: var(--da-color-heading) !important;
+  border: 1px solid var(--da-color-border) !important;
+}
+
+.da-tab.active,
+.da-content [class*="tab"] button.active,
+.da-content button[class*="tab"].active,
+.da-content button[class*="Tab"].active {
+  background: var(--da-color-primary-soft) !important;
+  color: var(--da-color-primary-dark) !important;
+  border-color: #ffd6d0 !important;
+}
+
+/* Empty states */
+.da-empty,
+.da-empty-state,
+.da-content [class*="empty"],
+.da-content [class*="Empty"] {
+  border-radius: 22px;
+}
+
+.da-content [class*="empty-state"],
+.da-content [class*="EmptyState"],
+.da-empty-state {
+  background: linear-gradient(135deg, #fff 0%, #f8fafc 100%);
+  border: 1px solid var(--da-color-border);
+  padding: 24px;
+  text-align: center;
+  color: var(--da-color-muted);
+}
+
+/* Modal guard */
+.da-modal,
+.da-content [role="dialog"] {
+  max-width: min(920px, calc(100vw - 32px));
+}
+
+.da-modal input,
+.da-modal select,
+.da-modal textarea,
+.da-content [role="dialog"] input,
+.da-content [role="dialog"] select,
+.da-content [role="dialog"] textarea {
+  max-width: 100%;
+}
+
+/* Keep old inline black/dark panels readable */
+.da-content [style*="background: #000"],
+.da-content [style*="background:#000"],
+.da-content [style*="background: black"],
+.da-content [style*="background:black"],
+.da-content [style*="background: #111827"],
+.da-content [style*="background:#111827"] {
+  border-radius: 18px !important;
+}
+
+/* Print/export guard */
+@media print {
+  .da-content {
+    background: #fff !important;
+  }
+
+  .da-card,
+  .da-stat-card,
+  .da-table-card,
+  .da-content [class*="card"],
+  .da-content [class*="Card"],
+  .da-content [class*="panel"],
+  .da-content [class*="Panel"] {
+    break-inside: avoid;
+  }
+
+  .da-content table {
+    page-break-inside: auto;
+  }
+
+  .da-content tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+}
+
+/* Mobile guard */
+@media (max-width: 860px) {
+  .da-content {
+    max-width: 100%;
+  }
+
+  .da-content table td,
+  .da-content table th {
+    max-width: 260px;
+  }
+
+  .da-toolbar,
+  .da-filter-bar,
+  .da-action-bar,
+  .da-content [class*="toolbar"],
+  .da-content [class*="Toolbar"],
+  .da-content [class*="filter-bar"],
+  .da-content [class*="FilterBar"],
+  .da-content [class*="action-bar"],
+  .da-content [class*="ActionBar"] {
+    align-items: stretch;
+  }
+
+  .da-toolbar > button,
+  .da-filter-bar > button,
+  .da-action-bar > button,
+  .da-content [class*="toolbar"] > button,
+  .da-content [class*="Toolbar"] > button,
+  .da-content [class*="filter-bar"] > button,
+  .da-content [class*="FilterBar"] > button,
+  .da-content [class*="action-bar"] > button,
+  .da-content [class*="ActionBar"] > button {
+    width: auto;
+  }
+}
+
+@media (max-width: 560px) {
+  .da-content table td,
+  .da-content table th {
+    max-width: 220px;
+  }
+
+  .da-content .da-page-header h1,
+  .da-content h1 {
+    font-size: 28px;
+  }
+
+  .da-modal,
+  .da-content [role="dialog"] {
+    max-width: calc(100vw - 18px);
+  }
+}
