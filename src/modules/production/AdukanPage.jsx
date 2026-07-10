@@ -744,6 +744,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [selectedBatch, setSelectedBatch] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [needsRefresh, setNeedsRefresh] = useState(false);
   const [submitResult, setSubmitResult] = useState(null);
 
   const lots = useMemo(() => {
@@ -814,6 +815,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
     }
 
     setBootstrap(result.data || {});
+    setNeedsRefresh(false);
 
     const productResult = await getProducts(session?.sessionToken, {
       source: "frontend_part_3b_2c_produk_hasil_adukan_get_products",
@@ -896,7 +898,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
     setSubmitting(false);
     setForm(initialForm);
     setShowValidationErrors(false);
-    await loadData();
+    setNeedsRefresh(true);
   };
 
   const columns = [
@@ -1011,6 +1013,11 @@ export default function AdukanPage({ session, onSessionExpired }) {
           style={{ marginBottom: 16 }}
         >
           {submitResult.message}
+          {submitResult.success && needsRefresh ? (
+            <div style={{ marginTop: 6, fontWeight: 700 }}>
+              Data sudah tersimpan cepat. Klik Refresh Data kalau mau tarik ulang lot ayam, batch produksi, dan stok jadi terbaru.
+            </div>
+          ) : null}
         </div>
       ) : null}
 
