@@ -26,11 +26,32 @@ function getSessionToken(session) {
   );
 }
 
+function normalizeLocationScopePayload(payload = {}) {
+  const next = { ...(payload || {}) };
+
+  for (const key of [
+    "location_id",
+    "locationId",
+    "workspace_location_id",
+    "branch_id",
+  ]) {
+    const value = String(next[key] ?? "").trim();
+
+    // "ALL" is only a frontend filter label.
+    // Sending "ALL" to PHP/MySQL makes LocationScope search for a fake location.
+    if (!value || value.toUpperCase() === "ALL") {
+      delete next[key];
+    }
+  }
+
+  return next;
+}
+
 async function callBackend(action, payload = {}, session) {
   const body = {
     action,
     sessionToken: getSessionToken(session),
-    payload,
+    payload: normalizeLocationScopePayload(payload),
   };
 
   const response = await fetch("/api/erp-v2", {
