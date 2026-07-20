@@ -9,6 +9,27 @@ import StatCard from "../../components/ui/StatCard";
 
 
 
+function normalizeLocationScopePayload(payload = {}) {
+  const next = { ...(payload || {}) };
+
+  for (const key of [
+    "location_id",
+    "locationId",
+    "workspace_location_id",
+    "branch_id",
+  ]) {
+    const value = String(next[key] ?? "").trim();
+
+    // "ALL" is a UI filter value, NOT a real MySQL location_id.
+    // Owner/global routes must omit location_id to activate all_locations=true.
+    if (!value || value.toUpperCase() === "ALL") {
+      delete next[key];
+    }
+  }
+
+  return next;
+}
+
 async function callPhp(action, payload, sessionToken) {
   const response = await fetch("/api/erp-v2", {
     method: "POST",
@@ -18,7 +39,7 @@ async function callPhp(action, payload, sessionToken) {
     body: JSON.stringify({
       action,
       sessionToken,
-      payload: payload || {},
+      payload: normalizeLocationScopePayload(payload),
     }),
   });
 
