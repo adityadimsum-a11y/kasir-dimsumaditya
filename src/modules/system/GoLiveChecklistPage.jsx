@@ -33,10 +33,10 @@ async function callBackend(action, payload = {}, session) {
     payload,
   };
 
-  const response = await fetch("/api/apps-script", {
+  const response = await fetch("/api/erp-v2", {
     method: "POST",
     headers: {
-      "Content-Type": "text/plain;charset=utf-8",
+      "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
   });
@@ -47,7 +47,7 @@ async function callBackend(action, payload = {}, session) {
   try {
     json = JSON.parse(text);
   } catch (error) {
-    throw new Error("Proxy/API belum membalas JSON valid.");
+    throw new Error("PHP/MySQL API belum membalas JSON valid.");
   }
 
   if (!response.ok || json.success === false || json.ok === false) {
@@ -55,6 +55,310 @@ async function callBackend(action, payload = {}, session) {
   }
 
   return json.data || json.result || json;
+}
+
+
+function safeNumber(value, fallback = 0) {
+  if (value === null || value === undefined || value === "") return fallback;
+  const cleaned = String(value)
+    .replace(/Rp/gi, "")
+    .replace(/\./g, "")
+    .replace(/,/g, ".")
+    .replace(/[^\d.-]/g, "");
+  const parsed = Number(cleaned);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function firstArray(data, keys = []) {
+  for (const key of keys) {
+    if (Array.isArray(data?.[key])) return data[key];
+  }
+  return [];
+}
+
+function parseChecklist(value) {
+  if (!value) return {};
+  if (typeof value === "object") return value;
+  try {
+    return JSON.parse(String(value));
+  } catch {
+    return {};
+  }
+}
+
+async function safeCall(action, payload, session) {
+  try {
+    return {
+      ok: true,
+      action,
+      data: await callBackend(action, payload, session),
+      error: "",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      action,
+      data: {},
+      error: error?.message || String(error),
+    };
+  }
+}
+
+async function buildFinalGoLiveInputs(period, session) {
+  const requests = [
+    ["frontendCutoverHealth", {}],
+    ["getFrontendCutoverWalletBootstrap", period],
+    ["getFrontendCutoverFinishedStockBootstrap", period],
+    ["getFrontendCutoverMoneyInBootstrap", period],
+    ["getSupplierDebtBootstrap", period],
+    ["getOwnerControlBootstrap", period],
+    ["getFrontendCutoverEnvelopeBootstrap", period],
+    ["getLegacyChickenPurchaseBootstrap", period],
+    ["getLegacyProductionBootstrap", period],
+    ["getLegacyOrderBootstrap", period],
+    ["searchArchive", { q: "", limit: 100, offset: 0 }],
+    ["getReconciliationBootstrap", {}],
+  ];
+
+  const responses = await Promise.all(
+    requests.map(([action, payload]) =>
+      safeCall(action, payload, session)
+    )
+  );
+
+  const byAction = Object.fromEntries(
+    responses.map((item) => [item.action, item])
+  );
+
+  const bridge = byAction.frontendCutoverHealth?.data || {};
+  const wallet = byAction.getFrontendCutoverWalletBootstrap?.data || {};
+  const stock = byAction.getFrontendCutoverFinishedStockBootstrap?.data || {};
+  const money = byAction.getFrontendCutoverMoneyInBootstrap?.data || {};
+  const supplier = byAction.getSupplierDebtBootstrap?.data || {};
+  const owner = byAction.getOwnerControlBootstrap?.data || {};
+  const envelope = byAction.getFrontendCutoverEnvelopeBootstrap?.data || {};
+  const drop = byAction.getLegacyChickenPurchaseBootstrap?.data || {};
+  const production = byAction.getLegacyProductionBootstrap?.data || {};
+  const order = byAction.getLegacyOrderBootstrap?.data || {};
+  const archive = byAction.searchArchive?.data || {};
+  const reconciliation = byAction.getReconciliationBootstrap?.data || {};
+
+  const errors = responses.filter((row) => !row.ok);
+
+  const supplierOutstanding = safeNumber(
+    supplier?.summary?.grand_outstanding ??
+      supplier?.grand_outstanding ??
+      0
+  );
+
+  const ownerSupplierOutstanding = safeNumber(
+    owner?.supplier_position?.total_outstanding ??
+      owner?.supplier_position?.grand_outstanding ??
+      owner?.supplier_position?.outstanding ??
+      0
+  );
+
+  const supplierMismatch =
+    supplierOutstanding !== ownerSupplierOutstanding;
+
+  const walletMutations = firstArray(wallet, [
+    "wallet_mutations",
+    "mutations",
+  ]);
+  const walletMissingSource = walletMutations.filter((row) => {
+    const sourceId = String(
+      row?.source_id ?? row?.sourceId ?? ""
+    ).trim();
+    return !sourceId && safeNumber(row?.amount) !== 0;
+  }).length;
+
+  const plan = reconciliation?.latest_cutover_plan || null;
+  const checklist = parseChecklist(plan?.checklist_json);
+
+  const cutoverApproved =
+    String(plan?.status || "").toUpperCase() ===
+      "FRONTEND_SWITCH_APPROVED" &&
+    checklist.full_uat_passed === true &&
+    checklist.frontend_switch_approved === true;
+
+  const bridgeHealthy =
+    bridge.frontend_cutover_bridge_loaded === true &&
+    bridge.php_mysql_primary === true &&
+    bridge.split_brain_core_writes_blocked === true;
+
+  const archiveRows = firstArray(archive, [
+    "items",
+    "results",
+    "recent_records",
+    "rows",
+  ]);
+
+  const realRows = [
+    firstArray(drop, ["chicken_drops", "purchases", "drops", "rows"]).length,
+    firstArray(production, ["production_batches", "batches"]).length,
+    firstArray(stock, ["finished_stock", "finished_goods_stock", "stock"]).length,
+    firstArray(order, ["orders", "rows"]).length,
+    firstArray(money, ["payments"]).length,
+    firstArray(money, ["receivables"]).length,
+    walletMutations.length,
+    firstArray(supplier, ["payables"]).length ||
+      firstArray(supplier, ["current_notes"]).length +
+        firstArray(supplier, ["old_debts"]).length,
+    firstArray(envelope, ["allocations", "recent_allocations"]).length,
+    archiveRows.length,
+  ].reduce((sum, value) => sum + safeNumber(value), 0);
+
+  const danger =
+    errors.length +
+    (bridgeHealthy ? 0 : 1) +
+    (supplierMismatch ? 1 : 0);
+
+  const warning =
+    walletMissingSource +
+    (cutoverApproved ? 0 : 1);
+
+  const healthData = {
+    summary: {
+      error_count: danger,
+      warning_count: warning,
+      ghost_rows: 0,
+      real_rows: realRows,
+      modules_checked: 11,
+      source_of_truth: "PHP + MySQL",
+    },
+    meta: {
+      bridgeHealthy,
+      supplierOutstanding,
+      ownerSupplierOutstanding,
+      supplierMismatch,
+      walletMissingSource,
+      cutoverApproved,
+      cutoverPlanStatus: plan?.status || "",
+      fullUatPassed: checklist.full_uat_passed === true,
+      frontendSwitchApproved:
+        checklist.frontend_switch_approved === true,
+    },
+  };
+
+  const actionHubData = {
+    summary: {
+      CRITICAL: danger,
+      WARNING: warning,
+      INFO: 0,
+      total_cards: danger + warning,
+    },
+    cards: [],
+  };
+
+  return { healthData, actionHubData };
+}
+
+function buildFinalReadiness({ healthData, actionHubData }) {
+  const base = getGoLiveReadiness({
+    healthData,
+    actionHubData,
+  });
+
+  const meta = healthData?.meta || {};
+  const checks = base.checks.map((row) => {
+    if (row.id === "backend-json") {
+      return {
+        ...row,
+        title: "PHP/MySQL + Vercel Proxy membalas JSON",
+        detail: meta.bridgeHealthy
+          ? "Frontend Cutover Bridge aktif, PHP/MySQL primary, dan split-brain core write diblokir."
+          : "Frontend Cutover Bridge belum lolos health gate.",
+        status: meta.bridgeHealthy ? "AMAN" : "BELUM SIAP",
+        tone: meta.bridgeHealthy ? "success" : "danger",
+        score: meta.bridgeHealthy ? 15 : 0,
+        blocker: !meta.bridgeHealthy,
+        source: "PHP/MySQL api-v2",
+      };
+    }
+
+    if (row.id === "manual-uat") {
+      const passed =
+        meta.fullUatPassed === true &&
+        meta.frontendSwitchApproved === true &&
+        meta.cutoverApproved === true;
+
+      return {
+        ...row,
+        title: "Full UAT + Frontend Switch Approval",
+        detail: passed
+          ? "Full UAT backend sudah dikunci PASSED dan Owner sudah APPROVE frontend switch."
+          : "Full UAT/approval switch belum lengkap.",
+        status: passed ? "AMAN" : "BELUM SIAP",
+        tone: passed ? "success" : "danger",
+        score: passed ? 15 : 0,
+        blocker: !passed,
+        source: "Reconciliation / Cutover Plan",
+      };
+    }
+
+    if (row.id === "ghost-row") {
+      return {
+        ...row,
+        title: "Tidak memakai ghost row Google Sheets",
+        detail:
+          "Data Health final membaca PHP/MySQL; ghost/formatting row legacy tidak menjadi sumber keputusan go-live.",
+        status: "AMAN",
+        tone: "success",
+        score: 10,
+        blocker: false,
+        source: "PHP/MySQL",
+      };
+    }
+
+    if (row.id === "warning") {
+      return {
+        ...row,
+        title: "Tidak ada warning core yang memblokir cutover",
+        detail: `${base.health.warning} warning terdeteksi dari core PHP/MySQL.`,
+        status:
+          base.health.warning === 0 ? "AMAN" : "PERLU DIRAPIKAN",
+        tone:
+          base.health.warning === 0 ? "success" : "warning",
+        score:
+          base.health.warning === 0 ? 10 : 5,
+        blocker: false,
+        source: "PHP/MySQL Data Health",
+      };
+    }
+
+    return row;
+  });
+
+  const blockers = checks.filter((row) => row.blocker);
+  const score = Math.max(
+    0,
+    Math.min(
+      100,
+      checks.reduce(
+        (sum, row) => sum + safeNumber(row.score),
+        0
+      )
+    )
+  );
+
+  return {
+    ...base,
+    checks,
+    blockers,
+    score,
+    status:
+      blockers.length === 0 && score >= 95
+        ? "SIAP_GO_LIVE"
+        : base.status,
+    statusLabel:
+      blockers.length === 0 && score >= 95
+        ? "Siap Go-Live"
+        : base.statusLabel,
+    tone:
+      blockers.length === 0 && score >= 95
+        ? "success"
+        : base.tone,
+  };
 }
 
 function todayISO() {
@@ -90,22 +394,19 @@ export default function GoLiveChecklistPage({ session }) {
     setErrorText("");
 
     try {
-      const [health, hub] = await Promise.all([
-        callBackend("getLegacySystemHealthBootstrap", period, session),
-        callBackend(
-          "getLegacySystemHealthActionHub",
-          {
-            limit: 100,
-          },
-          session
-        ),
-      ]);
+      const {
+        healthData: health,
+        actionHubData: hub,
+      } = await buildFinalGoLiveInputs(period, session);
 
       setHealthData(health);
       setActionHubData(hub);
       setLastRefresh(new Date().toLocaleString("id-ID"));
     } catch (error) {
-      setErrorText(error.message || "Gagal membaca Go-Live Check.");
+      setErrorText(
+        error?.message ||
+          "Gagal membaca Go-Live Check PHP/MySQL."
+      );
     } finally {
       setLoading(false);
     }
@@ -117,7 +418,7 @@ export default function GoLiveChecklistPage({ session }) {
   }, []);
 
   const report = useMemo(
-    () => getGoLiveReadiness({ healthData, actionHubData }),
+    () => buildFinalReadiness({ healthData, actionHubData }),
     [healthData, actionHubData]
   );
 
@@ -142,8 +443,8 @@ export default function GoLiveChecklistPage({ session }) {
           <h1 style={styles.title}>Go-Live Check</h1>
           <p style={styles.desc}>
             Pengecekan kesiapan sistem sebelum dipakai operasional. Halaman ini
-            read-only dan membaca Data Health, Action Hub, arsip, serta status
-            kabel utama ERP.
+            read-only dan membaca health gate PHP/MySQL, arsip, reconciliation,
+            Full UAT, serta approval frontend switch.
           </p>
         </div>
 
@@ -160,9 +461,7 @@ export default function GoLiveChecklistPage({ session }) {
             <span>/100</span>
           </div>
           <p style={styles.scoreDesc}>
-            Status ini bukan tombol final go-live. Ini alat bantu owner untuk
-            melihat apakah data, kabel, dan benang merah sudah layak masuk UAT
-            atau go-live bertahap.
+            Status ini adalah gate kesiapan final berbasis PHP/MySQL. Deployment production tetap dilakukan terpisah setelah Preview benar-benar bersih.
           </p>
         </div>
 
@@ -270,9 +569,7 @@ export default function GoLiveChecklistPage({ session }) {
       </section>
 
       <section style={styles.noteBox}>
-        <b>Catatan layout final:</b> halaman ini masih alat audit/kabel/logic.
-        Untuk go-live staff, layout final tetap akan dipoles ke arah Merchant
-        Clean Layout / Dimsum Merchant OS yang lebih ringan dan operasional.
+        <b>Catatan cutover:</b> halaman ini read-only. Nilai readiness final berasal dari PHP/MySQL dan tidak memakai Data Health Google Sheets legacy sebagai source of truth.
       </section>
     </main>
   );
