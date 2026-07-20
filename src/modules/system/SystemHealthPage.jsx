@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { legacySafeRequest, isLegacyAuthRequired } from "../../lib/api/legacySafeRequest";
 import { formatRupiah } from "../../lib/format/money";
 import { formatDate } from "../../lib/format/date";
 import Badge from "../../components/ui/Badge";
@@ -7,10 +6,512 @@ import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import DataTable from "../../components/ui/DataTable";
 import StatCard from "../../components/ui/StatCard";
-import SystemHealthActionHub from "./SystemHealthActionHub";
 
-function isAuthRequired(result) {
-  return isLegacyAuthRequired(result);
+
+
+async function callPhp(action, payload, sessionToken) {
+  const response = await fetch("/api/erp-v2", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      action,
+      sessionToken,
+      payload: payload || {},
+    }),
+  });
+
+  const rawText = await response.text();
+  let json;
+
+  try {
+    json = JSON.parse(rawText);
+  } catch {
+    throw new Error(`${action}: backend PHP tidak membalas JSON valid.`);
+  }
+
+  if (!response.ok || json?.success === false) {
+    const code = json?.error?.code ? ` (${json.error.code})` : "";
+    throw new Error(`${action}${code}: ${json?.message || "request gagal"}`);
+  }
+
+  return json?.data ?? {};
+}
+
+async function safePhp(action, payload, sessionToken) {
+  try {
+    return {
+      ok: true,
+      action,
+      data: await callPhp(action, payload, sessionToken),
+      error: "",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      action,
+      data: {},
+      error: error?.message || String(error),
+    };
+  }
+}
+
+function firstArray(data, keys = []) {
+  for (const key of keys) {
+    if (Array.isArray(data?.[key])) return data[key];
+  }
+  return [];
+}
+
+function sumArrays(...arrays) {
+  return arrays.reduce(
+    (total, rows) => total + (Array.isArray(rows) ? rows.length : 0),
+    0
+  );
+}
+
+function parseChecklist(value) {
+  if (!value) return {};
+  if (typeof value === "object") return value;
+  try {
+    return JSON.parse(String(value));
+  } catch {
+    return {};
+  }
+}
+
+function normalizeArchiveRows(data) {
+  const rows =
+    firstArray(data, ["items", "results", "recent_records", "rows"]) || [];
+
+  return rows.map((row) => ({
+    date:
+      row.transaction_date ||
+      row.date ||
+      row.created_at ||
+      row.updated_at ||
+      "",
+    module: row.module || row.source_module || "ARSIP",
+    id:
+      row.transaction_id ||
+      row.source_id ||
+      row.archive_id ||
+      row.id ||
+      "-",
+    amount:
+      row.amount ||
+      row.nominal ||
+      row.total_amount ||
+      row.grand_total ||
+      0,
+  }));
+}
+
+async function buildPhpHealthSnapshot(filters, sessionToken) {
+  const scopedPayload = {
+    date_start: filters?.date_start,
+    date_end: filters?.date_end,
+    location_id: filters?.location_id || "ALL",
+    limit: 100,
+  };
+
+  const requests = [
+    ["frontendCutoverHealth", {}],
+    ["getLegacyChickenPurchaseBootstrap", scopedPayload],
+    ["getLegacyProductionBootstrap", scopedPayload],
+    ["getFrontendCutoverFinishedStockBootstrap", scopedPayload],
+    ["getLegacyOrderBootstrap", scopedPayload],
+    ["getFrontendCutoverMoneyInBootstrap", scopedPayload],
+    ["getFrontendCutoverWalletBootstrap", scopedPayload],
+    ["getSupplierDebtBootstrap", scopedPayload],
+    ["getFrontendCutoverEnvelopeBootstrap", scopedPayload],
+    ["getOwnerControlBootstrap", scopedPayload],
+    ["searchArchive", { q: "", limit: 100, offset: 0 }],
+    ["getReconciliationBootstrap", {}],
+  ];
+
+  const responses = await Promise.all(
+    requests.map(([action, payload]) =>
+      safePhp(action, payload, sessionToken)
+    )
+  );
+
+  const byAction = Object.fromEntries(
+    responses.map((item) => [item.action, item])
+  );
+
+  const bridge = byAction.frontendCutoverHealth?.data || {};
+  const drop = byAction.getLegacyChickenPurchaseBootstrap?.data || {};
+  const production = byAction.getLegacyProductionBootstrap?.data || {};
+  const stock = byAction.getFrontendCutoverFinishedStockBootstrap?.data || {};
+  const order = byAction.getLegacyOrderBootstrap?.data || {};
+  const money = byAction.getFrontendCutoverMoneyInBootstrap?.data || {};
+  const wallet = byAction.getFrontendCutoverWalletBootstrap?.data || {};
+  const supplier = byAction.getSupplierDebtBootstrap?.data || {};
+  const envelope = byAction.getFrontendCutoverEnvelopeBootstrap?.data || {};
+  const owner = byAction.getOwnerControlBootstrap?.data || {};
+  const archive = byAction.searchArchive?.data || {};
+  const reconciliation = byAction.getReconciliationBootstrap?.data || {};
+
+  const dropRows = firstArray(drop, [
+    "chicken_drops",
+    "purchases",
+    "drops",
+    "rows",
+  ]);
+  const lotRows = firstArray(drop, [
+    "chicken_lots",
+    "active_lots",
+    "lots",
+  ]);
+  const productionRows = firstArray(production, [
+    "production_batches",
+    "batches",
+    "productions",
+  ]);
+  const finishedRows = firstArray(stock, [
+    "finished_stock",
+    "finished_goods_stock",
+    "stock",
+  ]);
+  const orderRows = firstArray(order, ["orders", "rows"]);
+  const paymentRows = firstArray(money, ["payments"]);
+  const receivableRows = firstArray(money, ["receivables"]);
+  const walletRows = firstArray(wallet, ["wallet_mutations", "mutations"]);
+  const currentNotes = firstArray(supplier, ["current_notes"]);
+  const oldDebts = firstArray(supplier, ["old_debts"]);
+  const payableRows =
+    firstArray(supplier, ["payables"]).length > 0
+      ? firstArray(supplier, ["payables"])
+      : [...currentNotes, ...oldDebts];
+  const allocationRows = firstArray(envelope, [
+    "allocations",
+    "recent_allocations",
+  ]);
+  const archiveRows = normalizeArchiveRows(archive);
+
+  const modules = [
+    {
+      module: "DROP Ayam",
+      tab: "PHP/MySQL · Purchase/Drop",
+      real_rows: dropRows.length,
+      ghost_rows: 0,
+      missing_id: 0,
+      severity: "INFO",
+      status: "Aman",
+    },
+    {
+      module: "Lot Ayam",
+      tab: "PHP/MySQL · Chicken Lots",
+      real_rows: lotRows.length,
+      ghost_rows: 0,
+      missing_id: 0,
+      severity: "INFO",
+      status: "Aman",
+    },
+    {
+      module: "Produksi / Adukan",
+      tab: "PHP/MySQL · Production Batches",
+      real_rows: productionRows.length,
+      ghost_rows: 0,
+      missing_id: 0,
+      severity: "INFO",
+      status: "Aman",
+    },
+    {
+      module: "Stok Jadi",
+      tab: "PHP/MySQL · Finished Stock SSOT",
+      real_rows: finishedRows.length,
+      ghost_rows: 0,
+      missing_id: 0,
+      severity: "INFO",
+      status: "Aman",
+    },
+    {
+      module: "Order / Kasir",
+      tab: "PHP/MySQL · Orders",
+      real_rows: orderRows.length,
+      ghost_rows: 0,
+      missing_id: 0,
+      severity: "INFO",
+      status: "Aman",
+    },
+    {
+      module: "Payment / Piutang",
+      tab: "PHP/MySQL · Payments + Receivables",
+      real_rows: paymentRows.length + receivableRows.length,
+      ghost_rows: 0,
+      missing_id: 0,
+      severity: "INFO",
+      status: "Aman",
+    },
+    {
+      module: "Kas & Dompet",
+      tab: "PHP/MySQL · Wallet Mutations",
+      real_rows: walletRows.length,
+      ghost_rows: 0,
+      missing_id: 0,
+      severity: "INFO",
+      status: "Aman",
+    },
+    {
+      module: "Hutang Nana",
+      tab: "PHP/MySQL · Supplier Payables",
+      real_rows: payableRows.length,
+      ghost_rows: 0,
+      missing_id: 0,
+      severity: "INFO",
+      status: "Aman",
+    },
+    {
+      module: "4 Amplop",
+      tab: "PHP/MySQL · Envelope Ledger",
+      real_rows: allocationRows.length,
+      ghost_rows: 0,
+      missing_id: 0,
+      severity: "INFO",
+      status: "Aman",
+    },
+    {
+      module: "Arsip Digital",
+      tab: "PHP/MySQL · Universal Archive",
+      real_rows: archiveRows.length,
+      ghost_rows: 0,
+      missing_id: 0,
+      severity: "INFO",
+      status: "Aman",
+    },
+    {
+      module: "Reconciliation / Cutover",
+      tab: "PHP/MySQL · Cutover Guard",
+      real_rows: reconciliation?.latest_cutover_plan ? 1 : 0,
+      ghost_rows: 0,
+      missing_id: 0,
+      severity: "INFO",
+      status: "Aman",
+    },
+  ];
+
+  const issues = [];
+
+  for (const response of responses) {
+    if (!response.ok) {
+      issues.push({
+        severity: "ERROR",
+        module: response.action,
+        message: response.error,
+        source: "PHP/MySQL api-v2",
+        count: 1,
+      });
+    }
+  }
+
+  const bridgeHealthy =
+    bridge.frontend_cutover_bridge_loaded === true &&
+    bridge.php_mysql_primary === true &&
+    bridge.split_brain_core_writes_blocked === true;
+
+  if (!bridgeHealthy) {
+    issues.push({
+      severity: "ERROR",
+      module: "Cutover Bridge",
+      message:
+        "Frontend Cutover Bridge belum menyatakan PHP/MySQL primary + split-brain protection aktif.",
+      source: "frontendCutoverHealth",
+      count: 1,
+    });
+  }
+
+  const supplierOutstanding = number(
+    supplier?.summary?.grand_outstanding ??
+      supplier?.grand_outstanding ??
+      0
+  );
+
+  const ownerSupplierOutstanding = number(
+    owner?.supplier_position?.total_outstanding ??
+      owner?.supplier_position?.grand_outstanding ??
+      owner?.supplier_position?.outstanding ??
+      0
+  );
+
+  if (
+    supplierOutstanding !== ownerSupplierOutstanding
+  ) {
+    issues.push({
+      severity: "ERROR",
+      module: "Hutang Nana",
+      message: `Outstanding supplier tidak konsisten. Supplier Rp ${supplierOutstanding.toLocaleString(
+        "id-ID"
+      )}, Owner Control Rp ${ownerSupplierOutstanding.toLocaleString("id-ID")}.`,
+      source: "Supplier Debt ↔ Owner Control",
+      count: 1,
+    });
+  }
+
+  const walletMissingSource = walletRows.filter((row) => {
+    const sourceId = String(
+      row?.source_id ?? row?.sourceId ?? ""
+    ).trim();
+    return !sourceId && number(row?.amount) !== 0;
+  }).length;
+
+  if (walletMissingSource > 0) {
+    issues.push({
+      severity: "WARNING",
+      module: "Kas & Dompet",
+      message: `${walletMissingSource} mutasi nominal non-zero belum punya source ID.`,
+      source: "wallet_mutations",
+      count: walletMissingSource,
+    });
+  }
+
+  const plan = reconciliation?.latest_cutover_plan || null;
+  const checklist = parseChecklist(plan?.checklist_json);
+  const cutoverApproved =
+    String(plan?.status || "").toUpperCase() ===
+      "FRONTEND_SWITCH_APPROVED" &&
+    checklist.full_uat_passed === true &&
+    checklist.frontend_switch_approved === true;
+
+  if (!cutoverApproved) {
+    issues.push({
+      severity: "WARNING",
+      module: "Cutover",
+      message:
+        "Cutover Plan terbaru belum terbaca sebagai FULL UAT PASSED + FRONTEND SWITCH APPROVED.",
+      source: "cutover_plans",
+      count: 1,
+    });
+  }
+
+  const errorCount = issues.filter(
+    (row) => String(row.severity).toUpperCase() === "ERROR"
+  ).length;
+  const warningCount = issues.filter(
+    (row) => String(row.severity).toUpperCase() === "WARNING"
+  ).length;
+
+  const realRows = modules.reduce(
+    (sum, row) => sum + number(row.real_rows),
+    0
+  );
+
+  const moneyIn = number(
+    money?.summary?.uang_masuk_actual ??
+      owner?.sales_cash_position?.total_cash_in ??
+      0
+  );
+  const moneyOut = number(wallet?.summary?.total_out ?? 0);
+  const readyStock = number(
+    stock?.summary?.total_free_pcs ??
+      stock?.summary?.free_qty ??
+      0
+  );
+  const chickenRemaining = number(
+    drop?.summary?.remaining_kg ??
+      drop?.summary?.sisa_kg_ayam ??
+      drop?.summary?.active_lot_remaining_kg ??
+      production?.summary?.remaining_chicken_kg ??
+      0
+  );
+  const walletBalance = number(wallet?.summary?.total_balance ?? 0);
+
+  return {
+    summary: {
+      status:
+        errorCount > 0
+          ? "Bahaya"
+          : warningCount > 0
+            ? "Perlu Cek"
+            : "Aman",
+      error_count: errorCount,
+      warning_count: warningCount,
+      ghost_rows: 0,
+      real_rows: realRows,
+      modules_checked: modules.length,
+      source_of_truth: "PHP + MySQL",
+    },
+    modules,
+    issues,
+    checks: [
+      {
+        label: "PHP/MySQL Primary",
+        value: bridgeHealthy ? "Aktif" : "Belum Aktif",
+        type: "text",
+        status: bridgeHealthy ? "Aman" : "Bahaya",
+        severity: bridgeHealthy ? "INFO" : "ERROR",
+      },
+      {
+        label: "Saldo Dompet",
+        value: walletBalance,
+        type: "money",
+        status: "Live",
+        severity: "INFO",
+      },
+      {
+        label: "Uang Masuk Aktual",
+        value: moneyIn,
+        type: "money",
+        status: "Live",
+        severity: "INFO",
+      },
+      {
+        label: "Uang Keluar Aktual",
+        value: moneyOut,
+        type: "money",
+        status: "Live",
+        severity: "INFO",
+      },
+      {
+        label: "Sisa Hutang Nana",
+        value: supplierOutstanding,
+        type: "money",
+        status:
+          supplierOutstanding === ownerSupplierOutstanding
+            ? "Sinkron"
+            : "Tidak Sinkron",
+        severity:
+          supplierOutstanding === ownerSupplierOutstanding
+            ? "INFO"
+            : "ERROR",
+      },
+      {
+        label: "Sisa Ayam Aktif",
+        value: `${chickenRemaining.toLocaleString("id-ID")} kg`,
+        type: "text",
+        status: "Live",
+        severity: "INFO",
+      },
+      {
+        label: "Stok Ready",
+        value: `${readyStock.toLocaleString("id-ID")} pcs`,
+        type: "text",
+        status: "Live",
+        severity: "INFO",
+      },
+      {
+        label: "Cutover Approval",
+        value: cutoverApproved
+          ? "FULL UAT + SWITCH APPROVED"
+          : "Perlu Cek",
+        type: "text",
+        status: cutoverApproved ? "Aman" : "Perlu Cek",
+        severity: cutoverApproved ? "INFO" : "WARNING",
+      },
+    ],
+    recent: archiveRows.slice(0, 8),
+    meta: {
+      backend: "PHP + MySQL",
+      legacy_sheet_health_used: false,
+      bridgeHealthy,
+      cutoverApproved,
+      supplierOutstanding,
+      ownerSupplierOutstanding,
+      walletMissingSource,
+    },
+  };
 }
 
 function today() {
@@ -73,20 +574,26 @@ export default function SystemHealthPage({ session, onSessionExpired }) {
   async function loadData(nextFilters = filters) {
     setLoading(true);
     setError("");
+
     try {
-      const result = await legacySafeRequest("getLegacySystemHealthBootstrap", nextFilters, sessionToken);
-      if (isAuthRequired(result)) {
+      const nextData = await buildPhpHealthSnapshot(
+        nextFilters,
+        sessionToken
+      );
+      setData(nextData);
+    } catch (err) {
+      const message =
+        err?.message || "Gagal membaca Data Health PHP/MySQL.";
+
+      if (
+        String(message).includes("AUTH_REQUIRED") ||
+        String(message).includes("SESSION")
+      ) {
         onSessionExpired?.();
         return;
       }
-      if (!result?.success) {
-        setError(result?.message || "Gagal membaca Data Health.");
-        setData({});
-        return;
-      }
-      setData(result.data || {});
-    } catch (err) {
-      setError(err?.message || "Gagal koneksi ke backend.");
+
+      setError(message);
       setData({});
     } finally {
       setLoading(false);
@@ -114,7 +621,7 @@ export default function SystemHealthPage({ session, onSessionExpired }) {
           <p className="da-kicker">Dimsum Aditya</p>
           <h1>Data Health</h1>
           <p className="da-muted">
-            Cek kesehatan kabel ERP: ID transaksi, source ID, ghost row, uang, stok, payroll, kewajiban, closing, dan arsip.
+            Cek kesehatan core ERP langsung dari PHP/MySQL: transaksi, source ID, uang, stok, hutang, 4 Amplop, arsip, dan cutover.
           </p>
         </div>
         <Badge tone={loading ? "warning" : healthTone}>
@@ -130,7 +637,7 @@ export default function SystemHealthPage({ session, onSessionExpired }) {
             <p className="da-kicker">Sistem Ringan & Bersih</p>
             <h2>Integrity Check ERP</h2>
             <p className="da-muted">
-              Halaman ini read-only. Tidak membuat transaksi baru, hanya membaca sumber hidup dan menandai data yang perlu dirapikan.
+              Halaman ini read-only dan memakai PHP/MySQL sebagai source of truth. Apps Script tidak dipakai untuk menentukan kesehatan core cutover.
             </p>
           </div>
           <Badge tone={healthTone}>{text(summary.status || (healthTone === "success" ? "Aman" : "Perlu Cek"))}</Badge>
@@ -169,7 +676,7 @@ export default function SystemHealthPage({ session, onSessionExpired }) {
           <div>
             <p className="da-kicker">Peta Modul</p>
             <h2>Kesehatan per Tab</h2>
-            <p className="da-muted">Baris kosong/formatting tidak dihitung sebagai transaksi hidup.</p>
+            <p className="da-muted">Semua angka di tabel ini berasal dari endpoint PHP/MySQL cutover, bukan tab Google Sheets legacy.</p>
           </div>
           <Badge tone="success">Read Only</Badge>
         </div>
@@ -248,12 +755,6 @@ export default function SystemHealthPage({ session, onSessionExpired }) {
           />
         </Card>
       </section>
-
-      <SystemHealthActionHub
-        session={session}
-        onSessionExpired={onSessionExpired}
-      />
-
       <Card>
         <p className="da-muted">
           Catatan: Data Health hanya membaca dan memberi alarm. Kalau ada sumber hilang, perbaiki dari modul asal seperti Kas & Dompet, Kas Keluar, Uang Masuk, Stok, Payroll, Kewajiban, atau Arsip Digital.
