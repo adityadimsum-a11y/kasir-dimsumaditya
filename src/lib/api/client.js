@@ -1,60 +1,16 @@
 // ======================================================
-// client.js - ERP DIMSUM ADITYA
-// Part 5R-4: API client pakai same-origin proxy + diagnostic message
-//
-// Jika backend URL adalah Apps Script, request diarahkan ke /api/apps-script
-// supaya browser custom domain tidak kena CORS.
+// ERP DIMSUM ADITYA - Frontend Cutover Hybrid Client
+// PHP + MySQL = primary source for migrated core modules.
+// Apps Script = temporary fallback ONLY for modules not migrated yet.
 // ======================================================
 
-const PROXY_ENDPOINT = "/api/apps-script";
-
-const getDirectApiUrl = () => {
-  const localOverride =
-    typeof window !== "undefined"
-      ? window.localStorage.getItem("dimsum_erp_api_url")
-      : "";
-
-  return String(
-    localOverride ||
-      import.meta.env.VITE_ERP_API_URL ||
-      import.meta.env.VITE_GAS_API_URL ||
-      import.meta.env.VITE_APPS_SCRIPT_URL ||
-      import.meta.env.VITE_GOOGLE_SCRIPT_URL ||
-      import.meta.env.VITE_API_URL ||
-      ""
-  ).trim();
-};
-
-function isAppsScriptUrl(urlText) {
-  try {
-    const url = new URL(urlText);
-    return (
-      url.hostname === "script.google.com" ||
-      url.hostname === "script.googleusercontent.com"
-    );
-  } catch {
-    return false;
-  }
-}
-
-function shouldUseProxy(apiUrl) {
-  if (!apiUrl) return false;
-  if (typeof window === "undefined") return false;
-  return isAppsScriptUrl(apiUrl);
-}
-
-function buildRequestTarget(apiUrl) {
-  if (shouldUseProxy(apiUrl)) return PROXY_ENDPOINT;
-  return apiUrl;
-}
+const PHP_PROXY_ENDPOINT = "/api/erp-v2";
+const LEGACY_PROXY_ENDPOINT = "/api/apps-script";
+const SESSION_KEY = "dimsum_aditya_session_v1";
 
 const normalizeResponse = (result) => {
   if (!result) {
-    return {
-      success: false,
-      message: "Response kosong dari mesin backend.",
-      data: null,
-    };
+    return { success: false, message: "Response kosong dari backend.", data: null };
   }
 
   if (result.success === true || result.status === "success" || result.ok === true) {
@@ -73,7 +29,7 @@ const normalizeResponse = (result) => {
       result.message ||
       result.error?.message ||
       result.error ||
-      "Request ditolak mesin backend.",
+      "Request ditolak backend.",
     data: result.data || null,
     error: result.error || null,
     code: result.code || result.error?.code || "REQUEST_FAILED",
@@ -81,8 +37,37 @@ const normalizeResponse = (result) => {
   };
 };
 
-function buildBody(action, payload, sessionToken, apiUrl) {
-  const body = {
+function getSavedSession() {
+  if (typeof window === "undefined") return null;
+  try {
+    return JSON.parse(window.localStorage.getItem(SESSION_KEY) || "null");
+  } catch {
+    return null;
+  }
+}
+
+export function getLegacySessionToken() {
+  return getSavedSession()?.legacySessionToken || "";
+}
+
+export function getLegacyApiUrl() {
+  const localOverride =
+    typeof window !== "undefined"
+      ? window.localStorage.getItem("dimsum_legacy_erp_api_url")
+      : "";
+
+  return String(
+    localOverride ||
+      import.meta.env.VITE_LEGACY_ERP_API_URL ||
+      import.meta.env.VITE_GAS_API_URL ||
+      import.meta.env.VITE_APPS_SCRIPT_URL ||
+      import.meta.env.VITE_GOOGLE_SCRIPT_URL ||
+      ""
+  ).trim();
+}
+
+function buildBody(action, payload, sessionToken) {
+  return {
     action,
     route: action,
     payload,
@@ -90,56 +75,34 @@ function buildBody(action, payload, sessionToken, apiUrl) {
     sessionToken,
     session_token: sessionToken,
     token: sessionToken,
+    operation_id:
+      payload?.operation_id ||
+      payload?.operationId ||
+      payload?.request_id ||
+      payload?.requestId ||
+      "",
   };
-
-  if (shouldUseProxy(apiUrl)) {
-    body.__proxy = "vercel-apps-script";
-    body.__targetApiUrl = apiUrl;
-  }
-
-  return body;
 }
 
-export async function apiRequest(action, payload = {}, sessionToken = "") {
-  const apiUrl = getDirectApiUrl();
-  const targetUrl = buildRequestTarget(apiUrl);
-
-  if (!apiUrl) {
-    return {
-      success: false,
-      message:
-        "URL backend belum diset. Isi VITE_ERP_API_URL di .env atau Environment Variable Vercel.",
-      data: null,
-      error: {
-        code: "MISSING_API_URL",
-      },
-    };
-  }
-
+async function requestJson(targetUrl, body, contentType = "application/json") {
   try {
     const response = await fetch(targetUrl, {
       method: "POST",
-      headers: {
-        "Content-Type": "text/plain;charset=utf-8",
-      },
-      body: JSON.stringify(buildBody(action, payload, sessionToken, apiUrl)),
+      headers: { "Content-Type": contentType },
+      body: JSON.stringify(body),
     });
 
     const text = await response.text();
-
     let parsed;
+
     try {
       parsed = JSON.parse(text);
     } catch {
       return {
         success: false,
-        message:
-          "Response backend bukan JSON valid. Buka /api/apps-script-diagnostics untuk cek proxy dan akses Web App.",
+        message: "Response backend bukan JSON valid.",
         data: null,
-        error: {
-          code: "INVALID_JSON_RESPONSE",
-          raw: text.slice(0, 500),
-        },
+        error: { code: "INVALID_JSON_RESPONSE", raw: text.slice(0, 500) },
       };
     }
 
@@ -147,20 +110,55 @@ export async function apiRequest(action, payload = {}, sessionToken = "") {
   } catch (err) {
     return {
       success: false,
-      message: err.message || "Koneksi ke backend gagal.",
+      message: err?.message || "Koneksi backend gagal.",
       data: null,
-      error: {
-        code: "FETCH_ERROR",
-      },
+      error: { code: "FETCH_ERROR" },
     };
   }
 }
 
+export async function phpApiRequest(action, payload = {}, sessionToken = "") {
+  return requestJson(
+    PHP_PROXY_ENDPOINT,
+    buildBody(action, payload, sessionToken),
+    "application/json"
+  );
+}
+
+export async function legacyApiRequest(action, payload = {}, sessionToken = "") {
+  const apiUrl = getLegacyApiUrl();
+
+  if (!apiUrl) {
+    return {
+      success: false,
+      message: "Backend legacy Apps Script belum dikonfigurasi.",
+      data: null,
+      error: { code: "LEGACY_API_URL_MISSING" },
+    };
+  }
+
+  const effectiveToken = sessionToken || getLegacySessionToken();
+  const body = buildBody(action, payload, effectiveToken);
+  body.__proxy = "vercel-apps-script";
+  body.__targetApiUrl = apiUrl;
+
+  return requestJson(
+    LEGACY_PROXY_ENDPOINT,
+    body,
+    "text/plain;charset=utf-8"
+  );
+}
+
+// Default apiRequest sengaja tetap legacy.
+// Migrated core actions WAJIB memanggil phpApiRequest secara eksplisit di actions.js.
+export async function apiRequest(action, payload = {}, sessionToken = "") {
+  return legacyApiRequest(action, payload, sessionToken);
+}
+
 export function getConfiguredApiUrl() {
-  return getDirectApiUrl();
+  return "PHP/MySQL primary · Apps Script fallback";
 }
 
 export function getEffectiveApiEndpoint() {
-  const apiUrl = getDirectApiUrl();
-  return buildRequestTarget(apiUrl);
+  return PHP_PROXY_ENDPOINT;
 }
