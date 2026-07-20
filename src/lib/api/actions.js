@@ -597,7 +597,7 @@ export async function getOwnerControlBootstrap(sessionToken, payload = {}) {
         },
         obligations: {
           ...(legacySummary.obligations || {}),
-          hutang_remaining: Number(supplier.grand_outstanding || supplier.outstanding || 0),
+          hutang_remaining: Number(supplier.total_outstanding || supplier.grand_outstanding || supplier.outstanding || 0),
         },
         stock: {
           ...(legacySummary.stock || {}),
