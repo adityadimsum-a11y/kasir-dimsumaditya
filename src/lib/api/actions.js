@@ -1,12 +1,14 @@
-import { apiRequest, getConfiguredApiUrl } from "./client";
+import { apiRequest, phpApiRequest, legacyApiRequest, getLegacySessionToken, getConfiguredApiUrl } from "./client";
 
 const normalizeLoginPayload = (result) => {
   const payload = result.data || {};
   const user = payload.user || {};
   const sessionToken = payload.session_token || payload.sessionToken || "";
+  const legacySessionToken = payload.legacySessionToken || "";
 
   return {
     sessionToken,
+    legacySessionToken,
     user: {
       ...user,
       id: user.user_id || user.id || user.username,
@@ -23,7 +25,7 @@ const normalizeLoginPayload = (result) => {
       location_code: user.location_code || "",
       location_name: user.location_name || "",
     },
-    allowedMenus: payload.allowed_menus || payload.allowedMenus || [],
+    allowedMenus: payload.allowed_menus || payload.allowedMenus || user.allowed_menus || user.allowedMenus || [],
     raw: payload,
   };
 };
@@ -59,26 +61,45 @@ const withArchiveDetailPayload = (payload = {}) => ({
  */
 
 export async function loginUser({ username, password }) {
-  const result = await apiRequest("login", { username, password }, "");
+  // PHP/MySQL login is mandatory after cutover approval.
+  const php = await phpApiRequest("login", { username, password }, "");
+  if (!php.success) return php;
 
-  if (!result.success) {
-    return result;
-  }
+  // Legacy session is best-effort and only serves not-yet-migrated modules.
+  const legacy = await legacyApiRequest("login", { username, password }, "");
+  const normalized = normalizeLoginPayload(php);
 
   return {
     success: true,
-    message: result.message || "Login berhasil.",
-    data: normalizeLoginPayload(result),
-    raw: result,
+    message: legacy.success
+      ? "Login PHP/MySQL berhasil. Legacy fallback siap."
+      : "Login PHP/MySQL berhasil. Beberapa modul legacy mungkin meminta login ulang.",
+    data: {
+      ...normalized,
+      legacySessionToken:
+        legacy?.data?.session_token ||
+        legacy?.data?.sessionToken ||
+        legacy?.data?.token ||
+        "",
+      legacyFallbackReady: Boolean(legacy.success),
+    },
+    raw: { php, legacy },
   };
 }
 
 export async function logoutUser(sessionToken) {
-  return apiRequest("logout", {}, sessionToken);
+  const legacyToken = getLegacySessionToken();
+  const [php] = await Promise.all([
+    phpApiRequest("logout", {}, sessionToken),
+    legacyToken
+      ? legacyApiRequest("logout", {}, legacyToken)
+      : Promise.resolve({ success: true }),
+  ]);
+  return php;
 }
 
 export async function getCurrentUser(sessionToken) {
-  return apiRequest("getCurrentUser", {}, sessionToken);
+  return phpApiRequest("getCurrentUser", {}, sessionToken);
 }
 
 /**
@@ -86,7 +107,7 @@ export async function getCurrentUser(sessionToken) {
  */
 
 export async function pingBackend() {
-  return apiRequest("legacyBridgePing", {}, "");
+  return phpApiRequest("health", {}, "");
 }
 
 export async function getLegacyBootstrap(sessionToken, payload = {}) {
@@ -104,15 +125,11 @@ export async function getLegacyBootstrap(sessionToken, payload = {}) {
  */
 
 export async function getDropAyamBootstrap(sessionToken, payload = {}) {
-  return apiRequest("getLegacyChickenPurchaseBootstrap", withFastBootstrapPayload(payload, { limit: 30 }), sessionToken);
+  return phpApiRequest("getLegacyChickenPurchaseBootstrap", withFastBootstrapPayload(payload, { limit: 30 }), sessionToken);
 }
 
 export async function createDropAyam(sessionToken, payload = {}) {
-  return apiRequest(
-    "legacyCreateChickenDropFromOldPurchase",
-    payload,
-    sessionToken
-  );
+  return phpApiRequest("legacyCreateChickenDropFromOldPurchase", payload, sessionToken);
 }
 
 /**
@@ -121,23 +138,19 @@ export async function createDropAyam(sessionToken, payload = {}) {
  */
 
 export async function getProductionBootstrap(sessionToken, payload = {}) {
-  return apiRequest("getLegacyProductionBootstrap", withFastBootstrapPayload(payload, { limit: 30 }), sessionToken);
+  return phpApiRequest("getLegacyProductionBootstrap", withFastBootstrapPayload(payload, { limit: 30 }), sessionToken);
 }
 
 export async function createProductionBatch(sessionToken, payload = {}) {
-  return apiRequest(
-    "legacyCreateProductionBatchFromOldFactory",
-    payload,
-    sessionToken
-  );
+  return phpApiRequest("legacyCreateProductionBatchFromOldFactory", payload, sessionToken);
 }
 
 export async function voidProductionBatch(sessionToken, payload = {}) {
-  return apiRequest(
-    "legacyVoidProductionBatchFromOldFactory",
-    payload,
-    sessionToken
-  );
+  return {
+    success: false,
+    message: "Aksi void lama diblokir saat cutover. Gunakan reversal/void PHP+MySQL setelah route final tersedia.",
+    error: { code: "CUTOVER_LEGACY_CORE_WRITE_BLOCKED" },
+  };
 }
 
 /**
@@ -157,7 +170,7 @@ export async function createPOStockPlan(sessionToken, payload = {}) {
  */
 
 export async function getFinishedStockBootstrap(sessionToken, payload = {}) {
-  return apiRequest("getLegacyFinishedStockBootstrap", withFastBootstrapPayload(payload, { limit: 50 }), sessionToken);
+  return phpApiRequest("getFrontendCutoverFinishedStockBootstrap", withFastBootstrapPayload(payload, { limit: 100 }), sessionToken);
 }
 
 /**
@@ -165,15 +178,120 @@ export async function getFinishedStockBootstrap(sessionToken, payload = {}) {
  */
 
 export async function getOrderBootstrap(sessionToken, payload = {}) {
-  return apiRequest("getLegacyOrderBootstrap", withFastBootstrapPayload(payload, { limit: 30 }), sessionToken);
+  const [ordersResult, productionResult, legacyCustomers, legacyProducts] = await Promise.all([
+    phpApiRequest("getLegacyOrderBootstrap", withFastBootstrapPayload(payload, { limit: 30 }), sessionToken),
+    phpApiRequest("getLegacyProductionBootstrap", { limit: 20 }, sessionToken),
+    legacyApiRequest("getCustomers", {}, getLegacySessionToken()),
+    legacyApiRequest("getProducts", {}, getLegacySessionToken()),
+  ]);
+
+  if (!ordersResult.success) return ordersResult;
+
+  const data = ordersResult.data || {};
+  const prod = productionResult.success ? (productionResult.data || {}) : {};
+  const stockRows = data?.stock?.finished_goods_stock || data?.stock?.stock || [];
+  const stockMap = new Map(stockRows.map((row) => [String(row.product_id || ""), row]));
+  const legacyProductRows = Array.isArray(legacyProducts?.data)
+    ? legacyProducts.data
+    : (legacyProducts?.data?.products || []);
+  const legacyProductMap = new Map(
+    legacyProductRows.map((row) => [
+      String(row.product_id || row.id || row.product_code || ""),
+      row,
+    ])
+  );
+
+  const products = (prod.products || prod.adukan_products || []).map((row) => {
+    const legacy = legacyProductMap.get(String(row.product_id || "")) || {};
+    const stock = stockMap.get(String(row.product_id || "")) || {};
+    return {
+      ...legacy,
+      ...row,
+      stock_pcs: Number(stock.free_qty || stock.stok_bebas || 0),
+      free_pcs: Number(stock.free_qty || stock.stok_bebas || 0),
+      avg_unit_cost: Number(stock.average_unit_cost || 0),
+    };
+  });
+
+  const customers = Array.isArray(legacyCustomers?.data)
+    ? legacyCustomers.data
+    : (legacyCustomers?.data?.customers || []);
+
+  const orders = data.orders || [];
+  const summary = {
+    order_count: Number(data?.pagination?.total || orders.length || 0),
+    today_order_count: orders.filter((row) =>
+      String(row.order_date || "").slice(0, 10) === new Date().toISOString().slice(0, 10)
+    ).length,
+    uang_masuk_actual: orders.reduce((sum, row) => sum + Number(row.amount_paid || row.paid_amount || 0), 0),
+    piutang_open: orders.reduce((sum, row) => sum + Number(row.remaining_amount || 0), 0),
+    stock_ready_pcs: stockRows.reduce((sum, row) => sum + Number(row.free_qty || 0), 0),
+    product_ready_count: stockRows.filter((row) => Number(row.free_qty || 0) > 0).length,
+  };
+
+  return {
+    ...ordersResult,
+    data: {
+      ...data,
+      products,
+      customers,
+      wallets: data.wallets || [],
+      summary,
+    },
+  };
 }
 
 export async function createOrder(sessionToken, payload = {}) {
-  return apiRequest("legacyCreateOrderHardenedFromOldPos", payload, sessionToken);
+  const input = { ...(payload || {}) };
+  const order = { ...(input.order || {}) };
+  const paid = Number(order.paid_amount ?? input.paid_amount ?? order.amount_paid ?? 0);
+  const method = String(order.payment_method || input.payment_method || "").toUpperCase();
+
+  order.order_mode = "DIRECT";
+  input.order_mode = "DIRECT";
+  input.order = order;
+
+  if (paid > 0 && !input.wallet_id && !order.wallet_id) {
+    const bootstrap = await phpApiRequest("getWalletBootstrap", {}, sessionToken);
+    if (!bootstrap.success) return bootstrap;
+
+    const wallets = bootstrap.data?.wallets || [];
+    const wallet = wallets.find((row) => {
+      const haystack = [
+        row.wallet_id,
+        row.wallet_code,
+        row.wallet_name,
+      ].map((v) => String(v || "").toUpperCase()).join(" ");
+
+      if (method.includes("BCA")) return haystack.includes("BCA");
+      if (method.includes("BRI")) return haystack.includes("BRI");
+      if (method.includes("CASH") || method.includes("TUNAI")) {
+        return haystack.includes("CASH") || haystack.includes("TUNAI") || haystack.includes("KAS");
+      }
+      return haystack.includes(method);
+    });
+
+    if (!wallet) {
+      return {
+        success: false,
+        message: `Dompet PHP/MySQL untuk metode ${method || "pembayaran"} tidak ditemukan.`,
+        error: { code: "CUTOVER_ORDER_WALLET_NOT_FOUND" },
+      };
+    }
+
+    input.wallet_id = wallet.wallet_id;
+    order.wallet_id = wallet.wallet_id;
+  }
+
+  return phpApiRequest("legacyCreateOrder", input, sessionToken);
 }
 
 export async function voidOrder(sessionToken, payload = {}) {
-  return apiRequest("legacyVoidOrderFromOldPos", payload, sessionToken);
+  return {
+    success: false,
+    message: "Aksi void lama diblokir saat cutover. Gunakan reversal/void PHP+MySQL setelah route final tersedia.",
+    error: { code: "CUTOVER_LEGACY_CORE_WRITE_BLOCKED" },
+  };
 }
 
 /**
@@ -214,15 +332,15 @@ export async function getWallets(sessionToken, payload = {}) {
  */
 
 export async function getMoneyInBootstrap(sessionToken, payload = {}) {
-  return apiRequest("getLegacyMoneyInBootstrap", withFastBootstrapPayload(payload, { limit: 30 }), sessionToken);
+  return phpApiRequest("getFrontendCutoverMoneyInBootstrap", withFastBootstrapPayload(payload, { limit: 100 }), sessionToken);
 }
 
 export async function getKasDompetBootstrap(sessionToken, payload = {}) {
-  return apiRequest("getLegacyWalletBootstrap", withFastBootstrapPayload(payload, { limit: 60, cache_seconds: 20 }), sessionToken);
+  return phpApiRequest("getFrontendCutoverWalletBootstrap", withFastBootstrapPayload(payload, { limit: 200 }), sessionToken);
 }
 
 export async function getKasDompetMutationDetail(sessionToken, payload = {}) {
-  return apiRequest("getLegacyWalletMutationDetail", payload, sessionToken);
+  return phpApiRequest("getFrontendCutoverWalletMutationDetail", payload, sessionToken);
 }
 
 export async function getKasKeluarBootstrap(sessionToken, payload = {}) {
@@ -239,7 +357,7 @@ export async function createKasKeluar(sessionToken, payload = {}) {
  */
 
 export async function recordCustomerReceivablePayment(sessionToken, payload = {}) {
-  return apiRequest("legacyRecordCustomerReceivablePayment", payload, sessionToken);
+  return phpApiRequest("createReceivablePayment", payload, sessionToken);
 }
 
 /**
@@ -248,11 +366,11 @@ export async function recordCustomerReceivablePayment(sessionToken, payload = {}
 
 
 export async function getAmplopBootstrap(sessionToken, payload = {}) {
-  return apiRequest("getLegacyAmplopBootstrap", payload, sessionToken);
+  return phpApiRequest("getFrontendCutoverEnvelopeBootstrap", payload, sessionToken);
 }
 
 export async function createAmplopAllocation(sessionToken, payload = {}) {
-  return apiRequest("legacyCreateAmplopAllocation", payload, sessionToken);
+  return phpApiRequest("legacyCreateAmplopAllocation", payload, sessionToken);
 }
 
 /**
@@ -359,11 +477,80 @@ export async function rebuildArchiveIndex(sessionToken, payload = {}) {
  */
 
 export async function getArchiveUniversalBootstrap(sessionToken, payload = {}) {
-  return apiRequest("getLegacyArchiveUniversalBootstrap", withFastBootstrapPayload(payload, { limit: 20, skip_health: true, cache_seconds: 45 }), sessionToken);
+  const result = await phpApiRequest("searchArchive", {
+    q: payload.query || payload.keyword || payload.search || "",
+    module: payload.source_module || payload.module || "",
+    limit: payload.limit || 50,
+    offset: 0,
+  }, sessionToken);
+
+  if (!result.success) return result;
+  const items = result.data?.items || result.data?.results || [];
+  const moduleCounts = new Map();
+
+  const rows = items.map((row) => {
+    const module = row.module || row.source_module || "TRANSAKSI";
+    moduleCounts.set(module, (moduleCounts.get(module) || 0) + 1);
+    return {
+      ...row,
+      source_id: row.transaction_id || row.source_id || row.archive_id,
+      source_module: module,
+      date: row.transaction_date || row.created_at,
+      reference_number: row.transaction_id || row.archive_id,
+    };
+  });
+
+  return {
+    ...result,
+    data: {
+      results: rows,
+      recent_records: rows,
+      summary: {
+        total_records: Number(result.data?.pagination?.total || rows.length),
+        filtered_records: rows.length,
+        modules_count: moduleCounts.size,
+      },
+      module_stats: Array.from(moduleCounts.entries()).map(([module, count]) => ({ module, count })),
+    },
+  };
 }
 
 export async function getArchiveUniversalDetail(sessionToken, payload = {}) {
-  return apiRequest("getLegacyArchiveUniversalDetail", withArchiveDetailPayload(payload), sessionToken);
+  const transactionId =
+    payload.source_id ||
+    payload.transaction_id ||
+    payload.id ||
+    payload.archive_id ||
+    "";
+
+  const result = await phpApiRequest("getArchiveDetail", {
+    transaction_id: transactionId,
+    archive_id: payload.archive_id || "",
+  }, sessionToken);
+
+  if (!result.success) return result;
+  const data = result.data || {};
+  const archive = data.archive || data.main || {};
+  const links = [...(data.outgoing_links || []), ...(data.incoming_links || [])];
+  const audits = data.timeline || data.audit_trail || [];
+
+  return {
+    ...result,
+    data: {
+      ...data,
+      main: {
+        ...archive,
+        source_id: archive.transaction_id || transactionId,
+        source_module: archive.module || archive.source_module,
+        date: archive.transaction_date || archive.created_at,
+        reference_number: archive.transaction_id || archive.archive_id,
+      },
+      relation_ids: links,
+      related_records: links,
+      timeline: [...links, ...audits],
+      audit_trail: audits,
+    },
+  };
 }
 
 
@@ -372,7 +559,71 @@ export async function getArchiveUniversalDetail(sessionToken, payload = {}) {
  */
 
 export async function getOwnerControlBootstrap(sessionToken, payload = {}) {
-  return apiRequest("getLegacyOwnerControlBootstrap", payload, sessionToken);
+  const [php, legacy] = await Promise.all([
+    phpApiRequest("getOwnerControlBootstrap", payload, sessionToken),
+    legacyApiRequest("getLegacyOwnerControlBootstrap", payload, getLegacySessionToken()),
+  ]);
+
+  if (!php.success) return php;
+
+  const core = php.data || {};
+  const legacyData = legacy.success ? (legacy.data || {}) : {};
+  const legacySummary = legacyData.summary || {};
+
+  const supplier = core.supplier_position || {};
+  const stock = core.stock_position || {};
+  const sales = core.sales_cash_position || {};
+  const receivable = core.receivable_position || {};
+  const cash = core.cash_position || {};
+  const envelopes = core.envelope_position || {};
+
+  const envelopeRows = envelopes.buckets || envelopes || [];
+  const allocatedTotal = Array.isArray(envelopeRows)
+    ? envelopeRows.reduce((sum, row) => sum + Number(row.current_balance || 0), 0)
+    : 0;
+
+  return {
+    ...php,
+    data: {
+      ...legacyData,
+      ...core,
+      summary: {
+        ...legacySummary,
+        wallet: {
+          ...(legacySummary.wallet || {}),
+          money_in: Number(sales.total_cash_in || sales.cash_in_total || cash.total_balance || 0),
+          mutation_count: Number(cash.mutation_count || 0),
+          total_balance: Number(cash.total_balance || 0),
+        },
+        obligations: {
+          ...(legacySummary.obligations || {}),
+          hutang_remaining: Number(supplier.total_outstanding || supplier.grand_outstanding || supplier.outstanding || 0),
+        },
+        stock: {
+          ...(legacySummary.stock || {}),
+          ready_pcs: Number(stock.free_qty || stock.ready_pcs || 0),
+          stock_value: Number(stock.physical_value || stock.stock_value || 0),
+        },
+        sales: {
+          ...(legacySummary.sales || {}),
+          invoice_total: Number(sales.invoice_total || sales.total_sales || 0),
+          orders_count: Number(sales.order_count || 0),
+        },
+        amplop: {
+          ...(legacySummary.amplop || {}),
+          allocated_total: allocatedTotal,
+          unallocated: Number(envelopes.unallocated || 0),
+        },
+        receivable: {
+          ...(legacySummary.receivable || {}),
+          remaining: Number(receivable.total_outstanding || receivable.outstanding || 0),
+        },
+      },
+      alerts: core.alerts || legacyData.alerts || [],
+      recommendations: core.recommendations || [],
+      action_queue: legacyData.action_queue || core.alerts || [],
+    },
+  };
 }
 
 
@@ -484,11 +735,11 @@ export { getConfiguredApiUrl };
  */
 
 export async function getHutangNanaBootstrap(sessionToken, payload = {}) {
-  return apiRequest("getLegacyHutangNanaBootstrap", withFastBootstrapPayload(payload, { limit: 30 }), sessionToken);
+  return phpApiRequest("getLegacyHutangNanaBootstrap", withFastBootstrapPayload(payload, { limit: 100 }), sessionToken);
 }
 
 export async function recordHutangNanaPayment(sessionToken, payload = {}) {
-  return apiRequest("legacyRecordHutangNanaPayment", payload, sessionToken);
+  return phpApiRequest("legacyRecordHutangNanaPayment", payload, sessionToken);
 }
 
 /**
