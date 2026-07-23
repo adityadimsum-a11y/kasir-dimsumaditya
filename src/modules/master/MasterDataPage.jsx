@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { getMasterDataCoreBootstrap } from "../../lib/api/actions";
+
+import {
+  createMasterDataCoreRecord,
+  getMasterDataCoreBootstrap,
+  setMasterDataCoreStatus,
+  updateMasterDataCoreRecord,
+} from "../../lib/api/actions";
 
 import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
@@ -9,203 +15,720 @@ import Modal from "../../components/ui/Modal";
 import PageHeader from "../../components/ui/PageHeader";
 import StatCard from "../../components/ui/StatCard";
 
+const PROTECTED_IDS = {
+  produk: ["PRD-DIMSUM"],
+  customer: [],
+  supplier: ["SUP-001"],
+  lokasi: ["LOC-TGR-001"],
+};
+
 const MODULE_CONFIG = {
   produk: {
     title: "Master Produk",
     badge: "Live Master",
+
     description:
       "Data produk/menu yang dipakai oleh produksi, stok, order, PO, dan laporan.",
-    introTitle: "Produk Jadi & Menu Usaha",
-    introFlow: "Produk → Harga → Stok → Order → Arsip",
+
+    introTitle:
+      "Produk Jadi & Menu Usaha",
+
+    introFlow:
+      "Produk → Harga → Stok → Order → Arsip",
+
     introDesc:
-      "Nama produk harus konsisten supaya kabel stok, kasir, PO, dan HPP tidak putus.",
-    tableTitle: "Produk yang Terdaftar",
-    emptyText: "Belum ada produk aktif di PHP/MySQL.",
+      "Nama dan kode produk harus konsisten supaya kabel stok, kasir, PO, dan HPP tidak putus.",
+
+    tableTitle:
+      "Produk yang Terdaftar",
+
+    emptyText:
+      "Belum ada produk terbaca.",
+
+    idKey:
+      "product_id",
+
+    defaultDraft: {
+      product_code: "",
+      product_name: "",
+      category: "Barang Jadi",
+      unit: "pcs",
+      notes:
+        "Produk aktif untuk transaksi ERP.",
+    },
+
+    fields: [
+      {
+        key: "product_code",
+        label: "Kode Produk",
+        placeholder: "DIMSUM",
+        lockedOnEdit: true,
+      },
+
+      {
+        key: "product_name",
+        label: "Nama Produk",
+        placeholder: "Dimsum Ayam Mix",
+        required: true,
+      },
+
+      {
+        key: "category",
+        label: "Kategori",
+        placeholder: "Barang Jadi",
+      },
+
+      {
+        key: "unit",
+        label: "Satuan",
+        placeholder: "pcs",
+      },
+
+      {
+        key: "notes",
+        label: "Catatan",
+        placeholder: "Catatan produk",
+      },
+    ],
+
     columns: [
       {
         key: "product_code",
         label: "Kode",
       },
+
       {
         key: "product_name",
         label: "Produk",
       },
+
       {
         key: "category",
         label: "Kategori",
       },
+
       {
         key: "unit",
         label: "Satuan",
       },
+
       {
-        key: "selling_price",
-        label: "Harga",
-        render: (row) => formatMoney(row.selling_price),
+        key: "price_rule_count",
+        label: "Aturan Harga",
+
+        render: (row) =>
+          `${Number(
+            row.price_rule_count || 0
+          )} aturan`,
       },
+
       {
         key: "status",
         label: "Status",
+
         render: (row) => (
-          <Badge tone={row.active ? "success" : "warning"}>
-            {row.active ? "Aktif" : "Nonaktif"}
+          <Badge
+            tone={
+              row.active
+                ? "success"
+                : "warning"
+            }
+          >
+            {row.active
+              ? "Aktif"
+              : "Nonaktif"}
           </Badge>
         ),
       },
     ],
+
+    detailFields: [
+      [
+        "product_id",
+        "ID Produk",
+      ],
+
+      [
+        "product_code",
+        "Kode Produk",
+      ],
+
+      [
+        "product_name",
+        "Nama Produk",
+      ],
+
+      [
+        "category",
+        "Kategori",
+      ],
+
+      [
+        "unit",
+        "Satuan",
+      ],
+
+      [
+        "price_rule_count",
+        "Aturan Harga",
+      ],
+
+      [
+        "status",
+        "Status",
+      ],
+
+      [
+        "notes",
+        "Catatan",
+      ],
+    ],
+
+    formNote:
+      "Harga jual tidak disimpan sebagai satu harga tetap di Master Produk. Harga akan dikelola per lokasi, tipe harga, satuan, dan customer. HPP tetap berasal dari DROP Ayam → Produksi/Adukan → modal historis.",
   },
 
   customer: {
-    title: "Master Customer",
-    badge: "Live Customer",
+    title:
+      "Master Customer",
+
+    badge:
+      "Live Customer",
+
     description:
       "Data pelanggan untuk kasir/order, harga khusus, piutang, riwayat pembelian, dan follow-up.",
-    introTitle: "Pelanggan & Riwayat Order",
-    introFlow: "Customer → Order → Piutang → Uang Masuk → Arsip",
+
+    introTitle:
+      "Pelanggan & Riwayat Order",
+
+    introFlow:
+      "Customer → Order → Piutang → Uang Masuk → Arsip",
+
     introDesc:
-      "Nama customer harus konsisten supaya transaksi dan riwayat pembelian dapat menyatu.",
-    tableTitle: "Customer yang Terdaftar",
-    emptyText: "Belum ada customer aktif di PHP/MySQL.",
+      "Customer yang sama jangan dibuat berulang supaya riwayat pembelian dan piutang tetap menyatu.",
+
+    tableTitle:
+      "Customer yang Terdaftar",
+
+    emptyText:
+      "Belum ada customer terbaca.",
+
+    idKey:
+      "customer_id",
+
+    defaultDraft: {
+      customer_name: "",
+      phone: "",
+      area: "",
+      price_type: "NORMAL",
+      notes: "Customer aktif.",
+    },
+
+    fields: [
+      {
+        key: "customer_name",
+        label: "Nama Customer",
+        placeholder: "Nama pelanggan",
+        required: true,
+      },
+
+      {
+        key: "phone",
+        label: "No HP / WA",
+        placeholder: "08xxx",
+      },
+
+      {
+        key: "area",
+        label: "Area",
+        placeholder:
+          "Tangerang / Bogor",
+      },
+
+      {
+        key: "price_type",
+        label: "Tipe Harga",
+        placeholder:
+          "NORMAL / RESELLER / KHUSUS",
+      },
+
+      {
+        key: "notes",
+        label: "Catatan",
+        placeholder:
+          "Catatan customer",
+      },
+    ],
+
     columns: [
       {
         key: "customer_name",
         label: "Customer",
       },
+
       {
         key: "phone",
         label: "Kontak",
       },
+
       {
         key: "area",
         label: "Area",
       },
+
       {
         key: "price_type",
         label: "Tipe Harga",
       },
+
       {
         key: "status",
         label: "Status",
+
         render: (row) => (
-          <Badge tone={row.active ? "success" : "warning"}>
-            {row.active ? "Aktif" : "Nonaktif"}
+          <Badge
+            tone={
+              row.active
+                ? "success"
+                : "warning"
+            }
+          >
+            {row.active
+              ? "Aktif"
+              : "Nonaktif"}
           </Badge>
         ),
       },
     ],
+
+    detailFields: [
+      [
+        "customer_id",
+        "ID Customer",
+      ],
+
+      [
+        "customer_code",
+        "Kode Customer",
+      ],
+
+      [
+        "customer_name",
+        "Nama Customer",
+      ],
+
+      [
+        "phone",
+        "No HP / WA",
+      ],
+
+      [
+        "area",
+        "Area",
+      ],
+
+      [
+        "price_type",
+        "Tipe Harga",
+      ],
+
+      [
+        "status",
+        "Status",
+      ],
+
+      [
+        "notes",
+        "Catatan",
+      ],
+    ],
+
+    formNote:
+      "Customer tidak dibuat otomatis. Buat hanya customer nyata supaya order, piutang, pembayaran, dan riwayat pembelian tidak terpecah.",
   },
 
   supplier: {
-    title: "Master Supplier",
-    badge: "Live Supplier",
+    title:
+      "Master Supplier",
+
+    badge:
+      "Live Supplier",
+
     description:
-      "Data supplier untuk pembelian, hutang, pembayaran, dan arsip. Nana ayam tetap menjadi supplier utama ayam.",
-    introTitle: "Supplier & Kewajiban",
-    introFlow: "Supplier → Nota → Hutang → Bayar → Mutasi Dompet",
+      "Data supplier untuk pembelian, hutang, pembayaran, dan arsip.",
+
+    introTitle:
+      "Supplier & Kewajiban",
+
+    introFlow:
+      "Supplier → Nota → Hutang → Bayar → Mutasi Dompet",
+
     introDesc:
-      "Supplier harus memiliki identitas yang konsisten supaya hutang dan pembayaran dapat ditelusuri.",
-    tableTitle: "Supplier yang Terdaftar",
-    emptyText: "Belum ada supplier aktif di PHP/MySQL.",
+      "Supplier harus konsisten supaya nota, hutang, pembayaran, dan arsip bisa ditelusuri.",
+
+    tableTitle:
+      "Supplier yang Terdaftar",
+
+    emptyText:
+      "Belum ada supplier terbaca.",
+
+    idKey:
+      "supplier_id",
+
+    defaultDraft: {
+      supplier_name: "",
+      supplier_type:
+        "Bahan Baku",
+      phone: "",
+      default_wallet: "",
+      notes:
+        "Supplier aktif.",
+    },
+
+    fields: [
+      {
+        key: "supplier_name",
+        label: "Nama Supplier",
+        placeholder:
+          "Nama supplier",
+        required: true,
+      },
+
+      {
+        key: "supplier_type",
+        label: "Jenis Supplier",
+        placeholder:
+          "Ayam / Bahan Baku / Packaging",
+      },
+
+      {
+        key: "phone",
+        label: "Kontak",
+        placeholder: "08xxx",
+      },
+
+      {
+        key: "default_wallet",
+        label: "Jalur Bayar Biasa",
+        placeholder:
+          "BCA / BRI / Cash",
+      },
+
+      {
+        key: "notes",
+        label: "Catatan",
+        placeholder:
+          "Catatan supplier",
+      },
+    ],
+
     columns: [
       {
         key: "supplier_name",
         label: "Supplier",
       },
+
       {
         key: "supplier_type",
         label: "Jenis",
       },
+
       {
         key: "phone",
         label: "Kontak",
       },
+
       {
         key: "default_wallet",
-        label: "Dompet",
+        label: "Jalur Bayar",
       },
+
       {
         key: "status",
         label: "Status",
+
         render: (row) => (
-          <Badge tone={row.active ? "success" : "warning"}>
-            {row.active ? "Aktif" : "Nonaktif"}
+          <Badge
+            tone={
+              row.active
+                ? "success"
+                : "warning"
+            }
+          >
+            {row.active
+              ? "Aktif"
+              : "Nonaktif"}
           </Badge>
         ),
       },
     ],
+
+    detailFields: [
+      [
+        "supplier_id",
+        "ID Supplier",
+      ],
+
+      [
+        "supplier_code",
+        "Kode Supplier",
+      ],
+
+      [
+        "supplier_name",
+        "Nama Supplier",
+      ],
+
+      [
+        "supplier_type",
+        "Jenis Supplier",
+      ],
+
+      [
+        "phone",
+        "Kontak",
+      ],
+
+      [
+        "default_wallet",
+        "Jalur Bayar",
+      ],
+
+      [
+        "status",
+        "Status",
+      ],
+
+      [
+        "notes",
+        "Catatan",
+      ],
+    ],
+
+    formNote:
+      "SUP-001 NANA CHICKEN adalah supplier inti. Jangan membuat Nana kedua. Master inti dilindungi dari nonaktif.",
   },
 
   lokasi: {
-    title: "Master Lokasi",
-    badge: "Live Lokasi",
+    title:
+      "Master Lokasi",
+
+    badge:
+      "Live Lokasi",
+
     description:
-      "Data lokasi kerja, cabang, outlet, produksi, dan titik stok. Tangerang tetap menjadi pusat owner control.",
-    introTitle: "Cabang & Titik Stok",
-    introFlow: "Lokasi → Permission → Stok → Setoran → Monitoring",
+      "Data lokasi kerja, cabang, outlet, produksi, gudang, dan titik stok.",
+
+    introTitle:
+      "Lokasi Operasional & Titik Stok",
+
+    introFlow:
+      "Lokasi → Permission → Stok → Setoran → Monitoring",
+
     introDesc:
-      "Setiap lokasi memiliki ruang kerja dan akses sendiri sesuai izin. Owner/Tangerang dapat memantau seluruh lokasi.",
-    tableTitle: "Lokasi yang Terdaftar",
-    emptyText: "Belum ada lokasi aktif di PHP/MySQL.",
+      "Setiap lokasi punya identitas sendiri. Owner/Tangerang tetap menjadi pusat monitoring dan kontrol.",
+
+    tableTitle:
+      "Lokasi yang Terdaftar",
+
+    emptyText:
+      "Belum ada lokasi terbaca.",
+
+    idKey:
+      "location_id",
+
+    defaultDraft: {
+      location_code: "",
+      location_name: "",
+      location_type:
+        "BRANCH",
+      parent_location: "TGR",
+      notes:
+        "Lokasi aktif.",
+    },
+
+    fields: [
+      {
+        key: "location_code",
+        label: "Kode Lokasi",
+        placeholder:
+          "TGR / PML / CBN",
+        required: true,
+        lockedOnEdit: true,
+      },
+
+      {
+        key: "location_name",
+        label: "Nama Lokasi",
+        placeholder:
+          "Nama cabang / lokasi",
+        required: true,
+      },
+
+      {
+        key: "location_type",
+        label: "Tipe",
+        placeholder:
+          "HQ / PRODUCTION / OUTLET / BRANCH / WAREHOUSE",
+      },
+
+      {
+        key: "parent_location",
+        label: "Induk",
+        placeholder: "TGR",
+      },
+
+      {
+        key: "notes",
+        label: "Catatan",
+        placeholder:
+          "Catatan lokasi",
+      },
+    ],
+
     columns: [
       {
         key: "location_code",
         label: "Kode",
       },
+
       {
         key: "location_name",
         label: "Lokasi",
       },
+
       {
         key: "location_type",
         label: "Tipe",
       },
+
       {
         key: "parent_location",
         label: "Induk",
       },
+
       {
         key: "status",
         label: "Status",
+
         render: (row) => (
-          <Badge tone={row.active ? "success" : "warning"}>
-            {row.active ? "Aktif" : "Nonaktif"}
+          <Badge
+            tone={
+              row.active
+                ? "success"
+                : "warning"
+            }
+          >
+            {row.active
+              ? "Aktif"
+              : "Nonaktif"}
           </Badge>
         ),
       },
     ],
+
+    detailFields: [
+      [
+        "location_id",
+        "ID Lokasi",
+      ],
+
+      [
+        "location_code",
+        "Kode Lokasi",
+      ],
+
+      [
+        "location_name",
+        "Nama Lokasi",
+      ],
+
+      [
+        "location_type",
+        "Tipe",
+      ],
+
+      [
+        "parent_location",
+        "Induk",
+      ],
+
+      [
+        "status",
+        "Status",
+      ],
+
+      [
+        "notes",
+        "Catatan",
+      ],
+    ],
+
+    formNote:
+      "LOC-TGR-001 Tangerang HO adalah lokasi inti. Lokasi baru hanya dibuat untuk operasi nyata dan nantinya akun/permission mengikuti lokasi tersebut.",
   },
 };
 
 function asArray(value) {
-  return Array.isArray(value) ? value : [];
+  return Array.isArray(value)
+    ? value
+    : [];
 }
 
 function numberValue(value) {
   const parsed = Number(
-    String(value ?? "0").replace(/[^0-9.-]/g, "")
+    String(
+      value ?? "0"
+    ).replace(
+      /[^0-9.-]/g,
+      ""
+    )
   );
 
-  return Number.isFinite(parsed) ? parsed : 0;
+  return Number.isFinite(
+    parsed
+  )
+    ? parsed
+    : 0;
 }
 
-function cleanValue(value) {
-  return String(value ?? "").trim();
-}
+function safeText(
+  value,
+  fallback = "-"
+) {
+  const text = String(
+    value ?? ""
+  ).trim();
 
-function safeText(value, fallback = "-") {
-  const text = cleanValue(value);
   return text || fallback;
 }
 
-function formatMoney(value) {
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    maximumFractionDigits: 0,
-  }).format(numberValue(value));
+function cleanValue(value) {
+  return String(
+    value ?? ""
+  ).trim();
 }
 
-function isAuthRequired(result) {
+function makeOperationId(
+  moduleType,
+  action
+) {
+  return [
+    "OP-MASTER",
+    String(
+      moduleType || "MASTER"
+    ).toUpperCase(),
+    action,
+    Date.now(),
+    Math.random()
+      .toString(16)
+      .slice(2),
+  ].join("-");
+}
+
+function isAuthRequired(
+  result
+) {
   const message = String(
     result?.message ||
       result?.error?.message ||
@@ -219,483 +742,390 @@ function isAuthRequired(result) {
   ).toUpperCase();
 
   return (
-    code.includes("AUTH_REQUIRED") ||
-    message.includes("AUTH_REQUIRED") ||
+    code.includes(
+      "AUTH_REQUIRED"
+    ) ||
+    message.includes(
+      "AUTH_REQUIRED"
+    ) ||
     (
-      message.includes("SESSION") &&
-      message.includes("TIDAK AKTIF")
+      message.includes(
+        "SESSION"
+      ) &&
+      message.includes(
+        "TIDAK AKTIF"
+      )
     )
   );
 }
 
-function isActiveValue(value) {
-  const text = String(
-    value ?? "ACTIVE"
-  )
-    .trim()
-    .toUpperCase();
+function normalizeRow(
+  row,
+  moduleType
+) {
+  const activeRaw =
+    row?.active ??
+    row?.is_active ??
+    row?.status ??
+    "TRUE";
 
-  return ![
-    "FALSE",
-    "NO",
-    "0",
-    "NONAKTIF",
-    "NONACTIVE",
-    "INACTIVE",
-    "DISABLED",
-    "DELETED",
-    "VOID",
-    "CANCELLED",
-  ].includes(text);
-}
+  const activeText =
+    String(
+      activeRaw
+    )
+      .trim()
+      .toUpperCase();
 
-function hasMeaningfulRow(row, moduleType) {
-  if (!row) {
-    return false;
-  }
+  const active =
+    ![
+      "FALSE",
+      "NO",
+      "0",
+      "NONAKTIF",
+      "INACTIVE",
+      "DELETED",
+      "DISABLED",
+      "VOID",
+    ].includes(
+      activeText
+    );
 
-  if (moduleType === "produk") {
-    return Boolean(
+  if (
+    moduleType === "produk"
+  ) {
+    const productId =
       cleanValue(
         row.product_id ||
-          row.product_code ||
-          row.product_name
-      )
-    );
-  }
-
-  if (moduleType === "customer") {
-    return Boolean(
-      cleanValue(
-        row.customer_id ||
-          row.customer_name ||
-          row.phone ||
-          row.area
-      )
-    );
-  }
-
-  if (moduleType === "supplier") {
-    return Boolean(
-      cleanValue(
-        row.supplier_id ||
-          row.supplier_name ||
-          row.phone
-      )
-    );
-  }
-
-  return Boolean(
-    cleanValue(
-      row.location_id ||
-        row.location_code ||
-        row.location_name
-    )
-  );
-}
-
-function normalizeRow(row, moduleType) {
-  const active = isActiveValue(
-    row.active ??
-      row.is_active ??
-      row.status ??
-      "ACTIVE"
-  );
-
-  if (moduleType === "produk") {
-    const productId = cleanValue(
-      row.product_id || row.id
-    );
-
-    const productCode = cleanValue(
-      row.product_code ||
-        row.code ||
-        row.sku
-    );
-
-    const productName = cleanValue(
-      row.product_name ||
-        row.name ||
-        row.nama ||
-        row.item_name
-    );
+          row.id
+      );
 
     return {
       ...row,
 
       id:
         productId ||
-        productCode ||
-        productName,
+        cleanValue(
+          row.product_code
+        ),
 
-      master_id: productId,
+      master_id:
+        productId,
 
-      missing_id: Boolean(
-        row.missing_id ??
-          !productId
-      ),
+      product_id:
+        productId,
 
-      product_id: productId,
-      product_code: productCode,
-      product_name: productName,
+      product_code:
+        cleanValue(
+          row.product_code
+        ),
 
-      category: cleanValue(
-        row.category ||
-          row.kategori ||
-          row.product_type
-      ),
+      product_name:
+        cleanValue(
+          row.product_name
+        ),
 
-      unit: cleanValue(
-        row.unit ||
-          row.satuan
-      ),
+      category:
+        cleanValue(
+          row.category
+        ),
 
-      selling_price: numberValue(
-        row.selling_price ||
-          row.price ||
-          row.harga_jual ||
-          0
-      ),
+      unit:
+        cleanValue(
+          row.unit
+        ),
 
-      status: cleanValue(
-        row.status ||
-          (active ? "Active" : "Inactive")
-      ),
+      price_rule_count:
+        numberValue(
+          row.price_rule_count
+        ),
 
       active,
 
-      notes: cleanValue(
-        row.notes ||
-          row.catatan
-      ),
+      notes:
+        cleanValue(
+          row.notes
+        ),
     };
   }
 
-  if (moduleType === "customer") {
-    const customerId = cleanValue(
-      row.customer_id || row.id
-    );
-
-    const customerName = cleanValue(
-      row.customer_name ||
-        row.name ||
-        row.nama
-    );
+  if (
+    moduleType === "customer"
+  ) {
+    const customerId =
+      cleanValue(
+        row.customer_id ||
+          row.id
+      );
 
     return {
       ...row,
 
       id:
         customerId ||
-        customerName,
+        cleanValue(
+          row.customer_name
+        ),
 
-      master_id: customerId,
+      master_id:
+        customerId,
 
-      missing_id: Boolean(
-        row.missing_id ??
-          !customerId
-      ),
+      customer_id:
+        customerId,
 
-      customer_id: customerId,
-      customer_name: customerName,
+      customer_name:
+        cleanValue(
+          row.customer_name
+        ),
 
-      phone: cleanValue(
-        row.phone ||
-          row.whatsapp ||
-          row.no_hp ||
-          row.contact
-      ),
+      phone:
+        cleanValue(
+          row.phone
+        ),
 
-      area: cleanValue(
-        row.area ||
-          row.city ||
-          row.location ||
-          row.alamat
-      ),
+      area:
+        cleanValue(
+          row.area
+        ),
 
-      price_type: cleanValue(
-        row.price_type ||
-          row.tipe_harga ||
-          row.customer_type ||
-          "NORMAL"
-      ),
-
-      status: cleanValue(
-        row.status ||
-          (active ? "Active" : "Inactive")
-      ),
+      price_type:
+        cleanValue(
+          row.price_type
+        ),
 
       active,
 
-      notes: cleanValue(
-        row.notes ||
-          row.catatan
-      ),
+      notes:
+        cleanValue(
+          row.notes
+        ),
     };
   }
 
-  if (moduleType === "supplier") {
-    const supplierId = cleanValue(
-      row.supplier_id || row.id
-    );
-
-    const supplierName = cleanValue(
-      row.supplier_name ||
-        row.name ||
-        row.nama
-    );
+  if (
+    moduleType === "supplier"
+  ) {
+    const supplierId =
+      cleanValue(
+        row.supplier_id ||
+          row.id
+      );
 
     return {
       ...row,
 
       id:
         supplierId ||
-        supplierName,
+        cleanValue(
+          row.supplier_name
+        ),
 
-      master_id: supplierId,
+      master_id:
+        supplierId,
 
-      missing_id: Boolean(
-        row.missing_id ??
-          !supplierId
-      ),
+      supplier_id:
+        supplierId,
 
-      supplier_id: supplierId,
-      supplier_name: supplierName,
+      supplier_code:
+        cleanValue(
+          row.supplier_code
+        ),
 
-      supplier_type: cleanValue(
-        row.supplier_type ||
-          row.type ||
-          row.kategori
-      ),
+      supplier_name:
+        cleanValue(
+          row.supplier_name
+        ),
 
-      phone: cleanValue(
-        row.phone ||
-          row.no_hp ||
-          row.contact
-      ),
+      supplier_type:
+        cleanValue(
+          row.supplier_type
+        ),
 
-      default_wallet: cleanValue(
-        row.default_wallet ||
-          row.wallet ||
-          row.rekening
-      ),
+      phone:
+        cleanValue(
+          row.phone
+        ),
 
-      status: cleanValue(
-        row.status ||
-          (active ? "Active" : "Inactive")
-      ),
+      default_wallet:
+        cleanValue(
+          row.default_wallet
+        ),
 
       active,
 
-      notes: cleanValue(
-        row.notes ||
-          row.catatan
-      ),
+      notes:
+        cleanValue(
+          row.notes
+        ),
     };
   }
 
-  const locationId = cleanValue(
-    row.location_id || row.id
-  );
-
-  const locationCode = cleanValue(
-    row.location_code ||
-      row.code
-  );
-
-  const locationName = cleanValue(
-    row.location_name ||
-      row.name ||
-      row.nama
-  );
+  const locationId =
+    cleanValue(
+      row.location_id ||
+        row.id
+    );
 
   return {
     ...row,
 
     id:
       locationId ||
-      locationCode ||
-      locationName,
+      cleanValue(
+        row.location_code
+      ),
 
-    master_id: locationId,
+    master_id:
+      locationId,
 
-    missing_id: Boolean(
-      row.missing_id ??
-        !locationId
-    ),
+    location_id:
+      locationId,
 
-    location_id: locationId,
-    location_code: locationCode,
-    location_name: locationName,
+    location_code:
+      cleanValue(
+        row.location_code
+      ),
 
-    location_type: cleanValue(
-      row.location_type ||
-        row.type ||
-        row.kategori
-    ),
+    location_name:
+      cleanValue(
+        row.location_name
+      ),
 
-    parent_location: cleanValue(
-      row.parent_location ||
-        row.parent_code ||
-        row.parent
-    ),
+    location_type:
+      cleanValue(
+        row.location_type
+      ),
 
-    status: cleanValue(
-      row.status ||
-        (active ? "Active" : "Inactive")
-    ),
+    parent_location:
+      cleanValue(
+        row.parent_location
+      ),
 
     active,
 
-    notes: cleanValue(
-      row.notes ||
-        row.catatan
-    ),
+    notes:
+      cleanValue(
+        row.notes
+      ),
   };
 }
 
-function normalizePayload(payload, moduleType) {
+function normalizePayload(
+  payload,
+  moduleType
+) {
   const data =
     payload?.data ||
     payload ||
     {};
 
-  const normalizedRows = asArray(
-    data.rows ||
-      data.items ||
-      data[moduleType] ||
-      []
-  ).map((row) =>
-    normalizeRow(
-      row,
-      moduleType
-    )
-  );
-
-  const rows = normalizedRows.filter(
-    (row) =>
-      hasMeaningfulRow(
-        row,
-        moduleType
-      )
-  );
-
-  const hiddenBlankRows = numberValue(
-    data.summary?.hidden_blank_rows ??
-      Math.max(
-        0,
-        normalizedRows.length -
-          rows.length
-      )
-  );
+  const rows =
+    asArray(
+      data.rows ||
+        data.items ||
+        data[moduleType] ||
+        []
+    ).map(
+      (row) =>
+        normalizeRow(
+          row,
+          moduleType
+        )
+    );
 
   return {
     rows,
 
-    sourceOfTruth:
+    source_of_truth:
       data.source_of_truth ||
       "PHP_MYSQL",
 
-    writePolicy:
-      data.write_policy || {
-        writes_enabled: false,
-        legacy_seed_enabled: false,
-      },
-
     summary: {
-      total_rows: numberValue(
-        data.summary?.total_rows ??
-          rows.length
-      ),
+      total_rows:
+        numberValue(
+          data.summary
+            ?.total_rows ??
+            rows.length
+        ),
 
-      active_rows: numberValue(
-        data.summary?.active_rows ??
-          rows.filter(
-            (row) => row.active
-          ).length
-      ),
+      active_rows:
+        numberValue(
+          data.summary
+            ?.active_rows ??
+            rows.filter(
+              (row) =>
+                row.active
+            ).length
+        ),
 
-      inactive_rows: numberValue(
-        data.summary?.inactive_rows ??
-          rows.filter(
-            (row) => !row.active
-          ).length
-      ),
+      inactive_rows:
+        numberValue(
+          data.summary
+            ?.inactive_rows ??
+            rows.filter(
+              (row) =>
+                !row.active
+            ).length
+        ),
 
-      missing_id_rows: numberValue(
-        data.summary?.missing_id_rows ??
-          rows.filter(
-            (row) =>
-              row.missing_id ||
-              !row.master_id
-          ).length
-      ),
-
-      hidden_blank_rows:
-        hiddenBlankRows,
+      missing_id_rows:
+        numberValue(
+          data.summary
+            ?.missing_id_rows ??
+            rows.filter(
+              (row) =>
+                !row.master_id
+            ).length
+        ),
     },
 
-    warnings: asArray(
-      data.warnings
-    ),
+    write_policy: {
+      writes_enabled:
+        Boolean(
+          data.write_policy
+            ?.writes_enabled
+        ),
+
+      legacy_seed_enabled:
+        Boolean(
+          data.write_policy
+            ?.legacy_seed_enabled
+        ),
+
+      physical_delete_allowed:
+        Boolean(
+          data.write_policy
+            ?.physical_delete_allowed
+        ),
+    },
   };
 }
 
-function MasterDetail({
-  selected,
-  config,
-}) {
-  if (!selected) {
-    return null;
+function rowToDraft(
+  row,
+  config
+) {
+  const next = {
+    ...config.defaultDraft,
+  };
+
+  for (
+    const field
+    of config.fields
+  ) {
+    if (
+      row?.[field.key] !==
+        undefined &&
+      row?.[field.key] !==
+        null
+    ) {
+      next[field.key] =
+        String(
+          row[field.key]
+        );
+    }
   }
 
-  const hiddenKeys = new Set([
-    "id",
-    "master_id",
-    "missing_id",
-    "active",
-  ]);
-
-  const entries = Object.entries(
-    selected
-  )
-    .filter(
-      ([key]) =>
-        !hiddenKeys.has(key)
-    )
-    .slice(0, 20);
-
-  return (
-    <div className="da-detail-grid">
-      {entries.map(
-        ([key, value]) => (
-          <div
-            className="da-detail-box"
-            key={key}
-          >
-            <div className="da-mini-info-label">
-              {key}
-            </div>
-
-            <div className="da-mini-info-value">
-              {safeText(value)}
-            </div>
-          </div>
-        )
-      )}
-
-      <div
-        className="da-modal-note da-detail-box"
-        style={{
-          gridColumn: "1 / -1",
-        }}
-      >
-        Data master ini dibaca langsung
-        dari PHP/MySQL dan menjadi
-        referensi transaksi ERP.
-      </div>
-    </div>
-  );
+  return next;
 }
 
 export default function MasterDataPage({
@@ -704,77 +1134,142 @@ export default function MasterDataPage({
   onSessionExpired,
 }) {
   const config =
-    MODULE_CONFIG[moduleType] ||
+    MODULE_CONFIG[
+      moduleType
+    ] ||
     MODULE_CONFIG.produk;
 
   const sessionToken =
-    session?.sessionToken || "";
+    session?.sessionToken ||
+    "";
 
-  const [loading, setLoading] =
-    useState(true);
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
 
-  const [error, setError] =
-    useState("");
+  const [
+    saving,
+    setSaving,
+  ] = useState(false);
 
-  const [search, setSearch] =
-    useState("");
+  const [
+    statusSaving,
+    setStatusSaving,
+  ] = useState(false);
+
+  const [
+    error,
+    setError,
+  ] = useState("");
+
+  const [
+    success,
+    setSuccess,
+  ] = useState("");
+
+  const [
+    search,
+    setSearch,
+  ] = useState("");
 
   const [
     bootstrap,
     setBootstrap,
-  ] = useState(() =>
-    normalizePayload(
-      {},
-      moduleType
-    )
+  ] = useState(
+    () =>
+      normalizePayload(
+        {},
+        moduleType
+      )
   );
+
+  const [
+    draft,
+    setDraft,
+  ] = useState(
+    () => ({
+      ...config.defaultDraft,
+    })
+  );
+
+  const [
+    editingId,
+    setEditingId,
+  ] = useState("");
 
   const [
     selected,
     setSelected,
   ] = useState(null);
 
-  const viewColumns = useMemo(
-    () =>
-      (config.columns || []).map(
-        (column) => {
-          if (column.render) {
-            return column;
-          }
+  const writeEnabled =
+    bootstrap
+      .write_policy
+      .writes_enabled ===
+    true;
 
-          return {
-            ...column,
-            render: (row) =>
-              safeText(
-                row[column.key]
-              ),
-          };
+  const viewColumns =
+    useMemo(
+      () =>
+        (
+          config.columns ||
+          []
+        ).map(
+          (column) =>
+            column.render
+              ? column
+              : {
+                  ...column,
+
+                  render:
+                    (row) =>
+                      safeText(
+                        row[
+                          column
+                            .key
+                        ]
+                      ),
+                }
+        ),
+
+      [config.columns]
+    );
+
+  const filteredRows =
+    useMemo(
+      () => {
+        const term =
+          search
+            .trim()
+            .toLowerCase();
+
+        if (!term) {
+          return bootstrap.rows;
         }
-      ),
-    [config.columns]
-  );
 
-  const filteredRows = useMemo(
-    () => {
-      const term = search
-        .trim()
-        .toLowerCase();
+        return (
+          bootstrap.rows ||
+          []
+        ).filter(
+          (row) =>
+            JSON.stringify(
+              row
+            )
+              .toLowerCase()
+              .includes(
+                term
+              )
+        );
+      },
 
-      if (!term) {
-        return bootstrap.rows;
-      }
+      [
+        bootstrap.rows,
+        search,
+      ]
+    );
 
-      return bootstrap.rows.filter(
-        (row) =>
-          JSON.stringify(row)
-            .toLowerCase()
-            .includes(term)
-      );
-    },
-    [bootstrap.rows, search]
-  );
-
-  const loadData = async () => {
+  async function loadData() {
     setLoading(true);
     setError("");
 
@@ -789,16 +1284,20 @@ export default function MasterDataPage({
         );
 
       if (
-        isAuthRequired(result)
+        isAuthRequired(
+          result
+        )
       ) {
         onSessionExpired?.();
         return;
       }
 
-      if (!result?.success) {
+      if (
+        !result?.success
+      ) {
         setError(
           result?.message ||
-            "Data master belum bisa dibaca dari PHP/MySQL."
+            "Data master belum bisa dibaca."
         );
 
         return;
@@ -813,30 +1312,391 @@ export default function MasterDataPage({
     } catch (err) {
       setError(
         err?.message ||
-          "Gagal membaca Master Data dari PHP/MySQL."
+          "Gagal membaca master data."
       );
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  useEffect(() => {
-    setSearch("");
+  useEffect(
+    () => {
+      setDraft({
+        ...config.defaultDraft,
+      });
+
+      setEditingId("");
+      setSearch("");
+      setSelected(null);
+      setSuccess("");
+      setError("");
+
+      loadData();
+
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    },
+    [moduleType]
+  );
+
+  function updateDraft(
+    key,
+    value
+  ) {
+    setDraft(
+      (current) => ({
+        ...current,
+        [key]: value,
+      })
+    );
+  }
+
+  function resetDraft() {
+    setDraft({
+      ...config.defaultDraft,
+    });
+
+    setEditingId("");
+    setSuccess("");
+    setError("");
+  }
+
+  function isProtected(
+    row
+  ) {
+    const id = String(
+      row?.master_id ||
+        row?.id ||
+        ""
+    );
+
+    return (
+      PROTECTED_IDS[
+        moduleType
+      ] ||
+      []
+    ).includes(id);
+  }
+
+  function startEdit(row) {
+    if (
+      !row?.master_id
+    ) {
+      return;
+    }
+
+    setEditingId(
+      row.master_id
+    );
+
+    setDraft(
+      rowToDraft(
+        row,
+        config
+      )
+    );
+
     setSelected(null);
+    setError("");
+    setSuccess("");
 
-    loadData();
+    requestAnimationFrame(
+      () => {
+        document
+          .getElementById(
+            "master-live-form"
+          )
+          ?.scrollIntoView({
+            behavior:
+              "smooth",
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [moduleType]);
+            block:
+              "start",
+          });
+      }
+    );
+  }
+
+  async function handleSubmit(
+    event
+  ) {
+    event.preventDefault();
+
+    setError("");
+    setSuccess("");
+
+    if (
+      !writeEnabled
+    ) {
+      setError(
+        "LIVE WRITE belum aktif. Refresh halaman dan cek backend Master Data."
+      );
+
+      return;
+    }
+
+    const requiredField =
+      config.fields.find(
+        (field) =>
+          field.required &&
+          !String(
+            draft[
+              field.key
+            ] ||
+              ""
+          ).trim()
+      );
+
+    if (
+      requiredField
+    ) {
+      setError(
+        `${requiredField.label} wajib diisi.`
+      );
+
+      return;
+    }
+
+    const operationId =
+      makeOperationId(
+        moduleType,
+
+        editingId
+          ? "UPDATE"
+          : "CREATE"
+      );
+
+    const payload = {
+      module_type:
+        moduleType,
+
+      ...draft,
+
+      operation_id:
+        operationId,
+
+      request_id:
+        operationId,
+
+      idempotency_key:
+        operationId,
+    };
+
+    if (editingId) {
+      payload.master_id =
+        editingId;
+
+      payload[
+        config.idKey
+      ] = editingId;
+    }
+
+    setSaving(true);
+
+    try {
+      const result =
+        editingId
+          ? await updateMasterDataCoreRecord(
+              sessionToken,
+              payload
+            )
+          : await createMasterDataCoreRecord(
+              sessionToken,
+              payload
+            );
+
+      if (
+        isAuthRequired(
+          result
+        )
+      ) {
+        onSessionExpired?.();
+        return;
+      }
+
+      if (
+        !result?.success
+      ) {
+        setError(
+          result?.message ||
+            "Master data belum bisa disimpan."
+        );
+
+        return;
+      }
+
+      setSuccess(
+        result?.message ||
+          (
+            editingId
+              ? "Master data berhasil diperbarui."
+              : "Master data berhasil dibuat."
+          )
+      );
+
+      setDraft({
+        ...config.defaultDraft,
+      });
+
+      setEditingId("");
+
+      await loadData();
+    } catch (err) {
+      setError(
+        err?.message ||
+          "Gagal menyimpan master data."
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleStatus(
+    row
+  ) {
+    if (
+      !row?.master_id ||
+      statusSaving
+    ) {
+      return;
+    }
+
+    const nextActive =
+      !row.active;
+
+    if (
+      !nextActive &&
+      isProtected(row)
+    ) {
+      setError(
+        "Master inti ini dilindungi dan tidak boleh dinonaktifkan."
+      );
+
+      return;
+    }
+
+    const displayName =
+      row.product_name ||
+      row.customer_name ||
+      row.supplier_name ||
+      row.location_name ||
+      row.master_id;
+
+    const confirmed =
+      window.confirm(
+        nextActive
+          ? `Aktifkan kembali ${displayName}?`
+          : `Nonaktifkan ${displayName}?\n\nData tidak dihapus. Riwayat lama tetap tersimpan.`
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    const operationId =
+      makeOperationId(
+        moduleType,
+
+        nextActive
+          ? "ACTIVATE"
+          : "DEACTIVATE"
+      );
+
+    setStatusSaving(
+      true
+    );
+
+    setError("");
+    setSuccess("");
+
+    try {
+      const result =
+        await setMasterDataCoreStatus(
+          sessionToken,
+          {
+            module_type:
+              moduleType,
+
+            master_id:
+              row.master_id,
+
+            [
+              config.idKey
+            ]:
+              row.master_id,
+
+            active:
+              nextActive,
+
+            reason:
+              nextActive
+                ? "Diaktifkan kembali dari Master Data"
+                : "Dinonaktifkan dari Master Data",
+
+            operation_id:
+              operationId,
+
+            request_id:
+              operationId,
+
+            idempotency_key:
+              operationId,
+          }
+        );
+
+      if (
+        isAuthRequired(
+          result
+        )
+      ) {
+        onSessionExpired?.();
+        return;
+      }
+
+      if (
+        !result?.success
+      ) {
+        setError(
+          result?.message ||
+            "Status master belum bisa diubah."
+        );
+
+        return;
+      }
+
+      setSuccess(
+        result?.message ||
+          "Status master berhasil diubah."
+      );
+
+      setSelected(null);
+
+      await loadData();
+    } catch (err) {
+      setError(
+        err?.message ||
+          "Gagal mengubah status master."
+      );
+    } finally {
+      setStatusSaving(
+        false
+      );
+    }
+  }
 
   return (
     <div>
       <PageHeader
-        title={config.title}
+        title={
+          config.title
+        }
+
         description={
           config.description
         }
-        badge={config.badge}
+
+        badge={
+          config.badge
+        }
       />
 
       <Card>
@@ -847,15 +1707,21 @@ export default function MasterDataPage({
             </div>
 
             <div className="da-dashboard-banner-title">
-              {config.introTitle}
+              {
+                config.introTitle
+              }
             </div>
 
             <div className="da-dashboard-banner-desc">
-              {config.introFlow}
+              {
+                config.introFlow
+              }
             </div>
 
             <p className="da-muted">
-              {config.introDesc}
+              {
+                config.introDesc
+              }
             </p>
           </div>
 
@@ -874,16 +1740,30 @@ export default function MasterDataPage({
 
             <Button
               variant="ghost"
-              onClick={loadData}
-              disabled={loading}
+
+              onClick={
+                loadData
+              }
+
+              disabled={
+                loading
+              }
             >
               {loading
                 ? "Memuat..."
                 : "Refresh Data"}
             </Button>
 
-            <Badge tone="success">
-              PHP/MySQL
+            <Badge
+              tone={
+                writeEnabled
+                  ? "success"
+                  : "warning"
+              }
+            >
+              {writeEnabled
+                ? "PHP/MySQL Live Write"
+                : "Read Only"}
             </Badge>
           </div>
         </div>
@@ -895,100 +1775,217 @@ export default function MasterDataPage({
         </div>
       ) : null}
 
-      {bootstrap.summary
-        .hidden_blank_rows ? (
-        <div className="da-form-warning">
-          {
-            bootstrap.summary
-              .hidden_blank_rows
-          }{" "}
-          baris kosong atau formatting
-          disembunyikan supaya Master
-          Data hanya menampilkan data
-          nyata.
-        </div>
-      ) : null}
-
-      {!loading &&
-      bootstrap.summary.total_rows ===
-        0 ? (
-        <div className="da-form-warning">
-          Belum ada data pada master ini
-          di PHP/MySQL. Tambah, edit, dan
-          nonaktifkan masih dikunci
-          selama tahap stabilisasi awal.
+      {success ? (
+        <div className="da-form-success">
+          {success}
         </div>
       ) : null}
 
       <div className="da-grid da-grid-3">
         <StatCard
-          label="Total Data Bersih"
+          label="Total Data"
+
           value={
-            bootstrap.summary
+            bootstrap
+              .summary
               .total_rows
           }
-          description="Data master nyata yang memiliki identitas."
+
+          description="Master nyata yang tersimpan di PHP/MySQL."
         />
 
         <StatCard
           label="Aktif"
+
           value={
-            bootstrap.summary
+            bootstrap
+              .summary
               .active_rows
           }
-          description="Data aktif yang dapat menjadi referensi transaksi."
+
+          description="Data yang bisa dipakai transaksi."
         />
 
         <StatCard
           tone={
-            bootstrap.summary
-              .missing_id_rows
+            bootstrap
+              .summary
+              .inactive_rows
               ? "warning"
               : "default"
           }
-          label="Perlu ID"
+
+          label="Nonaktif"
+
           value={
-            bootstrap.summary
-              .missing_id_rows
+            bootstrap
+              .summary
+              .inactive_rows
           }
-          description="Data nyata yang belum memiliki ID master."
+
+          description="Tetap tersimpan untuk riwayat lama."
         />
       </div>
 
-      <Card>
-        <div className="da-section-heading">
-          <div>
-            <span>
-              Master Data PHP/MySQL
-            </span>
+      <div id="master-live-form">
+        <Card>
+          <div className="da-section-heading">
+            <div>
+              <span>
+                Master Data PHP/MySQL
+              </span>
 
-            <h2>
-              Input Master Sedang
-              Dikunci
-            </h2>
+              <h2>
+                {editingId
+                  ? `Edit ${config.title}`
+                  : `Tambah ${config.title}`}
+              </h2>
 
-            <p>
-              Data pada tahap ini sudah
-              dibaca langsung dari
-              PHP/MySQL. Tambah, edit,
-              dan nonaktifkan master akan
-              diaktifkan setelah validasi
-              data dasar selesai.
-            </p>
+              <p>
+                {editingId
+                  ? `ID ${editingId} sedang diedit. ID/kode inti dikunci supaya hubungan transaksi tetap aman.`
+                  : "Data baru langsung menjadi master hidup untuk transaksi berikutnya."}
+              </p>
+            </div>
+
+            <Badge
+              tone={
+                writeEnabled
+                  ? "success"
+                  : "warning"
+              }
+            >
+              {editingId
+                ? "Mode Edit"
+                : writeEnabled
+                ? "Live Write"
+                : "Terkunci"}
+            </Badge>
           </div>
 
-          <Badge tone="warning">
-            Read Only
-          </Badge>
-        </div>
+          <div className="da-form-warning">
+            {
+              config.formNote
+            }
+          </div>
 
-        <div className="da-form-warning">
-          Jangan membuat data master
-          melalui jalur legacy. PHP/MySQL
-          sekarang menjadi sumber data
-          utama.
-        </div>
-      </Card>
+          <form
+            onSubmit={
+              handleSubmit
+            }
+          >
+            <div className="da-form-grid">
+              {config.fields.map(
+                (field) => {
+                  const locked =
+                    Boolean(
+                      editingId &&
+                        field.lockedOnEdit
+                    );
+
+                  return (
+                    <label
+                      key={
+                        field.key
+                      }
+
+                      className="da-field"
+                    >
+                      {
+                        field.label
+                      }
+
+                      <input
+                        type={
+                          field.type ||
+                          "text"
+                        }
+
+                        value={
+                          draft[
+                            field
+                              .key
+                          ] ||
+                          ""
+                        }
+
+                        placeholder={
+                          field.placeholder ||
+                          ""
+                        }
+
+                        disabled={
+                          saving ||
+                          locked ||
+                          !writeEnabled
+                        }
+
+                        onChange={(
+                          event
+                        ) =>
+                          updateDraft(
+                            field.key,
+                            event
+                              .target
+                              .value
+                          )
+                        }
+                      />
+
+                      {locked ? (
+                        <small className="da-muted">
+                          Dikunci
+                          saat edit
+                          supaya
+                          referensi
+                          transaksi
+                          tidak
+                          berubah.
+                        </small>
+                      ) : null}
+                    </label>
+                  );
+                }
+              )}
+            </div>
+
+            <div className="da-form-actions">
+              <Button
+                type="button"
+
+                variant="ghost"
+
+                onClick={
+                  resetDraft
+                }
+
+                disabled={
+                  saving
+                }
+              >
+                {editingId
+                  ? "Batal Edit"
+                  : "Reset"}
+              </Button>
+
+              <Button
+                type="submit"
+
+                disabled={
+                  saving ||
+                  !writeEnabled
+                }
+              >
+                {saving
+                  ? "Menyimpan..."
+                  : editingId
+                  ? "Simpan Perubahan"
+                  : "Tambah Master"}
+              </Button>
+            </div>
+          </form>
+        </Card>
+      </div>
 
       <Card>
         <div className="da-section-heading">
@@ -998,13 +1995,17 @@ export default function MasterDataPage({
             </span>
 
             <h2>
-              {config.tableTitle}
+              {
+                config.tableTitle
+              }
             </h2>
 
             <p>
-              Klik baris untuk melihat
-              identitas dan detail data
-              dari PHP/MySQL.
+              Klik baris
+              untuk lihat
+              detail, edit,
+              atau
+              aktif/nonaktifkan.
             </p>
           </div>
 
@@ -1016,17 +2017,26 @@ export default function MasterDataPage({
         <div className="da-filter-row">
           <input
             className="da-input"
-            value={search}
-            placeholder="Cari nama, kode, area, atau data master..."
-            onChange={(event) =>
+
+            value={
+              search
+            }
+
+            placeholder="Cari nama, kode, area, supplier..."
+
+            onChange={(
+              event
+            ) =>
               setSearch(
-                event.target.value
+                event.target
+                  .value
               )
             }
           />
 
           <Button
             variant="ghost"
+
             onClick={() =>
               setSearch("")
             }
@@ -1036,8 +2046,14 @@ export default function MasterDataPage({
         </div>
 
         <DataTable
-          columns={viewColumns}
-          rows={filteredRows}
+          columns={
+            viewColumns
+          }
+
+          rows={
+            filteredRows
+          }
+
           getRowKey={(
             row,
             index
@@ -1045,42 +2061,228 @@ export default function MasterDataPage({
             row.id ||
             `${moduleType}-${index}`
           }
-          onRowClick={(row) =>
-            setSelected(row)
+
+          onRowClick={(
+            row
+          ) =>
+            setSelected(
+              row
+            )
           }
         />
 
         {!loading &&
-        filteredRows.length === 0 ? (
+        filteredRows.length ===
+          0 ? (
           <p
             className="da-muted"
+
             style={{
               marginTop: 12,
             }}
           >
-            {config.emptyText}
+            {
+              config.emptyText
+            }
           </p>
         ) : null}
       </Card>
 
       <Modal
-        open={Boolean(selected)}
+        open={
+          Boolean(
+            selected
+          )
+        }
+
         title={`Detail ${config.title}`}
-        subtitle={safeText(
-          selected?.id ||
-            selected?.product_id ||
-            selected?.customer_id ||
-            selected?.supplier_id ||
-            selected?.location_id
-        )}
+
+        subtitle={
+          safeText(
+            selected?.master_id ||
+              selected?.id
+          )
+        }
+
         onClose={() =>
-          setSelected(null)
+          setSelected(
+            null
+          )
         }
       >
-        <MasterDetail
-          selected={selected}
-          config={config}
-        />
+        {selected ? (
+          <div>
+            <div className="da-section-heading">
+              <div>
+                <span>
+                  Data Hidup
+                </span>
+
+                <h2>
+                  {safeText(
+                    selected.product_name ||
+                      selected.customer_name ||
+                      selected.supplier_name ||
+                      selected.location_name
+                  )}
+                </h2>
+              </div>
+
+              <div className="da-dashboard-banner-actions">
+                {isProtected(
+                  selected
+                ) ? (
+                  <Badge tone="warning">
+                    Master
+                    Inti
+                  </Badge>
+                ) : null}
+
+                <Badge
+                  tone={
+                    selected.active
+                      ? "success"
+                      : "warning"
+                  }
+                >
+                  {selected.active
+                    ? "Aktif"
+                    : "Nonaktif"}
+                </Badge>
+              </div>
+            </div>
+
+            <div className="da-detail-grid">
+              {config.detailFields.map(
+                ([
+                  key,
+                  label,
+                ]) => (
+                  <div
+                    className="da-detail-box"
+
+                    key={
+                      key
+                    }
+                  >
+                    <div className="da-mini-info-label">
+                      {
+                        label
+                      }
+                    </div>
+
+                    <div className="da-mini-info-value">
+                      {safeText(
+                        selected[
+                          key
+                        ]
+                      )}
+                    </div>
+                  </div>
+                )
+              )}
+
+              <div
+                className="da-modal-note da-detail-box"
+
+                style={{
+                  gridColumn:
+                    "1 / -1",
+                }}
+              >
+                Tidak ada
+                hapus permanen.
+                Nonaktif hanya
+                menghentikan
+                pemakaian untuk
+                transaksi baru.
+                Riwayat lama
+                tetap tersimpan.
+              </div>
+            </div>
+
+            <div
+              className="da-form-actions"
+
+              style={{
+                marginTop: 16,
+              }}
+            >
+              <Button
+                type="button"
+
+                variant="ghost"
+
+                onClick={() =>
+                  setSelected(
+                    null
+                  )
+                }
+              >
+                Tutup
+              </Button>
+
+              <Button
+                type="button"
+
+                variant="ghost"
+
+                onClick={() =>
+                  startEdit(
+                    selected
+                  )
+                }
+
+                disabled={
+                  !writeEnabled ||
+                  statusSaving
+                }
+              >
+                Edit Data
+              </Button>
+
+              <Button
+                type="button"
+
+                onClick={() =>
+                  handleStatus(
+                    selected
+                  )
+                }
+
+                disabled={
+                  !writeEnabled ||
+                  statusSaving ||
+                  (
+                    selected.active &&
+                    isProtected(
+                      selected
+                    )
+                  )
+                }
+
+                title={
+                  selected.active &&
+                  isProtected(
+                    selected
+                  )
+                    ? "Master inti dilindungi dan tidak boleh dinonaktifkan."
+                    : ""
+                }
+              >
+                {statusSaving
+                  ? "Memproses..."
+                  : selected.active
+                  ? isProtected(
+                      selected
+                    )
+                    ? "Dilindungi"
+                    : "Nonaktifkan"
+                  : "Aktifkan"}
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </Modal>
     </div>
   );
