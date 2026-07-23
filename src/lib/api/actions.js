@@ -759,8 +759,7 @@ export async function cancelPOQueue(sessionToken, payload = {}) {
 }
 
 /**
- * MASTER DATA CORE / FOUNDATION
- * 2A-1A — PHP/MySQL Single Source of Truth
+ * MASTER DATA CORE / PHP MYSQL LIVE WRITE
  */
 
 export async function getMasterDataCoreBootstrap(
@@ -768,7 +767,7 @@ export async function getMasterDataCoreBootstrap(
   payload = {}
 ) {
   return phpApiRequest(
-    "getLegacyMasterDataCoreBootstrap",
+    "getMasterDataCoreBootstrap",
     payload,
     sessionToken
   );
@@ -779,12 +778,38 @@ export async function createMasterDataCoreRecord(
   payload = {}
 ) {
   return phpApiRequest(
-    "legacyCreateMasterDataCoreRecord",
+    "createMasterDataCoreRecord",
     payload,
     sessionToken
   );
 }
 
+export async function updateMasterDataCoreRecord(
+  sessionToken,
+  payload = {}
+) {
+  return phpApiRequest(
+    "updateMasterDataCoreRecord",
+    payload,
+    sessionToken
+  );
+}
+
+export async function setMasterDataCoreStatus(
+  sessionToken,
+  payload = {}
+) {
+  return phpApiRequest(
+    "setMasterDataCoreStatus",
+    payload,
+    sessionToken
+  );
+}
+
+/**
+ * Tetap disediakan supaya import lama tidak crash.
+ * Backend PHP/MySQL memblokir auto-seed.
+ */
 export async function seedMasterDataCoreDefaults(
   sessionToken,
   payload = {}
