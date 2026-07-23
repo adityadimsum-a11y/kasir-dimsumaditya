@@ -438,10 +438,8 @@ export default function MasterDataPage({ moduleType = "produk", session, onSessi
           </div>
           <div className="da-dashboard-banner-actions">
             <Badge tone={error ? "danger" : "success"}>{error ? "Perlu Cek" : "Terhubung"}</Badge>
-            <Button variant="ghost" onClick={loadData} disabled={loading}>Refresh Data</Button>
-            <Button variant="ghost" onClick={handleSeedDefaults} disabled={seeding}>
-              {seeding ? "Menyiapkan..." : "Isi Data Dasar"}
-            </Button>
+              <Button variant="ghost" onClick={loadData} disabled={loading}>Refresh Data</Button>
+              <Badge tone="success">PHP/MySQL</Badge>
           </div>
         </div>
       </Card>
@@ -451,11 +449,12 @@ export default function MasterDataPage({ moduleType = "produk", session, onSessi
       {bootstrap.summary.hidden_blank_rows ? (
         <div className="da-form-warning">{bootstrap.summary.hidden_blank_rows} baris kosong/formatting disembunyikan supaya master data tidak menampilkan angka yatim.</div>
       ) : null}
-      {!loading && bootstrap.summary.total_rows === 0 ? (
-        <div className="da-form-warning">
-          Master bersih masih kosong. Klik <strong>Isi Data Dasar</strong> untuk membuat data awal penting: TGR, PML, CBN, Dimsum Ayam Mix, Nana Ayam, dan Customer Umum.
-        </div>
-      ) : null}
+{!loading && bootstrap.summary.total_rows === 0 ? (
+  <div className="da-form-warning">
+    Belum ada data pada master ini di PHP/MySQL.
+    Tambah/Edit masih dikunci selama tahap stabilisasi awal.
+  </div>
+) : null}
 
       <div className="da-grid da-grid-3">
         <StatCard label="Total Data Bersih" value={bootstrap.summary.total_rows} description="Hanya baris master yang punya nama/kode." />
@@ -463,15 +462,28 @@ export default function MasterDataPage({ moduleType = "produk", session, onSessi
         <StatCard tone={bootstrap.summary.missing_id_rows ? "warning" : "default"} label="Perlu ID" value={bootstrap.summary.missing_id_rows} description="Baris nyata yang belum punya ID master." />
       </div>
 
-      <Card>
-        <div className="da-section-heading">
-          <div>
-            <span>Input Master</span>
-            <h2>Tambah Data Baru</h2>
-            <p>Data ini akan dipakai modul hidup. Hapus fisik tidak disarankan, nanti pakai aktif/nonaktif.</p>
-          </div>
-          <Badge tone="warning">Live Input</Badge>
-        </div>
+<Card>
+  <div className="da-section-heading">
+    <div>
+      <span>Master Data PHP/MySQL</span>
+
+      <h2>Input Master Sedang Dikunci</h2>
+
+      <p>
+        Data pada tahap ini sudah dibaca langsung dari PHP/MySQL.
+        Tambah, edit, dan nonaktifkan master akan diaktifkan
+        setelah validasi data dasar selesai.
+      </p>
+    </div>
+
+    <Badge tone="warning">Read Only</Badge>
+  </div>
+
+  <div className="da-form-warning">
+    Jangan membuat data master melalui jalur legacy.
+    PHP/MySQL sekarang menjadi sumber data utama.
+  </div>
+</Card>
 
         <form onSubmit={handleSubmit}>
           <div className="da-form-grid">
