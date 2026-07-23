@@ -760,18 +760,40 @@ export async function cancelPOQueue(sessionToken, payload = {}) {
 
 /**
  * MASTER DATA CORE / FOUNDATION
+ * 2A-1A — PHP/MySQL Single Source of Truth
  */
 
-export async function getMasterDataCoreBootstrap(sessionToken, payload = {}) {
-  return apiRequest("getLegacyMasterDataCoreBootstrap", payload, sessionToken);
+export async function getMasterDataCoreBootstrap(
+  sessionToken,
+  payload = {}
+) {
+  return phpApiRequest(
+    "getLegacyMasterDataCoreBootstrap",
+    payload,
+    sessionToken
+  );
 }
 
-export async function createMasterDataCoreRecord(sessionToken, payload = {}) {
-  return apiRequest("legacyCreateMasterDataCoreRecord", payload, sessionToken);
+export async function createMasterDataCoreRecord(
+  sessionToken,
+  payload = {}
+) {
+  return phpApiRequest(
+    "legacyCreateMasterDataCoreRecord",
+    payload,
+    sessionToken
+  );
 }
 
-export async function seedMasterDataCoreDefaults(sessionToken, payload = {}) {
-  return apiRequest("legacySeedMasterDataCoreDefaults", payload, sessionToken);
+export async function seedMasterDataCoreDefaults(
+  sessionToken,
+  payload = {}
+) {
+  return phpApiRequest(
+    "legacySeedMasterDataCoreDefaults",
+    payload,
+    sessionToken
+  );
 }
 
 /**
