@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { createOrder, getOrderBootstrap } from "../../lib/api/actions";
+import { createOrder, getOrderBootstrap, resolveOrderItemPrice } from "../../lib/api/actions";
 import { formatRupiah } from "../../lib/format/money";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
@@ -16,6 +16,11 @@ const initialForm = {
   product_id: "",
   qty: "",
   unit_price: "",
+  price_rule_id: "",
+  price_name: "",
+  price_tier: "",
+  price_date: "",
+  price_source: "",
   paid_amount: "0",
   payment_method: "CASH",
   notes: "",
@@ -80,19 +85,7 @@ function normalizeProduct(row) {
   const code = row.product_code || row.sku || row.code || row.item_code || id || "";
   const name = row.product_name || row.item_name || row.name || row.nama_produk || code || "";
 
-  const pricePerPcs = numberValue(
-    row.price_per_pcs ||
-      row.harga_pcs ||
-      row.harga_per_pcs ||
-      row.price_pcs ||
-      row.normal_price_pcs ||
-      row.selling_price_pcs ||
-      row.unit_price ||
-      row.price ||
-      row.selling_price ||
-      row.harga_jual ||
-      0
-  );
+  // Selling price is never read from the product master on the Order page.
 
   const stockPcs = numberValue(
     row.stock_pcs || row.free_pcs || row.available_pcs || row.ready_pcs || row.qty_pcs || row.stock || 0
@@ -104,7 +97,7 @@ function normalizeProduct(row) {
     name: String(name || "").trim(),
     category: row.category || row.product_category || row.type || "",
     unit: row.default_unit || row.unit || "pcs",
-    price_per_pcs: pricePerPcs,
+    price_per_pcs: 0,
     stock_pcs: stockPcs,
     avg_unit_cost: numberValue(row.avg_unit_cost || row.unit_cost || row.hpp_per_pcs || 0),
     status: row.status || row.stock_status || "AKTIF",
@@ -207,8 +200,16 @@ function buildOrderPayload({ form, cart, totals, session, requestId }) {
     qty_pcs: item.qty,
     unit: "pcs",
     unit_price: item.unit_price,
+    price_per_unit: item.unit_price,
     price: item.unit_price,
     line_total: item.line_total,
+    unit_type: "PCS",
+    price_rule_id: item.price_rule_id,
+    price_name: item.price_name,
+    price_tier: item.price_tier,
+    price_source: item.price_source,
+    price_date: item.price_date,
+    pricing_snapshot: item.pricing_snapshot || null,
     stock_pcs_snapshot: item.stock_pcs,
   }));
 
@@ -243,7 +244,7 @@ function buildOrderPayload({ form, cart, totals, session, requestId }) {
     operation_id: operationId,
     client_request_id: operationId,
     idempotency_key: operationId,
-    source: "frontend_part_4p_kasir_order_hardening",
+    source: "frontend_part_2c_order_server_price_lock",
     location_id: locationId,
     order_date: form.order_date,
     customer_id: form.customer_id,
@@ -291,6 +292,8 @@ export default function OrderPage({ session, onSessionExpired }) {
   const [submitResult, setSubmitResult] = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [requestId, setRequestId] = useState(() => generateRequestId(session));
+  const [priceResolving, setPriceResolving] = useState(false);
+  const [pricePreview, setPricePreview] = useState(null);
 
   const products = useMemo(() => {
     return asArray(bootstrap?.products).map(normalizeProduct).filter((item) => item.id);
@@ -309,6 +312,9 @@ export default function OrderPage({ session, onSessionExpired }) {
   }, [bootstrap]);
 
   const summary = useMemo(() => buildSummary(bootstrap), [bootstrap]);
+  const pricingLock = bootstrap?.pricing_lock || {};
+  const pricingLockReady = pricingLock?.ready === true;
+  const pricingRulesActive = numberValue(pricingLock?.pricing_rules_active);
   const totals = useMemo(() => buildCartTotals(cart, form.paid_amount), [cart, form.paid_amount]);
   const livePayload = useMemo(() => buildOrderPayload({ form, cart, totals, session, requestId }), [form, cart, totals, session, requestId]);
 
@@ -316,6 +322,7 @@ export default function OrderPage({ session, onSessionExpired }) {
 
   const validationErrors = useMemo(() => {
     const errors = [];
+    if (!pricingLockReady) errors.push("Server Price Lock belum siap. Jalankan migration 015 dan refresh data.");
     if (!form.order_date) errors.push("Tanggal order wajib diisi.");
     if (!form.customer_id && !String(form.customer_name || "").trim()) errors.push("Nama customer wajib diisi.");
     if (cart.length === 0) errors.push("Keranjang masih kosong.");
@@ -332,7 +339,9 @@ export default function OrderPage({ session, onSessionExpired }) {
       const productKey = item.product_id || item.product_code || item.product_name || `item-${index}`;
 
       if (qty <= 0) errors.push(`Qty item ke-${index + 1} harus lebih dari 0.`);
-      if (unitPrice <= 0) errors.push(`Harga item ke-${index + 1} harus lebih dari 0.`);
+      if (unitPrice <= 0) errors.push(`Harga sistem item ke-${index + 1} belum valid.`);
+      if (!String(item.price_rule_id || "").trim()) errors.push(`Rule harga item ke-${index + 1} belum terkunci.`);
+      if (String(item.price_source || "") !== "PHP_MYSQL_PRICING") errors.push(`Sumber harga item ke-${index + 1} bukan PHP/MySQL Pricing Engine.`);
 
       qtyByProduct[productKey] = (qtyByProduct[productKey] || 0) + qty;
       stockByProduct[productKey] = Math.max(stockByProduct[productKey] || 0, numberValue(item.stock_pcs));
@@ -355,7 +364,10 @@ export default function OrderPage({ session, onSessionExpired }) {
     setError("");
 
     const result = await getOrderBootstrap(session?.sessionToken, {
-      source: "frontend_part_4p_kasir_order_hardening",
+      source: "frontend_part_2c_order_server_price_lock",
+      location_id:
+        session?.user?.location_id ||
+        "",
     });
 
     if (!result.success) {
@@ -387,23 +399,92 @@ export default function OrderPage({ session, onSessionExpired }) {
     }));
   };
 
+  const handleOrderDateChange = (value) => {
+    if (cart.length > 0) {
+      setSubmitResult({
+        success: false,
+        message: "Kosongkan keranjang sebelum mengganti tanggal order agar snapshot harga tidak stale.",
+      });
+      return;
+    }
+
+    setForm((current) => ({
+      ...current,
+      order_date: value,
+      unit_price: "",
+      price_rule_id: "",
+      price_name: "",
+      price_tier: "",
+      price_date: "",
+      price_source: "",
+    }));
+    setPricePreview(null);
+  };
+
   const handleCustomerChange = (value) => {
+    if (cart.length > 0) {
+      setSubmitResult({
+        success: false,
+        message: "Kosongkan keranjang sebelum mengganti customer agar tier harga di-resolve ulang.",
+      });
+      return;
+    }
+
     const customer = customers.find((item) => item.id === value);
     setForm((current) => ({
       ...current,
       customer_id: value,
       customer_name: customer ? customer.name : current.customer_name,
+      unit_price: "",
+      price_rule_id: "",
+      price_name: "",
+      price_tier: "",
+      price_date: "",
+      price_source: "",
     }));
+    setPricePreview(null);
+  };
+
+  const handleCustomerNameChange = (value) => {
+    if (cart.length > 0) {
+      setSubmitResult({
+        success: false,
+        message: "Kosongkan keranjang sebelum mengganti customer.",
+      });
+      return;
+    }
+
+    updateForm("customer_name", value);
   };
 
   const handleProductChange = (value) => {
-    const product = products.find((item) => item.id === value);
     setForm((current) => ({
       ...current,
       product_id: value,
-      unit_price: product?.price_per_pcs ? String(product.price_per_pcs) : current.unit_price,
       qty: current.qty || "1",
+      unit_price: "",
+      price_rule_id: "",
+      price_name: "",
+      price_tier: "",
+      price_date: "",
+      price_source: "",
     }));
+    setPricePreview(null);
+    setSubmitResult(null);
+  };
+
+  const handleQtyChange = (value) => {
+    setForm((current) => ({
+      ...current,
+      qty: value,
+      unit_price: "",
+      price_rule_id: "",
+      price_name: "",
+      price_tier: "",
+      price_date: "",
+      price_source: "",
+    }));
+    setPricePreview(null);
   };
 
   const handleWalletChange = (value) => {
@@ -411,27 +492,36 @@ export default function OrderPage({ session, onSessionExpired }) {
     updateForm("payment_method", wallet?.code || wallet?.name || value || "CASH");
   };
 
-  const handleAddItem = () => {
+  const handleAddItem = async () => {
+    if (priceResolving || submitting) return;
+
     setShowValidationErrors(false);
     setSubmitResult(null);
 
     const product = selectedProduct;
-    const qty = numberValue(form.qty);
-    const unitPrice = numberValue(form.unit_price);
+    const addQty = numberValue(form.qty);
 
-    if (!product || qty <= 0 || unitPrice <= 0) {
+    if (!pricingLockReady) {
       setSubmitResult({
         success: false,
-        message: "Pilih produk, isi qty, dan harga/pcs dulu.",
+        message: "Server Price Lock belum siap. Jalankan migration 015 lalu Refresh Data.",
       });
       return;
     }
 
-    const existingQty = cart
-      .filter((item) => item.product_id === product.id)
-      .reduce((total, item) => total + numberValue(item.qty), 0);
+    if (!product || addQty <= 0 || !form.order_date) {
+      setSubmitResult({
+        success: false,
+        message: "Pilih produk, isi qty, dan pastikan tanggal order tersedia.",
+      });
+      return;
+    }
 
-    if (product.stock_pcs > 0 && existingQty + qty > product.stock_pcs) {
+    const existing = cart.find((item) => item.product_id === product.id);
+    const existingQty = numberValue(existing?.qty);
+    const targetQty = existingQty + addQty;
+
+    if (product.stock_pcs > 0 && targetQty > product.stock_pcs) {
       setSubmitResult({
         success: false,
         message: `Qty melebihi stok ready. Stok ${product.name}: ${product.stock_pcs.toLocaleString("id-ID")} pcs, sudah di keranjang ${existingQty.toLocaleString("id-ID")} pcs.`,
@@ -439,36 +529,85 @@ export default function OrderPage({ session, onSessionExpired }) {
       return;
     }
 
-    const cartKey = `${product.id}-${unitPrice}`;
+    setPriceResolving(true);
 
-    setCart((current) => {
-      const existing = current.find((item) => item.cart_key === cartKey);
-      if (existing) {
-        return current.map((item) => {
-          if (item.cart_key !== cartKey) return item;
-          const nextQty = numberValue(item.qty) + qty;
-          return {
-            ...item,
-            qty: nextQty,
-            line_total: nextQty * unitPrice,
-          };
-        });
+    const result = await resolveOrderItemPrice(
+      session?.sessionToken,
+      {
+        location_id:
+          session?.user?.location_id ||
+          "",
+        product_id: product.id,
+        customer_id: form.customer_id,
+        qty: targetQty,
+        unit_type: "PCS",
+        channel_code: "POS",
+        price_date: form.order_date,
+      }
+    );
+
+    setPriceResolving(false);
+
+    if (!result.success) {
+      if (isAuthRequired(result)) {
+        onSessionExpired?.();
+        return;
       }
 
-      return [
-        ...current,
-        {
-          cart_id: `${product.id}-${Date.now()}`,
-          cart_key: cartKey,
-          product_id: product.id,
-          product_code: product.code,
-          product_name: product.name,
-          qty,
-          unit_price: unitPrice,
-          line_total: qty * unitPrice,
-          stock_pcs: product.stock_pcs,
-        },
-      ];
+      setPricePreview(null);
+      setSubmitResult({
+        success: false,
+        message: result.message || "Gagal meminta harga dari Pricing Engine.",
+      });
+      return;
+    }
+
+    const resolved = result.data || {};
+    setPricePreview(resolved);
+
+    if (!resolved.resolved || numberValue(resolved.price_per_unit) <= 0) {
+      setSubmitResult({
+        success: false,
+        message:
+          resolved.message ||
+          "Belum ada aturan harga aktif yang cocok. Keranjang tidak diubah.",
+      });
+      return;
+    }
+
+    const unitPrice = numberValue(resolved.price_per_unit);
+    const lineTotal = targetQty * unitPrice;
+    const cartId = existing?.cart_id || `${product.id}-${Date.now()}`;
+
+    setCart((current) => {
+      const nextItem = {
+        cart_id: cartId,
+        cart_key: product.id,
+        product_id: product.id,
+        product_code: product.code,
+        product_name: product.name,
+        qty: targetQty,
+        unit_price: unitPrice,
+        line_total: lineTotal,
+        stock_pcs: product.stock_pcs,
+        price_rule_id: resolved.price_rule_id || "",
+        price_name: resolved.price_name || "",
+        price_tier:
+          resolved.matched_tier ||
+          resolved.price_tier ||
+          "NORMAL",
+        price_source: "PHP_MYSQL_PRICING",
+        price_date: resolved.price_date || form.order_date,
+        pricing_snapshot: resolved,
+      };
+
+      if (existing) {
+        return current.map((item) =>
+          item.product_id === product.id ? nextItem : item
+        );
+      }
+
+      return [...current, nextItem];
     });
 
     setForm((current) => ({
@@ -476,7 +615,17 @@ export default function OrderPage({ session, onSessionExpired }) {
       product_id: "",
       qty: "",
       unit_price: "",
+      price_rule_id: "",
+      price_name: "",
+      price_tier: "",
+      price_date: "",
+      price_source: "",
     }));
+    setPricePreview(null);
+    setSubmitResult({
+      success: true,
+      message: "Harga berhasil dikunci dari PHP/MySQL dan item masuk keranjang.",
+    });
   };
 
 
@@ -499,6 +648,8 @@ export default function OrderPage({ session, onSessionExpired }) {
     setShowValidationErrors(false);
     setConfirmOpen(false);
     setSubmitResult(null);
+    setPricePreview(null);
+    setPriceResolving(false);
     setRequestId(generateRequestId(session));
   };
 
@@ -557,6 +708,16 @@ export default function OrderPage({ session, onSessionExpired }) {
       render: (row) => formatRupiah(row.unit_price),
     },
     {
+      key: "price_rule_id",
+      label: "Rule Harga",
+      render: (row) => (
+        <div>
+          <strong>{safeText(row.price_name, "Pricing Engine")}</strong>
+          <div className="da-muted">{safeText(row.price_rule_id)}</div>
+        </div>
+      ),
+    },
+    {
       key: "line_total",
       label: "Total",
       render: (row) => formatRupiah(row.line_total),
@@ -609,8 +770,8 @@ export default function OrderPage({ session, onSessionExpired }) {
     <div>
       <PageHeader
         title="Kasir / Order"
-        description="Input order dari stok ready dengan validasi stok, anti-double-submit, invoice, payment, piutang, dan stok keluar yang saling tersambung."
-        badge="Live Submit"
+        description="Input order dari stok ready dengan harga jual yang selalu di-resolve ulang dan dikunci oleh backend PHP/MySQL."
+        badge="Server Price Lock"
       />
 
       <div className="da-dashboard-banner">
@@ -618,13 +779,19 @@ export default function OrderPage({ session, onSessionExpired }) {
           <div className="da-dashboard-banner-kicker">Penjualan</div>
           <div className="da-dashboard-banner-title">Stok Jadi → Order → Invoice → Uang Masuk</div>
           <div className="da-dashboard-banner-desc">
-            Halaman ini khusus jual stok ready. Sistem memblok order kosong, qty lebih dari stok, dan request ganda supaya tidak ada order 0 pcs/Rp0.
+            Halaman ini khusus jual stok ready. Harga manual diblokir: frontend hanya menampilkan preview, sedangkan backend resolve ulang rule resmi sebelum membuat Order, Invoice, Payment/Piutang, dan stok keluar.
           </div>
         </div>
 
         <div className="da-dashboard-banner-actions">
           <Badge tone={error ? "danger" : "success"}>{error ? "Perlu Dicek" : "Terhubung"}</Badge>
-          <Button variant="ghost" onClick={loadData} disabled={loading || submitting}>
+          <Badge tone={pricingLockReady ? "success" : "danger"}>
+            {pricingLockReady ? "Price Lock Ready" : "Price Lock Belum Siap"}
+          </Badge>
+          <Badge tone={pricingRulesActive > 0 ? "success" : "warning"}>
+            {pricingRulesActive} Rule Aktif
+          </Badge>
+          <Button variant="ghost" onClick={loadData} disabled={loading || submitting || priceResolving}>
             {loading ? "Membaca..." : "Refresh Data"}
           </Button>
         </div>
@@ -698,7 +865,7 @@ export default function OrderPage({ session, onSessionExpired }) {
             <div className="da-mini-title">Form Kasir</div>
             <div className="da-big-text">Input Order</div>
             <p className="da-muted">
-              Tambahkan produk ke keranjang, isi pembayaran aktual, lalu simpan. Sistem akan membuat Order, Invoice, Uang Masuk/Piutang, dan stok keluar.
+              Pilih produk dan qty. Tombol keranjang akan meminta harga resmi ke PHP/MySQL. Tanpa rule aktif, item tidak dapat masuk dan tidak ada transaksi yang dibuat.
             </p>
           </div>
           <Badge tone="danger">Live + Anti Dobel</Badge>
@@ -712,7 +879,7 @@ export default function OrderPage({ session, onSessionExpired }) {
                 type="date"
                 className="da-input"
                 value={form.order_date}
-                onChange={(event) => updateForm("order_date", event.target.value)}
+                onChange={(event) => handleOrderDateChange(event.target.value)}
                 disabled={submitting}
               />
             </div>
@@ -740,7 +907,7 @@ export default function OrderPage({ session, onSessionExpired }) {
                 className="da-input"
                 value={form.customer_name}
                 placeholder="Contoh: UMUM / Fajar / Lia"
-                onChange={(event) => updateForm("customer_name", event.target.value)}
+                onChange={(event) => handleCustomerNameChange(event.target.value)}
                 disabled={submitting}
               />
             </div>
@@ -769,27 +936,46 @@ export default function OrderPage({ session, onSessionExpired }) {
                 inputMode="decimal"
                 value={form.qty}
                 placeholder="Contoh: 50"
-                onChange={(event) => updateForm("qty", event.target.value)}
+                onChange={(event) => handleQtyChange(event.target.value)}
                 disabled={submitting}
               />
             </div>
 
             <div className="da-drop-field">
-              <label>Harga / Pcs</label>
+              <label>Harga Sistem / Pcs</label>
               <input
                 className="da-input"
-                inputMode="numeric"
-                value={form.unit_price}
-                placeholder="Contoh: 2125"
-                onChange={(event) => updateForm("unit_price", event.target.value)}
-                disabled={submitting}
+                value={
+                  form.unit_price
+                    ? formatRupiah(form.unit_price)
+                    : ""
+                }
+                placeholder="Diisi otomatis oleh Pricing Engine"
+                readOnly
+                disabled
               />
             </div>
           </div>
 
+          {pricePreview && !pricePreview.resolved ? (
+            <div className="da-form-warning" style={{ marginTop: 12 }}>
+              {pricePreview.message || "Belum ada aturan harga yang cocok."}
+            </div>
+          ) : null}
+
           <div className="da-form-actions" style={{ justifyContent: "flex-start" }}>
-            <Button type="button" variant="ghost" onClick={handleAddItem} disabled={submitting || loading}>
-              Tambah ke Keranjang
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={handleAddItem}
+              disabled={
+                submitting ||
+                loading ||
+                priceResolving ||
+                !pricingLockReady
+              }
+            >
+              {priceResolving ? "Resolve Harga..." : "Kunci Harga & Tambah"}
             </Button>
             {selectedProduct ? (
               <span className="da-muted" style={{ alignSelf: "center" }}>
@@ -880,7 +1066,7 @@ export default function OrderPage({ session, onSessionExpired }) {
             <Button type="button" variant="ghost" onClick={handleResetForm} disabled={submitting}>
               Reset Form
             </Button>
-            <Button type="submit" disabled={submitting || loading}>
+            <Button type="submit" disabled={submitting || loading || priceResolving || !pricingLockReady}>
               Preview & Konfirmasi
             </Button>
           </div>
@@ -940,9 +1126,9 @@ export default function OrderPage({ session, onSessionExpired }) {
           </div>
           <div className="da-detail-box">
             <div className="da-mini-title">Yang Dibuat Backend</div>
-            <p><strong>Order:</strong> Ya</p>
-            <p><strong>Invoice:</strong> Ya</p>
-            <p><strong>Stok Keluar:</strong> Ya</p>
+            <p><strong>Resolve harga ulang:</strong> Wajib</p>
+            <p><strong>Order & Invoice:</strong> Setelah harga cocok</p>
+            <p><strong>Stok Keluar:</strong> Setelah transaksi valid</p>
             <p><strong>Uang Masuk / Piutang:</strong> Sesuai pembayaran</p>
           </div>
           <div className="da-detail-box">
@@ -954,7 +1140,7 @@ export default function OrderPage({ session, onSessionExpired }) {
 
         <div className="da-payload-preview">
           <div className="da-mini-title">Payload Live</div>
-          <PayloadRow label="Action" value="legacyCreateOrderHardenedFromOldPos" />
+          <PayloadRow label="Action" value="legacyCreateOrder · PHP/MySQL Server Price Lock" />
           <PayloadRow label="request_id" value={livePayload.request_id} />
           <PayloadRow label="customer_name" value={livePayload.order.customer_name} />
           <PayloadRow label="grand_total" value={formatRupiah(livePayload.order.grand_total)} />
@@ -964,7 +1150,7 @@ export default function OrderPage({ session, onSessionExpired }) {
         </div>
 
         <div className="da-modal-note" style={{ marginTop: 14 }}>
-          Setelah disimpan, backend hardening akan validasi request_id, cart, stok ready, lalu membuat Order, Invoice, stok keluar, Payment/Wallet Mutation jika ada uang masuk, atau Piutang jika belum lunas.
+          Saat tombol simpan ditekan, backend tidak mempercayai harga di payload. Setiap item di-resolve ulang berdasarkan produk, lokasi, customer, qty, unit PCS, channel POS, dan tanggal order. Rule berubah atau tidak tersedia akan membatalkan seluruh transaksi.
         </div>
 
         {submitResult && !submitResult.success ? (
