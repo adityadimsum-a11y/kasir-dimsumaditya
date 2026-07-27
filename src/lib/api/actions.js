@@ -822,6 +822,90 @@ export async function seedMasterDataCoreDefaults(
 }
 
 /**
+ * PRODUCT PRICING ENGINE / PHP MYSQL LIVE WRITE
+ *
+ * Tidak ada seed harga dan tidak ada fallback nominal dari frontend.
+ * Seluruh harga harus berasal dari rule PHP/MySQL yang dibuat secara sadar.
+ */
+
+export async function productPricingHealth(
+  sessionToken,
+  payload = {}
+) {
+  return phpApiRequest(
+    "productPricingHealth",
+    payload,
+    sessionToken
+  );
+}
+
+export async function getProductPricingBootstrap(
+  sessionToken,
+  payload = {}
+) {
+  return phpApiRequest(
+    "getProductPricingBootstrap",
+    payload,
+    sessionToken
+  );
+}
+
+export async function resolveProductSellingPrice(
+  sessionToken,
+  payload = {}
+) {
+  return phpApiRequest(
+    "resolveProductSellingPrice",
+    payload,
+    sessionToken
+  );
+}
+
+export async function createProductPriceRule(
+  sessionToken,
+  payload = {}
+) {
+  return phpApiRequest(
+    "createProductPriceRule",
+    payload,
+    sessionToken
+  );
+}
+
+export async function updateProductPriceRule(
+  sessionToken,
+  payload = {}
+) {
+  return phpApiRequest(
+    "updateProductPriceRule",
+    payload,
+    sessionToken
+  );
+}
+
+export async function setProductPriceRuleStatus(
+  sessionToken,
+  payload = {}
+) {
+  return phpApiRequest(
+    "setProductPriceRuleStatus",
+    payload,
+    sessionToken
+  );
+}
+
+export async function productPricingRollbackProbe(
+  sessionToken,
+  payload = {}
+) {
+  return phpApiRequest(
+    "productPricingRollbackProbe",
+    payload,
+    sessionToken
+  );
+}
+
+/**
  * STOK AYAM / LOT AYAM
  */
 
