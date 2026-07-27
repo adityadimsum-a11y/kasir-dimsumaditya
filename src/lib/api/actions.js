@@ -935,3 +935,50 @@ export async function orderPricingLockRollbackProbe(
     sessionToken
   );
 }
+
+/**
+ * PRICING CUTOVER READINESS / READ ONLY
+ *
+ * Tidak membuat rule harga, tidak mengaktifkan nominal, dan tidak menulis
+ * transaksi. Hanya membaca kesiapan Pricing Engine, Server Price Lock,
+ * coverage produk/lokasi, dan stok bebas.
+ */
+export async function getPricingCutoverReadiness(
+  sessionToken,
+  payload = {}
+) {
+  return phpApiRequest(
+    "getPricingCutoverReadiness",
+    payload,
+    sessionToken
+  );
+}
+
+/**
+ * TANGERANG REAL GO-LIVE CUTOVER / PART 2F
+ *
+ * Bootstrap hanya membaca kesiapan. Aktivasi adalah real write Owner-only
+ * yang menghubungkan harga resmi, opening stok jadi, HPP terkunci, jurnal,
+ * arsip, dan audit dalam satu database transaction.
+ */
+export async function getTangerangGoLiveBootstrap(
+  sessionToken,
+  payload = {}
+) {
+  return phpApiRequest(
+    "getTangerangGoLiveBootstrap",
+    payload,
+    sessionToken
+  );
+}
+
+export async function activateTangerangGoLiveCutover(
+  sessionToken,
+  payload = {}
+) {
+  return phpApiRequest(
+    "activateTangerangGoLiveCutover",
+    payload,
+    sessionToken
+  );
+}
