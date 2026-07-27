@@ -178,67 +178,75 @@ export async function getFinishedStockBootstrap(sessionToken, payload = {}) {
  */
 
 export async function getOrderBootstrap(sessionToken, payload = {}) {
-  const [ordersResult, productionResult, legacyCustomers, legacyProducts] = await Promise.all([
-    phpApiRequest("getLegacyOrderBootstrap", withFastBootstrapPayload(payload, { limit: 30 }), sessionToken),
-    phpApiRequest("getLegacyProductionBootstrap", { limit: 20 }, sessionToken),
-    legacyApiRequest("getCustomers", {}, getLegacySessionToken()),
-    legacyApiRequest("getProducts", {}, getLegacySessionToken()),
-  ]);
-
-  if (!ordersResult.success) return ordersResult;
-
-  const data = ordersResult.data || {};
-  const prod = productionResult.success ? (productionResult.data || {}) : {};
-  const stockRows = data?.stock?.finished_goods_stock || data?.stock?.stock || [];
-  const stockMap = new Map(stockRows.map((row) => [String(row.product_id || ""), row]));
-  const legacyProductRows = Array.isArray(legacyProducts?.data)
-    ? legacyProducts.data
-    : (legacyProducts?.data?.products || []);
-  const legacyProductMap = new Map(
-    legacyProductRows.map((row) => [
-      String(row.product_id || row.id || row.product_code || ""),
-      row,
-    ])
+  const result = await phpApiRequest(
+    "getLegacyOrderBootstrap",
+    withFastBootstrapPayload(payload, { limit: 30 }),
+    sessionToken
   );
 
-  const products = (prod.products || prod.adukan_products || []).map((row) => {
-    const legacy = legacyProductMap.get(String(row.product_id || "")) || {};
-    const stock = stockMap.get(String(row.product_id || "")) || {};
-    return {
-      ...legacy,
-      ...row,
-      stock_pcs: Number(stock.free_qty || stock.stok_bebas || 0),
-      free_pcs: Number(stock.free_qty || stock.stok_bebas || 0),
-      avg_unit_cost: Number(stock.average_unit_cost || 0),
-    };
-  });
+  if (!result.success) return result;
 
-  const customers = Array.isArray(legacyCustomers?.data)
-    ? legacyCustomers.data
-    : (legacyCustomers?.data?.customers || []);
+  const data = result.data || {};
+  const orders = Array.isArray(data.orders) ? data.orders : [];
+  const stockRows =
+    data?.stock?.finished_goods_stock ||
+    data?.stock?.stock ||
+    [];
 
-  const orders = data.orders || [];
   const summary = {
     order_count: Number(data?.pagination?.total || orders.length || 0),
     today_order_count: orders.filter((row) =>
       String(row.order_date || "").slice(0, 10) === new Date().toISOString().slice(0, 10)
     ).length,
-    uang_masuk_actual: orders.reduce((sum, row) => sum + Number(row.amount_paid || row.paid_amount || 0), 0),
-    piutang_open: orders.reduce((sum, row) => sum + Number(row.remaining_amount || 0), 0),
-    stock_ready_pcs: stockRows.reduce((sum, row) => sum + Number(row.free_qty || 0), 0),
-    product_ready_count: stockRows.filter((row) => Number(row.free_qty || 0) > 0).length,
+    uang_masuk_actual: orders.reduce(
+      (sum, row) => sum + Number(row.amount_paid || row.paid_amount || 0),
+      0
+    ),
+    piutang_open: orders.reduce(
+      (sum, row) => sum + Number(row.remaining_amount || 0),
+      0
+    ),
+    stock_ready_pcs: stockRows.reduce(
+      (sum, row) => sum + Number(row.free_qty || 0),
+      0
+    ),
+    product_ready_count: stockRows.filter(
+      (row) => Number(row.free_qty || 0) > 0
+    ).length,
   };
 
   return {
-    ...ordersResult,
+    ...result,
     data: {
       ...data,
-      products,
-      customers,
-      wallets: data.wallets || [],
+      products: Array.isArray(data.products) ? data.products : [],
+      customers: Array.isArray(data.customers) ? data.customers : [],
+      wallets: Array.isArray(data.wallets) ? data.wallets : [],
       summary,
     },
   };
+}
+
+export async function getOrderPricingLockHealth(
+  sessionToken,
+  payload = {}
+) {
+  return phpApiRequest(
+    "orderPricingLockHealth",
+    payload,
+    sessionToken
+  );
+}
+
+export async function resolveOrderItemPrice(
+  sessionToken,
+  payload = {}
+) {
+  return phpApiRequest(
+    "resolveOrderItemPrice",
+    payload,
+    sessionToken
+  );
 }
 
 export async function createOrder(sessionToken, payload = {}) {
