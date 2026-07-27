@@ -920,3 +920,18 @@ export async function productPricingRollbackProbe(
 export async function getChickenStockBootstrap(sessionToken, payload = {}) {
   return apiRequest("getLegacyChickenStockBootstrap", payload, sessionToken);
 }
+
+/**
+ * Owner-only acceptance probe. Semua customer/rule/stok/order sementara
+ * dibuat di dalam database transaction dan selalu rollback.
+ */
+export async function orderPricingLockRollbackProbe(
+  sessionToken,
+  payload = {}
+) {
+  return phpApiRequest(
+    "orderPricingLockRollbackProbe",
+    payload,
+    sessionToken
+  );
+}
