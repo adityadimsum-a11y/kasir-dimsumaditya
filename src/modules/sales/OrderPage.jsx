@@ -244,7 +244,7 @@ function buildOrderPayload({ form, cart, totals, session, requestId }) {
     operation_id: operationId,
     client_request_id: operationId,
     idempotency_key: operationId,
-    source: "frontend_part_2c_order_server_price_lock",
+    source: "frontend_part_2f_tangerang_real_go_live",
     location_id: locationId,
     order_date: form.order_date,
     customer_id: form.customer_id,
@@ -315,6 +315,19 @@ export default function OrderPage({ session, onSessionExpired }) {
   const pricingLock = bootstrap?.pricing_lock || {};
   const pricingLockReady = pricingLock?.ready === true;
   const pricingRulesActive = numberValue(pricingLock?.pricing_rules_active);
+  const cutoverPriceReady = pricingRulesActive > 0;
+  const cutoverStockReady =
+    numberValue(summary.stock_ready_pcs) > 0 &&
+    numberValue(summary.product_ready_count) > 0;
+  const controlledLiveReady =
+    pricingLockReady && cutoverPriceReady && cutoverStockReady;
+  const firstRealOrderReady =
+    controlledLiveReady && numberValue(summary.order_count) === 0;
+  const cutoverBlockers = [
+    !pricingLockReady ? "Server Price Lock belum siap." : "",
+    !cutoverPriceReady ? "Belum ada harga resmi aktif untuk Kasir." : "",
+    !cutoverStockReady ? "Belum ada stok bebas produk jadi." : "",
+  ].filter(Boolean);
   const totals = useMemo(() => buildCartTotals(cart, form.paid_amount), [cart, form.paid_amount]);
   const livePayload = useMemo(() => buildOrderPayload({ form, cart, totals, session, requestId }), [form, cart, totals, session, requestId]);
 
@@ -323,6 +336,8 @@ export default function OrderPage({ session, onSessionExpired }) {
   const validationErrors = useMemo(() => {
     const errors = [];
     if (!pricingLockReady) errors.push("Server Price Lock belum siap. Jalankan migration 015 dan refresh data.");
+    if (!cutoverPriceReady) errors.push("Belum ada harga resmi aktif. Kasir masih diblokir.");
+    if (!cutoverStockReady) errors.push("Belum ada stok bebas produk jadi untuk dijual.");
     if (!form.order_date) errors.push("Tanggal order wajib diisi.");
     if (!form.customer_id && !String(form.customer_name || "").trim()) errors.push("Nama customer wajib diisi.");
     if (cart.length === 0) errors.push("Keranjang masih kosong.");
@@ -356,7 +371,14 @@ export default function OrderPage({ session, onSessionExpired }) {
     });
 
     return errors;
-  }, [form, cart, totals]);
+  }, [
+    form,
+    cart,
+    totals,
+    pricingLockReady,
+    cutoverPriceReady,
+    cutoverStockReady,
+  ]);
 
 
   const loadData = async () => {
@@ -364,7 +386,7 @@ export default function OrderPage({ session, onSessionExpired }) {
     setError("");
 
     const result = await getOrderBootstrap(session?.sessionToken, {
-      source: "frontend_part_2c_order_server_price_lock",
+      source: "frontend_part_2f_tangerang_real_go_live",
       location_id:
         session?.user?.location_id ||
         "",
@@ -505,6 +527,22 @@ export default function OrderPage({ session, onSessionExpired }) {
       setSubmitResult({
         success: false,
         message: "Server Price Lock belum siap. Jalankan migration 015 lalu Refresh Data.",
+      });
+      return;
+    }
+
+    if (!cutoverPriceReady) {
+      setSubmitResult({
+        success: false,
+        message: "Belum ada harga resmi aktif. Kasir tetap diblokir dan tidak membuat transaksi.",
+      });
+      return;
+    }
+
+    if (!cutoverStockReady) {
+      setSubmitResult({
+        success: false,
+        message: "Belum ada stok bebas produk jadi. Kasir belum boleh live.",
       });
       return;
     }
@@ -770,8 +808,8 @@ export default function OrderPage({ session, onSessionExpired }) {
     <div>
       <PageHeader
         title="Kasir / Order"
-        description="Input order dari stok ready dengan harga jual yang selalu di-resolve ulang dan dikunci oleh backend PHP/MySQL."
-        badge="Server Price Lock"
+        description="Kasir Tangerang untuk transaksi nyata: harga resmi dikunci backend dan stok keluar memakai HPP historis."
+        badge={controlledLiveReady ? "Tangerang Live" : "Server Price Lock"}
       />
 
       <div className="da-dashboard-banner">
@@ -791,6 +829,9 @@ export default function OrderPage({ session, onSessionExpired }) {
           <Badge tone={pricingRulesActive > 0 ? "success" : "warning"}>
             {pricingRulesActive} Rule Aktif
           </Badge>
+          <Badge tone={controlledLiveReady ? "success" : "warning"}>
+            {controlledLiveReady ? "Kasir Siap Live" : "Kasir Diblokir"}
+          </Badge>
           <Button variant="ghost" onClick={loadData} disabled={loading || submitting || priceResolving}>
             {loading ? "Membaca..." : "Refresh Data"}
           </Button>
@@ -800,6 +841,29 @@ export default function OrderPage({ session, onSessionExpired }) {
       {error ? (
         <div className="da-login-error" style={{ marginBottom: 16 }}>
           {error}
+        </div>
+      ) : null}
+
+      {!controlledLiveReady && !loading ? (
+        <div className="da-form-warning" style={{ marginBottom: 16 }}>
+          <strong>Controlled Go-Live Gate masih menahan Kasir.</strong>
+          {cutoverBlockers.map((item) => (
+            <div key={item} style={{ marginTop: 4 }}>• {item}</div>
+          ))}
+          <div style={{ marginTop: 8 }}>
+            Tidak ada harga fallback dan tidak ada transaksi yang dibuat selama gate belum siap.
+          </div>
+        </div>
+      ) : null}
+
+      {firstRealOrderReady && !loading ? (
+        <div className="da-form-success" style={{ marginBottom: 16 }}>
+          <strong>Kasir Tangerang siap untuk transaksi pelanggan nyata pertama.</strong>
+          <div style={{ marginTop: 6 }}>
+            Pilih customer UMUM atau customer terdaftar, pilih produk dan qty,
+            klik Kunci Harga & Tambah, lalu Preview & Konfirmasi. Backend tetap
+            resolve ulang harga dan HPP sebelum transaksi disimpan.
+          </div>
         </div>
       ) : null}
 
@@ -972,7 +1036,7 @@ export default function OrderPage({ session, onSessionExpired }) {
                 submitting ||
                 loading ||
                 priceResolving ||
-                !pricingLockReady
+                !controlledLiveReady
               }
             >
               {priceResolving ? "Resolve Harga..." : "Kunci Harga & Tambah"}
@@ -1066,7 +1130,7 @@ export default function OrderPage({ session, onSessionExpired }) {
             <Button type="button" variant="ghost" onClick={handleResetForm} disabled={submitting}>
               Reset Form
             </Button>
-            <Button type="submit" disabled={submitting || loading || priceResolving || !pricingLockReady}>
+            <Button type="submit" disabled={submitting || loading || priceResolving || !controlledLiveReady}>
               Preview & Konfirmasi
             </Button>
           </div>
