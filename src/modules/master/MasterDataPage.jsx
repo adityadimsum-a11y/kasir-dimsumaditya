@@ -16,6 +16,8 @@ import PageHeader from "../../components/ui/PageHeader";
 import StatCard from "../../components/ui/StatCard";
 
 import ProductPricingPanel from "./ProductPricingPanel";
+import PricingCutoverPanel from "./PricingCutoverPanel";
+import TangerangGoLiveCutoverPanel from "./TangerangGoLiveCutoverPanel";
 
 const PROTECTED_IDS = {
   produk: ["PRD-DIMSUM"],
@@ -1205,6 +1207,11 @@ export default function MasterDataPage({
     setSelected,
   ] = useState(null);
 
+  const [
+    pricingRefreshKey,
+    setPricingRefreshKey,
+  ] = useState(0);
+
   const writeEnabled =
     bootstrap
       .write_policy
@@ -2091,12 +2098,32 @@ export default function MasterDataPage({
       </Card>
 
       {moduleType === "produk" ? (
+        <TangerangGoLiveCutoverPanel
+          sessionToken={sessionToken}
+          onSessionExpired={onSessionExpired}
+          onCutoverChanged={async () => {
+            await loadData();
+            setPricingRefreshKey((value) => value + 1);
+          }}
+        />
+      ) : null}
+
+      {moduleType === "produk" ? (
         <ProductPricingPanel
+          key={`product-pricing-${pricingRefreshKey}`}
           sessionToken={sessionToken}
           products={bootstrap.rows}
           masterWriteEnabled={writeEnabled}
           onSessionExpired={onSessionExpired}
           onPricingChanged={loadData}
+        />
+      ) : null}
+
+      {moduleType === "produk" ? (
+        <PricingCutoverPanel
+          key={`pricing-readiness-${pricingRefreshKey}`}
+          sessionToken={sessionToken}
+          onSessionExpired={onSessionExpired}
         />
       ) : null}
 
