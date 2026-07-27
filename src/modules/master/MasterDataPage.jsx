@@ -15,6 +15,8 @@ import Modal from "../../components/ui/Modal";
 import PageHeader from "../../components/ui/PageHeader";
 import StatCard from "../../components/ui/StatCard";
 
+import ProductPricingPanel from "./ProductPricingPanel";
+
 const PROTECTED_IDS = {
   produk: ["PRD-DIMSUM"],
   customer: [],
@@ -2087,6 +2089,16 @@ export default function MasterDataPage({
           </p>
         ) : null}
       </Card>
+
+      {moduleType === "produk" ? (
+        <ProductPricingPanel
+          sessionToken={sessionToken}
+          products={bootstrap.rows}
+          masterWriteEnabled={writeEnabled}
+          onSessionExpired={onSessionExpired}
+          onPricingChanged={loadData}
+        />
+      ) : null}
 
       <Modal
         open={
