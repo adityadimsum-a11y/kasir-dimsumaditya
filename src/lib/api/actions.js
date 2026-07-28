@@ -982,3 +982,33 @@ export async function activateTangerangGoLiveCutover(
     sessionToken
   );
 }
+
+/**
+ * PART 3A — BRANCH ACCOUNT & PERMISSION LIVE
+ *
+ * Owner membuat akun nyata secara manual. Tidak ada username/password seed.
+ * Password hanya dikirim saat create/reset lalu disimpan backend sebagai hash.
+ */
+export async function branchAccessHealth(sessionToken, payload = {}) {
+  return phpApiRequest("branchAccessHealth", payload, sessionToken);
+}
+
+export async function getBranchAccessBootstrap(sessionToken, payload = {}) {
+  return phpApiRequest("getBranchAccessBootstrap", payload, sessionToken);
+}
+
+export async function createBranchUser(sessionToken, payload = {}) {
+  return phpApiRequest("createBranchUser", payload, sessionToken);
+}
+
+export async function updateBranchUser(sessionToken, payload = {}) {
+  return phpApiRequest("updateBranchUser", payload, sessionToken);
+}
+
+export async function setBranchUserStatus(sessionToken, payload = {}) {
+  return phpApiRequest("setBranchUserStatus", payload, sessionToken);
+}
+
+export async function resetBranchUserPassword(sessionToken, payload = {}) {
+  return phpApiRequest("resetBranchUserPassword", payload, sessionToken);
+}
