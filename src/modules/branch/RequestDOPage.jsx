@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   approveBranchGoodsRequest,
+  cancelBranchGoodsRequest,
   createBranchGoodsRequest,
   createDeliveryOrderFromRequest,
   getRequestDOStockBootstrap,
   receiveDeliveryOrder,
+  rejectBranchGoodsRequest,
 } from "../../lib/api/actions";
 import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
@@ -14,224 +16,197 @@ import Modal from "../../components/ui/Modal";
 import PageHeader from "../../components/ui/PageHeader";
 import StatCard from "../../components/ui/StatCard";
 
-function asArray(value) {
-  return Array.isArray(value) ? value : [];
-}
-
-function numberValue(value) {
+const asArray = (value) => (Array.isArray(value) ? value : []);
+const num = (value) => {
   const parsed = Number(String(value ?? "0").replace(/[^0-9.-]/g, ""));
   return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function safeText(value, fallback = "-") {
-  const text = String(value || "").trim();
-  return text || fallback;
-}
-
-function todayInputValue() {
+};
+const text = (value, fallback = "-") => String(value || "").trim() || fallback;
+const today = () => {
   const date = new Date();
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function formatDisplayDate(value) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+};
+const displayDate = (value) => {
   if (!value) return "-";
-  const date = new Date(value);
+  const date = new Date(`${String(value).slice(0, 10)}T00:00:00`);
   if (Number.isNaN(date.getTime())) return String(value);
   return new Intl.DateTimeFormat("id-ID", {
     day: "2-digit",
     month: "short",
     year: "numeric",
   }).format(date);
-}
+};
+const makeOperationId = (prefix) => {
+  const random = globalThis.crypto?.randomUUID?.().replaceAll("-", "").slice(0, 12)
+    || Math.random().toString(36).slice(2, 14);
+  return `OP-${prefix}-${Date.now()}-${random}`.toUpperCase();
+};
+const isAuthRequired = (result) => {
+  const value = `${result?.code || ""} ${result?.message || ""} ${result?.error?.code || ""}`.toUpperCase();
+  return value.includes("AUTH_REQUIRED") || (value.includes("SESSION") && value.includes("TIDAK AKTIF"));
+};
+const statusTone = (status) => {
+  const value = String(status || "").toUpperCase();
+  if (["APPROVED", "RECEIVED", "ACTIVE", "POSTED"].includes(value)) return "success";
+  if (["REJECTED", "CANCELLED", "RECEIVED_WITH_DIFFERENCE"].includes(value)) return "danger";
+  if (["PENDING", "IN_TRANSIT", "PARTIAL_RECEIVED"].includes(value)) return "warning";
+  return "default";
+};
+const pcs = (value) => `${num(value).toLocaleString("id-ID")} pcs`;
 
-function isAuthRequired(result) {
-  const message = String(result?.message || result?.error?.message || "").toUpperCase();
-  const code = String(result?.error?.code || result?.code || "").toUpperCase();
-  return (
-    code.includes("AUTH_REQUIRED") ||
-    message.includes("AUTH_REQUIRED") ||
-    (message.includes("SESSION") && message.includes("TIDAK AKTIF"))
-  );
-}
-
-function normalizeStock(row) {
-  return {
-    ...row,
-    stock_key: row.stock_key || row.product_id || row.product_code || row.product_name || "",
-    location_code: row.location_code || row.location_id || "TGR",
-    product_id: row.product_id || row.id || "",
-    product_code: row.product_code || row.code || "",
-    product_name: row.product_name || row.name || row.item_name || "Produk",
-    total_pcs: numberValue(row.total_pcs || row.stock_pcs || row.qty_pcs || row.qty || 0),
-    held_pcs: numberValue(row.held_pcs || row.reserved_pcs || row.allocated_pcs || 0),
-    free_pcs: numberValue(row.free_pcs || row.available_pcs || row.ready_pcs || 0),
-    avg_unit_cost: numberValue(row.avg_unit_cost || row.unit_cost || row.hpp_per_pcs || 0),
-  };
-}
-
-function normalizeRequest(row) {
-  return {
-    ...row,
-    request_id: row.request_id || row.branch_request_id || row.id || "",
-    request_date: row.request_date || row.date || row.created_at || "",
-    needed_date: row.needed_date || row.target_date || row.due_date || "",
-    source_location: row.source_location || row.from_location || row.from_location_code || "TGR",
-    destination_location: row.destination_location || row.to_location || row.to_location_code || "",
-    product_id: row.product_id || "",
-    product_code: row.product_code || "",
-    product_name: row.product_name || row.item_name || "Produk",
-    qty_pcs: numberValue(row.qty_pcs || row.qty || row.quantity || 0),
-    approved_qty_pcs: numberValue(row.approved_qty_pcs || row.qty_approved || 0),
-    status: row.status || "PENDING",
-    notes: row.notes || row.catatan || "",
-    delivery_order_id: row.delivery_order_id || row.do_id || "",
-  };
-}
-
-function normalizeDO(row) {
-  return {
-    ...row,
-    do_id: row.do_id || row.delivery_order_id || row.id || "",
-    request_id: row.request_id || row.branch_request_id || "",
-    do_date: row.do_date || row.delivery_date || row.date || row.created_at || "",
-    source_location: row.source_location || row.from_location || row.from_location_code || "TGR",
-    destination_location: row.destination_location || row.to_location || row.to_location_code || "",
-    product_id: row.product_id || "",
-    product_code: row.product_code || "",
-    product_name: row.product_name || row.item_name || "Produk",
-    qty_pcs: numberValue(row.qty_pcs || row.shipped_qty_pcs || row.qty || 0),
-    received_qty_pcs: numberValue(row.received_qty_pcs || row.qty_received || 0),
-    status: row.status || "DRAFT",
-    notes: row.notes || row.catatan || "",
-  };
-}
-
-function normalizeLocation(row) {
-  return {
-    id: row.location_id || row.id || row.location_code || row.code || "",
-    code: row.location_code || row.code || row.location_id || row.id || "",
-    name: row.location_name || row.name || row.nama || row.location_code || row.code || "Lokasi",
-    type: row.location_type || row.type || "",
-  };
-}
-
-function normalizeBootstrap(payload) {
+function normalizePayload(payload) {
   const data = payload?.data || payload || {};
-  const stock = asArray(data.finished_stock || data.stock_ready || data.stock || []).map(normalizeStock);
-  const requests = asArray(data.branch_requests || data.requests || []).map(normalizeRequest);
-  const deliveryOrders = asArray(data.delivery_orders || data.dos || data.deliveryOrders || []).map(normalizeDO);
-  const locations = asArray(data.locations || data.location_options || []).map(normalizeLocation);
-
   return {
+    health: data.health || {},
+    access: data.access || {},
     summary: {
-      total_stock_free_pcs: numberValue(data.summary?.total_stock_free_pcs),
-      pending_request_count: numberValue(data.summary?.pending_request_count),
-      approved_request_count: numberValue(data.summary?.approved_request_count),
-      in_transit_do_count: numberValue(data.summary?.in_transit_do_count),
-      received_do_count: numberValue(data.summary?.received_do_count),
-      total_requested_pcs: numberValue(data.summary?.total_requested_pcs),
-      total_shipped_pcs: numberValue(data.summary?.total_shipped_pcs),
-      total_received_pcs: numberValue(data.summary?.total_received_pcs),
+      pending_request_count: num(data.summary?.pending_request_count),
+      approved_request_count: num(data.summary?.approved_request_count),
+      in_transit_do_count: num(data.summary?.in_transit_do_count),
+      received_do_count: num(data.summary?.received_do_count),
+      total_requested_pcs: num(data.summary?.total_requested_pcs),
+      total_shipped_pcs: num(data.summary?.total_shipped_pcs),
+      total_received_pcs: num(data.summary?.total_received_pcs),
+      total_stock_free_pcs: num(data.summary?.total_stock_free_pcs),
     },
-    stock,
-    requests,
-    deliveryOrders,
-    locations,
-    filter: data.filter || {},
+    stock: asArray(data.finished_stock || data.stock_ready).map((row) => ({
+      ...row,
+      stock_key: row.stock_key || row.product_id,
+      product_id: row.product_id || "",
+      product_code: row.product_code || "",
+      product_name: row.product_name || "Produk",
+      location_id: row.location_id || "",
+      location_code: row.location_code || "",
+      total_pcs: num(row.total_pcs),
+      held_pcs: num(row.held_pcs),
+      free_pcs: num(row.free_pcs),
+    })),
+    requests: asArray(data.branch_requests).map((row) => ({
+      ...row,
+      request_id: row.request_id || row.id || "",
+      source_location: row.source_location || row.source_location_code || "",
+      destination_location: row.destination_location || row.destination_location_code || "",
+      items: asArray(row.items),
+      qty_pcs: num(row.qty_pcs),
+      approved_qty_pcs: num(row.approved_qty_pcs),
+      status: row.status || "PENDING",
+    })),
+    deliveryOrders: asArray(data.delivery_orders).map((row) => ({
+      ...row,
+      do_id: row.do_id || row.id || "",
+      source_location: row.source_location || row.source_location_code || "",
+      destination_location: row.destination_location || row.destination_location_code || "",
+      items: asArray(row.items),
+      receipts: asArray(row.receipts),
+      qty_pcs: num(row.qty_pcs),
+      received_qty_pcs: num(row.received_qty_pcs),
+      difference_qty_pcs: num(row.difference_qty_pcs),
+      status: row.status || "IN_TRANSIT",
+    })),
+    locations: asArray(data.locations),
+    products: asArray(data.products),
     warnings: asArray(data.warnings),
   };
 }
 
-function badgeTone(status) {
-  const text = String(status || "").toLowerCase();
-  if (text.includes("receive") || text.includes("terima") || text.includes("approved") || text.includes("posted")) return "success";
-  if (text.includes("reject") || text.includes("cancel") || text.includes("batal")) return "danger";
-  if (text.includes("transit") || text.includes("pending") || text.includes("draft")) return "warning";
-  return "default";
-}
-
 export default function RequestDOPage({ session, onSessionExpired }) {
-  const today = todayInputValue();
-  const defaultLocation = session?.user?.location_code || session?.user?.location_id || "TGR";
   const sessionToken = session?.sessionToken || "";
+  const userLocationId = session?.user?.location_id || "";
+  const userRoleId = session?.user?.role_id || "";
+  const currentDate = today();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [bootstrap, setBootstrap] = useState(() => normalizeBootstrap({}));
-  const [filter, setFilter] = useState(() => ({
-    date_start: today,
-    date_end: today,
-    source_location: "TGR",
-    destination_location: defaultLocation,
+  const [data, setData] = useState(() => normalizePayload({}));
+  const [filter, setFilter] = useState({
+    date_start: currentDate.slice(0, 8) + "01",
+    date_end: currentDate,
+    destination_location: "ALL",
     status: "ALL",
-  }));
-  const [draft, setDraft] = useState(() => ({
-    request_date: today,
-    needed_date: today,
+  });
+  const [requestDraft, setRequestDraft] = useState({
+    request_date: currentDate,
+    needed_date: currentDate,
     source_location: "TGR",
-    destination_location: defaultLocation === "TGR" ? "CBN" : defaultLocation,
-    product_key: "",
-    qty_pcs: "100",
-    request_by: session?.user?.name || "",
-    notes: "Request barang cabang dari stok pusat.",
-  }));
-  const [selected, setSelected] = useState(null);
-  const [selectedType, setSelectedType] = useState("request");
+    destination_location: "",
+    notes: "Request barang cabang.",
+  });
+  const [itemDraft, setItemDraft] = useState({ product_id: "", qty: "" });
+  const [requestItems, setRequestItems] = useState([]);
+  const [selectedRequest, setSelectedRequest] = useState(null);
+  const [selectedDO, setSelectedDO] = useState(null);
+  const [approvalQty, setApprovalQty] = useState({});
+  const [receiveQty, setReceiveQty] = useState({});
+  const [receiveForm, setReceiveForm] = useState({
+    receipt_date: currentDate,
+    close_delivery: false,
+    discrepancy_reason: "",
+    proof_reference: "",
+    notes: "Barang diterima cabang.",
+  });
 
-  const selectedStock = useMemo(() => {
-    return bootstrap.stock.find((row) => row.stock_key === draft.product_key) || bootstrap.stock[0] || null;
-  }, [bootstrap.stock, draft.product_key]);
+  const isGlobal = Boolean(data.access?.is_global)
+    || ["ROLE-OWNER", "ROLE-HO-ADMIN"].includes(userRoleId);
+  const canApprove = Boolean(data.access?.can_approve) || isGlobal;
+  const canCreateDO = Boolean(data.access?.can_create_do) || isGlobal;
 
-  const locationOptions = useMemo(() => {
-    const defaults = [
-      { id: "TGR", code: "TGR", name: "Tangerang HO" },
-      { id: "PML", code: "PML", name: "Produksi Pemalang" },
-      { id: "CBN", code: "CBN", name: "Resto Cibinong" },
-    ];
-    const merged = [...bootstrap.locations, ...defaults];
-    const seen = new Set();
-    return merged.filter((location) => {
-      const key = location.code || location.id;
-      if (!key || seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  }, [bootstrap.locations]);
-
-  const qtyDraft = numberValue(draft.qty_pcs);
-  const freePcs = numberValue(selectedStock?.free_pcs);
-  const shortagePreview = Math.max(qtyDraft - freePcs, 0);
+  const tangerangLocation = useMemo(
+    () => data.locations.find((row) => row.location_code === "TGR") || null,
+    [data.locations]
+  );
+  const destinationOptions = useMemo(
+    () => data.locations.filter((row) => row.location_code !== "TGR"),
+    [data.locations]
+  );
+  const selectedProduct = useMemo(
+    () => data.products.find((row) => row.product_id === itemDraft.product_id) || null,
+    [data.products, itemDraft.product_id]
+  );
+  const selectedProductStock = useMemo(
+    () => data.stock.find((row) => row.product_id === itemDraft.product_id) || null,
+    [data.stock, itemDraft.product_id]
+  );
 
   const loadData = async () => {
     setLoading(true);
     setError("");
-
     try {
-      const result = await getRequestDOStockBootstrap(sessionToken, filter);
-
+      const result = await getRequestDOStockBootstrap(sessionToken, {
+        date_start: filter.date_start,
+        date_end: filter.date_end,
+        destination_location: filter.destination_location,
+        status: filter.status,
+        source_location: "TGR",
+      });
       if (isAuthRequired(result)) {
         onSessionExpired?.();
         return;
       }
-
       if (!result?.success) {
         setError(result?.message || "Gagal membaca Request & DO.");
         return;
       }
-
-      const normalized = normalizeBootstrap(result.data || result);
-      setBootstrap(normalized);
-      setDraft((current) => ({
+      const normalized = normalizePayload(result.data || result);
+      setData(normalized);
+      setRequestDraft((current) => {
+        const own = normalized.locations.find((row) => row.location_id === userLocationId);
+        const defaultDestination = isGlobal
+          ? normalized.locations.find((row) => row.location_code !== "TGR")
+          : own;
+        return {
+          ...current,
+          source_location: normalized.locations.find((row) => row.location_code === "TGR")?.location_id || "TGR",
+          destination_location: current.destination_location || defaultDestination?.location_id || "",
+        };
+      });
+      setItemDraft((current) => ({
         ...current,
-        product_key: current.product_key || normalized.stock[0]?.stock_key || "",
+        product_id: current.product_id || normalized.products[0]?.product_id || "",
       }));
-    } catch (err) {
-      setError(err?.message || "Gagal membaca Request & DO.");
+    } catch (caught) {
+      setError(caught?.message || "Gagal membaca Request & DO.");
     } finally {
       setLoading(false);
     }
@@ -242,226 +217,399 @@ export default function RequestDOPage({ session, onSessionExpired }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleCreateRequest = async () => {
+  const runWrite = async (action, successFallback) => {
+    setSaving(true);
     setError("");
     setSuccess("");
+    try {
+      const result = await action();
+      if (isAuthRequired(result)) {
+        onSessionExpired?.();
+        return false;
+      }
+      if (!result?.success) {
+        setError(result?.message || "Transaksi ditolak backend.");
+        return false;
+      }
+      setSuccess(result?.message || successFallback);
+      await loadData();
+      return true;
+    } catch (caught) {
+      setError(caught?.message || "Transaksi gagal diproses.");
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
 
-    if (!draft.destination_location) {
-      setError("Cabang tujuan wajib dipilih.");
+  const addRequestItem = () => {
+    setError("");
+    const quantity = num(itemDraft.qty);
+    if (!selectedProduct) {
+      setError("Produk wajib dipilih.");
       return;
     }
-    if (!selectedStock) {
-      setError("Produk stok pusat wajib dipilih.");
-      return;
-    }
-    if (!qtyDraft || qtyDraft <= 0) {
+    if (quantity <= 0) {
       setError("Qty request wajib lebih dari 0 pcs.");
       return;
     }
+    if (requestItems.some((row) => row.product_id === selectedProduct.product_id)) {
+      setError("Produk yang sama sudah ada dalam request.");
+      return;
+    }
+    setRequestItems((current) => [
+      ...current,
+      {
+        product_id: selectedProduct.product_id,
+        product_code: selectedProduct.product_code,
+        product_name: selectedProduct.product_name,
+        qty: quantity,
+        free_pcs: selectedProductStock?.free_pcs || 0,
+      },
+    ]);
+    setItemDraft((current) => ({ ...current, qty: "" }));
+  };
 
-    setSaving(true);
-    try {
-      const payload = {
-        ...draft,
-        product_id: selectedStock.product_id,
-        product_code: selectedStock.product_code,
-        product_name: selectedStock.product_name,
-        available_pcs: selectedStock.free_pcs,
-        qty_pcs: qtyDraft,
-      };
-      const result = await createBranchGoodsRequest(sessionToken, payload);
-
-      if (isAuthRequired(result)) {
-        onSessionExpired?.();
-        return;
-      }
-
-      if (!result?.success) {
-        setError(result?.message || "Gagal membuat request barang.");
-        return;
-      }
-
-      setSuccess(result.message || "Request barang berhasil dibuat dan menunggu approval Tangerang.");
-      setDraft((current) => ({
-        ...current,
-        qty_pcs: "100",
-        notes: "Request barang cabang dari stok pusat.",
-      }));
-      await loadData();
-    } catch (err) {
-      setError(err?.message || "Gagal membuat request barang.");
-    } finally {
-      setSaving(false);
+  const submitRequest = async () => {
+    if (!requestDraft.destination_location) {
+      setError("Lokasi tujuan wajib dipilih.");
+      return;
+    }
+    if (requestItems.length === 0) {
+      setError("Tambahkan minimal satu produk ke request.");
+      return;
+    }
+    const ok = await runWrite(
+      () => createBranchGoodsRequest(sessionToken, {
+        ...requestDraft,
+        items: requestItems,
+        requested_by_name: session?.user?.name || session?.user?.username || "",
+        operation_id: makeOperationId("BRANCH-REQ"),
+      }),
+      "Request barang berhasil dibuat."
+    );
+    if (ok) {
+      setRequestItems([]);
+      setRequestDraft((current) => ({ ...current, notes: "Request barang cabang." }));
     }
   };
 
-  const runRequestAction = async (actionName, request) => {
-    const requestId = request?.request_id;
-    if (!requestId) return;
-    setSaving(true);
-    setError("");
-    setSuccess("");
-    try {
-      let result;
-      if (actionName === "approve") {
-        result = await approveBranchGoodsRequest(sessionToken, {
-          request_id: requestId,
-          approved_qty_pcs: request.qty_pcs,
-          notes: "Approved oleh owner/Tangerang.",
-        });
-      } else {
-        result = await createDeliveryOrderFromRequest(sessionToken, {
-          request_id: requestId,
-          do_date: today,
-          notes: "DO dibuat dari request barang cabang.",
-        });
-      }
-
-      if (!result?.success) {
-        setError(result?.message || "Aksi request gagal.");
-        return;
-      }
-      setSuccess(result.message || "Aksi request berhasil.");
-      setSelected(null);
-      await loadData();
-    } catch (err) {
-      setError(err?.message || "Aksi request gagal.");
-    } finally {
-      setSaving(false);
-    }
+  const openRequest = (row) => {
+    setSelectedRequest(row);
+    setApprovalQty(Object.fromEntries(
+      row.items.map((item) => [item.request_item_id, String(num(item.qty_requested))])
+    ));
   };
 
-  const handleReceiveDO = async (deliveryOrder) => {
-    const doId = deliveryOrder?.do_id;
-    if (!doId) return;
-    if (!window.confirm(`Terima DO ${doId}? Stok cabang akan bertambah sesuai qty DO.`)) return;
+  const approveRequest = async () => {
+    const row = selectedRequest;
+    if (!row) return;
+    const ok = await runWrite(
+      () => approveBranchGoodsRequest(sessionToken, {
+        request_id: row.request_id,
+        items: row.items.map((item) => ({
+          request_item_id: item.request_item_id,
+          qty_approved: num(approvalQty[item.request_item_id]),
+        })),
+        notes: "Disetujui Tangerang.",
+        operation_id: makeOperationId("BRANCH-APPROVE"),
+      }),
+      "Request berhasil disetujui."
+    );
+    if (ok) setSelectedRequest(null);
+  };
 
-    setSaving(true);
-    setError("");
-    setSuccess("");
-    try {
-      const result = await receiveDeliveryOrder(sessionToken, {
-        do_id: doId,
-        received_date: today,
-        received_qty_pcs: deliveryOrder.qty_pcs,
-        notes: "Barang diterima cabang.",
+  const rejectRequest = async () => {
+    const row = selectedRequest;
+    if (!row) return;
+    const reason = window.prompt("Tuliskan alasan penolakan request:", "Stok atau jadwal pengiriman belum memungkinkan.");
+    if (!reason) return;
+    const ok = await runWrite(
+      () => rejectBranchGoodsRequest(sessionToken, {
+        request_id: row.request_id,
+        reason,
+        operation_id: makeOperationId("BRANCH-REJECT"),
+      }),
+      "Request berhasil ditolak."
+    );
+    if (ok) setSelectedRequest(null);
+  };
+
+  const cancelRequest = async () => {
+    const row = selectedRequest;
+    if (!row || !window.confirm(`Batalkan request ${row.request_id}?`)) return;
+    const ok = await runWrite(
+      () => cancelBranchGoodsRequest(sessionToken, {
+        request_id: row.request_id,
+        reason: "Dibatalkan sebelum approval.",
+        operation_id: makeOperationId("BRANCH-CANCEL"),
+      }),
+      "Request dibatalkan."
+    );
+    if (ok) setSelectedRequest(null);
+  };
+
+  const createDO = async () => {
+    const row = selectedRequest;
+    if (!row || !window.confirm(`Buat dan kirim DO dari ${row.request_id}? Stok sumber akan berkurang.`)) return;
+    const ok = await runWrite(
+      () => createDeliveryOrderFromRequest(sessionToken, {
+        request_id: row.request_id,
+        do_date: currentDate,
+        notes: "DO dibuat dari request barang cabang.",
+        operation_id: makeOperationId("DELIVERY-ORDER"),
+      }),
+      "DO berhasil dibuat dan dikirim."
+    );
+    if (ok) setSelectedRequest(null);
+  };
+
+  const openDO = (row) => {
+    setSelectedDO(row);
+    setReceiveQty(Object.fromEntries(
+      row.items.map((item) => [
+        item.do_item_id,
+        String(Math.max(num(item.qty_shipped) - num(item.qty_received) - num(item.qty_difference), 0)),
+      ])
+    ));
+    setReceiveForm({
+      receipt_date: currentDate,
+      close_delivery: false,
+      discrepancy_reason: "",
+      proof_reference: "",
+      notes: "Barang diterima cabang.",
+    });
+  };
+
+  const receiveDO = async () => {
+    const row = selectedDO;
+    if (!row) return;
+    const totalReceive = row.items.reduce(
+      (sum, item) => sum + num(receiveQty[item.do_item_id]),
+      0
+    );
+    if (totalReceive <= 0 && !receiveForm.close_delivery) {
+      setError("Minimal ada qty yang diterima.");
+      return;
+    }
+    if (receiveForm.close_delivery && !receiveForm.discrepancy_reason) {
+      const stillShort = row.items.some((item) => {
+        const remaining = Math.max(num(item.qty_shipped) - num(item.qty_received) - num(item.qty_difference), 0);
+        return num(receiveQty[item.do_item_id]) + 0.0001 < remaining;
       });
-      if (!result?.success) {
-        setError(result?.message || "Gagal menerima DO.");
+      if (stillShort) {
+        setError("Alasan selisih wajib diisi saat DO ditutup dalam kondisi kurang.");
         return;
       }
-      setSuccess(result.message || "DO sudah diterima. Stok cabang bertambah dan In Transit ditutup.");
-      setSelected(null);
-      await loadData();
-    } catch (err) {
-      setError(err?.message || "Gagal menerima DO.");
-    } finally {
-      setSaving(false);
     }
+    if (!window.confirm(`Konfirmasi penerimaan ${row.do_id}? Stok lokasi tujuan akan bertambah.`)) return;
+    const ok = await runWrite(
+      () => receiveDeliveryOrder(sessionToken, {
+        do_id: row.do_id,
+        receipt_date: receiveForm.receipt_date,
+        close_delivery: receiveForm.close_delivery,
+        discrepancy_reason: receiveForm.discrepancy_reason,
+        proof_reference: receiveForm.proof_reference,
+        notes: receiveForm.notes,
+        items: row.items.map((item) => ({
+          do_item_id: item.do_item_id,
+          qty_received: num(receiveQty[item.do_item_id]),
+        })),
+        operation_id: makeOperationId("DELIVERY-RECEIVE"),
+      }),
+      "Penerimaan DO berhasil."
+    );
+    if (ok) setSelectedDO(null);
   };
 
   const requestColumns = [
-    { key: "request_date", label: "Tanggal", render: (row) => formatDisplayDate(row.request_date) },
-    { key: "request_id", label: "Request ID", render: (row) => <strong>{safeText(row.request_id)}</strong> },
+    { key: "request_date", label: "Tanggal", render: (row) => displayDate(row.request_date) },
+    { key: "request_id", label: "Request ID", render: (row) => <strong>{row.request_id}</strong> },
     { key: "destination_location", label: "Tujuan" },
-    { key: "product_name", label: "Produk" },
-    { key: "qty_pcs", label: "Qty", render: (row) => `${row.qty_pcs.toLocaleString("id-ID")} pcs` },
-    { key: "status", label: "Status", render: (row) => <Badge tone={badgeTone(row.status)}>{safeText(row.status)}</Badge> },
-    {
-      key: "aksi",
-      label: "Aksi",
-      render: (row) => (
-        <Button
-          variant="secondary"
-          onClick={(event) => {
-            event.stopPropagation();
-            setSelectedType("request");
-            setSelected(row);
-          }}
-        >
-          Detail
-        </Button>
-      ),
-    },
+    { key: "items", label: "Produk", render: (row) => `${row.items.length} produk` },
+    { key: "qty", label: "Diminta", render: (row) => pcs(row.qty_pcs) },
+    { key: "approved", label: "Disetujui", render: (row) => pcs(row.approved_qty_pcs) },
+    { key: "status", label: "Status", render: (row) => <Badge tone={statusTone(row.status)}>{row.status}</Badge> },
   ];
-
   const doColumns = [
-    { key: "do_date", label: "Tanggal", render: (row) => formatDisplayDate(row.do_date) },
-    { key: "do_id", label: "DO ID", render: (row) => <strong>{safeText(row.do_id)}</strong> },
-    { key: "destination_location", label: "Tujuan" },
-    { key: "product_name", label: "Produk" },
-    { key: "qty_pcs", label: "Dikirim", render: (row) => `${row.qty_pcs.toLocaleString("id-ID")} pcs` },
-    { key: "received_qty_pcs", label: "Diterima", render: (row) => `${row.received_qty_pcs.toLocaleString("id-ID")} pcs` },
-    { key: "status", label: "Status", render: (row) => <Badge tone={badgeTone(row.status)}>{safeText(row.status)}</Badge> },
+    { key: "do_date", label: "Tanggal", render: (row) => displayDate(row.do_date) },
+    { key: "do_id", label: "DO ID", render: (row) => <strong>{row.do_id}</strong> },
+    { key: "route", label: "Rute", render: (row) => `${row.source_location} → ${row.destination_location}` },
+    { key: "shipped", label: "Dikirim", render: (row) => pcs(row.qty_pcs) },
+    { key: "received", label: "Diterima", render: (row) => pcs(row.received_qty_pcs) },
+    { key: "status", label: "Status", render: (row) => <Badge tone={statusTone(row.status)}>{row.status}</Badge> },
+  ];
+  const stockColumns = [
+    { key: "product_name", label: "Produk", render: (row) => <strong>{row.product_name}</strong> },
+    { key: "location_code", label: "Lokasi" },
+    { key: "total_pcs", label: "Fisik", render: (row) => pcs(row.total_pcs) },
+    { key: "held_pcs", label: "Ditahan PO", render: (row) => pcs(row.held_pcs) },
+    { key: "free_pcs", label: "Bisa Dikirim", render: (row) => pcs(row.free_pcs) },
   ];
 
-  const stockColumns = [
-    { key: "product_name", label: "Produk", render: (row) => <strong>{safeText(row.product_name)}</strong> },
-    { key: "location_code", label: "Lokasi" },
-    { key: "total_pcs", label: "Total", render: (row) => `${row.total_pcs.toLocaleString("id-ID")} pcs` },
-    { key: "held_pcs", label: "Ditahan", render: (row) => `${row.held_pcs.toLocaleString("id-ID")} pcs` },
-    { key: "free_pcs", label: "Stok Bebas", render: (row) => `${row.free_pcs.toLocaleString("id-ID")} pcs` },
-  ];
+  const selectedDestination = data.locations.find(
+    (row) => row.location_id === requestDraft.destination_location
+  );
+  const canReceiveSelectedDO = selectedDO && (
+    isGlobal || selectedDO.destination_location_id === userLocationId
+  );
 
   return (
     <>
       <PageHeader
         eyebrow="DIMSUM ADITYA"
         title="Request Barang & DO"
-        description="Cabang minta barang ke Tangerang, owner approve, lalu DO mengirim stok antar lokasi. Ini bukan PO customer dan bukan uang masuk."
-        badge="Request + DO"
+        description="Cabang meminta barang, Tangerang menyetujui dan mengirim, lalu stok cabang bertambah hanya setelah penerimaan dikonfirmasi. Bukan penjualan dan bukan uang masuk."
+        badge="PHP/MySQL Single Source"
       />
 
       <Card>
         <div className="da-card-header-inline">
           <div>
-            <div className="da-section-eyebrow">BARANG ANTAR LOKASI</div>
-            <h2 className="da-section-title">Request Cabang → Approve Tangerang → DO → Receive</h2>
+            <div className="da-section-eyebrow">ANTAR-LOKASI</div>
+            <h2 className="da-section-title">Request → Approval → DO → In Transit → Receive</h2>
             <p className="da-section-desc">
-              Modul ini memisahkan permintaan barang cabang dari Antrian PO Customer supaya tidak tercampur dengan invoice, piutang, dan uang masuk.
+              HPP historis mengikuti cost layer sumber. Barang In Transit tidak dihitung sebagai stok tujuan.
             </p>
           </div>
           <div className="da-header-actions">
-            <Badge tone={error ? "danger" : "success"}>{error ? "Perlu Cek" : "Terhubung"}</Badge>
+            <Badge tone={data.health?.ready ? "success" : "danger"}>
+              {data.health?.ready ? "DO Live Ready" : "Migration 018 Belum Siap"}
+            </Badge>
+            <Badge tone="warning">Bukan Omzet</Badge>
             <Button variant="secondary" onClick={loadData} disabled={loading || saving}>Refresh Data</Button>
           </div>
         </div>
         {error ? <div className="da-form-error">{error}</div> : null}
         {success ? <div className="da-form-success">{success}</div> : null}
+        {data.warnings.map((warning) => <div className="da-alert-note" key={warning}>{warning}</div>)}
       </Card>
 
       <section className="da-stat-grid da-stat-grid-3">
-        <StatCard label="Request Pending" value={bootstrap.summary.pending_request_count.toLocaleString("id-ID")} tone="warning" description="Menunggu owner/Tangerang approve." />
-        <StatCard label="Request Approved" value={bootstrap.summary.approved_request_count.toLocaleString("id-ID")} tone="success" description="Siap dibuat DO." />
-        <StatCard label="DO In Transit" value={bootstrap.summary.in_transit_do_count.toLocaleString("id-ID")} tone="warning" description="Barang sudah dikirim, belum diterima." />
-        <StatCard label="DO Diterima" value={bootstrap.summary.received_do_count.toLocaleString("id-ID")} tone="success" description="Barang sudah masuk cabang." />
-        <StatCard label="Qty Diminta" value={`${bootstrap.summary.total_requested_pcs.toLocaleString("id-ID")} pcs`} description="Total request dalam filter." />
-        <StatCard label="Stok Bebas Pusat" value={`${bootstrap.summary.total_stock_free_pcs.toLocaleString("id-ID")} pcs`} description="Bahan cek sebelum kirim barang." />
+        <StatCard label="Request Pending" value={data.summary.pending_request_count.toLocaleString("id-ID")} tone="warning" description="Menunggu Tangerang." />
+        <StatCard label="Request Approved" value={data.summary.approved_request_count.toLocaleString("id-ID")} tone="success" description="Siap dibuat DO." />
+        <StatCard label="DO In Transit" value={data.summary.in_transit_do_count.toLocaleString("id-ID")} tone="warning" description="Belum menjadi stok cabang." />
+        <StatCard label="DO Diterima" value={data.summary.received_do_count.toLocaleString("id-ID")} tone="success" description="Sudah masuk stok tujuan." />
+        <StatCard label="Qty Dikirim" value={pcs(data.summary.total_shipped_pcs)} description="Total dalam periode." />
+        <StatCard label="Stok Bisa Dikirim" value={pcs(data.summary.total_stock_free_pcs)} description="Stok bebas sumber." />
       </section>
 
       <Card>
         <div className="da-card-header-inline">
           <div>
-            <div className="da-section-eyebrow">FILTER</div>
-            <h2 className="da-section-title">Pantau Request & DO</h2>
-            <p className="da-section-desc">Gunakan tanggal dan lokasi supaya request cabang tidak tercampur.</p>
+            <div className="da-section-eyebrow">REQUEST CABANG</div>
+            <h2 className="da-section-title">Buat Permintaan Barang</h2>
+            <p className="da-section-desc">Request boleh dibuat saat stok masih 0. Approval dan DO baru bisa berjalan ketika stok sumber cukup.</p>
           </div>
-          <Badge tone="warning">Bukan Uang Masuk</Badge>
+          <Badge tone="warning">Belum Potong Stok</Badge>
         </div>
+
         <div className="da-form-grid da-form-grid-4">
           <label className="da-form-field">
-            <span>Tanggal Mulai</span>
-            <input type="date" value={filter.date_start} onChange={(event) => setFilter((current) => ({ ...current, date_start: event.target.value }))} />
+            <span>Tanggal Request</span>
+            <input type="date" value={requestDraft.request_date} onChange={(event) => setRequestDraft((current) => ({ ...current, request_date: event.target.value }))} />
           </label>
           <label className="da-form-field">
-            <span>Tanggal Sampai</span>
-            <input type="date" value={filter.date_end} onChange={(event) => setFilter((current) => ({ ...current, date_end: event.target.value }))} />
+            <span>Dibutuhkan Tanggal</span>
+            <input type="date" value={requestDraft.needed_date} onChange={(event) => setRequestDraft((current) => ({ ...current, needed_date: event.target.value }))} />
           </label>
           <label className="da-form-field">
-            <span>Cabang Tujuan</span>
-            <select value={filter.destination_location} onChange={(event) => setFilter((current) => ({ ...current, destination_location: event.target.value }))}>
-              <option value="ALL">Semua Cabang</option>
-              {locationOptions.map((location) => <option key={location.code} value={location.code}>{location.name} · {location.code}</option>)}
+            <span>Lokasi Sumber</span>
+            <select value={requestDraft.source_location} disabled>
+              <option value={tangerangLocation?.location_id || "TGR"}>Tangerang HO · TGR</option>
+            </select>
+          </label>
+          <label className="da-form-field">
+            <span>Lokasi Tujuan</span>
+            <select
+              value={requestDraft.destination_location}
+              disabled={!isGlobal}
+              onChange={(event) => setRequestDraft((current) => ({ ...current, destination_location: event.target.value }))}
+            >
+              <option value="">Pilih lokasi</option>
+              {destinationOptions.map((location) => (
+                <option key={location.location_id} value={location.location_id}>
+                  {location.location_name} · {location.location_code}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div className="da-form-grid da-form-grid-4">
+          <label className="da-form-field da-form-field-wide">
+            <span>Produk</span>
+            <select value={itemDraft.product_id} onChange={(event) => setItemDraft((current) => ({ ...current, product_id: event.target.value }))}>
+              <option value="">Pilih produk</option>
+              {data.products.map((product) => (
+                <option key={product.product_id} value={product.product_id}>
+                  {product.product_name} · stok bebas TGR {pcs(data.stock.find((row) => row.product_id === product.product_id)?.free_pcs || 0)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="da-form-field">
+            <span>Qty / Pcs</span>
+            <input type="number" min="1" step="1" value={itemDraft.qty} onChange={(event) => setItemDraft((current) => ({ ...current, qty: event.target.value }))} placeholder="Contoh: 500" />
+          </label>
+          <div className="da-form-field">
+            <span>&nbsp;</span>
+            <Button variant="secondary" onClick={addRequestItem} disabled={saving}>Tambah ke Request</Button>
+          </div>
+        </div>
+
+        <DataTable
+          columns={[
+            { key: "product_name", label: "Produk" },
+            { key: "qty", label: "Diminta", render: (row) => pcs(row.qty) },
+            { key: "free_pcs", label: "Stok Bebas Saat Ini", render: (row) => pcs(row.free_pcs) },
+            {
+              key: "action",
+              label: "Aksi",
+              render: (row) => <Button variant="primary" onClick={(event) => {
+                event.stopPropagation();
+                setRequestItems((current) => current.filter((item) => item.product_id !== row.product_id));
+              }}>Hapus</Button>,
+            },
+          ]}
+          rows={requestItems}
+          getRowKey={(row) => row.product_id}
+        />
+
+        <div className="da-form-grid">
+          <label className="da-form-field da-form-field-wide">
+            <span>Catatan Request</span>
+            <input value={requestDraft.notes} onChange={(event) => setRequestDraft((current) => ({ ...current, notes: event.target.value }))} />
+          </label>
+        </div>
+        <div className="da-preview-strip">
+          Tujuan: <strong>{selectedDestination?.location_name || "belum dipilih"}</strong> · {requestItems.length} produk · total {pcs(requestItems.reduce((sum, row) => sum + num(row.qty), 0))} · belum memengaruhi omzet, dompet, atau stok.
+        </div>
+        <div className="da-form-actions">
+          <Button variant="secondary" onClick={() => setRequestItems([])} disabled={saving}>Reset Item</Button>
+          <Button onClick={submitRequest} disabled={saving || loading || !data.health?.ready}>
+            {saving ? "Menyimpan..." : "Simpan Request Barang"}
+          </Button>
+        </div>
+      </Card>
+
+      <Card>
+        <div className="da-card-header-inline">
+          <div>
+            <div className="da-section-eyebrow">FILTER & MONITOR</div>
+            <h2 className="da-section-title">Request Barang yang Tercatat</h2>
+            <p className="da-section-desc">Klik ID untuk approval, penolakan, pembatalan, atau pembuatan DO sesuai hak akun.</p>
+          </div>
+          <Badge tone="success">Live Data</Badge>
+        </div>
+        <div className="da-form-grid da-form-grid-4">
+          <label className="da-form-field"><span>Mulai</span><input type="date" value={filter.date_start} onChange={(event) => setFilter((current) => ({ ...current, date_start: event.target.value }))} /></label>
+          <label className="da-form-field"><span>Sampai</span><input type="date" value={filter.date_end} onChange={(event) => setFilter((current) => ({ ...current, date_end: event.target.value }))} /></label>
+          <label className="da-form-field">
+            <span>Tujuan</span>
+            <select value={filter.destination_location} disabled={!isGlobal} onChange={(event) => setFilter((current) => ({ ...current, destination_location: event.target.value }))}>
+              <option value="ALL">Semua lokasi</option>
+              {destinationOptions.map((location) => <option key={location.location_id} value={location.location_id}>{location.location_name}</option>)}
             </select>
           </label>
           <label className="da-form-field">
@@ -471,158 +619,144 @@ export default function RequestDOPage({ session, onSessionExpired }) {
               <option value="PENDING">Pending</option>
               <option value="APPROVED">Approved</option>
               <option value="IN_TRANSIT">In Transit</option>
-              <option value="RECEIVED">Received</option>
+              <option value="PARTIAL_RECEIVED">Diterima Sebagian</option>
+              <option value="RECEIVED">Diterima</option>
+              <option value="REJECTED">Ditolak</option>
+              <option value="CANCELLED">Dibatalkan</option>
             </select>
           </label>
         </div>
-        <div className="da-form-actions">
-          <Button variant="secondary" onClick={loadData} disabled={loading}>Tarik Data</Button>
-        </div>
+        <div className="da-form-actions"><Button variant="secondary" onClick={loadData} disabled={loading}>Tarik Data</Button></div>
+        <DataTable columns={requestColumns} rows={data.requests} getRowKey={(row) => row.request_id} onRowClick={openRequest} />
       </Card>
 
       <Card>
         <div className="da-card-header-inline">
           <div>
-            <div className="da-section-eyebrow">INPUT REQUEST</div>
-            <h2 className="da-section-title">Buat Request Barang Cabang</h2>
-            <p className="da-section-desc">Cabang/outlet minta barang ke Tangerang. Approval pusat dulu, baru dibuat DO kirim barang.</p>
+            <div className="da-section-eyebrow">DELIVERY ORDER</div>
+            <h2 className="da-section-title">Kirim Barang & Penerimaan Cabang</h2>
+            <p className="da-section-desc">Stock OUT terjadi ketika DO dibuat. Stock IN tujuan terjadi ketika cabang menekan terima.</p>
           </div>
-          <Badge tone="warning">Menunggu Approval</Badge>
+          <Badge tone="warning">In Transit Tidak Dihitung Stok Cabang</Badge>
         </div>
-
-        <div className="da-form-grid da-form-grid-3">
-          <label className="da-form-field">
-            <span>Tanggal Request</span>
-            <input type="date" value={draft.request_date} onChange={(event) => setDraft((current) => ({ ...current, request_date: event.target.value }))} />
-          </label>
-          <label className="da-form-field">
-            <span>Tanggal Butuh</span>
-            <input type="date" value={draft.needed_date} onChange={(event) => setDraft((current) => ({ ...current, needed_date: event.target.value }))} />
-          </label>
-          <label className="da-form-field">
-            <span>Dari Lokasi</span>
-            <select value={draft.source_location} onChange={(event) => setDraft((current) => ({ ...current, source_location: event.target.value }))}>
-              {locationOptions.map((location) => <option key={location.code} value={location.code}>{location.name} · {location.code}</option>)}
-            </select>
-          </label>
-          <label className="da-form-field">
-            <span>Cabang Tujuan</span>
-            <select value={draft.destination_location} onChange={(event) => setDraft((current) => ({ ...current, destination_location: event.target.value }))}>
-              {locationOptions.map((location) => <option key={location.code} value={location.code}>{location.name} · {location.code}</option>)}
-            </select>
-          </label>
-          <label className="da-form-field">
-            <span>Produk Stok Pusat</span>
-            <select value={draft.product_key} onChange={(event) => setDraft((current) => ({ ...current, product_key: event.target.value }))}>
-              {bootstrap.stock.length === 0 ? <option value="">Belum ada stok ready</option> : null}
-              {bootstrap.stock.map((stock) => (
-                <option key={`${stock.location_code}-${stock.stock_key}`} value={stock.stock_key}>{stock.product_name} · bebas {stock.free_pcs.toLocaleString("id-ID")} pcs</option>
-              ))}
-            </select>
-          </label>
-          <label className="da-form-field">
-            <span>Qty Request (pcs)</span>
-            <input inputMode="numeric" value={draft.qty_pcs} onChange={(event) => setDraft((current) => ({ ...current, qty_pcs: event.target.value }))} />
-          </label>
-          <label className="da-form-field">
-            <span>PIC / Peminta</span>
-            <input value={draft.request_by} onChange={(event) => setDraft((current) => ({ ...current, request_by: event.target.value }))} />
-          </label>
-          <label className="da-form-field da-form-field-wide">
-            <span>Catatan</span>
-            <input value={draft.notes} onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} />
-          </label>
-        </div>
-
-        <div className="da-preview-strip">
-          <strong>Preview:</strong> request {qtyDraft.toLocaleString("id-ID")} pcs · stok bebas sumber {freePcs.toLocaleString("id-ID")} pcs · potensi kurang {shortagePreview.toLocaleString("id-ID")} pcs · belum potong stok sebelum DO dibuat.
-        </div>
-
-        <div className="da-form-actions">
-          <Button variant="secondary" onClick={() => setDraft({ request_date: today, needed_date: today, source_location: "TGR", destination_location: defaultLocation === "TGR" ? "CBN" : defaultLocation, product_key: bootstrap.stock[0]?.stock_key || "", qty_pcs: "100", request_by: session?.user?.name || "", notes: "Request barang cabang dari stok pusat." })} disabled={saving}>Reset</Button>
-          <Button onClick={handleCreateRequest} disabled={saving || loading}>{saving ? "Menyimpan..." : "Simpan Request"}</Button>
-        </div>
-      </Card>
-
-      <Card>
-        <div className="da-card-header-inline">
-          <div>
-            <div className="da-section-eyebrow">REQUEST BARANG</div>
-            <h2 className="da-section-title">Permintaan Cabang yang Tercatat</h2>
-            <p className="da-section-desc">Klik detail untuk approve atau buat DO dari request yang sudah disetujui.</p>
-          </div>
-          <Badge tone="warning">Approval Pusat</Badge>
-        </div>
-        <DataTable columns={requestColumns} rows={bootstrap.requests} getRowKey={(row) => row.request_id} />
-      </Card>
-
-      <Card>
-        <div className="da-card-header-inline">
-          <div>
-            <div className="da-section-eyebrow">DO ANTAR LOKASI</div>
-            <h2 className="da-section-title">Delivery Order / Kirim Barang</h2>
-            <p className="da-section-desc">DO mengurangi stok sumber dan menambah stok In Transit. Receive menambah stok cabang.</p>
-          </div>
-          <Badge tone="success">Traceable</Badge>
-        </div>
-        <DataTable columns={doColumns} rows={bootstrap.deliveryOrders} getRowKey={(row) => row.do_id} onRowClick={(row) => { setSelectedType("do"); setSelected(row); }} />
+        <DataTable columns={doColumns} rows={data.deliveryOrders} getRowKey={(row) => row.do_id} onRowClick={openDO} />
       </Card>
 
       <Card>
         <div className="da-card-header-inline">
           <div>
             <div className="da-section-eyebrow">STOK SUMBER</div>
-            <h2 className="da-section-title">Stok Ready untuk Kirim</h2>
-            <p className="da-section-desc">Ringkas stok yang bisa jadi bahan request dan DO.</p>
+            <h2 className="da-section-title">Stok Tangerang yang Bisa Dikirim</h2>
+            <p className="da-section-desc">Stok bebas adalah stok fisik dikurangi alokasi PO aktif.</p>
           </div>
-          <Badge tone="success">Live Data</Badge>
+          <Badge tone="success">Cost Layer PHP/MySQL</Badge>
         </div>
-        <DataTable columns={stockColumns} rows={bootstrap.stock} getRowKey={(row) => `${row.location_code}-${row.stock_key}`} />
+        <DataTable columns={stockColumns} rows={data.stock} getRowKey={(row) => `${row.location_id}-${row.product_id}`} />
       </Card>
 
       <Modal
-        open={Boolean(selected)}
-        title={selectedType === "do" ? "Detail DO Antar Lokasi" : "Detail Request Barang"}
-        subtitle={selectedType === "do" ? selected?.do_id : selected?.request_id}
-        onClose={() => setSelected(null)}
+        open={Boolean(selectedRequest)}
+        title="Detail Request Barang"
+        subtitle={selectedRequest?.request_id}
+        onClose={() => setSelectedRequest(null)}
       >
-        {selected ? (
+        {selectedRequest ? (
           <div className="da-detail-stack">
             <div className="da-detail-grid">
               <div className="da-detail-box">
-                <div className="da-detail-label">Rantai Lokasi</div>
-                <div className="da-detail-value">{safeText(selected.source_location)} → {safeText(selected.destination_location)}</div>
-                <p>Produk: <strong>{safeText(selected.product_name)}</strong></p>
-                <p>Qty: <strong>{numberValue(selected.qty_pcs).toLocaleString("id-ID")} pcs</strong></p>
+                <div className="da-detail-label">Rute Barang</div>
+                <div className="da-detail-value">{selectedRequest.source_location} → {selectedRequest.destination_location}</div>
+                <p>Dibuat: <strong>{displayDate(selectedRequest.request_date)}</strong></p>
+                <p>Dibutuhkan: <strong>{displayDate(selectedRequest.needed_date)}</strong></p>
               </div>
               <div className="da-detail-box">
                 <div className="da-detail-label">Status</div>
-                <div className="da-detail-value"><Badge tone={badgeTone(selected.status)}>{safeText(selected.status)}</Badge></div>
-                <p>Request ID: <strong>{safeText(selected.request_id)}</strong></p>
-                <p>DO ID: <strong>{safeText(selected.do_id || selected.delivery_order_id)}</strong></p>
+                <div className="da-detail-value"><Badge tone={statusTone(selectedRequest.status)}>{selectedRequest.status}</Badge></div>
+                <p>DO terkait: <strong>{text(selectedRequest.delivery_order_id)}</strong></p>
               </div>
             </div>
-
-            <div className="da-alert-note">
-              Rantai ini harus bisa ditelusuri: Request Barang Cabang → Approval Tangerang → DO Antar Lokasi → Stock OUT sumber → In Transit → Receive Barang Cabang.
+            <DataTable
+              columns={[
+                { key: "product_name", label: "Produk" },
+                { key: "requested", label: "Diminta", render: (row) => pcs(row.qty_requested) },
+                {
+                  key: "approved",
+                  label: "Qty Approval",
+                  render: (row) => selectedRequest.status === "PENDING" && canApprove
+                    ? <input type="number" min="1" max={num(row.qty_requested)} value={approvalQty[row.request_item_id] || ""} onChange={(event) => setApprovalQty((current) => ({ ...current, [row.request_item_id]: event.target.value }))} />
+                    : pcs(row.qty_approved),
+                },
+                { key: "fulfilled", label: "Diterima", render: (row) => pcs(row.qty_fulfilled) },
+              ]}
+              rows={selectedRequest.items}
+              getRowKey={(row) => row.request_item_id}
+            />
+            {selectedRequest.rejection_reason ? <div className="da-form-error">Alasan: {selectedRequest.rejection_reason}</div> : null}
+            <div className="da-alert-note">Request bukan transaksi jual. Approval belum memotong stok. Stok baru keluar ketika DO dibuat.</div>
+            <div className="da-form-actions">
+              {selectedRequest.status === "PENDING" && canApprove ? <Button onClick={approveRequest} disabled={saving}>Approve Request</Button> : null}
+              {selectedRequest.status === "PENDING" && canApprove ? <Button variant="primary" onClick={rejectRequest} disabled={saving}>Tolak</Button> : null}
+              {selectedRequest.status === "PENDING" && !canApprove ? <Button variant="primary" onClick={cancelRequest} disabled={saving}>Batalkan Request</Button> : null}
+              {selectedRequest.status === "APPROVED" && canCreateDO && !selectedRequest.delivery_order_id ? <Button onClick={createDO} disabled={saving}>Buat & Kirim DO</Button> : null}
             </div>
+          </div>
+        ) : null}
+      </Modal>
 
-            {selectedType === "request" ? (
-              <div className="da-form-actions">
-                {String(selected.status || "").toUpperCase() === "PENDING" ? (
-                  <Button onClick={() => runRequestAction("approve", selected)} disabled={saving}>Approve Request</Button>
-                ) : null}
-                {String(selected.status || "").toUpperCase() === "APPROVED" && !selected.delivery_order_id ? (
-                  <Button onClick={() => runRequestAction("do", selected)} disabled={saving}>Buat DO Kirim Barang</Button>
-                ) : null}
+      <Modal
+        open={Boolean(selectedDO)}
+        title="Detail Delivery Order"
+        subtitle={selectedDO?.do_id}
+        onClose={() => setSelectedDO(null)}
+      >
+        {selectedDO ? (
+          <div className="da-detail-stack">
+            <div className="da-detail-grid">
+              <div className="da-detail-box">
+                <div className="da-detail-label">Rute Barang</div>
+                <div className="da-detail-value">{selectedDO.source_location} → {selectedDO.destination_location}</div>
+                <p>Request: <strong>{selectedDO.request_id}</strong></p>
               </div>
-            ) : (
-              <div className="da-form-actions">
-                {String(selected.status || "").toUpperCase() === "IN_TRANSIT" ? (
-                  <Button onClick={() => handleReceiveDO(selected)} disabled={saving}>Receive / Terima Barang</Button>
-                ) : null}
+              <div className="da-detail-box">
+                <div className="da-detail-label">Status</div>
+                <div className="da-detail-value"><Badge tone={statusTone(selectedDO.status)}>{selectedDO.status}</Badge></div>
+                <p>Jumlah receipt: <strong>{selectedDO.receipts.length}</strong></p>
               </div>
-            )}
+            </div>
+            <DataTable
+              columns={[
+                { key: "product_name", label: "Produk" },
+                { key: "shipped", label: "Dikirim", render: (row) => pcs(row.qty_shipped) },
+                { key: "received", label: "Sudah Diterima", render: (row) => pcs(row.qty_received) },
+                { key: "difference", label: "Selisih Ditutup", render: (row) => pcs(row.qty_difference) },
+                {
+                  key: "receive_now",
+                  label: "Terima Sekarang",
+                  render: (row) => canReceiveSelectedDO && ["IN_TRANSIT", "PARTIAL_RECEIVED"].includes(selectedDO.status)
+                    ? <input type="number" min="0" max={Math.max(num(row.qty_shipped) - num(row.qty_received) - num(row.qty_difference), 0)} value={receiveQty[row.do_item_id] || "0"} onChange={(event) => setReceiveQty((current) => ({ ...current, [row.do_item_id]: event.target.value }))} />
+                    : pcs(0),
+                },
+              ]}
+              rows={selectedDO.items}
+              getRowKey={(row) => row.do_item_id}
+            />
+            {canReceiveSelectedDO && ["IN_TRANSIT", "PARTIAL_RECEIVED"].includes(selectedDO.status) ? (
+              <>
+                <div className="da-form-grid da-form-grid-4">
+                  <label className="da-form-field"><span>Tanggal Terima</span><input type="date" value={receiveForm.receipt_date} onChange={(event) => setReceiveForm((current) => ({ ...current, receipt_date: event.target.value }))} /></label>
+                  <label className="da-form-field"><span>Bukti / Foto Referensi</span><input value={receiveForm.proof_reference} onChange={(event) => setReceiveForm((current) => ({ ...current, proof_reference: event.target.value }))} placeholder="Opsional: nama file / nomor bukti" /></label>
+                  <label className="da-form-field da-form-field-wide"><span>Catatan</span><input value={receiveForm.notes} onChange={(event) => setReceiveForm((current) => ({ ...current, notes: event.target.value }))} /></label>
+                </div>
+                <label className="da-form-field">
+                  <span><input type="checkbox" checked={receiveForm.close_delivery} onChange={(event) => setReceiveForm((current) => ({ ...current, close_delivery: event.target.checked }))} /> Tutup DO meskipun ada kekurangan</span>
+                </label>
+                {receiveForm.close_delivery ? (
+                  <label className="da-form-field da-form-field-wide"><span>Alasan Selisih</span><input value={receiveForm.discrepancy_reason} onChange={(event) => setReceiveForm((current) => ({ ...current, discrepancy_reason: event.target.value }))} placeholder="Wajib bila jumlah diterima kurang" /></label>
+                ) : null}
+                <div className="da-form-actions"><Button onClick={receiveDO} disabled={saving}>Konfirmasi Penerimaan</Button></div>
+              </>
+            ) : null}
+            <div className="da-alert-note">Rantai arsip: Request ID → DO ID → Stock OUT sumber → Receipt ID → Stock IN tujuan. HPP historis tidak dihitung ulang.</div>
           </div>
         ) : null}
       </Modal>
