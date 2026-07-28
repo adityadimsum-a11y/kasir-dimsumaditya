@@ -15,6 +15,38 @@ function sendJson(res, status, payload) {
   res.end(JSON.stringify(payload));
 }
 
+
+function parseUpstreamJson(text) {
+  const cleaned = String(text || "").replace(/^\uFEFF/, "").trim();
+  if (!cleaned) return { json: null, recovered: false };
+
+  try {
+    return { json: JSON.parse(cleaned), recovered: false };
+  } catch {}
+
+  // Beberapa hosting mencetak warning sebelum JSON. Ambil payload ERP terakhir
+  // tanpa menganggap warning tersebut sebagai sumber data resmi.
+  const markers = ['{"success"', "{\n\"success\""];
+  let start = -1;
+  for (const marker of markers) {
+    start = Math.max(start, cleaned.lastIndexOf(marker));
+  }
+  const end = cleaned.lastIndexOf("}");
+  if (start >= 0 && end > start) {
+    try {
+      return { json: JSON.parse(cleaned.slice(start, end + 1)), recovered: true };
+    } catch {}
+  }
+
+  return { json: null, recovered: false };
+}
+
+function safePreview(text, maxLength = 1200) {
+  return String(text || "")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, " ")
+    .slice(0, maxLength);
+}
+
 function getTarget() {
   return String(process.env.ERP_PHP_API_URL || DEFAULT_TARGET).trim();
 }
@@ -70,19 +102,36 @@ export default async function handler(req, res) {
     });
 
     const text = await upstream.text();
-    let json;
-    try {
-      json = JSON.parse(text);
-    } catch {
+    const parsed = parseUpstreamJson(text);
+
+    if (!parsed.json) {
+      const requestBody = parseBody(req);
+      const hasSession = Boolean(
+        requestBody?.sessionToken || requestBody?.session_token || requestBody?.token
+      );
+
       sendJson(res, 502, {
         success: false,
-        message: "PHP ERP membalas non-JSON.",
-        error: { code: "PHP_UPSTREAM_INVALID_JSON" },
+        message: "PHP ERP gagal membentuk JSON resmi.",
+        error: {
+          code: "PHP_UPSTREAM_INVALID_JSON",
+          upstream_status: upstream.status,
+          upstream_content_type: upstream.headers.get("content-type") || "",
+          upstream_body_length: text.length,
+          ...(hasSession ? { upstream_preview: safePreview(text) } : {}),
+        },
       });
       return;
     }
 
-    sendJson(res, upstream.status, json);
+    if (parsed.recovered && parsed.json && typeof parsed.json === "object") {
+      parsed.json.meta = {
+        ...(parsed.json.meta || {}),
+        proxy_recovered_contaminated_json: true,
+      };
+    }
+
+    sendJson(res, upstream.status, parsed.json);
   } catch (err) {
     sendJson(res, 502, {
       success: false,
