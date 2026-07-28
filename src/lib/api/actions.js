@@ -636,29 +636,40 @@ export async function getOwnerControlBootstrap(sessionToken, payload = {}) {
 
 
 /**
- * REQUEST BARANG CABANG / DO ANTAR LOKASI
+ * REQUEST BARANG CABANG / DO ANTAR LOKASI — PHP/MYSQL SINGLE SOURCE
  */
 
+export async function branchTransferHealth(sessionToken, payload = {}) {
+  return phpApiRequest("branchTransferHealth", payload, sessionToken);
+}
+
 export async function getRequestDOStockBootstrap(sessionToken, payload = {}) {
-  return apiRequest("getLegacyRequestDOStockBootstrap", payload, sessionToken);
+  return phpApiRequest("getRequestDOStockBootstrap", payload, sessionToken);
 }
 
 export async function createBranchGoodsRequest(sessionToken, payload = {}) {
-  return apiRequest("legacyCreateBranchGoodsRequest", payload, sessionToken);
+  return phpApiRequest("createBranchGoodsRequest", payload, sessionToken);
 }
 
 export async function approveBranchGoodsRequest(sessionToken, payload = {}) {
-  return apiRequest("legacyApproveBranchGoodsRequest", payload, sessionToken);
+  return phpApiRequest("approveBranchGoodsRequest", payload, sessionToken);
+}
+
+export async function rejectBranchGoodsRequest(sessionToken, payload = {}) {
+  return phpApiRequest("rejectBranchGoodsRequest", payload, sessionToken);
+}
+
+export async function cancelBranchGoodsRequest(sessionToken, payload = {}) {
+  return phpApiRequest("cancelBranchGoodsRequest", payload, sessionToken);
 }
 
 export async function createDeliveryOrderFromRequest(sessionToken, payload = {}) {
-  return apiRequest("legacyCreateDeliveryOrderFromRequest", payload, sessionToken);
+  return phpApiRequest("createDeliveryOrderFromRequest", payload, sessionToken);
 }
 
 export async function receiveDeliveryOrder(sessionToken, payload = {}) {
-  return apiRequest("legacyReceiveDeliveryOrder", payload, sessionToken);
+  return phpApiRequest("receiveDeliveryOrder", payload, sessionToken);
 }
-
 
 
 /**
