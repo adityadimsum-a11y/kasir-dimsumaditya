@@ -1,297 +1,459 @@
-import React, { useMemo, useState } from "react";
-import { MENU_GROUPS } from "../../config/menu.config";
+import { useEffect, useMemo, useState } from "react";
 import {
-  getAllowedMenuGroups,
-  getUserScope,
-} from "../../lib/auth/permissions";
-import {
-  ROLE_SCOPES,
-  buildPermissionCopySummary,
-  getPermissionReadiness,
-  makeMockSession,
-} from "../../lib/roles/permissionRoleRules";
+  createBranchUser,
+  getBranchAccessBootstrap,
+  resetBranchUserPassword,
+  setBranchUserStatus,
+  updateBranchUser,
+} from "../../lib/api/actions";
+import Badge from "../../components/ui/Badge";
+import Button from "../../components/ui/Button";
+import Card from "../../components/ui/Card";
+import DataTable from "../../components/ui/DataTable";
+import Modal from "../../components/ui/Modal";
+import PageHeader from "../../components/ui/PageHeader";
+import StatCard from "../../components/ui/StatCard";
 
-const BRAND = {
-  red: "#b42318",
-  redSoft: "#fef2f2",
-  orange: "#f97316",
-  goldSoft: "#fffbeb",
-  greenSoft: "#f0fdf4",
-  blueSoft: "#eff6ff",
-  ink: "#111827",
-  muted: "#64748b",
-  line: "#e5e7eb",
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function safeText(value, fallback = "-") {
+  const text = String(value ?? "").trim();
+  return text || fallback;
+}
+
+function makeOperationId(action) {
+  const stamp = new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14);
+  const random = Math.random().toString(36).slice(2, 8).toUpperCase();
+  return `OP-BRANCH-${action}-${stamp}-${random}`;
+}
+
+function isAuthRequired(result) {
+  const code = String(result?.code || result?.error?.code || "").toUpperCase();
+  const message = String(result?.message || "").toUpperCase();
+  return code.includes("AUTH") || (message.includes("SESSION") && message.includes("LOGIN"));
+}
+
+function normalize(payload) {
+  const data = payload?.data || payload || {};
+  return {
+    health: data.health || {},
+    roles: asArray(data.roles),
+    locations: asArray(data.locations),
+    users: asArray(data.users),
+    summary: data.summary || {},
+  };
+}
+
+function roleMatchesLocation(roleId, location) {
+  const type = String(location?.location_type || "").toUpperCase();
+  const code = String(location?.location_code || "").toUpperCase();
+  if (roleId === "ROLE-HO-ADMIN") return type === "HO" || code === "TGR";
+  if (roleId === "ROLE-PRODUCTION-ADMIN") return type.includes("PRODUCTION") || type.includes("FACTORY");
+  if (roleId === "ROLE-OUTLET-ADMIN") return type.includes("OUTLET") || type.includes("RESTO") || type.includes("RESTAURANT");
+  if (roleId === "ROLE-BRANCH-STAFF") return type !== "HO" && code !== "TGR";
+  return true;
+}
+
+const EMPTY_DRAFT = {
+  full_name: "",
+  username: "",
+  role_id: "",
+  location_id: "",
+  password: "",
+  confirm_password: "",
 };
 
-export default function PermissionRoleCheckPage({ session }) {
-  const [previewScope, setPreviewScope] = useState("OWNER");
+export default function PermissionRoleCheckPage({ session, onSessionExpired }) {
+  const sessionToken = session?.sessionToken || "";
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [data, setData] = useState(() => normalize({}));
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [draft, setDraft] = useState(EMPTY_DRAFT);
+  const [selected, setSelected] = useState(null);
+  const [editDraft, setEditDraft] = useState({ full_name: "", role_id: "", location_id: "" });
+  const [newPassword, setNewPassword] = useState("");
 
-  const report = useMemo(() => {
-    return getPermissionReadiness({
-      session,
-      menuGroups: MENU_GROUPS,
-      getAllowedMenuGroups,
-      getUserScope,
-    });
-  }, [session]);
-
-  const previewSession = useMemo(() => makeMockSession(previewScope), [previewScope]);
-  const previewGroups = useMemo(
-    () => getAllowedMenuGroups(MENU_GROUPS, previewSession),
-    [previewSession]
+  const availableLocations = useMemo(
+    () => data.locations.filter((row) => roleMatchesLocation(draft.role_id, row)),
+    [data.locations, draft.role_id]
   );
 
-  async function copySummary() {
+  const editLocations = useMemo(
+    () => data.locations.filter((row) => roleMatchesLocation(editDraft.role_id, row)),
+    [data.locations, editDraft.role_id]
+  );
+
+  const filteredUsers = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return data.users.filter((row) => {
+      if (statusFilter !== "ALL" && String(row.status).toUpperCase() !== statusFilter) return false;
+      if (!term) return true;
+      return JSON.stringify(row).toLowerCase().includes(term);
+    });
+  }, [data.users, search, statusFilter]);
+
+  async function loadData() {
+    setLoading(true);
+    setError("");
     try {
-      await navigator.clipboard.writeText(buildPermissionCopySummary(report));
-      alert("Ringkasan Permission Check sudah disalin.");
-    } catch (error) {
-      alert("Browser belum mengizinkan copy otomatis.");
+      const result = await getBranchAccessBootstrap(sessionToken, {});
+      if (isAuthRequired(result)) {
+        onSessionExpired?.();
+        return;
+      }
+      if (!result?.success) {
+        setError(result?.message || "Akun dan permission cabang belum dapat dibaca.");
+        return;
+      }
+      const next = normalize(result);
+      setData(next);
+      setDraft((current) => ({
+        ...current,
+        role_id: current.role_id || next.roles[0]?.role_id || "",
+      }));
+    } catch (err) {
+      setError(err?.message || "Gagal membaca akun cabang.");
+    } finally {
+      setLoading(false);
     }
   }
 
+  useEffect(() => {
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!draft.role_id) return;
+    if (!availableLocations.some((row) => row.location_id === draft.location_id)) {
+      setDraft((current) => ({
+        ...current,
+        location_id: availableLocations[0]?.location_id || "",
+      }));
+    }
+  }, [draft.role_id, draft.location_id, availableLocations]);
+
+  function updateDraft(key, value) {
+    setDraft((current) => ({ ...current, [key]: value }));
+  }
+
+  async function handleCreate(event) {
+    event.preventDefault();
+    setError("");
+    setSuccess("");
+
+    if (draft.password !== draft.confirm_password) {
+      setError("Konfirmasi password belum sama.");
+      return;
+    }
+    if (!draft.location_id) {
+      setError("Lokasi untuk role tersebut belum tersedia.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const result = await createBranchUser(sessionToken, {
+        full_name: draft.full_name,
+        username: draft.username,
+        role_id: draft.role_id,
+        location_id: draft.location_id,
+        password: draft.password,
+        operation_id: makeOperationId("CREATE"),
+      });
+      if (isAuthRequired(result)) {
+        onSessionExpired?.();
+        return;
+      }
+      if (!result?.success) {
+        setError(result?.message || "Akun belum berhasil dibuat.");
+        return;
+      }
+      setSuccess(result?.message || "Akun operasional berhasil dibuat.");
+      setDraft((current) => ({ ...EMPTY_DRAFT, role_id: current.role_id }));
+      await loadData();
+    } catch (err) {
+      setError(err?.message || "Gagal membuat akun.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function openDetail(row) {
+    setSelected(row);
+    setEditDraft({
+      full_name: row.full_name || "",
+      role_id: row.role_id || "",
+      location_id: row.location_id || "",
+    });
+    setNewPassword("");
+    setError("");
+    setSuccess("");
+  }
+
+  async function handleUpdate() {
+    if (!selected) return;
+    setSaving(true);
+    setError("");
+    try {
+      const result = await updateBranchUser(sessionToken, {
+        user_id: selected.user_id,
+        ...editDraft,
+        operation_id: makeOperationId("UPDATE"),
+      });
+      if (!result?.success) {
+        setError(result?.message || "Profil akun belum berhasil diperbarui.");
+        return;
+      }
+      setSuccess(result?.message || "Profil akun diperbarui.");
+      setSelected(null);
+      await loadData();
+    } catch (err) {
+      setError(err?.message || "Gagal memperbarui akun.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleStatus() {
+    if (!selected) return;
+    const nextStatus = String(selected.status).toUpperCase() === "ACTIVE" ? "Inactive" : "Active";
+    setSaving(true);
+    setError("");
+    try {
+      const result = await setBranchUserStatus(sessionToken, {
+        user_id: selected.user_id,
+        status: nextStatus,
+        notes: "Diubah Owner dari Permission & Role.",
+        operation_id: makeOperationId("STATUS"),
+      });
+      if (!result?.success) {
+        setError(result?.message || "Status akun belum berhasil diubah.");
+        return;
+      }
+      setSuccess(result?.message || "Status akun diperbarui.");
+      setSelected(null);
+      await loadData();
+    } catch (err) {
+      setError(err?.message || "Gagal mengubah status akun.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleResetPassword() {
+    if (!selected || !newPassword) return;
+    setSaving(true);
+    setError("");
+    try {
+      const result = await resetBranchUserPassword(sessionToken, {
+        user_id: selected.user_id,
+        password: newPassword,
+        operation_id: makeOperationId("PASSWORD"),
+      });
+      if (!result?.success) {
+        setError(result?.message || "Password belum berhasil direset.");
+        return;
+      }
+      setSuccess(result?.message || "Password berhasil direset.");
+      setNewPassword("");
+    } catch (err) {
+      setError(err?.message || "Gagal mereset password.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const health = data.health || {};
+  const blockers = asArray(health.blockers);
+
+  const columns = [
+    { key: "full_name", label: "NAMA" },
+    { key: "username", label: "USERNAME" },
+    { key: "role_name", label: "ROLE" },
+    {
+      key: "location_name",
+      label: "LOKASI",
+      render: (row) => `${safeText(row.location_name)} (${safeText(row.location_code)})`,
+    },
+    {
+      key: "active_sessions",
+      label: "SESSION",
+      render: (row) => Number(row.active_sessions || 0),
+    },
+    {
+      key: "status",
+      label: "STATUS",
+      render: (row) => (
+        <Badge tone={String(row.status).toUpperCase() === "ACTIVE" ? "success" : "warning"}>
+          {safeText(row.status)}
+        </Badge>
+      ),
+    },
+  ];
+
   return (
-    <main style={styles.page}>
-      <section style={styles.hero}>
-        <div>
-          <div style={styles.kicker}>Pusat Kendali</div>
-          <h1 style={styles.title}>Permission & Role Check</h1>
-          <p style={styles.desc}>
-            Cek final menu dan akses per role sebelum sistem dipakai staff. Ini
-            hanya membaca konfigurasi menu, session aktif, dan simulasi role.
-            Tidak mengubah data.
-          </p>
-        </div>
-        <Badge tone={report.tone}>{report.status}</Badge>
-      </section>
+    <div className="da-page-stack">
+      <PageHeader
+        title="Permission & Akun Cabang"
+        description="Owner membuat akun nyata untuk HO, cabang produksi, resto/outlet, dan staff. Setiap akun dikunci ke lokasi kerja dan backend permission."
+        badge={health.branch_login_ready ? "Cabang Siap Login" : health.foundation_ready ? "Fondasi Siap" : "Belum Siap"}
+        badgeTone={health.branch_login_ready ? "success" : "warning"}
+      />
 
-      <section style={styles.scoreCard}>
-        <div>
-          <div style={styles.scoreLabel}>Score Permission</div>
-          <div style={styles.score}>
-            {report.score}
-            <span>/100</span>
+      {error ? <div className="da-alert da-alert-error">{error}</div> : null}
+      {success ? <div className="da-alert da-alert-success">{success}</div> : null}
+
+      <Card
+        title="Akun Cabang PHP/MySQL"
+        description="Tidak ada password contoh. Owner mengisi nama, username, role, lokasi, dan password awal secara manual."
+        action={
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <Badge tone={health.migration_017_applied ? "success" : "warning"}>Migration 017</Badge>
+            <Badge tone={health.roles_ready ? "success" : "warning"}>Role Matrix</Badge>
+            <Button variant="secondary" disabled={loading} onClick={loadData}>Refresh Data</Button>
           </div>
-          <p style={styles.scoreDesc}>
-            Target sebelum go-live: cabang tidak melihat data sensitif owner,
-            payroll nominal, 4 Amplop, Data Health, master pusat, dan uang pusat.
-          </p>
+        }
+      >
+        <div className="da-stat-grid">
+          <StatCard label="Akun Operasional" value={data.summary.total_users || 0} description="Tidak termasuk akun Owner." />
+          <StatCard label="Aktif" value={data.summary.active_users || 0} description="Bisa login sesuai lokasi." tone="success" />
+          <StatCard label="Nonaktif" value={data.summary.inactive_users || 0} description="Session lama dicabut." tone="warning" />
+          <StatCard label="Lokasi Aktif" value={data.summary.locations || 0} description="Sumber dari Master Lokasi." />
         </div>
 
-        <div style={styles.sessionBox}>
-          <div style={styles.sessionTitle}>Session Aktif</div>
-          <InfoRow label="Nama" value={session?.user?.name || session?.user?.user_name || "-"} />
-          <InfoRow label="Role" value={session?.user?.role_id || session?.user?.role_name || "-"} />
-          <InfoRow label="Lokasi" value={session?.user?.location_code || session?.user?.location_name || "-"} />
-          <InfoRow label="Scope" value={report.currentAccess.scope || "-"} />
-          <button style={styles.primaryBtn} onClick={copySummary}>Copy Ringkasan</button>
-        </div>
-      </section>
-
-      <section style={styles.grid}>
-        <MiniCard label="Menu Terlihat" value={report.currentAccess.pageCount} note="Dari session aktif" />
-        <MiniCard label="Group Terlihat" value={report.currentAccess.groupCount} note="Sidebar aktif" />
-        <MiniCard label="Sensitive Aktif" value={report.currentAccess.sensitiveCount} note="Wajar untuk Owner/HO" />
-        <MiniCard label="Blocker" value={report.blockers.length} note="Harus nol sebelum live" danger={report.blockers.length > 0} />
-      </section>
-
-      <section style={styles.panel}>
-        <div style={styles.panelHead}>
-          <div>
-            <h2 style={styles.panelTitle}>Checklist Role</h2>
-            <p style={styles.panelDesc}>
-              Jika ada blocker, perbaikan dilakukan di menu.config atau permission matrix,
-              bukan dari halaman ini.
-            </p>
+        {blockers.length ? (
+          <div className="da-form-warning" style={{ marginTop: 14 }}>
+            <b>Yang masih perlu disiapkan:</b>
+            <div style={{ marginTop: 6 }}>{blockers.map((item) => <div key={item}>• {item}</div>)}</div>
           </div>
-          <Badge tone={report.blockers.length ? "danger" : "success"}>
-            {report.blockers.length ? `${report.blockers.length} blocker` : "Aman"}
-          </Badge>
-        </div>
-
-        <TableWrap>
-          <thead>
-            <tr>
-              <th style={styles.th}>CEK</th>
-              <th style={styles.th}>DETAIL</th>
-              <th style={styles.th}>SUMBER</th>
-              <th style={styles.th}>STATUS</th>
-            </tr>
-          </thead>
-          <tbody>
-            {report.checks.map((row) => (
-              <tr key={row.id}>
-                <td style={styles.td}><b>{row.title}</b></td>
-                <td style={styles.td}>{row.detail}</td>
-                <td style={styles.td}>{row.source}</td>
-                <td style={styles.td}><Badge tone={row.tone}>{row.status}</Badge></td>
-              </tr>
-            ))}
-          </tbody>
-        </TableWrap>
-      </section>
-
-      <section style={styles.panel}>
-        <div style={styles.panelHead}>
-          <div>
-            <h2 style={styles.panelTitle}>Matrix Role</h2>
-            <p style={styles.panelDesc}>
-              Simulasi menu yang terlihat untuk Owner, Tangerang, Pemalang,
-              Cibinong, dan Staff.
-            </p>
+        ) : (
+          <div className="da-alert da-alert-success" style={{ marginTop: 14 }}>
+            Role, lokasi, dan akun operasional sudah siap untuk login cabang.
           </div>
-        </div>
+        )}
+      </Card>
 
-        <TableWrap>
-          <thead>
-            <tr>
-              <th style={styles.th}>ROLE</th>
-              <th style={styles.th}>MENU</th>
-              <th style={styles.th}>CATATAN</th>
-              <th style={styles.th}>STATUS</th>
-            </tr>
-          </thead>
-          <tbody>
-            {report.matrix.map((row) => (
-              <tr key={row.key}>
-                <td style={styles.td}><b>{row.label}</b></td>
-                <td style={styles.td}>{row.allowedCount} menu</td>
-                <td style={styles.td}>
-                  {row.violationKeys?.length ? (
-                    <span>Perlu cek: {row.violationKeys.join(", ")}</span>
-                  ) : (
-                    row.expected
-                  )}
-                </td>
-                <td style={styles.td}><Badge tone={row.tone}>{row.status}</Badge></td>
-              </tr>
-            ))}
-          </tbody>
-        </TableWrap>
-      </section>
-
-      <section style={styles.panel}>
-        <div style={styles.panelHead}>
-          <div>
-            <h2 style={styles.panelTitle}>Preview Sidebar per Role</h2>
-            <p style={styles.panelDesc}>
-              Pilih role untuk melihat menu apa saja yang muncul. Ini simulasi
-              frontend, bukan login sungguhan.
-            </p>
-          </div>
-          <select
-            style={styles.select}
-            value={previewScope}
-            onChange={(event) => setPreviewScope(event.target.value)}
-          >
-            {ROLE_SCOPES.map((scope) => (
-              <option key={scope.key} value={scope.key}>{scope.label}</option>
-            ))}
-          </select>
-        </div>
-
-        <div style={styles.menuPreview}>
-          {previewGroups.map((group) => (
-            <div key={group.key} style={styles.previewGroup}>
-              <div style={styles.previewTitle}>{group.title}</div>
-              <div style={styles.previewItems}>
-                {(group.items || []).map((item) => (
-                  <span key={item.key} style={styles.menuPill}>{item.label}</span>
+      <Card
+        title="Buat Akun Operasional"
+        description="Akun baru langsung tersimpan di PHP/MySQL, password di-hash, dan pembuatan akun masuk Arsip serta Audit."
+        action={<Badge tone="success">Owner Only</Badge>}
+      >
+        <form onSubmit={handleCreate}>
+          <div className="da-form-grid">
+            <label className="da-field">
+              Nama Lengkap
+              <input value={draft.full_name} onChange={(e) => updateDraft("full_name", e.target.value)} placeholder="Contoh: Admin Produksi Pemalang" disabled={saving} />
+            </label>
+            <label className="da-field">
+              Username
+              <input value={draft.username} onChange={(e) => updateDraft("username", e.target.value.toLowerCase())} placeholder="Contoh: admin.pemalang" disabled={saving} />
+            </label>
+            <label className="da-field">
+              Role
+              <select value={draft.role_id} onChange={(e) => updateDraft("role_id", e.target.value)} disabled={saving}>
+                <option value="">Pilih role</option>
+                {data.roles.map((role) => <option key={role.role_id} value={role.role_id}>{role.role_name}</option>)}
+              </select>
+            </label>
+            <label className="da-field">
+              Lokasi Kerja
+              <select value={draft.location_id} onChange={(e) => updateDraft("location_id", e.target.value)} disabled={saving || !availableLocations.length}>
+                <option value="">{availableLocations.length ? "Pilih lokasi" : "Belum ada lokasi yang cocok"}</option>
+                {availableLocations.map((location) => (
+                  <option key={location.location_id} value={location.location_id}>{location.location_name} — {location.location_code}</option>
                 ))}
-              </div>
-            </div>
-          ))}
-          {!previewGroups.length ? (
-            <div style={styles.empty}>Tidak ada menu untuk scope ini.</div>
-          ) : null}
+              </select>
+            </label>
+            <label className="da-field">
+              Password Awal
+              <input type="password" value={draft.password} onChange={(e) => updateDraft("password", e.target.value)} placeholder="Minimal 10 karakter, huruf + angka" disabled={saving} />
+            </label>
+            <label className="da-field">
+              Ulangi Password
+              <input type="password" value={draft.confirm_password} onChange={(e) => updateDraft("confirm_password", e.target.value)} placeholder="Ketik ulang password" disabled={saving} />
+            </label>
+          </div>
+          <div className="da-form-actions">
+            <Button type="button" variant="secondary" disabled={saving} onClick={() => setDraft(EMPTY_DRAFT)}>Reset</Button>
+            <Button type="submit" disabled={saving || !health.foundation_ready}>{saving ? "Menyimpan..." : "Buat Akun Cabang"}</Button>
+          </div>
+        </form>
+      </Card>
+
+      <Card
+        title="Akun Operasional yang Terdaftar"
+        description="Klik baris untuk edit nama/role/lokasi, reset password, atau aktif/nonaktifkan akun."
+        action={<Badge tone="success">Live Data</Badge>}
+      >
+        <div className="da-form-grid" style={{ marginBottom: 12 }}>
+          <label className="da-field">
+            Cari Akun
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Nama, username, lokasi..." />
+          </label>
+          <label className="da-field">
+            Status
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+              <option value="ALL">Semua status</option>
+              <option value="ACTIVE">Aktif</option>
+              <option value="INACTIVE">Nonaktif</option>
+            </select>
+          </label>
         </div>
-      </section>
+        <DataTable columns={columns} rows={filteredUsers} getRowKey={(row) => row.user_id} onRowClick={openDetail} />
+      </Card>
 
-      <section style={styles.noteBox}>
-        <b>Catatan:</b> halaman ini masih alat final check permission. Nanti
-        kalau sudah masuk layout go-live final, bahasa menu untuk staff bisa
-        dibuat lebih sederhana, sementara logic role tetap ketat di belakang.
-      </section>
-    </main>
-  );
-}
-
-function InfoRow({ label, value }) {
-  return (
-    <div style={styles.infoRow}>
-      <span>{label}</span>
-      <b>{value}</b>
+      <Modal
+        open={Boolean(selected)}
+        title={selected ? `Akun ${selected.full_name}` : "Detail Akun"}
+        subtitle={selected ? `${selected.username} · ${selected.location_name}` : ""}
+        onClose={() => setSelected(null)}
+      >
+        {selected ? (
+          <div className="da-page-stack">
+            <div className="da-form-grid">
+              <label className="da-field">
+                Nama Lengkap
+                <input value={editDraft.full_name} onChange={(e) => setEditDraft((current) => ({ ...current, full_name: e.target.value }))} disabled={saving} />
+              </label>
+              <label className="da-field">
+                Role
+                <select value={editDraft.role_id} onChange={(e) => setEditDraft((current) => ({ ...current, role_id: e.target.value, location_id: "" }))} disabled={saving}>
+                  {data.roles.map((role) => <option key={role.role_id} value={role.role_id}>{role.role_name}</option>)}
+                </select>
+              </label>
+              <label className="da-field">
+                Lokasi
+                <select value={editDraft.location_id} onChange={(e) => setEditDraft((current) => ({ ...current, location_id: e.target.value }))} disabled={saving}>
+                  <option value="">Pilih lokasi</option>
+                  {editLocations.map((location) => <option key={location.location_id} value={location.location_id}>{location.location_name}</option>)}
+                </select>
+              </label>
+              <label className="da-field">
+                Password Baru
+                <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Isi hanya saat reset password" disabled={saving} />
+              </label>
+            </div>
+            <div className="da-form-actions">
+              <Button variant="secondary" disabled={saving} onClick={() => setSelected(null)}>Tutup</Button>
+              <Button variant="secondary" disabled={saving || !newPassword} onClick={handleResetPassword}>Reset Password</Button>
+              <Button variant={String(selected.status).toUpperCase() === "ACTIVE" ? "danger" : "secondary"} disabled={saving} onClick={handleStatus}>
+                {String(selected.status).toUpperCase() === "ACTIVE" ? "Nonaktifkan" : "Aktifkan"}
+              </Button>
+              <Button disabled={saving || !editDraft.location_id} onClick={handleUpdate}>Simpan Profil</Button>
+            </div>
+            <div className="da-form-warning">
+              Perubahan role/lokasi dan reset password otomatis mencabut session lama. Staff harus login ulang agar permission baru berlaku.
+            </div>
+          </div>
+        ) : null}
+      </Modal>
     </div>
   );
 }
-
-function MiniCard({ label, value, note, danger }) {
-  return (
-    <div style={{ ...styles.miniCard, background: danger ? BRAND.redSoft : "#fff", borderColor: danger ? "#fecaca" : BRAND.line }}>
-      <div style={styles.miniLabel}>{label}</div>
-      <div style={styles.miniValue}>{value ?? 0}</div>
-      <div style={styles.miniNote}>{note}</div>
-    </div>
-  );
-}
-
-function TableWrap({ children }) {
-  return (
-    <div style={styles.tableWrap}>
-      <table style={styles.table}>{children}</table>
-    </div>
-  );
-}
-
-function Badge({ children, tone = "default" }) {
-  const meta = {
-    success: { bg: BRAND.greenSoft, color: "#15803d", border: "#bbf7d0" },
-    danger: { bg: BRAND.redSoft, color: "#991b1b", border: "#fecaca" },
-    warning: { bg: BRAND.goldSoft, color: "#92400e", border: "#fde68a" },
-    info: { bg: BRAND.blueSoft, color: "#1d4ed8", border: "#bfdbfe" },
-    default: { bg: "#f8fafc", color: BRAND.ink, border: BRAND.line },
-  }[tone] || { bg: "#f8fafc", color: BRAND.ink, border: BRAND.line };
-
-  return (
-    <span style={{ display: "inline-flex", alignItems: "center", borderRadius: 999, padding: "6px 10px", fontSize: 12, fontWeight: 900, background: meta.bg, color: meta.color, border: `1px solid ${meta.border}`, whiteSpace: "nowrap" }}>
-      {children}
-    </span>
-  );
-}
-
-const styles = {
-  page: { padding: "28px 32px 48px", color: BRAND.ink },
-  hero: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 20 },
-  kicker: { color: BRAND.muted, fontSize: 14, fontWeight: 800, marginBottom: 4 },
-  title: { margin: 0, fontSize: 34, lineHeight: 1.1, fontWeight: 950 },
-  desc: { maxWidth: 880, margin: "10px 0 0", color: BRAND.muted, lineHeight: 1.6 },
-  scoreCard: { display: "grid", gridTemplateColumns: "1fr 340px", gap: 18, background: "linear-gradient(135deg, #fff 0%, #fff7ed 100%)", border: "1px solid #fed7aa", borderRadius: 24, padding: 22, boxShadow: "0 18px 45px rgba(124,45,18,0.08)", marginBottom: 16 },
-  scoreLabel: { color: BRAND.muted, fontWeight: 900, textTransform: "uppercase", fontSize: 12, letterSpacing: 0.7 },
-  score: { fontSize: 68, fontWeight: 950, color: BRAND.red, lineHeight: 1, marginTop: 8 },
-  scoreDesc: { color: BRAND.muted, lineHeight: 1.55, maxWidth: 760, margin: "12px 0 0" },
-  sessionBox: { background: "#fff", border: `1px solid ${BRAND.line}`, borderRadius: 18, padding: 14, display: "grid", gap: 8 },
-  sessionTitle: { fontSize: 13, fontWeight: 950, textTransform: "uppercase", color: BRAND.muted, letterSpacing: 0.5 },
-  infoRow: { display: "flex", justifyContent: "space-between", gap: 10, color: BRAND.muted, fontSize: 13, borderBottom: `1px dashed ${BRAND.line}`, paddingBottom: 6 },
-  primaryBtn: { border: "none", borderRadius: 14, padding: "12px 14px", background: BRAND.red, color: "#fff", fontWeight: 900, cursor: "pointer", marginTop: 4 },
-  grid: { display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12, marginBottom: 16 },
-  miniCard: { border: "1px solid", borderRadius: 18, padding: 16 },
-  miniLabel: { color: BRAND.muted, fontSize: 12, fontWeight: 900, textTransform: "uppercase", letterSpacing: 0.5 },
-  miniValue: { fontSize: 30, fontWeight: 950, marginTop: 8 },
-  miniNote: { color: BRAND.muted, fontSize: 13, marginTop: 4 },
-  panel: { background: "#fff", border: `1px solid ${BRAND.line}`, borderRadius: 22, padding: 18, marginBottom: 16 },
-  panelHead: { display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start", marginBottom: 12 },
-  panelTitle: { margin: 0, fontSize: 20, fontWeight: 950 },
-  panelDesc: { margin: "6px 0 0", color: BRAND.muted },
-  tableWrap: { overflowX: "auto", border: `1px solid ${BRAND.line}`, borderRadius: 16 },
-  table: { width: "100%", borderCollapse: "collapse", fontSize: 13 },
-  th: { textAlign: "left", padding: "12px 14px", background: "#f8fafc", color: BRAND.ink, borderBottom: `1px solid ${BRAND.line}`, fontSize: 12 },
-  td: { padding: "12px 14px", borderBottom: `1px solid ${BRAND.line}`, verticalAlign: "top" },
-  select: { border: `1px solid ${BRAND.line}`, borderRadius: 14, padding: "10px 12px", background: "#fff", fontWeight: 800 },
-  menuPreview: { display: "grid", gap: 12 },
-  previewGroup: { background: "#f8fafc", border: `1px solid ${BRAND.line}`, borderRadius: 16, padding: 14 },
-  previewTitle: { fontWeight: 950, marginBottom: 10 },
-  previewItems: { display: "flex", flexWrap: "wrap", gap: 8 },
-  menuPill: { border: "1px solid #fed7aa", background: "#fff7ed", color: BRAND.red, borderRadius: 999, padding: "7px 10px", fontSize: 12, fontWeight: 900 },
-  empty: { color: BRAND.muted, padding: 14, background: "#f8fafc", borderRadius: 14 },
-  noteBox: { background: "#f8fafc", border: `1px solid ${BRAND.line}`, borderRadius: 18, padding: 16, color: BRAND.muted, lineHeight: 1.55 },
-};
