@@ -18,6 +18,7 @@ import StatCard from "../../components/ui/StatCard";
 import ProductPricingPanel from "./ProductPricingPanel";
 import PricingCutoverPanel from "./PricingCutoverPanel";
 import TangerangGoLiveCutoverPanel from "./TangerangGoLiveCutoverPanel";
+import BranchCommercePanel from "./BranchCommercePanel";
 
 const PROTECTED_IDS = {
   produk: ["PRD-DIMSUM"],
@@ -2122,6 +2123,13 @@ export default function MasterDataPage({
       {moduleType === "produk" ? (
         <PricingCutoverPanel
           key={`pricing-readiness-${pricingRefreshKey}`}
+          sessionToken={sessionToken}
+          onSessionExpired={onSessionExpired}
+        />
+      ) : null}
+
+      {moduleType === "lokasi" ? (
+        <BranchCommercePanel
           sessionToken={sessionToken}
           onSessionExpired={onSessionExpired}
         />
