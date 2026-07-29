@@ -253,42 +253,24 @@ export async function createOrder(sessionToken, payload = {}) {
   const input = { ...(payload || {}) };
   const order = { ...(input.order || {}) };
   const paid = Number(order.paid_amount ?? input.paid_amount ?? order.amount_paid ?? 0);
-  const method = String(order.payment_method || input.payment_method || "").toUpperCase();
+  const walletId = String(order.wallet_id || input.wallet_id || "").trim();
 
   order.order_mode = "DIRECT";
   input.order_mode = "DIRECT";
+
+  if (walletId) {
+    order.wallet_id = walletId;
+    input.wallet_id = walletId;
+  }
+
   input.order = order;
 
-  if (paid > 0 && !input.wallet_id && !order.wallet_id) {
-    const bootstrap = await phpApiRequest("getWalletBootstrap", {}, sessionToken);
-    if (!bootstrap.success) return bootstrap;
-
-    const wallets = bootstrap.data?.wallets || [];
-    const wallet = wallets.find((row) => {
-      const haystack = [
-        row.wallet_id,
-        row.wallet_code,
-        row.wallet_name,
-      ].map((v) => String(v || "").toUpperCase()).join(" ");
-
-      if (method.includes("BCA")) return haystack.includes("BCA");
-      if (method.includes("BRI")) return haystack.includes("BRI");
-      if (method.includes("CASH") || method.includes("TUNAI")) {
-        return haystack.includes("CASH") || haystack.includes("TUNAI") || haystack.includes("KAS");
-      }
-      return haystack.includes(method);
-    });
-
-    if (!wallet) {
-      return {
-        success: false,
-        message: `Dompet PHP/MySQL untuk metode ${method || "pembayaran"} tidak ditemukan.`,
-        error: { code: "CUTOVER_ORDER_WALLET_NOT_FOUND" },
-      };
-    }
-
-    input.wallet_id = wallet.wallet_id;
-    order.wallet_id = wallet.wallet_id;
+  if (paid > 0 && !walletId) {
+    return {
+      success: false,
+      message: "Pilih dompet cabang yang benar-benar menerima pembayaran.",
+      error: { code: "BRANCH_ORDER_WALLET_REQUIRED" },
+    };
   }
 
   return phpApiRequest("legacyCreateOrder", input, sessionToken);
@@ -1022,4 +1004,28 @@ export async function setBranchUserStatus(sessionToken, payload = {}) {
 
 export async function resetBranchUserPassword(sessionToken, payload = {}) {
   return phpApiRequest("resetBranchUserPassword", payload, sessionToken);
+}
+
+/**
+ * PART 3C — KASIR, HARGA, STOK, DAN UANG CABANG
+ */
+
+export async function getBranchCommerceHealth(sessionToken, payload = {}) {
+  return phpApiRequest("branchCommerceHealth", payload, sessionToken);
+}
+
+export async function getBranchCommerceBootstrap(sessionToken, payload = {}) {
+  return phpApiRequest("getBranchCommerceBootstrap", payload, sessionToken);
+}
+
+export async function createBranchWallet(sessionToken, payload = {}) {
+  return phpApiRequest("createBranchWallet", payload, sessionToken);
+}
+
+export async function activateBranchCommerce(sessionToken, payload = {}) {
+  return phpApiRequest("activateBranchCommerce", payload, sessionToken);
+}
+
+export async function setBranchCommerceStatus(sessionToken, payload = {}) {
+  return phpApiRequest("setBranchCommerceStatus", payload, sessionToken);
 }
