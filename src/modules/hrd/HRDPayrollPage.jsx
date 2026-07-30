@@ -17,6 +17,7 @@ import Card from "../../components/ui/Card";
 import DataTable from "../../components/ui/DataTable";
 import Modal from "../../components/ui/Modal";
 import StatCard from "../../components/ui/StatCard";
+import PayrollFinalPanel from "./PayrollFinalPanel";
 
 function isAuthRequired(result) {
   const message = String(result?.message || result?.error?.message || "").toUpperCase();
@@ -85,8 +86,8 @@ function FlowCard() {
   const steps = [
     ["1", "Data karyawan & lokasi", "Master hidup, status kerja, tanggal gajian, dan riwayat gaji."],
     ["2", "Absensi, kasbon & pinjaman", "Cabang menginput lokasinya sendiri; uang keluar wajib memilih dompet."],
-    ["3", "Draft & cek THP", "Part 5B menghitung ulang di backend mengikuti logika Payroll V32."],
-    ["4", "Cetak, closing & bayar", "Cetak tidak memotong ledger. Closing yang mengunci; bayar membuat Wallet OUT."],
+    ["3", "Draft & cek THP", "Backend menghitung ulang THP, pembulatan, kasbon, dan cicilan."],
+    ["4", "Cetak, closing & bayar", "Slip V32 tidak memotong ledger. Closing mengunci; pembayaran membuat Wallet OUT."],
   ];
   return (
     <div style={{ background: "linear-gradient(135deg,#a11a13 0%,#d9251c 58%,#ff5a50 100%)", color: "#fff", borderRadius: 22, padding: 22, marginBottom: 18, boxShadow: "0 16px 38px rgba(217,37,28,.18)" }}>
@@ -110,7 +111,7 @@ function SectionTabs({ active, onChange, fullPayrollAccess }) {
     ["employees", "Data Karyawan"],
     ["attendance", "Absensi & Izin"],
     ["ledger", "Kasbon & Pinjaman"],
-    ...(fullPayrollAccess ? [["history", "Riwayat Payroll"], ["import", "Import V32"]] : []),
+    ...(fullPayrollAccess ? [["process", "Proses Gaji"], ["payment", "Pembayaran"], ["history", "Riwayat Payroll"], ["import", "Import V32"]] : []),
   ];
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
@@ -428,10 +429,10 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
           <div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(230px,1fr))", gap: 14 }}>
               <div style={{ background: "#ecfdf5", border: "1px solid #a7f3d0", borderRadius: 18, padding: 18 }}><div className="da-eyebrow">Total THP histori</div><strong style={{ fontSize: 27, color: "#059669" }}>{fullPayrollAccess ? formatRupiah(summary.payroll_total_net_pay || 0) : "Terkunci Owner"}</strong><p className="da-muted">Snapshot payroll periode terpilih.</p></div>
-              <div style={{ background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 18, padding: 18 }}><div className="da-eyebrow">Belum Closing</div><strong style={{ fontSize: 27 }}>{fullPayrollAccess ? summary.payroll_draft_count || 0 : "—"}</strong><p className="da-muted">Draft final akan diproses di Part 5B.</p></div>
+              <div style={{ background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 18, padding: 18 }}><div className="da-eyebrow">Belum Closing</div><strong style={{ fontSize: 27 }}>{fullPayrollAccess ? summary.payroll_draft_count || 0 : "—"}</strong><p className="da-muted">Draft aktif siap dicek pada tab Proses Gaji.</p></div>
               <div style={{ background: "#f8fafc", border: "1px solid #e5e7eb", borderRadius: 18, padding: 18 }}><div className="da-eyebrow">Lokasi terhubung</div><strong style={{ fontSize: 27 }}>{summary.location_count || 0}</strong><p className="da-muted">Tangerang, Pemalang, dan Cibinong sesuai hak akses.</p></div>
             </div>
-            <NoticeBox>Part 5A menghidupkan master, ledger, absensi, dan migrasi histori. Draft, closing, reopen, pembayaran gaji, slip A5/Epson-safe, serta rekap A4 akan diaktifkan pada Part 5B dengan format V32.</NoticeBox>
+            <NoticeBox>Payroll Final V32 aktif: preview dan print tidak mengubah ledger; closing mengunci kasbon/cicilan; pembayaran gaji membuat Wallet OUT dari Tangerang.</NoticeBox>
           </div>
         ) : null}
 
@@ -511,6 +512,30 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
             <h3 style={{ marginTop: 22 }}>Pinjaman Berjalan</h3>
             <DataTable columns={[{ key: "employee_name", label: "Karyawan" }, { key: "loan_date", label: "Tanggal", render: (row) => formatDate(row.loan_date) }, { key: "original_amount", label: "Awal", render: (row) => formatRupiah(numberValue(row.original_amount)) }, { key: "remaining_amount", label: "Sisa", render: (row) => <strong>{formatRupiah(numberValue(row.remaining_amount))}</strong> }, { key: "installment_amount", label: "Cicilan", render: (row) => formatRupiah(numberValue(row.installment_amount)) }, { key: "status", label: "Status", render: (row) => <Badge tone={badgeTone(row.status)}>{row.status}</Badge> }]} rows={loans} getRowKey={(row) => row.loan_id} />
           </div>
+        ) : null}
+
+        {activeTab === "process" && fullPayrollAccess ? (
+          <PayrollFinalPanel
+            session={session}
+            period={period}
+            locationId={locationId}
+            baseEmployees={employees}
+            mode="process"
+            onSessionExpired={onSessionExpired}
+            onChanged={() => loadData({ quiet: true })}
+          />
+        ) : null}
+
+        {activeTab === "payment" && fullPayrollAccess ? (
+          <PayrollFinalPanel
+            session={session}
+            period={period}
+            locationId={locationId}
+            baseEmployees={employees}
+            mode="payment"
+            onSessionExpired={onSessionExpired}
+            onChanged={() => loadData({ quiet: true })}
+          />
         ) : null}
 
         {activeTab === "history" && fullPayrollAccess ? (
