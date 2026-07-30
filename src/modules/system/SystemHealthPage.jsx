@@ -9,6 +9,7 @@ import {
   systemSafetyHealth,
 } from "../../lib/api/actions";
 import { openFocusRoute } from "../../lib/navigation/focusRouter";
+import SystemIntegrityRepairPanel from "./SystemIntegrityRepairPanel";
 
 function tokenOf(session) {
   return session?.sessionToken || session?.session_token || "";
@@ -101,6 +102,12 @@ export default function SystemHealthPage({ session, onSessionExpired }) {
         {blockers.length ? blockers.map((row) => <tr key={row.check_code}><td><strong>{row.label}</strong><div className="da-muted">{row.check_code}</div></td><td><Badge tone={tone(row.status)}>{row.status}</Badge></td><td>{n(row.count).toLocaleString("id-ID")}</td><td>{row.message}</td><td><Button variant="secondary" onClick={() => openFocusRoute({ pageKey: row.page_key })}>Buka Modul</Button></td></tr>) : <tr><td colSpan="5">Tidak ditemukan blocker pada pemeriksaan yang tersedia.</td></tr>}
       </tbody></table></div>
     </Card>
+
+    <SystemIntegrityRepairPanel
+      sessionToken={sessionToken}
+      onSessionExpired={onSessionExpired}
+      onRepairComplete={load}
+    />
 
     <Card><div className="da-section-header"><div><p className="da-kicker">Sumber Data</p><h2>Jumlah Baris per Tabel Inti</h2></div><Badge tone="success">Read Only</Badge></div>
       <div className="da-table-wrap"><table className="da-table"><thead><tr><th>Tabel</th><th>Baris</th><th>Status</th></tr></thead><tbody>
