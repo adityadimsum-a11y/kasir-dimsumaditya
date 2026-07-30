@@ -1089,3 +1089,24 @@ export async function goLiveControlHealth(sessionToken, payload = {}) {
 export async function getGoLiveControlBootstrap(sessionToken, payload = {}) {
   return phpApiRequest("getGoLiveControlBootstrap", payload, sessionToken);
 }
+
+
+/**
+ * PART 6A — DATA HEALTH, BACKUP & RECOVERY PHP/MYSQL
+ * Pemeriksaan read-only. Snapshot dan manifest backup tidak mengubah transaksi bisnis.
+ */
+export async function systemSafetyHealth(sessionToken, payload = {}) {
+  return phpApiRequest("systemSafetyHealth", payload, sessionToken);
+}
+
+export async function getSystemSafetyBootstrap(sessionToken, payload = {}) {
+  return phpApiRequest("getSystemSafetyBootstrap", payload, sessionToken);
+}
+
+export async function createSystemHealthSnapshot(sessionToken, payload = {}) {
+  return phpApiRequest("createSystemHealthSnapshot", payload, sessionToken);
+}
+
+export async function createSystemBackupManifest(sessionToken, payload = {}) {
+  return phpApiRequest("createSystemBackupManifest", payload, sessionToken);
+}
