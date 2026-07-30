@@ -417,7 +417,19 @@ export async function rejectBranchDeposit(sessionToken, payload = {}) {
  */
 
 export async function getDailyReportBootstrap(sessionToken, payload = {}) {
-  return apiRequest("getLegacyDailyReportBootstrap", payload, sessionToken);
+  return phpApiRequest("getBranchDailyReportBootstrap", payload, sessionToken);
+}
+
+export async function submitBranchDailyReport(sessionToken, payload = {}) {
+  return phpApiRequest("submitBranchDailyReport", payload, sessionToken);
+}
+
+export async function approveBranchDailyReport(sessionToken, payload = {}) {
+  return phpApiRequest("approveBranchDailyReport", payload, sessionToken);
+}
+
+export async function rejectBranchDailyReport(sessionToken, payload = {}) {
+  return phpApiRequest("rejectBranchDailyReport", payload, sessionToken);
 }
 
 
@@ -427,19 +439,19 @@ export async function getDailyReportBootstrap(sessionToken, payload = {}) {
  */
 
 export async function getSetoranCabangBootstrap(sessionToken, payload = {}) {
-  return apiRequest("getLegacyBranchDepositBootstrap", payload, sessionToken);
+  return phpApiRequest("getBranchDepositSettlementBootstrap", payload, sessionToken);
 }
 
 export async function createSetoranCabang(sessionToken, payload = {}) {
-  return apiRequest("legacyCreateBranchDepositFromDailyReport", payload, sessionToken);
+  return phpApiRequest("createBranchDepositFromReport", payload, sessionToken);
 }
 
 export async function approveSetoranCabang(sessionToken, payload = {}) {
-  return apiRequest("legacyApproveBranchDeposit", payload, sessionToken);
+  return phpApiRequest("approveBranchDepositSettlement", payload, sessionToken);
 }
 
 export async function rejectSetoranCabang(sessionToken, payload = {}) {
-  return apiRequest("legacyRejectBranchDeposit", payload, sessionToken);
+  return phpApiRequest("rejectBranchDepositSettlement", payload, sessionToken);
 }
 
 /**
