@@ -1110,3 +1110,23 @@ export async function createSystemHealthSnapshot(sessionToken, payload = {}) {
 export async function createSystemBackupManifest(sessionToken, payload = {}) {
   return phpApiRequest("createSystemBackupManifest", payload, sessionToken);
 }
+
+/**
+ * PART 6B — DATA REPAIR & INTEGRITY CLEANUP
+ * Scan mencatat kasus saja. Apply membutuhkan konfirmasi Owner dan tidak menghapus histori.
+ */
+export async function systemIntegrityRepairHealth(sessionToken, payload = {}) {
+  return phpApiRequest("systemIntegrityRepairHealth", payload, sessionToken);
+}
+
+export async function getSystemIntegrityRepairBootstrap(sessionToken, payload = {}) {
+  return phpApiRequest("getSystemIntegrityRepairBootstrap", payload, sessionToken);
+}
+
+export async function scanSystemIntegrityCases(sessionToken, payload = {}) {
+  return phpApiRequest("scanSystemIntegrityCases", payload, sessionToken);
+}
+
+export async function applySystemIntegritySafeBatch(sessionToken, payload = {}) {
+  return phpApiRequest("applySystemIntegritySafeBatch", payload, sessionToken);
+}
