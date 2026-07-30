@@ -667,25 +667,42 @@ export async function receiveDeliveryOrder(sessionToken, payload = {}) {
 
 
 /**
- * HRD / PAYROLL FOUNDATION
+ * HRD / PAYROLL — PHP/MYSQL SINGLE SOURCE (PART 5A)
  */
 
+export async function hrdPayrollHealth(sessionToken, payload = {}) {
+  return phpApiRequest("hrdPayrollHealth", payload, sessionToken);
+}
+
 export async function getHRDPayrollBootstrap(sessionToken, payload = {}) {
-  return apiRequest("getLegacyHRDPayrollBootstrap", payload, sessionToken);
+  return phpApiRequest("getHRDPayrollBootstrap", payload, sessionToken);
+}
+
+export async function previewHRDPayrollV32Import(sessionToken, payload = {}) {
+  return phpApiRequest("previewHRDPayrollV32Import", payload, sessionToken);
+}
+
+export async function importHRDPayrollV32Backup(sessionToken, payload = {}) {
+  return phpApiRequest("importHRDPayrollV32Backup", payload, sessionToken);
 }
 
 export async function createHRDEmployee(sessionToken, payload = {}) {
-  return apiRequest("legacyCreateHRDEmployee", payload, sessionToken);
+  return phpApiRequest("createHRDEmployee", payload, sessionToken);
+}
+
+export async function createHRDAttendance(sessionToken, payload = {}) {
+  return phpApiRequest("createHRDAttendance", payload, sessionToken);
 }
 
 export async function createHRDKasbonNote(sessionToken, payload = {}) {
-  return apiRequest("legacyCreateHRDKasbonNote", payload, sessionToken);
+  return phpApiRequest("createHRDKasbonNote", payload, sessionToken);
 }
 
 export async function createHRDLoanNote(sessionToken, payload = {}) {
-  return apiRequest("legacyCreateHRDLoanNote", payload, sessionToken);
+  return phpApiRequest("createHRDLoanNote", payload, sessionToken);
 }
 
+// Part 5B akan memindahkan draft, closing, reopen, payment, dan print final.
 export async function createHRDPayrollDraft(sessionToken, payload = {}) {
   return apiRequest("legacyCreateHRDPayrollDraft", payload, sessionToken);
 }
@@ -697,7 +714,6 @@ export async function createHRDPayrollClosing(sessionToken, payload = {}) {
 export async function createHRDPayrollPayment(sessionToken, payload = {}) {
   return apiRequest("legacyPayClosedHRDPayroll", payload, sessionToken);
 }
-
 
 
 /**
