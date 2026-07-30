@@ -21,7 +21,7 @@ const PAGE_LABELS = {
   "arsip-digital": "Arsip Digital",
   "closing-owner": "Laporan Owner",
   "system-health": "Data Health",
-  "go-live-check": "Go-Live Check",
+  "go-live-check": "Go-Live Control",
   "permission-role-check": "Permission & Role",
   "print-backup": "Print & Backup",
   "print-backup-safety": "Print & Backup",
