@@ -200,7 +200,11 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
         return;
       }
       if (!health?.success) throw new Error(health?.message || "Fondasi HRD belum dapat dibaca.");
-      const result = await getHRDPayrollBootstrap(token, { period, location_id: locationId });
+      const bootstrapPayload = {
+        period,
+        ...(locationId && locationId !== "ALL" ? { location_id: locationId } : {}),
+      };
+      const result = await getHRDPayrollBootstrap(token, bootstrapPayload);
       if (isAuthRequired(result)) {
         onSessionExpired?.();
         return;
