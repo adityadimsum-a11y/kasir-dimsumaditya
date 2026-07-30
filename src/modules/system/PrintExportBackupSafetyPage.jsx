@@ -1,360 +1,43 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Badge from "../../components/ui/Badge";
+import Button from "../../components/ui/Button";
+import Card from "../../components/ui/Card";
+import StatCard from "../../components/ui/StatCard";
 import {
-  buildCopySummary,
-  buildPrintBackupReport,
-  buildSafetyCsv,
-  dateStamp,
-  downloadTextFile,
-  makeExportPayload,
-} from "../../lib/golive/printExportBackupRules";
+  createSystemBackupManifest,
+  getSystemSafetyBootstrap,
+} from "../../lib/api/actions";
 
-const BRAND = {
-  red: "#b42318",
-  redSoft: "#fef2f2",
-  orange: "#f97316",
-  goldSoft: "#fffbeb",
-  green: "#16a34a",
-  greenSoft: "#f0fdf4",
-  blueSoft: "#eff6ff",
-  ink: "#111827",
-  muted: "#64748b",
-  line: "#e5e7eb",
-};
+function tokenOf(session) { return session?.sessionToken || session?.session_token || ""; }
+function authError(result) { const c=String(result?.error?.code||result?.code||"").toUpperCase(); return ["AUTH_REQUIRED","UNAUTHORIZED","SESSION_EXPIRED","AUTH_SESSION_INVALID"].includes(c); }
+function n(v){const x=Number(v||0);return Number.isFinite(x)?x:0;}
+function operationId(){return `backup-manifest-${Date.now()}-${Math.random().toString(16).slice(2)}`;}
+function stamp(){return new Date().toISOString().replace(/[:.]/g,"-");}
+function download(name, content, type){const blob=new Blob([content],{type});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+function csvCell(v){return `"${String(v??"").replace(/"/g,'""')}"`;}
 
-function getSessionToken(session) {
-  return (
-    session?.sessionToken ||
-    session?.session_token ||
-    localStorage.getItem("sessionToken") ||
-    localStorage.getItem("da_session_token") ||
-    localStorage.getItem("token") ||
-    ""
-  );
+export default function PrintExportBackupSafetyPage({ session, onSessionExpired }) {
+  const sessionToken=tokenOf(session);
+  const [loading,setLoading]=useState(true);const [saving,setSaving]=useState(false);
+  const [error,setError]=useState("");const [notice,setNotice]=useState("");const [data,setData]=useState({});
+  const [form,setForm]=useState({file_reference:"",file_size_bytes:"",checksum_sha256:"",notes:"Backup SQL manual dari phpMyAdmin/hPanel."});
+  const summary=data.summary||{}; const backups=Array.isArray(data.backups)?data.backups:[];
+
+  async function load(){setLoading(true);setError("");try{const r=await getSystemSafetyBootstrap(sessionToken,{});if(authError(r)){onSessionExpired?.();return;}if(!r?.success)throw new Error(r?.message||"Safety gagal dibaca.");setData(r.data||{});}catch(e){setError(e?.message||"Gagal membaca Print & Backup.");setData({});}finally{setLoading(false);}}
+  useEffect(()=>{if(sessionToken)load();},[sessionToken]);
+  const exportData=useMemo(()=>data.export_payload||{},[data]);
+  function exportJson(){download(`ERP_DIMSUM_ADITYA_SAFETY_${stamp()}.json`,JSON.stringify(exportData,null,2),"application/json;charset=utf-8");}
+  function exportCsv(){const rows=[["TABLE","ROW_COUNT","STATUS"],...(data.tables||[]).map(r=>[r.table_name,r.row_count,r.status])];download(`ERP_DIMSUM_ADITYA_TABLE_COUNTS_${stamp()}.csv`,rows.map(r=>r.map(csvCell).join(",")).join("\n"),"text/csv;charset=utf-8");}
+  async function saveManifest(){setSaving(true);setError("");setNotice("");try{const r=await createSystemBackupManifest(sessionToken,{...form,file_size_bytes:n(form.file_size_bytes),backup_type:"SQL_EXPORT",operation_id:operationId()});if(authError(r)){onSessionExpired?.();return;}if(!r?.success)throw new Error(r?.message||"Manifest gagal dicatat.");setNotice(r.message||"Manifest berhasil dicatat.");setForm(f=>({...f,file_reference:"",file_size_bytes:"",checksum_sha256:""}));await load();}catch(e){setError(e?.message||"Manifest gagal dicatat.");}finally{setSaving(false);}}
+
+  return <div className="da-page-stack">
+    <section className="da-page-header"><div><p className="da-kicker">Pusat Kendali</p><h1>Print & Backup Safety</h1><p className="da-muted">Export ringkasan pemeriksaan dan catat bukti backup SQL nyata. Tidak mengubah transaksi.</p></div><Badge tone={error?"danger":loading?"warning":"success"}>{loading?"Membaca":error?"Perlu Cek":"Backup Safety Ready"}</Badge></section>
+    {error?<div className="da-form-error">{error}</div>:null}{notice?<div className="da-form-success">{notice}</div>:null}
+    <Card><div className="da-section-header"><div><p className="da-kicker">Safety Export</p><h2>Ringkasan Sistem untuk Disimpan</h2><p className="da-muted">JSON/CSV adalah ringkasan audit. Full backup database tetap dibuat melalui phpMyAdmin atau fitur backup hosting.</p></div><div className="da-actions"><Button variant="secondary" onClick={load} disabled={loading}>Refresh</Button><Button variant="secondary" onClick={()=>window.print()}>Print / PDF</Button><Button onClick={exportJson}>Export JSON</Button><Button variant="secondary" onClick={exportCsv}>Export CSV</Button></div></div></Card>
+    <section className="da-grid da-grid-3"><StatCard label="Health Score" value={`${n(summary.score)} / 100`} /><StatCard label="Tabel" value={n(summary.table_count).toLocaleString("id-ID")} /><StatCard label="Total Baris" value={n(summary.row_count).toLocaleString("id-ID")} /><StatCard label="Bahaya" value={n(summary.danger_count).toLocaleString("id-ID")} tone={n(summary.danger_count)?"danger":"success"}/><StatCard label="Peringatan" value={n(summary.warning_count).toLocaleString("id-ID")} tone={n(summary.warning_count)?"warning":"success"}/><StatCard label="Backup Tercatat" value={backups.length.toLocaleString("id-ID")}/></section>
+    <Card><div className="da-section-header"><div><p className="da-kicker">Owner Only</p><h2>Catat Backup SQL yang Sudah Dibuat</h2><p className="da-muted">Buat export SQL dari phpMyAdmin/hPanel terlebih dahulu. Setelah file tersimpan, catat nama, ukuran, dan SHA-256 bila tersedia.</p></div><Badge tone="warning">Tidak Membuat Dump Otomatis</Badge></div>
+      <div className="da-form-grid"><label className="da-form-field da-form-field-wide"><span>Nama / Referensi File SQL</span><input value={form.file_reference} onChange={e=>setForm({...form,file_reference:e.target.value})} placeholder="u1272653_erp_2026-07-30.sql.gz" /></label><label className="da-form-field"><span>Ukuran File (byte)</span><input type="number" min="0" value={form.file_size_bytes} onChange={e=>setForm({...form,file_size_bytes:e.target.value})}/></label><label className="da-form-field da-form-field-wide"><span>SHA-256 (opsional)</span><input value={form.checksum_sha256} onChange={e=>setForm({...form,checksum_sha256:e.target.value})} placeholder="64 karakter"/></label><label className="da-form-field da-form-field-wide"><span>Catatan</span><input value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})}/></label></div><div className="da-form-actions"><Button onClick={saveManifest} disabled={saving||!form.file_reference.trim()}>{saving?"Mencatat...":"Catat Manifest Backup"}</Button></div>
+    </Card>
+    <Card><div className="da-section-header"><div><p className="da-kicker">Riwayat</p><h2>Manifest Backup Terakhir</h2></div><Badge tone="success">PHP/MySQL</Badge></div><div className="da-table-wrap"><table className="da-table"><thead><tr><th>Waktu</th><th>Backup ID</th><th>File</th><th>Ukuran</th><th>Status</th></tr></thead><tbody>{backups.length?backups.map(r=><tr key={r.backup_id}><td>{r.backup_at}</td><td>{r.backup_id}</td><td>{r.file_reference}</td><td>{n(r.file_size_bytes).toLocaleString("id-ID")} byte</td><td><Badge tone="success">{r.status}</Badge></td></tr>):<tr><td colSpan="5">Belum ada manifest backup SQL yang dicatat.</td></tr>}</tbody></table></div></Card>
+  </div>;
 }
-
-async function callBackend(action, payload = {}, session) {
-  const body = {
-    action,
-    sessionToken: getSessionToken(session),
-    payload,
-  };
-
-  const response = await fetch("/api/apps-script", {
-    method: "POST",
-    headers: {
-      "Content-Type": "text/plain;charset=utf-8",
-    },
-    body: JSON.stringify(body),
-  });
-
-  const text = await response.text();
-  let json;
-  try {
-    json = JSON.parse(text);
-  } catch (error) {
-    throw new Error("Proxy/API belum membalas JSON valid.");
-  }
-
-  if (!response.ok || json.success === false || json.ok === false) {
-    throw new Error(json.message || json.error || "Request gagal.");
-  }
-
-  return json.data || json.result || json;
-}
-
-function todayISO() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function firstDayOfMonthISO() {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-}
-
-export default function PrintExportBackupSafetyPage({ session }) {
-  const [healthData, setHealthData] = useState(null);
-  const [actionHubData, setActionHubData] = useState(null);
-  const [backupData, setBackupData] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [errorText, setErrorText] = useState("");
-  const [lastRefresh, setLastRefresh] = useState("");
-
-  const period = useMemo(
-    () => ({
-      start_date: firstDayOfMonthISO(),
-      end_date: todayISO(),
-      location: "ALL",
-      location_id: "ALL",
-      limit: 100,
-    }),
-    []
-  );
-
-  async function load() {
-    setLoading(true);
-    setErrorText("");
-
-    try {
-      const [health, hub, backup] = await Promise.all([
-        callBackend("getLegacySystemHealthBootstrap", period, session),
-        callBackend("getLegacySystemHealthActionHub", { limit: 100 }, session),
-        callBackend("getLegacyBackupExportBootstrap", period, session).catch(() => null),
-      ]);
-
-      setHealthData(health);
-      setActionHubData(hub);
-      setBackupData(backup);
-      setLastRefresh(new Date().toLocaleString("id-ID"));
-    } catch (error) {
-      setErrorText(error.message || "Gagal membaca Print / Export / Backup Safety.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const report = useMemo(
-    () => buildPrintBackupReport({ healthData, actionHubData, backupData, session }),
-    [healthData, actionHubData, backupData, session]
-  );
-
-  function printReport() {
-    window.print();
-  }
-
-  function exportJson() {
-    const payload = makeExportPayload(report);
-    downloadTextFile(
-      `ERP_DIMSUM_ADITYA_BACKUP_SAFETY_${dateStamp()}.json`,
-      JSON.stringify(payload, null, 2),
-      "application/json;charset=utf-8"
-    );
-  }
-
-  function exportCsv() {
-    downloadTextFile(
-      `ERP_DIMSUM_ADITYA_BACKUP_SAFETY_${dateStamp()}.csv`,
-      buildSafetyCsv(report),
-      "text/csv;charset=utf-8"
-    );
-  }
-
-  async function copySummary() {
-    try {
-      await navigator.clipboard.writeText(buildCopySummary(report));
-      alert("Ringkasan safety sudah disalin.");
-    } catch (error) {
-      alert("Browser belum mengizinkan copy otomatis.");
-    }
-  }
-
-  function openPage(page) {
-    window.location.href = `/?page=${page}`;
-  }
-
-  return (
-    <main style={styles.page}>
-      <style>{printStyles}</style>
-
-      <section style={styles.hero} className="no-print">
-        <div>
-          <div style={styles.kicker}>Pusat Kendali</div>
-          <h1 style={styles.title}>Print / Export / Backup Safety</h1>
-          <p style={styles.desc}>
-            Pengaman sebelum go-live bertahap: cetak laporan safety, export ringkasan JSON/CSV,
-            dan cek status backup tanpa mengubah transaksi uang, stok, payroll, atau closing.
-          </p>
-        </div>
-
-        <Badge tone={report.tone}>{report.statusLabel}</Badge>
-      </section>
-
-      {errorText ? <div style={styles.error}>{errorText}</div> : null}
-
-      <section style={styles.scoreCard}>
-        <div>
-          <div style={styles.scoreLabel}>Score Backup Safety</div>
-          <div style={styles.score}>
-            {report.score}
-            <span>/100</span>
-          </div>
-          <p style={styles.scoreDesc}>
-            Ini alat safety. Tombol print/export hanya mengambil ringkasan dari data yang sudah terbaca.
-            Backup file utama Google Sheet tetap perlu dicek owner sebelum dipakai full staff.
-          </p>
-          <div style={styles.printOnlyTitle}>ERP Dimsum Aditya — Print / Export / Backup Safety</div>
-        </div>
-
-        <div style={styles.actionBox} className="no-print">
-          <button style={styles.primaryBtn} onClick={load} disabled={loading}>
-            {loading ? "Membaca..." : "Refresh Safety"}
-          </button>
-          <button style={styles.secondaryBtn} onClick={printReport}>Print / Save PDF</button>
-          <button style={styles.secondaryBtn} onClick={exportJson}>Export JSON</button>
-          <button style={styles.secondaryBtn} onClick={exportCsv}>Export CSV</button>
-          <button style={styles.ghostBtn} onClick={copySummary}>Copy Ringkasan</button>
-          <div style={styles.lastRefresh}>Terakhir refresh: {lastRefresh || "-"}</div>
-        </div>
-      </section>
-
-      <section style={styles.grid}>
-        <MiniCard label="Baris Nyata" value={report.health.realRows} note="Data hidup terbaca" />
-        <MiniCard label="Modul Dicek" value={report.health.modulesChecked} note="Sumber dicek" />
-        <MiniCard label="Masalah Bahaya" value={report.health.danger} note="Harus nol" danger={report.health.danger > 0} />
-        <MiniCard label="Action Hub" value={report.actionHub.totalCards} note="Kartu aktif" danger={report.actionHub.critical > 0} />
-        <MiniCard label="Backup / Log" value={report.backup.backupCount} note="Riwayat terbaca" />
-      </section>
-
-      <section style={styles.panel}>
-        <div style={styles.panelHead}>
-          <div>
-            <h2 style={styles.panelTitle}>Checklist Safety</h2>
-            <p style={styles.panelDesc}>
-              Kalau ada blocker, perbaiki dari modul sumber dulu sebelum dipakai staff.
-            </p>
-          </div>
-          <Badge tone={report.blockers.length ? "danger" : "success"}>
-            {report.blockers.length ? `${report.blockers.length} blocker` : "Tidak ada blocker"}
-          </Badge>
-        </div>
-
-        <div style={styles.tableWrap}>
-          <table style={styles.table}>
-            <thead>
-              <tr>
-                <th style={styles.th}>CEK</th>
-                <th style={styles.th}>DETAIL</th>
-                <th style={styles.th}>SUMBER</th>
-                <th style={styles.th}>STATUS</th>
-              </tr>
-            </thead>
-            <tbody>
-              {report.rows.map((row) => (
-                <tr key={row.id}>
-                  <td style={styles.td}><b>{row.title}</b></td>
-                  <td style={styles.td}>{row.detail}</td>
-                  <td style={styles.td}>{row.source}</td>
-                  <td style={styles.td}><Badge tone={row.tone}>{row.status}</Badge></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <section style={styles.panel} className="no-print">
-        <div style={styles.panelHead}>
-          <div>
-            <h2 style={styles.panelTitle}>Arah Cepat</h2>
-            <p style={styles.panelDesc}>Buka halaman pendukung untuk cek benang merah sebelum export/print final.</p>
-          </div>
-        </div>
-
-        <div style={styles.quickGrid}>
-          <button style={styles.secondaryBtn} onClick={() => openPage("data-health")}>Buka Data Health</button>
-          <button style={styles.secondaryBtn} onClick={() => openPage("go-live-check")}>Buka Go-Live Check</button>
-          <button style={styles.secondaryBtn} onClick={() => openPage("permission-role-check")}>Buka Permission & Role</button>
-          <button style={styles.secondaryBtn} onClick={() => openPage("arsip-digital")}>Buka Arsip Digital</button>
-        </div>
-      </section>
-
-      <section style={styles.noteBox}>
-        <b>Rule aman:</b> halaman ini tidak membuat transaksi baru, tidak memotong dompet,
-        tidak mengubah stok, tidak mengubah payroll, dan tidak lock closing. Export JSON/CSV hanya file lokal dari browser.
-      </section>
-    </main>
-  );
-}
-
-function MiniCard({ label, value, note, danger }) {
-  return (
-    <div
-      style={{
-        ...styles.miniCard,
-        borderColor: danger ? "#fecaca" : BRAND.line,
-        background: danger ? BRAND.redSoft : "#fff",
-      }}
-    >
-      <div style={styles.miniLabel}>{label}</div>
-      <div style={styles.miniValue}>{value ?? 0}</div>
-      <div style={styles.miniNote}>{note}</div>
-    </div>
-  );
-}
-
-function Badge({ children, tone = "default" }) {
-  const meta =
-    {
-      success: { bg: BRAND.greenSoft, color: "#15803d", border: "#bbf7d0" },
-      danger: { bg: BRAND.redSoft, color: "#991b1b", border: "#fecaca" },
-      warning: { bg: BRAND.goldSoft, color: "#92400e", border: "#fde68a" },
-      info: { bg: BRAND.blueSoft, color: "#1d4ed8", border: "#bfdbfe" },
-      default: { bg: "#f8fafc", color: BRAND.ink, border: BRAND.line },
-    }[tone] || { bg: "#f8fafc", color: BRAND.ink, border: BRAND.line };
-
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        borderRadius: 999,
-        padding: "6px 10px",
-        fontSize: 12,
-        fontWeight: 900,
-        background: meta.bg,
-        color: meta.color,
-        border: `1px solid ${meta.border}`,
-        whiteSpace: "nowrap",
-      }}
-    >
-      {children}
-    </span>
-  );
-}
-
-const printStyles = `
-@media print {
-  .no-print { display: none !important; }
-  body { background: #fff !important; }
-  table { page-break-inside: auto; }
-  tr { page-break-inside: avoid; page-break-after: auto; }
-}
-`;
-
-const styles = {
-  page: { padding: "28px 32px 48px", color: BRAND.ink },
-  hero: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 20 },
-  kicker: { color: BRAND.muted, fontSize: 14, fontWeight: 800, marginBottom: 4 },
-  title: { margin: 0, fontSize: 34, lineHeight: 1.1, fontWeight: 950 },
-  desc: { maxWidth: 850, margin: "10px 0 0", color: BRAND.muted, lineHeight: 1.6 },
-  error: { background: BRAND.redSoft, color: "#991b1b", border: "1px solid #fecaca", borderRadius: 16, padding: 14, marginBottom: 16, fontWeight: 700 },
-  scoreCard: { display: "grid", gridTemplateColumns: "1fr 280px", gap: 18, background: "linear-gradient(135deg, #fff 0%, #fff7ed 100%)", border: "1px solid #fed7aa", borderRadius: 24, padding: 22, boxShadow: "0 18px 45px rgba(124,45,18,0.08)", marginBottom: 16 },
-  scoreLabel: { color: BRAND.muted, fontWeight: 900, textTransform: "uppercase", fontSize: 12, letterSpacing: 0.7 },
-  score: { fontSize: 68, fontWeight: 950, color: BRAND.red, lineHeight: 1, marginTop: 8 },
-  scoreDesc: { color: BRAND.muted, lineHeight: 1.55, maxWidth: 720, margin: "12px 0 0" },
-  printOnlyTitle: { display: "none" },
-  actionBox: { display: "grid", gap: 10, alignContent: "start" },
-  primaryBtn: { border: "none", borderRadius: 14, padding: "12px 14px", background: BRAND.red, color: "#fff", fontWeight: 900, cursor: "pointer" },
-  secondaryBtn: { border: "1px solid #fed7aa", borderRadius: 14, padding: "12px 14px", background: "#fff", color: BRAND.ink, fontWeight: 900, cursor: "pointer" },
-  ghostBtn: { border: `1px solid ${BRAND.line}`, borderRadius: 14, padding: "12px 14px", background: "#f8fafc", color: BRAND.ink, fontWeight: 900, cursor: "pointer" },
-  lastRefresh: { color: BRAND.muted, fontSize: 12, textAlign: "center" },
-  grid: { display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 12, marginBottom: 16 },
-  miniCard: { border: "1px solid", borderRadius: 18, padding: 16 },
-  miniLabel: { color: BRAND.muted, fontSize: 12, fontWeight: 900, textTransform: "uppercase", letterSpacing: 0.5 },
-  miniValue: { fontSize: 30, fontWeight: 950, marginTop: 8 },
-  miniNote: { color: BRAND.muted, fontSize: 13, marginTop: 4 },
-  panel: { background: "#fff", border: `1px solid ${BRAND.line}`, borderRadius: 22, padding: 18, marginBottom: 16 },
-  panelHead: { display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start", marginBottom: 12 },
-  panelTitle: { margin: 0, fontSize: 20, fontWeight: 950 },
-  panelDesc: { margin: "6px 0 0", color: BRAND.muted },
-  tableWrap: { overflowX: "auto", border: `1px solid ${BRAND.line}`, borderRadius: 16 },
-  table: { width: "100%", borderCollapse: "collapse", fontSize: 13 },
-  th: { textAlign: "left", padding: "12px 14px", background: "#f8fafc", color: BRAND.ink, borderBottom: `1px solid ${BRAND.line}`, fontSize: 12 },
-  td: { padding: "12px 14px", borderBottom: `1px solid ${BRAND.line}`, verticalAlign: "top" },
-  quickGrid: { display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 10 },
-  noteBox: { background: "#f8fafc", border: `1px solid ${BRAND.line}`, borderRadius: 18, padding: 16, color: BRAND.muted, lineHeight: 1.55 },
-};
