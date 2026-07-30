@@ -31,8 +31,8 @@ export const MENU_GROUPS = [
       },
       {
         key: "go-live-check",
-        label: "Go-Live Check",
-        description: "Checklist kesiapan data, role, backup, dan simulasi sebelum operasional live.",
+        label: "Go-Live Control",
+        description: "Kontrol opening data, kesiapan lokasi, dan siklus operasional pertama.",
       },
       {
         key: "permission-role-check",
