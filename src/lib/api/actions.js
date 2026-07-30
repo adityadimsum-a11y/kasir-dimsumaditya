@@ -703,16 +703,36 @@ export async function createHRDLoanNote(sessionToken, payload = {}) {
 }
 
 // Part 5B akan memindahkan draft, closing, reopen, payment, dan print final.
+export async function hrdPayrollFinalHealth(sessionToken, payload = {}) {
+  return phpApiRequest("hrdPayrollFinalHealth", payload, sessionToken);
+}
+
+export async function getHRDPayrollFinalBootstrap(sessionToken, payload = {}) {
+  return phpApiRequest("getHRDPayrollFinalBootstrap", payload, sessionToken);
+}
+
+export async function previewHRDPayrollFinal(sessionToken, payload = {}) {
+  return phpApiRequest("previewHRDPayrollFinal", payload, sessionToken);
+}
+
 export async function createHRDPayrollDraft(sessionToken, payload = {}) {
-  return apiRequest("legacyCreateHRDPayrollDraft", payload, sessionToken);
+  return phpApiRequest("saveHRDPayrollDraft", payload, sessionToken);
 }
 
 export async function createHRDPayrollClosing(sessionToken, payload = {}) {
-  return apiRequest("legacyCloseHRDPayrollDraft", payload, sessionToken);
+  return phpApiRequest("closeHRDPayroll", payload, sessionToken);
+}
+
+export async function reopenHRDPayroll(sessionToken, payload = {}) {
+  return phpApiRequest("reopenHRDPayroll", payload, sessionToken);
 }
 
 export async function createHRDPayrollPayment(sessionToken, payload = {}) {
-  return apiRequest("legacyPayClosedHRDPayroll", payload, sessionToken);
+  return phpApiRequest("payHRDPayroll", payload, sessionToken);
+}
+
+export async function recordHRDPayrollPrint(sessionToken, payload = {}) {
+  return phpApiRequest("recordHRDPayrollPrint", payload, sessionToken);
 }
 
 
