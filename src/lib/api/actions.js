@@ -1041,3 +1041,15 @@ export async function activateBranchCommerce(sessionToken, payload = {}) {
 export async function setBranchCommerceStatus(sessionToken, payload = {}) {
   return phpApiRequest("setBranchCommerceStatus", payload, sessionToken);
 }
+
+/**
+ * PART 4A — GO-LIVE CONTROL & OPENING DATA
+ * Read-only control center. Tidak membuat harga, saldo, stok, akun, atau transaksi.
+ */
+export async function goLiveControlHealth(sessionToken, payload = {}) {
+  return phpApiRequest("goLiveControlHealth", payload, sessionToken);
+}
+
+export async function getGoLiveControlBootstrap(sessionToken, payload = {}) {
+  return phpApiRequest("getGoLiveControlBootstrap", payload, sessionToken);
+}
