@@ -1130,3 +1130,24 @@ export async function scanSystemIntegrityCases(sessionToken, payload = {}) {
 export async function applySystemIntegritySafeBatch(sessionToken, payload = {}) {
   return phpApiRequest("applySystemIntegritySafeBatch", payload, sessionToken);
 }
+
+/**
+ * PART 6C — GO-LIVE GATE & FIRST LIVE CYCLE
+ * Tidak membuat data bisnis. Start/complete hanya menyimpan snapshot gate dan
+ * bukti transaksi nyata yang terbentuk setelah siklus dimulai.
+ */
+export async function goLiveCycleHealth(sessionToken, payload = {}) {
+  return phpApiRequest("goLiveCycleHealth", payload, sessionToken);
+}
+
+export async function getGoLiveCycleBootstrap(sessionToken, payload = {}) {
+  return phpApiRequest("getGoLiveCycleBootstrap", payload, sessionToken);
+}
+
+export async function startGoLiveFirstCycle(sessionToken, payload = {}) {
+  return phpApiRequest("startGoLiveFirstCycle", payload, sessionToken);
+}
+
+export async function completeGoLiveFirstCycle(sessionToken, payload = {}) {
+  return phpApiRequest("completeGoLiveFirstCycle", payload, sessionToken);
+}
