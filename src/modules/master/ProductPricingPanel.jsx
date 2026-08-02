@@ -517,6 +517,68 @@ export default function ProductPricingPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionToken]);
 
+  // MasterDataPage dan Pricing Engine dimuat paralel. Pada render pertama,
+  // daftar produk dari parent bisa masih kosong. Ketika master produk selesai
+  // dibaca, gabungkan props terbaru tanpa memanggil ulang Pricing API dan
+  // tanpa menghapus rules/lokasi/customer yang sudah ada.
+  useEffect(() => {
+    const incomingProducts = asArray(products).map(normalizeProduct);
+
+    if (incomingProducts.length === 0) {
+      return;
+    }
+
+    setBootstrap((current) => {
+      const mergedProducts = uniqueBy(
+        [...asArray(current.products), ...incomingProducts],
+        "product_id"
+      );
+
+      if (
+        mergedProducts.length === asArray(current.products).length &&
+        mergedProducts.every(
+          (row, index) =>
+            row.product_id === current.products[index]?.product_id &&
+            row.product_name === current.products[index]?.product_name &&
+            row.active === current.products[index]?.active
+        )
+      ) {
+        return current;
+      }
+
+      return {
+        ...current,
+        products: mergedProducts,
+      };
+    });
+
+    const firstActiveProduct = incomingProducts.find((row) => row.active);
+
+    if (!firstActiveProduct) {
+      return;
+    }
+
+    setDraft((current) =>
+      current.product_id
+        ? current
+        : {
+            ...current,
+            product_id: firstActiveProduct.product_id,
+            unit_type: firstActiveProduct.unit || current.unit_type || "PCS",
+          }
+    );
+
+    setResolver((current) =>
+      current.product_id
+        ? current
+        : {
+            ...current,
+            product_id: firstActiveProduct.product_id,
+            unit_type: firstActiveProduct.unit || current.unit_type || "PCS",
+          }
+    );
+  }, [products]);
+
   const productOptions = useMemo(
     () => bootstrap.products.filter((row) => row.active),
     [bootstrap.products]
