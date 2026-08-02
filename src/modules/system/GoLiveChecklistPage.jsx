@@ -7,6 +7,7 @@ import DataTable from "../../components/ui/DataTable";
 import PageHeader from "../../components/ui/PageHeader";
 import StatCard from "../../components/ui/StatCard";
 import { openFocusRoute } from "../../lib/navigation/focusRouter";
+import GoLiveFirstCyclePanel from "./GoLiveFirstCyclePanel";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const safeText = (value, fallback = "-") => String(value || "").trim() || fallback;
@@ -191,6 +192,13 @@ export default function GoLiveChecklistPage({ session, onSessionExpired }) {
         <StatCard label="Kasir Live" value={summary.cashier_live_count || 0} description="Lokasi yang aktif dan tetap memenuhi syarat." tone="success" />
         <StatCard label="Siklus Lengkap" value={summary.fully_operational_count || 0} description="Order, closing, dan setoran pertama selesai." tone="success" />
       </div>
+
+
+      <GoLiveFirstCyclePanel
+        session={session}
+        onSessionExpired={onSessionExpired}
+        onChanged={loadData}
+      />
 
       {missingLocations.length ? (
         <Card title="Lokasi Target yang Belum Dibuat" description="Tambahkan lokasi nyata dari Master Lokasi sebelum akun, dompet, harga, dan stok disiapkan.">
