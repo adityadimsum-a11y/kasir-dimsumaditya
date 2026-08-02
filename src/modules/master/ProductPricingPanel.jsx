@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import {
   createProductPriceRule,
+  getMasterDataCoreBootstrap,
   getProductPricingBootstrap,
   productPricingHealth,
   resolveProductSellingPrice,
@@ -250,6 +251,18 @@ function normalizeHealth(result) {
   };
 }
 
+function extractMasterRows(result, moduleType) {
+  const data = result?.data || result || {};
+
+  return asArray(
+    data.rows ||
+      data.items ||
+      data[moduleType] ||
+      data.master_rows ||
+      []
+  );
+}
+
 function normalizeBootstrap(result, fallbackProducts = []) {
   const data = result?.data || result || {};
   const rules = asArray(data.price_rules || data.rules || data.rows).map(
@@ -460,12 +473,24 @@ export default function ProductPricingPanel({
     setError("");
 
     try {
-      const [healthResult, bootstrapResult] = await Promise.all([
+      const [
+        healthResult,
+        bootstrapResult,
+        masterProductResult,
+        masterLocationResult,
+      ] = await Promise.all([
         productPricingHealth(sessionToken),
         getProductPricingBootstrap(sessionToken),
+        getMasterDataCoreBootstrap(sessionToken, { module_type: "produk" }),
+        getMasterDataCoreBootstrap(sessionToken, { module_type: "lokasi" }),
       ]);
 
-      if (isAuthRequired(healthResult) || isAuthRequired(bootstrapResult)) {
+      if (
+        isAuthRequired(healthResult) ||
+        isAuthRequired(bootstrapResult) ||
+        isAuthRequired(masterProductResult) ||
+        isAuthRequired(masterLocationResult)
+      ) {
         onSessionExpired?.();
         return;
       }
@@ -483,7 +508,25 @@ export default function ProductPricingPanel({
       }
 
       const nextHealth = normalizeHealth(healthResult);
-      const nextBootstrap = normalizeBootstrap(bootstrapResult, products);
+      const masterProducts = masterProductResult?.success
+        ? extractMasterRows(masterProductResult, "produk")
+        : [];
+      const masterLocations = masterLocationResult?.success
+        ? extractMasterRows(masterLocationResult, "lokasi")
+        : [];
+
+      const nextBootstrap = normalizeBootstrap(bootstrapResult, [
+        ...asArray(products),
+        ...masterProducts,
+      ]);
+
+      nextBootstrap.locations = uniqueBy(
+        [
+          ...asArray(nextBootstrap.locations),
+          ...masterLocations.map(normalizeLocation),
+        ],
+        "location_id"
+      );
 
       setHealth(nextHealth);
       setBootstrap(nextBootstrap);
