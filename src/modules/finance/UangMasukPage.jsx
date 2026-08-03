@@ -4,6 +4,8 @@ import {
   recordCustomerReceivablePayment,
 } from "../../lib/api/actions";
 import { formatRupiah } from "../../lib/format/money";
+import { allowedPaymentMethods, suggestedPaymentMethod } from "../../lib/finance/walletPolicy";
+import OtherIncomePanel from "./OtherIncomePanel";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import PageHeader from "../../components/ui/PageHeader";
@@ -188,6 +190,10 @@ export default function UangMasukPage({ session, onSessionExpired }) {
     return wallets.find((row) => String(row.wallet_id) === String(form.wallet_id)) || null;
   }, [wallets, form.wallet_id]);
 
+  const paymentMethods = useMemo(() => {
+    return selectedWallet ? allowedPaymentMethods(selectedWallet) : ["Transfer", "Cash", "QRIS"];
+  }, [selectedWallet]);
+
   const paymentAmount = numberValue(form.amount);
   const remainingAfterPayment = selectedFormReceivable
     ? Math.max(numberValue(selectedFormReceivable.remaining_amount) - paymentAmount, 0)
@@ -231,7 +237,12 @@ export default function UangMasukPage({ session, onSessionExpired }) {
 
   useEffect(() => {
     if (!form.wallet_id && wallets.length > 0) {
-      setForm((current) => ({ ...current, wallet_id: wallets[0].wallet_id }));
+      const wallet = wallets[0];
+      setForm((current) => ({
+        ...current,
+        wallet_id: wallet.wallet_id,
+        payment_method: suggestedPaymentMethod(wallet),
+      }));
     }
   }, [wallets, form.wallet_id]);
 
@@ -449,7 +460,16 @@ export default function UangMasukPage({ session, onSessionExpired }) {
             <select
               className="da-input"
               value={form.wallet_id}
-              onChange={(event) => updateForm("wallet_id", event.target.value)}
+              onChange={(event) => {
+                const wallet = wallets.find((row) => String(row.wallet_id) === String(event.target.value));
+                setSuccessMessage("");
+                setError("");
+                setForm((current) => ({
+                  ...current,
+                  wallet_id: event.target.value,
+                  payment_method: suggestedPaymentMethod(wallet || {}),
+                }));
+              }}
               disabled={saving || wallets.length === 0}
             >
               {wallets.length === 0 ? <option value="">Belum ada dompet</option> : null}
@@ -482,10 +502,9 @@ export default function UangMasukPage({ session, onSessionExpired }) {
               onChange={(event) => updateForm("payment_method", event.target.value)}
               disabled={saving}
             >
-              <option value="Transfer">Transfer</option>
-              <option value="Cash">Cash</option>
-              <option value="QRIS">QRIS</option>
-              <option value="Merchant">Merchant</option>
+              {paymentMethods.map((method) => (
+                <option key={method} value={method}>{method}</option>
+              ))}
             </select>
           </label>
 
@@ -526,6 +545,13 @@ export default function UangMasukPage({ session, onSessionExpired }) {
           </Button>
         </div>
       </Card>
+
+      <OtherIncomePanel
+        session={session}
+        wallets={wallets}
+        onSaved={loadData}
+        onSessionExpired={onSessionExpired}
+      />
 
       <div style={{ height: 18 }} />
 
