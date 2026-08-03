@@ -8,6 +8,7 @@ import StatCard from "../../components/ui/StatCard";
 import Badge from "../../components/ui/Badge";
 import Modal from "../../components/ui/Modal";
 import DataTable from "../../components/ui/DataTable";
+import ProductionFlowPanel from "../production/ProductionFlowPanel";
 
 function asArray(value) {
   return Array.isArray(value) ? value : [];
@@ -171,6 +172,12 @@ export default function FreezerInPage({ session, onSessionExpired }) {
         title="Barang Masuk Freezer"
         description="Pantau hasil produksi yang masuk freezer dari batch adukan. Data ini read-only dari gerak stok hidup."
         badge="Live Data"
+      />
+
+      <ProductionFlowPanel
+        session={session}
+        onSessionExpired={onSessionExpired}
+        compact
       />
 
       <div className="da-dashboard-banner">
