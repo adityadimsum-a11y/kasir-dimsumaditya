@@ -106,6 +106,8 @@ export default function FocusDetailAutoOpen({ session, focusRequest, onSessionEx
       onRefresh={() => loadDetail(displayId || activeId, displayModule, { source: "frontend_part_5t_manual_refresh" })}
       onOpenArchive={openArchivePage}
       onOpenId={(nextId, nextModule) => loadDetail(nextId, nextModule || "", { source: "frontend_part_5t_related_id_click" })}
+      sessionToken={session?.sessionToken || session?.session_token || ""}
+      onSessionExpired={onSessionExpired}
     />
   );
 }
