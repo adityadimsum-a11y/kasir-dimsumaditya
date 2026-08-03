@@ -192,7 +192,10 @@ export async function getFinishedStockBootstrap(sessionToken, payload = {}) {
 export async function getOrderBootstrap(sessionToken, payload = {}) {
   const result = await phpApiRequest(
     "getLegacyOrderBootstrap",
-    withFastBootstrapPayload(payload, { limit: 30 }),
+    withFastBootstrapPayload(
+      { ...(payload || {}), order_mode: "DIRECT" },
+      { limit: 30 }
+    ),
     sessionToken
   );
 
@@ -237,6 +240,22 @@ export async function getOrderBootstrap(sessionToken, payload = {}) {
       summary,
     },
   };
+}
+
+export async function getSalesFlowControl(sessionToken, payload = {}) {
+  return phpApiRequest(
+    "getSalesFlowControl",
+    withFastBootstrapPayload(payload, { limit: 50 }),
+    sessionToken
+  );
+}
+
+export async function getOrderDetail(sessionToken, payload = {}) {
+  return phpApiRequest("getOrderDetail", payload, sessionToken);
+}
+
+export async function fulfillOrder(sessionToken, payload = {}) {
+  return phpApiRequest("fulfillOrder", payload, sessionToken);
 }
 
 export async function getOrderPricingLockHealth(
@@ -813,15 +832,23 @@ export async function recordHutangNanaPayment(sessionToken, payload = {}) {
  */
 
 export async function getPOQueueBootstrap(sessionToken, payload = {}) {
-  return apiRequest("getLegacyPOQueueBootstrap", payload, sessionToken);
+  return phpApiRequest(
+    "getPOQueueBootstrap",
+    withFastBootstrapPayload(payload, { limit: 50 }),
+    sessionToken
+  );
 }
 
 export async function createPOQueue(sessionToken, payload = {}) {
-  return apiRequest("legacyCreatePOQueueFromOrder", payload, sessionToken);
+  return phpApiRequest("createPOQueue", payload, sessionToken);
+}
+
+export async function confirmPOQueue(sessionToken, payload = {}) {
+  return phpApiRequest("confirmPOQueue", payload, sessionToken);
 }
 
 export async function cancelPOQueue(sessionToken, payload = {}) {
-  return apiRequest("legacyCancelPOQueue", payload, sessionToken);
+  return phpApiRequest("cancelPOQueue", payload, sessionToken);
 }
 
 /**
