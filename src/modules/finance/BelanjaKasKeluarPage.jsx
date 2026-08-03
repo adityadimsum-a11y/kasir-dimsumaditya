@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createKasKeluar, getKasKeluarBootstrap } from "../../lib/api/actions";
 import { formatRupiah } from "../../lib/format/money";
+import { allowedPaymentMethods, suggestedPaymentMethod } from "../../lib/finance/walletPolicy";
 import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
@@ -279,6 +280,7 @@ export default function BelanjaKasKeluarPage({ session, onSessionExpired }) {
   const summary = useMemo(() => buildSummary(expenses, wallets, masterItems, walletMutations, hiddenRowsCount), [expenses, wallets, masterItems, walletMutations, hiddenRowsCount]);
 
   const selectedWallet = useMemo(() => wallets.find((wallet) => wallet.wallet_id === form.wallet_id) || null, [wallets, form.wallet_id]);
+  const paymentMethods = useMemo(() => selectedWallet ? allowedPaymentMethods(selectedWallet) : ["Cash", "Transfer"], [selectedWallet]);
   const payloadPreview = useMemo(() => preparePayload(form, items, selectedWallet, operationId), [form, items, selectedWallet, operationId]);
   const totalAmount = numberValue(payloadPreview.total_amount || payloadPreview.amount);
   const moneyGiven = numberValue(form.money_given);
@@ -317,7 +319,7 @@ export default function BelanjaKasKeluarPage({ session, onSessionExpired }) {
 
     const firstWallet = asArray(data.wallets).map(normalizeWallet).find((wallet) => wallet.wallet_id);
     if (firstWallet && !form.wallet_id) {
-      setForm((current) => ({ ...current, wallet_id: firstWallet.wallet_id, wallet_name: firstWallet.wallet_name }));
+      setForm((current) => ({ ...current, wallet_id: firstWallet.wallet_id, wallet_name: firstWallet.wallet_name, payment_method: suggestedPaymentMethod(firstWallet) }));
     }
   };
 
@@ -345,7 +347,10 @@ export default function BelanjaKasKeluarPage({ session, onSessionExpired }) {
       unit_price: master.unit_price,
     } : item)));
 
-    if (master.default_wallet_id && !form.wallet_id) updateForm("wallet_id", master.default_wallet_id);
+    if (master.default_wallet_id && !form.wallet_id) {
+      const wallet = wallets.find((row) => row.wallet_id === master.default_wallet_id);
+      setForm((current) => ({ ...current, wallet_id: master.default_wallet_id, wallet_name: wallet?.wallet_name || "", payment_method: suggestedPaymentMethod(wallet || {}) }));
+    }
   };
 
   const addItemRow = () => setItems((current) => [...current, blankItem()]);
@@ -356,7 +361,7 @@ export default function BelanjaKasKeluarPage({ session, onSessionExpired }) {
       expense_date: todayInputValue(),
       wallet_id: wallets[0]?.wallet_id || "",
       wallet_name: wallets[0]?.wallet_name || "",
-      payment_method: "Cash",
+      payment_method: suggestedPaymentMethod(wallets[0] || {}),
       category: "Belanja Harian",
       vendor_name: "",
       pic_name: "",
@@ -477,13 +482,13 @@ export default function BelanjaKasKeluarPage({ session, onSessionExpired }) {
             <span>Dompet Pembayaran</span>
             <select value={form.wallet_id} onChange={(event) => {
               const wallet = wallets.find((row) => row.wallet_id === event.target.value);
-              setForm((current) => ({ ...current, wallet_id: event.target.value, wallet_name: wallet?.wallet_name || "" }));
+              setForm((current) => ({ ...current, wallet_id: event.target.value, wallet_name: wallet?.wallet_name || "", payment_method: suggestedPaymentMethod(wallet || {}) }));
             }}>
               <option value="">Pilih dompet</option>
               {wallets.map((wallet) => <option key={wallet.wallet_id} value={wallet.wallet_id}>{wallet.wallet_name} {wallet.balance ? `· ${formatRupiah(wallet.balance)}` : ""}</option>)}
             </select>
           </label>
-          <label className="da-field"><span>Metode</span><select value={form.payment_method} onChange={(event) => updateForm("payment_method", event.target.value)}><option value="Cash">Cash</option><option value="Transfer">Transfer</option><option value="Debit">Debit</option><option value="QRIS">QRIS</option></select></label>
+          <label className="da-field"><span>Metode</span><select value={form.payment_method} onChange={(event) => updateForm("payment_method", event.target.value)}>{paymentMethods.map((method) => <option key={method} value={method}>{method}</option>)}</select></label>
           <label className="da-field"><span>Toko / Penerima</span><input value={form.vendor_name} onChange={(event) => updateForm("vendor_name", event.target.value)} placeholder="Contoh: Pasar, Haji Muslih" /></label>
           <label className="da-field"><span>PIC</span><input value={form.pic_name} onChange={(event) => updateForm("pic_name", event.target.value)} placeholder="Nama yang belanja" /></label>
           <label className="da-field"><span>Uang Diberikan</span><input inputMode="numeric" value={form.money_given} onChange={(event) => updateForm("money_given", event.target.value)} placeholder="Opsional" /></label>
