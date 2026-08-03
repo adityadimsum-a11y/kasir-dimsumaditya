@@ -8,6 +8,7 @@ import DataTable from "../../components/ui/DataTable";
 import Modal from "../../components/ui/Modal";
 import PageHeader from "../../components/ui/PageHeader";
 import StatCard from "../../components/ui/StatCard";
+import ProductionFlowPanel from "../production/ProductionFlowPanel";
 
 const initialForm = {
   drop_date: new Date().toISOString().slice(0, 10),
@@ -736,6 +737,12 @@ export default function DropAyamPage({ session, onSessionExpired }) {
         badgeTone="warning"
       />
 
+      <ProductionFlowPanel
+        session={session}
+        onSessionExpired={onSessionExpired}
+        compact
+      />
+
       <Card className="da-drop-hero">
         <div>
           <div className="da-page-kicker">NYAWA PRODUKSI</div>
@@ -851,11 +858,11 @@ export default function DropAyamPage({ session, onSessionExpired }) {
                 />
               </Field>
 
-              <Field label="Harga / Kg Aktual" hint="Contoh: 36500">
+              <Field label="Harga / Kg Aktual" hint="Masukkan harga aktual per kg">
                 <input
                   value={form.unit_cost}
                   onChange={(event) => updateField("unit_cost", event.target.value)}
-                  placeholder="Contoh: 36500"
+                  placeholder="Harga aktual per kg"
                   inputMode="decimal"
                 />
               </Field>
