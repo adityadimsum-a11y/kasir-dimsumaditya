@@ -4,6 +4,7 @@ import {
   recordHutangNanaPayment,
 } from "../../lib/api/actions";
 import { formatRupiah } from "../../lib/format/money";
+import { allowedPaymentMethods, suggestedPaymentMethod } from "../../lib/finance/walletPolicy";
 import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
@@ -239,6 +240,8 @@ export default function HutangNanaPage({ session, onSessionExpired }) {
     return wallets.find((row) => row.wallet_id === form.wallet_id) || null;
   }, [wallets, form.wallet_id]);
 
+  const paymentMethods = useMemo(() => chosenWallet ? allowedPaymentMethods(chosenWallet) : ["Transfer", "Cash"], [chosenWallet]);
+
   const chosenPayablePayments = useMemo(() => {
     if (!selectedPayable?.payable_id) return [];
     return payments.filter((row) => row.payable_id === selectedPayable.payable_id);
@@ -286,6 +289,7 @@ export default function HutangNanaPage({ session, onSessionExpired }) {
       ...current,
       payable_id: current.payable_id || nextPayables[0]?.payable_id || "",
       wallet_id: current.wallet_id || nextWallets[0]?.wallet_id || "",
+      payment_method: current.wallet_id ? current.payment_method : suggestedPaymentMethod(nextWallets[0] || {}),
     }));
   };
 
@@ -448,7 +452,10 @@ export default function HutangNanaPage({ session, onSessionExpired }) {
               Dompet Pembayaran
               <select
                 value={form.wallet_id}
-                onChange={(event) => setForm((current) => ({ ...current, wallet_id: event.target.value }))}
+                onChange={(event) => {
+                  const wallet = wallets.find((row) => row.wallet_id === event.target.value);
+                  setForm((current) => ({ ...current, wallet_id: event.target.value, payment_method: suggestedPaymentMethod(wallet || {}) }));
+                }}
                 disabled={saving}
               >
                 <option value="">Pilih dompet</option>
@@ -489,10 +496,7 @@ export default function HutangNanaPage({ session, onSessionExpired }) {
                 onChange={(event) => setForm((current) => ({ ...current, payment_method: event.target.value }))}
                 disabled={saving}
               >
-                <option value="Transfer">Transfer</option>
-                <option value="Cash">Cash</option>
-                <option value="BCA">BCA</option>
-                <option value="BRI">BRI</option>
+                {paymentMethods.map((method) => <option key={method} value={method}>{method}</option>)}
               </select>
             </label>
 
