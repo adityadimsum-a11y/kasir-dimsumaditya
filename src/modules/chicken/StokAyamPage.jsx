@@ -7,6 +7,7 @@ import DataTable from "../../components/ui/DataTable";
 import Modal from "../../components/ui/Modal";
 import PageHeader from "../../components/ui/PageHeader";
 import StatCard from "../../components/ui/StatCard";
+import ProductionFlowPanel from "../production/ProductionFlowPanel";
 
 function asArray(value) {
   return Array.isArray(value) ? value : [];
@@ -281,6 +282,12 @@ export default function StokAyamPage({ session, onSessionExpired }) {
         title="Stok Ayam"
         description="Pantau ayam masuk, ayam dipakai produksi, sisa kg per lot, dan modal ayam terkunci dari DROP. Halaman ini read-only supaya stok ayam bisa dicek tanpa membuat transaksi baru."
         badge="Live Ayam"
+      />
+
+      <ProductionFlowPanel
+        session={session}
+        onSessionExpired={onSessionExpired}
+        compact
       />
 
       <Card>
