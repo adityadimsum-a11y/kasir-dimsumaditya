@@ -7,6 +7,7 @@ import {
 } from "../../lib/api/actions";
 import { formatRupiah } from "../../lib/format/money";
 import { formatDate } from "../../lib/format/date";
+import { allowedPaymentMethods, suggestedPaymentMethod } from "../../lib/finance/walletPolicy";
 import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
@@ -97,6 +98,8 @@ export default function KewajibanOwnerPage({ session, onSessionExpired }) {
   const selectedRemaining = toNumber(selectedObligation?.remaining_balance || selectedObligation?.remaining_amount || 0);
   const paymentAmount = toNumber(paymentForm.amount);
   const paymentAfter = Math.max(0, selectedRemaining - paymentAmount);
+  const selectedPaymentWallet = useMemo(() => wallets.find((wallet) => String(wallet.wallet_id) === String(paymentForm.wallet_id)) || null, [wallets, paymentForm.wallet_id]);
+  const paymentMethods = useMemo(() => selectedPaymentWallet ? allowedPaymentMethods(selectedPaymentWallet) : ["Transfer", "Cash"], [selectedPaymentWallet]);
 
   async function loadData() {
     setLoading(true);
@@ -120,7 +123,15 @@ export default function KewajibanOwnerPage({ session, onSessionExpired }) {
       const firstWallet = (nextData.wallets || [])[0]?.wallet_id || "";
       const firstObligation = (nextData.obligations || []).find((item) => String(item.status || "Active").toUpperCase() !== "LUNAS")?.obligation_id || "";
       setObligationForm((old) => ({ ...old, wallet_id: old.wallet_id || firstWallet }));
-      setPaymentForm((old) => ({ ...old, wallet_id: old.wallet_id || firstWallet, obligation_id: old.obligation_id || firstObligation }));
+      setPaymentForm((old) => {
+        const wallet = (nextData.wallets || []).find((item) => item.wallet_id === (old.wallet_id || firstWallet));
+        return {
+          ...old,
+          wallet_id: old.wallet_id || firstWallet,
+          obligation_id: old.obligation_id || firstObligation,
+          method: old.wallet_id ? old.method : suggestedPaymentMethod(wallet || {}),
+        };
+      });
     } catch (err) {
       setError(err?.message || "Gagal koneksi ke backend.");
       setData({});
@@ -401,7 +412,7 @@ export default function KewajibanOwnerPage({ session, onSessionExpired }) {
           </label>
           <label>
             Dompet Pembayaran
-            <select value={paymentForm.wallet_id} onChange={(e) => updatePaymentField("wallet_id", e.target.value)}>
+            <select value={paymentForm.wallet_id} onChange={(e) => { const wallet = wallets.find((item) => String(item.wallet_id) === String(e.target.value)); setPaymentForm((old) => ({ ...old, wallet_id: e.target.value, method: suggestedPaymentMethod(wallet || {}) })); }}>
               <option value="">Pilih dompet</option>
               {wallets.map((wallet) => <option key={wallet.wallet_id} value={wallet.wallet_id}>{wallet.wallet_name || wallet.wallet_id}</option>)}
             </select>
@@ -409,10 +420,7 @@ export default function KewajibanOwnerPage({ session, onSessionExpired }) {
           <label>
             Metode
             <select value={paymentForm.method} onChange={(e) => updatePaymentField("method", e.target.value)}>
-              <option>Transfer</option>
-              <option>Cash</option>
-              <option>BCA</option>
-              <option>BRI</option>
+              {paymentMethods.map((method) => <option key={method} value={method}>{method}</option>)}
             </select>
           </label>
           <label>
