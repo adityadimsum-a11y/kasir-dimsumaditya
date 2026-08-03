@@ -145,6 +145,18 @@ export async function createProductionBatch(sessionToken, payload = {}) {
   return phpApiRequest("legacyCreateProductionBatchFromOldFactory", payload, sessionToken);
 }
 
+export async function getProductionFlowBootstrap(sessionToken, payload = {}) {
+  return phpApiRequest(
+    "getProductionFlowBootstrap",
+    withFastBootstrapPayload(payload, { limit: 20 }),
+    sessionToken
+  );
+}
+
+export async function getProductionFlowTrace(sessionToken, payload = {}) {
+  return phpApiRequest("getProductionFlowTrace", payload, sessionToken);
+}
+
 export async function voidProductionBatch(sessionToken, payload = {}) {
   return {
     success: false,
@@ -964,7 +976,7 @@ export async function productPricingRollbackProbe(
  */
 
 export async function getChickenStockBootstrap(sessionToken, payload = {}) {
-  return apiRequest("getLegacyChickenStockBootstrap", payload, sessionToken);
+  return phpApiRequest("getLegacyChickenStockBootstrap", withFastBootstrapPayload(payload, { limit: 100 }), sessionToken);
 }
 
 /**
