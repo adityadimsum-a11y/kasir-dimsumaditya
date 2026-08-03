@@ -404,7 +404,7 @@ export default function EmpatAmplopPage({ session, onSessionExpired }) {
     <div>
       <PageHeader
         title="4 Amplop"
-        description="Bagi uang masuk aktual ke Amplop Ayam, Operasional, Cicilan/Hutang, dan Owner. Sumbernya hanya mutasi uang masuk yang sudah benar-benar masuk dompet."
+        description="Bagi uang masuk aktual ke Amplop Ayam, Operasional, Cicilan/Hutang, dan Owner. Sumbernya hanya mutasi uang masuk yang sudah benar-benar masuk dompet pusat/Tangerang."
         badge="Live Trace"
       />
 
@@ -413,7 +413,7 @@ export default function EmpatAmplopPage({ session, onSessionExpired }) {
           <div className="da-dashboard-banner-kicker">Uang Aktual</div>
           <div className="da-dashboard-banner-title">Uang Masuk → Dompet → 4 Amplop</div>
           <div className="da-dashboard-banner-desc">
-            Tidak mengambil dari PO, piutang, atau nilai stok. Uang tanpa source ID tidak boleh masuk bahan 4 Amplop.
+            Tidak mengambil dari PO, piutang, nilai stok, atau transfer internal antar-dompet. Uang tanpa source ID tidak boleh masuk bahan 4 Amplop.
           </div>
         </div>
         <div className="da-dashboard-banner-actions">
