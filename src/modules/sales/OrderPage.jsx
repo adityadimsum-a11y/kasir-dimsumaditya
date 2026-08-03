@@ -8,6 +8,8 @@ import StatCard from "../../components/ui/StatCard";
 import Badge from "../../components/ui/Badge";
 import Modal from "../../components/ui/Modal";
 import DataTable from "../../components/ui/DataTable";
+import SalesFlowPanel from "./SalesFlowPanel";
+import { suggestedPaymentMethod } from "../../lib/finance/walletPolicy";
 
 const initialForm = {
   order_date: new Date().toISOString().slice(0, 10),
@@ -22,7 +24,8 @@ const initialForm = {
   price_date: "",
   price_source: "",
   paid_amount: "0",
-  payment_method: "CASH",
+  wallet_id: "",
+  payment_method: "",
   notes: "",
 };
 
@@ -188,7 +191,7 @@ function buildOrderPayload({ form, cart, totals, session, requestId }) {
   const operationId = requestId || generateRequestId(session);
   const customerName = safeText(form.customer_name, "UMUM");
   const locationId = session?.user?.location_id || session?.user?.location_code || "";
-  const paymentMethod = form.payment_method || (totals.paid_amount > 0 ? "CASH" : "");
+  const paymentMethod = form.payment_method || "";
 
   const items = cart.map((item) => ({
     product_id: item.product_id,
@@ -219,7 +222,7 @@ function buildOrderPayload({ form, cart, totals, session, requestId }) {
     order_date: form.order_date,
     date: form.order_date,
     order_type: "KASIR_READY",
-    order_mode: "JUAL_STOK_READY",
+    order_mode: "DIRECT",
     sales_channel: "Kasir / Offline",
     customer_id: form.customer_id,
     customer_name: customerName,
@@ -231,7 +234,9 @@ function buildOrderPayload({ form, cart, totals, session, requestId }) {
     remaining_amount: totals.remaining_amount,
     sisa_tagihan: totals.remaining_amount,
     payment_status: totals.payment_status,
+    wallet_id: form.wallet_id,
     payment_method: paymentMethod,
+    fulfill_now: true,
     notes: form.notes,
     request_id: operationId,
     operation_id: operationId,
@@ -253,7 +258,9 @@ function buildOrderPayload({ form, cart, totals, session, requestId }) {
     paid_amount: totals.paid_amount,
     remaining_amount: totals.remaining_amount,
     payment_status: totals.payment_status,
+    wallet_id: form.wallet_id,
     payment_method: paymentMethod,
+    fulfill_now: true,
     order,
     items,
     payment_breakdown:
@@ -261,7 +268,8 @@ function buildOrderPayload({ form, cart, totals, session, requestId }) {
         ? [
             {
               method: paymentMethod || "CASH",
-              payment_method: paymentMethod || "CASH",
+              payment_method: paymentMethod,
+              wallet_id: form.wallet_id,
               amount: totals.paid_amount,
               request_id: operationId,
             },
@@ -343,7 +351,8 @@ export default function OrderPage({ session, onSessionExpired }) {
     if (cart.length === 0) errors.push("Keranjang masih kosong.");
     if (totals.grand_total <= 0) errors.push("Total order harus lebih dari Rp0.");
     if (totals.paid_amount > totals.grand_total) errors.push("Uang dibayar tidak boleh lebih besar dari total tagihan.");
-    if (totals.paid_amount > 0 && !form.payment_method) errors.push("Metode pembayaran wajib dipilih kalau ada uang masuk.");
+    if (totals.paid_amount > 0 && !form.wallet_id) errors.push("Dompet penerimaan wajib dipilih kalau ada uang masuk.");
+    if (totals.paid_amount > 0 && !form.payment_method) errors.push("Metode pembayaran wajib mengikuti dompet yang dipilih.");
 
     const qtyByProduct = {};
     const stockByProduct = {};
@@ -511,7 +520,12 @@ export default function OrderPage({ session, onSessionExpired }) {
 
   const handleWalletChange = (value) => {
     const wallet = wallets.find((item) => item.id === value);
-    updateForm("payment_method", wallet?.code || wallet?.name || value || "CASH");
+
+    setForm((current) => ({
+      ...current,
+      wallet_id: value,
+      payment_method: wallet ? suggestedPaymentMethod(wallet.raw || wallet) : "",
+    }));
   };
 
   const handleAddItem = async () => {
@@ -881,6 +895,15 @@ export default function OrderPage({ session, onSessionExpired }) {
         </div>
       ) : null}
 
+      <SalesFlowPanel
+        session={session}
+        onSessionExpired={onSessionExpired}
+        compact
+        refreshKey={orders.length}
+      />
+
+      <div style={{ height: 16 }} />
+
       <div className="da-grid da-grid-3">
         <StatCard
           tone="primary"
@@ -1075,17 +1098,22 @@ export default function OrderPage({ session, onSessionExpired }) {
               <label>Dompet / Metode Bayar</label>
               <select
                 className="da-select"
-                value={wallets.find((wallet) => wallet.code === form.payment_method || wallet.name === form.payment_method)?.id || ""}
+                value={form.wallet_id}
                 onChange={(event) => handleWalletChange(event.target.value)}
                 disabled={submitting || numberValue(form.paid_amount) <= 0}
               >
-                <option value="">CASH / TUNAI</option>
+                <option value="">Pilih dompet penerimaan</option>
                 {wallets.map((wallet) => (
                   <option key={wallet.id || wallet.name} value={wallet.id}>
                     {wallet.name}
                   </option>
                 ))}
               </select>
+              {form.wallet_id ? (
+                <div className="da-muted" style={{ marginTop: 6 }}>
+                  Metode otomatis: <strong>{form.payment_method}</strong>
+                </div>
+              ) : null}
             </div>
 
             <div className="da-drop-field">
