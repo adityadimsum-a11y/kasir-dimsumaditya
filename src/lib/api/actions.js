@@ -333,6 +333,22 @@ export async function getKasDompetMutationDetail(sessionToken, payload = {}) {
   return phpApiRequest("getFrontendCutoverWalletMutationDetail", payload, sessionToken);
 }
 
+export async function getFinanceLockBootstrap(sessionToken, payload = {}) {
+  return phpApiRequest("getFinanceLockBootstrap", withFastBootstrapPayload(payload, { limit: 120 }), sessionToken);
+}
+
+export async function createFinanceOtherIncome(sessionToken, payload = {}) {
+  return phpApiRequest("createFinanceOtherIncome", payload, sessionToken);
+}
+
+export async function transferFinanceWallet(sessionToken, payload = {}) {
+  return phpApiRequest("transferFinanceWallet", payload, sessionToken);
+}
+
+export async function getFinanceTraceDetail(sessionToken, payload = {}) {
+  return phpApiRequest("getFinanceTraceDetail", payload, sessionToken);
+}
+
 export async function getKasKeluarBootstrap(sessionToken, payload = {}) {
   return phpApiRequest("getCashExpenseBootstrap", withFastBootstrapPayload(payload, { limit: 100 }), sessionToken);
 }
@@ -561,69 +577,58 @@ export async function getArchiveUniversalDetail(sessionToken, payload = {}) {
  */
 
 export async function getOwnerControlBootstrap(sessionToken, payload = {}) {
-  const [php, legacy] = await Promise.all([
-    phpApiRequest("getOwnerControlBootstrap", payload, sessionToken),
-    legacyApiRequest("getLegacyOwnerControlBootstrap", payload, getLegacySessionToken()),
-  ]);
-
+  const php = await phpApiRequest("getOwnerControlBootstrap", payload, sessionToken);
   if (!php.success) return php;
 
   const core = php.data || {};
-  const legacyData = legacy.success ? (legacy.data || {}) : {};
-  const legacySummary = legacyData.summary || {};
-
   const supplier = core.supplier_position || {};
   const stock = core.stock_position || {};
   const sales = core.sales_cash_position || {};
   const receivable = core.receivable_position || {};
   const cash = core.cash_position || {};
   const envelopes = core.envelope_position || {};
-
-  const envelopeRows = envelopes.buckets || envelopes || [];
-  const allocatedTotal = Array.isArray(envelopeRows)
-    ? envelopeRows.reduce((sum, row) => sum + Number(row.current_balance || 0), 0)
-    : 0;
+  const envelopeRows = Array.isArray(envelopes.buckets) ? envelopes.buckets : [];
+  const allocatedTotal = envelopeRows.reduce((sum, row) => sum + Number(row.current_balance || 0), 0);
 
   return {
     ...php,
     data: {
-      ...legacyData,
       ...core,
       summary: {
-        ...legacySummary,
+        ...(core.summary || {}),
         wallet: {
-          ...(legacySummary.wallet || {}),
-          money_in: Number(sales.total_cash_in || sales.cash_in_total || cash.total_balance || 0),
+          ...((core.summary || {}).wallet || {}),
+          money_in: Number(sales.total_cash_in || sales.cash_in_total || cash.total_in || 0),
           mutation_count: Number(cash.mutation_count || 0),
           total_balance: Number(cash.total_balance || 0),
         },
         obligations: {
-          ...(legacySummary.obligations || {}),
+          ...((core.summary || {}).obligations || {}),
           hutang_remaining: Number(supplier.total_outstanding || supplier.grand_outstanding || supplier.outstanding || 0),
         },
         stock: {
-          ...(legacySummary.stock || {}),
+          ...((core.summary || {}).stock || {}),
           ready_pcs: Number(stock.free_qty || stock.ready_pcs || 0),
           stock_value: Number(stock.physical_value || stock.stock_value || 0),
         },
         sales: {
-          ...(legacySummary.sales || {}),
+          ...((core.summary || {}).sales || {}),
           invoice_total: Number(sales.invoice_total || sales.total_sales || 0),
           orders_count: Number(sales.order_count || 0),
         },
         amplop: {
-          ...(legacySummary.amplop || {}),
+          ...((core.summary || {}).amplop || {}),
           allocated_total: allocatedTotal,
           unallocated: Number(envelopes.unallocated || 0),
         },
         receivable: {
-          ...(legacySummary.receivable || {}),
+          ...((core.summary || {}).receivable || {}),
           remaining: Number(receivable.total_outstanding || receivable.outstanding || 0),
         },
       },
-      alerts: core.alerts || legacyData.alerts || [],
+      alerts: core.alerts || [],
       recommendations: core.recommendations || [],
-      action_queue: legacyData.action_queue || core.alerts || [],
+      action_queue: core.action_queue || core.alerts || [],
     },
   };
 }
