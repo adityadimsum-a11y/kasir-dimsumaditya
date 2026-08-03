@@ -11,6 +11,7 @@ import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import DataTable from "../../components/ui/DataTable";
 import StatCard from "../../components/ui/StatCard";
+import FinanceLockPanel from "../owner/FinanceLockPanel";
 
 function isAuthRequired(result) {
   const code = String(result?.code || result?.error?.code || "").toUpperCase();
@@ -494,6 +495,8 @@ export default function ClosingOwnerPage({ session, onSessionExpired }) {
           ]}
         />
       </Card>
+
+      <FinanceLockPanel session={session} onSessionExpired={onSessionExpired} compact />
 
       <Card>
         <p className="da-muted">
