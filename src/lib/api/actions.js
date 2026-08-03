@@ -320,7 +320,11 @@ export async function voidOrder(sessionToken, payload = {}) {
  */
 
 export async function getProducts(sessionToken, payload = {}) {
-  return apiRequest("getProducts", payload, sessionToken);
+  return phpApiRequest(
+    "getMasterDataCoreBootstrap",
+    { ...payload, module_type: "produk" },
+    sessionToken
+  );
 }
 
 export async function createProduct(sessionToken, payload = {}) {
@@ -802,15 +806,29 @@ export async function getOwnerObligationDetail(sessionToken, payload = {}) {
  */
 
 export async function getOwnerPeriodReportBootstrap(sessionToken, payload = {}) {
-  return apiRequest("getLegacyOwnerPeriodReportBootstrap", payload, sessionToken);
+  return phpApiRequest("getOwnerPeriodReportBootstrap", payload, sessionToken);
 }
 
 export async function createOwnerPeriodClosingSnapshot(sessionToken, payload = {}) {
-  return apiRequest("legacyCreateOwnerPeriodClosingSnapshot", payload, sessionToken);
+  return phpApiRequest("createOwnerPeriodClosingSnapshot", payload, sessionToken);
 }
 
 export async function createOwnerPeriodClosingRevision(sessionToken, payload = {}) {
-  return apiRequest("legacyCreateOwnerPeriodClosingRevision", payload, sessionToken);
+  return phpApiRequest("createOwnerPeriodClosingRevision", payload, sessionToken);
+}
+
+
+
+/**
+ * PRINT OPERASIONAL UNIVERSAL / ARSIP DIGITAL
+ */
+
+export async function getOperationalPrintDocument(sessionToken, payload = {}) {
+  return phpApiRequest("getOperationalPrintDocument", payload, sessionToken);
+}
+
+export async function recordOperationalPrint(sessionToken, payload = {}) {
+  return phpApiRequest("recordOperationalPrint", payload, sessionToken);
 }
 
 export { getConfiguredApiUrl };
