@@ -4,6 +4,7 @@ import {
   getKasDompetMutationDetail,
 } from "../../lib/api/actions";
 import { formatRupiah } from "../../lib/format/money";
+import WalletTransferPanel from "./WalletTransferPanel";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import PageHeader from "../../components/ui/PageHeader";
@@ -316,6 +317,13 @@ export default function KasDompetPage({ session, onSessionExpired }) {
           ))}
         </div>
       </Card>
+
+      <WalletTransferPanel
+        session={session}
+        wallets={wallets}
+        onSaved={loadData}
+        onSessionExpired={onSessionExpired}
+      />
 
       <div style={{ height: 18 }} />
 
