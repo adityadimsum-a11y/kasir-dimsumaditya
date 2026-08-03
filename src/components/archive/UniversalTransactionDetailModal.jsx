@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { recordOperationalPrint } from "../../lib/api/actions";
+import { printOperationalDetail } from "../../lib/print/operationalPrint";
 import Badge from "../ui/Badge";
 import Button from "../ui/Button";
 import Card from "../ui/Card";
@@ -62,8 +64,12 @@ export default function UniversalTransactionDetailModal({
   onRefresh,
   onOpenArchive,
   onOpenId,
+  sessionToken = "",
+  onSessionExpired,
 }) {
   const [tab, setTab] = useState("summary");
+  const [printing, setPrinting] = useState(false);
+  const [printError, setPrintError] = useState("");
 
   const main = detail?.main || {};
   const timeline = asArray(detail?.timeline || detail?.related_records);
@@ -72,6 +78,50 @@ export default function UniversalTransactionDetailModal({
   const displayId = safeText(main.source_id || main.id || activeId);
   const displayModule = moduleLabel(main.source_label || main.source_module || activeModule || "Arsip Digital");
   const summaryRows = useMemo(() => buildSummaryRows(main, timeline), [main, timeline]);
+
+  async function handleOperationalPrint() {
+    setPrintError("");
+    if (!displayId || !sessionToken) {
+      setPrintError("Sesi atau ID transaksi tidak tersedia untuk mencatat jejak cetak.");
+      return;
+    }
+
+    setPrinting(true);
+    try {
+      const operationId = `OP-PRINT-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+      const result = await recordOperationalPrint(sessionToken, {
+        transaction_id: displayId,
+        source_module: main.source_module || activeModule || "",
+        print_type: "OPERATIONAL_DOCUMENT",
+        template_version: "ERP-V1",
+        copies: 1,
+        operation_id: operationId,
+        request_id: operationId,
+        idempotency_key: operationId,
+      });
+
+      const code = String(result?.error?.code || result?.code || "").toUpperCase();
+      if (["AUTH_REQUIRED", "UNAUTHORIZED", "SESSION_EXPIRED"].includes(code)) {
+        onSessionExpired?.();
+        return;
+      }
+      if (!result?.success) {
+        setPrintError(result?.message || "Jejak cetak tidak dapat dicatat.");
+        return;
+      }
+
+      printOperationalDetail({
+        detail,
+        activeId: displayId,
+        activeModule: main.source_module || activeModule,
+        printLogId: result?.data?.print_log_id || result?.data?.print_no || "",
+      });
+    } catch (error) {
+      setPrintError(error?.message || "Dokumen gagal dibuka untuk dicetak.");
+    } finally {
+      setPrinting(false);
+    }
+  }
 
   if (!open) return null;
 
@@ -113,8 +163,13 @@ export default function UniversalTransactionDetailModal({
             Detail ini bersifat read-only. Perbaikan tetap dilakukan dari modul sumber, sementara Arsip Digital menjadi tempat menelusuri rantai ID: order, invoice, payment, stok, hutang, dompet, payroll, closing, sampai 4 Amplop bila ada sumbernya.
           </div>
 
+          {printError ? <div className="da-form-error">{printError}</div> : null}
+
           <div className="da-form-actions" style={styles.actions}>
             <Button type="button" variant="secondary" onClick={onRefresh}>Refresh Detail</Button>
+            <Button type="button" onClick={handleOperationalPrint} disabled={printing || !displayId}>
+              {printing ? "Mencatat Cetak..." : "Cetak Dokumen"}
+            </Button>
             <Button type="button" variant="secondary" onClick={onOpenArchive}>Buka di Arsip Digital</Button>
             <Button type="button" variant="secondary" onClick={onClose}>Tutup</Button>
           </div>
