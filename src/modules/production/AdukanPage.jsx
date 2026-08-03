@@ -4,6 +4,7 @@ import {
   getProductionBootstrap,
   getProducts,
 } from "../../lib/api/actions";
+import ProductionFlowPanel from "./ProductionFlowPanel";
 import { formatRupiah } from "../../lib/format/money";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
@@ -966,6 +967,12 @@ export default function AdukanPage({ session, onSessionExpired }) {
         title="Produksi / Adukan"
         description="Catat ayam dipakai produksi dari lot harga aktual, lalu hasil produksi masuk sebagai stok jadi."
         badge="Live Submit"
+      />
+
+      <ProductionFlowPanel
+        session={session}
+        onSessionExpired={onSessionExpired}
+        compact
       />
 
       <div className="da-dashboard-banner">
