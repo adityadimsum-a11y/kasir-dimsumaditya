@@ -334,11 +334,11 @@ export async function getKasDompetMutationDetail(sessionToken, payload = {}) {
 }
 
 export async function getKasKeluarBootstrap(sessionToken, payload = {}) {
-  return apiRequest("getLegacyCashExpenseBootstrap", withFastBootstrapPayload(payload, { limit: 30 }), sessionToken);
+  return phpApiRequest("getCashExpenseBootstrap", withFastBootstrapPayload(payload, { limit: 100 }), sessionToken);
 }
 
 export async function createKasKeluar(sessionToken, payload = {}) {
-  return apiRequest("legacyCreateCashExpenseFromOldExpense", payload, sessionToken);
+  return phpApiRequest("createCashExpenseLive", payload, sessionToken);
 }
 
 
@@ -360,7 +360,7 @@ export async function getAmplopBootstrap(sessionToken, payload = {}) {
 }
 
 export async function createAmplopAllocation(sessionToken, payload = {}) {
-  return phpApiRequest("legacyCreateAmplopAllocation", payload, sessionToken);
+  return phpApiRequest("createEnvelopeAllocationLive", payload, sessionToken);
 }
 
 /**
@@ -741,23 +741,23 @@ export async function recordHRDPayrollPrint(sessionToken, payload = {}) {
  */
 
 export async function getOwnerObligationBootstrap(sessionToken, payload = {}) {
-  return apiRequest("getLegacyOwnerObligationBootstrap", payload, sessionToken);
+  return phpApiRequest("getOwnerObligationBootstrap", payload, sessionToken);
 }
 
 export async function createOwnerObligation(sessionToken, payload = {}) {
-  return apiRequest("legacyCreateOwnerObligation", payload, sessionToken);
+  return phpApiRequest("createOwnerObligation", payload, sessionToken);
 }
 
 export async function payOwnerObligation(sessionToken, payload = {}) {
-  return apiRequest("legacyPayOwnerObligation", payload, sessionToken);
+  return phpApiRequest("payOwnerObligation", payload, sessionToken);
 }
 
-export async function seedOwnerObligations(sessionToken, payload = {}) {
-  return apiRequest("legacySeedOwnerObligations", payload, sessionToken);
+export async function seedOwnerObligations() {
+  return { success: false, message: "Seed kewajiban dinonaktifkan. Masukkan data nyata secara manual.", error: { code: "OWNER_OBLIGATION_SEED_DISABLED" } };
 }
 
 export async function getOwnerObligationDetail(sessionToken, payload = {}) {
-  return apiRequest("getLegacyOwnerObligationDetail", payload, sessionToken);
+  return phpApiRequest("getOwnerObligationDetail", payload, sessionToken);
 }
 
 
@@ -784,11 +784,11 @@ export { getConfiguredApiUrl };
  */
 
 export async function getHutangNanaBootstrap(sessionToken, payload = {}) {
-  return phpApiRequest("getLegacyHutangNanaBootstrap", withFastBootstrapPayload(payload, { limit: 100 }), sessionToken);
+  return phpApiRequest("getSupplierDebtBootstrap", withFastBootstrapPayload(payload, { limit: 100 }), sessionToken);
 }
 
 export async function recordHutangNanaPayment(sessionToken, payload = {}) {
-  return phpApiRequest("legacyRecordHutangNanaPayment", payload, sessionToken);
+  return phpApiRequest("paySupplierDebt", payload, sessionToken);
 }
 
 /**
