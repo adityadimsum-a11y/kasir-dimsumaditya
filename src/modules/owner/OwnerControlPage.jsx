@@ -9,6 +9,7 @@ import DataTable from "../../components/ui/DataTable";
 import Modal from "../../components/ui/Modal";
 import PageHeader from "../../components/ui/PageHeader";
 import StatCard from "../../components/ui/StatCard";
+import FinanceLockPanel from "./FinanceLockPanel";
 
 function isAuthRequired(result) {
   const message = String(result?.message || result?.error?.message || "").toUpperCase();
@@ -406,6 +407,8 @@ export default function OwnerControlPage({ session, onSessionExpired }) {
         </div>
         <DataTable columns={recentColumns()} rows={recent} getRowKey={(row, index) => `${row.module}-${row.id}-${index}`} />
       </Card>
+
+      <FinanceLockPanel session={session} onSessionExpired={onSessionExpired} />
 
       <Modal
         open={Boolean(selectedAction)}
