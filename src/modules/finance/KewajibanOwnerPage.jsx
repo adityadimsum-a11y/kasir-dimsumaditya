@@ -4,7 +4,6 @@ import {
   getOwnerObligationBootstrap,
   getOwnerObligationDetail,
   payOwnerObligation,
-  seedOwnerObligations,
 } from "../../lib/api/actions";
 import { formatRupiah } from "../../lib/format/money";
 import { formatDate } from "../../lib/format/date";
@@ -68,7 +67,6 @@ const emptyPaymentForm = {
 export default function KewajibanOwnerPage({ session, onSessionExpired }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [seeding, setSeeding] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [data, setData] = useState({});
@@ -172,33 +170,6 @@ export default function KewajibanOwnerPage({ session, onSessionExpired }) {
     }
   }
 
-
-  async function handleSeedDefaults() {
-    setSeeding(true);
-    setError("");
-    setMessage("");
-    try {
-      const result = await seedOwnerObligations(sessionToken, {
-        location_id: session?.user?.location_id || "TGR",
-      });
-      if (isAuthRequired(result)) {
-        onSessionExpired?.();
-        return;
-      }
-      if (!result?.success) {
-        setError(result?.message || "Gagal mengisi kewajiban dasar.");
-        return;
-      }
-      const created = result?.data?.created_count ?? 0;
-      const skipped = result?.data?.skipped_count ?? 0;
-      setMessage(`${result.message || "Data kewajiban dasar dicek."} Baru dibuat: ${created}. Sudah ada/dilewati: ${skipped}.`);
-      await loadData();
-    } catch (err) {
-      setError(err?.message || "Gagal mengisi kewajiban dasar.");
-    } finally {
-      setSeeding(false);
-    }
-  }
 
   async function openObligationDetail(row) {
     setDetail(row);
@@ -315,15 +286,12 @@ export default function KewajibanOwnerPage({ session, onSessionExpired }) {
             <div className="da-kicker">KEWAJIBAN USAHA</div>
             <h2>Jatuh Tempo → Bayar → Kas Keluar → Mutasi Dompet → Owner Control → Arsip</h2>
             <p className="da-muted">
-              Modul ini untuk BPJS, cicilan mobil/bank, wifi, kontrakan, parkir, listrik, dan kewajiban owner lain. 4 Amplop tetap hanya dari uang masuk aktual; pembayaran kewajiban baru memotong dompet saat dibayar.
+              Modul ini untuk BPJS, cicilan mobil/bank, wifi, kontrakan, parkir, listrik, dan kewajiban owner lain. Data dimasukkan manual tanpa seed; pembayaran memotong dompet, membuat KASOUT, jurnal, arsip, dan pemakaian Amplop Cicilan/Kewajiban.
             </p>
           </div>
           <div className="da-actions">
             <Badge tone={error ? "danger" : "success"}>{error ? "Perlu Dicek" : "Terhubung"}</Badge>
             <Button variant="secondary" onClick={loadData} disabled={loading}>{loading ? "Memuat..." : "Refresh Data"}</Button>
-            <Button variant="secondary" onClick={handleSeedDefaults} disabled={seeding || saving}>
-              {seeding ? "Mengisi..." : "Isi Kewajiban Dasar"}
-            </Button>
           </div>
         </div>
       </Card>
