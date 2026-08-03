@@ -8,6 +8,7 @@ import StatCard from "../../components/ui/StatCard";
 import Badge from "../../components/ui/Badge";
 import Modal from "../../components/ui/Modal";
 import DataTable from "../../components/ui/DataTable";
+import ProductionFlowPanel from "../production/ProductionFlowPanel";
 
 function asArray(value) {
   return Array.isArray(value) ? value : [];
@@ -171,6 +172,12 @@ export default function FinishedStockPage({ session, onSessionExpired }) {
         title="Stok Jadi"
         description="Pantau stok siap jual: stok bebas, stok ditahan PO, barang masuk freezer, dan barang keluar."
         badge="Live Stock"
+      />
+
+      <ProductionFlowPanel
+        session={session}
+        onSessionExpired={onSessionExpired}
+        compact
       />
 
       <div className="da-dashboard-banner">
