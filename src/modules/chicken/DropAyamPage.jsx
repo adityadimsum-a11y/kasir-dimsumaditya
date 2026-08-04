@@ -122,6 +122,15 @@ function isActiveStatus(row) {
   );
 }
 
+function isOperationalActiveLot(row) {
+  const status = String(row?.status || row?.lot_status || "").trim().toUpperCase();
+  const remaining = numberValue(
+    pick(row, ["qty_kg_remaining", "remaining_kg", "qty_remaining"], 0)
+  );
+
+  return status === "ACTIVE" && remaining > 0;
+}
+
 function cleanRows(rows, predicate) {
   return asArray(rows).filter((row) => row && predicate(row) && isActiveStatus(row));
 }
@@ -203,6 +212,7 @@ function getPayableId(row) {
 }
 
 function buildSummary({ purchases, lots, payables }) {
+  const activeLots = lots.filter(isOperationalActiveLot);
   const totalKgMasuk = sumRows(purchases, ["qty_kg", "kg", "qty"]);
   const totalModalAyam = sumRows(purchases, ["total_amount", "amount"]);
   const totalDibayar = sumRows(purchases, ["amount_paid", "paid_amount"]);
@@ -212,12 +222,12 @@ function buildSummary({ purchases, lots, payables }) {
     "original_amount",
     "amount",
   ]);
-  const totalKgSisa = sumRows(lots, ["qty_kg_remaining", "remaining_kg", "qty_remaining"]);
+  const totalKgSisa = sumRows(activeLots, ["qty_kg_remaining", "remaining_kg", "qty_remaining"]);
 
   return {
     totalDrop: purchases.length,
-    totalLot: lots.length,
-    totalHutang: payables.length,
+    totalLot: activeLots.length,
+    totalHutang: payables.filter((row) => numberValue(getMoneyValue(row)) > 0).length,
     totalKgMasuk,
     totalKgSisa,
     totalModalAyam,
@@ -586,10 +596,17 @@ function buildColumns({ lots, payables, onSelect }) {
         const lot = findLinkedLot(row, lots);
         const payable = findLinkedPayable(row, payables);
 
+        const lotIsActive = lot ? isOperationalActiveLot(lot) : false;
+        const payableRemaining = payable ? numberValue(getMoneyValue(payable)) : 0;
+
         return (
           <div className="da-drop-mini-trace">
-            <Badge tone={lot ? "success" : "warning"}>{lot ? "Lot" : "Lot?"}</Badge>
-            <Badge tone={payable ? "warning" : "success"}>{payable ? "Hutang" : "Lunas"}</Badge>
+            <Badge tone={lotIsActive ? "success" : lot ? "warning" : "danger"}>
+              {lotIsActive ? "Lot Aktif" : lot ? "Lot Ditutup" : "Lot Belum Terbaca"}
+            </Badge>
+            <Badge tone={payableRemaining > 0 ? "warning" : "success"}>
+              {payableRemaining > 0 ? "Hutang" : payable ? "Lunas" : "Hutang Belum Terbaca"}
+            </Badge>
           </div>
         );
       },
