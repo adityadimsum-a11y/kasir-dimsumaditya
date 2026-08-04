@@ -27,6 +27,108 @@ function safeText(value, fallback = "-") {
   return text || fallback;
 }
 
+function normalizeBucket(value) {
+  const bucket = String(value || "CURRENT_NOTE").trim().toUpperCase();
+  return bucket === "OLD_DEBT" ? "OLD_DEBT" : "CURRENT_NOTE";
+}
+
+function isOldDebtPayable(row) {
+  return normalizeBucket(row?.payable_bucket || row?.allocation_type) === "OLD_DEBT";
+}
+
+function sameSupplierAndLocation(left, right) {
+  if (!left || !right) return false;
+
+  const leftLocation = String(left.location_id || "").trim();
+  const rightLocation = String(right.location_id || "").trim();
+  if (leftLocation && rightLocation && leftLocation !== rightLocation) return false;
+
+  const leftSupplier = String(left.supplier_id || "").trim();
+  const rightSupplier = String(right.supplier_id || "").trim();
+  if (leftSupplier && rightSupplier) return leftSupplier === rightSupplier;
+
+  return String(left.vendor_name || "").trim().toLowerCase()
+    === String(right.vendor_name || "").trim().toLowerCase();
+}
+
+function payableDateValue(row) {
+  const value = new Date(row?.payable_date || row?.created_at || 0).getTime();
+  return Number.isFinite(value) ? value : 0;
+}
+
+function buildPaymentPlan(chosenPayable, totalAmount, oldDebtRows) {
+  const requestedTotal = Math.max(numberValue(totalAmount), 0);
+  const oldDebtRemainingBefore = asArray(oldDebtRows).reduce(
+    (sum, row) => sum + numberValue(row.remaining_amount),
+    0
+  );
+
+  if (!chosenPayable || requestedTotal <= 0) {
+    return {
+      allocations: [],
+      requestedTotal,
+      allocatedTotal: 0,
+      unallocatedAmount: requestedTotal,
+      selectedAmount: 0,
+      oldDebtAmount: 0,
+      selectedRemainingAfter: numberValue(chosenPayable?.remaining_amount),
+      oldDebtRemainingBefore,
+      oldDebtRemainingAfter: oldDebtRemainingBefore,
+    };
+  }
+
+  let amountLeft = requestedTotal;
+  const allocations = [];
+  const selectedRemaining = numberValue(chosenPayable.remaining_amount);
+  const selectedAmount = Math.min(selectedRemaining, amountLeft);
+
+  if (selectedAmount > 0) {
+    allocations.push({
+      payable_id: chosenPayable.payable_id,
+      allocation_type: normalizeBucket(chosenPayable.payable_bucket),
+      amount: selectedAmount,
+    });
+    amountLeft = Math.max(amountLeft - selectedAmount, 0);
+  }
+
+  let oldDebtAmount = isOldDebtPayable(chosenPayable) ? selectedAmount : 0;
+  const eligibleOldDebts = isOldDebtPayable(chosenPayable)
+    ? []
+    : asArray(oldDebtRows)
+      .filter((row) => row.payable_id !== chosenPayable.payable_id)
+      .sort((left, right) => payableDateValue(left) - payableDateValue(right));
+
+  for (const debt of eligibleOldDebts) {
+    if (amountLeft <= 0) break;
+
+    const allocationAmount = Math.min(numberValue(debt.remaining_amount), amountLeft);
+    if (allocationAmount <= 0) continue;
+
+    allocations.push({
+      payable_id: debt.payable_id,
+      allocation_type: "OLD_DEBT",
+      amount: allocationAmount,
+    });
+    oldDebtAmount += allocationAmount;
+    amountLeft = Math.max(amountLeft - allocationAmount, 0);
+  }
+
+  return {
+    allocations,
+    requestedTotal,
+    allocatedTotal: requestedTotal - amountLeft,
+    unallocatedAmount: amountLeft,
+    selectedAmount,
+    oldDebtAmount,
+    selectedRemainingAfter: Math.max(selectedRemaining - selectedAmount, 0),
+    oldDebtRemainingBefore,
+    oldDebtRemainingAfter: Math.max(
+      oldDebtRemainingBefore - (isOldDebtPayable(chosenPayable) ? 0 : oldDebtAmount),
+      0
+    ),
+  };
+}
+
 function looksLikeFallbackId(value) {
   return /^Tab[A-Za-z0-9_]+-ROW-\d+$/i.test(String(value || "").trim());
 }
@@ -102,6 +204,7 @@ function normalizePayable(row) {
     payable_date: row.payable_date || row.date || row.created_at || "",
     due_date: row.due_date || "",
     payable_type: row.payable_type || row.type || "Hutang Usaha",
+    payable_bucket: normalizeBucket(row.payable_bucket || row.bucket || row.allocation_type),
     vendor_name: row.vendor_name || row.supplier_name || row.payee || "Supplier",
     source_module: row.source_module || row.source_type || "-",
     source_id: row.source_id || row.ref_id || "",
@@ -247,6 +350,8 @@ export default function HutangNanaPage({ session, onSessionExpired }) {
   }, [bootstrap, payables, payments]);
 
   const openPayables = useMemo(() => payables.filter((row) => numberValue(row.remaining_amount) > 0), [payables]);
+  const currentNotePayables = useMemo(() => openPayables.filter((row) => !isOldDebtPayable(row)), [openPayables]);
+  const oldDebtPayables = useMemo(() => openPayables.filter(isOldDebtPayable), [openPayables]);
   const visiblePayables = useMemo(() => {
     if (activeFilter === "paid") return payables.filter((row) => numberValue(row.remaining_amount) <= 0);
     if (activeFilter === "partial") return payables.filter((row) => numberValue(row.paid_amount) > 0 && numberValue(row.remaining_amount) > 0);
@@ -259,6 +364,13 @@ export default function HutangNanaPage({ session, onSessionExpired }) {
   const chosenPayable = useMemo(() => {
     return payables.find((row) => row.payable_id === form.payable_id) || null;
   }, [payables, form.payable_id]);
+
+  const matchedOldDebts = useMemo(
+    () => chosenPayable
+      ? oldDebtPayables.filter((row) => sameSupplierAndLocation(row, chosenPayable))
+      : [],
+    [chosenPayable, oldDebtPayables]
+  );
 
   const chosenWallet = useMemo(() => {
     return wallets.find((row) => row.wallet_id === form.wallet_id) || null;
@@ -289,8 +401,17 @@ export default function HutangNanaPage({ session, onSessionExpired }) {
   }, [chosenPayablePayments, walletMutations]);
 
   const amount = numberValue(form.amount);
-  const canSubmit = Boolean(form.payable_id) && Boolean(form.wallet_id) && amount > 0 && !saving;
-  const amountTooBig = chosenPayable && amount > numberValue(chosenPayable.remaining_amount);
+  const paymentPlan = useMemo(
+    () => buildPaymentPlan(chosenPayable, amount, matchedOldDebts),
+    [chosenPayable, amount, matchedOldDebts]
+  );
+  const amountTooBig = paymentPlan.unallocatedAmount > 0;
+  const canSubmit = Boolean(form.payable_id)
+    && Boolean(form.wallet_id)
+    && amount > 0
+    && paymentPlan.allocations.length > 0
+    && !amountTooBig
+    && !saving;
 
   const loadData = async () => {
     setLoading(true);
@@ -322,7 +443,10 @@ export default function HutangNanaPage({ session, onSessionExpired }) {
 
     setForm((current) => ({
       ...current,
-      payable_id: current.payable_id || nextPayables[0]?.payable_id || "",
+      payable_id: current.payable_id
+        || nextPayables.find((row) => !isOldDebtPayable(row))?.payable_id
+        || nextPayables[0]?.payable_id
+        || "",
       wallet_id: current.wallet_id || nextWallets[0]?.wallet_id || "",
       payment_method: current.wallet_id ? current.payment_method : suggestedPaymentMethod(nextWallets[0] || {}),
     }));
@@ -353,8 +477,10 @@ export default function HutangNanaPage({ session, onSessionExpired }) {
       return;
     }
 
-    if (amount > numberValue(chosenPayable.remaining_amount)) {
-      setError(`Nominal melebihi sisa hutang: ${formatRupiah(chosenPayable.remaining_amount)}.`);
+    if (paymentPlan.unallocatedAmount > 0) {
+      setError(
+        `Nominal melebihi total hutang yang dapat dialokasikan. Kelebihan ${formatRupiah(paymentPlan.unallocatedAmount)} tidak dapat diposting.`
+      );
       return;
     }
 
@@ -369,14 +495,12 @@ export default function HutangNanaPage({ session, onSessionExpired }) {
       wallet_id: chosenWallet.wallet_id,
       payment_date: form.payment_date,
       payment_method: form.payment_method,
-      notes: form.notes || `Bayar Hutang Nana ${chosenPayable.payable_no}`,
-      allocations: [
-        {
-          payable_id: chosenPayable.payable_id,
-          allocation_type: chosenPayable.payable_bucket || "CURRENT_NOTE",
-          amount,
-        },
-      ],
+      notes: form.notes || (
+        paymentPlan.oldDebtAmount > 0 && !isOldDebtPayable(chosenPayable)
+          ? `Bayar nota ${chosenPayable.payable_no} + selipan hutang lama`
+          : `Bayar Hutang Nana ${chosenPayable.payable_no}`
+      ),
+      allocations: paymentPlan.allocations,
     });
     setSaving(false);
 
@@ -483,12 +607,29 @@ export default function HutangNanaPage({ session, onSessionExpired }) {
                 disabled={saving}
               >
                 <option value="">Pilih hutang</option>
-                {openPayables.map((payable) => (
-                  <option key={payable.payable_id} value={payable.payable_id}>
-                    {payable.payable_no} · {formatRupiah(payable.remaining_amount)} · {safeText(payable.vendor_name)}
-                  </option>
-                ))}
+                {currentNotePayables.length > 0 ? (
+                  <optgroup label="Nota Ayam Berjalan">
+                    {currentNotePayables.map((payable) => (
+                      <option key={payable.payable_id} value={payable.payable_id}>
+                        {payable.payable_no} · {formatRupiah(payable.remaining_amount)} · {safeText(payable.vendor_name)}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
+                {oldDebtPayables.length > 0 ? (
+                  <optgroup label="Hutang Lama (saldo awal / RECON)">
+                    {oldDebtPayables.map((payable) => (
+                      <option key={payable.payable_id} value={payable.payable_id}>
+                        {payable.payable_no} · {formatRupiah(payable.remaining_amount)} · {safeText(payable.vendor_name)}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
               </select>
+              <span className="da-muted" style={{ fontSize: 12, marginTop: 6 }}>
+                RECON adalah saldo hutang lama saat cutover. Bila pembayaran nota berjalan lebih besar dari sisa nota,
+                kelebihannya otomatis menjadi selipan untuk mengurangi hutang lama supplier yang sama.
+              </span>
             </label>
 
             <label className="da-field">
@@ -560,13 +701,35 @@ export default function HutangNanaPage({ session, onSessionExpired }) {
               <strong>{chosenPayable ? formatRupiah(chosenPayable.remaining_amount) : "-"}</strong>
             </div>
             <div>
-              <div className="da-stat-label">Bayar Sekarang</div>
+              <div className="da-stat-label">Total Bayar</div>
               <strong>{formatRupiah(amount)}</strong>
             </div>
             <div>
-              <div className="da-stat-label">Sisa Setelah Bayar</div>
-              <strong>{chosenPayable ? formatRupiah(Math.max(numberValue(chosenPayable.remaining_amount) - amount, 0)) : "-"}</strong>
+              <div className="da-stat-label">Untuk Nota Dipilih</div>
+              <strong>{formatRupiah(paymentPlan.selectedAmount)}</strong>
             </div>
+            <div>
+              <div className="da-stat-label">Selipan Hutang Lama</div>
+              <strong>{formatRupiah(
+                isOldDebtPayable(chosenPayable) ? 0 : paymentPlan.oldDebtAmount
+              )}</strong>
+            </div>
+            <div>
+              <div className="da-stat-label">Sisa Nota Setelah Bayar</div>
+              <strong>{chosenPayable ? formatRupiah(paymentPlan.selectedRemainingAfter) : "-"}</strong>
+            </div>
+            {!isOldDebtPayable(chosenPayable) && matchedOldDebts.length > 0 ? (
+              <div>
+                <div className="da-stat-label">Sisa Hutang Lama Setelah Selipan</div>
+                <strong>{formatRupiah(paymentPlan.oldDebtRemainingAfter)}</strong>
+              </div>
+            ) : null}
+            {amountTooBig ? (
+              <div>
+                <div className="da-stat-label">Nominal Tidak Teralokasi</div>
+                <strong>{formatRupiah(paymentPlan.unallocatedAmount)}</strong>
+              </div>
+            ) : null}
           </div>
 
           <div className="da-form-actions">
@@ -576,7 +739,7 @@ export default function HutangNanaPage({ session, onSessionExpired }) {
               onClick={() => setForm((current) => ({ ...current, amount: chosenPayable?.remaining_amount || "" }))}
               disabled={!chosenPayable || saving}
             >
-              Isi Sisa Hutang
+              Isi Sisa Nota
             </Button>
             <Button type="submit" disabled={!canSubmit || amountTooBig}>
               {saving ? "Menyimpan..." : "Simpan Pembayaran"}
