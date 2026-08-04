@@ -144,12 +144,28 @@ function normalizeBootstrap(result) {
 }
 
 
+function isOperationalActiveLot(lot) {
+  const status = String(lot?.status || "").trim().toUpperCase();
+  return status === "ACTIVE" && numberValue(lot?.qty_kg_remaining) > 0;
+}
+
 function normalizeFallbackDrop(dropResult, productionResult) {
   const dropData = dropResult?.data || dropResult || {};
   const productionData = productionResult?.data || productionResult || {};
 
   const lots = asArray(dropData.chicken_lots || dropData.lots).map(normalizeLot);
-  const movements = asArray(productionData.stock_movements || productionData.movements || productionData.chicken_movements).map(normalizeMovement);
+  const dropMovements = asArray(
+    dropData.stock_movements || dropData.chicken_movements || dropData.movements
+  ).map(normalizeMovement);
+  const productionMovements = asArray(
+    productionData.stock_movements || productionData.movements || productionData.chicken_movements
+  ).map(normalizeMovement);
+  const movementMap = new Map();
+  [...dropMovements, ...productionMovements].forEach((row, index) => {
+    const key = String(row.movement_id || `${row.source_id}-${row.direction}-${index}`);
+    if (!movementMap.has(key)) movementMap.set(key, row);
+  });
+  const movements = Array.from(movementMap.values());
   const productions = asArray(productionData.production_batches || productionData.production_usages || productionData.productions).map(normalizeProduction);
 
   const usedByLot = productions.reduce((acc, row) => {
@@ -174,10 +190,11 @@ function normalizeFallbackDrop(dropResult, productionResult) {
     };
   });
 
+  const activeStockLots = normalizedLots.filter(isOperationalActiveLot);
   const total_in_kg = normalizedLots.reduce((total, lot) => total + numberValue(lot.qty_kg), 0);
   const total_used_kg = normalizedLots.reduce((total, lot) => total + numberValue(lot.qty_kg_out), 0);
-  const total_remaining_kg = normalizedLots.reduce((total, lot) => total + numberValue(lot.qty_kg_remaining), 0);
-  const total_remaining_value = normalizedLots.reduce(
+  const total_remaining_kg = activeStockLots.reduce((total, lot) => total + numberValue(lot.qty_kg_remaining), 0);
+  const total_remaining_value = activeStockLots.reduce(
     (total, lot) => total + numberValue(lot.qty_kg_remaining) * numberValue(lot.unit_cost),
     0
   );
@@ -191,8 +208,8 @@ function normalizeFallbackDrop(dropResult, productionResult) {
         total_used_kg,
         total_remaining_kg,
         total_remaining_value,
-        active_lot_count: normalizedLots.filter((lot) => numberValue(lot.qty_kg_remaining) > 0).length,
-        consumed_lot_count: normalizedLots.filter((lot) => numberValue(lot.qty_kg_remaining) <= 0).length,
+        active_lot_count: activeStockLots.length,
+        consumed_lot_count: normalizedLots.filter((lot) => !isOperationalActiveLot(lot)).length,
         movement_count: movements.length,
         production_count: productions.length,
       },
@@ -273,7 +290,7 @@ export default function StokAyamPage({ session, onSessionExpired }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const activeLots = useMemo(() => bootstrap.lots.filter((lot) => numberValue(lot.qty_kg_remaining) > 0), [bootstrap.lots]);
+  const activeLots = useMemo(() => bootstrap.lots.filter(isOperationalActiveLot), [bootstrap.lots]);
   const latestMovements = useMemo(() => bootstrap.movements.slice(0, 12), [bootstrap.movements]);
 
   return (
