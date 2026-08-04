@@ -159,6 +159,30 @@ function normalizeMutation(row) {
   };
 }
 
+function normalizeBootstrapData(data) {
+  const source = data || {};
+  const canonicalPayables = [
+    ...asArray(source.current_notes),
+    ...asArray(source.old_debts),
+  ];
+
+  const payables = asArray(source.payables).length
+    ? asArray(source.payables)
+    : canonicalPayables;
+
+  const payments = asArray(source.payments).length
+    ? asArray(source.payments)
+    : asArray(source.payable_payments);
+
+  return {
+    ...source,
+    payables,
+    payments,
+    payable_payments: payments,
+    wallet_mutations: asArray(source.wallet_mutations),
+  };
+}
+
 function buildSummary(payables, payments) {
   const openPayables = payables.filter((row) => numberValue(row.remaining_amount) > 0);
   const totalOriginal = payables.reduce((total, row) => total + numberValue(row.original_amount), 0);
@@ -249,8 +273,19 @@ export default function HutangNanaPage({ session, onSessionExpired }) {
 
   const chosenPayableMutations = useMemo(() => {
     if (!selectedPayable?.payable_id) return [];
-    const paymentIds = new Set(chosenPayablePayments.map((row) => row.payable_payment_id));
-    return walletMutations.filter((mutation) => paymentIds.has(mutation.source_id));
+
+    const paymentIds = new Set(
+      chosenPayablePayments.map((row) => String(row.payable_payment_id || "").trim()).filter(Boolean)
+    );
+    const mutationIds = new Set(
+      chosenPayablePayments.map((row) => String(row.wallet_mutation_id || "").trim()).filter(Boolean)
+    );
+
+    return walletMutations.filter((mutation) => {
+      const mutationId = String(mutation.mutation_id || "").trim();
+      const sourceId = String(mutation.source_id || "").trim();
+      return mutationIds.has(mutationId) || paymentIds.has(sourceId);
+    });
   }, [chosenPayablePayments, walletMutations]);
 
   const amount = numberValue(form.amount);
@@ -277,7 +312,7 @@ export default function HutangNanaPage({ session, onSessionExpired }) {
       return;
     }
 
-    const data = result.data || {};
+    const data = normalizeBootstrapData(result.data || {});
     setBootstrap(data);
     setNeedsRefresh(false);
     setLoading(false);
@@ -324,16 +359,24 @@ export default function HutangNanaPage({ session, onSessionExpired }) {
     }
 
     setSaving(true);
+    const operationId = createOperationId();
     const result = await recordHutangNanaPayment(session?.sessionToken, {
-      payable_id: chosenPayable.payable_id,
+      operation_id: operationId,
+      request_id: operationId,
+      idempotency_key: operationId,
+      location_id: chosenPayable.location_id || session?.user?.location_id || "",
+      supplier_id: chosenPayable.supplier_id || "",
       wallet_id: chosenWallet.wallet_id,
-      wallet_name: chosenWallet.wallet_name,
       payment_date: form.payment_date,
-      amount,
       payment_method: form.payment_method,
       notes: form.notes || `Bayar Hutang Nana ${chosenPayable.payable_no}`,
-      vendor_name: chosenPayable.vendor_name,
-      operation_id: createOperationId(),
+      allocations: [
+        {
+          payable_id: chosenPayable.payable_id,
+          allocation_type: chosenPayable.payable_bucket || "CURRENT_NOTE",
+          amount,
+        },
+      ],
     });
     setSaving(false);
 
