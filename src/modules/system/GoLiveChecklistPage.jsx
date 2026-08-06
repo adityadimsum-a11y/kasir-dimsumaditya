@@ -36,7 +36,9 @@ const stageLabel = (stage) => {
   const labels = {
     OPENING_DATA: "Siapkan Data Awal",
     READY_TO_ACTIVATE: "Siap Diaktifkan",
+    READY_FOR_PRODUCTION: "Siap Produksi",
     CASHIER_LIVE: "Kasir Live",
+    FIRST_PRODUCTION_DONE: "Produksi Pertama Selesai",
     FIRST_ORDER_DONE: "Order Pertama Selesai",
     FIRST_CLOSING_DONE: "Closing Pertama Selesai",
     LIVE_CYCLE_COMPLETE: "Siklus Live Lengkap",
@@ -46,7 +48,10 @@ const stageLabel = (stage) => {
 
 const stageTone = (row) => {
   if (row?.cycle_complete) return "success";
-  if (row?.cashier_live || row?.ready_for_activation) return "warning";
+  const stage = String(row?.stage || "").toUpperCase();
+  if (["READY_TO_ACTIVATE", "READY_FOR_PRODUCTION", "CASHIER_LIVE", "FIRST_ORDER_DONE", "FIRST_PRODUCTION_DONE", "FIRST_CLOSING_DONE"].includes(stage)) {
+    return "warning";
+  }
   return "danger";
 };
 
@@ -129,7 +134,7 @@ export default function GoLiveChecklistPage({ session, onSessionExpired }) {
     <main className="da-page golive-page">
       <PageHeader
         title="Go-Live & Data Awal"
-        description="Pusat kendali untuk memastikan lokasi, akun, harga, dompet, stok awal, kasir, dan siklus transaksi pertama siap sebelum operasional penuh."
+        description="Pusat kendali opening data dan siklus pertama per lokasi. Persentase di halaman ini bukan persentase kelengkapan kode/backend."
         badge={health.ready ? "Control Ready" : "Perlu Dilengkapi"}
         badgeTone={health.ready ? "success" : "warning"}
       />
@@ -141,8 +146,8 @@ export default function GoLiveChecklistPage({ session, onSessionExpired }) {
           <div className="golive-command-icon"><Gauge size={25} /></div>
           <div className="golive-command-copy">
             <div className="golive-eyebrow">Pusat Aktivasi Operasional</div>
-            <h2>{progress >= 100 ? "Semua lokasi siap dioperasikan" : `${100 - progress}% lagi menuju operasional penuh`}</h2>
-            <p>Semua angka tetap berasal dari transaksi dan opening data nyata. Halaman ini tidak membuat seed harga, saldo, stok, maupun transaksi contoh.</p>
+            <h2>{progress >= 100 ? "Semua lokasi siap dioperasikan" : `Kesiapan opening data & siklus pertama ${progress}%`}</h2>
+            <p>Backend, route, dan migration dibaca lewat status sistem. Angka {progress}% dihitung dari akun, harga, saldo awal dompet, STO/stok, aktivasi kasir, order, closing, dan setoran nyata di setiap lokasi.</p>
             <div className="golive-status-row">
               <Badge tone="success">Read Only</Badge>
               <Badge tone="success">PHP/MySQL Single Source</Badge>
@@ -156,7 +161,7 @@ export default function GoLiveChecklistPage({ session, onSessionExpired }) {
 
         <div className="golive-command-side">
           <div className="golive-progress-head">
-            <span>Progress keseluruhan</span>
+            <span>Progress opening & siklus</span>
             <strong>{progress}%</strong>
           </div>
           <div className="golive-progress-track" aria-label={`Progress Go-Live ${progress}%`}>
@@ -187,9 +192,9 @@ export default function GoLiveChecklistPage({ session, onSessionExpired }) {
       </section>
 
       <div className="golive-kpi-grid">
-        <StatCard label="Progress Go-Live" value={`${progress}%`} description="Rata-rata seluruh lokasi target." tone="primary" />
+        <StatCard label="Kesiapan Opening Data" value={`${progress}%`} description="Rata-rata opening data dan siklus pertama seluruh lokasi target." tone="primary" />
         <StatCard label="Lokasi Terbaca" value={summary.location_count || 0} description={`Target ${summary.target_location_count || 0} lokasi.`} />
-        <StatCard label="Kasir Live" value={summary.cashier_live_count || 0} description="Lokasi aktif yang memenuhi syarat." tone="success" />
+        <StatCard label="Kasir Live" value={summary.cashier_live_count || 0} description="Hanya lokasi penjualan; lokasi produksi memakai bukti batch produksi." tone="success" />
         <StatCard label="Siklus Lengkap" value={summary.fully_operational_count || 0} description="Order, closing, dan setoran pertama selesai." tone="success" />
       </div>
 
@@ -235,9 +240,17 @@ export default function GoLiveChecklistPage({ session, onSessionExpired }) {
 
                 <div className="golive-readiness-grid">
                   <ReadinessItem label="Akun" value={row.active_account_count || 0} ready={row.account_ready} />
-                  <ReadinessItem label="Harga" value={row.priced_product_count || 0} ready={row.price_ready} />
-                  <ReadinessItem label="Dompet" value={row.wallet_count || 0} ready={row.wallet_ready} />
-                  <ReadinessItem label="Stok" value={`${numberValue(row.free_stock_pcs)} pcs`} ready={row.stock_ready} />
+                  <ReadinessItem
+                    label="Harga"
+                    value={row.price_required === false ? "Tidak wajib" : (row.priced_product_count || 0)}
+                    ready={row.price_ready}
+                  />
+                  <ReadinessItem label="Dompet & Saldo" value={`${numberValue(row.wallet_opening_count)}/${numberValue(row.wallet_count)}`} ready={row.wallet_ready} />
+                  <ReadinessItem
+                    label={row.is_production_location ? "Stok Bahan" : "Stok Jadi"}
+                    value={row.is_production_location ? `${numberValue(row.raw_stock_qty)} kg` : `${numberValue(row.free_stock_pcs)} pcs`}
+                    ready={row.stock_ready}
+                  />
                 </div>
 
                 <div className="golive-location-next">
