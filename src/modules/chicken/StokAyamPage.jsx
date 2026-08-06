@@ -232,7 +232,7 @@ function badgeTone(status) {
 
 export default function StokAyamPage({ session, onSessionExpired }) {
   const sessionToken = session?.sessionToken || "";
-  const defaultLocation = session?.user?.location_code || session?.user?.location_id || "TGR";
+  const defaultLocation = session?.user?.location_id || session?.user?.location_code || "LOC-TGR-001";
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [bootstrap, setBootstrap] = useState(() => normalizeBootstrap({}));
@@ -240,7 +240,7 @@ export default function StokAyamPage({ session, onSessionExpired }) {
   const [filter, setFilter] = useState(() => ({
     date_start: firstOfMonthInputValue(),
     date_end: todayInputValue(),
-    location_id: defaultLocation || "TGR",
+    location_id: defaultLocation || "LOC-TGR-001",
   }));
 
   const loadData = async () => {
@@ -330,7 +330,7 @@ export default function StokAyamPage({ session, onSessionExpired }) {
             className="da-input"
             value={filter.location_id}
             onChange={(event) => setFilter((prev) => ({ ...prev, location_id: event.target.value.toUpperCase() }))}
-            placeholder="TGR / PML / CBN"
+            placeholder="ID atau kode lokasi: LOC-TGR-001 / TGR"
           />
           <Badge tone={error ? "danger" : "success"}>{error ? "Perlu Dicek" : "Terhubung"}</Badge>
           <Button variant="ghost" onClick={loadData} disabled={loading}>
