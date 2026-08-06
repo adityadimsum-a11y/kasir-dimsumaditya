@@ -196,7 +196,7 @@ export default function GoLiveFirstCyclePanel({ session, onSessionExpired, onCha
     <Card
       className="golive-cycle-card"
       title="Gerbang Operasional & Siklus Pertama"
-      description="Buka siklus hanya setelah opening data siap. Bukti order, uang/piutang, closing, arsip, audit, dan setoran harus berasal dari transaksi nyata."
+      description="Buka siklus hanya setelah opening data siap. Bukti mengikuti tipe lokasi: penjualan memakai order/uang, sedangkan produksi memakai batch Produksi/Adukan. Semua bukti harus berasal dari transaksi nyata."
       action={(
         <Button variant="secondary" onClick={load} disabled={loading || busy}>
           <RefreshCw size={15} /> {loading ? "Membaca..." : "Refresh Gate"}
@@ -330,7 +330,7 @@ export default function GoLiveFirstCyclePanel({ session, onSessionExpired, onCha
               <div className="golive-cycle-form-grid">
                 <label className="da-field golive-cycle-form-note">
                   <span>Catatan penyelesaian</span>
-                  <textarea value={reason} onChange={(event) => setReason(event.target.value)} rows={3} placeholder="Catatan hasil transaksi, closing, dan setoran pertama." />
+                  <textarea value={reason} onChange={(event) => setReason(event.target.value)} rows={3} placeholder="Catatan hasil aktivitas utama dan closing pertama sesuai tipe lokasi." />
                 </label>
                 <label className="da-field">
                   <span>Ketik persis: {selected.complete_confirmation}</span>
