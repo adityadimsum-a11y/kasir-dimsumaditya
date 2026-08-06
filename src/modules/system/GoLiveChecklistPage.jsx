@@ -147,12 +147,15 @@ export default function GoLiveChecklistPage({ session, onSessionExpired }) {
           <div className="golive-command-copy">
             <div className="golive-eyebrow">Pusat Aktivasi Operasional</div>
             <h2>{progress >= 100 ? "Semua lokasi siap dioperasikan" : `Kesiapan opening data & siklus pertama ${progress}%`}</h2>
-            <p>Backend, route, dan migration dibaca lewat status sistem. Angka {progress}% dihitung dari akun, harga, saldo awal dompet, STO/stok, aktivasi kasir, order, closing, dan setoran nyata di setiap lokasi.</p>
+            <p>Backend, route, migration, dan Universal Period Write Lock dibaca lewat status sistem. Angka {progress}% dihitung dari akun, harga, saldo awal dompet, STO/stok, aktivasi kasir, order, closing, dan setoran nyata di setiap lokasi.</p>
             <div className="golive-status-row">
               <Badge tone="success">Read Only</Badge>
               <Badge tone="success">PHP/MySQL Single Source</Badge>
               <Badge tone={health.opening_migration_016_applied ? "success" : "warning"}>
                 Migration 016 {health.opening_migration_016_applied ? "Aktif" : "Belum"}
+              </Badge>
+              <Badge tone={health.period_write_lock_ready ? "success" : "danger"}>
+                Period Lock 033 {health.period_write_lock_ready ? "Aktif" : "Belum"}
               </Badge>
               <Badge tone="default">Tanpa Data Contoh</Badge>
             </div>
