@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  AlertTriangle,
+  CheckCircle2,
+  ChevronRight,
+  PlayCircle,
+  RefreshCw,
+  ShieldCheck,
+} from "lucide-react";
+import {
   completeGoLiveFirstCycle,
   getGoLiveCycleBootstrap,
   startGoLiveFirstCycle,
@@ -8,7 +16,6 @@ import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import DataTable from "../../components/ui/DataTable";
-import StatCard from "../../components/ui/StatCard";
 import { openFocusRoute } from "../../lib/navigation/focusRouter";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -163,49 +170,6 @@ export default function GoLiveFirstCyclePanel({ session, onSessionExpired, onCha
     }
   };
 
-  const columns = [
-    {
-      key: "location_name",
-      label: "Lokasi",
-      render: (row) => (
-        <div>
-          <strong>{text(row.location_name)}</strong>
-          <div className="da-muted">{text(row.location_code)} · {text(row.location_type)}</div>
-        </div>
-      ),
-    },
-    {
-      key: "gate",
-      label: "Gerbang",
-      render: (row) => (
-        <Badge tone={row.gate?.ready ? "success" : "danger"}>
-          {row.gate?.ready ? "Siap" : `${asArray(row.gate?.blockers).length} blocker`}
-        </Badge>
-      ),
-    },
-    {
-      key: "cycle_status",
-      label: "Siklus",
-      render: (row) => <Badge tone={statusTone(row.cycle_status)}>{statusLabel(row.cycle_status)}</Badge>,
-    },
-    {
-      key: "evidence",
-      label: "Bukti Live",
-      render: (row) => {
-        const applicable = asArray(row.evidence?.events).filter((item) => item.applicable);
-        const passed = applicable.filter((item) => item.ready).length;
-        return <strong>{passed} / {applicable.length}</strong>;
-      },
-    },
-    {
-      key: "action",
-      label: "Aksi",
-      render: (row) => (
-        <Button variant="secondary" onClick={() => setSelectedId(row.location_id)}>Lihat</Button>
-      ),
-    },
-  ];
-
   const recentColumns = [
     { key: "cycle_date", label: "Tanggal" },
     { key: "cycle_no", label: "Cycle ID" },
@@ -223,85 +187,115 @@ export default function GoLiveFirstCyclePanel({ session, onSessionExpired, onCha
     { key: "completed_at", label: "Selesai" },
   ];
 
+  const gateChecks = asArray(selected?.gate?.checks);
+  const evidenceEvents = asArray(selected?.evidence?.events);
+  const applicableEvidence = evidenceEvents.filter((item) => item.applicable);
+  const passedEvidence = applicableEvidence.filter((item) => item.ready).length;
+
   return (
     <Card
-      title="Gerbang Operasional & Siklus Live Pertama"
-      description="Start hanya membuka periode pembuktian. Order, uang/piutang, closing, arsip, audit, dan setoran harus berasal dari transaksi nyata."
+      className="golive-cycle-card"
+      title="Gerbang Operasional & Siklus Pertama"
+      description="Buka siklus hanya setelah opening data siap. Bukti order, uang/piutang, closing, arsip, audit, dan setoran harus berasal dari transaksi nyata."
       action={(
         <Button variant="secondary" onClick={load} disabled={loading || busy}>
-          {loading ? "Membaca..." : "Refresh Gate"}
+          <RefreshCw size={15} /> {loading ? "Membaca..." : "Refresh Gate"}
         </Button>
       )}
     >
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-        <Badge tone={health.ready ? "success" : "danger"}>Migration 025 {health.ready ? "Aktif" : "Belum Siap"}</Badge>
-        <Badge tone={globalGate.health_ready ? "success" : "danger"}>Health {num(globalGate.health_score)} / 100</Badge>
-        <Badge tone={globalGate.backup_ready ? "success" : "danger"}>Backup 24 Jam {globalGate.backup_ready ? "Siap" : "Belum"}</Badge>
-        <Badge tone="default">Tanpa Transaksi Contoh</Badge>
+      <div className="golive-cycle-health">
+        <div className={health.ready ? "is-ready" : "is-pending"}>
+          <ShieldCheck size={17} /><span>Migration 025</span><strong>{health.ready ? "Aktif" : "Belum"}</strong>
+        </div>
+        <div className={globalGate.health_ready ? "is-ready" : "is-pending"}>
+          <ShieldCheck size={17} /><span>Data Health</span><strong>{num(globalGate.health_score)}/100</strong>
+        </div>
+        <div className={globalGate.backup_ready ? "is-ready" : "is-pending"}>
+          <ShieldCheck size={17} /><span>Backup 24 Jam</span><strong>{globalGate.backup_ready ? "Siap" : "Belum"}</strong>
+        </div>
+        <div className="is-neutral">
+          <ShieldCheck size={17} /><span>Transaksi Contoh</span><strong>Tidak Ada</strong>
+        </div>
       </div>
 
-      {error ? <div className="da-alert da-alert-danger" style={{ marginBottom: 12 }}>{error}</div> : null}
-      {success ? <div className="da-alert da-alert-success" style={{ marginBottom: 12 }}>{success}</div> : null}
+      {error ? <div className="da-alert da-alert-danger golive-cycle-alert">{error}</div> : null}
+      {success ? <div className="da-alert da-alert-success golive-cycle-alert">{success}</div> : null}
 
-      <div className="da-stat-grid" style={{ marginBottom: 14 }}>
-        <StatCard label="Gate Siap" value={summary.gate_ready_count || 0} description="Lokasi yang boleh memulai siklus." tone="success" />
-        <StatCard label="Sedang Berjalan" value={summary.in_progress_count || 0} description="Menunggu bukti transaksi nyata." tone="warning" />
-        <StatCard label="Sudah GREEN" value={summary.green_count || 0} description="Siklus pertama sudah dikunci." tone="success" />
-        <StatCard label="Masih Diblokir" value={summary.blocked_count || 0} description="Selesaikan opening data dari modul sumber." tone="danger" />
+      <div className="golive-cycle-summary">
+        <div className="is-ready"><span>Gate Siap</span><strong>{summary.gate_ready_count || 0}</strong><small>Boleh memulai siklus</small></div>
+        <div className="is-warning"><span>Sedang Berjalan</span><strong>{summary.in_progress_count || 0}</strong><small>Menunggu bukti nyata</small></div>
+        <div className="is-ready"><span>Sudah GREEN</span><strong>{summary.green_count || 0}</strong><small>Siklus sudah dikunci</small></div>
+        <div className="is-danger"><span>Masih Diblokir</span><strong>{summary.blocked_count || 0}</strong><small>Opening data belum lengkap</small></div>
       </div>
 
-      <DataTable columns={columns} rows={locations} getRowKey={(row) => row.location_id} />
+      <div className="golive-cycle-tabs" role="tablist" aria-label="Pilih lokasi Go-Live">
+        {locations.map((row) => {
+          const active = selected?.location_id === row.location_id;
+          const blockers = asArray(row.gate?.blockers).length;
+          return (
+            <button
+              key={row.location_id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              className={active ? "is-active" : ""}
+              onClick={() => setSelectedId(row.location_id)}
+            >
+              <span><strong>{text(row.location_name)}</strong><small>{text(row.location_code)}</small></span>
+              <Badge tone={row.gate?.ready ? "success" : "danger"}>{row.gate?.ready ? "Siap" : `${blockers} blocker`}</Badge>
+            </button>
+          );
+        })}
+      </div>
 
       {selected ? (
-        <div className="da-soft-panel" style={{ marginTop: 14 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <div className="golive-cycle-workspace">
+          <div className="golive-cycle-workspace-head">
             <div>
-              <strong>{selected.location_name}</strong>
-              <div className="da-muted">{selected.location_code} · {selected.location_type}</div>
+              <span className="golive-eyebrow">Lokasi Terpilih</span>
+              <h3>{selected.location_name}</h3>
+              <p>{selected.location_code} · {selected.location_type}</p>
             </div>
-            <Badge tone={statusTone(selected.cycle_status)}>{statusLabel(selected.cycle_status)}</Badge>
-          </div>
-
-          <div style={{ marginTop: 14 }}>
-            <strong>Gerbang sebelum mulai</strong>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 8, marginTop: 8 }}>
-              {asArray(selected.gate?.checks).map((check) => (
-                <button
-                  key={check.code}
-                  type="button"
-                  className="da-soft-panel"
-                  onClick={() => check.page_key && openFocusRoute({ pageKey: check.page_key })}
-                  style={{ textAlign: "left", cursor: check.page_key ? "pointer" : "default", border: "1px solid var(--da-line, #e5e7eb)" }}
-                >
-                  <Badge tone={check.ready ? "success" : "danger"}>{check.ready ? "Siap" : "Belum"}</Badge>
-                  <div style={{ marginTop: 6, fontWeight: 700 }}>{check.label}</div>
-                </button>
-              ))}
+            <div className="golive-cycle-status">
+              <Badge tone={statusTone(selected.cycle_status)}>{statusLabel(selected.cycle_status)}</Badge>
+              <span>{passedEvidence}/{applicableEvidence.length} bukti live</span>
             </div>
           </div>
 
-          <div style={{ marginTop: 14 }}>
-            <strong>Bukti setelah siklus dimulai</strong>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 8, marginTop: 8 }}>
-              {asArray(selected.evidence?.events).map((event) => (
-                <div key={event.code} className="da-soft-panel">
-                  <Badge tone={statusTone(event.status)}>{statusLabel(event.status)}</Badge>
-                  <div style={{ marginTop: 6, fontWeight: 700 }}>{event.label}</div>
-                  {event.source_id ? <div className="da-muted" style={{ marginTop: 4 }}>{event.source_id}</div> : null}
-                </div>
-              ))}
-            </div>
+          <div className="golive-cycle-columns">
+            <section className="golive-cycle-column">
+              <div className="golive-cycle-column-head"><span>1</span><div><strong>Gerbang sebelum mulai</strong><small>Semua poin wajib siap.</small></div></div>
+              <div className="golive-cycle-check-list">
+                {gateChecks.map((check) => (
+                  <button key={check.code} type="button" onClick={() => check.page_key && openFocusRoute({ pageKey: check.page_key })} disabled={!check.page_key}>
+                    {check.ready ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
+                    <span><strong>{check.label}</strong><small>{check.ready ? "Sudah siap" : "Perlu dilengkapi"}</small></span>
+                    {check.page_key ? <ChevronRight size={17} /> : null}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section className="golive-cycle-column">
+              <div className="golive-cycle-column-head"><span>2</span><div><strong>Bukti transaksi pertama</strong><small>Muncul setelah siklus dimulai.</small></div></div>
+              <div className="golive-cycle-check-list">
+                {evidenceEvents.map((event) => (
+                  <div key={event.code} className={event.ready ? "is-ready" : event.applicable ? "is-pending" : "is-neutral"}>
+                    {event.ready ? <CheckCircle2 size={18} /> : event.applicable ? <AlertTriangle size={18} /> : <ShieldCheck size={18} />}
+                    <span><strong>{event.label}</strong><small>{event.source_id || statusLabel(event.status)}</small></span>
+                    <Badge tone={statusTone(event.status)}>{statusLabel(event.status)}</Badge>
+                  </div>
+                ))}
+              </div>
+            </section>
           </div>
 
           {!selected.gate?.ready && asArray(selected.gate?.blockers).length ? (
-            <div className="da-alert da-alert-warning" style={{ marginTop: 14 }}>
-              <strong>Belum bisa dimulai:</strong>
-              <div style={{ marginTop: 6 }}>{asArray(selected.gate.blockers).join(" · ")}</div>
+            <div className="golive-cycle-blocker">
+              <AlertTriangle size={21} />
+              <div><strong>Belum bisa dimulai</strong><p>{asArray(selected.gate.blockers).join(" · ")}</p></div>
               {selected.next_page_key ? (
-                <Button
-                  variant="secondary"
-                  onClick={() => openFocusRoute({ pageKey: selected.next_page_key })}
-                >
+                <Button variant="secondary" onClick={() => openFocusRoute({ pageKey: selected.next_page_key })}>
                   Buka {selected.next_step_label || "Modul Sumber"}
                 </Button>
               ) : null}
@@ -309,63 +303,55 @@ export default function GoLiveFirstCyclePanel({ session, onSessionExpired, onCha
           ) : null}
 
           {selected.can_start ? (
-            <div style={{ marginTop: 14 }}>
-              <strong>Mulai siklus live pertama</strong>
-              <div className="da-muted">Tidak membuat order atau nominal contoh. Setelah mulai, jalankan transaksi nyata dari Kasir.</div>
-              <label className="da-field" style={{ marginTop: 10 }}>
-                <span>Alasan / catatan pembukaan</span>
-                <textarea value={reason} onChange={(event) => setReason(event.target.value)} rows={3} placeholder="Contoh: Opening data sudah sesuai STO dan siap menjalankan transaksi nyata." />
-              </label>
-              <label className="da-field">
-                <span>Ketik persis: {selected.start_confirmation}</span>
-                <input value={confirmation} onChange={(event) => setConfirmation(event.target.value)} />
-              </label>
-              <Button onClick={() => runWrite("start")} disabled={busy}>Mulai Siklus Live</Button>
+            <div className="golive-cycle-form">
+              <div className="golive-cycle-form-head"><PlayCircle size={21} /><div><strong>Mulai siklus live pertama</strong><small>Tidak membuat transaksi atau nominal contoh.</small></div></div>
+              <div className="golive-cycle-form-grid">
+                <label className="da-field golive-cycle-form-note">
+                  <span>Alasan / catatan pembukaan</span>
+                  <textarea value={reason} onChange={(event) => setReason(event.target.value)} rows={3} placeholder="Contoh: Opening data sudah sesuai STO dan siap menjalankan transaksi nyata." />
+                </label>
+                <label className="da-field">
+                  <span>Ketik persis: {selected.start_confirmation}</span>
+                  <input value={confirmation} onChange={(event) => setConfirmation(event.target.value)} />
+                </label>
+              </div>
+              <div className="golive-cycle-form-actions"><Button onClick={() => runWrite("start")} disabled={busy}>Mulai Siklus Live</Button></div>
             </div>
           ) : null}
 
           {selected.cycle_status === "IN_PROGRESS" ? (
-            <div style={{ marginTop: 14 }}>
-              <strong>Cycle ID: {text(selected.cycle?.cycle_id)}</strong>
-              <div className="da-muted">Mulai {text(selected.cycle?.started_at)}. Refresh Gate setelah transaksi nyata selesai.</div>
+            <div className="golive-cycle-form">
+              <div className="golive-cycle-form-head"><PlayCircle size={21} /><div><strong>Cycle ID: {text(selected.cycle?.cycle_id)}</strong><small>Mulai {text(selected.cycle?.started_at)}</small></div></div>
               {!selected.evidence?.complete ? (
-                <div className="da-alert da-alert-warning" style={{ marginTop: 10 }}>
-                  Masih menunggu: {asArray(selected.evidence?.blockers).join(" · ")}
-                </div>
+                <div className="da-alert da-alert-warning">Masih menunggu: {asArray(selected.evidence?.blockers).join(" · ")}</div>
               ) : (
-                <div className="da-alert da-alert-success" style={{ marginTop: 10 }}>
-                  Semua bukti lengkap. Siklus dapat dikunci GREEN.
-                </div>
+                <div className="da-alert da-alert-success">Semua bukti lengkap. Siklus dapat dikunci GREEN.</div>
               )}
-              <label className="da-field" style={{ marginTop: 10 }}>
-                <span>Catatan penyelesaian</span>
-                <textarea value={reason} onChange={(event) => setReason(event.target.value)} rows={3} placeholder="Catatan hasil transaksi, closing, dan setoran pertama." />
-              </label>
-              <label className="da-field">
-                <span>Ketik persis: {selected.complete_confirmation}</span>
-                <input value={confirmation} onChange={(event) => setConfirmation(event.target.value)} />
-              </label>
-              <Button onClick={() => runWrite("complete")} disabled={busy || !selected.can_complete}>
-                Kunci Siklus GREEN
-              </Button>
+              <div className="golive-cycle-form-grid">
+                <label className="da-field golive-cycle-form-note">
+                  <span>Catatan penyelesaian</span>
+                  <textarea value={reason} onChange={(event) => setReason(event.target.value)} rows={3} placeholder="Catatan hasil transaksi, closing, dan setoran pertama." />
+                </label>
+                <label className="da-field">
+                  <span>Ketik persis: {selected.complete_confirmation}</span>
+                  <input value={confirmation} onChange={(event) => setConfirmation(event.target.value)} />
+                </label>
+              </div>
+              <div className="golive-cycle-form-actions"><Button onClick={() => runWrite("complete")} disabled={busy || !selected.can_complete}>Kunci Siklus GREEN</Button></div>
             </div>
           ) : null}
 
           {selected.cycle_status === "GREEN" ? (
-            <div className="da-alert da-alert-success" style={{ marginTop: 14 }}>
-              Siklus live pertama lokasi ini sudah GREEN. Transaksi berikutnya berjalan sebagai operasional harian biasa.
-            </div>
+            <div className="golive-ready-box"><CheckCircle2 size={20} /><span>Siklus live pertama lokasi ini sudah GREEN. Operasional berikutnya berjalan normal.</span></div>
           ) : null}
         </div>
       ) : null}
 
       {asArray(data?.recent_cycles).length ? (
-        <div style={{ marginTop: 16 }}>
-          <strong>Riwayat Siklus Live</strong>
-          <div style={{ marginTop: 8 }}>
-            <DataTable columns={recentColumns} rows={asArray(data.recent_cycles)} getRowKey={(row) => row.cycle_id} />
-          </div>
-        </div>
+        <details className="golive-cycle-history">
+          <summary>Riwayat Siklus Live ({asArray(data.recent_cycles).length})</summary>
+          <div><DataTable columns={recentColumns} rows={asArray(data.recent_cycles)} getRowKey={(row) => row.cycle_id} /></div>
+        </details>
       ) : null}
     </Card>
   );
