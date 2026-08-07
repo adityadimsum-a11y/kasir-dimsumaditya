@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 
@@ -11,6 +11,19 @@ export default function AppShell({
   children,
 }) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  const activeMeta = useMemo(() => {
+    for (const group of menuGroups || []) {
+      const item = (group.items || []).find((entry) => entry.key === activePage);
+      if (item) {
+        return {
+          pageTitle: item.label,
+          groupTitle: group.title,
+        };
+      }
+    }
+    return { pageTitle: "Papan Pantau", groupTitle: "ERP Dimsum Aditya" };
+  }, [activePage, menuGroups]);
 
   const handleChangePage = (pageKey) => {
     onChangePage(pageKey);
@@ -38,6 +51,8 @@ export default function AppShell({
           session={session}
           onLogout={onLogout}
           onOpenSidebar={() => setMobileSidebarOpen(true)}
+          pageTitle={activeMeta.pageTitle}
+          groupTitle={activeMeta.groupTitle}
         />
         <div className="da-content-shell">
           <div className="da-content">{children}</div>
