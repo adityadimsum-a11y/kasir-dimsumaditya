@@ -528,7 +528,7 @@ export default function HutangNanaPage({ session, onSessionExpired }) {
       <PageHeader
         title="Hutang Nana"
         description="Pantau sisa hutang ayam, nota berjalan, dan pembayaran supplier. Pembayaran di sini langsung membuat mutasi dompet keluar."
-        badge="Live Payment"
+        badge="Pembayaran Aktif"
       />
 
       <div className="da-dashboard-banner">
