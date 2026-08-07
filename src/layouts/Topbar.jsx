@@ -11,8 +11,9 @@ export default function Topbar({
   session,
   onLogout,
   onOpenSidebar,
-  pageTitle = "Papan Pantau",
+  pageTitle = "Dashboard Owner",
   groupTitle = "ERP Dimsum Aditya",
+  pageDescription = "",
 }) {
   const user = session?.user || {};
   const userName = user.name || user.username || "User";
@@ -20,7 +21,7 @@ export default function Topbar({
   const roleName = user.role_name || user.role_id || "Role belum terbaca";
 
   return (
-    <header className="da-topbar">
+    <header className="da-topbar da-topbar-v2">
       <div className="da-topbar-left">
         <button
           type="button"
@@ -37,7 +38,10 @@ export default function Topbar({
             <span className="da-topbar-breadcrumb-separator">/</span>
             <strong>{pageTitle}</strong>
           </div>
-          <div className="da-topbar-title">{pageTitle}</div>
+          <div className="da-topbar-title-row">
+            <div className="da-topbar-title">{pageTitle}</div>
+            {pageDescription ? <div className="da-topbar-description">{pageDescription}</div> : null}
+          </div>
         </div>
       </div>
 
