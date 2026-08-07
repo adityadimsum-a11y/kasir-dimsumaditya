@@ -12,8 +12,8 @@ export const MENU_GROUPS = [
       },
       {
         key: "owner-control",
-        label: "Owner Control",
-        description: "Kontrol pusat cash recovery, dompet, 4 Amplop, supplier, kewajiban, dan keputusan owner.",
+        label: "Kendali Usaha",
+        description: "Pantau posisi uang, produksi, penjualan, supplier, kewajiban, cabang, dan keputusan owner.",
       },
     ],
   },
@@ -59,7 +59,7 @@ export const MENU_GROUPS = [
       {
         key: "kasir-order",
         label: "Kasir / Order",
-        description: "Order, invoice, pembayaran, piutang, reservasi stok, dan COGS.",
+        description: "Kelola order, invoice, pembayaran, piutang, dan ketersediaan stok penjualan.",
       },
       {
         key: "antrian-po",
@@ -82,22 +82,22 @@ export const MENU_GROUPS = [
       {
         key: "uang-masuk",
         label: "Uang Masuk",
-        description: "Pembayaran aktual customer, penerimaan non-sales, dan sumber mutasi dompet.",
+        description: "Catat dan pantau seluruh penerimaan usaha yang masuk ke kas atau bank.",
       },
       {
         key: "kas-dompet",
         label: "Kas & Dompet",
-        description: "Cash, BCA, BRI, saldo awal, transfer, dan mutasi uang hidup.",
+        description: "Pantau saldo Cash, BCA, BRI, saldo awal, transfer, dan pergerakan dana.",
       },
       {
         key: "kas-keluar",
         label: "Belanja & Kas Keluar",
-        description: "Belanja operasional, nota, multi-item, dan Wallet OUT.",
+        description: "Catat belanja operasional, nota, rincian barang, dan pengeluaran kas atau bank.",
       },
       {
         key: "hutang-nana",
         label: "Hutang Nana",
-        description: "Nota berjalan, hutang lama/RECON, pembayaran supplier, dan selipan hutang lama.",
+        description: "Pantau nota berjalan, saldo hutang lama, dan pembayaran supplier ayam.",
       },
       {
         key: "kewajiban-owner",
@@ -158,7 +158,7 @@ export const MENU_GROUPS = [
       {
         key: "hrd-payroll",
         label: "Payroll & Slip Gaji",
-        description: "Draft THP, preview backend, slip A5, closing payroll, dan pembayaran gaji.",
+        description: "Proses gaji, slip A5, closing payroll, dan pembayaran karyawan.",
       },
       {
         key: "hrd-payroll-report",
@@ -222,23 +222,23 @@ export const MENU_GROUPS = [
     items: [
       {
         key: "go-live-check",
-        label: "Go-Live Control",
-        description: "Opening data, kesiapan lokasi, dan siklus operasional pertama.",
+        label: "Kesiapan Operasional",
+        description: "Kelola data awal, kesiapan lokasi, dan status pembukaan operasional.",
       },
       {
         key: "system-health",
-        label: "Data Health",
-        description: "Pemeriksaan integritas data, ID, sumber transaksi, dan kesehatan relasi.",
+        label: "Integritas Data",
+        description: "Periksa konsistensi data, hubungan transaksi, dan kelengkapan arsip.",
       },
       {
         key: "permission-role-check",
-        label: "Permission & Role",
-        description: "Hak akses Owner, Tangerang, Pemalang, Cibinong, dan staff.",
+        label: "Hak Akses",
+        description: "Atur hak akses Owner, Tangerang, Pemalang, Cibinong, dan staff.",
       },
       {
         key: "print-backup",
-        label: "Print & Backup",
-        description: "Pusat cetak safety, export, manifest, dan kontrol backup.",
+        label: "Cetak & Backup",
+        description: "Kelola format cetak, ekspor data, dan backup sistem.",
       },
     ],
   },
