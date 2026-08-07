@@ -549,7 +549,7 @@ export default function ProductPricingPanel({
         price_date: current.price_date || localDateString(),
       }));
     } catch (err) {
-      setError(err?.message || "Pricing Engine belum bisa dimuat.");
+      setError(err?.message || "Aturan harga belum bisa dimuat.");
     } finally {
       setLoading(false);
     }
@@ -763,7 +763,7 @@ export default function ProductPricingPanel({
     setSuccess("");
 
     if (!writeEnabled) {
-      setError("Pricing LIVE WRITE belum siap.");
+      setError("Penyimpanan harga belum siap.");
       return;
     }
 
@@ -1032,13 +1032,13 @@ export default function ProductPricingPanel({
         >
           <Badge tone="success">{health.source_of_truth}</Badge>
           <Badge tone={writeEnabled ? "success" : "warning"}>
-            {writeEnabled ? "Pricing Live Write" : "Write Belum Siap"}
+            {writeEnabled ? "Penyimpanan Harga" : "Write Belum Siap"}
           </Badge>
           <Badge tone={health.migration_applied ? "success" : "warning"}>
-            Migration 014 {health.migration_applied ? "Aktif" : "Belum Aktif"}
+            Mesin Harga {health.migration_applied ? "Aktif" : "Belum Aktif"}
           </Badge>
           <Button variant="ghost" onClick={loadPricing} disabled={loading}>
-            {loading ? "Memuat..." : "Refresh Pricing"}
+            {loading ? "Memuat..." : "Refresh Harga"}
           </Button>
         </div>
 
@@ -1050,7 +1050,7 @@ export default function ProductPricingPanel({
         <StatCard
           label="Total Aturan"
           value={bootstrap.summary.total_rules}
-          description="Rule harga tersimpan di PHP/MySQL."
+          description="Aturan harga resmi tersimpan di sistem."
         />
         <StatCard
           label="Aktif"
@@ -1069,15 +1069,15 @@ export default function ProductPricingPanel({
       <Card>
         <div className="da-section-heading">
           <div>
-            <span>Pricing PHP/MySQL</span>
+            <span>Harga Terpusat</span>
             <h2>{editingId ? "Edit Aturan Harga" : "Tambah Aturan Harga"}</h2>
             <p>
-              Form memakai kontrak backend resmi: price_name, price_tier,
+              Form memakai struktur harga resmi: price_name, price_tier,
               unit_type, price_per_unit, location_id, dan effective date.
             </p>
           </div>
           <Badge tone={writeEnabled ? "success" : "warning"}>
-            {writeEnabled ? "Live Write Siap" : "Read Only"}
+            {writeEnabled ? "Siap Disimpan" : "Pantau"}
           </Badge>
         </div>
 
@@ -1304,7 +1304,7 @@ export default function ProductPricingPanel({
       <Card>
         <div className="da-section-heading">
           <div>
-            <span>Resolver Read-Only</span>
+            <span>Simulasi Harga</span>
             <h2>Cek Rule yang Akan Terpilih</h2>
             <p>
               Resolver hanya membaca. Tidak membuat harga fallback dan tidak
@@ -1475,13 +1475,13 @@ export default function ProductPricingPanel({
         <div className="da-section-heading">
           <div>
             <span>Daftar Aturan Harga</span>
-            <h2>Pricing Rules PHP/MySQL</h2>
+            <h2>Aturan Harga Resmi</h2>
             <p>
               Klik baris untuk detail, edit, atau mengubah status tanpa menghapus
               riwayat.
             </p>
           </div>
-          <Badge tone="success">Live Data</Badge>
+          <Badge tone="success">Data Aktual</Badge>
         </div>
 
         <div className="da-toolbar">
