@@ -274,7 +274,7 @@ export default function POQueuePage({ session, onSessionExpired }) {
       }
       setNotice({
         success: false,
-        message: result?.message || "Harga PO gagal di-resolve backend.",
+        message: result?.message || "Harga PO belum berhasil ditentukan sistem.",
       });
       return;
     }
@@ -316,7 +316,7 @@ export default function POQueuePage({ session, onSessionExpired }) {
     setDraft((current) => ({ ...current, product_id: "", qty: "" }));
     setNotice({
       success: true,
-      message: "Harga PO dikunci backend dan item masuk daftar permintaan.",
+      message: "Harga PO dikunci sistem dan item masuk daftar permintaan.",
     });
   };
 
@@ -507,7 +507,7 @@ export default function POQueuePage({ session, onSessionExpired }) {
       <PageHeader
         title="Antrian PO"
         description="PO menahan stok dan harga resmi, tetapi belum menjadi omzet, invoice, piutang, atau uang masuk."
-        badge="PHP/MySQL Single Source"
+        badge="Data Terpusat"
       />
 
       <SalesFlowPanel
@@ -539,10 +539,10 @@ export default function POQueuePage({ session, onSessionExpired }) {
           <div>
             <div className="da-mini-title">INPUT PO</div>
             <div className="da-big-text">Buat Permintaan dan Tahan Stok</div>
-            <p className="da-muted">Harga dikunci backend. Simpan PO tidak membuat jurnal penjualan atau Wallet IN.</p>
+            <p className="da-muted">Harga dikunci sistem. PO baru mencatat kebutuhan dan reservasi; uang masuk hanya tercatat saat pembayaran diterima.</p>
           </div>
           <Badge tone={pricingReady && cashierReady ? "success" : "warning"}>
-            {pricingReady && cashierReady ? "PO Live Ready" : "Gate Belum Siap"}
+            {pricingReady && cashierReady ? "PO Siap" : "Belum Siap"}
           </Badge>
         </div>
 
