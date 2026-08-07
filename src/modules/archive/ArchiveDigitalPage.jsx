@@ -284,7 +284,7 @@ export default function ArchiveDigitalPage({ session, onSessionExpired }) {
       <PageHeader
         title="Arsip Digital"
         description="Cari ID transaksi dan buka detail rantainya. Semua angka penting harus bisa ditelusuri dari sumber hidup, bukan angka yatim."
-        badge="Universal Detail"
+        badge="Arsip Terhubung"
       />
 
       <Card className="da-dashboard-banner">
@@ -292,7 +292,7 @@ export default function ArchiveDigitalPage({ session, onSessionExpired }) {
           <div className="da-dashboard-banner-kicker">BUKU ARSIP DIGITAL</div>
           <h2>Search Global → Detail ID → Timeline → Audit</h2>
           <p className="da-dashboard-banner-desc">
-            Halaman ini tidak membuat transaksi baru. Fungsinya membuka nota digital dan rantai ID dari modul DROP, produksi, stok, order, uang, hutang, kewajiban owner, HRD/payroll, dan 4 Amplop.
+            Buka nota digital dan telusuri rantai ID dari DROP, produksi, stok, order, uang, hutang, kewajiban owner, HRD/payroll, hingga 4 Amplop.
           </p>
         </div>
         <div className="da-dashboard-banner-actions">
@@ -318,7 +318,7 @@ export default function ArchiveDigitalPage({ session, onSessionExpired }) {
         <Card style={{ marginTop: 14 }}>
           <Badge tone="warning">Perlu Rapih ID</Badge>
           <p className="da-muted" style={{ marginTop: 10 }}>
-            Ada {formatNumber(summary.rows_without_transaction_id || 0)} baris lama/awal yang belum punya ID transaksi asli, jadi sengaja disembunyikan dari daftar arsip normal. Ini menjaga Arsip Digital tetap bersih dari ID buatan seperti TabOrders-ROW-2.
+            Ada {formatNumber(summary.rows_without_transaction_id || 0)} baris historis tanpa ID transaksi resmi dan tidak ditampilkan pada arsip utama.
           </p>
           {warnings.length ? (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
