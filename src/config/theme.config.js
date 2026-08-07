@@ -2,7 +2,7 @@ export const APP_BRAND = {
   name: "Dimsum Aditya",
   shortName: "DA",
   systemName: "ERP Dimsum Aditya",
-  tagline: "Papan kerja usaha, produksi, uang masuk, dan stok.",
+  tagline: "Sistem operasional produksi, penjualan, stok, dan keuangan.",
   logoUrl:
     "https://dimsumaditya.id/wp-content/uploads/2026/06/Dimsum-Aditya-New-Logo-scaled.webp",
 };
