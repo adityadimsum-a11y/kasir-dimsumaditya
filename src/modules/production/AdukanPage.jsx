@@ -966,7 +966,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
       <PageHeader
         title="Produksi / Adukan"
         description="Catat ayam dipakai produksi dari lot harga aktual, lalu hasil produksi masuk sebagai stok jadi."
-        badge="Live Submit"
+        badge="Simpan Transaksi"
       />
 
       <ProductionFlowPanel
@@ -1060,7 +1060,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
         <StatCard
           label="Total Adukan"
           value={loading ? "..." : summary.totalAdukan}
-          description="Total adukan yang terbaca dari backend."
+          description="Total adukan yang tercatat pada sistem."
         />
 
         <StatCard
@@ -1093,7 +1093,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
             </p>
           </div>
 
-          <Badge tone="danger">Live Transaction</Badge>
+          <Badge tone="danger">Transaksi Aktif</Badge>
         </div>
 
         <form onSubmit={handlePreviewSubmit}>
@@ -1305,7 +1305,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
             </p>
           </div>
 
-          <Badge tone="warning">Live Data</Badge>
+          <Badge tone="warning">Data Aktual</Badge>
         </div>
 
         <DataTable
@@ -1319,7 +1319,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
       <Modal
         open={confirmOpen}
         title="Konfirmasi Simpan Produksi"
-        subtitle="Ini akan membuat transaksi hidup"
+        subtitle="Konfirmasi posting produksi"
         onClose={() => {
           if (!submitting) setConfirmOpen(false);
         }}
@@ -1336,7 +1336,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
             </p>
           </div>
 
-          <Badge tone="danger">Live Submit</Badge>
+          <Badge tone="danger">Simpan Transaksi</Badge>
         </div>
 
         <div className="da-detail-grid">
@@ -1364,7 +1364,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
           </div>
 
           <div className="da-detail-box">
-            <div className="da-mini-title">Yang Dibuat Backend</div>
+            <div className="da-mini-title">Hasil Transaksi Sistem</div>
             <p><strong>Batch Produksi:</strong> Ya</p>
             <p><strong>Potong Kg Ayam Lot:</strong> Ya</p>
             <p><strong>Barang Jadi Masuk:</strong> Ya</p>
@@ -1392,7 +1392,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
         </div>
 
         <div className="da-modal-note" style={{ marginTop: 14 }}>
-          Setelah disimpan, backend akan memotong kg ayam dari lot, membuat batch produksi,
+          Setelah disimpan, sistem akan memotong kg ayam dari lot, membuat batch produksi,
           menambah stok jadi, mengunci modal batch, membuat catatan stok, arsip, dan audit.
         </div>
 
@@ -1416,7 +1416,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
             onClick={handleLiveSubmit}
             disabled={submitting}
           >
-            {submitting ? "Menyimpan..." : "Simpan Live Produksi"}
+            {submitting ? "Menyimpan..." : "Simpan Produksi"}
           </Button>
         </div>
       </Modal>
