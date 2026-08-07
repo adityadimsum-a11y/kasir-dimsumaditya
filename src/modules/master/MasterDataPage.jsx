@@ -30,7 +30,7 @@ const PROTECTED_IDS = {
 const MODULE_CONFIG = {
   produk: {
     title: "Master Produk",
-    badge: "Live Master",
+    badge: "Master Aktif",
 
     description:
       "Data produk/menu yang dipakai oleh produksi, stok, order, PO, dan laporan.",
@@ -198,7 +198,7 @@ const MODULE_CONFIG = {
       "Master Customer",
 
     badge:
-      "Live Customer",
+      "Customer Aktif",
 
     description:
       "Data pelanggan untuk kasir/order, harga khusus, piutang, riwayat pembelian, dan follow-up.",
@@ -357,7 +357,7 @@ const MODULE_CONFIG = {
       "Master Supplier",
 
     badge:
-      "Live Supplier",
+      "Supplier Aktif",
 
     description:
       "Data supplier untuk pembelian, hutang, pembayaran, dan arsip.",
@@ -519,7 +519,7 @@ const MODULE_CONFIG = {
       "Master Lokasi",
 
     badge:
-      "Live Lokasi",
+      "Lokasi Aktif",
 
     description:
       "Data lokasi kerja, cabang, outlet, produksi, gudang, dan titik stok.",
@@ -1438,7 +1438,7 @@ export default function MasterDataPage({
       !writeEnabled
     ) {
       setError(
-        "LIVE WRITE belum aktif. Refresh halaman dan cek backend Master Data."
+        "Penyimpanan master belum siap. Refresh halaman lalu cek Data Health."
       );
 
       return;
@@ -1772,8 +1772,8 @@ export default function MasterDataPage({
               }
             >
               {writeEnabled
-                ? "PHP/MySQL Live Write"
-                : "Read Only"}
+                ? "Penyimpanan Aktif"
+                : "Pantau"}
             </Badge>
           </div>
         </div>
@@ -1801,7 +1801,7 @@ export default function MasterDataPage({
               .total_rows
           }
 
-          description="Master nyata yang tersimpan di PHP/MySQL."
+          description="Master resmi yang tersimpan di sistem."
         />
 
         <StatCard
@@ -1842,7 +1842,7 @@ export default function MasterDataPage({
           <div className="da-section-heading">
             <div>
               <span>
-                Master Data PHP/MySQL
+                Master Data Terpusat
               </span>
 
               <h2>
@@ -1868,7 +1868,7 @@ export default function MasterDataPage({
               {editingId
                 ? "Mode Edit"
                 : writeEnabled
-                ? "Live Write"
+                ? "Penyimpanan Aktif"
                 : "Terkunci"}
             </Badge>
           </div>
@@ -2020,7 +2020,7 @@ export default function MasterDataPage({
           </div>
 
           <Badge tone="success">
-            Live Data
+            Data Aktual
           </Badge>
         </div>
 
