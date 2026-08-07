@@ -91,7 +91,7 @@ export default function SalesFlowPanel({
             {ready ? "Sales Trace Ready" : "Perlu Cek"}
           </Badge>
           <Button variant="ghost" onClick={load} disabled={loading}>
-            {loading ? "Memuat..." : "Refresh Trace"}
+            {loading ? "Memuat..." : "Refresh Rantai"}
           </Button>
         </div>
       </div>
