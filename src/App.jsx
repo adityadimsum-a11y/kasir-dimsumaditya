@@ -155,6 +155,7 @@ export default function App() {
       return (
         <PapanPusatPage
           {...pageProps}
+          onNavigate={handleChangePage}
         />
       );
     }
