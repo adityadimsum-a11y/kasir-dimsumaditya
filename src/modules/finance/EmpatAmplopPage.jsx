@@ -405,7 +405,7 @@ export default function EmpatAmplopPage({ session, onSessionExpired }) {
       <PageHeader
         title="4 Amplop"
         description="Bagi uang masuk aktual ke Amplop Ayam, Operasional, Cicilan/Hutang, dan Owner. Sumbernya hanya mutasi uang masuk yang sudah benar-benar masuk dompet pusat/Tangerang."
-        badge="Live Trace"
+        badge="Tertelusur"
       />
 
       <div className="da-dashboard-banner">
@@ -573,7 +573,7 @@ export default function EmpatAmplopPage({ session, onSessionExpired }) {
             <h2>Pembagian yang Sudah Dicatat</h2>
             <p className="da-muted" style={{ margin: 0 }}>Klik baris untuk melihat sumber mutasi uang masuk dan ledger amplop.</p>
           </div>
-          <Badge tone="success">Live Data</Badge>
+          <Badge tone="success">Data Aktual</Badge>
         </div>
 
         <div className="da-tabs" style={{ marginBottom: 12 }}>
