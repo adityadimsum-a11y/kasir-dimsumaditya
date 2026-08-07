@@ -343,7 +343,7 @@ export default function OrderPage({ session, onSessionExpired }) {
 
   const validationErrors = useMemo(() => {
     const errors = [];
-    if (!pricingLockReady) errors.push("Server Price Lock belum siap. Jalankan migration 015 dan refresh data.");
+    if (!pricingLockReady) errors.push("Aturan harga resmi belum siap. Periksa Master Produk → Harga lalu refresh data.");
     if (!cutoverPriceReady) errors.push("Belum ada harga resmi aktif. Kasir masih diblokir.");
     if (!cutoverStockReady) errors.push("Belum ada stok bebas produk jadi untuk dijual.");
     if (!form.order_date) errors.push("Tanggal order wajib diisi.");
@@ -365,7 +365,7 @@ export default function OrderPage({ session, onSessionExpired }) {
       if (qty <= 0) errors.push(`Qty item ke-${index + 1} harus lebih dari 0.`);
       if (unitPrice <= 0) errors.push(`Harga sistem item ke-${index + 1} belum valid.`);
       if (!String(item.price_rule_id || "").trim()) errors.push(`Rule harga item ke-${index + 1} belum terkunci.`);
-      if (String(item.price_source || "") !== "PHP_MYSQL_PRICING") errors.push(`Sumber harga item ke-${index + 1} bukan PHP/MySQL Pricing Engine.`);
+      if (String(item.price_source || "") !== "PHP_MYSQL_PRICING") errors.push(`Sumber harga item ke-${index + 1} tidak berasal dari aturan harga resmi.`);
 
       qtyByProduct[productKey] = (qtyByProduct[productKey] || 0) + qty;
       stockByProduct[productKey] = Math.max(stockByProduct[productKey] || 0, numberValue(item.stock_pcs));
@@ -540,7 +540,7 @@ export default function OrderPage({ session, onSessionExpired }) {
     if (!pricingLockReady) {
       setSubmitResult({
         success: false,
-        message: "Server Price Lock belum siap. Jalankan migration 015 lalu Refresh Data.",
+        message: "Aturan harga resmi belum siap. Periksa Master Produk → Harga lalu refresh data.",
       });
       return;
     }
@@ -676,7 +676,7 @@ export default function OrderPage({ session, onSessionExpired }) {
     setPricePreview(null);
     setSubmitResult({
       success: true,
-      message: "Harga berhasil dikunci dari PHP/MySQL dan item masuk keranjang.",
+      message: "Harga resmi berhasil dikunci dan item masuk keranjang.",
     });
   };
 
@@ -822,8 +822,8 @@ export default function OrderPage({ session, onSessionExpired }) {
     <div>
       <PageHeader
         title="Kasir / Order"
-        description="Kasir Tangerang untuk transaksi nyata: harga resmi dikunci backend dan stok keluar memakai HPP historis."
-        badge={controlledLiveReady ? "Tangerang Live" : "Server Price Lock"}
+        description="Kasir Tangerang untuk transaksi nyata: harga resmi dikunci sistem dan stok keluar memakai HPP historis."
+        badge={controlledLiveReady ? "Kasir Aktif" : "Harga Belum Siap"}
       />
 
       <div className="da-dashboard-banner">
@@ -831,7 +831,7 @@ export default function OrderPage({ session, onSessionExpired }) {
           <div className="da-dashboard-banner-kicker">Penjualan</div>
           <div className="da-dashboard-banner-title">Stok Jadi → Order → Invoice → Uang Masuk</div>
           <div className="da-dashboard-banner-desc">
-            Halaman ini khusus jual stok ready. Harga manual diblokir: frontend hanya menampilkan preview, sedangkan backend resolve ulang rule resmi sebelum membuat Order, Invoice, Payment/Piutang, dan stok keluar.
+            Halaman ini khusus jual stok ready. Harga manual diblokir: halaman hanya menampilkan ringkasan, sedangkan sistem memvalidasi ulang aturan harga resmi sebelum membuat Order, Invoice, Payment/Piutang, dan stok keluar.
           </div>
         </div>
 
@@ -860,7 +860,7 @@ export default function OrderPage({ session, onSessionExpired }) {
 
       {!controlledLiveReady && !loading ? (
         <div className="da-form-warning" style={{ marginBottom: 16 }}>
-          <strong>Controlled Go-Live Gate masih menahan Kasir.</strong>
+          <strong>Kasir masih ditahan oleh kesiapan operasional.</strong>
           {cutoverBlockers.map((item) => (
             <div key={item} style={{ marginTop: 4 }}>• {item}</div>
           ))}
@@ -875,7 +875,7 @@ export default function OrderPage({ session, onSessionExpired }) {
           <strong>Kasir Tangerang siap untuk transaksi pelanggan nyata pertama.</strong>
           <div style={{ marginTop: 6 }}>
             Pilih customer UMUM atau customer terdaftar, pilih produk dan qty,
-            klik Kunci Harga & Tambah, lalu Preview & Konfirmasi. Backend tetap
+            klik Kunci Harga & Tambah, lalu Preview & Konfirmasi. Sistem tetap
             resolve ulang harga dan HPP sebelum transaksi disimpan.
           </div>
         </div>
@@ -952,10 +952,10 @@ export default function OrderPage({ session, onSessionExpired }) {
             <div className="da-mini-title">Form Kasir</div>
             <div className="da-big-text">Input Order</div>
             <p className="da-muted">
-              Pilih produk dan qty. Tombol keranjang akan meminta harga resmi ke PHP/MySQL. Tanpa rule aktif, item tidak dapat masuk dan tidak ada transaksi yang dibuat.
+              Pilih produk dan qty. Sistem akan mengambil harga resmi sesuai lokasi, customer, unit, channel, dan tanggal transaksi.
             </p>
           </div>
-          <Badge tone="danger">Live + Anti Dobel</Badge>
+          <Badge tone="danger">Transaksi Terkunci</Badge>
         </div>
 
         <form onSubmit={handlePreviewSubmit}>
@@ -1174,7 +1174,7 @@ export default function OrderPage({ session, onSessionExpired }) {
             <div className="da-big-text">Order yang Terbaca</div>
             <p className="da-muted">Klik baris untuk lihat ringkasan transaksi.</p>
           </div>
-          <Badge tone="warning">Live Data</Badge>
+          <Badge tone="warning">Data Aktual</Badge>
         </div>
 
         <DataTable
@@ -1188,7 +1188,7 @@ export default function OrderPage({ session, onSessionExpired }) {
       <Modal
         open={confirmOpen}
         title="Konfirmasi Simpan Order"
-        subtitle="Ini akan membuat transaksi hidup"
+        subtitle="Konfirmasi transaksi order"
         onClose={() => {
           if (!submitting) setConfirmOpen(false);
         }}
@@ -1199,7 +1199,7 @@ export default function OrderPage({ session, onSessionExpired }) {
             <div className="da-big-text">{formatRupiah(totals.grand_total)}</div>
             <p className="da-muted">Customer: <strong>{safeText(form.customer_name, "UMUM")}</strong></p>
           </div>
-          <Badge tone="danger">Live Submit</Badge>
+          <Badge tone="danger">Simpan Transaksi</Badge>
         </div>
 
         <div className="da-detail-grid">
@@ -1217,7 +1217,7 @@ export default function OrderPage({ session, onSessionExpired }) {
             <p><strong>Status:</strong> {totals.payment_status}</p>
           </div>
           <div className="da-detail-box">
-            <div className="da-mini-title">Yang Dibuat Backend</div>
+            <div className="da-mini-title">Hasil Transaksi Sistem</div>
             <p><strong>Resolve harga ulang:</strong> Wajib</p>
             <p><strong>Order & Invoice:</strong> Setelah harga cocok</p>
             <p><strong>Stok Keluar:</strong> Setelah transaksi valid</p>
@@ -1232,7 +1232,7 @@ export default function OrderPage({ session, onSessionExpired }) {
 
         <div className="da-payload-preview">
           <div className="da-mini-title">Payload Live</div>
-          <PayloadRow label="Action" value="legacyCreateOrder · PHP/MySQL Server Price Lock" />
+          <PayloadRow label="Action" value="Order · Harga Resmi Terkunci" />
           <PayloadRow label="request_id" value={livePayload.request_id} />
           <PayloadRow label="customer_name" value={livePayload.order.customer_name} />
           <PayloadRow label="grand_total" value={formatRupiah(livePayload.order.grand_total)} />
@@ -1242,7 +1242,7 @@ export default function OrderPage({ session, onSessionExpired }) {
         </div>
 
         <div className="da-modal-note" style={{ marginTop: 14 }}>
-          Saat tombol simpan ditekan, backend tidak mempercayai harga di payload. Setiap item di-resolve ulang berdasarkan produk, lokasi, customer, qty, unit PCS, channel POS, dan tanggal order. Rule berubah atau tidak tersedia akan membatalkan seluruh transaksi.
+          Saat tombol simpan ditekan, sistem memvalidasi ulang harga resmi berdasarkan produk, lokasi, customer, qty, unit PCS, channel POS, dan tanggal order. Jika aturan harga berubah atau tidak tersedia, transaksi dibatalkan agar nominal tetap aman.
         </div>
 
         {submitResult && !submitResult.success ? (
@@ -1254,7 +1254,7 @@ export default function OrderPage({ session, onSessionExpired }) {
             Koreksi Lagi
           </Button>
           <Button type="button" onClick={handleLiveSubmit} disabled={submitting}>
-            {submitting ? "Menyimpan..." : "Simpan Live Order"}
+            {submitting ? "Menyimpan..." : "Simpan Order"}
           </Button>
         </div>
       </Modal>
