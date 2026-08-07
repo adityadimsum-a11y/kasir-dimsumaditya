@@ -297,8 +297,8 @@ export default function StokAyamPage({ session, onSessionExpired }) {
     <>
       <PageHeader
         title="Stok Ayam"
-        description="Pantau ayam masuk, ayam dipakai produksi, sisa kg per lot, dan modal ayam terkunci dari DROP. Halaman ini read-only supaya stok ayam bisa dicek tanpa membuat transaksi baru."
-        badge="Live Ayam"
+        description="Pantau ayam masuk, pemakaian produksi, sisa kg per lot, dan nilai modal ayam berdasarkan DROP yang tercatat."
+        badge="Stok Aktual"
       />
 
       <ProductionFlowPanel
@@ -392,7 +392,7 @@ export default function StokAyamPage({ session, onSessionExpired }) {
             <h2 style={{ margin: "4px 0 6px" }}>Lot Ayam Aktif</h2>
             <p className="da-muted" style={{ marginTop: 0 }}>Klik baris untuk melihat rantai DROP, hutang, stock layer, dan gerak stok.</p>
           </div>
-          <Badge tone="warning">Read Only</Badge>
+          <Badge tone="warning">Pantau</Badge>
         </div>
         <DataTable
           columns={[
