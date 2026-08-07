@@ -460,7 +460,7 @@ export default function RequestDOPage({ session, onSessionExpired }) {
         eyebrow="DIMSUM ADITYA"
         title="Request Barang & DO"
         description="Cabang meminta barang, Tangerang menyetujui dan mengirim, lalu stok cabang bertambah hanya setelah penerimaan dikonfirmasi. Bukan penjualan dan bukan uang masuk."
-        badge="PHP/MySQL Single Source"
+        badge="Distribusi Aktif"
       />
 
       <Card>
@@ -600,7 +600,7 @@ export default function RequestDOPage({ session, onSessionExpired }) {
             <h2 className="da-section-title">Request Barang yang Tercatat</h2>
             <p className="da-section-desc">Klik ID untuk approval, penolakan, pembatalan, atau pembuatan DO sesuai hak akun.</p>
           </div>
-          <Badge tone="success">Live Data</Badge>
+          <Badge tone="success">Data Aktual</Badge>
         </div>
         <div className="da-form-grid da-form-grid-4">
           <label className="da-form-field"><span>Mulai</span><input type="date" value={filter.date_start} onChange={(event) => setFilter((current) => ({ ...current, date_start: event.target.value }))} /></label>
