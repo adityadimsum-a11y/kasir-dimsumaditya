@@ -165,6 +165,7 @@ export default function App() {
       return (
         <OwnerControlPage
           {...pageProps}
+          onNavigate={handleChangePage}
         />
       );
     }
