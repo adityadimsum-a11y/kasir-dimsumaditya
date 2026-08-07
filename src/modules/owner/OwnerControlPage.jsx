@@ -226,8 +226,8 @@ export default function OwnerControlPage({ session, onSessionExpired }) {
     <div className="da-page">
       <PageHeader
         title="Owner Control"
-        description="Pusat kendali benang merah usaha: ayam, produksi, stok, PO, order, uang masuk, setoran, hutang Nana, kewajiban owner, HRD/Payroll, dan 4 Amplop. Read-only supaya owner bisa pantau semua kabel utama."
-        badge="Live Monitor"
+        description="Pusat kendali benang merah usaha dari ayam dan produksi sampai uang, hutang, payroll, setoran, dan 4 Amplop."
+        badge="Pusat Kendali"
       />
 
       <Card className="da-dashboard-banner">
@@ -235,7 +235,7 @@ export default function OwnerControlPage({ session, onSessionExpired }) {
           <div className="da-dashboard-banner-kicker">BENANG MERAH USAHA</div>
           <h2>DROP Ayam → Produksi → Stok → PO/Order → Uang/Setoran → Hutang/Kewajiban → Payroll → 4 Amplop</h2>
           <p className="da-dashboard-banner-desc">
-            Halaman ini tidak membuat transaksi baru. Fungsinya membaca sumber hidup, menyaring baris kosong, dan menampilkan apakah rantai usaha sudah nyambung.
+            Pantau keterhubungan transaksi utama dan buka rincian sumbernya tanpa berpindah-pindah modul.
           </p>
         </div>
         <div className="da-dashboard-banner-actions">
@@ -324,7 +324,7 @@ export default function OwnerControlPage({ session, onSessionExpired }) {
               Setiap angka di bawah harus punya sumber ID di modul terkait.
             </p>
           </div>
-          <Badge tone="warning">Read Only</Badge>
+          <Badge tone="warning">Pantau</Badge>
         </div>
 
         <div className="da-flow-grid">
@@ -344,14 +344,14 @@ export default function OwnerControlPage({ session, onSessionExpired }) {
                 Klik kartu untuk melihat data pendukungnya.
               </p>
             </div>
-            <Badge tone="success">Live Data</Badge>
+            <Badge tone="success">Data Aktual</Badge>
           </div>
 
           <div className="da-action-grid">
             {(actions.length ? actions : [
               {
                 title: "Belum ada alarm besar",
-                description: "Data action center masih kosong dari backend.",
+                description: "Belum ada tindakan yang perlu ditampilkan.",
                 amount_label: "-",
                 status: "Aman",
                 support_rows: [],
@@ -403,7 +403,7 @@ export default function OwnerControlPage({ session, onSessionExpired }) {
               Ini ringkasan saja. Arsip Digital menjadi pintu untuk membuka seluruh rantai ID. Baris kosong/formatting tidak ikut dihitung sebagai transaksi.
             </p>
           </div>
-          <Badge tone="success">Archive Hook</Badge>
+          <Badge tone="success">Arsip Aktif</Badge>
         </div>
         <DataTable columns={recentColumns()} rows={recent} getRowKey={(row, index) => `${row.module}-${row.id}-${index}`} />
       </Card>
@@ -413,7 +413,7 @@ export default function OwnerControlPage({ session, onSessionExpired }) {
       <Modal
         open={Boolean(selectedAction)}
         title={selectedAction?.title || "Detail Action"}
-        subtitle={selectedAction?.description || "Data pendukung dari backend."}
+        subtitle={selectedAction?.description || "Rincian sumber transaksi."}
         onClose={() => setSelectedAction(null)}
       >
         <div className="da-detail-grid">
