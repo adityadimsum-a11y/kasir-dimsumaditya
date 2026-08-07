@@ -387,7 +387,7 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
           <h1>HRD / Payroll</h1>
           <p>Interface dan aturan kerja mengikuti Payroll V32. Data hidup disimpan di PHP/MySQL dan dikunci per lokasi.</p>
         </div>
-        <Badge tone={data?.health?.ready ? "success" : "danger"}>{data?.health?.ready ? "HRD Live Ready" : "Migration 021 Belum Siap"}</Badge>
+        <Badge tone={data?.health?.ready ? "success" : "danger"}>{data?.health?.ready ? "HRD Siap" : "Mesin HRD Belum Siap"}</Badge>
       </div>
 
       <FlowCard />
@@ -395,13 +395,13 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
       <Card>
         <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
           <div>
-            <div className="da-eyebrow">PHP/MySQL Single Source</div>
+            <div className="da-eyebrow">HRD & PAYROLL</div>
             <h2 style={{ margin: "4px 0" }}>Papan Payroll & Buku Karyawan</h2>
             <p className="da-muted">Cabang tidak melihat gaji/THP. Owner/Tangerang memegang payroll, closing, dan pembayaran.</p>
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            <Badge tone="success">Migration 021 Aktif</Badge>
-            <Badge tone={data?.health?.latest_import ? "success" : "warning"}>{data?.health?.latest_import ? "Backup V32 Sudah Masuk" : "Menunggu Import V32"}</Badge>
+            <Badge tone="success">Mesin Payroll Aktif</Badge>
+            <Badge tone={data?.health?.latest_import ? "success" : "warning"}>{data?.health?.latest_import ? "Riwayat Payroll Tersedia" : "Riwayat Payroll Belum Diimpor"}</Badge>
             <Button variant="secondary" onClick={() => loadData()}>Refresh Data</Button>
           </div>
         </div>
@@ -432,7 +432,7 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
               <div style={{ background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 18, padding: 18 }}><div className="da-eyebrow">Belum Closing</div><strong style={{ fontSize: 27 }}>{fullPayrollAccess ? summary.payroll_draft_count || 0 : "—"}</strong><p className="da-muted">Draft aktif siap dicek pada tab Proses Gaji.</p></div>
               <div style={{ background: "#f8fafc", border: "1px solid #e5e7eb", borderRadius: 18, padding: 18 }}><div className="da-eyebrow">Lokasi terhubung</div><strong style={{ fontSize: 27 }}>{summary.location_count || 0}</strong><p className="da-muted">Tangerang, Pemalang, dan Cibinong sesuai hak akses.</p></div>
             </div>
-            <NoticeBox>Payroll Final V32 aktif: preview dan print tidak mengubah ledger; closing mengunci kasbon/cicilan; pembayaran gaji membuat Wallet OUT dari Tangerang.</NoticeBox>
+            <NoticeBox>Payroll operasional aktif: preview dan print tidak mengubah ledger; closing mengunci kasbon/cicilan; pembayaran gaji membuat Wallet OUT dari Tangerang.</NoticeBox>
           </div>
         ) : null}
 
@@ -540,7 +540,7 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
 
         {activeTab === "history" && fullPayrollAccess ? (
           <div>
-            <NoticeBox tone="success">Riwayat yang di-import tetap mempertahankan angka snapshot Juni/Juli. Status pembayaran historis ditandai LEGACY_UNKNOWN agar sistem tidak menganggap sudah atau belum dibayar dan tidak membuat Wallet OUT otomatis.</NoticeBox>
+            <NoticeBox tone="success">Riwayat yang diimpor tetap mempertahankan angka historisnya. Pembayaran lama tidak membuat mutasi dompet baru secara otomatis.</NoticeBox>
             <DataTable columns={payrollColumns} rows={payrollRows} getRowKey={(row) => row.payroll_run_id} onRowClick={(row) => { const employee = employees.find((item) => item.employee_id === row.employee_id); if (employee) { setSelectedEmployee(employee); setDetailTab("payroll"); } }} />
           </div>
         ) : null}
@@ -573,7 +573,7 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
                     <strong>Konfirmasi migrasi permanen</strong>
                     <p className="da-muted">Ketik persis: <code>IMPORT PAYROLL V32</code></p>
                     <input style={{ width: "100%", padding: 13, border: "1px solid #d1d5db", borderRadius: 12, marginBottom: 12 }} value={importConfirmation} onChange={(e) => setImportConfirmation(e.target.value)} />
-                    <Button onClick={executeImport} disabled={importing || importConfirmation !== "IMPORT PAYROLL V32"}>{importing ? "Mengimport…" : "Import ke PHP/MySQL"}</Button>
+                    <Button onClick={executeImport} disabled={importing || importConfirmation !== "IMPORT PAYROLL V32"}>{importing ? "Mengimport…" : "Import Riwayat"}</Button>
                   </div>
                 ) : null}
               </div>
