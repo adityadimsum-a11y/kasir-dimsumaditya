@@ -750,7 +750,7 @@ export default function DropAyamPage({ session, onSessionExpired }) {
       <PageHeader
         title="DROP Ayam"
         description="Catatan ayam masuk dari supplier. Harga ayam dikunci per nota/drop agar transaksi lama tidak berubah saat harga baru berubah."
-        badge="Live Trace"
+        badge="Tertelusur"
         badgeTone="warning"
       />
 
@@ -781,7 +781,7 @@ export default function DropAyamPage({ session, onSessionExpired }) {
         </div>
 
         <div className="da-drop-hero-note">
-          <Badge tone="warning">Read Only + Input Terkontrol</Badge>
+          <Badge tone="warning">Input Terkontrol</Badge>
           <strong>{summary.totalDrop} nota bersih terbaca.</strong>
           <span>Baris kosong/formatting disembunyikan supaya tidak jadi angka yatim.</span>
         </div>
@@ -831,7 +831,7 @@ export default function DropAyamPage({ session, onSessionExpired }) {
                 Harga/kg akan dikunci sebagai modal ayam aktual. Simpan hanya setelah nota benar.
               </p>
             </div>
-            <Badge tone="warning">Live Transaction</Badge>
+            <Badge tone="warning">Transaksi Aktif</Badge>
           </div>
 
           <div className="da-drop-form-grid">
@@ -950,7 +950,7 @@ export default function DropAyamPage({ session, onSessionExpired }) {
               Klik detail untuk melihat rantai: DROP, lot, hutang, stok, modal, dan ID terkait.
             </p>
           </div>
-          <Badge tone="success">Live Data</Badge>
+          <Badge tone="success">Data Aktual</Badge>
         </div>
 
         <DataTable
@@ -977,7 +977,7 @@ export default function DropAyamPage({ session, onSessionExpired }) {
           </div>
 
           <div className="da-drop-note">
-            Setelah disimpan, backend membuat DROP Ayam, Lot Harga Aktual, stok ayam masuk, hutang Nana jika belum lunas, mutasi dompet jika ada pembayaran, arsip, dan audit.
+            Setelah disimpan, sistem membuat DROP Ayam, lot harga aktual, stok ayam masuk, Hutang Nana jika belum lunas, mutasi dompet jika ada pembayaran, arsip, dan audit.
           </div>
 
           {submitResult && !submitResult.success ? (
@@ -989,7 +989,7 @@ export default function DropAyamPage({ session, onSessionExpired }) {
               Koreksi Lagi
             </Button>
             <Button type="button" onClick={handleLiveSubmit} disabled={submitting}>
-              {submitting ? "Menyimpan..." : "Simpan Live DROP Ayam"}
+              {submitting ? "Menyimpan..." : "Simpan DROP Ayam"}
             </Button>
           </div>
         </div>
