@@ -555,7 +555,7 @@ export default function PapanPusatPage({ session, onSessionExpired, onNavigate }
         description="Ringkasan usaha untuk keputusan harian: kas, produksi, penjualan, stok, hutang, kewajiban, payroll, dan cabang."
         actions={(
           <Button variant="secondary" onClick={() => loadData({ forceRefresh: true })}>
-            <RefreshCw size={15} /> {loading ? "Memuat..." : "Refresh"}
+            <RefreshCw size={15} /> {loading ? "Memuat..." : "Perbarui"}
           </Button>
         )}
       />
@@ -597,7 +597,7 @@ export default function PapanPusatPage({ session, onSessionExpired, onNavigate }
       </section>
 
       <section className="da-owner-main-grid-v4">
-        <Card className="da-owner-pipeline-panel-v4" title="Alur Usaha Hari Ini" description="Dari pasokan ayam sampai uang masuk. Setiap tahap membaca transaksi aktual dari modul sumber.">
+        <Card className="da-owner-pipeline-panel-v4" title="Alur Usaha Hari Ini" description="Dari pasokan ayam sampai uang masuk. Setiap tahap merangkum data usaha dari modul terkait.">
           <div className="da-owner-pipeline-grid-v4">
             {chain.slice(0, 8).map((item, index) => <OwnerPipelineStage key={item.title} index={index + 1} item={item} />)}
           </div>
@@ -621,7 +621,7 @@ export default function PapanPusatPage({ session, onSessionExpired, onNavigate }
           </div>
         </Card>
 
-        <Card title="Kewajiban & Pembayaran" description="Posisi yang perlu dijaga dari uang aktual.">
+        <Card title="Kewajiban & Pembayaran" description="Posisi pembayaran yang perlu dijaga dari kas dan bank.">
           <div className="da-owner-pair-grid-v4">
             <OwnerMetricPair icon={Banknote} title="Supplier" primaryLabel="Hutang Nana" primaryValue={formatRupiah(hutang)} secondaryLabel="Belum dibagi 4 Amplop" secondaryValue={formatRupiah(summary?.amplop?.unallocated || 0)} onClick={() => onNavigate?.("hutang-nana")} />
             <OwnerMetricPair icon={Clock} title="Jatuh Tempo" primaryLabel="Kewajiban owner" primaryValue={formatRupiah(ownerDue)} secondaryLabel="Payroll" secondaryValue={formatRupiah(payrollDue)} onClick={() => onNavigate?.("kewajiban-owner")} />
@@ -629,7 +629,7 @@ export default function PapanPusatPage({ session, onSessionExpired, onNavigate }
         </Card>
       </section>
 
-      <Card className="da-owner-recent-panel-v4" title="Aktivitas Terbaru" description="Transaksi terakhir yang sudah memiliki jejak Arsip Digital." action={<Button variant="secondary" onClick={() => onNavigate?.("arsip-digital")}>Buka Arsip</Button>}>
+      <Card className="da-owner-recent-panel-v4" title="Aktivitas Terbaru" description="Transaksi terbaru yang tercatat dan dapat dibuka melalui Arsip Digital." action={<Button variant="secondary" onClick={() => onNavigate?.("arsip-digital")}>Buka Arsip</Button>}>
         <DataTable columns={recentColumns()} rows={recent} getRowKey={(row, index) => `${row.module}-${row.id}-${index}`} onRowClick={() => onNavigate?.("arsip-digital")} />
       </Card>
 
