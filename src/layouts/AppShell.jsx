@@ -33,7 +33,7 @@ export default function AppShell({
 
   return (
     <div
-      className="da-app da-app-v2"
+      className="da-app da-app-v3"
       data-sidebar-open={mobileSidebarOpen ? "true" : "false"}
       data-page={activePage}
     >
@@ -56,6 +56,7 @@ export default function AppShell({
           session={session}
           onLogout={onLogout}
           onOpenSidebar={() => setMobileSidebarOpen(true)}
+          onNavigate={handleChangePage}
           pageTitle={activeMeta.pageTitle}
           groupTitle={activeMeta.groupTitle}
           pageDescription={activeMeta.description}
