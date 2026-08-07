@@ -130,15 +130,40 @@ export const MENU_GROUPS = [
     ],
   },
   {
-    key: "karyawan",
-    title: "Karyawan",
+    key: "hrd-payroll",
+    title: "HRD & Payroll",
     visibleFor: ["OWNER", "TANGERANG"],
     defaultOpen: false,
     items: [
       {
+        key: "hrd-dashboard",
+        label: "Dashboard HRD",
+        description: "Ringkasan karyawan, absensi, kasbon, cicilan, payroll, dan status closing.",
+      },
+      {
+        key: "hrd-employees",
+        label: "Data Karyawan",
+        description: "Profil karyawan, lokasi, jadwal gajian, status kerja, dan riwayat personal.",
+      },
+      {
+        key: "hrd-attendance",
+        label: "Absensi & Izin",
+        description: "Kehadiran, izin, sakit, cuti, tidak masuk, lembur, dan dampak payroll.",
+      },
+      {
+        key: "hrd-loans",
+        label: "Kasbon & Cicilan",
+        description: "Kasbon bulanan, pinjaman panjang, cicilan, limit, dan saldo outstanding.",
+      },
+      {
         key: "hrd-payroll",
-        label: "HRD / Payroll",
-        description: "Karyawan, absensi, kasbon, pinjaman, tunjangan, payroll, closing, dan slip gaji.",
+        label: "Payroll & Slip Gaji",
+        description: "Draft THP, preview backend, slip A5, closing payroll, dan pembayaran gaji.",
+      },
+      {
+        key: "hrd-payroll-report",
+        label: "Rekap Payroll",
+        description: "Rekap payroll per periode/lokasi, status closing, histori, dan cetak A4.",
       },
     ],
   },
