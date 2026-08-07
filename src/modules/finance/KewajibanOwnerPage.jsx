@@ -392,7 +392,7 @@ export default function KewajibanOwnerPage({ session, onSessionExpired }) {
             <h2>Bayar Kewajiban</h2>
             <p className="da-muted">Saat dibayar, sistem mencatat pembayaran, KASOUT, dan mutasi dompet OUT.</p>
           </div>
-          <Badge tone="danger">Live Payment</Badge>
+          <Badge tone="danger">Pembayaran Aktif</Badge>
         </div>
         <form onSubmit={handlePayObligation} className="da-form-grid">
           <label>
@@ -441,7 +441,7 @@ export default function KewajibanOwnerPage({ session, onSessionExpired }) {
             <h2>Kewajiban Owner yang Dipantau</h2>
             <p className="da-muted">Klik baris untuk melihat detail, riwayat bayar, KASOUT, dan mutasi dompet.</p>
           </div>
-          <Badge tone="success">Live Data</Badge>
+          <Badge tone="success">Data Aktual</Badge>
         </div>
         <DataTable columns={obligationColumns} rows={obligations} getRowKey={(row) => row.obligation_id} onRowClick={openObligationDetail} />
       </Card>
