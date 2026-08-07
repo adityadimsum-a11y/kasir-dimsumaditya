@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Factory, Layers, PackageCheck, Plus, RefreshCw, Scale } from "lucide-react";
 import {
   createProductionBatch,
   getProductionBootstrap,
@@ -742,6 +743,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
   const [error, setError] = useState("");
   const [form, setForm] = useState(initialForm);
   const [showValidationErrors, setShowValidationErrors] = useState(false);
+  const [entryOpen, setEntryOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [selectedBatch, setSelectedBatch] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -896,6 +898,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
     });
 
     setConfirmOpen(false);
+    setEntryOpen(false);
     setSubmitting(false);
     setForm(initialForm);
     setShowValidationErrors(false);
@@ -961,533 +964,140 @@ export default function AdukanPage({ session, onSessionExpired }) {
     },
   ];
 
+  const estimatedBatchCapacity = Math.floor(summary.totalKgAvailable / 30);
+  const recentColumns = [
+    { key: "production_date", label: "Tanggal", render: (row) => formatDisplayDate(row.production_date || row.date) },
+    { key: "product", label: "Produk", render: (row) => <strong>{safeText(row.product_name || row.output_product_name || row.item_name, "Hasil produksi")}</strong> },
+    { key: "adukan", label: "Adukan", render: (row) => `${numberValue(row.total_adukan || row.adukan_qty || row.adukan).toLocaleString("id-ID")}x` },
+    { key: "kg", label: "Ayam", render: (row) => `${numberValue(row.chicken_kg_used || row.used_kg || row.raw_material_kg).toLocaleString("id-ID")} kg` },
+    { key: "pcs", label: "Hasil", render: (row) => `${numberValue(row.actual_output_pcs || row.actual_pcs || row.output_pcs || row.hasil_pcs || row.finished_good_qty || row.qty_pcs || row.qty).toLocaleString("id-ID")} pcs` },
+    { key: "status", label: "Status", render: (row) => <Badge tone={getStatusTone(row.status)}>{safeText(row.status || "Tercatat")}</Badge> },
+  ];
+
   return (
-    <div>
+    <div className="da-page da-production-workspace-v6">
       <PageHeader
         title="Produksi / Adukan"
-        description="Catat ayam dipakai produksi dari lot harga aktual, lalu hasil produksi masuk sebagai stok jadi."
-        badge="Simpan Transaksi"
+        eyebrow="Produksi & Stok"
+        description="Kelola proses produksi dari pemakaian ayam sampai hasil barang jadi masuk ke stok."
+        actions={(
+          <div className="da-prod-page-actions-v6">
+            <Button variant="secondary" onClick={loadData} disabled={loading || submitting}><RefreshCw size={15} /> {loading ? "Memuat" : "Perbarui"}</Button>
+            <Button onClick={() => setEntryOpen(true)}><Plus size={16} /> Catat Produksi</Button>
+          </div>
+        )}
       />
 
-      <ProductionFlowPanel
-        session={session}
-        onSessionExpired={onSessionExpired}
-        compact
-      />
+      <ProductionFlowPanel session={session} onSessionExpired={onSessionExpired} compact />
 
-      <div className="da-dashboard-banner">
-        <div>
-          <div className="da-dashboard-banner-kicker">Dapur produksi</div>
-          <div className="da-dashboard-banner-title">
-            Lot Ayam → Adukan → Stok Jadi
-          </div>
-          <div className="da-dashboard-banner-desc">
-            Form ini sudah bisa menyimpan produksi hidup. Pastikan produk hasil,
-            PIC Produksi, adukan, lot ayam, dan hasil pcs benar sebelum klik Simpan Live.
-          </div>
-        </div>
+      {error ? <div className="da-prod-public-alert-v6 is-error">{error}</div> : null}
+      {submitResult?.success ? <div className="da-prod-public-alert-v6 is-success">{submitResult.message}</div> : null}
 
-        <div className="da-dashboard-banner-actions">
-          <Badge tone={error ? "danger" : "success"}>
-            {error ? "Perlu Dicek" : "Terhubung"}
-          </Badge>
+      <section className="da-prod-kpi-grid-v6">
+        <div className="da-prod-kpi-v6 tone-primary"><span className="icon"><Scale size={17} /></span><div><small>Ayam Tersedia</small><strong>{summary.totalKgAvailable.toLocaleString("id-ID")} kg</strong><p>{summary.activeLotCount} lot aktif</p></div></div>
+        <div className="da-prod-kpi-v6"><span className="icon"><Factory size={17} /></span><div><small>Produksi Tercatat</small><strong>{summary.batchCount}</strong><p>{summary.totalAdukan} adukan</p></div></div>
+        <div className="da-prod-kpi-v6"><span className="icon"><PackageCheck size={17} /></span><div><small>Hasil Produksi</small><strong>{summary.totalOutputPcs.toLocaleString("id-ID")} pcs</strong><p>Barang jadi tercatat</p></div></div>
+        <div className="da-prod-kpi-v6 tone-warning"><span className="icon"><Layers size={17} /></span><div><small>Kapasitas Bahan</small><strong>{estimatedBatchCapacity} adukan</strong><p>Estimasi dari sisa ayam</p></div></div>
+      </section>
 
-          <Button
-            variant="ghost"
-            onClick={loadData}
-            disabled={loading || submitting}
-          >
-            {loading ? "Membaca..." : "Refresh Data"}
-          </Button>
-        </div>
-      </div>
-
-      {error ? (
-        <div className="da-login-error" style={{ marginBottom: 16 }}>
-          {error}
-        </div>
-      ) : null}
-
-      {!error && hiddenProductionRows > 0 ? (
-        <div className="da-form-warning" style={{ marginBottom: 16 }}>
-          {hiddenProductionRows} baris kosong/formatting produksi disembunyikan supaya adukan tidak menampilkan angka yatim.
-        </div>
-      ) : null}
-
-      {submitResult ? (
-        <div
-          className={submitResult.success ? "da-form-success" : "da-form-warning"}
-          style={{ marginBottom: 16 }}
+      <section className="da-prod-main-grid-v6">
+        <Card
+          className="da-prod-primary-panel-v6"
+          title="Produksi Terbaru"
+          description="Batch produksi terakhir. Klik baris untuk melihat rincian hasil dan bahan yang dipakai."
+          action={<Button variant="secondary" onClick={() => setEntryOpen(true)}><Plus size={14} /> Produksi Baru</Button>}
         >
-          {submitResult.message}
-          {submitResult.success && needsRefresh ? (
-            <div style={{ marginTop: 6, fontWeight: 700 }}>
-              Data sudah tersimpan cepat. Klik Refresh Data kalau mau tarik ulang lot ayam, batch produksi, dan stok jadi terbaru.
-            </div>
-          ) : null}
-        </div>
-      ) : null}
+          <DataTable
+            columns={recentColumns}
+            rows={productionBatches.slice(0, 10)}
+            getRowKey={(row, index) => row.production_id || row.batch_id || index}
+            onRowClick={setSelectedBatch}
+          />
+          {!productionBatches.length ? <div className="da-prod-empty-v6">Belum ada produksi yang tercatat.</div> : null}
+        </Card>
 
-      <div className="da-grid da-grid-3">
-        <StatCard
-          tone="primary"
-          label="Lot Ayam Aktif"
-          value={loading ? "..." : summary.activeLotCount}
-          description="Lot ayam yang masih punya sisa kg dan siap dipakai produksi."
-        />
-
-        <StatCard
-          label="Sisa Kg Ayam"
-          value={
-            loading
-              ? "..."
-              : `${summary.totalKgAvailable.toLocaleString("id-ID")} kg`
-          }
-          description="Total sisa kg ayam dari lot aktif."
-        />
-
-        <StatCard
-          tone="warning"
-          label="Batch Produksi"
-          value={loading ? "..." : summary.batchCount}
-          description="Jumlah produksi/adukan yang sudah tercatat."
-        />
-      </div>
-
-      <div style={{ height: 16 }} />
-
-      <div className="da-grid da-grid-3">
-        <StatCard
-          label="Total Adukan"
-          value={loading ? "..." : summary.totalAdukan}
-          description="Total adukan yang tercatat pada sistem."
-        />
-
-        <StatCard
-          label="Hasil Produksi"
-          value={
-            loading
-              ? "..."
-              : `${summary.totalOutputPcs.toLocaleString("id-ID")} pcs`
-          }
-          description="Total hasil pcs yang tercatat."
-        />
-
-        <StatCard
-          label="Gerak Stok"
-          value={loading ? "..." : summary.stockMovementCount}
-          description="Jumlah catatan stok yang terkait produksi."
-        />
-      </div>
-
-      <div style={{ height: 16 }} />
-
-      <Card>
-        <div className="da-section-heading">
-          <div>
-            <div className="da-mini-title">Form Produksi</div>
-            <div className="da-big-text">Input Adukan</div>
-            <p className="da-muted">
-              Pilih produk hasil, lot ayam, dan PIC Produksi Hari Ini. Sistem
-              menghitung 1 adukan = 30 kg ayam dan estimasi 1.000 pcs.
-            </p>
+        <Card className="da-prod-side-panel-v6" title="Kapasitas Produksi" description="Ringkasan bahan dan potensi produksi dari stok ayam saat ini.">
+          <div className="da-prod-side-total-v6">
+            <span>Sisa ayam</span>
+            <strong>{summary.totalKgAvailable.toLocaleString("id-ID")} kg</strong>
+            <small>Perkiraan maksimal {estimatedBatchCapacity} adukan</small>
           </div>
+          <div className="da-prod-side-list-v6">
+            <div><span>Lot aktif</span><strong>{summary.activeLotCount}</strong></div>
+            <div><span>Produk produksi</span><strong>{productionProducts.length}</strong></div>
+            <div><span>Gerak stok</span><strong>{summary.stockMovementCount}</strong></div>
+            <div><span>Hasil tercatat</span><strong>{summary.totalOutputPcs.toLocaleString("id-ID")} pcs</strong></div>
+          </div>
+          <div className="da-prod-lot-list-v6">
+            <span className="label">Lot bahan tersedia</span>
+            {lots.slice(0, 4).map((lot) => (
+              <div key={lot.id}><span>{lot.label}</span><strong>{lot.remaining_kg.toLocaleString("id-ID")} kg</strong></div>
+            ))}
+            {!lots.length ? <small>Belum ada lot bahan aktif.</small> : null}
+          </div>
+        </Card>
+      </section>
 
-          <Badge tone="danger">Transaksi Aktif</Badge>
-        </div>
+      <Card className="da-prod-history-panel-v6" title="Riwayat Produksi" description="Seluruh produksi yang tercatat pada sistem.">
+        <DataTable columns={columns} rows={productionBatches} getRowKey={(row, index) => row.production_id || row.batch_id || index} onRowClick={setSelectedBatch} />
+      </Card>
 
-        <form onSubmit={handlePreviewSubmit}>
-          <div className="da-drop-form-preview">
-            <div className="da-drop-field">
-              <label>Tanggal Produksi</label>
-              <input
-                type="date"
-                className="da-input"
-                value={form.production_date}
-                onChange={(event) =>
-                  updateForm("production_date", event.target.value)
-                }
-                disabled={submitting}
-              />
+      <Modal open={entryOpen} title="Catat Produksi" subtitle="Masukkan hasil produksi sesuai aktivitas dapur." onClose={() => { if (!submitting) setEntryOpen(false); }} size="xl">
+        <form onSubmit={handlePreviewSubmit} className="da-prod-form-modal-v6">
+          <div className="da-prod-form-grid-v6 is-production">
+            <div className="da-drop-form-preview">
+              <div className="da-drop-field"><label>Tanggal Produksi</label><input type="date" className="da-input" value={form.production_date} onChange={(event) => updateForm("production_date", event.target.value)} disabled={submitting} /></div>
+              <div className="da-drop-field"><label>Lot Ayam</label><select className="da-select" value={form.chicken_lot_id} onChange={(event) => updateForm("chicken_lot_id", event.target.value)} disabled={submitting}><option value="">Pilih lot ayam</option>{lots.map((lot) => <option key={lot.id} value={lot.id}>{lot.label} · sisa {lot.remaining_kg.toLocaleString("id-ID")} kg</option>)}</select></div>
+              <div className="da-drop-field"><label>PIC Produksi</label>{productionPeople.length > 0 ? <select className="da-select" value={form.production_pic_id} onChange={(event) => { updateForm("production_pic_id", event.target.value); updateForm("production_pic_name", ""); }} disabled={submitting}><option value="">Pilih PIC produksi</option>{productionPeople.map((person) => <option key={person.id || person.name} value={person.id}>{person.name}{person.role ? ` · ${person.role}` : ""}</option>)}</select> : <input className="da-input" value={form.production_pic_name} placeholder="Nama PIC produksi" onChange={(event) => { updateForm("production_pic_name", event.target.value); updateForm("production_pic_id", ""); }} disabled={submitting} />}</div>
+              <div className="da-drop-field"><label>Produk Hasil</label><select className="da-select" value={form.output_product_id} onChange={(event) => { const product = productionProducts.find((item) => item.id === event.target.value); updateForm("output_product_id", event.target.value); updateForm("output_product_code", product?.code || ""); updateForm("output_product_name", product?.name || ""); }} disabled={submitting || loading}><option value="">Pilih produk hasil</option>{productionProducts.map((product) => <option key={product.id || product.code} value={product.id}>{product.name}{product.code ? ` · ${product.code}` : ""}</option>)}</select></div>
+              <div className="da-drop-field"><label>Jumlah Adukan</label><input className="da-input" inputMode="decimal" value={form.total_adukan} placeholder="0" onChange={(event) => updateForm("total_adukan", event.target.value)} disabled={submitting} /></div>
+              <div className="da-drop-field"><label>Hasil Aktual</label><input className="da-input" inputMode="numeric" value={form.actual_output_pcs} placeholder="Jumlah pcs" onChange={(event) => updateForm("actual_output_pcs", event.target.value)} disabled={submitting} /></div>
+              <div className="da-drop-field da-drop-field-wide"><label>Catatan Produksi</label><input className="da-input" value={form.note} placeholder="Catatan produksi" onChange={(event) => updateForm("note", event.target.value)} disabled={submitting} /></div>
             </div>
 
-            <div className="da-drop-field">
-              <label>Lot Ayam</label>
-              <select
-                className="da-select"
-                value={form.chicken_lot_id}
-                onChange={(event) =>
-                  updateForm("chicken_lot_id", event.target.value)
-                }
-                disabled={submitting}
-              >
-                <option value="">Pilih lot ayam</option>
-                {lots.map((lot) => (
-                  <option key={lot.id} value={lot.id}>
-                    {lot.label} · sisa {lot.remaining_kg.toLocaleString("id-ID")} kg ·{" "}
-                    {formatRupiah(lot.unit_cost)}/kg
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="da-drop-field">
-              <label>PIC Produksi Hari Ini</label>
-              {productionPeople.length > 0 ? (
-                <select
-                  className="da-select"
-                  value={form.production_pic_id}
-                  onChange={(event) => {
-                    updateForm("production_pic_id", event.target.value);
-                    updateForm("production_pic_name", "");
-                  }}
-                  disabled={submitting}
-                >
-                  <option value="">Pilih PIC produksi</option>
-                  {productionPeople.map((person) => (
-                    <option key={person.id || person.name} value={person.id}>
-                      {person.name}
-                      {person.role ? ` · ${person.role}` : ""}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  className="da-input"
-                  value={form.production_pic_name}
-                  placeholder="Ketik nama PIC produksi hari ini"
-                  onChange={(event) => {
-                    updateForm("production_pic_name", event.target.value);
-                    updateForm("production_pic_id", "");
-                  }}
-                  disabled={submitting}
-                />
-              )}
-            </div>
-
-            <div className="da-drop-field">
-              <label>Produk Hasil Adukan</label>
-              <select
-                className="da-select"
-                value={form.output_product_id}
-                onChange={(event) => {
-                  const product = productionProducts.find(
-                    (item) => item.id === event.target.value
-                  );
-
-                  updateForm("output_product_id", event.target.value);
-                  updateForm("output_product_code", product?.code || "");
-                  updateForm("output_product_name", product?.name || "");
-                }}
-                disabled={submitting || loading}
-              >
-                <option value="">
-                  {loading
-                    ? "Membaca produk..."
-                    : productionProducts.length > 0
-                      ? "Pilih produk hasil"
-                      : "Produk belum terbaca"}
-                </option>
-                {productionProducts.map((product) => (
-                  <option key={product.id || product.code} value={product.id}>
-                    {product.name}
-                    {product.code ? ` · ${product.code}` : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="da-drop-field">
-              <label>Jumlah Adukan</label>
-              <input
-                className="da-input"
-                inputMode="decimal"
-                value={form.total_adukan}
-                placeholder="Contoh: 1"
-                onChange={(event) =>
-                  updateForm("total_adukan", event.target.value)
-                }
-                disabled={submitting}
-              />
-            </div>
-
-            <div className="da-drop-field">
-              <label>Hasil Aktual Pcs</label>
-              <input
-                className="da-input"
-                inputMode="numeric"
-                value={form.actual_output_pcs}
-                placeholder="Kosongkan untuk default 1.000 pcs/adukan"
-                onChange={(event) =>
-                  updateForm("actual_output_pcs", event.target.value)
-                }
-                disabled={submitting}
-              />
-            </div>
-
-            <div className="da-drop-field da-drop-field-wide">
-              <label>Catatan Produksi</label>
-              <input
-                className="da-input"
-                value={form.note}
-                placeholder="Contoh: produksi pagi / hasil lebih / ada susut"
-                onChange={(event) => updateForm("note", event.target.value)}
-                disabled={submitting}
-              />
+            <div className="da-prod-production-preview-v6">
+              <span>Ringkasan Produksi</span>
+              <strong>{preview.actual_output_pcs.toLocaleString("id-ID")} pcs</strong>
+              <div><span>Ayam dipakai</span><b>{preview.planned_chicken_kg.toLocaleString("id-ID")} kg</b></div>
+              <div><span>Jumlah adukan</span><b>{preview.total_adukan.toLocaleString("id-ID")}</b></div>
+              <div><span>Modal ayam</span><b>{formatRupiah(preview.modal_ayam)}</b></div>
+              <div><span>Produk</span><b>{safeText(preview.outputProduct?.name, "Belum dipilih")}</b></div>
             </div>
           </div>
-
-          <div className="da-drop-preview-panel">
-            <div>
-              <div className="da-mini-title">Ayam Dipakai</div>
-              <div className="da-big-text">
-                {preview.planned_chicken_kg.toLocaleString("id-ID")} kg
-              </div>
-              <p className="da-muted">
-                {preview.total_adukan.toLocaleString("id-ID")} adukan × 30 kg.
-              </p>
-            </div>
-
-            <div>
-              <div className="da-mini-title">Hasil Produksi</div>
-              <div className="da-big-text">
-                {preview.actual_output_pcs.toLocaleString("id-ID")} pcs
-              </div>
-              <p className="da-muted">
-                Produk:{" "}
-                <strong>{safeText(preview.outputProduct?.name, "Belum dipilih")}</strong>
-              </p>
-            </div>
-
-            <div>
-              <div className="da-mini-title">Modal Ayam Batch</div>
-              <div className="da-big-text">{formatRupiah(preview.modal_ayam)}</div>
-              <p className="da-muted">
-                PIC: <strong>{safeText(preview.productionPic?.name, "Belum dipilih")}</strong>
-              </p>
-            </div>
-          </div>
-
-          {showValidationErrors && validationErrors.length > 0 ? (
-            <div className="da-form-warning">
-              {validationErrors.map((item) => (
-                <div key={item}>• {item}</div>
-              ))}
-            </div>
-          ) : null}
-
-          <div className="da-form-actions">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={handleResetForm}
-              disabled={submitting}
-            >
-              Reset Form
-            </Button>
-
-            <Button type="submit" disabled={submitting || loading}>
-              Preview & Konfirmasi
-            </Button>
-          </div>
+          {showValidationErrors && validationErrors.length > 0 ? <div className="da-prod-public-alert-v6 is-error">{validationErrors.join(" ")}</div> : null}
+          <div className="da-prod-modal-actions-v6"><Button type="button" variant="ghost" onClick={handleResetForm} disabled={submitting}>Kosongkan</Button><Button type="submit" disabled={submitting || loading}>Lanjutkan</Button></div>
         </form>
-      </Card>
+      </Modal>
 
-      <div style={{ height: 16 }} />
-
-      <Card>
-        <div className="da-section-heading">
-          <div>
-            <div className="da-mini-title">Daftar Produksi</div>
-            <div className="da-big-text">Adukan yang Terbaca</div>
-            <p className="da-muted">
-              Klik baris untuk melihat detail: lot ayam, hasil pcs, modal ayam, gerak stok, dan arsip ID terkait.
-            </p>
+      <Modal open={confirmOpen} title="Konfirmasi Produksi" subtitle="Periksa bahan dan hasil sebelum disimpan." onClose={() => { if (!submitting) setConfirmOpen(false); }}>
+        <div className="da-prod-detail-v6">
+          <div className="da-modal-summary"><div><div className="da-mini-title">Hasil Produksi</div><div className="da-big-text">{preview.actual_output_pcs.toLocaleString("id-ID")} pcs</div><p className="da-muted">{safeText(preview.outputProduct?.name, "Produk belum dipilih")}</p></div><Badge tone="warning">Siap Disimpan</Badge></div>
+          <div className="da-prod-detail-grid-v6">
+            <div><span>Ayam dipakai</span><strong>{preview.planned_chicken_kg.toLocaleString("id-ID")} kg</strong></div>
+            <div><span>Lot ayam</span><strong>{safeText(preview.selectedLot?.label)}</strong></div>
+            <div><span>PIC produksi</span><strong>{safeText(preview.productionPic?.name)}</strong></div>
+            <div><span>Modal ayam batch</span><strong>{formatRupiah(preview.modal_ayam)}</strong></div>
           </div>
-
-          <Badge tone="warning">Data Aktual</Badge>
-        </div>
-
-        <DataTable
-          columns={columns}
-          rows={loading ? [] : productionBatches}
-          getRowKey={(row, index) => row.production_id || row.batch_id || index}
-          onRowClick={setSelectedBatch}
-        />
-      </Card>
-
-      <Modal
-        open={confirmOpen}
-        title="Konfirmasi Simpan Produksi"
-        subtitle="Konfirmasi posting produksi"
-        onClose={() => {
-          if (!submitting) setConfirmOpen(false);
-        }}
-      >
-        <div className="da-modal-summary">
-          <div>
-            <div className="da-mini-title">Ayam Dipakai</div>
-            <div className="da-big-text">
-              {preview.planned_chicken_kg.toLocaleString("id-ID")} kg
-            </div>
-            <p className="da-muted">
-              Diambil dari lot:{" "}
-              <strong>{safeText(preview.selectedLot?.label, "Belum dipilih")}</strong>
-            </p>
-          </div>
-
-          <Badge tone="danger">Simpan Transaksi</Badge>
-        </div>
-
-        <div className="da-detail-grid">
-          <div className="da-detail-box">
-            <div className="da-mini-title">Produksi</div>
-            <p><strong>Tanggal:</strong> {formatDisplayDate(preview.production_date)}</p>
-            <p><strong>PIC:</strong> {safeText(preview.productionPic?.name)}</p>
-            <p><strong>Produk:</strong> {safeText(preview.outputProduct?.name)}</p>
-            <p><strong>Adukan:</strong> {preview.total_adukan.toLocaleString("id-ID")}</p>
-            <p><strong>Ayam dipakai:</strong> {preview.planned_chicken_kg.toLocaleString("id-ID")} kg</p>
-          </div>
-
-          <div className="da-detail-box">
-            <div className="da-mini-title">Lot Ayam</div>
-            <p><strong>Lot:</strong> {safeText(preview.selectedLot?.label)}</p>
-            <p><strong>Harga/kg:</strong> {formatRupiah(preview.selectedLot?.unit_cost || 0)}</p>
-            <p><strong>Sisa setelah pakai:</strong> {preview.remaining_after_use.toLocaleString("id-ID")} kg</p>
-          </div>
-
-          <div className="da-detail-box">
-            <div className="da-mini-title">Hasil Produksi</div>
-            <p><strong>Default pcs:</strong> {preview.planned_output_pcs.toLocaleString("id-ID")} pcs</p>
-            <p><strong>Aktual pcs:</strong> {preview.actual_output_pcs.toLocaleString("id-ID")} pcs</p>
-            <p><strong>Modal ayam/pcs:</strong> {formatRupiah(preview.hpp_ayam_per_pcs)}</p>
-          </div>
-
-          <div className="da-detail-box">
-            <div className="da-mini-title">Hasil Transaksi Sistem</div>
-            <p><strong>Batch Produksi:</strong> Ya</p>
-            <p><strong>Potong Kg Ayam Lot:</strong> Ya</p>
-            <p><strong>Barang Jadi Masuk:</strong> Ya</p>
-            <p><strong>Arsip & Audit:</strong> Ya</p>
-          </div>
-        </div>
-
-        <div className="da-payload-preview">
-          <div className="da-mini-title">Payload Live</div>
-
-          <PayloadRow label="Action" value="legacyCreateProductionBatchFromOldFactory" />
-          <PayloadRow label="location_id" value={livePayload.production.location_id} />
-          <PayloadRow label="production_date" value={livePayload.production.production_date} />
-          <PayloadRow label="chicken_lot_id" value={livePayload.production.chicken_lot_id} />
-          <PayloadRow label="PIC Produksi" value={livePayload.production.production_pic_name} />
-          <PayloadRow label="kepala_dapur" value={livePayload.production.kepala_dapur} />
-          <PayloadRow label="product_id" value={livePayload.production.product_id} />
-          <PayloadRow label="product_code" value={livePayload.production.product_code} />
-          <PayloadRow label="product_name" value={livePayload.production.product_name} />
-          <PayloadRow label="total_adukan" value={livePayload.production.total_adukan} />
-          <PayloadRow label="chicken_kg_used" value={livePayload.production.chicken_kg_used} />
-          <PayloadRow label="actual_output_pcs" value={livePayload.production.actual_output_pcs} />
-          <PayloadRow label="chicken_unit_cost" value={formatRupiah(livePayload.production.chicken_unit_cost)} />
-          <PayloadRow label="chicken_cost" value={formatRupiah(livePayload.production.chicken_cost)} />
-        </div>
-
-        <div className="da-modal-note" style={{ marginTop: 14 }}>
-          Setelah disimpan, sistem akan memotong kg ayam dari lot, membuat batch produksi,
-          menambah stok jadi, mengunci modal batch, membuat catatan stok, arsip, dan audit.
-        </div>
-
-        {submitResult && !submitResult.success ? (
-          <div className="da-form-warning" style={{ marginTop: 14 }}>
-            {submitResult.message}
-          </div>
-        ) : null}
-
-        <div className="da-form-actions">
-          <Button
-            variant="ghost"
-            onClick={() => setConfirmOpen(false)}
-            disabled={submitting}
-          >
-            Koreksi Lagi
-          </Button>
-
-          <Button
-            type="button"
-            onClick={handleLiveSubmit}
-            disabled={submitting}
-          >
-            {submitting ? "Menyimpan..." : "Simpan Produksi"}
-          </Button>
+          <div className="da-prod-confirm-note-v6">Setelah disimpan, persediaan ayam akan berkurang dan hasil produksi akan masuk ke stok barang jadi secara otomatis.</div>
+          {submitResult && !submitResult.success ? <div className="da-prod-public-alert-v6 is-error">{submitResult.message}</div> : null}
+          <div className="da-prod-modal-actions-v6"><Button variant="ghost" onClick={() => setConfirmOpen(false)} disabled={submitting}>Kembali</Button><Button onClick={handleLiveSubmit} disabled={submitting}>{submitting ? "Menyimpan..." : "Simpan Produksi"}</Button></div>
         </div>
       </Modal>
 
-      <Modal
-        open={Boolean(selectedBatch)}
-        title="Detail Produksi / Adukan"
-        subtitle={selectedBatch?.production_id || selectedBatch?.batch_id || ""}
-        onClose={() => setSelectedBatch(null)}
-      >
+      <Modal open={Boolean(selectedBatch)} title="Detail Produksi" subtitle={selectedBatch?.production_id || selectedBatch?.batch_id || ""} onClose={() => setSelectedBatch(null)}>
         {selectedBatch ? (
-          <div>
-            <div className="da-modal-summary">
-              <div>
-                <div className="da-mini-title">Hasil Produksi</div>
-                <div className="da-big-text">
-                  {numberValue(
-                    selectedBatch.actual_output_pcs ||
-                      selectedBatch.actual_pcs ||
-                      selectedBatch.output_pcs ||
-                      selectedBatch.hasil_pcs ||
-                      selectedBatch.finished_good_qty ||
-                      selectedBatch.qty_pcs ||
-                      selectedBatch.qty
-                  ).toLocaleString("id-ID")}{" "}
-                  pcs
-                </div>
-                <p className="da-muted">
-                  Lot ayam:{" "}
-                  <strong>{safeText(selectedBatch.chicken_lot_id || selectedBatch.lot_id)}</strong>
-                </p>
-              </div>
-
-              <Badge tone={getStatusTone(selectedBatch.status)}>
-                {safeText(selectedBatch.status || "Tercatat")}
-              </Badge>
-            </div>
-
-            <div className="da-detail-grid">
-              <div className="da-detail-box">
-                <div className="da-mini-title">Produksi</div>
-                <p><strong>ID:</strong> {safeText(selectedBatch.production_id || selectedBatch.batch_id)}</p>
-                <p><strong>Tanggal:</strong> {formatDisplayDate(selectedBatch.production_date || selectedBatch.date)}</p>
-                <p><strong>Produk:</strong> {safeText(selectedBatch.product_name || selectedBatch.output_product_name)}</p>
-                <p><strong>Adukan:</strong> {safeText(selectedBatch.total_adukan || selectedBatch.adukan_qty || selectedBatch.adukan)}</p>
-                <p><strong>Hasil pcs:</strong> {numberValue(selectedBatch.actual_output_pcs || selectedBatch.actual_pcs || selectedBatch.output_pcs || selectedBatch.hasil_pcs || selectedBatch.finished_good_qty || selectedBatch.qty_pcs || selectedBatch.qty).toLocaleString("id-ID")} pcs</p>
-              </div>
-
-              <div className="da-detail-box">
-                <div className="da-mini-title">Ayam Dipakai</div>
-                <p><strong>Kg:</strong> {numberValue(selectedBatch.chicken_kg_used || selectedBatch.used_kg || selectedBatch.kg_ayam_dipakai).toLocaleString("id-ID")} kg</p>
-                <p><strong>Lot:</strong> {safeText(selectedBatch.chicken_lot_id || selectedBatch.lot_id)}</p>
-                <p><strong>Modal ayam:</strong> {formatRupiah(selectedBatch.chicken_cost || selectedBatch.modal_ayam || selectedBatch.total_batch_cost)}</p>
-                <p><strong>Modal/pcs:</strong> {formatRupiah(selectedBatch.hpp_per_pcs || selectedBatch.estimated_chicken_cost_per_pcs)}</p>
-              </div>
-
-              <div className="da-detail-box">
-                <div className="da-mini-title">Rantai ID</div>
-                <p><strong>Produksi:</strong> {safeText(selectedBatch.production_id || selectedBatch.batch_id)}</p>
-                <p><strong>Lot ayam:</strong> {safeText(selectedBatch.chicken_lot_id || selectedBatch.lot_id)}</p>
-                <p><strong>Gerak stok:</strong> {safeText(selectedBatch.stock_movement_id || selectedBatch.finished_stock_movement_id || selectedBatch.movement_id)}</p>
-                <p><strong>Layer modal:</strong> {safeText(selectedBatch.cost_layer_id || selectedBatch.finished_cost_layer_id || selectedBatch.layer_id)}</p>
-              </div>
-            </div>
-
-            <div className="da-modal-note" style={{ marginTop: 14 }}>
-              Rantai ini harus bisa ditelusuri: Lot Ayam → Produksi/Adukan → Gerak Stok IN → Stok Jadi → Order/Kasir.
+          <div className="da-prod-detail-v6">
+            <div className="da-modal-summary"><div><div className="da-mini-title">Hasil Produksi</div><div className="da-big-text">{numberValue(selectedBatch.actual_output_pcs || selectedBatch.actual_pcs || selectedBatch.output_pcs || selectedBatch.hasil_pcs || selectedBatch.finished_good_qty || selectedBatch.qty_pcs || selectedBatch.qty).toLocaleString("id-ID")} pcs</div><p className="da-muted">{safeText(selectedBatch.product_name || selectedBatch.output_product_name || selectedBatch.item_name, "Hasil produksi")}</p></div><Badge tone={getStatusTone(selectedBatch.status)}>{safeText(selectedBatch.status || "Tercatat")}</Badge></div>
+            <div className="da-prod-detail-grid-v6">
+              <div><span>Tanggal</span><strong>{formatDisplayDate(selectedBatch.production_date || selectedBatch.date)}</strong></div>
+              <div><span>Lot ayam</span><strong>{safeText(selectedBatch.chicken_lot_id || selectedBatch.lot_id)}</strong></div>
+              <div><span>Adukan</span><strong>{numberValue(selectedBatch.total_adukan || selectedBatch.adukan_qty || selectedBatch.adukan).toLocaleString("id-ID")}</strong></div>
+              <div><span>Ayam dipakai</span><strong>{numberValue(selectedBatch.chicken_kg_used || selectedBatch.used_kg || selectedBatch.raw_material_kg).toLocaleString("id-ID")} kg</strong></div>
             </div>
           </div>
         ) : null}
       </Modal>
     </div>
   );
+
 }
