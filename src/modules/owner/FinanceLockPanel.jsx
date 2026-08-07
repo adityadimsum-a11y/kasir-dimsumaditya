@@ -59,7 +59,7 @@ export default function FinanceLockPanel({ session, onSessionExpired, compact = 
         onSessionExpired?.();
         return;
       }
-      setError(result?.message || "Finance Lock belum dapat dibaca.");
+      setError(result?.message || "Pemeriksaan keuangan belum dapat dibaca.");
       setData({});
       setLoading(false);
       return;
@@ -134,13 +134,13 @@ export default function FinanceLockPanel({ session, onSessionExpired, compact = 
       <Card style={{ marginTop: 18 }}>
         <div className="da-section-heading">
           <div>
-            <div className="da-mini-title">PACKAGE 4 · OWNER ONLY</div>
-            <div className="da-big-text">Finance Lock & Full Trace</div>
-            <p className="da-muted">Wallet adalah saldo fisik tunggal. Transfer antar-dompet tidak dihitung sebagai uang masuk baru. 4 Amplop hanya ledger alokasi.</p>
+            <div className="da-mini-title">PEMERIKSAAN KEUANGAN</div>
+            <div className="da-big-text">Integritas Keuangan</div>
+            <p className="da-muted">Saldo dompet mengikuti pergerakan dana yang tercatat. Transfer antar-dompet tidak dihitung sebagai penerimaan usaha baru, sedangkan 4 Amplop digunakan untuk alokasi dana.</p>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-            <Badge tone={summary.lock_ready ? "success" : "danger"}>{loading ? "Membaca..." : summary.lock_ready ? "FINANCE LOCK READY" : `${summary.blocker_total || 0} BLOCKER`}</Badge>
-            <Button variant="ghost" onClick={loadData} disabled={loading}>{loading ? "Membaca..." : "Refresh Finance"}</Button>
+            <Badge tone={summary.lock_ready ? "success" : "danger"}>{loading ? "Membaca..." : summary.lock_ready ? "DATA KONSISTEN" : `${summary.blocker_total || 0} PERLU DICEK`}</Badge>
+            <Button variant="ghost" onClick={loadData} disabled={loading}>{loading ? "Membaca..." : "Perbarui"}</Button>
           </div>
         </div>
 
@@ -151,14 +151,14 @@ export default function FinanceLockPanel({ session, onSessionExpired, compact = 
           <StatCard label="Uang Masuk Eksternal" value={formatRupiah(summary.actual_money_in || 0)} description="Transfer dompet dan setoran internal dikecualikan." />
           <StatCard tone="warning" label="Uang Keluar Aktual" value={formatRupiah(summary.actual_money_out || 0)} description="Belanja, hutang, kewajiban, payroll, dan sumber resmi." />
           <StatCard label="Perpindahan Internal" value={formatRupiah(summary.internal_transfer_total || 0)} description="Transfer dompet dan setoran cabang; netral bagi total usaha." />
-          <StatCard tone="warning" label="Siap Dibagi 4 Amplop" value={formatRupiah(summary.unallocated_actual_income || 0)} description="Hanya Wallet IN yang sudah berada di pusat/Tangerang." />
+          <StatCard tone="warning" label="Siap Dibagi 4 Amplop" value={formatRupiah(summary.unallocated_actual_income || 0)} description="Hanya penerimaan yang sudah tercatat di pusat/Tangerang." />
           <StatCard tone={summary.blocker_total ? "danger" : "success"} label="Integritas Keuangan" value={summary.blocker_total || 0} description="Jumlah jejak yang putus atau tidak seimbang." />
         </div>
 
         {!compact ? (
           <>
             <div style={{ height: 18 }} />
-            <div className="da-mini-title">Pemeriksaan Finance Lock</div>
+            <div className="da-mini-title">Pemeriksaan Konsistensi</div>
             <DataTable
               columns={[
                 { key: "code", label: "Pemeriksaan", render: (row) => safeText(row.code).replaceAll("_", " ") },
