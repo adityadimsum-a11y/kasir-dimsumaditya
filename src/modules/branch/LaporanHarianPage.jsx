@@ -195,7 +195,7 @@ export default function LaporanHarianPage({ session, onSessionExpired }) {
 
   return (
     <div className="da-page-stack">
-      <PageHeader title="Laporan Harian" description="Transaksi order, pembayaran, uang keluar, dan piutang ditarik otomatis. Halaman ini tidak dipakai untuk input pengeluaran atau penjualan ulang." badge="PHP/MySQL Auto Pull" />
+      <PageHeader title="Laporan Harian" description="Transaksi order, pembayaran, uang keluar, dan piutang ditarik otomatis. Halaman ini tidak dipakai untuk input pengeluaran atau penjualan ulang." badge="Tarik Otomatis" />
 
       <Card>
         <div className="da-card-header-row">
@@ -240,7 +240,7 @@ export default function LaporanHarianPage({ session, onSessionExpired }) {
       </Card>
 
       <Card>
-        <div className="da-card-header-row"><div><div className="da-section-kicker">Riwayat Closing</div><h2>Laporan Cabang yang Tercatat</h2><p className="da-muted">Klik laporan untuk melihat snapshot dan validasi Tangerang.</p></div><Badge tone="success">Live Data</Badge></div>
+        <div className="da-card-header-row"><div><div className="da-section-kicker">Riwayat Closing</div><h2>Laporan Cabang yang Tercatat</h2><p className="da-muted">Klik laporan untuk melihat snapshot dan validasi Tangerang.</p></div><Badge tone="success">Data Aktual</Badge></div>
         <DataTable columns={REPORT_COLUMNS} rows={data.reports} getRowKey={(row) => row.report_id} onRowClick={setSelectedReport} />
       </Card>
 
