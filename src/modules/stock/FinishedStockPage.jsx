@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Boxes, DollarSign, PackageCheck, RefreshCw, ShoppingCart } from "lucide-react";
 import { getFinishedStockBootstrap } from "../../lib/api/actions";
 import { formatRupiah } from "../../lib/format/money";
 import Button from "../../components/ui/Button";
@@ -166,172 +167,68 @@ export default function FinishedStockPage({ session, onSessionExpired }) {
     },
   ];
 
+  const totalStock = numberValue(summary.total_stock_pcs);
+  const heldRatio = totalStock > 0 ? Math.min(100, (numberValue(summary.total_held_pcs) / totalStock) * 100) : 0;
+
   return (
-    <div>
+    <div className="da-page da-production-workspace-v6">
       <PageHeader
         title="Stok Jadi"
-        description="Pantau stok siap jual: stok bebas, stok ditahan PO, barang masuk freezer, dan barang keluar."
-        badge="Stok Aktual"
+        eyebrow="Produksi & Stok"
+        description="Pantau stok siap jual, alokasi untuk PO, pergerakan barang, dan nilai persediaan produk jadi."
+        actions={<Button variant="secondary" onClick={loadData} disabled={loading}><RefreshCw size={15} /> {loading ? "Memuat" : "Perbarui"}</Button>}
       />
 
-      <ProductionFlowPanel
-        session={session}
-        onSessionExpired={onSessionExpired}
-        compact
-      />
+      <ProductionFlowPanel session={session} onSessionExpired={onSessionExpired} compact />
+      {error ? <div className="da-prod-public-alert-v6 is-error">{error}</div> : null}
 
-      <div className="da-dashboard-banner">
-        <div>
-          <div className="da-dashboard-banner-kicker">Stok siap jual</div>
-          <div className="da-dashboard-banner-title">Barang Jadi → PO / Kasir / Order</div>
-          <div className="da-dashboard-banner-desc">
-            Halaman ini membaca stok jadi dari gerak stok hidup. Detail transaksi baru dibuka saat baris diklik.
+      <section className="da-prod-kpi-grid-v6">
+        <div className="da-prod-kpi-v6 tone-primary"><span className="icon"><PackageCheck size={17} /></span><div><small>Stok Siap Jual</small><strong>{loading ? "..." : formatPcs(summary.total_free_pcs)}</strong><p>Belum dialokasikan</p></div></div>
+        <div className="da-prod-kpi-v6 tone-warning"><span className="icon"><ShoppingCart size={17} /></span><div><small>Dialokasikan PO</small><strong>{loading ? "..." : formatPcs(summary.total_held_pcs)}</strong><p>Sudah disiapkan untuk order</p></div></div>
+        <div className="da-prod-kpi-v6"><span className="icon"><Boxes size={17} /></span><div><small>Total Stok Jadi</small><strong>{loading ? "..." : formatPcs(summary.total_stock_pcs)}</strong><p>{numberValue(summary.product_count).toLocaleString("id-ID")} produk aktif</p></div></div>
+        <div className="da-prod-kpi-v6"><span className="icon"><DollarSign size={17} /></span><div><small>Nilai Persediaan</small><strong>{loading ? "..." : formatRupiah(summary.total_stock_value)}</strong><p>Nilai modal stok bebas</p></div></div>
+      </section>
+
+      <section className="da-prod-main-grid-v6">
+        <Card className="da-prod-primary-panel-v6" title="Persediaan Produk" description="Posisi stok per produk. Klik baris untuk melihat rincian stok dan pergerakan terakhir.">
+          <DataTable columns={columns} rows={loading ? [] : rows} getRowKey={(row, index) => row.stock_key || row.product_id || row.product_code || index} onRowClick={setSelectedRow} />
+          {!rows.length ? <div className="da-prod-empty-v6">Belum ada stok produk jadi yang tercatat.</div> : null}
+        </Card>
+
+        <Card className="da-prod-side-panel-v6" title="Alokasi Persediaan" description="Perbandingan stok bebas dengan stok yang sudah dialokasikan untuk PO.">
+          <div className="da-prod-side-total-v6"><span>Total stok jadi</span><strong>{formatPcs(summary.total_stock_pcs)}</strong><small>{formatPcs(summary.total_free_pcs)} masih bebas</small></div>
+          <div className="da-prod-progress-v6"><div className="head"><span>Dialokasikan</span><b>{heldRatio.toFixed(0)}%</b></div><div className="track"><span style={{ width: `${heldRatio}%` }} /></div></div>
+          <div className="da-prod-side-list-v6">
+            <div><span>Stok bebas</span><strong>{formatPcs(summary.total_free_pcs)}</strong></div>
+            <div><span>Stok untuk PO</span><strong>{formatPcs(summary.total_held_pcs)}</strong></div>
+            <div><span>Masuk freezer</span><strong>{formatPcs(summary.freezer_in_pcs)}</strong></div>
+            <div><span>Produk aktif</span><strong>{numberValue(summary.product_count).toLocaleString("id-ID")}</strong></div>
           </div>
-        </div>
-        <div className="da-dashboard-banner-actions">
-          <Badge tone={error ? "danger" : "success"}>{error ? "Perlu Dicek" : "Terhubung"}</Badge>
-          <Button variant="ghost" onClick={loadData} disabled={loading}>
-            {loading ? "Membaca..." : "Refresh Data"}
-          </Button>
-        </div>
-      </div>
+        </Card>
+      </section>
 
-      {error ? <div className="da-login-error" style={{ marginBottom: 16 }}>{error}</div> : null}
-      {!error && numberValue(summary.hidden_rows) > 0 ? (
-        <div className="da-login-error" style={{ marginBottom: 16 }}>
-          {numberValue(summary.hidden_rows).toLocaleString("id-ID")} baris kosong/formatting disembunyikan supaya stok jadi tidak menampilkan angka yatim.
-        </div>
-      ) : null}
-
-      <div className="da-grid da-grid-3">
-        <StatCard
-          tone="primary"
-          label="Stok Bebas"
-          value={loading ? "..." : formatPcs(summary.total_free_pcs)}
-          description="Stok yang siap dijual dan belum ditahan PO."
-        />
-        <StatCard
-          tone="warning"
-          label="Stok Ditahan PO"
-          value={loading ? "..." : formatPcs(summary.total_held_pcs)}
-          description="Stok yang sudah dialokasikan untuk PO/antrian."
-        />
-        <StatCard
-          label="Total Stok Jadi"
-          value={loading ? "..." : formatPcs(summary.total_stock_pcs)}
-          description="Stok bebas + stok yang sedang ditahan."
-        />
-      </div>
-
-      <div style={{ height: 16 }} />
-
-      <div className="da-grid da-grid-3">
-        <StatCard
-          label="Barang Masuk Freezer"
-          value={loading ? "..." : formatPcs(summary.freezer_in_pcs)}
-          description="Total hasil produksi yang masuk freezer."
-        />
-        <StatCard
-          label="Produk Aktif"
-          value={loading ? "..." : numberValue(summary.product_count).toLocaleString("id-ID")}
-          description="Produk yang punya gerak stok atau alokasi."
-        />
-        <StatCard
-          tone="warning"
-          label="Nilai Stok Bebas"
-          value={loading ? "..." : formatRupiah(summary.total_stock_value)}
-          description="Perkiraan modal stok bebas dari HPP batch."
-        />
-      </div>
-
-      <div style={{ height: 16 }} />
-
-      <Card>
-        <div className="da-section-heading">
-          <div>
-            <div className="da-mini-title">Stok Produk</div>
-            <div className="da-big-text">Stok Jadi yang Terbaca</div>
-            <p className="da-muted">
-              Klik baris untuk melihat detail ringkas stok, alokasi, dan gerak terakhir.
-            </p>
-          </div>
-          <Badge tone="warning">Pantau</Badge>
-        </div>
-
-        <DataTable
-          columns={columns}
-          rows={loading ? [] : rows}
-          getRowKey={(row, index) => row.stock_key || row.product_id || row.product_code || index}
-          onRowClick={setSelectedRow}
-        />
-      </Card>
-
-      <Modal
-        open={Boolean(selectedRow)}
-        title="Detail Stok Jadi"
-        subtitle={selectedRow?.product_name || selectedRow?.product_code || ""}
-        onClose={() => setSelectedRow(null)}
-      >
+      <Modal open={Boolean(selectedRow)} title="Detail Stok Jadi" subtitle={selectedRow?.product_name || selectedRow?.product_code || ""} onClose={() => setSelectedRow(null)}>
         {selectedRow ? (
-          <div>
-            <div className="da-modal-summary">
-              <div>
-                <div className="da-mini-title">Stok Bebas</div>
-                <div className="da-big-text">{formatPcs(selectedRow.free_pcs)}</div>
-                <p className="da-muted">
-                  Ditahan PO: <strong>{formatPcs(selectedRow.held_pcs)}</strong>
-                </p>
-              </div>
-              <Badge tone={getTone(selectedRow.status)}>{safeText(selectedRow.status)}</Badge>
+          <div className="da-prod-detail-v6">
+            <div className="da-modal-summary"><div><div className="da-mini-title">Stok Siap Jual</div><div className="da-big-text">{formatPcs(selectedRow.free_pcs)}</div><p className="da-muted">Dialokasikan PO: <strong>{formatPcs(selectedRow.held_pcs)}</strong></p></div><Badge tone={getTone(selectedRow.status)}>{safeText(selectedRow.status)}</Badge></div>
+            <div className="da-prod-detail-grid-v6">
+              <div><span>Total stok</span><strong>{formatPcs(selectedRow.total_pcs)}</strong></div>
+              <div><span>Barang masuk</span><strong>{formatPcs(selectedRow.in_pcs)}</strong></div>
+              <div><span>Barang keluar</span><strong>{formatPcs(selectedRow.out_pcs)}</strong></div>
+              <div><span>Modal per pcs</span><strong>{formatRupiah(selectedRow.avg_unit_cost)}</strong></div>
             </div>
-
-            <div className="da-detail-grid">
-              <div className="da-detail-box">
-                <div className="da-mini-title">Produk</div>
-                <p><strong>Produk:</strong> {safeText(selectedRow.product_name)}</p>
-                <p><strong>Kode:</strong> {safeText(selectedRow.product_code)}</p>
-                <p><strong>Lokasi:</strong> {safeText(selectedRow.location_id)}</p>
+            {asArray(selectedRow.recent_movements).length ? (
+              <div className="da-prod-modal-list-v6">
+                <span className="label">Pergerakan terakhir</span>
+                {asArray(selectedRow.recent_movements).slice(0, 6).map((movement) => (
+                  <div key={movement.movement_id || `${movement.source_id}-${movement.direction}`}><span>{formatDisplayDate(movement.movement_date)} · {safeText(movement.direction)}</span><strong>{formatPcs(movement.qty_pcs || movement.qty)}</strong></div>
+                ))}
               </div>
-              <div className="da-detail-box">
-                <div className="da-mini-title">Pergerakan</div>
-                <p><strong>Masuk:</strong> {formatPcs(selectedRow.in_pcs)}</p>
-                <p><strong>Keluar:</strong> {formatPcs(selectedRow.out_pcs)}</p>
-                <p><strong>Total stok:</strong> {formatPcs(selectedRow.total_pcs)}</p>
-              </div>
-              <div className="da-detail-box">
-                <div className="da-mini-title">Modal</div>
-                <p><strong>Modal/pcs:</strong> {formatRupiah(selectedRow.avg_unit_cost)}</p>
-                <p><strong>Nilai stok bebas:</strong> {formatRupiah(selectedRow.stock_value)}</p>
-                <p><strong>Gerak terakhir:</strong> {formatDisplayDate(selectedRow.last_movement_date)}</p>
-              </div>
-              <div className="da-detail-box">
-                <div className="da-mini-title">Trace</div>
-                <p><strong>Source terakhir:</strong> {safeText(selectedRow.last_source_id)}</p>
-                <p><strong>Jumlah gerak:</strong> {numberValue(selectedRow.movement_count).toLocaleString("id-ID")}</p>
-                <p><strong>Stok key:</strong> {safeText(selectedRow.stock_key)}</p>
-              </div>
-            </div>
-
-            <div className="da-payload-preview" style={{ marginTop: 14 }}>
-              <div className="da-mini-title">Gerak Stok Terakhir</div>
-              {asArray(selectedRow.recent_movements).length === 0 ? (
-                <p className="da-muted">Belum ada detail gerak stok.</p>
-              ) : (
-                asArray(selectedRow.recent_movements).map((movement) => (
-                  <div className="da-payload-row" key={movement.movement_id || `${movement.source_id}-${movement.direction}`}>
-                    <span>{formatDisplayDate(movement.movement_date)} · {safeText(movement.direction)}</span>
-                    <strong>{formatPcs(movement.qty_pcs || movement.qty)} · {safeText(movement.source_id)}</strong>
-                  </div>
-                ))
-              )}
-            </div>
-
-            <div className="da-modal-note" style={{ marginTop: 14 }}>
-              Stok jadi harus tetap bisa ditelusuri dari Produksi/Adukan sampai Order/Kasir dan alokasi PO.
-            </div>
+            ) : null}
           </div>
         ) : null}
       </Modal>
     </div>
   );
+
 }
