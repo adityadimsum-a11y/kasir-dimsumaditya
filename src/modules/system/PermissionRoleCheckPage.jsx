@@ -302,7 +302,7 @@ export default function PermissionRoleCheckPage({ session, onSessionExpired }) {
     <div className="da-page-stack">
       <PageHeader
         title="Permission & Akun Cabang"
-        description="Owner membuat akun nyata untuk HO, cabang produksi, resto/outlet, dan staff. Setiap akun dikunci ke lokasi kerja dan backend permission."
+        description="Kelola akun HO, produksi, resto/outlet, dan staff. Setiap akun mengikuti lokasi kerja dan hak akses yang ditetapkan."
         badge={health.branch_login_ready ? "Cabang Siap Login" : health.foundation_ready ? "Fondasi Siap" : "Belum Siap"}
         badgeTone={health.branch_login_ready ? "success" : "warning"}
       />
@@ -311,11 +311,11 @@ export default function PermissionRoleCheckPage({ session, onSessionExpired }) {
       {success ? <div className="da-alert da-alert-success">{success}</div> : null}
 
       <Card
-        title="Akun Cabang PHP/MySQL"
+        title="Akun Cabang"
         description="Tidak ada password contoh. Owner mengisi nama, username, role, lokasi, dan password awal secara manual."
         action={
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <Badge tone={health.migration_017_applied ? "success" : "warning"}>Migration 017</Badge>
+            <Badge tone={health.migration_017_applied ? "success" : "warning"}>Hak Akses Sistem</Badge>
             <Badge tone={health.roles_ready ? "success" : "warning"}>Role Matrix</Badge>
             <Button variant="secondary" disabled={loading} onClick={loadData}>Refresh Data</Button>
           </div>
@@ -342,7 +342,7 @@ export default function PermissionRoleCheckPage({ session, onSessionExpired }) {
 
       <Card
         title="Buat Akun Operasional"
-        description="Akun baru langsung tersimpan di PHP/MySQL, password di-hash, dan pembuatan akun masuk Arsip serta Audit."
+        description="Akun baru tersimpan aman di sistem, password di-hash, dan pembuatan akun masuk Arsip serta Audit."
         action={<Badge tone="success">Owner Only</Badge>}
       >
         <form onSubmit={handleCreate}>
@@ -390,7 +390,7 @@ export default function PermissionRoleCheckPage({ session, onSessionExpired }) {
       <Card
         title="Akun Operasional yang Terdaftar"
         description="Klik baris untuk edit nama/role/lokasi, reset password, atau aktif/nonaktifkan akun."
-        action={<Badge tone="success">Live Data</Badge>}
+        action={<Badge tone="success">Data Aktual</Badge>}
       >
         <div className="da-form-grid" style={{ marginBottom: 12 }}>
           <label className="da-field">
