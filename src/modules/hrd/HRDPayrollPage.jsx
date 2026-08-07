@@ -138,7 +138,7 @@ function NoticeBox({ children, tone = "warning" }) {
   return <div style={{ background: palette[0], color: palette[1], border: `1px solid ${palette[2]}`, borderRadius: 13, padding: "12px 14px", fontWeight: 800, marginTop: 12 }}>{children}</div>;
 }
 
-export default function HRDPayrollPage({ session, onSessionExpired }) {
+export default function HRDPayrollPage({ session, onSessionExpired, viewMode = "dashboard" }) {
   const token = session?.sessionToken || session?.session_token || "";
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -148,6 +148,12 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
   const [period, setPeriod] = useState(monthInput());
   const [locationId, setLocationId] = useState("ALL");
   const [activeTab, setActiveTab] = useState("board");
+  const [employeeModalOpen, setEmployeeModalOpen] = useState(false);
+  const [attendanceModalOpen, setAttendanceModalOpen] = useState(false);
+  const [advanceModalOpen, setAdvanceModalOpen] = useState(false);
+  const [loanModalOpen, setLoanModalOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [payrollSubMode, setPayrollSubMode] = useState("process");
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [detailTab, setDetailTab] = useState("overview");
 
@@ -227,6 +233,11 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
   }, [period, locationId]);
 
   useEffect(() => {
+    const map = { dashboard: "board", employees: "employees", attendance: "attendance", loans: "ledger", payroll: "process", report: "history" };
+    setActiveTab(map[viewMode] || "board");
+  }, [viewMode]);
+
+  useEffect(() => {
     if (!selectedEmployee) return;
     setAttendanceForm((prev) => ({ ...prev, employee_id: selectedEmployee.employee_id }));
     setAdvanceForm((prev) => ({ ...prev, employee_id: selectedEmployee.employee_id }));
@@ -259,23 +270,26 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
     event.preventDefault();
     const ok = await runWrite(createHRDEmployee, employeeForm, "EMP", "Karyawan berhasil dibuat.");
     if (ok) setEmployeeForm((prev) => ({ ...prev, employee_name: "", base_salary: "0", daily_salary: "0", fixed_allowance: "0", notes: "Karyawan aktif." }));
+    return ok;
   }
 
   async function submitAttendance(event) {
     event.preventDefault();
-    await runWrite(createHRDAttendance, attendanceForm, "ABS", "Absensi berhasil disimpan.");
+    return runWrite(createHRDAttendance, attendanceForm, "ABS", "Absensi berhasil disimpan.");
   }
 
   async function submitAdvance(event) {
     event.preventDefault();
     const ok = await runWrite(createHRDKasbonNote, advanceForm, "KASBON", "Kasbon berhasil disimpan.");
     if (ok) setAdvanceForm((prev) => ({ ...prev, amount: "0", notes: "Kasbon karyawan." }));
+    return ok;
   }
 
   async function submitLoan(event) {
     event.preventDefault();
     const ok = await runWrite(createHRDLoanNote, loanForm, "LOAN", "Pinjaman berhasil dibuat.");
     if (ok) setLoanForm((prev) => ({ ...prev, amount: "0", tenor_total: "0", installment_amount: "0", notes: "Pinjaman karyawan." }));
+    return ok;
   }
 
   async function handleBackupFile(event) {
@@ -379,221 +393,215 @@ export default function HRDPayrollPage({ session, onSessionExpired }) {
 
   if (loading) return <div className="da-page"><Card>Memuat HRD / Payroll PHP/MySQL…</Card></div>;
 
+  const viewMeta = {
+    dashboard: ["Dashboard HRD", "Pusat kontrol karyawan, absensi, kasbon, cicilan dan payroll seluruh lokasi."],
+    employees: ["Data Karyawan", "Profil karyawan, lokasi kerja, tanggal gajian, status dan buku catatan personal."],
+    attendance: ["Absensi & Izin", "Catat kehadiran dan izin, lalu pantau dampaknya ke payroll tanpa mengulang input."],
+    loans: ["Kasbon & Cicilan", "Pantau outstanding karyawan dan catat kasbon atau pinjaman dari dompet lokasi."],
+    payroll: ["Payroll & Slip Gaji", "Draft THP, preview backend, slip V32, closing dan pembayaran gaji dari satu workspace."],
+    report: ["Rekap Payroll", "Rekap per periode/lokasi, histori closing, pembayaran dan cetak A4 payroll."],
+  }[viewMode] || ["HRD & Payroll", "Operasional HRD Dimsum Aditya."];
+
+  const attendanceCount = (type) => attendanceRows.filter((row) => String(row.attendance_type || "").toUpperCase() === type).length;
+  const attendanceIssueCount = attendanceRows.filter((row) => ["IZIN", "SAKIT", "TIDAK_MASUK", "CUTI"].includes(String(row.attendance_type || "").toUpperCase())).length;
+  const activeEmployees = employees.filter((row) => String(row.employment_status || "ACTIVE").toUpperCase() === "ACTIVE");
+  const payrollDrafts = payrollRows.filter((row) => String(row.status || "").toUpperCase() === "DRAFT");
+  const recentEmployees = activeEmployees.slice(0, 6);
+  const recentAttendance = attendanceRows.slice(0, 8);
+
+  const calendarDate = (() => {
+    const [year, month] = String(period || monthInput()).split("-").map(Number);
+    return { year: year || new Date().getFullYear(), month: (month || new Date().getMonth() + 1) - 1 };
+  })();
+  const calendarStart = new Date(calendarDate.year, calendarDate.month, 1);
+  const calendarDays = [];
+  const mondayOffset = (calendarStart.getDay() + 6) % 7;
+  for (let i = 0; i < 42; i += 1) {
+    const d = new Date(calendarDate.year, calendarDate.month, 1 - mondayOffset + i);
+    const iso = d.toISOString().slice(0, 10);
+    const count = attendanceRows.filter((row) => String(row.attendance_date || "").slice(0, 10) === iso).length;
+    calendarDays.push({ key: iso, day: d.getDate(), outside: d.getMonth() !== calendarDate.month, count });
+  }
+
+  const toolbar = (
+    <div className="da-hrd-toolbar-v3">
+      <div className="da-hrd-toolbar-fields-v3">
+        <label className="da-field"><span>Periode</span><input type="month" value={period} onChange={(event) => setPeriod(event.target.value)} /></label>
+        {fullPayrollAccess ? <label className="da-field"><span>Lokasi</span><select value={locationId} onChange={(event) => setLocationId(event.target.value)}><option value="ALL">Semua lokasi</option>{locations.map((row) => <option key={row.location_id} value={row.location_id}>{row.location_name} · {row.location_code}</option>)}</select></label> : <div />}
+      </div>
+      <div className="da-hrd-toolbar-actions-v3">
+        <Badge tone={data?.health?.ready ? "success" : "danger"}>{data?.health?.ready ? "HRD Siap" : "HRD Belum Siap"}</Badge>
+        <Button variant="secondary" onClick={() => loadData()}>Refresh Data</Button>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="da-page">
+    <div className="da-page da-hrd-v3">
       <div className="da-page-heading">
-        <div>
-          <div className="da-eyebrow">Dimsum Aditya</div>
-          <h1>HRD / Payroll</h1>
-          <p>Interface dan aturan kerja mengikuti Payroll V32. Data hidup disimpan di PHP/MySQL dan dikunci per lokasi.</p>
-        </div>
-        <Badge tone={data?.health?.ready ? "success" : "danger"}>{data?.health?.ready ? "HRD Siap" : "Mesin HRD Belum Siap"}</Badge>
+        <div><div className="da-eyebrow">HRD & PAYROLL</div><h1>{viewMeta[0]}</h1><p>{viewMeta[1]}</p></div>
       </div>
 
-      <FlowCard />
+      <Card className="da-full-width">{toolbar}{error ? <NoticeBox tone="danger">{error}</NoticeBox> : null}{notice ? <NoticeBox tone="success">{notice}</NoticeBox> : null}</Card>
 
-      <Card>
-        <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
-          <div>
-            <div className="da-eyebrow">HRD & PAYROLL</div>
-            <h2 style={{ margin: "4px 0" }}>Papan Payroll & Buku Karyawan</h2>
-            <p className="da-muted">Cabang tidak melihat gaji/THP. Owner/Tangerang memegang payroll, closing, dan pembayaran.</p>
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            <Badge tone="success">Mesin Payroll Aktif</Badge>
-            <Badge tone={data?.health?.latest_import ? "success" : "warning"}>{data?.health?.latest_import ? "Riwayat Payroll Tersedia" : "Riwayat Payroll Belum Diimpor"}</Badge>
-            <Button variant="secondary" onClick={() => loadData()}>Refresh Data</Button>
-          </div>
+      {viewMode === "dashboard" ? <>
+        <div className="da-stat-grid">
+          <StatCard label="Karyawan Aktif" value={summary.active_employee_count || 0} helper={`${summary.employee_count || 0} total master.`} />
+          <StatCard label="Absensi Perlu Dilihat" value={attendanceIssueCount} helper={`${attendanceRows.length} catatan periode ini.`} tone={attendanceIssueCount ? "warning" : "success"} />
+          <StatCard label="Sisa Kasbon" value={formatRupiah(summary.open_advance_amount || 0)} helper="Saldo ledger kasbon terbuka." tone="warning" />
+          <StatCard label="Payroll Closing" value={summary.payroll_closed_count || 0} helper={`${summary.payroll_draft_count || 0} masih draft.`} tone="success" />
         </div>
-        {error ? <NoticeBox tone="danger">{error}</NoticeBox> : null}
-        {notice ? <NoticeBox tone="success">{notice}</NoticeBox> : null}
-      </Card>
-
-      <div className="da-stat-grid">
-        <StatCard label="Karyawan Aktif" value={summary.active_employee_count || 0} helper={`${summary.employee_count || 0} total master.`} />
-        <StatCard label="Sisa Kasbon" value={formatRupiah(summary.open_advance_amount || 0)} helper="Saldo ledger kasbon terbuka." tone="warning" />
-        <StatCard label="Sisa Pinjaman" value={formatRupiah(summary.open_loan_amount || 0)} helper="Pinjaman panjang berjalan." tone="warning" />
-        <StatCard label="Sudah Closing" value={summary.payroll_closed_count || 0} helper={`Periode ${period}.`} tone="success" />
-      </div>
-
-      <Card>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(210px,1fr))", gap: 12, marginBottom: 16 }}>
-          <label className="da-field"><span>Periode</span><input type="month" value={period} onChange={(event) => setPeriod(event.target.value)} /></label>
-          {fullPayrollAccess ? (
-            <label className="da-field"><span>Lokasi</span><select value={locationId} onChange={(event) => setLocationId(event.target.value)}><option value="ALL">Semua lokasi</option>{locations.map((row) => <option key={row.location_id} value={row.location_id}>{row.location_name} · {row.location_code}</option>)}</select></label>
-          ) : null}
-        </div>
-        <SectionTabs active={activeTab} onChange={setActiveTab} fullPayrollAccess={fullPayrollAccess} />
-
-        {activeTab === "board" ? (
-          <div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(230px,1fr))", gap: 14 }}>
-              <div style={{ background: "#ecfdf5", border: "1px solid #a7f3d0", borderRadius: 18, padding: 18 }}><div className="da-eyebrow">Total THP histori</div><strong style={{ fontSize: 27, color: "#059669" }}>{fullPayrollAccess ? formatRupiah(summary.payroll_total_net_pay || 0) : "Terkunci Owner"}</strong><p className="da-muted">Snapshot payroll periode terpilih.</p></div>
-              <div style={{ background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 18, padding: 18 }}><div className="da-eyebrow">Belum Closing</div><strong style={{ fontSize: 27 }}>{fullPayrollAccess ? summary.payroll_draft_count || 0 : "—"}</strong><p className="da-muted">Draft aktif siap dicek pada tab Proses Gaji.</p></div>
-              <div style={{ background: "#f8fafc", border: "1px solid #e5e7eb", borderRadius: 18, padding: 18 }}><div className="da-eyebrow">Lokasi terhubung</div><strong style={{ fontSize: 27 }}>{summary.location_count || 0}</strong><p className="da-muted">Tangerang, Pemalang, dan Cibinong sesuai hak akses.</p></div>
+        <div className="da-hrd-dashboard-grid-v3">
+          <section className="da-hrd-panel-v3">
+            <div className="da-hrd-panel-head-v3"><div><h3>Ringkasan Operasional HRD</h3><p>Angka periode {period} dari sumber PHP/MySQL.</p></div><Badge tone="success">Aktual</Badge></div>
+            <div className="da-hrd-mini-grid-v3">
+              <StatCard label="Total THP" value={fullPayrollAccess ? formatRupiah(summary.payroll_total_net_pay || 0) : "Terkunci"} helper="Histori payroll periode." tone="success" />
+              <StatCard label="Belum Closing" value={fullPayrollAccess ? summary.payroll_draft_count || 0 : "—"} helper="Draft menunggu pemeriksaan." tone="warning" />
+              <StatCard label="Sisa Pinjaman" value={formatRupiah(summary.open_loan_amount || 0)} helper="Pinjaman panjang berjalan." tone="warning" />
+              <StatCard label="Lokasi Terhubung" value={summary.location_count || 0} helper="Lokasi sesuai hak akses." />
             </div>
-            <NoticeBox>Payroll operasional aktif: preview dan print tidak mengubah ledger; closing mengunci kasbon/cicilan; pembayaran gaji membuat Wallet OUT dari Tangerang.</NoticeBox>
-          </div>
-        ) : null}
+            <div style={{marginTop:12}}><DataTable columns={employeeColumns.slice(0, 4)} rows={recentEmployees} getRowKey={(row) => row.employee_id} onRowClick={(row) => { setSelectedEmployee(row); setDetailTab("overview"); }} /></div>
+          </section>
+          <aside className="da-hrd-panel-v3">
+            <div className="da-hrd-panel-head-v3"><div><h3>Perlu Perhatian</h3><p>Ringkasan yang perlu dicek Owner/HRD.</p></div></div>
+            <div className="da-hrd-attention-v3">
+              <div className="da-hrd-attention-row-v3"><span>Payroll belum closing</span><strong>{payrollDrafts.length}</strong></div>
+              <div className="da-hrd-attention-row-v3"><span>Catatan izin / sakit / tidak masuk</span><strong>{attendanceIssueCount}</strong></div>
+              <div className="da-hrd-attention-row-v3"><span>Kasbon outstanding</span><strong>{formatRupiah(summary.open_advance_amount || 0)}</strong></div>
+              <div className="da-hrd-attention-row-v3"><span>Pinjaman outstanding</span><strong>{formatRupiah(summary.open_loan_amount || 0)}</strong></div>
+            </div>
+            <div style={{marginTop:14}}><div className="da-hrd-panel-head-v3"><div><h3>Absensi Terbaru</h3></div></div><DataTable columns={attendanceColumns.slice(0, 3)} rows={recentAttendance} getRowKey={(row) => row.attendance_id} /></div>
+          </aside>
+        </div>
+      </> : null}
 
-        {activeTab === "employees" ? (
-          <div>
-            {fullPayrollAccess ? (
-              <form onSubmit={submitEmployee} style={{ marginBottom: 20, padding: 18, background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 18 }}>
-                <h3 style={{ marginTop: 0 }}>Tambah Karyawan</h3>
-                <div className="da-form-grid">
-                  <label className="da-field"><span>Nama Lengkap</span><input required value={employeeForm.employee_name} onChange={(e) => setEmployeeForm({ ...employeeForm, employee_name: e.target.value })} /></label>
-                  <label className="da-field"><span>Lokasi</span><select value={employeeForm.location_id} onChange={(e) => setEmployeeForm({ ...employeeForm, location_id: e.target.value })}>{locations.map((row) => <option key={row.location_id} value={row.location_id}>{row.location_name}</option>)}</select></label>
-                  <label className="da-field"><span>Jabatan</span><input value={employeeForm.position_name} onChange={(e) => setEmployeeForm({ ...employeeForm, position_name: e.target.value })} /></label>
-                  <label className="da-field"><span>Tanggal Gajian</span><input type="number" min="1" max="31" value={employeeForm.payroll_day} onChange={(e) => setEmployeeForm({ ...employeeForm, payroll_day: e.target.value })} /></label>
-                  <label className="da-field"><span>Mode Gaji</span><select value={employeeForm.salary_mode} onChange={(e) => setEmployeeForm({ ...employeeForm, salary_mode: e.target.value })}><option value="BULANAN">Bulanan</option><option value="HARIAN">Harian</option></select></label>
-                  <label className="da-field"><span>Gaji Pokok</span><input inputMode="numeric" value={employeeForm.base_salary} onChange={(e) => setEmployeeForm({ ...employeeForm, base_salary: e.target.value })} /></label>
-                  <label className="da-field"><span>Gaji Harian</span><input inputMode="numeric" value={employeeForm.daily_salary} onChange={(e) => setEmployeeForm({ ...employeeForm, daily_salary: e.target.value })} /></label>
-                  <label className="da-field"><span>Tunjangan Tetap</span><input inputMode="numeric" value={employeeForm.fixed_allowance} onChange={(e) => setEmployeeForm({ ...employeeForm, fixed_allowance: e.target.value })} /></label>
-                </div>
-                <Button type="submit" disabled={saving}>Simpan Karyawan</Button>
-              </form>
-            ) : <NoticeBox>Nominal gaji tidak ditampilkan untuk akun cabang. Cabang tetap dapat membuka daftar karyawan lokasinya serta menginput absensi, kasbon, dan pinjaman.</NoticeBox>}
-            <DataTable columns={employeeColumns} rows={employees} getRowKey={(row) => row.employee_id} onRowClick={(row) => { setSelectedEmployee(row); setDetailTab("overview"); }} />
-          </div>
-        ) : null}
+      {viewMode === "employees" ? <>
+        <div className="da-stat-grid">
+          <StatCard label="Karyawan Aktif" value={activeEmployees.length} helper="Status kerja aktif." tone="success" />
+          <StatCard label="Total Master" value={employees.length} helper="Semua status karyawan." />
+          <StatCard label="Kasbon Terbuka" value={formatRupiah(summary.open_advance_amount || 0)} helper="Dari ledger karyawan." tone="warning" />
+          <StatCard label="Pinjaman Terbuka" value={formatRupiah(summary.open_loan_amount || 0)} helper="Sisa pinjaman panjang." tone="warning" />
+        </div>
+        <Card className="da-full-width" title="Daftar Karyawan" description="Klik karyawan untuk membuka profil, absensi, kasbon, pinjaman dan payroll dalam popup." action={fullPayrollAccess ? <Button onClick={() => setEmployeeModalOpen(true)}>+ Tambah Karyawan</Button> : null}>
+          {!fullPayrollAccess ? <NoticeBox>Nominal gaji tidak ditampilkan untuk akun cabang. Cabang tetap dapat melihat karyawan sesuai scope.</NoticeBox> : null}
+          <DataTable columns={employeeColumns} rows={employees} getRowKey={(row) => row.employee_id} onRowClick={(row) => { setSelectedEmployee(row); setDetailTab("overview"); }} />
+        </Card>
+      </> : null}
 
-        {activeTab === "attendance" ? (
-          <div>
-            <form onSubmit={submitAttendance} style={{ marginBottom: 18, padding: 18, background: "#f9fafb", borderRadius: 18, border: "1px solid #e5e7eb" }}>
-              <h3 style={{ marginTop: 0 }}>Catat Absensi / Izin</h3>
-              <div className="da-form-grid">
-                <label className="da-field"><span>Karyawan</span><select required value={attendanceForm.employee_id} onChange={(e) => setAttendanceForm({ ...attendanceForm, employee_id: e.target.value })}><option value="">Pilih karyawan</option>{employees.filter((row) => row.employment_status === "ACTIVE").map((row) => <option key={row.employee_id} value={row.employee_id}>{row.employee_name} · {row.location_code}</option>)}</select></label>
-                <label className="da-field"><span>Tanggal</span><input type="date" value={attendanceForm.attendance_date} onChange={(e) => setAttendanceForm({ ...attendanceForm, attendance_date: e.target.value })} /></label>
-                <label className="da-field"><span>Status</span><select value={attendanceForm.attendance_type} onChange={(e) => setAttendanceForm({ ...attendanceForm, attendance_type: e.target.value, deduct_salary: e.target.value === "TIDAK_MASUK" })}><option value="HADIR">Hadir</option><option value="IZIN">Izin</option><option value="SAKIT">Sakit</option><option value="TIDAK_MASUK">Tidak Masuk</option><option value="CUTI">Cuti</option><option value="DINAS">Dinas</option><option value="SETENGAH_HARI">Setengah Hari</option><option value="LIBUR">Libur</option><option value="LEMBUR">Lembur</option></select></label>
-                <label className="da-field"><span>Nilai Hari</span><input type="number" step="0.5" min="0" max="1" value={attendanceForm.day_fraction} onChange={(e) => setAttendanceForm({ ...attendanceForm, day_fraction: e.target.value })} /></label>
-                <label className="da-field"><span>Uang Lembur</span><input inputMode="numeric" value={attendanceForm.overtime_amount} onChange={(e) => setAttendanceForm({ ...attendanceForm, overtime_amount: e.target.value })} /></label>
-                <label className="da-field"><span>Catatan</span><input value={attendanceForm.notes} onChange={(e) => setAttendanceForm({ ...attendanceForm, notes: e.target.value })} /></label>
-              </div>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, fontWeight: 800 }}><input type="checkbox" checked={attendanceForm.deduct_salary} onChange={(e) => setAttendanceForm({ ...attendanceForm, deduct_salary: e.target.checked })} /> Dihitung sebagai hari potong gaji</label>
-              <Button type="submit" disabled={saving}>Simpan Absensi</Button>
-            </form>
+      {viewMode === "attendance" ? <>
+        <div className="da-stat-grid">
+          <StatCard label="Hadir" value={attendanceCount("HADIR")} helper={`Periode ${period}.`} tone="success" />
+          <StatCard label="Izin / Sakit" value={attendanceCount("IZIN") + attendanceCount("SAKIT")} helper="Catatan izin dan sakit." tone="warning" />
+          <StatCard label="Tidak Masuk" value={attendanceCount("TIDAK_MASUK")} helper="Perlu dicek dampak payroll." tone={attendanceCount("TIDAK_MASUK") ? "danger" : "success"} />
+          <StatCard label="Cuti" value={attendanceCount("CUTI")} helper="Cuti periode berjalan." />
+        </div>
+        <div className="da-hrd-dashboard-grid-v3">
+          <section className="da-hrd-panel-v3">
+            <div className="da-hrd-panel-head-v3"><div><h3>Catatan Absensi</h3><p>Klik data karyawan dari menu Data Karyawan untuk histori personal.</p></div><Button onClick={() => setAttendanceModalOpen(true)}>+ Catat Absensi</Button></div>
             <DataTable columns={attendanceColumns} rows={attendanceRows} getRowKey={(row) => row.attendance_id} />
-          </div>
-        ) : null}
-
-        {activeTab === "ledger" ? (
-          <div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(310px,1fr))", gap: 16, marginBottom: 20 }}>
-              <form onSubmit={submitAdvance} style={{ padding: 18, border: "1px solid #fecaca", background: "#fef2f2", borderRadius: 18 }}>
-                <h3 style={{ marginTop: 0 }}>Kasbon Bulanan</h3>
-                <p className="da-muted">Kasbon baru langsung membuat Wallet OUT dan Piutang Kasbon Karyawan.</p>
-                <label className="da-field"><span>Karyawan</span><select required value={advanceForm.employee_id} onChange={(e) => setAdvanceForm({ ...advanceForm, employee_id: e.target.value })}><option value="">Pilih karyawan</option>{employees.filter((row) => row.employment_status === "ACTIVE").map((row) => <option key={row.employee_id} value={row.employee_id}>{row.employee_name}</option>)}</select></label>
-                <label className="da-field"><span>Dompet Pengeluaran</span><select required value={advanceForm.wallet_id} onChange={(e) => setAdvanceForm({ ...advanceForm, wallet_id: e.target.value })}><option value="">Pilih dompet lokasi</option>{wallets.filter((row) => !advanceForm.employee_id || row.location_id === employees.find((emp) => emp.employee_id === advanceForm.employee_id)?.location_id).map((row) => <option key={row.wallet_id} value={row.wallet_id}>{row.wallet_name} · {row.location_code} · {formatRupiah(row.current_balance || 0)}</option>)}</select></label>
-                <label className="da-field"><span>Tanggal</span><input type="date" value={advanceForm.date} onChange={(e) => setAdvanceForm({ ...advanceForm, date: e.target.value })} /></label>
-                <label className="da-field"><span>Nominal</span><input required inputMode="numeric" value={advanceForm.amount} onChange={(e) => setAdvanceForm({ ...advanceForm, amount: e.target.value })} /></label>
-                <label className="da-field"><span>Keterangan</span><input value={advanceForm.notes} onChange={(e) => setAdvanceForm({ ...advanceForm, notes: e.target.value })} /></label>
-                <Button type="submit" disabled={saving}>Catat Kasbon</Button>
-              </form>
-
-              <form onSubmit={submitLoan} style={{ padding: 18, border: "1px solid #fed7aa", background: "#fff7ed", borderRadius: 18 }}>
-                <h3 style={{ marginTop: 0 }}>Pinjaman Panjang / Cicilan</h3>
-                <p className="da-muted">Pinjaman baru langsung membuat Wallet OUT dan jadwal cicilan.</p>
-                <label className="da-field"><span>Karyawan</span><select required value={loanForm.employee_id} onChange={(e) => setLoanForm({ ...loanForm, employee_id: e.target.value })}><option value="">Pilih karyawan</option>{employees.filter((row) => row.employment_status === "ACTIVE").map((row) => <option key={row.employee_id} value={row.employee_id}>{row.employee_name}</option>)}</select></label>
-                <label className="da-field"><span>Dompet Pengeluaran</span><select required value={loanForm.wallet_id} onChange={(e) => setLoanForm({ ...loanForm, wallet_id: e.target.value })}><option value="">Pilih dompet lokasi</option>{wallets.filter((row) => !loanForm.employee_id || row.location_id === employees.find((emp) => emp.employee_id === loanForm.employee_id)?.location_id).map((row) => <option key={row.wallet_id} value={row.wallet_id}>{row.wallet_name} · {row.location_code}</option>)}</select></label>
-                <div className="da-form-grid">
-                  <label className="da-field"><span>Tanggal</span><input type="date" value={loanForm.loan_date} onChange={(e) => setLoanForm({ ...loanForm, loan_date: e.target.value })} /></label>
-                  <label className="da-field"><span>Nominal</span><input required inputMode="numeric" value={loanForm.amount} onChange={(e) => setLoanForm({ ...loanForm, amount: e.target.value })} /></label>
-                  <label className="da-field"><span>Tenor</span><input type="number" min="0" max="120" value={loanForm.tenor_total} onChange={(e) => setLoanForm({ ...loanForm, tenor_total: e.target.value })} /></label>
-                  <label className="da-field"><span>Cicilan / Bulan</span><input inputMode="numeric" value={loanForm.installment_amount} onChange={(e) => setLoanForm({ ...loanForm, installment_amount: e.target.value })} placeholder="Kosong = otomatis pembulatan 5.000" /></label>
-                </div>
-                <label className="da-field"><span>Mulai Potong</span><input type="month" value={loanForm.start_period} onChange={(e) => setLoanForm({ ...loanForm, start_period: e.target.value })} /></label>
-                <label className="da-field"><span>Keterangan</span><input value={loanForm.notes} onChange={(e) => setLoanForm({ ...loanForm, notes: e.target.value })} /></label>
-                <Button type="submit" disabled={saving}>Buat Pinjaman</Button>
-              </form>
-            </div>
-            <h3>Kasbon Periode {period}</h3>
-            <DataTable columns={[{ key: "entry_date", label: "Tanggal", render: (row) => formatDate(row.entry_date) }, { key: "employee_name", label: "Karyawan" }, { key: "entry_type", label: "Jenis" }, { key: "amount", label: "Nominal", render: (row) => formatRupiah(numberValue(row.amount)) }, { key: "notes", label: "Catatan" }]} rows={advances} getRowKey={(row) => row.advance_entry_id} />
-            <h3 style={{ marginTop: 22 }}>Pinjaman Berjalan</h3>
-            <DataTable columns={[{ key: "employee_name", label: "Karyawan" }, { key: "loan_date", label: "Tanggal", render: (row) => formatDate(row.loan_date) }, { key: "original_amount", label: "Awal", render: (row) => formatRupiah(numberValue(row.original_amount)) }, { key: "remaining_amount", label: "Sisa", render: (row) => <strong>{formatRupiah(numberValue(row.remaining_amount))}</strong> }, { key: "installment_amount", label: "Cicilan", render: (row) => formatRupiah(numberValue(row.installment_amount)) }, { key: "status", label: "Status", render: (row) => <Badge tone={badgeTone(row.status)}>{row.status}</Badge> }]} rows={loans} getRowKey={(row) => row.loan_id} />
-          </div>
-        ) : null}
-
-        {activeTab === "process" && fullPayrollAccess ? (
-          <PayrollFinalPanel
-            session={session}
-            period={period}
-            locationId={locationId}
-            baseEmployees={employees}
-            mode="process"
-            onSessionExpired={onSessionExpired}
-            onChanged={() => loadData({ quiet: true })}
-          />
-        ) : null}
-
-        {activeTab === "payment" && fullPayrollAccess ? (
-          <PayrollFinalPanel
-            session={session}
-            period={period}
-            locationId={locationId}
-            baseEmployees={employees}
-            mode="payment"
-            onSessionExpired={onSessionExpired}
-            onChanged={() => loadData({ quiet: true })}
-          />
-        ) : null}
-
-        {activeTab === "history" && fullPayrollAccess ? (
-          <div>
-            <NoticeBox tone="success">Riwayat yang diimpor tetap mempertahankan angka historisnya. Pembayaran lama tidak membuat mutasi dompet baru secara otomatis.</NoticeBox>
-            <DataTable columns={payrollColumns} rows={payrollRows} getRowKey={(row) => row.payroll_run_id} onRowClick={(row) => { const employee = employees.find((item) => item.employee_id === row.employee_id); if (employee) { setSelectedEmployee(employee); setDetailTab("payroll"); } }} />
-          </div>
-        ) : null}
-
-        {activeTab === "import" && fullPayrollAccess ? (
-          <div>
-            <div style={{ padding: 20, border: "1px dashed #f59e0b", background: "#fffbeb", borderRadius: 18 }}>
-              <div className="da-eyebrow">Migrasi dari HTML Payroll V32</div>
-              <h3 style={{ margin: "5px 0" }}>Import Backup JSON Resmi</h3>
-              <p className="da-muted">Pilih file Backup_Payroll_Dimsum_Aditya_*.json. Preview tidak menulis data. Import histori tidak membuat mutasi uang lama.</p>
-              <input type="file" accept="application/json,.json" onChange={handleBackupFile} />
-              <div style={{ marginTop: 14, display: "flex", flexWrap: "wrap", gap: 8 }}>
-                <Button variant="secondary" onClick={previewImport} disabled={!backupObject || importing}>{importing ? "Memeriksa…" : "Preview Import"}</Button>
-              </div>
-            </div>
-
-            {importPreview ? (
-              <div style={{ marginTop: 18 }}>
-                <div className="da-stat-grid">
-                  <StatCard label="Karyawan" value={importPreview.summary?.employee_count || 0} helper={`${importPreview.summary?.active_employee_count || 0} aktif.`} />
-                  <StatCard label="Payroll Closing" value={importPreview.summary?.payroll_closed_count || 0} helper={`${importPreview.summary?.payroll_draft_count || 0} draft.`} tone="success" />
-                  <StatCard label="Baris Kasbon" value={importPreview.summary?.advance_entry_count || 0} helper="Histori ledger." tone="warning" />
-                  <StatCard label="Gerakan Pinjaman" value={importPreview.summary?.loan_movement_count || 0} helper="Pencairan dan cicilan." tone="warning" />
-                </div>
-                {asArray(importPreview.warnings).map((warning) => <NoticeBox key={warning}>{warning}</NoticeBox>)}
-                {asArray(importPreview.errors).map((item) => <NoticeBox key={item} tone="danger">{item}</NoticeBox>)}
-                {importPreview.already_imported ? <NoticeBox tone="success">Backup dengan checksum yang sama sudah pernah di-import. Sistem tidak akan menggandakan data.</NoticeBox> : null}
-                {!importPreview.already_imported && importPreview.ready_to_import ? (
-                  <div style={{ marginTop: 18, padding: 18, border: "1px solid #fecaca", borderRadius: 18, background: "#fef2f2" }}>
-                    <strong>Konfirmasi migrasi permanen</strong>
-                    <p className="da-muted">Ketik persis: <code>IMPORT PAYROLL V32</code></p>
-                    <input style={{ width: "100%", padding: 13, border: "1px solid #d1d5db", borderRadius: 12, marginBottom: 12 }} value={importConfirmation} onChange={(e) => setImportConfirmation(e.target.value)} />
-                    <Button onClick={executeImport} disabled={importing || importConfirmation !== "IMPORT PAYROLL V32"}>{importing ? "Mengimport…" : "Import Riwayat"}</Button>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-
-            {importBatches.length ? (
-              <div style={{ marginTop: 24 }}>
-                <h3>Riwayat Import</h3>
-                <DataTable columns={[{ key: "imported_at", label: "Waktu", render: (row) => row.imported_at }, { key: "import_batch_id", label: "Import ID" }, { key: "source_version", label: "Versi" }, { key: "employee_count", label: "Karyawan" }, { key: "payroll_closed_count", label: "Closing" }, { key: "status", label: "Status", render: (row) => <Badge tone="success">{row.status}</Badge> }]} rows={importBatches} getRowKey={(row) => row.import_batch_id} />
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-      </Card>
-
-      <Modal open={Boolean(selectedEmployee)} title={selectedEmployee?.employee_name || "Detail Karyawan"} subtitle={`${selectedEmployee?.location_name || ""} · Tanggal gajian ${selectedEmployee?.payroll_day || "-"}`} onClose={() => setSelectedEmployee(null)}>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
-          {[['overview','Ringkasan'],['attendance','Absensi'],['advance','Kasbon'],['loan','Pinjaman'], ...(fullPayrollAccess ? [['payroll','Payroll']] : [])].map(([key,label]) => <button key={key} type="button" onClick={() => setDetailTab(key)} style={{ border: 0, borderRadius: 999, padding: "9px 12px", cursor: "pointer", fontWeight: 850, background: detailTab === key ? "#fee2e2" : "#f3f4f6", color: detailTab === key ? "#b91c1c" : "#374151" }}>{label}</button>)}
+          </section>
+          <aside className="da-hrd-panel-v3">
+            <div className="da-hrd-panel-head-v3"><div><h3>Kalender {period}</h3><p>Titik merah menandakan ada catatan absensi.</p></div></div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:5,marginBottom:6}}>{["Sen","Sel","Rab","Kam","Jum","Sab","Min"].map((d)=><strong key={d} style={{textAlign:"center",fontSize:8,color:"#98A2B3"}}>{d}</strong>)}</div>
+            <div className="da-hrd-calendar-v3">{calendarDays.map((d)=><div key={d.key} className={`da-hrd-calendar-day-v3 ${d.outside ? "is-outside" : ""} ${d.count ? "has-data" : ""}`}><span>{d.day}</span>{d.count ? <i className="da-hrd-calendar-dot-v3" title={`${d.count} catatan`} /> : null}</div>)}</div>
+            <NoticeBox>Absensi tersimpan sebagai sumber payroll. Status tidak otomatis memotong gaji kecuali field potong gaji diaktifkan sesuai keputusan operasional.</NoticeBox>
+          </aside>
         </div>
-        {detailTab === "overview" ? <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12 }}><div><span className="da-muted">Employee ID</span><strong style={{ display: "block" }}>{selectedEmployee?.employee_id}</strong></div><div><span className="da-muted">Status</span><strong style={{ display: "block" }}>{selectedEmployee?.employment_status}</strong></div><div><span className="da-muted">Gaji</span><strong style={{ display: "block" }}>{fullPayrollAccess ? formatRupiah(selectedEmployee?.base_salary || 0) : "Terkunci"}</strong></div><div><span className="da-muted">Sisa Kasbon</span><strong style={{ display: "block", color: "#dc2626" }}>{formatRupiah(selectedEmployee?.advance_balance || 0)}</strong></div><div><span className="da-muted">Sisa Pinjaman</span><strong style={{ display: "block", color: "#dc2626" }}>{formatRupiah(selectedEmployee?.loan_balance || 0)}</strong></div></div> : null}
+      </> : null}
+
+      {viewMode === "loans" ? <>
+        <div className="da-stat-grid">
+          <StatCard label="Sisa Kasbon" value={formatRupiah(summary.open_advance_amount || 0)} helper={`${advances.length} gerakan ledger.`} tone="warning" />
+          <StatCard label="Sisa Pinjaman" value={formatRupiah(summary.open_loan_amount || 0)} helper={`${loans.length} pinjaman tercatat.`} tone="warning" />
+          <StatCard label="Karyawan Aktif" value={activeEmployees.length} helper="Basis limit kasbon." />
+          <StatCard label="Dompet Tersedia" value={wallets.length} helper="Sumber pencairan sesuai lokasi." />
+        </div>
+        <div className="da-hrd-split-list-v3">
+          <section className="da-hrd-panel-v3"><div className="da-hrd-panel-head-v3"><div><h3>Kasbon Bulanan</h3><p>Kasbon baru membuat Wallet OUT dan piutang karyawan.</p></div><Button onClick={() => setAdvanceModalOpen(true)}>+ Kasbon</Button></div><DataTable columns={[{ key: "entry_date", label: "Tanggal", render: (row) => formatDate(row.entry_date) }, { key: "employee_name", label: "Karyawan" }, { key: "amount", label: "Nominal", render: (row) => formatRupiah(numberValue(row.amount)) }, { key: "notes", label: "Catatan" }]} rows={advances} getRowKey={(row) => row.advance_entry_id} /></section>
+          <section className="da-hrd-panel-v3"><div className="da-hrd-panel-head-v3"><div><h3>Pinjaman & Cicilan</h3><p>Saldo berjalan dan cicilan wajib per periode.</p></div><Button onClick={() => setLoanModalOpen(true)}>+ Pinjaman</Button></div><DataTable columns={[{ key: "employee_name", label: "Karyawan" }, { key: "original_amount", label: "Awal", render: (row) => formatRupiah(numberValue(row.original_amount)) }, { key: "remaining_amount", label: "Sisa", render: (row) => <strong>{formatRupiah(numberValue(row.remaining_amount))}</strong> }, { key: "status", label: "Status", render: (row) => <Badge tone={badgeTone(row.status)}>{row.status}</Badge> }]} rows={loans} getRowKey={(row) => row.loan_id} /></section>
+        </div>
+      </> : null}
+
+      {viewMode === "payroll" && fullPayrollAccess ? <>
+        <Card className="da-full-width">
+          <div className="da-hrd-panel-head-v3"><div><h3>Workspace Payroll</h3><p>Proses THP/slip dan pembayaran dipisah agar alurnya tidak menumpuk dalam satu halaman.</p></div><div style={{display:"flex",gap:7}}><Button variant={payrollSubMode === "process" ? "primary" : "secondary"} onClick={() => setPayrollSubMode("process")}>Proses & Slip</Button><Button variant={payrollSubMode === "payment" ? "primary" : "secondary"} onClick={() => setPayrollSubMode("payment")}>Pembayaran Gaji</Button></div></div>
+          <PayrollFinalPanel session={session} period={period} locationId={locationId} baseEmployees={employees} mode={payrollSubMode} onSessionExpired={onSessionExpired} onChanged={() => loadData({ quiet: true })} />
+        </Card>
+      </> : null}
+
+      {viewMode === "report" && fullPayrollAccess ? <>
+        <div className="da-stat-grid">
+          <StatCard label="Closing" value={summary.payroll_closed_count || 0} helper={`Periode ${period}.`} tone="success" />
+          <StatCard label="Draft" value={summary.payroll_draft_count || 0} helper="Belum dikunci." tone="warning" />
+          <StatCard label="Total THP" value={formatRupiah(summary.payroll_total_net_pay || 0)} helper="Rekap histori periode." tone="success" />
+          <StatCard label="Import Histori" value={importBatches.length} helper="Batch migrasi V32 tercatat." />
+        </div>
+        <Card className="da-full-width" title="Rekap & Histori Payroll" description="Klik baris untuk membuka profil payroll karyawan. Cetak A4 tersedia pada pusat rekap." action={<Button variant="secondary" onClick={() => setImportModalOpen(true)}>Import V32</Button>}>
+          <PayrollFinalPanel session={session} period={period} locationId={locationId} baseEmployees={employees} mode="report" onSessionExpired={onSessionExpired} onChanged={() => loadData({ quiet: true })} />
+        </Card>
+      </> : null}
+
+      <Modal open={employeeModalOpen} title="Tambah Karyawan" subtitle="Master HRD Dimsum Aditya" onClose={() => setEmployeeModalOpen(false)} size="xl">
+        <form onSubmit={async (event) => { if (await submitEmployee(event)) setEmployeeModalOpen(false); }} className="da-hrd-modal-form-v3">
+          <div className="da-form-grid">
+            <label className="da-field"><span>Nama Lengkap</span><input required value={employeeForm.employee_name} onChange={(e) => setEmployeeForm({ ...employeeForm, employee_name: e.target.value })} /></label>
+            <label className="da-field"><span>Lokasi</span><select value={employeeForm.location_id} onChange={(e) => setEmployeeForm({ ...employeeForm, location_id: e.target.value })}>{locations.map((row) => <option key={row.location_id} value={row.location_id}>{row.location_name}</option>)}</select></label>
+            <label className="da-field"><span>Jabatan</span><input value={employeeForm.position_name} onChange={(e) => setEmployeeForm({ ...employeeForm, position_name: e.target.value })} /></label>
+            <label className="da-field"><span>Tanggal Gajian</span><input type="number" min="1" max="31" value={employeeForm.payroll_day} onChange={(e) => setEmployeeForm({ ...employeeForm, payroll_day: e.target.value })} /></label>
+            <label className="da-field"><span>Mode Gaji</span><select value={employeeForm.salary_mode} onChange={(e) => setEmployeeForm({ ...employeeForm, salary_mode: e.target.value })}><option value="BULANAN">Bulanan</option><option value="HARIAN">Harian</option></select></label>
+            <label className="da-field"><span>Gaji Pokok</span><input inputMode="numeric" value={employeeForm.base_salary} onChange={(e) => setEmployeeForm({ ...employeeForm, base_salary: e.target.value })} /></label>
+            <label className="da-field"><span>Gaji Harian</span><input inputMode="numeric" value={employeeForm.daily_salary} onChange={(e) => setEmployeeForm({ ...employeeForm, daily_salary: e.target.value })} /></label>
+            <label className="da-field"><span>Tunjangan Tetap</span><input inputMode="numeric" value={employeeForm.fixed_allowance} onChange={(e) => setEmployeeForm({ ...employeeForm, fixed_allowance: e.target.value })} /></label>
+          </div><div className="da-form-actions"><Button type="submit" disabled={saving}>Simpan Karyawan</Button></div>
+        </form>
+      </Modal>
+
+      <Modal open={attendanceModalOpen} title="Catat Absensi / Izin" subtitle={`Periode ${period}`} onClose={() => setAttendanceModalOpen(false)}>
+        <form onSubmit={async (event) => { if (await submitAttendance(event)) setAttendanceModalOpen(false); }} className="da-hrd-modal-form-v3">
+          <div className="da-form-grid">
+            <label className="da-field"><span>Karyawan</span><select required value={attendanceForm.employee_id} onChange={(e) => setAttendanceForm({ ...attendanceForm, employee_id: e.target.value })}><option value="">Pilih karyawan</option>{activeEmployees.map((row) => <option key={row.employee_id} value={row.employee_id}>{row.employee_name} · {row.location_code}</option>)}</select></label>
+            <label className="da-field"><span>Tanggal</span><input type="date" value={attendanceForm.attendance_date} onChange={(e) => setAttendanceForm({ ...attendanceForm, attendance_date: e.target.value })} /></label>
+            <label className="da-field"><span>Status</span><select value={attendanceForm.attendance_type} onChange={(e) => setAttendanceForm({ ...attendanceForm, attendance_type: e.target.value, deduct_salary: e.target.value === "TIDAK_MASUK" })}><option value="HADIR">Hadir</option><option value="IZIN">Izin</option><option value="SAKIT">Sakit</option><option value="TIDAK_MASUK">Tidak Masuk</option><option value="CUTI">Cuti</option><option value="DINAS">Dinas</option><option value="SETENGAH_HARI">Setengah Hari</option><option value="LIBUR">Libur</option><option value="LEMBUR">Lembur</option></select></label>
+            <label className="da-field"><span>Nilai Hari</span><input type="number" step="0.5" min="0" max="1" value={attendanceForm.day_fraction} onChange={(e) => setAttendanceForm({ ...attendanceForm, day_fraction: e.target.value })} /></label>
+            <label className="da-field"><span>Uang Lembur</span><input inputMode="numeric" value={attendanceForm.overtime_amount} onChange={(e) => setAttendanceForm({ ...attendanceForm, overtime_amount: e.target.value })} /></label>
+            <label className="da-field"><span>Catatan</span><input value={attendanceForm.notes} onChange={(e) => setAttendanceForm({ ...attendanceForm, notes: e.target.value })} /></label>
+          </div><label style={{display:"flex",alignItems:"center",gap:8,fontWeight:800}}><input type="checkbox" checked={attendanceForm.deduct_salary} onChange={(e) => setAttendanceForm({ ...attendanceForm, deduct_salary: e.target.checked })} /> Dihitung sebagai hari potong gaji</label><div className="da-form-actions"><Button type="submit" disabled={saving}>Simpan Absensi</Button></div>
+        </form>
+      </Modal>
+
+      <Modal open={advanceModalOpen} title="Kasbon Karyawan" subtitle="Wallet OUT + Piutang Kasbon" onClose={() => setAdvanceModalOpen(false)}>
+        <form onSubmit={async (event) => { if (await submitAdvance(event)) setAdvanceModalOpen(false); }} className="da-hrd-modal-form-v3">
+          <label className="da-field"><span>Karyawan</span><select required value={advanceForm.employee_id} onChange={(e) => setAdvanceForm({ ...advanceForm, employee_id: e.target.value })}><option value="">Pilih karyawan</option>{activeEmployees.map((row) => <option key={row.employee_id} value={row.employee_id}>{row.employee_name}</option>)}</select></label>
+          <label className="da-field"><span>Dompet Pengeluaran</span><select required value={advanceForm.wallet_id} onChange={(e) => setAdvanceForm({ ...advanceForm, wallet_id: e.target.value })}><option value="">Pilih dompet lokasi</option>{wallets.filter((row) => !advanceForm.employee_id || row.location_id === employees.find((emp) => emp.employee_id === advanceForm.employee_id)?.location_id).map((row) => <option key={row.wallet_id} value={row.wallet_id}>{row.wallet_name} · {row.location_code} · {formatRupiah(row.current_balance || 0)}</option>)}</select></label>
+          <div className="da-form-grid"><label className="da-field"><span>Tanggal</span><input type="date" value={advanceForm.date} onChange={(e) => setAdvanceForm({ ...advanceForm, date: e.target.value })} /></label><label className="da-field"><span>Nominal</span><input required inputMode="numeric" value={advanceForm.amount} onChange={(e) => setAdvanceForm({ ...advanceForm, amount: e.target.value })} /></label></div>
+          <label className="da-field"><span>Keterangan</span><input value={advanceForm.notes} onChange={(e) => setAdvanceForm({ ...advanceForm, notes: e.target.value })} /></label><div className="da-form-actions"><Button type="submit" disabled={saving}>Catat Kasbon</Button></div>
+        </form>
+      </Modal>
+
+      <Modal open={loanModalOpen} title="Pinjaman / Cicilan Karyawan" subtitle="Wallet OUT + Jadwal Cicilan" onClose={() => setLoanModalOpen(false)} size="xl">
+        <form onSubmit={async (event) => { if (await submitLoan(event)) setLoanModalOpen(false); }} className="da-hrd-modal-form-v3">
+          <div className="da-form-grid">
+            <label className="da-field"><span>Karyawan</span><select required value={loanForm.employee_id} onChange={(e) => setLoanForm({ ...loanForm, employee_id: e.target.value })}><option value="">Pilih karyawan</option>{activeEmployees.map((row) => <option key={row.employee_id} value={row.employee_id}>{row.employee_name}</option>)}</select></label>
+            <label className="da-field"><span>Dompet Pengeluaran</span><select required value={loanForm.wallet_id} onChange={(e) => setLoanForm({ ...loanForm, wallet_id: e.target.value })}><option value="">Pilih dompet lokasi</option>{wallets.filter((row) => !loanForm.employee_id || row.location_id === employees.find((emp) => emp.employee_id === loanForm.employee_id)?.location_id).map((row) => <option key={row.wallet_id} value={row.wallet_id}>{row.wallet_name} · {row.location_code}</option>)}</select></label>
+            <label className="da-field"><span>Tanggal</span><input type="date" value={loanForm.loan_date} onChange={(e) => setLoanForm({ ...loanForm, loan_date: e.target.value })} /></label>
+            <label className="da-field"><span>Nominal</span><input required inputMode="numeric" value={loanForm.amount} onChange={(e) => setLoanForm({ ...loanForm, amount: e.target.value })} /></label>
+            <label className="da-field"><span>Tenor</span><input type="number" min="0" max="120" value={loanForm.tenor_total} onChange={(e) => setLoanForm({ ...loanForm, tenor_total: e.target.value })} /></label>
+            <label className="da-field"><span>Cicilan / Bulan</span><input inputMode="numeric" value={loanForm.installment_amount} onChange={(e) => setLoanForm({ ...loanForm, installment_amount: e.target.value })} /></label>
+            <label className="da-field"><span>Mulai Potong</span><input type="month" value={loanForm.start_period} onChange={(e) => setLoanForm({ ...loanForm, start_period: e.target.value })} /></label>
+            <label className="da-field"><span>Keterangan</span><input value={loanForm.notes} onChange={(e) => setLoanForm({ ...loanForm, notes: e.target.value })} /></label>
+          </div><div className="da-form-actions"><Button type="submit" disabled={saving}>Buat Pinjaman</Button></div>
+        </form>
+      </Modal>
+
+      <Modal open={importModalOpen} title="Import Backup Payroll V32" subtitle="Admin tool — histori tidak membuat mutasi uang baru" onClose={() => setImportModalOpen(false)} size="xl">
+        <div className="da-hrd-modal-form-v3"><input type="file" accept="application/json,.json" onChange={handleBackupFile} /><Button variant="secondary" onClick={previewImport} disabled={!backupObject || importing}>{importing ? "Memeriksa…" : "Preview Import"}</Button>{importPreview ? <><div className="da-stat-grid"><StatCard label="Karyawan" value={importPreview.summary?.employee_count || 0} /><StatCard label="Payroll Closing" value={importPreview.summary?.payroll_closed_count || 0} tone="success" /><StatCard label="Baris Kasbon" value={importPreview.summary?.advance_entry_count || 0} tone="warning" /><StatCard label="Gerakan Pinjaman" value={importPreview.summary?.loan_movement_count || 0} tone="warning" /></div>{asArray(importPreview.warnings).map((warning) => <NoticeBox key={warning}>{warning}</NoticeBox>)}{asArray(importPreview.errors).map((item) => <NoticeBox key={item} tone="danger">{item}</NoticeBox>)}{!importPreview.already_imported && importPreview.ready_to_import ? <><label className="da-field"><span>Ketik persis: IMPORT PAYROLL V32</span><input value={importConfirmation} onChange={(e) => setImportConfirmation(e.target.value)} /></label><Button onClick={executeImport} disabled={importing || importConfirmation !== "IMPORT PAYROLL V32"}>Import Riwayat</Button></> : null}</> : null}</div>
+      </Modal>
+
+      <Modal open={Boolean(selectedEmployee)} title={selectedEmployee?.employee_name || "Detail Karyawan"} subtitle={`${selectedEmployee?.location_name || ""} · Tanggal gajian ${selectedEmployee?.payroll_day || "-"}`} onClose={() => setSelectedEmployee(null)} size="xl">
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+          {[["overview","Ringkasan"],["attendance","Absensi"],["advance","Kasbon"],["loan","Pinjaman"], ...(fullPayrollAccess ? [["payroll","Payroll"]] : [])].map(([key,label]) => <button key={key} type="button" onClick={() => setDetailTab(key)} style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: "8px 11px", cursor: "pointer", fontWeight: 850, background: detailTab === key ? "#fef2f2" : "#fff", color: detailTab === key ? "#b91c1c" : "#374151" }}>{label}</button>)}
+        </div>
+        {detailTab === "overview" ? <div className="da-detail-grid"><div className="da-detail-box"><span className="da-muted">Employee ID</span><strong style={{display:"block"}}>{selectedEmployee?.employee_id}</strong></div><div className="da-detail-box"><span className="da-muted">Status</span><strong style={{display:"block"}}>{selectedEmployee?.employment_status}</strong></div><div className="da-detail-box"><span className="da-muted">Gaji</span><strong style={{display:"block"}}>{fullPayrollAccess ? formatRupiah(selectedEmployee?.base_salary || 0) : "Terkunci"}</strong></div><div className="da-detail-box"><span className="da-muted">Sisa Kasbon</span><strong style={{display:"block",color:"#dc2626"}}>{formatRupiah(selectedEmployee?.advance_balance || 0)}</strong></div><div className="da-detail-box"><span className="da-muted">Sisa Pinjaman</span><strong style={{display:"block",color:"#dc2626"}}>{formatRupiah(selectedEmployee?.loan_balance || 0)}</strong></div></div> : null}
         {detailTab === "attendance" ? <DataTable columns={attendanceColumns} rows={selectedAttendance} getRowKey={(row) => row.attendance_id} /> : null}
         {detailTab === "advance" ? <DataTable columns={[{ key: "entry_date", label: "Tanggal", render: (row) => formatDate(row.entry_date) }, { key: "entry_type", label: "Jenis" }, { key: "amount", label: "Nominal", render: (row) => formatRupiah(numberValue(row.amount)) }, { key: "notes", label: "Catatan" }]} rows={selectedAdvances} getRowKey={(row) => row.advance_entry_id} /> : null}
         {detailTab === "loan" ? <DataTable columns={[{ key: "loan_date", label: "Tanggal", render: (row) => formatDate(row.loan_date) }, { key: "original_amount", label: "Awal", render: (row) => formatRupiah(numberValue(row.original_amount)) }, { key: "remaining_amount", label: "Sisa", render: (row) => formatRupiah(numberValue(row.remaining_amount)) }, { key: "installment_amount", label: "Cicilan", render: (row) => formatRupiah(numberValue(row.installment_amount)) }]} rows={selectedLoans} getRowKey={(row) => row.loan_id} /> : null}
