@@ -14,6 +14,7 @@ import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
 import DataTable from "../../components/ui/DataTable";
 import StatCard from "../../components/ui/StatCard";
+import Modal from "../../components/ui/Modal";
 import {
   printPayrollPaymentReceiptV32,
   printPayrollRecapA4V32,
@@ -82,6 +83,8 @@ export default function PayrollFinalPanel({
   const [preview, setPreview] = useState(null);
   const [paymentForm, setPaymentForm] = useState({ payroll_run_id: "", wallet_id: "", payment_date: today(), payment_method: "TRANSFER", reference_no: "", notes: "Pembayaran gaji." });
   const [reopenReason, setReopenReason] = useState("");
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [paymentOpen, setPaymentOpen] = useState(false);
 
   const employees = useMemo(() => {
     const source = arr(data?.employees).length ? arr(data?.employees) : baseEmployees;
@@ -273,8 +276,8 @@ export default function PayrollFinalPanel({
   }
 
   async function payPayroll() {
-    if (!paymentForm.payroll_run_id || !paymentForm.wallet_id) return setError("Pilih payroll dan dompet pembayaran.");
-    if (!window.confirm(`Bayar gaji ${selectedPaymentRun?.employee_name_snapshot || "karyawan"} sebesar ${formatRupiah(num(selectedPaymentRun?.net_pay))}?`)) return;
+    if (!paymentForm.payroll_run_id || !paymentForm.wallet_id) { setError("Pilih payroll dan dompet pembayaran."); return false; }
+    if (!window.confirm(`Bayar gaji ${selectedPaymentRun?.employee_name_snapshot || "karyawan"} sebesar ${formatRupiah(num(selectedPaymentRun?.net_pay))}?`)) return false;
     setSaving(true); setError(""); setNotice("");
     try {
       const result = await createHRDPayrollPayment(token, {
@@ -282,13 +285,14 @@ export default function PayrollFinalPanel({
         operation_id: operationId("PAYPAY"),
         idempotency_key: operationId("IDEMP"),
       });
-      if (authRequired(result)) return onSessionExpired?.();
+      if (authRequired(result)) { onSessionExpired?.(); return false; }
       if (!result?.success) throw new Error(result?.message || "Pembayaran gagal.");
       setNotice(result.message || "Gaji berhasil dibayar.");
       setPaymentForm((old) => ({ ...old, payroll_run_id: "", reference_no: "" }));
       await load({ quiet: true });
       await onChanged?.();
-    } catch (err) { setError(err?.message || "Pembayaran gagal."); }
+      return true;
+    } catch (err) { setError(err?.message || "Pembayaran gagal."); return false; }
     finally { setSaving(false); }
   }
 
@@ -305,17 +309,24 @@ export default function PayrollFinalPanel({
 
   if (loading) return <div className="da-muted">Memuat Payroll Final…</div>;
 
-  return (
-    <div style={{ marginTop: 14 }}>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 12 }}>
-        <Badge tone={health.ready ? "success" : "danger"}>{health.ready ? "Payroll Final Live Ready" : "Migration 022 Belum Siap"}</Badge>
-        <Badge tone="success">Server Calculation</Badge>
-        <Badge tone="warning">Print Tidak Potong Ledger</Badge>
-        <Button variant="secondary" onClick={() => load()} disabled={saving}>Refresh Payroll Final</Button>
-      </div>
-      {error ? <div className="da-alert da-alert--danger">{error}</div> : null}
-      {notice ? <div className="da-alert da-alert--success">{notice}</div> : null}
+  const paymentColumns = [
+    { key: "payment_date", label: "Tanggal" },
+    { key: "payment_id", label: "Payment ID" },
+    { key: "employee_name_snapshot", label: "Karyawan" },
+    { key: "wallet_name", label: "Dompet" },
+    { key: "amount", label: "Nominal", render: (row) => <strong>{formatRupiah(num(row.amount))}</strong> },
+    { key: "status", label: "Status", render: (row) => <Badge tone="success">{row.status}</Badge> },
+    { key: "print", label: "Cetak", render: (row) => <button type="button" onClick={(event) => { event.stopPropagation(); printPayrollPaymentReceiptV32(row); }}>Bukti</button> },
+  ];
 
+  const openEditor = (row = null) => {
+    if (row) selectEmployee(row.employee_id, row);
+    else resetForm();
+    setEditorOpen(true);
+  };
+
+  return (
+    <div className="da-payroll-final-v3">
       <div className="da-stat-grid">
         <StatCard label="Draft" value={summary.draft_count || 0} helper={formatRupiah(num(summary.draft_net_pay))} />
         <StatCard label="Closed Belum Dibayar" value={summary.closed_unpaid_count || 0} helper={formatRupiah(num(summary.closed_unpaid_amount))} tone="warning" />
@@ -323,67 +334,96 @@ export default function PayrollFinalPanel({
         <StatCard label="Histori Bayar Tidak Diketahui" value={summary.legacy_unknown_count || 0} helper="Tidak dibuat Wallet OUT ulang." />
       </div>
 
+      {error ? <div className="da-alert da-alert--danger" style={{marginTop:12}}>{error}</div> : null}
+      {notice ? <div className="da-alert da-alert--success" style={{marginTop:12}}>{notice}</div> : null}
+
       {mode === "process" ? (
-        <>
-          <div style={{ marginTop: 18, border: "1px solid #e5e7eb", borderRadius: 18, padding: 18 }}>
-            <div className="da-eyebrow">Payroll V32 — Backend Resmi</div>
-            <h3 style={{ margin: "4px 0" }}>Draft, Cek THP, Cetak dan Closing</h3>
-            <p className="da-muted">Potongan absen dan cicilan dibulatkan ke Rp5.000. Gaji bulanan memakai pembagi 26. Gaji harian memakai tarif × hari dibayar.</p>
-            <div className="da-form-grid da-form-grid--2">
-              <label className="da-field"><span>Karyawan</span><select value={form.employee_id} onChange={(e) => selectEmployee(e.target.value)}><option value="">Pilih karyawan</option>{employees.map((employee) => <option key={employee.employee_id} value={employee.employee_id}>{employee.employee_name} · {employee.location_code}</option>)}</select></label>
-              <label className="da-field"><span>Payroll ID</span><input value={form.payroll_run_id || "Belum disimpan"} readOnly /></label>
-              <label className="da-field"><span>Bonus / Insentif</span><input inputMode="numeric" value={form.bonus_amount} onChange={(e) => setForm({ ...form, bonus_amount: e.target.value })} /></label>
-              <label className="da-field"><span>Uang Lembur</span><input inputMode="numeric" value={form.overtime_amount} onChange={(e) => setForm({ ...form, overtime_amount: e.target.value })} placeholder="Kosong = tarik absensi" /></label>
-              <label className="da-field"><span>Hari Absen</span><input type="number" min="0" step="0.5" value={form.absence_days} onChange={(e) => setForm({ ...form, absence_days: e.target.value })} placeholder="Kosong = tarik absensi" /></label>
-              <label className="da-field"><span>Potongan Cicilan</span><input inputMode="numeric" value={form.loan_deduction} onChange={(e) => setForm({ ...form, loan_deduction: e.target.value })} placeholder="Kosong = cicilan wajib otomatis" /></label>
-              <label className="da-field"><span>Potongan Lain</span><input inputMode="numeric" value={form.extra_deduction} onChange={(e) => setForm({ ...form, extra_deduction: e.target.value })} /></label>
-              {String(selectedEmployee?.salary_mode || "").toUpperCase() === "HARIAN" ? <label className="da-field"><span>Hari Dibayar</span><input type="number" min="0" step="0.5" value={form.work_days} onChange={(e) => setForm({ ...form, work_days: e.target.value })} /></label> : null}
-              {String(selectedEmployee?.pay_cycle || "").toUpperCase() === "MINGGUAN" ? <><label className="da-field"><span>Minggu Ke</span><select value={form.week_no} onChange={(e) => setForm({ ...form, week_no: e.target.value })}>{[1,2,3,4,5].map((week) => <option key={week} value={week}>Minggu {week}</option>)}</select></label><label className="da-field"><span>Rentang Minggu</span><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}><input type="date" value={form.week_start} onChange={(e) => setForm({ ...form, week_start: e.target.value })} /><input type="date" value={form.week_end} onChange={(e) => setForm({ ...form, week_end: e.target.value })} /></div></label><label className="da-field"><span>Potongan Bulanan</span><label style={{ display: "flex", gap: 8, alignItems: "center" }}><input type="checkbox" checked={form.final_week} onChange={(e) => setForm({ ...form, final_week: e.target.checked })} /> Minggu terakhir—potong kasbon/cicilan</label></label></> : null}
+        <section className="da-hrd-panel-v3" style={{marginTop:14}}>
+          <div className="da-hrd-panel-head-v3">
+            <div><h3>Payroll Periode {period}</h3><p>Klik karyawan untuk membuka workspace THP dan slip dalam popup.</p></div>
+            <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+              <Button variant="secondary" onClick={printRecap}>Cetak Rekap A4</Button>
+              <Button onClick={() => openEditor()}>+ Proses Payroll</Button>
             </div>
-            <label className="da-field"><span>Catatan Slip</span><input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></label>
-
-            <div style={{ marginTop: 14, border: "1px solid #fecaca", borderRadius: 14, padding: 14, background: "#fff7f7" }}>
-              <label style={{ display: "flex", gap: 8, alignItems: "center", fontWeight: 850 }}><input type="checkbox" checked={form.absence_notice_enabled} onChange={(e) => setForm({ ...form, absence_notice_enabled: e.target.checked })} /> Buat surat pemberitahuan potongan absen</label>
-              {form.absence_notice_enabled ? <div className="da-form-grid da-form-grid--2" style={{ marginTop: 10 }}><label className="da-field"><span>Jenis Surat</span><select value={form.absence_notice_type} onChange={(e) => setForm({ ...form, absence_notice_type: e.target.value })}><option>PEMBERITAHUAN</option><option>TEGURAN TERTULIS / SP-1</option></select></label><label className="da-field"><span>Tanggal Surat</span><input type="date" value={form.absence_notice_date} onChange={(e) => setForm({ ...form, absence_notice_date: e.target.value })} /></label><label className="da-field"><span>Nomor Surat</span><input value={form.absence_notice_no} onChange={(e) => setForm({ ...form, absence_notice_no: e.target.value })} /></label><label className="da-field"><span>Tanggal Tidak Masuk</span><input value={form.absence_dates} onChange={(e) => setForm({ ...form, absence_dates: e.target.value })} placeholder="Contoh: 3, 5, 8 Juli 2026" /></label><label className="da-field"><span>Rincian</span><input value={form.absence_detail} onChange={(e) => setForm({ ...form, absence_detail: e.target.value })} /></label><label className="da-field"><span>Catatan Karyawan</span><input value={form.absence_employee_note} onChange={(e) => setForm({ ...form, absence_employee_note: e.target.value })} /></label></div> : null}
-            </div>
-
-            {preview ? <div style={{ marginTop: 15, padding: 15, borderRadius: 16, background: "#fffaf0", border: "1px solid #fbbf24" }}><div className="da-stat-grid"><StatCard label="Total Penghasilan" value={formatRupiah(num(preview.total_income))} /><StatCard label="Kasbon" value={formatRupiah(num(preview.advance_deduction))} tone="warning" /><StatCard label="Cicilan" value={formatRupiah(num(preview.loan_deduction))} tone="warning" /><StatCard label="Take Home Pay" value={formatRupiah(num(preview.net_pay))} tone={num(preview.net_pay) < 0 ? "danger" : "success"} /></div></div> : null}
-
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
-              <Button variant="secondary" onClick={previewServer} disabled={saving || !form.employee_id}>Cek THP Backend</Button>
-              <Button onClick={saveDraft} disabled={saving || !form.employee_id}>Simpan Draft</Button>
-              <Button variant="secondary" onClick={() => printSlip()} disabled={!preview}>Cetak Slip A5</Button>
-              <Button onClick={closePayroll} disabled={saving || !form.payroll_run_id || String(selectedRun?.status).toUpperCase() === "CLOSED"}>Closing Payroll</Button>
-              <Button variant="secondary" onClick={resetForm}>Reset</Button>
-            </div>
-            {String(selectedRun?.status).toUpperCase() === "CLOSED" && String(selectedRun?.payment_status).toUpperCase() !== "PAID" && !selectedRun?.legacy_payment_locked ? <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}><input value={reopenReason} onChange={(e) => setReopenReason(e.target.value)} placeholder="Alasan buka revisi closing" /><Button variant="secondary" onClick={reopenPayrollRun} disabled={saving}>Buka Revisi</Button></div> : null}
           </div>
-
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 20 }}><h3>Payroll Periode {period}</h3><Button variant="secondary" onClick={printRecap}>Cetak Rekap A4</Button></div>
-          <DataTable columns={processColumns} rows={rows} getRowKey={(row) => row.payroll_run_id} onRowClick={(row) => selectEmployee(row.employee_id, row)} />
-        </>
+          <DataTable columns={processColumns} rows={rows} getRowKey={(row) => row.payroll_run_id} onRowClick={(row) => openEditor(row)} />
+        </section>
       ) : null}
 
       {mode === "payment" ? (
-        <>
-          <div style={{ marginTop: 18, border: "1px solid #e5e7eb", borderRadius: 18, padding: 18 }}>
-            <div className="da-eyebrow">Pembayaran Gaji Terpusat</div><h3 style={{ margin: "4px 0" }}>Closing → Wallet OUT Tangerang → Lunas</h3>
-            <p className="da-muted">Histori V32 dengan status bayar tidak diketahui dikunci agar tidak dibayar dua kali.</p>
-            <div className="da-form-grid da-form-grid--2">
-              <label className="da-field"><span>Payroll Closed Belum Dibayar</span><select value={paymentForm.payroll_run_id} onChange={(e) => setPaymentForm({ ...paymentForm, payroll_run_id: e.target.value })}><option value="">Pilih payroll</option>{rows.filter((row) => String(row.status).toUpperCase() === "CLOSED" && String(row.payment_status).toUpperCase() === "UNPAID" && !row.legacy_payment_locked).map((row) => <option key={row.payroll_run_id} value={row.payroll_run_id}>{row.employee_name_snapshot} · {formatRupiah(num(row.net_pay))}</option>)}</select></label>
-              <label className="da-field"><span>Dompet Tangerang</span><select value={paymentForm.wallet_id} onChange={(e) => setPaymentForm({ ...paymentForm, wallet_id: e.target.value })}><option value="">Pilih dompet</option>{wallets.map((wallet) => <option key={wallet.wallet_id} value={wallet.wallet_id}>{wallet.wallet_name} · saldo {formatRupiah(num(wallet.current_balance))}</option>)}</select></label>
-              <label className="da-field"><span>Tanggal Bayar</span><input type="date" value={paymentForm.payment_date} onChange={(e) => setPaymentForm({ ...paymentForm, payment_date: e.target.value })} /></label>
-              <label className="da-field"><span>Metode</span><select value={paymentForm.payment_method} onChange={(e) => setPaymentForm({ ...paymentForm, payment_method: e.target.value })}><option>TRANSFER</option><option>CASH</option></select></label>
-              <label className="da-field"><span>Referensi</span><input value={paymentForm.reference_no} onChange={(e) => setPaymentForm({ ...paymentForm, reference_no: e.target.value })} placeholder="Nomor transfer / catatan cash" /></label>
-              <label className="da-field"><span>Catatan</span><input value={paymentForm.notes} onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })} /></label>
-            </div>
-            {selectedPaymentRun ? <div style={{ marginTop: 12, padding: 14, background: "#ecfdf5", border: "1px solid #a7f3d0", borderRadius: 14 }}><strong>{selectedPaymentRun.employee_name_snapshot}</strong><div>THP dibayar: <b>{formatRupiah(num(selectedPaymentRun.net_pay))}</b></div></div> : null}
-            <Button onClick={payPayroll} disabled={saving || !paymentForm.payroll_run_id || !paymentForm.wallet_id} style={{ marginTop: 14 }}>Bayar Gaji</Button>
+        <section className="da-hrd-panel-v3" style={{marginTop:14}}>
+          <div className="da-hrd-panel-head-v3">
+            <div><h3>Pembayaran Gaji</h3><p>Closing payroll → Wallet OUT Tangerang → status lunas.</p></div>
+            <Button onClick={() => setPaymentOpen(true)}>+ Bayar Gaji</Button>
           </div>
-          <h3 style={{ marginTop: 22 }}>Riwayat Pembayaran</h3>
-          <DataTable columns={[{ key: "payment_date", label: "Tanggal" }, { key: "payment_id", label: "Payment ID" }, { key: "employee_name_snapshot", label: "Karyawan" }, { key: "wallet_name", label: "Dompet" }, { key: "amount", label: "Nominal", render: (row) => <strong>{formatRupiah(num(row.amount))}</strong> }, { key: "status", label: "Status", render: (row) => <Badge tone="success">{row.status}</Badge> }, { key: "print", label: "Cetak", render: (row) => <button type="button" onClick={(event) => { event.stopPropagation(); printPayrollPaymentReceiptV32(row); }}>Bukti</button> }]} rows={payments} getRowKey={(row) => row.payment_id} />
-        </>
+          <DataTable columns={paymentColumns} rows={payments} getRowKey={(row) => row.payment_id} />
+        </section>
       ) : null}
+
+      {mode === "report" ? (
+        <div className="da-hrd-split-list-v3" style={{marginTop:14}}>
+          <section className="da-hrd-panel-v3">
+            <div className="da-hrd-panel-head-v3"><div><h3>Status Payroll</h3><p>Draft, closing dan status pembayaran periode {period}.</p></div><Button variant="secondary" onClick={printRecap}>Cetak A4</Button></div>
+            <DataTable columns={processColumns} rows={rows} getRowKey={(row) => row.payroll_run_id} onRowClick={(row) => openEditor(row)} />
+          </section>
+          <section className="da-hrd-panel-v3">
+            <div className="da-hrd-panel-head-v3"><div><h3>Riwayat Pembayaran</h3><p>Bukti pembayaran payroll yang sudah memotong dompet.</p></div></div>
+            <DataTable columns={paymentColumns.slice(0, 6)} rows={payments} getRowKey={(row) => row.payment_id} />
+          </section>
+        </div>
+      ) : null}
+
+      <Modal open={editorOpen} title="Proses Payroll & Slip Gaji" subtitle={`Periode ${period} · Server calculation`} onClose={() => setEditorOpen(false)} size="xl">
+        <div className="da-hrd-modal-form-v3">
+          <div className="da-modal-summary">
+            <div><div className="da-eyebrow">Payroll V32 — Backend Resmi</div><strong style={{display:"block",fontSize:18,marginTop:4}}>{selectedEmployee?.employee_name || "Pilih karyawan"}</strong><span className="da-muted">Preview dan print tidak mengubah ledger. Closing yang mengunci kasbon/cicilan.</span></div>
+            <Badge tone={health.ready ? "success" : "danger"}>{health.ready ? "Payroll Ready" : "Belum Siap"}</Badge>
+          </div>
+          <div className="da-form-grid da-form-grid--2">
+            <label className="da-field"><span>Karyawan</span><select value={form.employee_id} onChange={(e) => selectEmployee(e.target.value)}><option value="">Pilih karyawan</option>{employees.map((employee) => <option key={employee.employee_id} value={employee.employee_id}>{employee.employee_name} · {employee.location_code}</option>)}</select></label>
+            <label className="da-field"><span>Payroll ID</span><input value={form.payroll_run_id || "Belum disimpan"} readOnly /></label>
+            <label className="da-field"><span>Bonus / Insentif</span><input inputMode="numeric" value={form.bonus_amount} onChange={(e) => setForm({ ...form, bonus_amount: e.target.value })} /></label>
+            <label className="da-field"><span>Uang Lembur</span><input inputMode="numeric" value={form.overtime_amount} onChange={(e) => setForm({ ...form, overtime_amount: e.target.value })} placeholder="Kosong = tarik absensi" /></label>
+            <label className="da-field"><span>Hari Absen</span><input type="number" min="0" step="0.5" value={form.absence_days} onChange={(e) => setForm({ ...form, absence_days: e.target.value })} placeholder="Kosong = tarik absensi" /></label>
+            <label className="da-field"><span>Potongan Cicilan</span><input inputMode="numeric" value={form.loan_deduction} onChange={(e) => setForm({ ...form, loan_deduction: e.target.value })} placeholder="Kosong = cicilan wajib otomatis" /></label>
+            <label className="da-field"><span>Potongan Lain</span><input inputMode="numeric" value={form.extra_deduction} onChange={(e) => setForm({ ...form, extra_deduction: e.target.value })} /></label>
+            {String(selectedEmployee?.salary_mode || "").toUpperCase() === "HARIAN" ? <label className="da-field"><span>Hari Dibayar</span><input type="number" min="0" step="0.5" value={form.work_days} onChange={(e) => setForm({ ...form, work_days: e.target.value })} /></label> : null}
+            {String(selectedEmployee?.pay_cycle || "").toUpperCase() === "MINGGUAN" ? <><label className="da-field"><span>Minggu Ke</span><select value={form.week_no} onChange={(e) => setForm({ ...form, week_no: e.target.value })}>{[1,2,3,4,5].map((week) => <option key={week} value={week}>Minggu {week}</option>)}</select></label><label className="da-field"><span>Rentang Minggu</span><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}><input type="date" value={form.week_start} onChange={(e) => setForm({ ...form, week_start: e.target.value })} /><input type="date" value={form.week_end} onChange={(e) => setForm({ ...form, week_end: e.target.value })} /></div></label></> : null}
+          </div>
+          <label className="da-field"><span>Catatan Slip</span><input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></label>
+
+          <div style={{border:"1px solid #fecaca",borderRadius:13,padding:12,background:"#fff7f7"}}>
+            <label style={{display:"flex",gap:8,alignItems:"center",fontWeight:850}}><input type="checkbox" checked={form.absence_notice_enabled} onChange={(e) => setForm({ ...form, absence_notice_enabled: e.target.checked })} /> Buat surat pemberitahuan potongan absen</label>
+            {form.absence_notice_enabled ? <div className="da-form-grid da-form-grid--2" style={{marginTop:10}}><label className="da-field"><span>Jenis Surat</span><select value={form.absence_notice_type} onChange={(e) => setForm({ ...form, absence_notice_type: e.target.value })}><option>PEMBERITAHUAN</option><option>TEGURAN TERTULIS / SP-1</option></select></label><label className="da-field"><span>Tanggal Surat</span><input type="date" value={form.absence_notice_date} onChange={(e) => setForm({ ...form, absence_notice_date: e.target.value })} /></label><label className="da-field"><span>Nomor Surat</span><input value={form.absence_notice_no} onChange={(e) => setForm({ ...form, absence_notice_no: e.target.value })} /></label><label className="da-field"><span>Tanggal Tidak Masuk</span><input value={form.absence_dates} onChange={(e) => setForm({ ...form, absence_dates: e.target.value })} /></label><label className="da-field"><span>Rincian</span><input value={form.absence_detail} onChange={(e) => setForm({ ...form, absence_detail: e.target.value })} /></label><label className="da-field"><span>Catatan Karyawan</span><input value={form.absence_employee_note} onChange={(e) => setForm({ ...form, absence_employee_note: e.target.value })} /></label></div> : null}
+          </div>
+
+          {preview ? <div style={{padding:12,borderRadius:14,background:"#fffaf0",border:"1px solid #fbbf24"}}><div className="da-stat-grid"><StatCard label="Total Penghasilan" value={formatRupiah(num(preview.total_income))} /><StatCard label="Kasbon" value={formatRupiah(num(preview.advance_deduction))} tone="warning" /><StatCard label="Cicilan" value={formatRupiah(num(preview.loan_deduction))} tone="warning" /><StatCard label="Take Home Pay" value={formatRupiah(num(preview.net_pay))} tone={num(preview.net_pay) < 0 ? "danger" : "success"} /></div></div> : null}
+
+          <div className="da-form-actions" style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+            <Button variant="secondary" onClick={previewServer} disabled={saving || !form.employee_id}>Cek THP Backend</Button>
+            <Button onClick={saveDraft} disabled={saving || !form.employee_id}>Simpan Draft</Button>
+            <Button variant="secondary" onClick={() => printSlip()} disabled={!preview}>Cetak Slip A5</Button>
+            <Button onClick={closePayroll} disabled={saving || !form.payroll_run_id || String(selectedRun?.status).toUpperCase() === "CLOSED"}>Closing Payroll</Button>
+            <Button variant="secondary" onClick={resetForm}>Reset</Button>
+          </div>
+          {String(selectedRun?.status).toUpperCase() === "CLOSED" && String(selectedRun?.payment_status).toUpperCase() !== "PAID" && !selectedRun?.legacy_payment_locked ? <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:8}}><input value={reopenReason} onChange={(e) => setReopenReason(e.target.value)} placeholder="Alasan buka revisi closing" /><Button variant="secondary" onClick={reopenPayrollRun} disabled={saving}>Buka Revisi</Button></div> : null}
+        </div>
+      </Modal>
+
+      <Modal open={paymentOpen} title="Pembayaran Gaji" subtitle="Closing payroll → Wallet OUT → Lunas" onClose={() => setPaymentOpen(false)} size="xl">
+        <div className="da-hrd-modal-form-v3">
+          <div className="da-form-grid da-form-grid--2">
+            <label className="da-field"><span>Payroll Closed Belum Dibayar</span><select value={paymentForm.payroll_run_id} onChange={(e) => setPaymentForm({ ...paymentForm, payroll_run_id: e.target.value })}><option value="">Pilih payroll</option>{rows.filter((row) => String(row.status).toUpperCase() === "CLOSED" && String(row.payment_status).toUpperCase() === "UNPAID" && !row.legacy_payment_locked).map((row) => <option key={row.payroll_run_id} value={row.payroll_run_id}>{row.employee_name_snapshot} · {formatRupiah(num(row.net_pay))}</option>)}</select></label>
+            <label className="da-field"><span>Dompet Tangerang</span><select value={paymentForm.wallet_id} onChange={(e) => setPaymentForm({ ...paymentForm, wallet_id: e.target.value })}><option value="">Pilih dompet</option>{wallets.map((wallet) => <option key={wallet.wallet_id} value={wallet.wallet_id}>{wallet.wallet_name} · saldo {formatRupiah(num(wallet.current_balance))}</option>)}</select></label>
+            <label className="da-field"><span>Tanggal Bayar</span><input type="date" value={paymentForm.payment_date} onChange={(e) => setPaymentForm({ ...paymentForm, payment_date: e.target.value })} /></label>
+            <label className="da-field"><span>Metode</span><select value={paymentForm.payment_method} onChange={(e) => setPaymentForm({ ...paymentForm, payment_method: e.target.value })}><option>TRANSFER</option><option>CASH</option></select></label>
+            <label className="da-field"><span>Referensi</span><input value={paymentForm.reference_no} onChange={(e) => setPaymentForm({ ...paymentForm, reference_no: e.target.value })} /></label>
+            <label className="da-field"><span>Catatan</span><input value={paymentForm.notes} onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })} /></label>
+          </div>
+          {selectedPaymentRun ? <div className="da-modal-summary"><div><span className="da-muted">Karyawan</span><strong style={{display:"block",fontSize:17}}>{selectedPaymentRun.employee_name_snapshot}</strong></div><div style={{textAlign:"right"}}><span className="da-muted">THP Dibayar</span><strong style={{display:"block",fontSize:20,color:"#00A86B"}}>{formatRupiah(num(selectedPaymentRun.net_pay))}</strong></div></div> : null}
+          <div className="da-form-actions"><Button onClick={async () => { if (await payPayroll()) setPaymentOpen(false); }} disabled={saving || !paymentForm.payroll_run_id || !paymentForm.wallet_id}>Bayar Gaji</Button></div>
+        </div>
+      </Modal>
     </div>
   );
 }
