@@ -109,7 +109,7 @@ export default function Sidebar({ menuGroups, activePage, onChangePage, open = f
         </div>
         <div className="da-brand-copy-v3">
           <strong>{APP_BRAND.name}</strong>
-          <span>Merchant Operations</span>
+          <span>Sistem Operasional</span>
         </div>
         <button type="button" className="da-sidebar-close-v3" aria-label="Tutup menu" onClick={onClose}>
           <X size={18} />
@@ -118,7 +118,7 @@ export default function Sidebar({ menuGroups, activePage, onChangePage, open = f
 
       <div className="da-sidebar-live-v3">
         <span className="da-sidebar-live-dot-v3" />
-        <div><strong>ERP Operasional</strong><small>PHP / MySQL aktif</small></div>
+        <div><strong>Operasional Aktif</strong><small>Data usaha tersinkron</small></div>
       </div>
 
       <nav className="da-sidebar-nav-v3" aria-label="Menu utama ERP">
@@ -157,7 +157,7 @@ export default function Sidebar({ menuGroups, activePage, onChangePage, open = f
 
       <div className="da-sidebar-footer-v3">
         <ShieldCheck size={18} />
-        <div><strong>Owner Workspace</strong><span>Produksi • Penjualan • Keuangan</span></div>
+        <div><strong>Dimsum Aditya</strong><span>Pusat Operasional</span></div>
       </div>
     </aside>
   );
