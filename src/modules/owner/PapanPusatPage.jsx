@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Activity, AlertCircle, ArrowRight, Banknote, Boxes, Clock, Factory, Package, RefreshCw, ShoppingCart, TrendingUp, Wallet } from "lucide-react";
 import { getOwnerControlBootstrap } from "../../lib/api/actions";
 import { formatRupiah } from "../../lib/format/money";
 import { formatDate } from "../../lib/format/date";
@@ -261,8 +262,8 @@ function getBenangMerah(summary) {
 }
 
 function getPrioritySummary(radar) {
-  const warnings = radar.filter((item) => item.priority === "warning" && item.rawValue > 0);
-  const danger = radar.filter((item) => item.priority === "danger" && item.rawValue > 0);
+  const warnings = radar.filter((item) => item.priority === "warning");
+  const danger = radar.filter((item) => item.priority === "danger");
 
   if (danger.length > 0) {
     return {
@@ -408,6 +409,64 @@ function RadarDetailOverlay({ item, onClose, onOpenSource }) {
 }
 
 
+function OwnerOverviewCard({ icon: Icon, label, value, helper, tone = "neutral", onClick, children }) {
+  const content = (
+    <>
+      <div className={`da-owner-overview-icon-v4 tone-${tone}`}><Icon size={18} /></div>
+      <div className="da-owner-overview-copy-v4">
+        <span>{label}</span>
+        <strong>{value}</strong>
+        {helper ? <small>{helper}</small> : null}
+        {children}
+      </div>
+      {onClick ? <ArrowRight className="da-owner-overview-arrow-v4" size={16} /> : null}
+    </>
+  );
+
+  if (onClick) {
+    return <button type="button" className={`da-owner-overview-card-v4 tone-${tone}`} onClick={onClick}>{content}</button>;
+  }
+
+  return <section className={`da-owner-overview-card-v4 tone-${tone}`}>{content}</section>;
+}
+
+function OwnerMetricPair({ icon: Icon, title, primaryLabel, primaryValue, secondaryLabel, secondaryValue, onClick }) {
+  return (
+    <button type="button" className="da-owner-metric-pair-v4" onClick={onClick}>
+      <div className="da-owner-metric-pair-head-v4"><Icon size={16} /><span>{title}</span><ArrowRight size={14} /></div>
+      <div className="da-owner-metric-pair-grid-v4">
+        <div><span>{primaryLabel}</span><strong>{primaryValue}</strong></div>
+        <div><span>{secondaryLabel}</span><strong>{secondaryValue}</strong></div>
+      </div>
+    </button>
+  );
+}
+
+function OwnerPriorityRow({ item, onClick }) {
+  const tone = item.priority === "danger" ? "danger" : item.priority === "warning" ? "warning" : "success";
+  return (
+    <button type="button" className={`da-owner-priority-row-v4 tone-${tone}`} onClick={() => onClick(item)}>
+      <span className="da-owner-priority-dot-v4" />
+      <div><strong>{item.title}</strong><small>{item.status}</small></div>
+      <b>{item.value}</b>
+      <ArrowRight size={15} />
+    </button>
+  );
+}
+
+function OwnerPipelineStage({ index, item }) {
+  return (
+    <div className="da-owner-pipeline-stage-v4">
+      <div className="da-owner-pipeline-no-v4">{index}</div>
+      <div className="da-owner-pipeline-copy-v4">
+        <span>{item.title}</span>
+        <strong>{item.value}</strong>
+        <small>{item.status}</small>
+      </div>
+    </div>
+  );
+}
+
 export default function PapanPusatPage({ session, onSessionExpired, onNavigate }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -416,14 +475,15 @@ export default function PapanPusatPage({ session, onSessionExpired, onNavigate }
 
   const summary = useMemo(() => normalizeSummary(data), [data]);
   const radar = useMemo(() => getRadar(summary), [summary]);
-  const recent = useMemo(() => asArray(data?.recent_transactions).slice(0, 10), [data]);
+  const recent = useMemo(() => asArray(data?.recent_transactions).slice(0, 8), [data]);
+  const chain = useMemo(() => getBenangMerah(summary), [summary]);
 
   const loadData = async (options = {}) => {
     setLoading(true);
     setError("");
 
     const result = await getOwnerControlBootstrap(session?.sessionToken, {
-      source: "frontend_operations_ui_v2_owner_dashboard",
+      source: "frontend_operations_ui_v4_owner_dashboard",
       view: "fast_dashboard",
       mode: "fast_dashboard",
       limit: 10,
@@ -457,7 +517,8 @@ export default function PapanPusatPage({ session, onSessionExpired, onNavigate }
     const score = (item) => item.priority === "danger" ? 3 : item.priority === "warning" ? 2 : 1;
     return score(b) - score(a) || numberValue(b.rawValue) - numberValue(a.rawValue);
   });
-  const radarPrimary = radarSorted.slice(0, 6);
+  const radarPrimary = radarSorted.slice(0, 5);
+  const prioritySummary = getPrioritySummary(radar);
 
   const goToRadarSource = (item) => {
     const map = {
@@ -475,14 +536,26 @@ export default function PapanPusatPage({ session, onSessionExpired, onNavigate }
     if (page) onNavigate?.(page);
   };
 
+  const availableCash = numberValue(summary?.wallet?.wallet_balance_total || 0);
+  const moneyIn = numberValue(summary?.wallet?.money_in || 0);
+  const moneyOut = numberValue(summary?.wallet?.money_out || 0);
+  const sales = numberValue(summary?.sales?.invoice_total || 0);
+  const receivable = numberValue(summary?.sales?.receivable_open || 0);
+  const readyStock = numberValue(summary?.stock?.ready_pcs || 0);
+  const poShortage = numberValue(summary?.po?.shortage_qty || 0);
+  const hutang = numberValue(summary?.obligations?.hutang_remaining || 0);
+  const ownerDue = numberValue(summary?.owner_obligations?.due_this_month || 0);
+  const payrollDue = numberValue(summary?.payroll?.unpaid_total || 0);
+  const alertCount = radar.filter((item) => item.priority === "danger" || item.priority === "warning").length;
+
   return (
-    <div className="da-page da-owner-dashboard da-owner-dashboard-v2">
+    <div className="da-page da-owner-dashboard da-owner-dashboard-v4">
       <PageHeader
         title="Dashboard Owner"
-        description="Pusat kendali harian Dimsum Aditya untuk keputusan uang, penjualan, produksi, stok, hutang, kewajiban, payroll, dan cabang."
+        description="Ringkasan usaha untuk keputusan harian: kas, produksi, penjualan, stok, hutang, kewajiban, payroll, dan cabang."
         actions={(
           <Button variant="secondary" onClick={() => loadData({ forceRefresh: true })}>
-            {loading ? "Memuat..." : "Refresh Data"}
+            <RefreshCw size={15} /> {loading ? "Memuat..." : "Refresh"}
           </Button>
         )}
       />
@@ -494,120 +567,70 @@ export default function PapanPusatPage({ session, onSessionExpired, onNavigate }
         </Card>
       ) : null}
 
-      <div className="da-owner-kpi-strip-v2">
-        <StatCard
-          tone="success"
-          label="Uang Tersedia"
-          value={loading ? "..." : formatRupiah(summary?.wallet?.wallet_balance_total || 0)}
-          description="Total saldo dompet operasional yang terbaca."
-          onClick={() => onNavigate?.("kas-dompet")}
-        />
-        <StatCard
-          label="Penjualan"
-          value={loading ? "..." : formatRupiah(summary?.sales?.invoice_total || 0)}
-          description={`${formatNumber(summary?.sales?.orders_count || 0)} order tercatat.`}
-          onClick={() => onNavigate?.("kasir-order")}
-        />
-        <StatCard
-          tone={summary?.obligations?.hutang_remaining > 0 ? "warning" : "success"}
-          label="Hutang Nana"
-          value={loading ? "..." : formatRupiah(summary?.obligations?.hutang_remaining || 0)}
-          description="Outstanding nota ayam dan hutang lama."
-          onClick={() => onNavigate?.("hutang-nana")}
-        />
-        <StatCard
-          label="Stok Ready"
-          value={loading ? "..." : formatNumber(summary?.stock?.ready_pcs || 0, "pcs")}
-          description="Stok jadi bebas yang siap dijual."
-          onClick={() => onNavigate?.("stok-jadi")}
-        />
-        <StatCard
-          tone={summary?.owner_obligations?.due_this_month > 0 ? "warning" : "default"}
-          label="Jatuh Tempo"
-          value={loading ? "..." : formatRupiah(summary?.owner_obligations?.due_this_month || 0)}
-          description="Kewajiban owner bulan berjalan."
-          onClick={() => onNavigate?.("kewajiban-owner")}
-        />
-        <StatCard
-          tone={summary?.payroll?.unpaid_total > 0 ? "warning" : "default"}
-          label="Payroll"
-          value={loading ? "..." : formatRupiah(summary?.payroll?.unpaid_total || 0)}
-          description="Payroll closing yang belum dibayar."
-          onClick={() => onNavigate?.("hrd-payroll")}
-        />
-      </div>
+      <section className="da-owner-executive-grid-v4">
+        <button type="button" className="da-owner-cash-hero-v4" onClick={() => onNavigate?.("kas-dompet")}>
+          <div className="da-owner-cash-hero-top-v4">
+            <div><span>Posisi Kas & Bank</span><small>Saldo aktual seluruh dompet operasional</small></div>
+            <div className="da-owner-cash-icon-v4"><Wallet size={20} /></div>
+          </div>
+          <strong>{loading ? "..." : formatRupiah(availableCash)}</strong>
+          <div className="da-owner-cash-flow-v4">
+            <div><TrendingUp size={14} /><span>Masuk</span><b>{formatRupiah(moneyIn)}</b></div>
+            <div><Banknote size={14} /><span>Keluar</span><b>{formatRupiah(moneyOut)}</b></div>
+          </div>
+        </button>
 
-      <div className="da-owner-command-grid-v2">
-        <Card
-          className="da-owner-action-center-v2"
-          title="Yang Perlu Ditindak"
-          description="Prioritas owner hari ini. Klik kartu untuk melihat ringkasan sebelum membuka modul sumber."
-          action={<Badge tone={radarPrimary.some((item) => item.priority === "warning" || item.priority === "danger") ? "warning" : "success"}>Action Center</Badge>}
-        >
-          <div className="da-owner-action-grid-v2">
-            {radarPrimary.map((item) => (
-              <RadarCard key={item.key} item={item} onClick={setSelectedRadar} />
-            ))}
+        <OwnerOverviewCard icon={ShoppingCart} label="Penjualan" value={loading ? "..." : formatRupiah(sales)} helper={`${formatNumber(summary?.sales?.orders_count || 0)} order`} onClick={() => onNavigate?.("kasir-order")}>
+          <div className="da-owner-overview-subline-v4"><span>Piutang terbuka</span><b>{formatRupiah(receivable)}</b></div>
+        </OwnerOverviewCard>
+
+        <OwnerOverviewCard icon={Package} label="Stok Siap Jual" value={loading ? "..." : formatNumber(readyStock, "pcs")} helper="Stok bebas untuk penjualan" onClick={() => onNavigate?.("stok-jadi")}>
+          <div className="da-owner-overview-subline-v4"><span>PO kurang</span><b>{formatNumber(poShortage, "pcs")}</b></div>
+        </OwnerOverviewCard>
+
+        <button type="button" className={`da-owner-alert-hero-v4 tone-${prioritySummary.tone}`} onClick={() => radarPrimary[0] && setSelectedRadar(radarPrimary[0])}>
+          <div className="da-owner-alert-head-v4"><AlertCircle size={18} /><span>Perlu Tindakan</span></div>
+          <strong>{alertCount}</strong>
+          <p>{prioritySummary.text}</p>
+          <div className="da-owner-alert-footer-v4"><span>{prioritySummary.label}</span><ArrowRight size={15} /></div>
+        </button>
+      </section>
+
+      <section className="da-owner-main-grid-v4">
+        <Card className="da-owner-pipeline-panel-v4" title="Alur Usaha Hari Ini" description="Dari pasokan ayam sampai uang masuk. Setiap tahap membaca transaksi aktual dari modul sumber.">
+          <div className="da-owner-pipeline-grid-v4">
+            {chain.slice(0, 8).map((item, index) => <OwnerPipelineStage key={item.title} index={index + 1} item={item} />)}
+          </div>
+          <div className="da-owner-panel-footer-v4">
+            <button type="button" onClick={() => onNavigate?.("owner-control")}>Lihat kendali usaha lengkap <ArrowRight size={14} /></button>
           </div>
         </Card>
 
-        <Card
-          className="da-owner-money-position-v2"
-          title="Posisi Uang"
-          description="Ringkasan arus uang dan kewajiban yang memerlukan perhatian owner."
-          action={<Button variant="secondary" onClick={() => onNavigate?.("owner-control")}>Owner Control</Button>}
-        >
-          <div className="da-owner-mini-list da-owner-mini-list-v2">
-            <div><span>Saldo Dompet</span><strong>{formatRupiah(summary?.wallet?.wallet_balance_total || 0)}</strong></div>
-            <div><span>Uang Masuk</span><strong>{formatRupiah(summary?.wallet?.money_in || 0)}</strong></div>
-            <div><span>Uang Keluar</span><strong>{formatRupiah(summary?.wallet?.money_out || 0)}</strong></div>
-            <div><span>Piutang Terbuka</span><strong>{formatRupiah(summary?.sales?.receivable_open || 0)}</strong></div>
-            <div><span>Hutang Nana</span><strong>{formatRupiah(summary?.obligations?.hutang_remaining || 0)}</strong></div>
-            <div><span>Belum Dibagi 4 Amplop</span><strong>{formatRupiah(summary?.amplop?.unallocated || 0)}</strong></div>
+        <Card className="da-owner-priority-panel-v4" title="Prioritas Hari Ini" description="Klik satu baris untuk melihat alasan dan arah tindakan.">
+          <div className="da-owner-priority-list-v4">
+            {radarPrimary.map((item) => <OwnerPriorityRow key={item.key} item={item} onClick={setSelectedRadar} />)}
           </div>
         </Card>
-      </div>
+      </section>
 
-      <div className="da-owner-business-grid-v2">
-        <Card
-          title="Produksi & Stok"
-          description="Posisi bahan utama sampai barang jadi siap jual."
-          action={<Button variant="secondary" onClick={() => onNavigate?.("produksi-adukan")}>Buka Produksi</Button>}
-        >
-          <div className="da-owner-business-metrics-v2">
-            <div><span>Ayam Masuk</span><strong>{formatNumber(summary?.chicken?.total_drop_kg || 0, "kg")}</strong></div>
-            <div><span>Sisa Ayam</span><strong>{formatNumber(summary?.chicken?.remaining_kg || 0, "kg")}</strong></div>
-            <div><span>Hasil Produksi</span><strong>{formatNumber(summary?.production?.output_pcs || 0, "pcs")}</strong></div>
-            <div><span>Stok Ready</span><strong>{formatNumber(summary?.stock?.ready_pcs || 0, "pcs")}</strong></div>
+      <section className="da-owner-secondary-grid-v4">
+        <Card title="Operasi Produksi" description="Ringkasan bahan utama, produksi, dan stok siap jual.">
+          <div className="da-owner-pair-grid-v4">
+            <OwnerMetricPair icon={Factory} title="Produksi" primaryLabel="Ayam masuk" primaryValue={formatNumber(summary?.chicken?.total_drop_kg || 0, "kg")} secondaryLabel="Hasil produksi" secondaryValue={formatNumber(summary?.production?.output_pcs || 0, "pcs")} onClick={() => onNavigate?.("produksi-adukan")} />
+            <OwnerMetricPair icon={Boxes} title="Persediaan" primaryLabel="Sisa ayam" primaryValue={formatNumber(summary?.chicken?.remaining_kg || 0, "kg")} secondaryLabel="Stok ready" secondaryValue={formatNumber(readyStock, "pcs")} onClick={() => onNavigate?.("stok-jadi")} />
           </div>
         </Card>
 
-        <Card
-          title="Penjualan & PO"
-          description="Order, stok yang ditahan, shortage, dan potensi penagihan."
-          action={<Button variant="secondary" onClick={() => onNavigate?.("antrian-po")}>Buka PO</Button>}
-        >
-          <div className="da-owner-business-metrics-v2">
-            <div><span>Order</span><strong>{formatNumber(summary?.sales?.orders_count || 0)}</strong></div>
-            <div><span>Nilai Invoice</span><strong>{formatRupiah(summary?.sales?.invoice_total || 0)}</strong></div>
-            <div><span>Stok Ditahan PO</span><strong>{formatNumber(summary?.po?.reserved_qty || 0, "pcs")}</strong></div>
-            <div><span>Kekurangan PO</span><strong>{formatNumber(summary?.po?.shortage_qty || 0, "pcs")}</strong></div>
+        <Card title="Kewajiban & Pembayaran" description="Posisi yang perlu dijaga dari uang aktual.">
+          <div className="da-owner-pair-grid-v4">
+            <OwnerMetricPair icon={Banknote} title="Supplier" primaryLabel="Hutang Nana" primaryValue={formatRupiah(hutang)} secondaryLabel="Belum dibagi 4 Amplop" secondaryValue={formatRupiah(summary?.amplop?.unallocated || 0)} onClick={() => onNavigate?.("hutang-nana")} />
+            <OwnerMetricPair icon={Clock} title="Jatuh Tempo" primaryLabel="Kewajiban owner" primaryValue={formatRupiah(ownerDue)} secondaryLabel="Payroll" secondaryValue={formatRupiah(payrollDue)} onClick={() => onNavigate?.("kewajiban-owner")} />
           </div>
         </Card>
-      </div>
+      </section>
 
-      <Card
-        className="da-owner-recent-panel"
-        title="Aktivitas Terbaru"
-        description="Jejak transaksi terakhir yang masuk ke Arsip Digital."
-        action={<Button variant="secondary" onClick={() => onNavigate?.("arsip-digital")}>Buka Arsip</Button>}
-      >
-        <DataTable
-          columns={recentColumns()}
-          rows={recent}
-          getRowKey={(row, index) => `${row.module}-${row.id}-${index}`}
-          onRowClick={() => onNavigate?.("arsip-digital")}
-        />
+      <Card className="da-owner-recent-panel-v4" title="Aktivitas Terbaru" description="Transaksi terakhir yang sudah memiliki jejak Arsip Digital." action={<Button variant="secondary" onClick={() => onNavigate?.("arsip-digital")}>Buka Arsip</Button>}>
+        <DataTable columns={recentColumns()} rows={recent} getRowKey={(row, index) => `${row.module}-${row.id}-${index}`} onRowClick={() => onNavigate?.("arsip-digital")} />
       </Card>
 
       <RadarDetailOverlay
