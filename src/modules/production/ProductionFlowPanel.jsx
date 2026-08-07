@@ -78,7 +78,7 @@ export default function ProductionFlowPanel({ session, onSessionExpired, compact
     <Card style={{ marginBottom: 18 }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
         <div>
-          <div className="da-page-kicker">NYAWA PRODUKSI — PHP/MYSQL SINGLE SOURCE</div>
+          <div className="da-page-kicker">NYAWA PRODUKSI — RANTAI STOK & HPP</div>
           <h2 style={{ margin: "4px 0 6px" }}>DROP → Lot Ayam → Adukan → Freezer → Stok Jadi</h2>
           <p className="da-muted" style={{ margin: 0 }}>
             HPP mengikuti harga lot saat produksi. Produksi tidak memotong dompet; pembayaran supplier berjalan dari DROP/Hutang Nana.
