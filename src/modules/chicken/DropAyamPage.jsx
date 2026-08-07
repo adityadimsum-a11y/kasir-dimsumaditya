@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { DollarSign, PackageOpen, Plus, RefreshCw, Scale, Wallet } from "lucide-react";
 import { createDropAyam, getDropAyamBootstrap } from "../../lib/api/actions";
 import { formatRupiah } from "../../lib/format/money";
 import Badge from "../../components/ui/Badge";
@@ -346,7 +347,7 @@ function TraceItem({ label, value, tone = "warning" }) {
     <div className="da-trace-item">
       <div className="da-trace-label">{label}</div>
       <div className="da-trace-value">{hasValue ? value : "Belum terbaca"}</div>
-      <Badge tone={hasValue ? tone : "warning"}>{hasValue ? "Terhubung" : "Perlu Cek"}</Badge>
+      <Badge tone={hasValue ? tone : "warning"}>{hasValue ? "Tercatat" : "Belum tersedia"}</Badge>
     </div>
   );
 }
@@ -551,7 +552,7 @@ function DropDetailModal({ selectedDrop, linkedLot, linkedPayable }) {
       </div>
 
       <div className="da-drop-note">
-        Rantai transaksi ini harus tetap terkunci: DROP Ayam → Lot Harga Aktual → Produksi/Adukan → Stok Jadi → Order → Uang Masuk → Hutang Nana → 4 Amplop.
+        Jejak transaksi pembelian ini dapat ditelusuri ke lot ayam, produksi, stok jadi, pembayaran supplier, dan arsip terkait.
       </div>
     </div>
   );
@@ -591,7 +592,7 @@ function buildColumns({ lots, payables, onSelect }) {
     },
     {
       key: "trace",
-      label: "Rantai",
+      label: "Keterkaitan",
       render: (row) => {
         const lot = findLinkedLot(row, lots);
         const payable = findLinkedPayable(row, payables);
@@ -637,6 +638,7 @@ export default function DropAyamPage({ session, onSessionExpired }) {
   const [bootstrap, setBootstrap] = useState(null);
   const [error, setError] = useState("");
   const [form, setForm] = useState(initialForm);
+  const [entryOpen, setEntryOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [selectedDrop, setSelectedDrop] = useState(null);
   const [submitResult, setSubmitResult] = useState(null);
@@ -736,6 +738,7 @@ export default function DropAyamPage({ session, onSessionExpired }) {
       message: result.message || "DROP Ayam berhasil disimpan.",
     });
     setConfirmOpen(false);
+    setEntryOpen(false);
     setForm(initialForm);
     setNeedsRefresh(true);
   }
@@ -745,259 +748,169 @@ export default function DropAyamPage({ session, onSessionExpired }) {
     [lots, payables]
   );
 
+  const recentColumns = [
+    { key: "date", label: "Tanggal", render: (row) => formatDisplayDate(pick(row, ["purchase_date", "drop_date", "date"])) },
+    { key: "supplier", label: "Supplier", render: (row) => <strong>{safeText(pick(row, ["supplier_name", "supplier", "vendor_name"]))}</strong> },
+    { key: "kg", label: "Jumlah", render: (row) => `${numberValue(pick(row, ["qty_kg", "kg", "qty"])).toLocaleString("id-ID")} kg` },
+    { key: "amount", label: "Total", render: (row) => formatRupiah(pick(row, ["total_amount", "amount"])) },
+    { key: "status", label: "Pembayaran", render: (row) => <Badge tone={getStatusTone(row.payment_status || row.status)}>{safeText(row.payment_status || row.status)}</Badge> },
+  ];
+
+  const paidRatio = summary.totalModalAyam > 0
+    ? Math.min(100, Math.max(0, (summary.totalDibayar / summary.totalModalAyam) * 100))
+    : 0;
+
   return (
-    <div className="da-page da-drop-page">
+    <div className="da-page da-production-workspace-v6">
       <PageHeader
         title="DROP Ayam"
-        description="Catatan ayam masuk dari supplier. Harga ayam dikunci per nota/drop agar transaksi lama tidak berubah saat harga baru berubah."
-        badge="Tertelusur"
-        badgeTone="warning"
+        eyebrow="Produksi & Stok"
+        description="Catat pembelian ayam dari supplier dan pantau nilai bahan, sisa stok, serta hutang supplier dalam satu halaman."
+        actions={(
+          <div className="da-prod-page-actions-v6">
+            <Button variant="secondary" onClick={loadData}><RefreshCw size={15} /> Perbarui</Button>
+            <Button onClick={() => setEntryOpen(true)}><Plus size={16} /> Catat Pembelian</Button>
+          </div>
+        )}
       />
 
-      <ProductionFlowPanel
-        session={session}
-        onSessionExpired={onSessionExpired}
-        compact
-      />
+      <ProductionFlowPanel session={session} onSessionExpired={onSessionExpired} compact />
 
-      <Card className="da-drop-hero">
-        <div>
-          <div className="da-page-kicker">NYAWA PRODUKSI</div>
-          <h2>DROP Ayam → Lot Harga Aktual → Hutang Nana</h2>
-          <p>
-            Satu nota ayam harus membuat rantai ID: DROP, lot, gerak stok, hutang, dan arsip.
-          </p>
+      {error ? <div className="da-prod-public-alert-v6 is-error">{error}</div> : null}
+      {submitResult?.success ? <div className="da-prod-public-alert-v6 is-success">{submitResult.message}</div> : null}
 
-          <div className="da-drop-hero-actions">
-            <Badge tone={error ? "danger" : loading ? "warning" : "success"}>
-              {loading ? "Membaca..." : error ? "Perlu Cek" : "Terhubung"}
-            </Badge>
-            <Button variant="ghost" onClick={loadData}>
-              Refresh Data
-            </Button>
+      <section className="da-prod-kpi-grid-v6">
+        <div className="da-prod-kpi-v6"><span className="icon"><DollarSign size={17} /></span><div><small>Nilai Pembelian</small><strong>{loading ? "..." : formatRupiah(summary.totalModalAyam)}</strong><p>{summary.totalDrop} nota pembelian</p></div></div>
+        <div className="da-prod-kpi-v6"><span className="icon"><Scale size={17} /></span><div><small>Ayam Masuk</small><strong>{loading ? "..." : `${summary.totalKgMasuk.toLocaleString("id-ID")} kg`}</strong><p>Sisa {summary.totalKgSisa.toLocaleString("id-ID")} kg</p></div></div>
+        <div className="da-prod-kpi-v6"><span className="icon"><PackageOpen size={17} /></span><div><small>Lot Aktif</small><strong>{loading ? "..." : summary.totalLot}</strong><p>Siap dipakai produksi</p></div></div>
+        <div className="da-prod-kpi-v6 tone-warning"><span className="icon"><Wallet size={17} /></span><div><small>Hutang Supplier</small><strong>{loading ? "..." : formatRupiah(summary.totalSisaHutang)}</strong><p>{summary.totalHutang} catatan terbuka</p></div></div>
+      </section>
+
+      <section className="da-prod-main-grid-v6">
+        <Card
+          className="da-prod-primary-panel-v6"
+          title="Pembelian Ayam Terbaru"
+          description="Ringkasan nota supplier yang paling baru. Klik baris untuk membuka rincian transaksi."
+          action={<Button variant="secondary" onClick={() => setEntryOpen(true)}><Plus size={14} /> Pembelian Baru</Button>}
+        >
+          <DataTable
+            columns={recentColumns}
+            rows={purchases.slice(0, 8)}
+            getRowKey={(row, index) => getPurchaseId(row) || index}
+            onRowClick={(row) => setSelectedDrop(row)}
+          />
+          {!purchases.length ? <div className="da-prod-empty-v6">Belum ada pembelian ayam pada periode ini.</div> : null}
+        </Card>
+
+        <Card className="da-prod-side-panel-v6" title="Posisi Pembelian" description="Ringkasan pembayaran supplier dan bahan yang masih tersedia.">
+          <div className="da-prod-side-total-v6">
+            <span>Total pembelian</span>
+            <strong>{formatRupiah(summary.totalModalAyam)}</strong>
+            <small>Dibayar {formatRupiah(summary.totalDibayar)}</small>
           </div>
-
-          {error ? <div className="da-drop-error">{error}</div> : null}
-        </div>
-
-        <div className="da-drop-hero-note">
-          <Badge tone="warning">Input Terkontrol</Badge>
-          <strong>{summary.totalDrop} nota bersih terbaca.</strong>
-          <span>Baris kosong/formatting disembunyikan supaya tidak jadi angka yatim.</span>
-        </div>
-      </Card>
-
-      <div className="da-grid da-grid-3 da-drop-stat-grid">
-        <StatCard
-          label="Total Modal Ayam"
-          value={loading ? "..." : formatRupiah(summary.totalModalAyam)}
-          description="Total nilai DROP Ayam bersih yang terbaca."
-        />
-        <StatCard
-          label="Kg Ayam Masuk"
-          value={loading ? "..." : `${summary.totalKgMasuk.toLocaleString("id-ID")} kg`}
-          description="Total kg ayam dari nota/drop bersih."
-        />
-        <StatCard
-          tone={summary.totalSisaHutang > 0 ? "warning" : "success"}
-          label="Sisa Hutang Nana"
-          value={loading ? "..." : formatRupiah(summary.totalSisaHutang)}
-          description="Sisa hutang supplier ayam yang terbaca."
-        />
-        <StatCard
-          label="Jumlah DROP"
-          value={loading ? "..." : summary.totalDrop}
-          description="Jumlah nota/drop ayam bersih."
-        />
-        <StatCard
-          label="Lot Ayam Aktif"
-          value={loading ? "..." : summary.totalLot}
-          description="Lot harga aktual ayam yang siap dipakai produksi."
-        />
-        <StatCard
-          label="Sisa Kg Ayam"
-          value={loading ? "..." : `${summary.totalKgSisa.toLocaleString("id-ID")} kg`}
-          description="Sisa kg ayam dari lot aktif."
-        />
-      </div>
-
-      <div className="da-drop-layout">
-        <Card className="da-drop-form-card">
-          <div className="da-section-heading da-drop-section-heading">
-            <div>
-              <div className="da-page-kicker">FORM DROP AYAM</div>
-              <h2>Input Nota Ayam</h2>
-              <p>
-                Harga/kg akan dikunci sebagai modal ayam aktual. Simpan hanya setelah nota benar.
-              </p>
-            </div>
-            <Badge tone="warning">Transaksi Aktif</Badge>
+          <div className="da-prod-progress-v6">
+            <div className="head"><span>Pembayaran supplier</span><b>{paidRatio.toFixed(0)}%</b></div>
+            <div className="track"><span style={{ width: `${paidRatio}%` }} /></div>
           </div>
-
-          <div className="da-drop-form-grid">
-            <div className="da-drop-form-fields">
-              <Field label="Tanggal DROP">
-                <input
-                  type="date"
-                  value={form.drop_date}
-                  onChange={(event) => updateField("drop_date", event.target.value)}
-                />
-              </Field>
-
-              <Field label="Supplier">
-                <select
-                  value={form.supplier_id}
-                  onChange={(event) => updateField("supplier_id", event.target.value)}
-                >
-                  <option value="">Pilih supplier</option>
-                  {suppliers.map((supplier) => (
-                    <option key={supplier.id || supplier.name} value={supplier.id}>
-                      {supplier.name || supplier.id}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-
-              <Field label="No Nota Supplier" hint="Contoh: NANA-2026-001">
-                <input
-                  value={form.invoice_no}
-                  onChange={(event) => updateField("invoice_no", event.target.value)}
-                  placeholder="Contoh: NANA-2026-001"
-                />
-              </Field>
-
-              <Field label="Kg Ayam" hint="Contoh: 1020">
-                <input
-                  value={form.qty_kg}
-                  onChange={(event) => updateField("qty_kg", event.target.value)}
-                  placeholder="Contoh: 1020"
-                  inputMode="decimal"
-                />
-              </Field>
-
-              <Field label="Harga / Kg Aktual" hint="Masukkan harga aktual per kg">
-                <input
-                  value={form.unit_cost}
-                  onChange={(event) => updateField("unit_cost", event.target.value)}
-                  placeholder="Harga aktual per kg"
-                  inputMode="decimal"
-                />
-              </Field>
-
-              <Field label="Bayar Saat DROP">
-                <input
-                  value={form.amount_paid}
-                  onChange={(event) => updateField("amount_paid", event.target.value)}
-                  placeholder="0"
-                  inputMode="decimal"
-                />
-              </Field>
-
-              <Field label="Dompet Pembayaran">
-                <select
-                  value={form.payment_wallet_id}
-                  onChange={(event) => updateField("payment_wallet_id", event.target.value)}
-                >
-                  <option value="">Pilih kalau ada pembayaran</option>
-                  {wallets.map((wallet) => (
-                    <option key={wallet.id || wallet.name} value={wallet.id}>
-                      {wallet.name || wallet.id}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-
-              <Field label="Catatan">
-                <textarea
-                  value={form.note}
-                  onChange={(event) => updateField("note", event.target.value)}
-                  placeholder="Contoh: turun ayam pagi / titip nota"
-                />
-              </Field>
-            </div>
-
-            <PreviewPanel preview={preview} />
-          </div>
-
-          {submitResult ? (
-            <div className={`da-drop-submit-result ${submitResult.success ? "success" : "danger"}`}>
-              {submitResult.message}
-              {submitResult.success && needsRefresh ? (
-                <div style={{ marginTop: 6, fontWeight: 700 }}>
-                  Data sudah tersimpan cepat. Klik Refresh Data kalau mau tarik ulang DROP, lot ayam, dan hutang terbaru.
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-
-          <div className="da-drop-form-actions">
-            <Button variant="ghost" onClick={() => setForm(initialForm)}>
-              Reset Form
-            </Button>
-            <Button type="button" onClick={handlePreview}>
-              Preview & Konfirmasi
-            </Button>
+          <div className="da-prod-side-list-v6">
+            <div><span>Sisa hutang</span><strong>{formatRupiah(summary.totalSisaHutang)}</strong></div>
+            <div><span>Sisa ayam</span><strong>{summary.totalKgSisa.toLocaleString("id-ID")} kg</strong></div>
+            <div><span>Lot aktif</span><strong>{summary.totalLot}</strong></div>
+            <div><span>Nota tercatat</span><strong>{summary.totalDrop}</strong></div>
           </div>
         </Card>
-      </div>
+      </section>
 
-      <Card className="da-drop-list-card">
-        <div className="da-section-heading da-drop-section-heading">
-          <div>
-            <div className="da-page-kicker">DAFTAR DROP AYAM</div>
-            <h2>Nota Ayam yang Terbaca</h2>
-            <p>
-              Klik detail untuk melihat rantai: DROP, lot, hutang, stok, modal, dan ID terkait.
-            </p>
-          </div>
-          <Badge tone="success">Data Aktual</Badge>
-        </div>
-
+      <Card
+        className="da-prod-history-panel-v6"
+        title="Riwayat Pembelian Ayam"
+        description="Seluruh nota pembelian yang tercatat. Detail lengkap dibuka melalui popup."
+      >
         <DataTable
           columns={columns}
           rows={purchases}
           getRowKey={(row, index) => getPurchaseId(row) || index}
+          onRowClick={(row) => setSelectedDrop(row)}
         />
       </Card>
 
       <Modal
+        open={entryOpen}
+        title="Catat Pembelian Ayam"
+        subtitle="Masukkan data sesuai nota supplier."
+        onClose={() => { if (!submitting) setEntryOpen(false); }}
+        size="xl"
+      >
+        <div className="da-prod-form-modal-v6">
+          <div className="da-prod-form-grid-v6">
+            <div className="da-drop-form-fields">
+              <Field label="Tanggal Pembelian">
+                <input type="date" value={form.drop_date} onChange={(event) => updateField("drop_date", event.target.value)} />
+              </Field>
+              <Field label="Supplier">
+                <select value={form.supplier_id} onChange={(event) => updateField("supplier_id", event.target.value)}>
+                  <option value="">Pilih supplier</option>
+                  {suppliers.map((supplier) => <option key={supplier.id || supplier.name} value={supplier.id}>{supplier.name || supplier.id}</option>)}
+                </select>
+              </Field>
+              <Field label="No. Nota Supplier">
+                <input value={form.invoice_no} onChange={(event) => updateField("invoice_no", event.target.value)} placeholder="Nomor nota" />
+              </Field>
+              <Field label="Berat Ayam">
+                <input value={form.qty_kg} onChange={(event) => updateField("qty_kg", event.target.value)} placeholder="0" inputMode="decimal" />
+              </Field>
+              <Field label="Harga per Kg">
+                <input value={form.unit_cost} onChange={(event) => updateField("unit_cost", event.target.value)} placeholder="Rp 0" inputMode="decimal" />
+              </Field>
+              <Field label="Bayar Saat Pembelian">
+                <input value={form.amount_paid} onChange={(event) => updateField("amount_paid", event.target.value)} placeholder="Rp 0" inputMode="decimal" />
+              </Field>
+              <Field label="Dompet Pembayaran">
+                <select value={form.payment_wallet_id} onChange={(event) => updateField("payment_wallet_id", event.target.value)}>
+                  <option value="">Pilih dompet jika ada pembayaran</option>
+                  {wallets.map((wallet) => <option key={wallet.id || wallet.name} value={wallet.id}>{wallet.name || wallet.id}</option>)}
+                </select>
+              </Field>
+              <Field label="Catatan">
+                <textarea value={form.note} onChange={(event) => updateField("note", event.target.value)} placeholder="Catatan pembelian" />
+              </Field>
+            </div>
+            <PreviewPanel preview={preview} />
+          </div>
+
+          {submitResult && !submitResult.success ? <div className="da-prod-public-alert-v6 is-error">{submitResult.message}</div> : null}
+          <div className="da-prod-modal-actions-v6">
+            <Button variant="ghost" onClick={() => setForm(initialForm)}>Kosongkan</Button>
+            <Button onClick={handlePreview}>Lanjutkan</Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
         open={confirmOpen}
-        title="Konfirmasi DROP Ayam"
-        subtitle="Cek ulang sebelum disimpan live."
+        title="Konfirmasi Pembelian Ayam"
+        subtitle="Periksa nominal sebelum disimpan."
         onClose={() => setConfirmOpen(false)}
       >
         <div className="da-drop-confirm">
           <PreviewPanel preview={preview} />
-
           <div className="da-drop-confirm-list">
             <SummaryPill label="Tanggal" value={formatDisplayDate(preview.drop_date)} />
             <SummaryPill label="Supplier" value={safeText(preview.supplier_name)} />
-            <SummaryPill label="No Nota" value={safeText(preview.invoice_no)} />
-            <SummaryPill label="Dompet Bayar" value={safeText(preview.payment_wallet_name, preview.amount_paid > 0 ? "Belum dipilih" : "-")} />
+            <SummaryPill label="No. Nota" value={safeText(preview.invoice_no)} />
+            <SummaryPill label="Dompet" value={safeText(preview.payment_wallet_name, preview.amount_paid > 0 ? "Belum dipilih" : "-")} />
           </div>
-
-          <div className="da-drop-note">
-            Setelah disimpan, sistem membuat DROP Ayam, lot harga aktual, stok ayam masuk, Hutang Nana jika belum lunas, mutasi dompet jika ada pembayaran, arsip, dan audit.
-          </div>
-
-          {submitResult && !submitResult.success ? (
-            <div className="da-drop-submit-result danger">{submitResult.message}</div>
-          ) : null}
-
-          <div className="da-drop-form-actions">
-            <Button variant="ghost" onClick={() => setConfirmOpen(false)} disabled={submitting}>
-              Koreksi Lagi
-            </Button>
-            <Button type="button" onClick={handleLiveSubmit} disabled={submitting}>
-              {submitting ? "Menyimpan..." : "Simpan DROP Ayam"}
-            </Button>
+          <div className="da-prod-confirm-note-v6">Saat disimpan, stok bahan dan posisi hutang supplier akan diperbarui otomatis sesuai nilai nota.</div>
+          <div className="da-prod-modal-actions-v6">
+            <Button variant="ghost" onClick={() => setConfirmOpen(false)} disabled={submitting}>Kembali</Button>
+            <Button onClick={handleLiveSubmit} disabled={submitting}>{submitting ? "Menyimpan..." : "Simpan Pembelian"}</Button>
           </div>
         </div>
       </Modal>
 
       <Modal
         open={Boolean(selectedDrop)}
-        title={selectedDrop ? "Detail DROP Ayam" : ""}
+        title="Detail Pembelian Ayam"
         subtitle={selectedDrop ? getPurchaseId(selectedDrop) : ""}
         onClose={() => setSelectedDrop(null)}
       >
@@ -1011,4 +924,5 @@ export default function DropAyamPage({ session, onSessionExpired }) {
       </Modal>
     </div>
   );
+
 }
