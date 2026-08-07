@@ -458,8 +458,8 @@ export default function PapanPusatPage({ session, onSessionExpired }) {
     <div className="da-page da-owner-dashboard">
       <PageHeader
         title="Papan Pantau"
-        description="Ringkasan owner untuk melihat uang, stok, produksi, PO, hutang, kewajiban owner, payroll, setoran, dan 4 Amplop dalam satu dashboard ringan. Read-only, tidak membuat transaksi."
-        badge="Live Dashboard"
+        description="Ringkasan utama owner untuk memantau uang, stok, produksi, PO, hutang, kewajiban, payroll, setoran, dan 4 Amplop dalam satu layar."
+        badge="Ringkasan Aktual"
         badgeTone="warning"
       />
 
@@ -555,7 +555,7 @@ export default function PapanPusatPage({ session, onSessionExpired }) {
                 Klik kartu untuk catatan ringkas. Tindakan tetap dilakukan di modul masing-masing agar rantai ID tetap rapi.
               </p>
             </div>
-            <Badge tone="success">Live Data</Badge>
+            <Badge tone="success">Data Aktual</Badge>
           </div>
 
           <div className="da-owner-radar-grid">
@@ -591,7 +591,7 @@ export default function PapanPusatPage({ session, onSessionExpired }) {
               Ini peta cepat usaha. Detail lengkap tetap dibuka lewat Owner Control atau Arsip Digital.
             </p>
           </div>
-          <Badge tone="warning">Read Only</Badge>
+          <Badge tone="warning">Pantau</Badge>
         </div>
 
         <div className="da-owner-flow-grid">
@@ -610,7 +610,7 @@ export default function PapanPusatPage({ session, onSessionExpired }) {
               Baris kosong/formatting tidak ikut dihitung. Klik detail lengkap lewat Arsip Digital.
             </p>
           </div>
-          <Badge tone="success">Archive Hook</Badge>
+          <Badge tone="success">Arsip Aktif</Badge>
         </div>
 
         <DataTable
