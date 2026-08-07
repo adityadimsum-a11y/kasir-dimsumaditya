@@ -1,4 +1,4 @@
-import { Archive, Bell, CalendarDays, LogOut, MapPin, Menu, ShieldCheck } from "lucide-react";
+import { Archive, CalendarDays, LogOut, MapPin, Menu, ShieldCheck } from "lucide-react";
 import Button from "../components/ui/Button";
 
 function initials(value = "") {
@@ -36,11 +36,9 @@ export default function Topbar({ session, onLogout, onOpenSidebar, onNavigate, p
       <div className="da-topbar-tools-v3">
         <button type="button" className="da-topbar-search-v3" onClick={() => onNavigate?.("arsip-digital")} title="Buka Arsip Digital">
           <Archive size={16} />
-          <span>Cari transaksi / ID</span>
-          <kbd>⌘ K</kbd>
+          <span>Cari transaksi atau ID</span>
         </button>
         <div className="da-topbar-date-v3"><CalendarDays size={15} /><span>{todayLabel()}</span></div>
-        <button type="button" className="da-topbar-icon-v3" aria-label="Notifikasi" title="Status operasional"><Bell size={17} /></button>
         <div className="da-topbar-location-v3"><MapPin size={14} /><span>{locationName}</span></div>
         <div className="da-topbar-user-v3">
           <div className="da-user-avatar-v3">{initials(userName)}<span /></div>
