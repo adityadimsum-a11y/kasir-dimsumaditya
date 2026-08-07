@@ -319,12 +319,12 @@ export default function BranchCommercePanel({ sessionToken, onSessionExpired }) 
             <div className="da-mini-title">Part 3C · Multi-Lokasi</div>
             <div className="da-big-text">Kasir, Harga, Stok & Uang Cabang</div>
             <p className="da-muted">
-              Owner menyiapkan dompet secara manual. Kasir hanya LIVE jika akun, harga lokasi, stok bebas, dan dompet sudah siap.
+              Owner menyiapkan dompet secara manual. Kasir hanya aktif jika akun, harga lokasi, stok bebas, dan dompet sudah siap.
             </p>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
             <Badge tone={health.ready ? "success" : "danger"}>
-              {health.ready ? "Migration 019 Aktif" : "Migration 019 Belum Siap"}
+              {health.ready ? "Gerbang Cabang Aktif" : "Gerbang Cabang Belum Siap"}
             </Badge>
             <Badge tone="warning">Tanpa Seed Otomatis</Badge>
             <Button type="button" variant="ghost" onClick={loadData} disabled={loading || submitting}>
@@ -493,7 +493,7 @@ export default function BranchCommercePanel({ sessionToken, onSessionExpired }) 
             </div>
 
             <div className="da-form-warning" style={{ marginTop: 14 }}>
-              Setelah aktif, order nyata dapat membuat invoice, pembayaran/piutang, stok keluar, mutasi dompet, jurnal, arsip, dan audit. Harga tetap di-resolve ulang oleh backend.
+              Setelah aktif, order nyata dapat membuat invoice, pembayaran/piutang, stok keluar, mutasi dompet, jurnal, arsip, dan audit. Harga tetap divalidasi ulang oleh sistem.
             </div>
 
             <div className="da-drop-field" style={{ marginTop: 14 }}>
