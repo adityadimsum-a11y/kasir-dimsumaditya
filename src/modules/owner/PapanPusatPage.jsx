@@ -342,7 +342,7 @@ function recentColumns() {
 }
 
 
-function RadarDetailOverlay({ item, onClose }) {
+function RadarDetailOverlay({ item, onClose, onOpenSource }) {
   if (!item) return null;
 
   return (
@@ -398,6 +398,9 @@ function RadarDetailOverlay({ item, onClose }) {
           <button type="button" className="da-button da-button-ghost" onClick={onClose}>
             Tutup
           </button>
+          <button type="button" className="da-button da-button-primary" onClick={() => onOpenSource?.(item)}>
+            Buka Modul Sumber
+          </button>
         </div>
       </section>
     </div>
@@ -405,7 +408,7 @@ function RadarDetailOverlay({ item, onClose }) {
 }
 
 
-export default function PapanPusatPage({ session, onSessionExpired }) {
+export default function PapanPusatPage({ session, onSessionExpired, onNavigate }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [data, setData] = useState(null);
@@ -413,21 +416,17 @@ export default function PapanPusatPage({ session, onSessionExpired }) {
 
   const summary = useMemo(() => normalizeSummary(data), [data]);
   const radar = useMemo(() => getRadar(summary), [summary]);
-  const chain = useMemo(() => getBenangMerah(summary), [summary]);
-  const priority = useMemo(() => getPrioritySummary(radar), [radar]);
-  const recent = useMemo(() => asArray(data?.recent_transactions).slice(0, 8), [data]);
-  const health = data?.health || {};
-  const counts = data?.counts || {};
+  const recent = useMemo(() => asArray(data?.recent_transactions).slice(0, 10), [data]);
 
   const loadData = async (options = {}) => {
     setLoading(true);
     setError("");
 
     const result = await getOwnerControlBootstrap(session?.sessionToken, {
-      source: "frontend_part_8c_papan_pantau_fast_dashboard",
+      source: "frontend_operations_ui_v2_owner_dashboard",
       view: "fast_dashboard",
       mode: "fast_dashboard",
-      limit: 8,
+      limit: 10,
       cache_seconds: 45,
       skip_health: true,
       force_refresh: Boolean(options.forceRefresh),
@@ -439,7 +438,7 @@ export default function PapanPusatPage({ session, onSessionExpired }) {
         return;
       }
 
-      setError(result.message || "Gagal membaca Papan Pantau.");
+      setError(result.message || "Gagal membaca Dashboard Owner.");
       setData(null);
       setLoading(false);
       return;
@@ -454,175 +453,167 @@ export default function PapanPusatPage({ session, onSessionExpired }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.sessionToken]);
 
+  const radarSorted = [...radar].sort((a, b) => {
+    const score = (item) => item.priority === "danger" ? 3 : item.priority === "warning" ? 2 : 1;
+    return score(b) - score(a) || numberValue(b.rawValue) - numberValue(a.rawValue);
+  });
+  const radarPrimary = radarSorted.slice(0, 6);
+
+  const goToRadarSource = (item) => {
+    const map = {
+      hutang: "hutang-nana",
+      stok: "stok-jadi",
+      ayam: "stok-ayam",
+      amplop: "empat-amplop",
+      po: "antrian-po",
+      request: "request-do",
+      setoran: "setoran-cabang",
+      "kewajiban-owner": "kewajiban-owner",
+      payroll: "hrd-payroll",
+    };
+    const page = map[item?.key];
+    if (page) onNavigate?.(page);
+  };
+
   return (
-    <div className="da-page da-owner-dashboard">
+    <div className="da-page da-owner-dashboard da-owner-dashboard-v2">
       <PageHeader
-        title="Papan Pantau"
-        description="Ringkasan utama owner untuk memantau uang, stok, produksi, PO, hutang, kewajiban, payroll, setoran, dan 4 Amplop dalam satu layar."
-        badge="Ringkasan Aktual"
-        badgeTone="warning"
+        title="Dashboard Owner"
+        description="Pusat kendali harian Dimsum Aditya untuk keputusan uang, penjualan, produksi, stok, hutang, kewajiban, payroll, dan cabang."
+        actions={(
+          <Button variant="secondary" onClick={() => loadData({ forceRefresh: true })}>
+            {loading ? "Memuat..." : "Refresh Data"}
+          </Button>
+        )}
       />
 
-      <Card className="da-owner-hero-card">
-        <div className="da-owner-hero-main">
-          <div className="da-page-kicker">PUSAT PANTAU HARIAN</div>
-          <h2>Owner Summary → Radar Masalah → Benang Merah</h2>
-          <p>
-            Papan ini memakai data bersih dari Owner Control. Baris kosong/formatting tidak ikut dihitung sebagai transaksi hidup.
-          </p>
-
-          <div className="da-owner-hero-actions">
-            <Badge tone={error ? "danger" : loading ? "warning" : "success"}>
-              {loading ? "Membaca..." : error ? "Perlu Dicek" : "Terhubung"}
-            </Badge>
-            <Button variant="ghost" onClick={() => loadData({ forceRefresh: true })}>
-              Refresh Data
-            </Button>
-          </div>
-        </div>
-
-        <div className="da-owner-hero-status">
-          <Badge tone={priority.tone}>{priority.label}</Badge>
-          <strong>{priority.text}</strong>
-          <span>Kesehatan kabel: {health?.status || "Membaca..."}</span>
-        </div>
-      </Card>
-
       {error ? (
-        <Card className="da-owner-error-card">
-          <Badge tone="danger">Error</Badge>
-          <p>{error}</p>
+        <Card tone="danger" className="da-owner-error-card">
+          <Badge tone="danger">Data belum terbaca</Badge>
+          <p style={{ marginTop: 10 }}>{error}</p>
         </Card>
       ) : null}
 
-      <div className="da-grid da-grid-4 da-owner-kpi-grid">
+      <div className="da-owner-kpi-strip-v2">
         <StatCard
-          tone="default"
-          label="Uang Masuk Aktual"
-          value={loading ? "..." : formatRupiah(summary?.wallet?.money_in || 0)}
-          description="Uang benar-benar masuk dompet/bank. Bahan 4 Amplop."
+          tone="success"
+          label="Uang Tersedia"
+          value={loading ? "..." : formatRupiah(summary?.wallet?.wallet_balance_total || 0)}
+          description="Total saldo dompet operasional yang terbaca."
+          onClick={() => onNavigate?.("kas-dompet")}
+        />
+        <StatCard
+          label="Penjualan"
+          value={loading ? "..." : formatRupiah(summary?.sales?.invoice_total || 0)}
+          description={`${formatNumber(summary?.sales?.orders_count || 0)} order tercatat.`}
+          onClick={() => onNavigate?.("kasir-order")}
         />
         <StatCard
           tone={summary?.obligations?.hutang_remaining > 0 ? "warning" : "success"}
-          label="Sisa Hutang Nana"
+          label="Hutang Nana"
           value={loading ? "..." : formatRupiah(summary?.obligations?.hutang_remaining || 0)}
-          description="Sisa nota ayam yang belum dibayar."
+          description="Outstanding nota ayam dan hutang lama."
+          onClick={() => onNavigate?.("hutang-nana")}
         />
         <StatCard
-          tone="default"
           label="Stok Ready"
           value={loading ? "..." : formatNumber(summary?.stock?.ready_pcs || 0, "pcs")}
-          description="Stok jadi bebas berdasarkan gerak stok."
-        />
-        <StatCard
-          tone="default"
-          label="Sisa Ayam"
-          value={loading ? "..." : formatNumber(summary?.chicken?.remaining_kg || 0, "kg")}
-          description="Sisa kg dari lot ayam aktif."
-        />
-        <StatCard
-          label="PO Customer"
-          value={loading ? "..." : formatNumber(summary?.po?.po_count || 0)}
-          description={`${formatNumber(summary?.po?.reserved_qty || 0, "pcs")} ditahan, ${formatNumber(summary?.po?.shortage_qty || 0, "pcs")} kurang.`}
+          description="Stok jadi bebas yang siap dijual."
+          onClick={() => onNavigate?.("stok-jadi")}
         />
         <StatCard
           tone={summary?.owner_obligations?.due_this_month > 0 ? "warning" : "default"}
-          label="Kewajiban Owner"
+          label="Jatuh Tempo"
           value={loading ? "..." : formatRupiah(summary?.owner_obligations?.due_this_month || 0)}
-          description="Jatuh tempo bulan ini dari kewajiban/cicilan owner."
+          description="Kewajiban owner bulan berjalan."
+          onClick={() => onNavigate?.("kewajiban-owner")}
         />
         <StatCard
           tone={summary?.payroll?.unpaid_total > 0 ? "warning" : "default"}
-          label="Payroll Belum Dibayar"
+          label="Payroll"
           value={loading ? "..." : formatRupiah(summary?.payroll?.unpaid_total || 0)}
-          description="Payroll closing yang belum dibayar dari dompet."
-        />
-        <StatCard
-          tone={getHealthTone(health)}
-          label="Kesehatan Kabel"
-          value={loading ? "..." : health?.status || "-"}
-          description={health?.message || "Membaca koneksi antar modul."}
+          description="Payroll closing yang belum dibayar."
+          onClick={() => onNavigate?.("hrd-payroll")}
         />
       </div>
 
-      <div className="da-owner-radar-layout">
-        <Card className="da-owner-radar-panel">
-          <div className="da-section-heading da-owner-section-heading">
-            <div>
-              <div className="da-page-kicker">RADAR OWNER</div>
-              <h2>Yang Perlu Dilihat Cepat</h2>
-              <p>
-                Klik kartu untuk catatan ringkas. Tindakan tetap dilakukan di modul masing-masing agar rantai ID tetap rapi.
-              </p>
-            </div>
-            <Badge tone="success">Data Aktual</Badge>
-          </div>
-
-          <div className="da-owner-radar-grid">
-            {radar.map((item) => (
+      <div className="da-owner-command-grid-v2">
+        <Card
+          className="da-owner-action-center-v2"
+          title="Yang Perlu Ditindak"
+          description="Prioritas owner hari ini. Klik kartu untuk melihat ringkasan sebelum membuka modul sumber."
+          action={<Badge tone={radarPrimary.some((item) => item.priority === "warning" || item.priority === "danger") ? "warning" : "success"}>Action Center</Badge>}
+        >
+          <div className="da-owner-action-grid-v2">
+            {radarPrimary.map((item) => (
               <RadarCard key={item.key} item={item} onClick={setSelectedRadar} />
             ))}
           </div>
         </Card>
 
-        <Card className="da-owner-side-panel">
-          <div className="da-page-kicker">RINGKASAN OPERASI</div>
-          <h2>Saldo & Pergerakan</h2>
-
-          <div className="da-owner-mini-list">
+        <Card
+          className="da-owner-money-position-v2"
+          title="Posisi Uang"
+          description="Ringkasan arus uang dan kewajiban yang memerlukan perhatian owner."
+          action={<Button variant="secondary" onClick={() => onNavigate?.("owner-control")}>Owner Control</Button>}
+        >
+          <div className="da-owner-mini-list da-owner-mini-list-v2">
             <div><span>Saldo Dompet</span><strong>{formatRupiah(summary?.wallet?.wallet_balance_total || 0)}</strong></div>
+            <div><span>Uang Masuk</span><strong>{formatRupiah(summary?.wallet?.money_in || 0)}</strong></div>
             <div><span>Uang Keluar</span><strong>{formatRupiah(summary?.wallet?.money_out || 0)}</strong></div>
             <div><span>Piutang Terbuka</span><strong>{formatRupiah(summary?.sales?.receivable_open || 0)}</strong></div>
-            <div><span>Setoran Pending</span><strong>{formatRupiah(summary?.branch?.deposit_pending || 0)}</strong></div>
-            <div><span>Request Cabang</span><strong>{formatNumber(summary?.branch?.request_count || 0)}</strong></div>
-            <div><span>Kewajiban Owner</span><strong>{formatRupiah(summary?.owner_obligations?.total_remaining || 0)}</strong></div>
-            <div><span>Payroll Belum Dibayar</span><strong>{formatRupiah(summary?.payroll?.unpaid_total || 0)}</strong></div>
-            <div><span>Arsip/Jejak Terbaca</span><strong>{formatNumber(counts?.recent_transactions || recent.length || 0)}</strong></div>
+            <div><span>Hutang Nana</span><strong>{formatRupiah(summary?.obligations?.hutang_remaining || 0)}</strong></div>
+            <div><span>Belum Dibagi 4 Amplop</span><strong>{formatRupiah(summary?.amplop?.unallocated || 0)}</strong></div>
           </div>
         </Card>
       </div>
 
-      <Card className="da-owner-flow-panel">
-        <div className="da-section-heading da-owner-section-heading">
-          <div>
-            <div className="da-page-kicker">BENANG MERAH USAHA</div>
-            <h2>DROP → Produksi → Stok → Order → Uang → Hutang/Kewajiban → Payroll → 4 Amplop</h2>
-            <p>
-              Ini peta cepat usaha. Detail lengkap tetap dibuka lewat Owner Control atau Arsip Digital.
-            </p>
+      <div className="da-owner-business-grid-v2">
+        <Card
+          title="Produksi & Stok"
+          description="Posisi bahan utama sampai barang jadi siap jual."
+          action={<Button variant="secondary" onClick={() => onNavigate?.("produksi-adukan")}>Buka Produksi</Button>}
+        >
+          <div className="da-owner-business-metrics-v2">
+            <div><span>Ayam Masuk</span><strong>{formatNumber(summary?.chicken?.total_drop_kg || 0, "kg")}</strong></div>
+            <div><span>Sisa Ayam</span><strong>{formatNumber(summary?.chicken?.remaining_kg || 0, "kg")}</strong></div>
+            <div><span>Hasil Produksi</span><strong>{formatNumber(summary?.production?.output_pcs || 0, "pcs")}</strong></div>
+            <div><span>Stok Ready</span><strong>{formatNumber(summary?.stock?.ready_pcs || 0, "pcs")}</strong></div>
           </div>
-          <Badge tone="warning">Pantau</Badge>
-        </div>
+        </Card>
 
-        <div className="da-owner-flow-grid">
-          {chain.map((item, index) => (
-            <FlowCard key={item.title} index={index + 1} item={item} />
-          ))}
-        </div>
-      </Card>
-
-      <Card className="da-owner-recent-panel">
-        <div className="da-section-heading da-owner-section-heading">
-          <div>
-            <div className="da-page-kicker">TRANSAKSI TERBARU</div>
-            <h2>Jejak ID Terakhir</h2>
-            <p>
-              Baris kosong/formatting tidak ikut dihitung. Klik detail lengkap lewat Arsip Digital.
-            </p>
+        <Card
+          title="Penjualan & PO"
+          description="Order, stok yang ditahan, shortage, dan potensi penagihan."
+          action={<Button variant="secondary" onClick={() => onNavigate?.("antrian-po")}>Buka PO</Button>}
+        >
+          <div className="da-owner-business-metrics-v2">
+            <div><span>Order</span><strong>{formatNumber(summary?.sales?.orders_count || 0)}</strong></div>
+            <div><span>Nilai Invoice</span><strong>{formatRupiah(summary?.sales?.invoice_total || 0)}</strong></div>
+            <div><span>Stok Ditahan PO</span><strong>{formatNumber(summary?.po?.reserved_qty || 0, "pcs")}</strong></div>
+            <div><span>Kekurangan PO</span><strong>{formatNumber(summary?.po?.shortage_qty || 0, "pcs")}</strong></div>
           </div>
-          <Badge tone="success">Arsip Aktif</Badge>
-        </div>
+        </Card>
+      </div>
 
+      <Card
+        className="da-owner-recent-panel"
+        title="Aktivitas Terbaru"
+        description="Jejak transaksi terakhir yang masuk ke Arsip Digital."
+        action={<Button variant="secondary" onClick={() => onNavigate?.("arsip-digital")}>Buka Arsip</Button>}
+      >
         <DataTable
           columns={recentColumns()}
           rows={recent}
           getRowKey={(row, index) => `${row.module}-${row.id}-${index}`}
+          onRowClick={() => onNavigate?.("arsip-digital")}
         />
       </Card>
 
       <RadarDetailOverlay
         item={selectedRadar}
         onClose={() => setSelectedRadar(null)}
+        onOpenSource={(item) => { goToRadarSource(item); setSelectedRadar(null); }}
       />
     </div>
   );
