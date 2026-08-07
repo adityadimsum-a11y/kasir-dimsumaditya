@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Activity, ArrowRight, Banknote, Boxes, Factory, Package, RefreshCw, ShieldCheck, ShoppingCart, Users, Wallet } from "lucide-react";
 import { getOwnerControlBootstrap } from "../../lib/api/actions";
 import { formatRupiah } from "../../lib/format/money";
 import { formatDate } from "../../lib/format/date";
@@ -172,25 +173,48 @@ function recentColumns() {
   ];
 }
 
-export default function OwnerControlPage({ session, onSessionExpired }) {
+function OwnerControlShortcut({ icon: Icon, title, description, value, onClick, tone = "default" }) {
+  return (
+    <button type="button" className={`da-control-shortcut-v4 tone-${tone}`} onClick={onClick}>
+      <div className="da-control-shortcut-icon-v4"><Icon size={17} /></div>
+      <div className="da-control-shortcut-copy-v4"><span>{title}</span><strong>{value}</strong><small>{description}</small></div>
+      <ArrowRight size={15} />
+    </button>
+  );
+}
+
+function OwnerControlChainGroup({ index, title, left, right }) {
+  return (
+    <div className="da-control-chain-group-v4">
+      <div className="da-control-chain-index-v4">{index}</div>
+      <div className="da-control-chain-copy-v4">
+        <span>{title}</span>
+        <div><strong>{left?.value || "-"}</strong><small>{left?.title || "-"}</small></div>
+        <div><strong>{right?.value || "-"}</strong><small>{right?.title || "-"}</small></div>
+      </div>
+    </div>
+  );
+}
+
+export default function OwnerControlPage({ session, onSessionExpired, onNavigate }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [data, setData] = useState(null);
   const [selectedAction, setSelectedAction] = useState(null);
+  const [financeOpen, setFinanceOpen] = useState(false);
 
   const summary = useMemo(() => normalizeSummary(data), [data]);
   const chain = useMemo(() => buildChain(summary), [summary]);
   const actions = useMemo(() => asArray(data?.action_queue), [data]);
-  const recent = useMemo(() => asArray(data?.recent_transactions), [data]);
+  const recent = useMemo(() => asArray(data?.recent_transactions).slice(0, 10), [data]);
   const health = data?.health || {};
-  const counts = data?.counts || {};
 
   const loadData = async (options = {}) => {
     setLoading(true);
     setError("");
 
     const result = await getOwnerControlBootstrap(session?.sessionToken, {
-      source: "frontend_part_8c_owner_control_cached_full",
+      source: "frontend_operations_ui_v4_owner_control",
       view: "owner_full",
       mode: "owner_full",
       limit: 16,
@@ -221,225 +245,120 @@ export default function OwnerControlPage({ session, onSessionExpired }) {
   }, [session?.sessionToken]);
 
   const selectedSupportRows = asArray(selectedAction?.support_rows);
+  const displayActions = actions.length ? actions.slice(0, 6) : [{
+    title: "Tidak ada tindakan mendesak",
+    description: "Belum ada alarm besar dari transaksi aktual.",
+    amount_label: "-",
+    status: "Aman",
+    support_rows: [],
+  }];
+  const chainGroups = [
+    { title: "Pasokan", left: chain[0], right: chain[1] },
+    { title: "Produksi", left: chain[2], right: chain[3] },
+    { title: "Penjualan", left: chain[4], right: chain[5] },
+    { title: "Kas", left: chain[6], right: chain[7] },
+    { title: "Kewajiban", left: chain[8], right: chain[9] },
+    { title: "SDM & Alokasi", left: chain[10], right: chain[11] },
+  ];
 
   return (
-    <div className="da-page">
+    <div className="da-page da-owner-control-v4">
       <PageHeader
         title="Owner Control"
-        description="Pusat kendali benang merah usaha dari ayam dan produksi sampai uang, hutang, payroll, setoran, dan 4 Amplop."
-        badge="Pusat Kendali"
+        description="Control tower untuk memantau rantai usaha, prioritas, posisi keuangan, dan hubungan antar transaksi."
+        actions={(
+          <div className="da-control-header-actions-v4">
+            <Button variant="secondary" onClick={() => setFinanceOpen(true)}><ShieldCheck size={15} /> Integritas Keuangan</Button>
+            <Button variant="secondary" onClick={() => loadData({ forceRefresh: true })}><RefreshCw size={15} /> {loading ? "Memuat..." : "Refresh"}</Button>
+          </div>
+        )}
       />
 
-      <Card className="da-dashboard-banner">
-        <div>
-          <div className="da-dashboard-banner-kicker">BENANG MERAH USAHA</div>
-          <h2>DROP Ayam → Produksi → Stok → PO/Order → Uang/Setoran → Hutang/Kewajiban → Payroll → 4 Amplop</h2>
-          <p className="da-dashboard-banner-desc">
-            Pantau keterhubungan transaksi utama dan buka rincian sumbernya tanpa berpindah-pindah modul.
-          </p>
-        </div>
-        <div className="da-dashboard-banner-actions">
-          <Badge tone={error ? "danger" : "success"}>{loading ? "Membaca..." : error ? "Perlu Dicek" : "Terhubung"}</Badge>
-          <Button variant="ghost" onClick={() => loadData({ forceRefresh: true })}>Refresh Data</Button>
-        </div>
-      </Card>
+      {error ? <Card tone="danger"><Badge tone="danger">Data belum terbaca</Badge><p className="da-muted" style={{ marginTop: 10 }}>{error}</p></Card> : null}
 
-      {error ? (
-        <Card>
-          <Badge tone="danger">Error</Badge>
-          <p className="da-muted" style={{ marginTop: 12 }}>{error}</p>
-        </Card>
-      ) : null}
-
-      <div className="da-grid da-grid-3" style={{ marginTop: 16 }}>
-        <StatCard
-          tone="primary"
-          label="Uang Masuk Aktual"
-          value={formatRupiah(summary?.wallet?.money_in || 0)}
-          description="Dari mutasi dompet/bank IN. Ini bahan 4 Amplop."
-        />
-        <StatCard
-          tone="warning"
-          label="Sisa Hutang Nana"
-          value={formatRupiah(summary?.obligations?.hutang_remaining || 0)}
-          description="Sisa nota ayam yang belum dibayar."
-        />
-        <StatCard
-          label="Stok Ready"
-          value={formatNumber(summary?.stock?.ready_pcs || 0, "pcs")}
-          description="Stok jadi bebas berdasarkan gerak stok."
-        />
-        <StatCard
-          label="Sisa Ayam"
-          value={formatNumber(summary?.chicken?.remaining_kg || 0, "kg")}
-          description="Sisa kg dari lot ayam aktif."
-        />
-        <StatCard
-          label="Belum Dibagi 4 Amplop"
-          value={formatRupiah(summary?.amplop?.unallocated || 0)}
-          description="Uang masuk aktual yang belum masuk catatan 4 Amplop."
-        />
-        <StatCard
-          tone={health?.status === "Perlu Dicek" ? "warning" : "default"}
-          label="Kesehatan Kabel"
-          value={health?.status || "-"}
-          description={health?.message || "Membaca koneksi antar modul."}
-        />
-        <StatCard
-          label="PO Customer Aktif"
-          value={formatNumber(summary?.po?.po_count || 0)}
-          description={`${formatNumber(summary?.po?.reserved_qty || 0, "pcs")} ditahan, ${formatNumber(summary?.po?.shortage_qty || 0, "pcs")} kurang.`}
-        />
-        <StatCard
-          tone={summary?.branch?.deposit_pending > 0 ? "warning" : "default"}
-          label="Setoran Pending"
-          value={formatRupiah(summary?.branch?.deposit_pending || 0)}
-          description={`${formatNumber(counts?.branch_deposits || 0)} setoran terbaca. Approve dulu sebelum jadi uang pusat.`}
-        />
-        <StatCard
-          label="Request & DO"
-          value={formatNumber(summary?.branch?.request_count || 0)}
-          description={`${formatNumber(summary?.branch?.delivery_order_count || 0)} DO antar lokasi terbaca.`}
-        />
-        <StatCard
-          tone={summary?.owner_obligations?.due_this_month > 0 ? "warning" : "default"}
-          label="Kewajiban Owner"
-          value={formatRupiah(summary?.owner_obligations?.total_remaining || 0)}
-          description={`${formatNumber(summary?.owner_obligations?.active_count || 0)} kewajiban aktif. ${formatRupiah(summary?.owner_obligations?.due_this_month || 0)} jatuh tempo bulan ini.`}
-        />
-        <StatCard
-          tone={summary?.payroll?.unpaid_total > 0 ? "warning" : "default"}
-          label="Payroll Belum Dibayar"
-          value={formatRupiah(summary?.payroll?.unpaid_total || 0)}
-          description={`${formatNumber(summary?.payroll?.closing_count || 0)} closing, ${formatNumber(summary?.payroll?.payment_count || 0)} pembayaran gaji.`}
-        />
-      </div>
-
-      <Card style={{ marginTop: 16 }}>
-        <div className="da-section-heading">
-          <div>
-            <div className="da-page-kicker">PETA RANTAI USAHA</div>
-            <h2 style={{ margin: 0 }}>Alur Nilai yang Harus Bisa Ditelusuri</h2>
-            <p className="da-muted" style={{ margin: "6px 0 0" }}>
-              Setiap angka di bawah harus punya sumber ID di modul terkait.
-            </p>
+      <section className="da-control-hero-grid-v4">
+        <div className="da-control-hero-v4">
+          <div className="da-control-hero-copy-v4">
+            <span className="da-control-kicker-v4">KENDALI USAHA HARI INI</span>
+            <h2>Uang, stok, order, hutang, dan payroll dalam satu pandangan.</h2>
+            <p>Angka di halaman ini hanya membaca transaksi aktual. Detail teknis dan pemeriksaan integritas dipindahkan ke popup agar halaman utama tetap fokus pada keputusan bisnis.</p>
           </div>
-          <Badge tone="warning">Pantau</Badge>
-        </div>
-
-        <div className="da-flow-grid">
-          {chain.map((item, index) => (
-            <ChainStep key={item.title} index={index + 1} {...item} />
-          ))}
-        </div>
-      </Card>
-
-      <div className="da-dashboard-split" style={{ marginTop: 16 }}>
-        <Card>
-          <div className="da-section-heading">
-            <div>
-              <div className="da-page-kicker">ACTION CENTER OWNER</div>
-              <h2 style={{ margin: 0 }}>Yang Perlu Dipantau</h2>
-              <p className="da-muted" style={{ margin: "6px 0 0" }}>
-                Klik kartu untuk melihat data pendukungnya.
-              </p>
-            </div>
-            <Badge tone="success">Data Aktual</Badge>
+          <div className="da-control-hero-balance-v4">
+            <span>Saldo Dompet</span>
+            <strong>{formatRupiah(summary?.wallet?.wallet_balance_total || 0)}</strong>
+            <small>Uang masuk {formatRupiah(summary?.wallet?.money_in || 0)} · keluar {formatRupiah(summary?.wallet?.money_out || 0)}</small>
           </div>
+        </div>
 
-          <div className="da-action-grid">
-            {(actions.length ? actions : [
-              {
-                title: "Belum ada alarm besar",
-                description: "Belum ada tindakan yang perlu ditampilkan.",
-                amount_label: "-",
-                status: "Aman",
-                support_rows: [],
-              },
-            ]).map((item, index) => (
-              <ActionCard key={`${item.title}-${index}`} item={item} onClick={setSelectedAction} />
-            ))}
+        <div className="da-control-shortcut-grid-v4">
+          <OwnerControlShortcut icon={Factory} title="Produksi" value={formatNumber(summary?.production?.output_pcs || 0, "pcs")} description={`${formatNumber(summary?.chicken?.remaining_kg || 0, "kg")} ayam tersisa`} onClick={() => onNavigate?.("produksi-adukan")} />
+          <OwnerControlShortcut icon={ShoppingCart} title="Penjualan" value={formatRupiah(summary?.sales?.invoice_total || 0)} description={`${formatNumber(summary?.sales?.orders_count || 0)} order`} onClick={() => onNavigate?.("kasir-order")} />
+          <OwnerControlShortcut icon={Banknote} title="Hutang Nana" value={formatRupiah(summary?.obligations?.hutang_remaining || 0)} description="Outstanding supplier ayam" tone={summary?.obligations?.hutang_remaining > 0 ? "warning" : "default"} onClick={() => onNavigate?.("hutang-nana")} />
+          <OwnerControlShortcut icon={Users} title="Payroll" value={formatRupiah(summary?.payroll?.unpaid_total || 0)} description={`${formatNumber(summary?.payroll?.draft_count || 0)} draft`} onClick={() => onNavigate?.("hrd-dashboard")} />
+        </div>
+      </section>
+
+      <section className="da-control-main-grid-v4">
+        <Card className="da-control-chain-panel-v4" title="Rantai Nilai Usaha" description="Enam kelompok utama dari pasokan sampai SDM dan alokasi uang.">
+          <div className="da-control-chain-grid-v4">
+            {chainGroups.map((group, index) => <OwnerControlChainGroup key={group.title} index={index + 1} {...group} />)}
           </div>
         </Card>
 
-        <Card>
-          <div className="da-page-kicker">RINGKASAN CEPAT</div>
-          <h2 style={{ margin: "4px 0 12px" }}>Saldo & Pergerakan</h2>
-          <div className="da-detail-grid" style={{ gridTemplateColumns: "1fr" }}>
-            <div className="da-detail-box">
-              <p>Saldo Dompet</p>
-              <strong>{formatRupiah(summary?.wallet?.wallet_balance_total || 0)}</strong>
-            </div>
-            <div className="da-detail-box">
-              <p>Uang Keluar</p>
-              <strong>{formatRupiah(summary?.wallet?.money_out || 0)}</strong>
-            </div>
-            <div className="da-detail-box">
-              <p>Piutang Terbuka</p>
-              <strong>{formatRupiah(summary?.sales?.receivable_open || 0)}</strong>
-            </div>
-            <div className="da-detail-box">
-              <p>Total Belanja/Kas Keluar</p>
-              <strong>{formatRupiah(summary?.obligations?.cash_expense_total || 0)}</strong>
-            </div>
-            <div className="da-detail-box">
-              <p>Kewajiban Owner</p>
-              <strong>{formatRupiah(summary?.owner_obligations?.total_remaining || 0)}</strong>
-            </div>
-            <div className="da-detail-box">
-              <p>Payroll Belum Dibayar</p>
-              <strong>{formatRupiah(summary?.payroll?.unpaid_total || 0)}</strong>
-            </div>
+        <Card className="da-control-position-panel-v4" title="Posisi Keuangan" description="Angka utama untuk menjaga likuiditas dan kewajiban.">
+          <div className="da-control-position-list-v4">
+            <button type="button" onClick={() => onNavigate?.("kas-dompet")}><span>Kas & Bank</span><strong>{formatRupiah(summary?.wallet?.wallet_balance_total || 0)}</strong><ArrowRight size={14} /></button>
+            <button type="button" onClick={() => onNavigate?.("uang-masuk")}><span>Piutang Terbuka</span><strong>{formatRupiah(summary?.sales?.receivable_open || 0)}</strong><ArrowRight size={14} /></button>
+            <button type="button" onClick={() => onNavigate?.("hutang-nana")}><span>Hutang Nana</span><strong>{formatRupiah(summary?.obligations?.hutang_remaining || 0)}</strong><ArrowRight size={14} /></button>
+            <button type="button" onClick={() => onNavigate?.("kewajiban-owner")}><span>Kewajiban Owner</span><strong>{formatRupiah(summary?.owner_obligations?.total_remaining || 0)}</strong><ArrowRight size={14} /></button>
+            <button type="button" onClick={() => onNavigate?.("empat-amplop")}><span>Belum Dibagi 4 Amplop</span><strong>{formatRupiah(summary?.amplop?.unallocated || 0)}</strong><ArrowRight size={14} /></button>
           </div>
         </Card>
-      </div>
+      </section>
 
-      <Card style={{ marginTop: 16 }}>
-        <div className="da-section-heading">
-          <div>
-            <div className="da-page-kicker">TRANSAKSI TERBARU</div>
-            <h2 style={{ margin: 0 }}>Jejak ID Terakhir</h2>
-            <p className="da-muted" style={{ margin: "6px 0 0" }}>
-              Ini ringkasan saja. Arsip Digital menjadi pintu untuk membuka seluruh rantai ID. Baris kosong/formatting tidak ikut dihitung sebagai transaksi.
-            </p>
+      <section className="da-control-action-grid-v4">
+        <Card title="Perlu Tindakan" description="Prioritas yang berasal dari transaksi aktual. Klik untuk membuka rincian pendukung.">
+          <div className="da-control-action-list-v4">
+            {displayActions.map((item, index) => <ActionCard key={`${item.title}-${index}`} item={item} onClick={setSelectedAction} />)}
           </div>
-          <Badge tone="success">Arsip Aktif</Badge>
-        </div>
-        <DataTable columns={recentColumns()} rows={recent} getRowKey={(row, index) => `${row.module}-${row.id}-${index}`} />
+        </Card>
+
+        <Card title="Ringkasan Operasi" description="Posisi stok, PO, cabang, dan kewajiban dalam format ringkas.">
+          <div className="da-control-ops-grid-v4">
+            <div><Package size={16} /><span>Stok Ready</span><strong>{formatNumber(summary?.stock?.ready_pcs || 0, "pcs")}</strong></div>
+            <div><Boxes size={16} /><span>Sisa Ayam</span><strong>{formatNumber(summary?.chicken?.remaining_kg || 0, "kg")}</strong></div>
+            <div><ShoppingCart size={16} /><span>PO Aktif</span><strong>{formatNumber(summary?.po?.po_count || 0)}</strong></div>
+            <div><Activity size={16} /><span>Setoran Pending</span><strong>{formatRupiah(summary?.branch?.deposit_pending || 0)}</strong></div>
+            <div><Wallet size={16} /><span>Uang Keluar</span><strong>{formatRupiah(summary?.wallet?.money_out || 0)}</strong></div>
+            <div><ShieldCheck size={16} /><span>Integritas Sistem</span><strong>{health?.status || "Aktif"}</strong></div>
+          </div>
+        </Card>
+      </section>
+
+      <Card className="da-control-recent-v4" title="Transaksi Terbaru" description="Jejak transaksi terakhir. Arsip Digital tetap menjadi pintu detail lengkap." action={onNavigate ? <Button variant="secondary" onClick={() => onNavigate("arsip-digital")}>Buka Arsip</Button> : null}>
+        <DataTable columns={recentColumns()} rows={recent} getRowKey={(row, index) => `${row.module}-${row.id}-${index}`} onRowClick={() => onNavigate?.("arsip-digital")} />
       </Card>
 
-      <FinanceLockPanel session={session} onSessionExpired={onSessionExpired} />
+      <Modal open={financeOpen} title="Integritas Keuangan" subtitle="Pemeriksaan wallet, mutasi, alokasi, dan jejak transaksi." onClose={() => setFinanceOpen(false)} size="xl">
+        <div className="da-control-finance-modal-v4"><FinanceLockPanel session={session} onSessionExpired={onSessionExpired} /></div>
+      </Modal>
 
-      <Modal
-        open={Boolean(selectedAction)}
-        title={selectedAction?.title || "Detail Action"}
-        subtitle={selectedAction?.description || "Rincian sumber transaksi."}
-        onClose={() => setSelectedAction(null)}
-      >
-        <div className="da-detail-grid">
-          <div className="da-detail-box">
-            <p>Status</p>
-            <strong>{selectedAction?.status || "-"}</strong>
-          </div>
-          <div className="da-detail-box">
-            <p>Nominal</p>
-            <strong>{selectedAction?.amount_label || "-"}</strong>
-          </div>
+      <Modal open={Boolean(selectedAction)} title={selectedAction?.title || "Detail Tindakan"} subtitle={selectedAction?.description || "Rincian sumber transaksi."} onClose={() => setSelectedAction(null)} size="xl">
+        <div className="da-control-action-modal-summary-v4">
+          <div><span>Status</span><strong>{selectedAction?.status || "-"}</strong></div>
+          <div><span>Nominal</span><strong>{selectedAction?.amount_label || "-"}</strong></div>
         </div>
-
-        <div style={{ marginTop: 16 }}>
-          <DataTable
-            columns={[
-              { key: "date", label: "Tanggal", render: (row) => formatDate(row.date) },
-              { key: "id", label: "ID" },
-              { key: "name", label: "Nama/Sumber" },
-              { key: "amount", label: "Nominal", render: (row) => formatRupiah(row.amount || 0) },
-              { key: "status", label: "Status" },
-            ]}
-            rows={selectedSupportRows}
-            getRowKey={(row, index) => `${row.id}-${index}`}
-          />
-        </div>
+        <DataTable
+          columns={[
+            { key: "date", label: "Tanggal", render: (row) => formatDate(row.date) },
+            { key: "id", label: "ID" },
+            { key: "name", label: "Nama/Sumber" },
+            { key: "amount", label: "Nominal", render: (row) => formatRupiah(row.amount || 0) },
+            { key: "status", label: "Status" },
+          ]}
+          rows={selectedSupportRows}
+          getRowKey={(row, index) => `${row.id}-${index}`}
+        />
       </Modal>
     </div>
   );
