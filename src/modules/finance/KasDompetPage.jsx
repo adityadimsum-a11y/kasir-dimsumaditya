@@ -267,7 +267,7 @@ export default function KasDompetPage({ session, onSessionExpired }) {
       <PageHeader
         title="Kas & Dompet"
         description="Pantau saldo cash, BCA, BRI, mutasi uang, dan sumber ID transaksi. Semua uang harus bisa ditelusuri."
-        badge="Live Trace"
+        badge="Tertelusur"
       />
 
       <div className="da-dashboard-banner">
@@ -334,7 +334,7 @@ export default function KasDompetPage({ session, onSessionExpired }) {
             <div className="da-big-text">Catatan Keuangan Otomatis</div>
             <p className="da-muted">Klik baris untuk membuka detail sumber: order, payment, kas keluar, hutang, setoran, atau 4 Amplop.</p>
           </div>
-          <Badge tone="success">Live Data</Badge>
+          <Badge tone="success">Data Aktual</Badge>
         </div>
 
         <div className="da-tabs">
