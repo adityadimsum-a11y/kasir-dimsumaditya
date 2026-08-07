@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { DollarSign, Factory, Layers, RefreshCw, Scale } from "lucide-react";
 import { getDropAyamBootstrap, getProductionBootstrap } from "../../lib/api/actions";
 import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
@@ -293,204 +294,120 @@ export default function StokAyamPage({ session, onSessionExpired }) {
   const activeLots = useMemo(() => bootstrap.lots.filter(isOperationalActiveLot), [bootstrap.lots]);
   const latestMovements = useMemo(() => bootstrap.movements.slice(0, 12), [bootstrap.movements]);
 
+  const stockTotalForRatio = bootstrap.summary.total_used_kg + bootstrap.summary.total_remaining_kg;
+  const usedRatio = stockTotalForRatio > 0
+    ? Math.min(100, (bootstrap.summary.total_used_kg / stockTotalForRatio) * 100)
+    : 0;
+
   return (
-    <>
+    <div className="da-page da-production-workspace-v6">
       <PageHeader
         title="Stok Ayam"
-        description="Pantau ayam masuk, pemakaian produksi, sisa kg per lot, dan nilai modal ayam berdasarkan DROP yang tercatat."
-        badge="Stok Aktual"
+        eyebrow="Produksi & Stok"
+        description="Pantau ketersediaan ayam per lot, pemakaian produksi, dan nilai bahan yang masih tersedia."
+        actions={<Button variant="secondary" onClick={loadData} disabled={loading}><RefreshCw size={15} /> {loading ? "Memuat" : "Perbarui"}</Button>}
       />
 
-      <ProductionFlowPanel
-        session={session}
-        onSessionExpired={onSessionExpired}
-        compact
-      />
+      <ProductionFlowPanel session={session} onSessionExpired={onSessionExpired} compact />
 
-      <Card>
-        <div className="da-page-kicker">STOK BAHAN UTAMA</div>
-        <h2 style={{ margin: "4px 0 8px" }}>DROP Ayam → Lot → Produksi/Adukan</h2>
-        <p className="da-muted" style={{ marginTop: 0 }}>
-          Stok ayam di sini membaca TabChickenLots, gerak stok ayam, dan batch produksi. Angka harus nyambung dengan DROP Ayam dan Produksi/Adukan.
-        </p>
-        <div className="da-filter-row" style={{ marginTop: 16, marginBottom: 0 }}>
-          <input
-            className="da-input"
-            type="date"
-            value={filter.date_start}
-            onChange={(event) => setFilter((prev) => ({ ...prev, date_start: event.target.value }))}
-          />
-          <input
-            className="da-input"
-            type="date"
-            value={filter.date_end}
-            onChange={(event) => setFilter((prev) => ({ ...prev, date_end: event.target.value }))}
-          />
-          <input
-            className="da-input"
-            value={filter.location_id}
-            onChange={(event) => setFilter((prev) => ({ ...prev, location_id: event.target.value.toUpperCase() }))}
-            placeholder="ID atau kode lokasi: LOC-TGR-001 / TGR"
-          />
-          <Badge tone={error ? "danger" : "success"}>{error ? "Perlu Dicek" : "Terhubung"}</Badge>
-          <Button variant="ghost" onClick={loadData} disabled={loading}>
-            {loading ? "Membaca..." : "Refresh Data"}
-          </Button>
-        </div>
-        {error ? <div className="da-form-warning" style={{ marginTop: 14 }}>{error}</div> : null}
-      </Card>
+      {error ? <div className="da-prod-public-alert-v6 is-error">{error}</div> : null}
 
-      <div className="da-grid da-grid-3" style={{ marginTop: 16 }}>
-        <StatCard
-          label="Kg Ayam Masuk"
-          value={formatKg(bootstrap.summary.total_in_kg)}
-          description="Total kg dari lot ayam yang terbaca."
-          tone="default"
-        />
-        <StatCard
-          label="Kg Ayam Dipakai"
-          value={formatKg(bootstrap.summary.total_used_kg)}
-          description="Ayam yang sudah dipakai produksi/adukan."
-          tone="warning"
-        />
-        <StatCard
-          label="Sisa Kg Ayam"
-          value={formatKg(bootstrap.summary.total_remaining_kg)}
-          description="Sisa ayam aktif yang masih bisa dipakai."
-          tone="primary"
-        />
-        <StatCard
-          label="Nilai Sisa Ayam"
-          value={formatMoney(bootstrap.summary.total_remaining_value)}
-          description="Sisa kg x harga aktual per lot."
-          tone="default"
-        />
-        <StatCard
-          label="Lot Aktif"
-          value={bootstrap.summary.active_lot_count}
-          description="Lot ayam yang belum habis."
-          tone="default"
-        />
-        <StatCard
-          label="Batch Produksi"
-          value={bootstrap.summary.production_count}
-          description="Produksi yang memakai ayam pada filter ini."
-          tone="default"
-        />
+      <div className="da-prod-filter-bar-v6">
+        <div><label>Dari</label><input type="date" value={filter.date_start} onChange={(event) => setFilter((prev) => ({ ...prev, date_start: event.target.value }))} /></div>
+        <div><label>Sampai</label><input type="date" value={filter.date_end} onChange={(event) => setFilter((prev) => ({ ...prev, date_end: event.target.value }))} /></div>
+        <div className="is-location"><label>Lokasi</label><input value={filter.location_id} onChange={(event) => setFilter((prev) => ({ ...prev, location_id: event.target.value.toUpperCase() }))} placeholder="Tangerang" /></div>
+        <Button onClick={loadData} disabled={loading}>Terapkan</Button>
       </div>
 
-      {bootstrap.warnings.length ? (
-        <div className="da-form-warning" style={{ marginTop: 16 }}>
-          {bootstrap.warnings.map((warning) => warning.message || warning).join(" ")}
-        </div>
-      ) : null}
+      <section className="da-prod-kpi-grid-v6">
+        <div className="da-prod-kpi-v6 tone-primary"><span className="icon"><Scale size={17} /></span><div><small>Sisa Ayam</small><strong>{formatKg(bootstrap.summary.total_remaining_kg)}</strong><p>Siap dipakai produksi</p></div></div>
+        <div className="da-prod-kpi-v6"><span className="icon"><DollarSign size={17} /></span><div><small>Nilai Persediaan</small><strong>{formatMoney(bootstrap.summary.total_remaining_value)}</strong><p>Berdasarkan harga tiap lot</p></div></div>
+        <div className="da-prod-kpi-v6"><span className="icon"><Layers size={17} /></span><div><small>Lot Aktif</small><strong>{bootstrap.summary.active_lot_count}</strong><p>Lot dengan sisa bahan</p></div></div>
+        <div className="da-prod-kpi-v6 tone-warning"><span className="icon"><Factory size={17} /></span><div><small>Dipakai Produksi</small><strong>{formatKg(bootstrap.summary.total_used_kg)}</strong><p>{bootstrap.summary.production_count} batch produksi</p></div></div>
+      </section>
 
-      <Card className="da-card-padding" style={{ marginTop: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-          <div>
-            <div className="da-page-kicker">LOT AYAM</div>
-            <h2 style={{ margin: "4px 0 6px" }}>Lot Ayam Aktif</h2>
-            <p className="da-muted" style={{ marginTop: 0 }}>Klik baris untuk melihat rantai DROP, hutang, stock layer, dan gerak stok.</p>
+      <section className="da-prod-main-grid-v6">
+        <Card className="da-prod-primary-panel-v6" title="Lot Ayam Aktif" description="Persediaan ayam yang masih tersedia untuk produksi. Klik baris untuk melihat rincian lot.">
+          <DataTable
+            columns={[
+              { key: "date", label: "Tanggal", render: (row) => formatDate(row.lot_date) },
+              { key: "lot", label: "Lot", render: (row) => <strong>{safeText(row.chicken_lot_id)}</strong> },
+              { key: "supplier", label: "Supplier", render: (row) => safeText(row.supplier_name) },
+              { key: "in", label: "Masuk", render: (row) => formatKg(row.qty_kg) },
+              { key: "used", label: "Dipakai", render: (row) => formatKg(row.qty_kg_out) },
+              { key: "remaining", label: "Sisa", render: (row) => <strong>{formatKg(row.qty_kg_remaining)}</strong> },
+              { key: "cost", label: "Harga/kg", render: (row) => formatMoney(row.unit_cost) },
+            ]}
+            rows={activeLots}
+            getRowKey={(row) => row.chicken_lot_id}
+            onRowClick={(row) => setSelected(row)}
+          />
+          {!activeLots.length ? <div className="da-prod-empty-v6">Belum ada lot ayam aktif pada periode ini.</div> : null}
+        </Card>
+
+        <Card className="da-prod-side-panel-v6" title="Pemakaian Bahan" description="Perbandingan ayam yang sudah dipakai dengan sisa bahan saat ini.">
+          <div className="da-prod-side-total-v6">
+            <span>Total ayam masuk</span>
+            <strong>{formatKg(bootstrap.summary.total_in_kg)}</strong>
+            <small>{bootstrap.summary.active_lot_count} lot masih aktif</small>
           </div>
-          <Badge tone="warning">Pantau</Badge>
-        </div>
-        <DataTable
-          columns={[
-            { key: "date", label: "Tanggal", render: (row) => formatDate(row.lot_date) },
-            { key: "lot", label: "Lot ID", render: (row) => <strong>{safeText(row.chicken_lot_id)}</strong> },
-            { key: "supplier", label: "Supplier", render: (row) => safeText(row.supplier_name) },
-            { key: "in", label: "Masuk", render: (row) => formatKg(row.qty_kg) },
-            { key: "used", label: "Dipakai", render: (row) => formatKg(row.qty_kg_out) },
-            { key: "remaining", label: "Sisa", render: (row) => <strong>{formatKg(row.qty_kg_remaining)}</strong> },
-            { key: "cost", label: "Harga/kg", render: (row) => formatMoney(row.unit_cost) },
-            { key: "status", label: "Status", render: (row) => <Badge tone={badgeTone(row.status)}>{safeText(row.status)}</Badge> },
-          ]}
-          rows={activeLots}
-          getRowKey={(row) => row.chicken_lot_id}
-          onRowClick={(row) => setSelected(row)}
-        />
-        {!activeLots.length ? <p className="da-muted">Belum ada lot ayam aktif terbaca untuk filter ini.</p> : null}
-      </Card>
+          <div className="da-prod-progress-v6">
+            <div className="head"><span>Sudah dipakai</span><b>{usedRatio.toFixed(0)}%</b></div>
+            <div className="track"><span style={{ width: `${usedRatio}%` }} /></div>
+          </div>
+          <div className="da-prod-side-list-v6">
+            <div><span>Dipakai produksi</span><strong>{formatKg(bootstrap.summary.total_used_kg)}</strong></div>
+            <div><span>Sisa bahan</span><strong>{formatKg(bootstrap.summary.total_remaining_kg)}</strong></div>
+            <div><span>Batch produksi</span><strong>{bootstrap.summary.production_count}</strong></div>
+            <div><span>Nilai sisa</span><strong>{formatMoney(bootstrap.summary.total_remaining_value)}</strong></div>
+          </div>
+        </Card>
+      </section>
 
-      <div className="da-grid da-grid-3" style={{ marginTop: 16, alignItems: "start" }}>
-        <Card className="da-card-padding" style={{ gridColumn: "span 2" }}>
-          <div className="da-page-kicker">GERAK STOK AYAM</div>
-          <h2 style={{ margin: "4px 0 6px" }}>Mutasi Ayam Terbaru</h2>
-          <p className="da-muted" style={{ marginTop: 0 }}>Gerak masuk dari DROP dan keluar/pakai dari produksi harus punya source ID.</p>
+      <section className="da-prod-secondary-grid-v6">
+        <Card title="Aktivitas Bahan Terbaru" description="Pergerakan ayam masuk dan pemakaian produksi.">
           <DataTable
             columns={[
               { key: "date", label: "Tanggal", render: (row) => formatDate(row.movement_date) },
-              { key: "id", label: "Mutasi ID", render: (row) => <strong>{safeText(row.movement_id)}</strong> },
-              { key: "arah", label: "Arah", render: (row) => <Badge tone={String(row.direction).toUpperCase().includes("OUT") ? "warning" : "success"}>{safeText(row.direction)}</Badge> },
-              { key: "qty", label: "Qty", render: (row) => formatKg(row.qty_kg) },
-              { key: "source", label: "Sumber", render: (row) => safeText(row.source_id || row.source_module) },
-              { key: "status", label: "Status", render: (row) => safeText(row.status) },
+              { key: "arah", label: "Jenis", render: (row) => <Badge tone={String(row.direction).toUpperCase().includes("OUT") ? "warning" : "success"}>{String(row.direction).toUpperCase().includes("OUT") ? "Pemakaian" : "Masuk"}</Badge> },
+              { key: "qty", label: "Jumlah", render: (row) => formatKg(row.qty_kg) },
+              { key: "source", label: "Transaksi", render: (row) => safeText(row.source_id || row.source_module) },
             ]}
             rows={latestMovements}
             getRowKey={(row, index) => row.movement_id || index}
           />
         </Card>
 
-        <Card className="da-card-padding">
-          <div className="da-page-kicker">PRODUKSI TERKAIT</div>
-          <h2 style={{ margin: "4px 0 6px" }}>Ayam Dipakai Adukan</h2>
-          <p className="da-muted" style={{ marginTop: 0 }}>Batch produksi yang memakai ayam dalam filter ini.</p>
-          <div style={{ display: "grid", gap: 10 }}>
+        <Card title="Produksi yang Menggunakan Ayam" description="Batch terakhir yang menggunakan persediaan ayam.">
+          <div className="da-prod-activity-list-v6">
             {bootstrap.productions.slice(0, 8).map((row) => (
-              <button
-                type="button"
-                key={row.production_id}
-                className="da-card da-card-padding"
-                style={{ textAlign: "left", borderColor: "var(--da-color-border)" }}
-              >
-                <div style={{ fontWeight: 900 }}>{safeText(row.production_id)}</div>
-                <div className="da-muted">{formatDate(row.production_date)} · {safeText(row.product_name)}</div>
-                <div style={{ marginTop: 6, fontWeight: 850 }}>{formatKg(row.chicken_kg_used)} → {numberValue(row.actual_pcs).toLocaleString("id-ID")} pcs</div>
-              </button>
+              <div key={row.production_id} className="da-prod-activity-row-v6">
+                <div><strong>{safeText(row.product_name)}</strong><small>{formatDate(row.production_date)}</small></div>
+                <div><b>{formatKg(row.chicken_kg_used)}</b><small>{numberValue(row.actual_pcs).toLocaleString("id-ID")} pcs</small></div>
+              </div>
             ))}
-            {!bootstrap.productions.length ? <p className="da-muted">Belum ada batch produksi terkait pada filter ini.</p> : null}
+            {!bootstrap.productions.length ? <div className="da-prod-empty-v6">Belum ada produksi pada periode ini.</div> : null}
           </div>
         </Card>
-      </div>
+      </section>
 
-      <Modal
-        open={Boolean(selected)}
-        title="Detail Lot Ayam"
-        subtitle={selected?.chicken_lot_id}
-        onClose={() => setSelected(null)}
-      >
+      <Modal open={Boolean(selected)} title="Detail Lot Ayam" subtitle={selected?.chicken_lot_id} onClose={() => setSelected(null)}>
         {selected ? (
-          <div style={{ display: "grid", gap: 14 }}>
+          <div className="da-prod-detail-v6">
             <div className="da-modal-summary">
-              <div>
-                <div className="da-stat-label">Sisa Lot</div>
-                <div className="da-stat-value">{formatKg(selected.qty_kg_remaining)}</div>
-                <div className="da-muted">Masuk {formatKg(selected.qty_kg)} · Dipakai {formatKg(selected.qty_kg_out)}</div>
-              </div>
+              <div><div className="da-stat-label">Sisa Lot</div><div className="da-stat-value">{formatKg(selected.qty_kg_remaining)}</div><div className="da-muted">Masuk {formatKg(selected.qty_kg)} · Dipakai {formatKg(selected.qty_kg_out)}</div></div>
               <Badge tone={badgeTone(selected.status)}>{safeText(selected.status)}</Badge>
             </div>
-
-            <div className="da-grid da-grid-3">
-              <Card>
-                <div className="da-stat-label">DROP / Purchase</div>
-                <strong>{safeText(selected.purchase_id || selected.source_id)}</strong>
-              </Card>
-              <Card>
-                <div className="da-stat-label">Hutang Nana</div>
-                <strong>{safeText(selected.payable_id)}</strong>
-              </Card>
-              <Card>
-                <div className="da-stat-label">Layer Modal</div>
-                <strong>{safeText(selected.stock_layer_id)}</strong>
-              </Card>
-            </div>
-
-            <div className="da-modal-note">
-              Rantai ini harus bisa ditelusuri: DROP Ayam → Lot Ayam → Produksi/Adukan → Barang Masuk Freezer → Stok Jadi.
+            <div className="da-prod-detail-grid-v6">
+              <div><span>Supplier</span><strong>{safeText(selected.supplier_name)}</strong></div>
+              <div><span>Harga per kg</span><strong>{formatMoney(selected.unit_cost)}</strong></div>
+              <div><span>Pembelian</span><strong>{safeText(selected.purchase_id || selected.source_id)}</strong></div>
+              <div><span>Hutang Supplier</span><strong>{safeText(selected.payable_id, "Tidak ada")}</strong></div>
             </div>
           </div>
         ) : null}
       </Modal>
-    </>
+    </div>
   );
+
 }
