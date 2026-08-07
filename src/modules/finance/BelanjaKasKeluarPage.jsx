@@ -427,7 +427,7 @@ export default function BelanjaKasKeluarPage({ session, onSessionExpired }) {
       <PageHeader
         title="Belanja & Kas Keluar"
         description="Input belanja harian, biaya operasional, dan uang keluar dari dompet. Setiap kas keluar harus punya ID, item, dompet, mutasi, dan sumber arsip."
-        badge="Live Trace"
+        badge="Tertelusur"
       />
 
       <div className="da-dashboard-banner">
@@ -537,7 +537,7 @@ export default function BelanjaKasKeluarPage({ session, onSessionExpired }) {
       <Card>
         <div className="da-section-heading">
           <div><div className="da-mini-title">Riwayat Kas Keluar</div><div className="da-big-text">Belanja yang Sudah Tercatat</div><p className="da-muted">Klik baris untuk melihat detail item, mutasi dompet, dan sumber arsip.</p></div>
-          <Badge tone="success">Live Data</Badge>
+          <Badge tone="success">Data Aktual</Badge>
         </div>
         <div className="da-tabs" style={{ marginBottom: 12 }}>
           <button className={activeTab === "all" ? "active" : ""} onClick={() => setActiveTab("all")}>Semua</button>
