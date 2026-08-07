@@ -363,7 +363,7 @@ export default function UangMasukPage({ session, onSessionExpired }) {
       <PageHeader
         title="Uang Masuk"
         description="Catat pembayaran aktual customer dan pantau piutang. 4 Amplop hanya boleh ambil dari uang yang benar-benar masuk."
-        badge="Live Payment"
+        badge="Pembayaran Aktif"
       />
 
       <div className="da-dashboard-banner">
@@ -562,7 +562,7 @@ export default function UangMasukPage({ session, onSessionExpired }) {
             <div className="da-big-text">Pembayaran & Piutang</div>
             <p className="da-muted">Klik baris untuk melihat rantai order, invoice, payment, dompet, dan status piutang.</p>
           </div>
-          <Badge tone="success">Live Data</Badge>
+          <Badge tone="success">Data Aktual</Badge>
         </div>
 
         <div className="da-tabs">
