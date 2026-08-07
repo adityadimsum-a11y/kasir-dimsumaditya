@@ -171,7 +171,7 @@ export default function FinishedStockPage({ session, onSessionExpired }) {
       <PageHeader
         title="Stok Jadi"
         description="Pantau stok siap jual: stok bebas, stok ditahan PO, barang masuk freezer, dan barang keluar."
-        badge="Live Stock"
+        badge="Stok Aktual"
       />
 
       <ProductionFlowPanel
@@ -255,7 +255,7 @@ export default function FinishedStockPage({ session, onSessionExpired }) {
               Klik baris untuk melihat detail ringkas stok, alokasi, dan gerak terakhir.
             </p>
           </div>
-          <Badge tone="warning">Read Only</Badge>
+          <Badge tone="warning">Pantau</Badge>
         </div>
 
         <DataTable
