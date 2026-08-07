@@ -41,7 +41,7 @@ const stageLabel = (stage) => {
     FIRST_PRODUCTION_DONE: "Produksi Pertama Selesai",
     FIRST_ORDER_DONE: "Order Pertama Selesai",
     FIRST_CLOSING_DONE: "Closing Pertama Selesai",
-    LIVE_CYCLE_COMPLETE: "Siklus Live Lengkap",
+    LIVE_CYCLE_COMPLETE: "Siklus Operasional Lengkap",
   };
   return labels[String(stage || "").toUpperCase()] || safeText(stage, "Belum Siap");
 };
@@ -134,8 +134,8 @@ export default function GoLiveChecklistPage({ session, onSessionExpired }) {
     <main className="da-page golive-page">
       <PageHeader
         title="Go-Live & Data Awal"
-        description="Pusat kendali opening data dan siklus pertama per lokasi. Persentase di halaman ini bukan persentase kelengkapan kode/backend."
-        badge={health.ready ? "Control Ready" : "Perlu Dilengkapi"}
+        description="Pusat kendali kesiapan data awal dan siklus operasional pertama untuk setiap lokasi."
+        badge={health.ready ? "Siap Operasional" : "Perlu Dilengkapi"}
         badgeTone={health.ready ? "success" : "warning"}
       />
 
@@ -147,15 +147,15 @@ export default function GoLiveChecklistPage({ session, onSessionExpired }) {
           <div className="golive-command-copy">
             <div className="golive-eyebrow">Pusat Aktivasi Operasional</div>
             <h2>{progress >= 100 ? "Semua lokasi siap dioperasikan" : `Kesiapan opening data & siklus pertama ${progress}%`}</h2>
-            <p>Backend, route, migration, dan Universal Period Write Lock dibaca lewat status sistem. Angka {progress}% dihitung dari akun, harga, saldo awal dompet, STO/stok, aktivasi kasir, order, closing, dan setoran nyata di setiap lokasi.</p>
+            <p>Kesiapan sistem inti dibaca otomatis. Angka {progress}% dihitung dari akun, harga, saldo awal dompet, STO/stok, aktivasi kasir, order, closing, dan setoran nyata di setiap lokasi.</p>
             <div className="golive-status-row">
               <Badge tone="success">Read Only</Badge>
-              <Badge tone="success">PHP/MySQL Single Source</Badge>
+              <Badge tone="success">Data Terpusat</Badge>
               <Badge tone={health.opening_migration_016_applied ? "success" : "warning"}>
-                Migration 016 {health.opening_migration_016_applied ? "Aktif" : "Belum"}
+                Opening Data {health.opening_migration_016_applied ? "Aktif" : "Belum"}
               </Badge>
               <Badge tone={health.period_write_lock_ready ? "success" : "danger"}>
-                Period Lock 033 {health.period_write_lock_ready ? "Aktif" : "Belum"}
+                Kunci Periode {health.period_write_lock_ready ? "Aktif" : "Belum"}
               </Badge>
               <Badge tone="default">Tanpa Data Contoh</Badge>
             </div>
