@@ -351,10 +351,20 @@ export default function App() {
 
 
 
-    if (activePage === "hrd-payroll") {
+    const hrdViewMap = {
+      "hrd-dashboard": "dashboard",
+      "hrd-employees": "employees",
+      "hrd-attendance": "attendance",
+      "hrd-loans": "loans",
+      "hrd-payroll": "payroll",
+      "hrd-payroll-report": "report",
+    };
+
+    if (hrdViewMap[activePage]) {
       return (
         <HRDPayrollPage
           {...pageProps}
+          viewMode={hrdViewMap[activePage]}
         />
       );
     }
