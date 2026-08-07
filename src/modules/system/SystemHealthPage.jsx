@@ -51,7 +51,7 @@ export default function SystemHealthPage({ session, onSessionExpired }) {
       if (!health?.success) throw new Error(health?.message || "Data Health belum siap.");
       if (!bootstrap?.success) throw new Error(bootstrap?.message || "Data Health gagal dibaca.");
       setData(bootstrap.data || {});
-    } catch (e) { setError(e?.message || "Gagal membaca Data Health PHP/MySQL."); setData({}); }
+    } catch (e) { setError(e?.message || "Gagal membaca Data Health."); setData({}); }
     finally { setLoading(false); }
   }
 
@@ -74,7 +74,7 @@ export default function SystemHealthPage({ session, onSessionExpired }) {
 
   return <div className="da-page-stack">
     <section className="da-page-header">
-      <div><p className="da-kicker">Pusat Kendali</p><h1>Data Health PHP/MySQL</h1>
+      <div><p className="da-kicker">Pusat Kendali</p><h1>Data Health</h1>
         <p className="da-muted">Mendeteksi data yatim, saldo/stok negatif, dan sumber yang putus. Tidak memperbaiki data otomatis.</p></div>
       <Badge tone={error ? "danger" : loading ? "warning" : tone(summary.status)}>
         {loading ? "Mengecek" : error ? "Perlu Cek" : `Health ${summary.status || "Ready"}`}
@@ -86,7 +86,7 @@ export default function SystemHealthPage({ session, onSessionExpired }) {
 
     <Card><div className="da-section-header"><div><p className="da-kicker">Single Source</p><h2>Pemeriksaan Integritas ERP</h2>
       <p className="da-muted">Perbaikan selalu dilakukan dari modul sumber; halaman ini hanya membaca dan mencatat snapshot.</p></div>
-      <div className="da-actions"><Badge tone="success">PHP/MySQL</Badge><Button variant="secondary" onClick={load} disabled={loading}>Refresh</Button><Button onClick={saveSnapshot} disabled={saving || loading}>{saving ? "Mencatat..." : "Catat Snapshot"}</Button></div></div></Card>
+      <div className="da-actions"><Badge tone="success">Data Terpusat</Badge><Button variant="secondary" onClick={load} disabled={loading}>Refresh</Button><Button onClick={saveSnapshot} disabled={saving || loading}>{saving ? "Mencatat..." : "Catat Snapshot"}</Button></div></div></Card>
 
     <section className="da-grid da-grid-3">
       <StatCard label="Health Score" value={`${n(summary.score)} / 100`} tone={tone(summary.status)} />
