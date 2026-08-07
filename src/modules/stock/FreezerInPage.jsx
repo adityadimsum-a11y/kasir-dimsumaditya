@@ -170,8 +170,8 @@ export default function FreezerInPage({ session, onSessionExpired }) {
     <div>
       <PageHeader
         title="Barang Masuk Freezer"
-        description="Pantau hasil produksi yang masuk freezer dari batch adukan. Data ini read-only dari gerak stok hidup."
-        badge="Live Data"
+        description="Pantau hasil produksi yang masuk freezer dari setiap batch adukan dan gerakan stok terkait."
+        badge="Data Aktual"
       />
 
       <ProductionFlowPanel
@@ -186,7 +186,7 @@ export default function FreezerInPage({ session, onSessionExpired }) {
           <div className="da-dashboard-banner-title">Adukan → Barang Masuk Freezer</div>
           <div className="da-dashboard-banner-desc">
             Halaman ini hanya membaca hasil produksi yang sudah masuk stok jadi/freezer.
-            Tidak membuat transaksi baru.
+            Ditampilkan dari hasil produksi yang sudah diposting.
           </div>
         </div>
         <div className="da-dashboard-banner-actions">
@@ -255,7 +255,7 @@ export default function FreezerInPage({ session, onSessionExpired }) {
               Klik baris untuk melihat detail popup: produksi, lot ayam, modal, dan gerak stok.
             </p>
           </div>
-          <Badge tone="warning">Read Only</Badge>
+          <Badge tone="warning">Pantau</Badge>
         </div>
 
         <DataTable
