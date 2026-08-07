@@ -19,10 +19,11 @@ export default function AppShell({
         return {
           pageTitle: item.label,
           groupTitle: group.title,
+          description: item.description || "",
         };
       }
     }
-    return { pageTitle: "Papan Pantau", groupTitle: "ERP Dimsum Aditya" };
+    return { pageTitle: "Dashboard Owner", groupTitle: "ERP Dimsum Aditya", description: "" };
   }, [activePage, menuGroups]);
 
   const handleChangePage = (pageKey) => {
@@ -31,7 +32,11 @@ export default function AppShell({
   };
 
   return (
-    <div className="da-app" data-sidebar-open={mobileSidebarOpen ? "true" : "false"}>
+    <div
+      className="da-app da-app-v2"
+      data-sidebar-open={mobileSidebarOpen ? "true" : "false"}
+      data-page={activePage}
+    >
       <Sidebar
         menuGroups={menuGroups}
         activePage={activePage}
@@ -53,6 +58,7 @@ export default function AppShell({
           onOpenSidebar={() => setMobileSidebarOpen(true)}
           pageTitle={activeMeta.pageTitle}
           groupTitle={activeMeta.groupTitle}
+          pageDescription={activeMeta.description}
         />
         <div className="da-content-shell">
           <div className="da-content">{children}</div>
