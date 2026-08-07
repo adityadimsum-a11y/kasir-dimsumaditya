@@ -102,7 +102,7 @@ export default function ClosingOwnerPage({ session, onSessionExpired }) {
       }
       setData(result.data || {});
     } catch (err) {
-      setError(err?.message || "Gagal koneksi ke backend.");
+      setError(err?.message || "Gagal terhubung ke sistem.");
       setData({});
     } finally {
       setLoading(false);
@@ -439,7 +439,7 @@ export default function ClosingOwnerPage({ session, onSessionExpired }) {
         <div className="da-section-title-row">
           <div>
             <h2>Catatan Tindakan Owner</h2>
-            <p className="da-muted">Sistem memberi sinyal dari data hidup, bukan angka dummy.</p>
+            <p className="da-muted">Sistem memberi sinyal dari transaksi dan saldo resmi yang tercatat.</p>
           </div>
         </div>
         <DataTable
