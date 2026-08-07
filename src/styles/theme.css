@@ -1,71 +1,87 @@
 :root {
-  /* Brand Dimsum Aditya */
+  /* =========================================================
+     DIMSUM ADITYA — PROFESSIONAL OPERATIONS UI
+     Brand palette derived from logo: merah, emas, hitam, putih.
+     ========================================================= */
   --da-color-primary: #c6281d;
   --da-color-primary-dark: #8f1d16;
-  --da-color-primary-soft: #fff0ee;
-  --da-color-primary-faint: #fff8f7;
+  --da-color-primary-deep: #68130f;
+  --da-color-primary-soft: #fff0ed;
+  --da-color-primary-faint: #fff8f6;
 
-  --da-color-accent: #f6b51e;
-  --da-color-accent-dark: #b97700;
-  --da-color-accent-soft: #fff7df;
-  --da-color-accent-faint: #fffcf0;
+  --da-color-accent: #f2b21e;
+  --da-color-accent-dark: #9b6700;
+  --da-color-accent-soft: #fff4cf;
+  --da-color-accent-faint: #fffaf0;
 
-  /* Merchant clean base */
+  --da-color-ink: #181411;
+  --da-color-ink-soft: #29231f;
+  --da-color-sidebar: #171310;
+  --da-color-sidebar-elevated: #211b17;
+  --da-color-sidebar-border: rgba(255, 255, 255, 0.08);
+  --da-color-sidebar-text: #f7f3ee;
+  --da-color-sidebar-muted: #a9a098;
+
   --da-color-bg: #ffffff;
-  --da-color-page: #f8fafc;
-  --da-color-page-warm: #fffaf4;
+  --da-color-page: #f7f6f3;
+  --da-color-page-warm: #faf7f2;
   --da-color-surface: #ffffff;
-  --da-color-surface-soft: #f9fafb;
-  --da-color-surface-warm: #fffbf5;
+  --da-color-surface-soft: #faf9f7;
+  --da-color-surface-warm: #fffaf2;
+  --da-color-surface-muted: #f3f1ed;
 
-  --da-color-text: #111827;
-  --da-color-heading: #050505;
-  --da-color-muted: #667085;
-  --da-color-subtle: #98a2b3;
+  --da-color-text: #25211e;
+  --da-color-heading: #171310;
+  --da-color-muted: #706a64;
+  --da-color-subtle: #9d958e;
 
-  --da-color-border: #eaecf0;
-  --da-color-border-strong: #d0d5dd;
+  --da-color-border: #e7e2dc;
+  --da-color-border-strong: #d8d0c8;
+  --da-color-divider: #eeeae5;
 
-  --da-color-success: #079455;
-  --da-color-success-soft: #dcfae6;
-
-  --da-color-warning: #b54708;
-  --da-color-warning-soft: #fef0c7;
-
+  --da-color-success: #18864b;
+  --da-color-success-soft: #e8f7ee;
+  --da-color-warning: #a86005;
+  --da-color-warning-soft: #fff4d4;
   --da-color-danger: #b42318;
-  --da-color-danger-soft: #fee4e2;
+  --da-color-danger-soft: #fff0ee;
+  --da-color-info: #3f6477;
+  --da-color-info-soft: #edf5f7;
 
-  --da-color-info: #026aa2;
-  --da-color-info-soft: #e0f2fe;
-
-  --da-font-main: "Inter", Inter, ui-sans-serif, system-ui, -apple-system,
+  --da-font-main: Inter, ui-sans-serif, system-ui, -apple-system,
     BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
 
-  --da-radius-xs: 6px;
-  --da-radius-sm: 8px;
-  --da-radius-md: 10px;
-  --da-radius-lg: 14px;
+  --da-radius-xs: 7px;
+  --da-radius-sm: 9px;
+  --da-radius-md: 12px;
+  --da-radius-lg: 16px;
   --da-radius-xl: 20px;
-  --da-radius-2xl: 24px;
+  --da-radius-2xl: 26px;
 
-  --da-shadow-card: 0 1px 2px rgba(16, 24, 40, 0.05);
-  --da-shadow-soft: 0 16px 42px rgba(16, 24, 40, 0.06);
-  --da-shadow-modal: 0 24px 70px rgba(16, 24, 40, 0.24);
+  --da-shadow-card:
+    0 1px 2px rgba(24, 20, 17, 0.025),
+    0 8px 24px rgba(24, 20, 17, 0.035);
+  --da-shadow-card-hover:
+    0 2px 4px rgba(24, 20, 17, 0.035),
+    0 14px 32px rgba(24, 20, 17, 0.07);
+  --da-shadow-soft: 0 18px 48px rgba(24, 20, 17, 0.08);
+  --da-shadow-modal: 0 28px 90px rgba(24, 20, 17, 0.24);
 
-  --da-sidebar-width: 232px;
-  --da-topbar-height: 72px;
-  --da-content-max: 1240px;
-  --da-content-wide: 1360px;
+  --da-sidebar-width: 252px;
+  --da-topbar-height: 70px;
+  --da-content-max: 1460px;
+  --da-content-wide: 1540px;
+  --da-input-height: 44px;
 
-  --da-table-header: #f8fafc;
-  --da-table-hover: #fff7ed;
-  --da-input-height: 42px;
+  --da-table-header: #f7f5f2;
+  --da-table-hover: #fff9ef;
 
-  /* Part 6B-1 tone control */
   --da-hero-soft-gradient:
-    linear-gradient(135deg, #ffffff 0%, #fffaf0 48%, #fff4df 100%);
+    linear-gradient(135deg, #ffffff 0%, #fffaf2 62%, #fff3da 100%);
   --da-card-soft-gradient:
-    linear-gradient(135deg, #ffffff 0%, #fffaf0 100%);
+    linear-gradient(145deg, #ffffff 0%, #faf7f2 100%);
   --da-danger-accent-gradient:
-    linear-gradient(135deg, #fffdf7 0%, #fff7df 58%, #fff1c7 100%);
+    linear-gradient(145deg, #ffffff 0%, #fff4f1 100%);
+
+  --da-focus-ring: 0 0 0 4px rgba(198, 40, 29, 0.11);
 }
