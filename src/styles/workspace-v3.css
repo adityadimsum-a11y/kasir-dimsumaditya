@@ -1488,3 +1488,78 @@ button.da-owner-overview-card-v4:hover { transform:translateY(-2px);border-color
   .da-envelope-balance-grid{grid-template-columns:1fr 1fr;}
   .da-finance-tabs{margin-left:-2px;margin-right:-2px;}
 }
+
+
+/* ============================================================
+   PACKAGE 13 — FINANCE COMMAND CENTER + MODAL SAFE ACTIONS
+   ============================================================ */
+.da-finance-page{gap:16px;}
+.da-finance-page>.da-page-header{padding-bottom:15px;border-bottom:1px solid #E4E7EC;}
+.da-finance-page .da-page-header-copy p{max-width:760px;}
+.da-finance-page .da-page-actions .da-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;}
+.da-finance-page .da-page-actions .da-button{min-height:40px;border-radius:12px;}
+
+.da-finance-snapshot-v13{display:grid;grid-template-columns:minmax(320px,1.15fr) minmax(0,1.85fr);gap:12px;min-width:0;}
+.da-finance-snapshot-hero-v13{position:relative;overflow:hidden;min-height:146px;padding:20px 22px;border-radius:20px;background:linear-gradient(135deg,#172033 0%,#222F47 72%,#273850 100%);box-shadow:0 16px 35px rgba(16,24,40,.12);display:flex;flex-direction:column;justify-content:center;isolation:isolate;}
+.da-finance-snapshot-hero-v13:before{content:"";position:absolute;right:-46px;top:-66px;width:180px;height:180px;border-radius:50%;border:38px solid rgba(217,37,28,.10);z-index:-1;}
+.da-finance-snapshot-glow-v13{position:absolute;right:22px;bottom:-42px;width:138px;height:138px;border-radius:50%;background:radial-gradient(circle,rgba(252,211,77,.22),rgba(217,37,28,.06) 52%,transparent 72%);filter:blur(2px);z-index:-1;}
+.da-finance-snapshot-kicker-v13{color:#FDA29B;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.08em;}
+.da-finance-snapshot-value-v13{margin-top:8px;color:#fff;font-size:31px;line-height:1.05;font-weight:950;letter-spacing:-.045em;overflow-wrap:anywhere;}
+.da-finance-snapshot-caption-v13{margin-top:8px;max-width:460px;color:#D0D5DD;font-size:10px;font-weight:650;line-height:1.55;}
+.da-finance-snapshot-metrics-v13{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;min-width:0;}
+.da-finance-snapshot-metric-v13{position:relative;overflow:hidden;min-height:146px;padding:16px;border:1px solid #E4E7EC;border-radius:18px;background:#fff;box-shadow:0 7px 22px rgba(16,24,40,.045);display:flex;flex-direction:column;justify-content:center;gap:6px;}
+.da-finance-snapshot-metric-v13:after{content:"";position:absolute;right:-24px;bottom:-26px;width:78px;height:78px;border-radius:50%;background:#F8FAFC;}
+.da-finance-snapshot-metric-v13>span{position:relative;z-index:1;color:#667085;font-size:8.5px;font-weight:900;text-transform:uppercase;letter-spacing:.05em;}
+.da-finance-snapshot-metric-v13>strong{position:relative;z-index:1;color:#101828;font-size:20px;line-height:1.08;font-weight:950;letter-spacing:-.035em;overflow-wrap:anywhere;}
+.da-finance-snapshot-metric-v13>small{position:relative;z-index:1;color:#98A2B3;font-size:9px;font-weight:650;line-height:1.4;}
+.da-finance-snapshot-metric-v13.tone-success{border-color:#B7E4C7;background:linear-gradient(180deg,#FFFFFF 0%,#F7FEF9 100%);}
+.da-finance-snapshot-metric-v13.tone-warning{border-color:#F6D78B;background:linear-gradient(180deg,#FFFFFF 0%,#FFFCF2 100%);}
+.da-finance-snapshot-metric-v13.tone-danger{border-color:#FDA29B;background:linear-gradient(180deg,#FFFFFF 0%,#FFF7F6 100%);}
+
+.da-finance-workspace{gap:16px;grid-template-columns:minmax(0,1.8fr) minmax(300px,.72fr);}
+.da-finance-workspace-main{grid-template-columns:minmax(0,1.95fr) minmax(300px,.65fr);}
+.da-finance-wallet-layout{grid-template-columns:minmax(0,1.7fr) minmax(320px,.72fr);}
+.da-finance-main-card,.da-finance-ledger-card{border:1px solid #E4E7EC!important;border-radius:20px!important;box-shadow:0 8px 26px rgba(16,24,40,.045)!important;}
+.da-finance-side-card{top:78px;border:1px solid #E4E7EC!important;border-radius:20px!important;box-shadow:0 8px 26px rgba(16,24,40,.045)!important;background:linear-gradient(180deg,#FFFFFF 0%,#FCFCFD 100%)!important;}
+.da-finance-main-card>.da-section-heading,.da-finance-ledger-card>.da-section-heading{padding-bottom:12px;border-bottom:1px solid #F2F4F7;}
+.da-finance-main-card .da-big-text,.da-finance-ledger-card .da-big-text{letter-spacing:-.035em;}
+.da-finance-tabs{margin:12px 0;padding:4px;background:#F2F4F7;border-color:#EAECF0;border-radius:13px;}
+.da-finance-tabs button{padding:8px 12px;border-radius:9px;}
+.da-finance-tabs button.active{color:#B42318;background:#fff;box-shadow:0 2px 8px rgba(16,24,40,.08);}
+.da-finance-wallet-grid .da-action-card{min-height:118px;border-radius:16px;background:linear-gradient(180deg,#fff 0%,#FCFCFD 100%);}
+.da-finance-note{border:1px solid #EAECF0;background:#F8FAFC;border-radius:13px;}
+.da-envelope-balance-card{border-radius:17px!important;background:linear-gradient(180deg,#fff 0%,#FCFCFD 100%)!important;}
+
+/* Modal scrolling: action buttons are always reachable. */
+.da-app-v3 .da-modal-body{overscroll-behavior:contain;scrollbar-gutter:stable;scroll-padding-bottom:96px;-webkit-overflow-scrolling:touch;}
+.da-app-v3 .da-modal-body .da-form-actions{position:sticky!important;bottom:-16px!important;z-index:30!important;margin:14px -16px -16px!important;padding:12px 16px max(12px,env(safe-area-inset-bottom))!important;border-top:1px solid rgba(228,231,236,.95)!important;background:rgba(255,255,255,.94)!important;backdrop-filter:blur(14px)!important;box-shadow:0 -12px 28px rgba(16,24,40,.07)!important;}
+.da-app-v3 .da-modal-body .da-form-actions .da-button{min-width:112px;justify-content:center;}
+.da-app-v3 .da-modal-size-xl .da-modal-body{padding-bottom:16px;}
+.da-app-v3 .da-modal-size-xl .da-finance-scroll-table{max-height:min(330px,42vh);}
+
+@media (max-width:1180px){
+  .da-finance-snapshot-v13{grid-template-columns:1fr;}
+  .da-finance-snapshot-hero-v13{min-height:130px;}
+  .da-finance-snapshot-metrics-v13{grid-template-columns:repeat(3,minmax(0,1fr));}
+  .da-finance-snapshot-metric-v13{min-height:112px;}
+}
+@media (max-width:900px){
+  .da-finance-snapshot-metrics-v13{grid-template-columns:repeat(3,minmax(0,1fr));}
+}
+@media (max-width:760px){
+  .da-finance-page{gap:11px;}
+  .da-finance-snapshot-v13{gap:8px;}
+  .da-finance-snapshot-hero-v13{min-height:122px;padding:17px;border-radius:17px;}
+  .da-finance-snapshot-value-v13{font-size:27px;}
+  .da-finance-snapshot-metrics-v13{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+  .da-finance-snapshot-metric-v13{min-height:100px;padding:13px;border-radius:15px;}
+  .da-finance-snapshot-metric-v13:last-child:nth-child(odd){grid-column:1/-1;min-height:86px;}
+  .da-finance-workspace,.da-finance-workspace-main,.da-finance-wallet-layout{gap:10px;}
+  .da-app-v3 .da-modal-body .da-form-actions{bottom:-11px!important;margin:12px -11px -11px!important;padding:11px 11px max(11px,env(safe-area-inset-bottom))!important;display:grid!important;grid-template-columns:1fr 1.35fr!important;gap:8px!important;}
+  .da-app-v3 .da-modal-body .da-form-actions .da-button{width:100%;min-width:0;}
+}
+@media (max-width:440px){
+  .da-finance-snapshot-metrics-v13{grid-template-columns:1fr 1fr;}
+  .da-finance-snapshot-metric-v13>strong{font-size:17px;}
+  .da-app-v3 .da-modal-body .da-form-actions{grid-template-columns:1fr!important;}
+}
