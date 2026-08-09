@@ -109,6 +109,17 @@ function normalizePO(row) {
   };
 }
 
+function statusLabel(status) {
+  const value = String(status || "").toUpperCase();
+  const labels = {
+    RESERVED: "Menunggu Konfirmasi",
+    CONFIRMED: "Sudah Jadi Order",
+    FULFILLED: "Selesai",
+    CANCELLED: "Dibatalkan",
+  };
+  return labels[value] || safeText(status);
+}
+
 function tone(status) {
   const text = String(status || "").toUpperCase();
   if (text.includes("CONFIRMED") || text.includes("FULFILLED")) return "success";
@@ -124,7 +135,7 @@ const initialDraft = {
   customer_name: "",
   product_id: "",
   qty: "",
-  notes: "PO menahan stok. Belum menjadi omzet sebelum dikonfirmasi.",
+  notes: "",
 };
 
 export default function POQueuePage({ session, onSessionExpired }) {
@@ -137,6 +148,7 @@ export default function POQueuePage({ session, onSessionExpired }) {
   const [draft, setDraft] = useState(initialDraft);
   const [cart, setCart] = useState([]);
   const [selectedPO, setSelectedPO] = useState(null);
+  const [poFormOpen, setPoFormOpen] = useState(false);
   const [filter, setFilter] = useState({
     date_start: todayValue(),
     date_end: todayValue(),
@@ -148,7 +160,7 @@ export default function POQueuePage({ session, onSessionExpired }) {
     wallet_id: "",
     payment_method: "",
     fulfill_now: true,
-    notes: "PO dikonfirmasi menjadi Order resmi.",
+    notes: "",
   });
   const [cancelReason, setCancelReason] = useState("");
 
@@ -227,7 +239,7 @@ export default function POQueuePage({ session, onSessionExpired }) {
     const qty = numberValue(draft.qty);
 
     if (!pricingReady) {
-      setNotice({ success: false, message: "Server Price Lock belum siap." });
+      setNotice({ success: false, message: "Aturan harga resmi belum siap." });
       return;
     }
     if (!cashierReady) {
@@ -382,6 +394,7 @@ export default function POQueuePage({ session, onSessionExpired }) {
     setNotice({ success: true, message: result.message || "PO berhasil disimpan." });
     setDraft(initialDraft);
     setCart([]);
+    setPoFormOpen(false);
     await loadData();
   };
 
@@ -443,7 +456,7 @@ export default function POQueuePage({ session, onSessionExpired }) {
       wallet_id: "",
       payment_method: "",
       fulfill_now: true,
-      notes: "PO dikonfirmasi menjadi Order resmi.",
+      notes: "",
     });
     await loadData();
   };
@@ -499,118 +512,171 @@ export default function POQueuePage({ session, onSessionExpired }) {
     { key: "qty_pcs", label: "Diminta", render: (row) => `${row.qty_pcs.toLocaleString("id-ID")} pcs` },
     { key: "reserved_pcs", label: "Ditahan", render: (row) => `${row.reserved_pcs.toLocaleString("id-ID")} pcs` },
     { key: "total_amount", label: "Nilai Referensi", render: (row) => formatRupiah(row.total_amount) },
-    { key: "queue_status", label: "Status", render: (row) => <Badge tone={tone(row.queue_status)}>{row.queue_status}</Badge> },
+    { key: "queue_status", label: "Status", render: (row) => <Badge tone={tone(row.queue_status)}>{statusLabel(row.queue_status)}</Badge> },
   ];
 
+  const activePOValue = queue
+    .filter((row) => !["CONFIRMED", "CANCELLED"].includes(String(row.queue_status).toUpperCase()))
+    .reduce((sum, row) => sum + numberValue(row.total_amount), 0);
+  const activePOCount = numberValue(summary.pending_count || queue.filter((row) => String(row.queue_status).toUpperCase() === "RESERVED").length);
+  const confirmedCount = numberValue(summary.confirmed_count || queue.filter((row) => String(row.queue_status).toUpperCase() === "CONFIRMED").length);
+  const reservedQty = numberValue(summary.total_reserved_pcs || queue.reduce((sum, row) => sum + numberValue(row.reserved_pcs), 0));
+
   return (
-    <div>
+    <div className="da-sales-page">
       <PageHeader
+        eyebrow="PENJUALAN & DISTRIBUSI"
         title="Antrian PO"
-        description="PO menahan stok dan harga resmi, tetapi belum menjadi omzet, invoice, piutang, atau uang masuk."
-        badge="Data Terpusat"
+        description="Kelola pesanan terjadwal, reservasi stok, dan konfirmasi menjadi penjualan resmi."
       />
 
-      <SalesFlowPanel
-        session={session}
-        onSessionExpired={onSessionExpired}
-        compact
-        refreshKey={queue.length}
-      />
-
-      <div style={{ height: 16 }} />
+      <div className="da-sales-head-actions">
+        <SalesFlowPanel
+          session={session}
+          onSessionExpired={onSessionExpired}
+          activeStep="po"
+          refreshKey={queue.length}
+        />
+        <Button variant="secondary" onClick={loadData} disabled={loading}>
+          {loading ? "Memuat..." : "Perbarui"}
+        </Button>
+        <Button onClick={() => setPoFormOpen(true)}>+ Buat PO</Button>
+      </div>
 
       {error ? <div className="da-form-warning">{error}</div> : null}
       {notice ? (
-        <div className={notice.success ? "da-form-success" : "da-form-warning"} style={{ marginBottom: 16 }}>
+        <div className={notice.success ? "da-form-success" : "da-form-warning"}>
           {notice.message}
         </div>
       ) : null}
 
-      <div className="da-grid da-grid-3">
-        <StatCard label="PO Aktif" value={loading ? "..." : numberValue(summary.pending_count)} description="Masih menahan stok dan belum omzet." />
-        <StatCard tone="success" label="Sudah Jadi Order" value={loading ? "..." : numberValue(summary.confirmed_count)} description="Sudah memiliki invoice dan kabel keuangan." />
-        <StatCard tone="warning" label="Stok Ditahan" value={loading ? "..." : `${numberValue(summary.total_reserved_pcs).toLocaleString("id-ID")} pcs`} description="Bukan stok bebas sampai PO dipenuhi atau dibatalkan." />
-      </div>
+      <section className="da-sales-kpi-grid">
+        <StatCard label="PO Aktif" value={loading ? "..." : activePOCount.toLocaleString("id-ID")} description="Pesanan yang masih menunggu konfirmasi." />
+        <StatCard tone="warning" label="Stok Direservasi" value={loading ? "..." : `${reservedQty.toLocaleString("id-ID")} pcs`} description="Stok yang sudah disiapkan untuk PO aktif." />
+        <StatCard tone="success" label="Sudah Jadi Order" value={loading ? "..." : confirmedCount.toLocaleString("id-ID")} description="PO yang sudah dikonfirmasi menjadi penjualan." />
+        <StatCard label="Nilai PO Aktif" value={loading ? "..." : formatRupiah(activePOValue)} description="Nilai referensi PO yang belum menjadi omzet." />
+      </section>
 
-      <div style={{ height: 16 }} />
-
-      <Card>
-        <div className="da-section-heading">
-          <div>
-            <div className="da-mini-title">INPUT PO</div>
-            <div className="da-big-text">Buat Permintaan dan Tahan Stok</div>
-            <p className="da-muted">Harga dikunci sistem. PO baru mencatat kebutuhan dan reservasi; uang masuk hanya tercatat saat pembayaran diterima.</p>
+      <section className="da-sales-workspace-8-4">
+        <Card className="da-sales-main-panel">
+          <div className="da-section-heading">
+            <div>
+              <div className="da-mini-title">ANTRIAN PENJUALAN</div>
+              <div className="da-big-text">PO Customer</div>
+              <p className="da-muted">Klik baris untuk konfirmasi penjualan, pembayaran, fulfillment, atau pembatalan.</p>
+            </div>
+            <Button variant="secondary" onClick={() => setPoFormOpen(true)}>PO Baru</Button>
           </div>
-          <Badge tone={pricingReady && cashierReady ? "success" : "warning"}>
-            {pricingReady && cashierReady ? "PO Siap" : "Belum Siap"}
-          </Badge>
-        </div>
 
-        <div className="da-drop-form-grid">
-          <div className="da-drop-field"><label>Tanggal PO</label><input className="da-input" type="date" value={draft.po_date} onChange={(event) => updateDraft("po_date", event.target.value)} /></div>
-          <div className="da-drop-field"><label>Tanggal Pickup</label><input className="da-input" type="date" value={draft.pickup_date} onChange={(event) => updateDraft("pickup_date", event.target.value)} /></div>
-          <div className="da-drop-field"><label>Jenis PO</label><select className="da-select" value={draft.order_mode} onChange={(event) => updateDraft("order_mode", event.target.value)}><option value="PO_HARIAN">PO Harian</option><option value="PO_KARANTINA">PO Karantina</option></select></div>
-          <div className="da-drop-field"><label>Customer Terdaftar</label><select className="da-select" value={draft.customer_id} onChange={(event) => handleCustomer(event.target.value)}><option value="">Manual / UMUM</option>{customers.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></div>
-          <div className="da-drop-field"><label>Nama Customer</label><input className="da-input" value={draft.customer_name} onChange={(event) => updateDraft("customer_name", event.target.value)} placeholder="Nama pemesan" /></div>
-          <div className="da-drop-field"><label>Produk</label><select className="da-select" value={draft.product_id} onChange={(event) => updateDraft("product_id", event.target.value)}><option value="">Pilih produk stok ready</option>{products.map((row) => <option key={row.id} value={row.id}>{row.name} · stok bebas {row.stock_pcs.toLocaleString("id-ID")} pcs</option>)}</select></div>
-          <div className="da-drop-field"><label>Qty / Pcs</label><input className="da-input" inputMode="numeric" value={draft.qty} onChange={(event) => updateDraft("qty", event.target.value)} placeholder="Contoh: 500" /></div>
-          <div className="da-drop-field"><label>Catatan</label><input className="da-input" value={draft.notes} onChange={(event) => updateDraft("notes", event.target.value)} /></div>
-        </div>
+          <div className="da-sales-filterbar">
+            <label>
+              <span>Mulai</span>
+              <input className="da-input" type="date" value={filter.date_start} onChange={(event) => setFilter((current) => ({ ...current, date_start: event.target.value }))} />
+            </label>
+            <label>
+              <span>Sampai</span>
+              <input className="da-input" type="date" value={filter.date_end} onChange={(event) => setFilter((current) => ({ ...current, date_end: event.target.value }))} />
+            </label>
+            <label>
+              <span>Status</span>
+              <select className="da-select" value={filter.status} onChange={(event) => setFilter((current) => ({ ...current, status: event.target.value }))}>
+                <option value="ALL">Semua</option>
+                <option value="RESERVED">Menunggu konfirmasi</option>
+                <option value="CONFIRMED">Sudah jadi order</option>
+                <option value="CANCELLED">Dibatalkan</option>
+              </select>
+            </label>
+            <Button variant="secondary" onClick={loadData} disabled={loading}>Terapkan</Button>
+          </div>
 
-        <div className="da-form-actions" style={{ justifyContent: "flex-start" }}>
-          <Button variant="ghost" onClick={handleAddItem} disabled={resolving || saving || !pricingReady || !cashierReady}>{resolving ? "Mengunci Harga..." : "Kunci Harga & Tambah"}</Button>
-        </div>
+          <DataTable columns={poColumns} rows={queue} getRowKey={(row) => row.po_id} onRowClick={setSelectedPO} />
+          {!loading && queue.length === 0 ? <div className="da-sales-empty">Belum ada PO pada periode yang dipilih.</div> : null}
+        </Card>
 
-        <div style={{ height: 14 }} />
-        <DataTable columns={cartColumns} rows={cart} getRowKey={(row) => row.product_id} />
+        <Card className="da-sales-side-panel">
+          <div className="da-mini-title">POSISI PO</div>
+          <div className="da-sales-side-hero">
+            <span>Nilai PO aktif</span>
+            <strong>{formatRupiah(activePOValue)}</strong>
+            <small>{activePOCount.toLocaleString("id-ID")} PO menunggu konfirmasi</small>
+          </div>
+          <div className="da-sales-side-list">
+            <div><span>Stok direservasi</span><strong>{reservedQty.toLocaleString("id-ID")} pcs</strong></div>
+            <div><span>Sudah jadi order</span><strong>{confirmedCount.toLocaleString("id-ID")}</strong></div>
+            <div><span>Harga resmi</span><strong>{pricingReady ? "Siap" : "Perlu dilengkapi"}</strong></div>
+            <div><span>Kasir lokasi</span><strong>{cashierReady ? "Aktif" : "Belum aktif"}</strong></div>
+          </div>
+          <p className="da-sales-footnote">PO menahan stok tetapi belum membentuk omzet, invoice, piutang, atau uang masuk sebelum dikonfirmasi.</p>
+        </Card>
+      </section>
 
-        <div className="da-drop-preview-panel" style={{ marginTop: 14 }}>
-          <div><div className="da-mini-title">Jumlah Item</div><div className="da-big-text">{cart.length}</div></div>
-          <div><div className="da-mini-title">Qty Ditahan</div><div className="da-big-text">{cartQty.toLocaleString("id-ID")} pcs</div></div>
-          <div><div className="da-mini-title">Nilai Referensi PO</div><div className="da-big-text">{formatRupiah(cartTotal)}</div><p className="da-muted">Belum menjadi omzet.</p></div>
-        </div>
+      <Modal
+        open={poFormOpen}
+        title="Buat PO Customer"
+        subtitle="Harga dikunci sesuai aturan aktif dan stok akan direservasi saat PO berhasil disimpan."
+        size="xl"
+        onClose={() => { if (!saving) setPoFormOpen(false); }}
+      >
+        <div className="da-sales-form-stack">
+          <section className="da-sales-form-section">
+            <div className="da-sales-form-section-title"><span>01</span><div><strong>Jadwal & Customer</strong><small>Tentukan tanggal pemesanan, pickup, dan customer.</small></div></div>
+            <div className="da-drop-form-grid">
+              <div className="da-drop-field"><label>Tanggal PO</label><input className="da-input" type="date" value={draft.po_date} onChange={(event) => updateDraft("po_date", event.target.value)} /></div>
+              <div className="da-drop-field"><label>Tanggal Pickup</label><input className="da-input" type="date" value={draft.pickup_date} onChange={(event) => updateDraft("pickup_date", event.target.value)} /></div>
+              <div className="da-drop-field"><label>Jenis PO</label><select className="da-select" value={draft.order_mode} onChange={(event) => updateDraft("order_mode", event.target.value)}><option value="PO_HARIAN">PO Harian</option><option value="PO_KARANTINA">PO Karantina</option></select></div>
+              <div className="da-drop-field"><label>Customer Terdaftar</label><select className="da-select" value={draft.customer_id} onChange={(event) => handleCustomer(event.target.value)}><option value="">Manual / UMUM</option>{customers.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></div>
+              <div className="da-drop-field da-drop-field-wide"><label>Nama Customer</label><input className="da-input" value={draft.customer_name} onChange={(event) => updateDraft("customer_name", event.target.value)} placeholder="Nama pemesan" /></div>
+            </div>
+          </section>
 
-        <div className="da-form-actions">
-          <Button variant="ghost" onClick={() => { setDraft(initialDraft); setCart([]); }}>Reset</Button>
-          <Button onClick={handleSavePO} disabled={saving || cart.length === 0 || !pricingReady || !cashierReady}>{saving ? "Menyimpan..." : "Simpan Antrian PO"}</Button>
-        </div>
-      </Card>
+          <section className="da-sales-form-section">
+            <div className="da-sales-form-section-title"><span>02</span><div><strong>Produk & Reservasi</strong><small>Tambahkan produk satu per satu menggunakan harga resmi sistem.</small></div></div>
+            <div className="da-sales-product-row">
+              <label><span>Produk</span><select className="da-select" value={draft.product_id} onChange={(event) => updateDraft("product_id", event.target.value)}><option value="">Pilih produk stok ready</option>{products.map((row) => <option key={row.id} value={row.id}>{row.name} · tersedia {row.stock_pcs.toLocaleString("id-ID")} pcs</option>)}</select></label>
+              <label><span>Qty / Pcs</span><input className="da-input" inputMode="numeric" value={draft.qty} onChange={(event) => updateDraft("qty", event.target.value)} placeholder="Jumlah pcs" /></label>
+              <Button variant="secondary" onClick={handleAddItem} disabled={resolving || saving || !pricingReady || !cashierReady}>{resolving ? "Menghitung..." : "Tambah Produk"}</Button>
+            </div>
+            <DataTable columns={cartColumns} rows={cart} getRowKey={(row) => row.product_id} />
+          </section>
 
-      <div style={{ height: 16 }} />
+          <section className="da-sales-form-section">
+            <div className="da-sales-form-section-title"><span>03</span><div><strong>Ringkasan PO</strong><small>Nilai ini masih referensi dan belum menjadi penjualan.</small></div></div>
+            <div className="da-sales-total-grid">
+              <div><span>Item</span><strong>{cart.length}</strong></div>
+              <div><span>Qty direservasi</span><strong>{cartQty.toLocaleString("id-ID")} pcs</strong></div>
+              <div className="highlight"><span>Nilai PO</span><strong>{formatRupiah(cartTotal)}</strong></div>
+            </div>
+            <div className="da-drop-field"><label>Catatan</label><textarea className="da-input" rows="3" value={draft.notes} onChange={(event) => updateDraft("notes", event.target.value)} placeholder="Catatan customer / pickup (opsional)" /></div>
+          </section>
 
-      <Card>
-        <div className="da-section-heading">
-          <div><div className="da-mini-title">FILTER & MONITOR</div><div className="da-big-text">Antrian PO yang Tercatat</div><p className="da-muted">Klik baris untuk konfirmasi menjadi Order atau membatalkan PO.</p></div>
-          <Button variant="ghost" onClick={loadData} disabled={loading}>{loading ? "Memuat..." : "Tarik Data"}</Button>
+          <div className="da-form-actions da-sales-sticky-actions">
+            <Button variant="ghost" onClick={() => { setDraft(initialDraft); setCart([]); }} disabled={saving}>Reset</Button>
+            <Button onClick={handleSavePO} disabled={saving || cart.length === 0 || !pricingReady || !cashierReady}>{saving ? "Menyimpan..." : "Simpan PO"}</Button>
+          </div>
         </div>
-        <div className="da-drop-form-grid">
-          <div className="da-drop-field"><label>Mulai</label><input className="da-input" type="date" value={filter.date_start} onChange={(event) => setFilter((current) => ({ ...current, date_start: event.target.value }))} /></div>
-          <div className="da-drop-field"><label>Sampai</label><input className="da-input" type="date" value={filter.date_end} onChange={(event) => setFilter((current) => ({ ...current, date_end: event.target.value }))} /></div>
-          <div className="da-drop-field"><label>Status</label><select className="da-select" value={filter.status} onChange={(event) => setFilter((current) => ({ ...current, status: event.target.value }))}><option value="ALL">Semua</option><option value="RESERVED">Ditahan</option><option value="CONFIRMED">Sudah Jadi Order</option><option value="CANCELLED">Dibatalkan</option></select></div>
-        </div>
-        <DataTable columns={poColumns} rows={queue} getRowKey={(row) => row.po_id} onRowClick={setSelectedPO} />
-      </Card>
+      </Modal>
 
       <Modal
         open={Boolean(selectedPO)}
-        title={selectedPO ? `Detail PO ${selectedPO.po_id}` : "Detail PO"}
-        subtitle="PO belum menjadi omzet sampai dikonfirmasi."
+        title={selectedPO ? `PO ${selectedPO.po_id}` : "Detail PO"}
+        subtitle={selectedPO ? `${selectedPO.customer_name} · pickup ${safeText(selectedPO.pickup_date)}` : ""}
+        size="xl"
         onClose={() => { setSelectedPO(null); setCancelReason(""); }}
       >
         {selectedPO ? (
-          <div>
-            <div className="da-grid da-grid-3">
-              <StatCard label="Customer" value={selectedPO.customer_name} description={`Pickup ${safeText(selectedPO.pickup_date)}`} />
-              <StatCard tone="warning" label="Stok Ditahan" value={`${selectedPO.reserved_pcs.toLocaleString("id-ID")} pcs`} description={selectedPO.order_mode} />
-              <StatCard label="Nilai PO" value={formatRupiah(selectedPO.total_amount)} description="Nilai referensi, belum omzet." />
+          <div className="da-sales-form-stack">
+            <div className="da-sales-detail-summary">
+              <div><span>Status</span><Badge tone={tone(selectedPO.queue_status)}>{statusLabel(selectedPO.queue_status)}</Badge></div>
+              <div><span>Qty diminta</span><strong>{selectedPO.qty_pcs.toLocaleString("id-ID")} pcs</strong></div>
+              <div><span>Stok ditahan</span><strong>{selectedPO.reserved_pcs.toLocaleString("id-ID")} pcs</strong></div>
+              <div><span>Nilai PO</span><strong>{formatRupiah(selectedPO.total_amount)}</strong></div>
             </div>
 
-            <div style={{ height: 14 }} />
             <DataTable
               columns={[
                 { key: "product_name", label: "Produk" },
                 { key: "qty", label: "Qty", render: (row) => `${numberValue(row.qty).toLocaleString("id-ID")} pcs` },
-                { key: "unit_price", label: "Harga Terkunci", render: (row) => formatRupiah(row.unit_price) },
+                { key: "unit_price", label: "Harga", render: (row) => formatRupiah(row.unit_price) },
                 { key: "subtotal", label: "Nilai", render: (row) => formatRupiah(row.subtotal) },
               ]}
               rows={selectedPO.items}
@@ -618,32 +684,27 @@ export default function POQueuePage({ session, onSessionExpired }) {
             />
 
             {String(selectedPO.queue_status).toUpperCase() === "RESERVED" ? (
-              <>
-                <div style={{ height: 18 }} />
-                <div className="da-mini-title">JADIKAN ORDER RESMI</div>
-                <div className="da-drop-form-grid">
-                  <div className="da-drop-field"><label>Tanggal Penjualan</label><input className="da-input" type="date" value={confirmForm.sale_date} onChange={(event) => setConfirmForm((current) => ({ ...current, sale_date: event.target.value }))} /></div>
-                  <div className="da-drop-field"><label>Uang Dibayar Sekarang</label><input className="da-input" inputMode="numeric" value={confirmForm.amount_paid} onChange={(event) => setConfirmForm((current) => ({ ...current, amount_paid: event.target.value }))} /></div>
-                  <div className="da-drop-field"><label>Dompet Penerimaan</label><select className="da-select" value={confirmForm.wallet_id} onChange={(event) => handleConfirmWallet(event.target.value)} disabled={numberValue(confirmForm.amount_paid) <= 0}><option value="">Pilih dompet</option>{wallets.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select>{confirmForm.wallet_id ? <div className="da-muted">Metode otomatis: <strong>{confirmForm.payment_method}</strong></div> : null}</div>
-                  <div className="da-drop-field"><label>Catatan</label><input className="da-input" value={confirmForm.notes} onChange={(event) => setConfirmForm((current) => ({ ...current, notes: event.target.value }))} /></div>
-                </div>
-                <label style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 12 }}>
-                  <input type="checkbox" checked={confirmForm.fulfill_now} onChange={(event) => setConfirmForm((current) => ({ ...current, fulfill_now: event.target.checked }))} />
-                  Langsung serahkan barang dan potong stok/HPP sekarang
-                </label>
-                <div className="da-form-actions">
-                  <Button onClick={handleConfirmPO} disabled={saving}>{saving ? "Memproses..." : "Jadikan Order Resmi"}</Button>
-                </div>
+              <div className="da-sales-split-actions">
+                <section className="da-sales-form-section">
+                  <div className="da-sales-form-section-title"><span>01</span><div><strong>Konfirmasi Penjualan</strong><small>PO berubah menjadi order, invoice, pembayaran/piutang, dan fulfillment sesuai pilihan.</small></div></div>
+                  <div className="da-drop-form-grid">
+                    <div className="da-drop-field"><label>Tanggal Penjualan</label><input className="da-input" type="date" value={confirmForm.sale_date} onChange={(event) => setConfirmForm((current) => ({ ...current, sale_date: event.target.value }))} /></div>
+                    <div className="da-drop-field"><label>Bayar Sekarang</label><input className="da-input" inputMode="numeric" value={confirmForm.amount_paid} onChange={(event) => setConfirmForm((current) => ({ ...current, amount_paid: event.target.value }))} /></div>
+                    <div className="da-drop-field"><label>Dompet Penerimaan</label><select className="da-select" value={confirmForm.wallet_id} onChange={(event) => handleConfirmWallet(event.target.value)} disabled={numberValue(confirmForm.amount_paid) <= 0}><option value="">Pilih dompet</option>{wallets.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select>{confirmForm.wallet_id ? <div className="da-muted">Metode: <strong>{confirmForm.payment_method}</strong></div> : null}</div>
+                    <div className="da-drop-field"><label>Catatan</label><input className="da-input" value={confirmForm.notes} onChange={(event) => setConfirmForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Opsional" /></div>
+                  </div>
+                  <label className="da-sales-check-row"><input type="checkbox" checked={confirmForm.fulfill_now} onChange={(event) => setConfirmForm((current) => ({ ...current, fulfill_now: event.target.checked }))} /><span>Barang langsung diserahkan dan stok/HPP diposting pada tanggal penjualan.</span></label>
+                  <div className="da-form-actions"><Button onClick={handleConfirmPO} disabled={saving}>{saving ? "Memproses..." : "Konfirmasi Jadi Order"}</Button></div>
+                </section>
 
-                <div style={{ height: 18 }} />
-                <div className="da-mini-title">BATALKAN PO</div>
-                <div className="da-drop-field"><label>Alasan Pembatalan</label><input className="da-input" value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} placeholder="Wajib diisi; stok akan kembali bebas" /></div>
-                <div className="da-form-actions"><Button variant="ghost" onClick={handleCancelPO} disabled={saving}>Batalkan & Lepas Stok</Button></div>
-              </>
-            ) : (
-              <div className="da-form-success" style={{ marginTop: 18 }}>
-                Status PO: <strong>{selectedPO.queue_status}</strong>. Detail keuangan dapat ditelusuri dari Order ID yang sama.
+                <section className="da-sales-form-section da-sales-danger-section">
+                  <div className="da-sales-form-section-title"><span>02</span><div><strong>Batalkan PO</strong><small>Reservasi dilepas dan stok kembali tersedia.</small></div></div>
+                  <div className="da-drop-field"><label>Alasan Pembatalan</label><textarea className="da-input" rows="4" value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} placeholder="Alasan wajib diisi" /></div>
+                  <div className="da-form-actions"><Button variant="ghost" onClick={handleCancelPO} disabled={saving}>Batalkan & Lepas Stok</Button></div>
+                </section>
               </div>
+            ) : (
+              <div className="da-form-success">PO ini berstatus <strong>{statusLabel(selectedPO.queue_status)}</strong>. Detail transaksi lanjutan dapat ditelusuri melalui Arsip Digital.</div>
             )}
           </div>
         ) : null}
