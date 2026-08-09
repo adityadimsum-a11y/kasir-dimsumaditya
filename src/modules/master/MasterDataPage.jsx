@@ -58,6 +58,10 @@ const MODULE_CONFIG = {
       product_name: "",
       category: "Barang Jadi",
       unit: "pcs",
+      adukan_conversion_active: "0",
+      chicken_kg_per_adukan: "30",
+      default_yield_pcs: "1000",
+      chicken_bag_kg: "10",
       notes:
         "Produk aktif untuk transaksi ERP.",
     },
@@ -87,6 +91,37 @@ const MODULE_CONFIG = {
         key: "unit",
         label: "Satuan",
         placeholder: "pcs",
+      },
+
+      {
+        key: "adukan_conversion_active",
+        label: "Diproduksi lewat Adukan",
+        type: "select",
+        options: [
+          { value: "0", label: "Tidak" },
+          { value: "1", label: "Ya" },
+        ],
+      },
+
+      {
+        key: "chicken_kg_per_adukan",
+        label: "Ayam per Adukan (kg)",
+        type: "number",
+        placeholder: "30",
+      },
+
+      {
+        key: "default_yield_pcs",
+        label: "Target Hasil per Adukan (pcs)",
+        type: "number",
+        placeholder: "1000",
+      },
+
+      {
+        key: "chicken_bag_kg",
+        label: "Berat per Kantong Ayam (kg)",
+        type: "number",
+        placeholder: "10",
       },
 
       {
@@ -179,6 +214,26 @@ const MODULE_CONFIG = {
       ],
 
       [
+        "adukan_rule_label",
+        "Proses Adukan",
+      ],
+
+      [
+        "chicken_kg_per_adukan_display",
+        "Ayam / Adukan",
+      ],
+
+      [
+        "default_yield_pcs_display",
+        "Target / Adukan",
+      ],
+
+      [
+        "chicken_bag_kg_display",
+        "Kg / Kantong",
+      ],
+
+      [
         "status",
         "Status",
       ],
@@ -190,7 +245,7 @@ const MODULE_CONFIG = {
     ],
 
     formNote:
-      "Harga jual tidak disimpan sebagai satu harga tetap di Master Produk. Harga akan dikelola per lokasi, tipe harga, satuan, dan customer. HPP tetap berasal dari DROP Ayam → Produksi/Adukan → modal historis.",
+      "Untuk produk hasil Adukan, aktifkan proses Adukan lalu isi standar ayam dan target hasil. Perubahan standar hanya berlaku untuk produksi berikutnya; HPP batch lama tetap terkunci.",
   },
 
   customer: {
@@ -1905,42 +1960,27 @@ export default function MasterDataPage({
                         field.label
                       }
 
-                      <input
-                        type={
-                          field.type ||
-                          "text"
-                        }
-
-                        value={
-                          draft[
-                            field
-                              .key
-                          ] ||
-                          ""
-                        }
-
-                        placeholder={
-                          field.placeholder ||
-                          ""
-                        }
-
-                        disabled={
-                          saving ||
-                          locked ||
-                          !writeEnabled
-                        }
-
-                        onChange={(
-                          event
-                        ) =>
-                          updateDraft(
-                            field.key,
-                            event
-                              .target
-                              .value
-                          )
-                        }
-                      />
+                      {field.type === "select" ? (
+                        <select
+                          value={String(draft[field.key] ?? "")}
+                          disabled={saving || locked || !writeEnabled}
+                          onChange={(event) => updateDraft(field.key, event.target.value)}
+                        >
+                          {(field.options || []).map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type={field.type || "text"}
+                          value={draft[field.key] ?? ""}
+                          placeholder={field.placeholder || ""}
+                          disabled={saving || locked || !writeEnabled}
+                          onChange={(event) => updateDraft(field.key, event.target.value)}
+                        />
+                      )}
 
                       {locked ? (
                         <small className="da-muted">
