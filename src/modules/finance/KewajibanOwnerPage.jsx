@@ -13,6 +13,7 @@ import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import DataTable from "../../components/ui/DataTable";
 import Modal from "../../components/ui/Modal";
+import PageHeader from "../../components/ui/PageHeader";
 import StatCard from "../../components/ui/StatCard";
 
 function isAuthRequired(result) {
@@ -21,11 +22,13 @@ function isAuthRequired(result) {
 }
 
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  const date = new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 function ym() {
-  return new Date().toISOString().slice(0, 7);
+  const date = new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function toNumber(value) {
@@ -76,6 +79,9 @@ export default function KewajibanOwnerPage({ session, onSessionExpired }) {
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [payOpen, setPayOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("obligations");
 
   const sessionToken = session?.sessionToken || session?.session_token || "";
   const summary = data.summary || {};
@@ -96,8 +102,11 @@ export default function KewajibanOwnerPage({ session, onSessionExpired }) {
   }, [obligations, paymentForm.obligation_id]);
 
   const selectedRemaining = toNumber(selectedObligation?.remaining_balance || selectedObligation?.remaining_amount || 0);
+  const selectedPeriodDue = toNumber(selectedObligation?.period_due_amount ?? selectedObligation?.monthly_amount ?? selectedRemaining);
+  const selectedIsRecurring = Number(selectedObligation?.is_recurring || 0) === 1;
+  const selectedPayableNow = selectedIsRecurring ? selectedPeriodDue : selectedRemaining;
   const paymentAmount = toNumber(paymentForm.amount);
-  const paymentAfter = Math.max(0, selectedRemaining - paymentAmount);
+  const paymentAfter = selectedIsRecurring ? Math.max(0, selectedPayableNow - paymentAmount) : Math.max(0, selectedRemaining - paymentAmount);
   const selectedPaymentWallet = useMemo(() => wallets.find((wallet) => String(wallet.wallet_id) === String(paymentForm.wallet_id)) || null, [wallets, paymentForm.wallet_id]);
   const paymentMethods = useMemo(() => selectedPaymentWallet ? allowedPaymentMethods(selectedPaymentWallet) : ["Transfer", "Cash"], [selectedPaymentWallet]);
 
@@ -173,6 +182,7 @@ export default function KewajibanOwnerPage({ session, onSessionExpired }) {
       }
       setMessage(result.message || "Kewajiban berhasil disimpan.");
       setObligationForm(emptyObligationForm);
+      setCreateOpen(false);
       await loadData();
     } catch (err) {
       setError(err?.message || "Gagal menyimpan kewajiban.");
@@ -225,6 +235,7 @@ export default function KewajibanOwnerPage({ session, onSessionExpired }) {
       }
       setMessage(result.message || "Pembayaran kewajiban berhasil dicatat.");
       setPaymentForm((old) => ({ ...emptyPaymentForm, wallet_id: old.wallet_id }));
+      setPayOpen(false);
       await loadData();
     } catch (err) {
       setError(err?.message || "Gagal membayar kewajiban.");
@@ -279,246 +290,118 @@ export default function KewajibanOwnerPage({ session, onSessionExpired }) {
   ];
 
   return (
-    <div className="da-page da-page-wide">
-      <div className="da-page-header">
-        <div>
-          <div className="da-kicker">DIMSUM ADITYA</div>
-          <h1>Kewajiban Owner</h1>
-          <p>
-            Cicilan usaha, tagihan rutin, jatuh tempo, dan pembayaran dari dompet. Semua pembayaran harus punya ID dan bisa ditelusuri ke Kas & Dompet.
-          </p>
-        </div>
-        <Badge tone="warning">Live Kewajiban</Badge>
-      </div>
-
-      <Card>
-        <div className="da-card-header-row">
-          <div>
-            <div className="da-kicker">KEWAJIBAN USAHA</div>
-            <h2>Jatuh Tempo → Bayar → Kas Keluar → Mutasi Dompet → Owner Control → Arsip</h2>
-            <p className="da-muted">
-              Modul ini untuk BPJS, cicilan mobil/bank, wifi, kontrakan, parkir, listrik, dan kewajiban owner lain. Data dimasukkan manual tanpa seed; pembayaran memotong dompet, membuat KASOUT, jurnal, arsip, dan pemakaian Amplop Cicilan/Kewajiban.
-            </p>
-          </div>
+    <div className="da-finance-page">
+      <PageHeader
+        eyebrow="Uang & Kewajiban"
+        title="Kewajiban Owner"
+        description="Pantau cicilan usaha dan tagihan rutin, jatuh tempo, serta pembayaran yang keluar dari dompet usaha."
+        actions={(
           <div className="da-actions">
-            <Badge tone={error ? "danger" : "success"}>{error ? "Perlu Dicek" : "Terhubung"}</Badge>
-            <Button variant="secondary" onClick={loadData} disabled={loading}>{loading ? "Memuat..." : "Refresh Data"}</Button>
+            <Button variant="ghost" onClick={loadData} disabled={loading}>{loading ? "Memuat..." : "Perbarui"}</Button>
+            <Button variant="ghost" onClick={() => setCreateOpen(true)}>+ Tambah Kewajiban</Button>
+            <Button onClick={() => setPayOpen(true)} disabled={!activeObligations.length}>+ Bayar Kewajiban</Button>
           </div>
-        </div>
-      </Card>
+        )}
+      />
 
-      {hiddenRows > 0 && <div className="da-alert da-alert-danger">{hiddenRows} baris kosong/formatting disembunyikan supaya kewajiban tidak menampilkan angka yatim.</div>}
-      {message && <div className="da-alert da-alert-success">{message}</div>}
-      {error && <div className="da-alert da-alert-danger">{error}</div>}
+      {error ? <div className="da-alert da-alert-danger">{error}</div> : null}
+      {message ? <div className="da-form-success">{message}</div> : null}
 
-      <div className="da-grid da-grid-3">
-        <StatCard label="Kewajiban Aktif" value={summary.active_count || 0} description="Jumlah kewajiban yang masih dipantau." />
-        <StatCard label="Sisa Kewajiban" value={formatRupiah(summary.total_remaining || 0)} description="Sisa saldo kewajiban/cicilan aktif." tone="warning" />
-        <StatCard label="Jatuh Tempo Bulan Ini" value={formatRupiah(summary.due_this_month || 0)} description="Perkiraan tagihan yang perlu disiapkan bulan ini." tone="warning" />
-        <StatCard label="Overdue" value={summary.overdue_count || 0} description="Lewat jatuh tempo dan belum lunas." tone={summary.overdue_count ? "danger" : "default"} />
-        <StatCard label="Dibayar Bulan Ini" value={formatRupiah(summary.paid_this_month || 0)} description="Pembayaran kewajiban yang sudah tercatat." />
-        <StatCard label="Mutasi OUT" value={summary.wallet_mutation_count || 0} description="Pembayaran yang punya mutasi dompet." />
+      <div className="da-finance-kpi-grid">
+        <StatCard label="Kewajiban Aktif" value={loading ? "..." : String(summary.active_count || 0)} description={`${summary.due_count || 0} perlu dibayar pada periode ini.`} />
+        <StatCard tone="primary" label="Sisa Kewajiban Tetap" value={loading ? "..." : formatRupiah(summary.total_remaining || 0)} description="Saldo cicilan dengan nilai pokok tetap." />
+        <StatCard tone="warning" label="Jatuh Tempo Periode Ini" value={loading ? "..." : formatRupiah(summary.due_this_month || 0)} description={`Sudah dibayar ${formatRupiah(summary.paid_this_month || 0)}.`} />
+        <StatCard tone={Number(summary.overdue_count || 0) > 0 ? "danger" : "success"} label="Lewat Jatuh Tempo" value={loading ? "..." : String(summary.overdue_count || 0)} description={Number(summary.overdue_count || 0) > 0 ? formatRupiah(summary.overdue_amount || 0) : "Tidak ada tagihan terlambat."} />
       </div>
 
-      <Card>
-        <div className="da-card-header-row">
-          <div>
-            <div className="da-kicker">INPUT LIVE</div>
-            <h2>Tambah Kewajiban / Cicilan</h2>
-            <p className="da-muted">Data ini menjadi daftar pantauan owner. Jangan hapus fisik; nanti pakai aktif/nonaktif atau lunas.</p>
+      <div className="da-finance-workspace">
+        <Card className="da-finance-main-card">
+          <div className="da-section-heading">
+            <div><div className="da-page-kicker">Daftar Kewajiban</div><h2 style={{ margin: "4px 0 6px" }}>Kewajiban yang Dipantau</h2><p className="da-muted" style={{ margin: 0 }}>Klik baris untuk melihat pembayaran, kas keluar, dan mutasi dompet terkait.</p></div>
+            <Button variant="ghost" onClick={() => setCreateOpen(true)}>+ Tambah</Button>
           </div>
-          <Badge tone="warning">Owner Only</Badge>
-        </div>
-        <form onSubmit={handleCreateObligation} className="da-form-grid">
-          <label>
-            Nama Kewajiban
-            <input value={obligationForm.obligation_name} onChange={(e) => updateObligationField("obligation_name", e.target.value)} placeholder="Contoh: Angsuran Mobil Luxio" />
-          </label>
-          <label>
-            Jenis
-            <select value={obligationForm.obligation_type} onChange={(e) => updateObligationField("obligation_type", e.target.value)}>
-              <option>Cicilan Usaha</option>
-              <option>Tagihan Rutin</option>
-              <option>Kontrakan</option>
-              <option>BPJS</option>
-              <option>Wifi</option>
-              <option>Listrik</option>
-              <option>Parkir</option>
-              <option>Lainnya</option>
-            </select>
-          </label>
-          <label>
-            Jatuh Tempo Tanggal
-            <input type="number" min="1" max="31" value={obligationForm.due_day} onChange={(e) => updateObligationField("due_day", e.target.value)} />
-          </label>
-          <label>
-            Nominal Bulanan
-            <input value={obligationForm.monthly_amount} onChange={(e) => updateObligationField("monthly_amount", e.target.value)} placeholder="0" />
-          </label>
-          <label>
-            Saldo Awal / Total Kewajiban
-            <input value={obligationForm.original_amount} onChange={(e) => updateObligationField("original_amount", e.target.value)} placeholder="0 jika tagihan rutin" />
-          </label>
-          <label>
-            Total Tenor
-            <input type="number" min="0" value={obligationForm.total_tenor} onChange={(e) => updateObligationField("total_tenor", e.target.value)} />
-          </label>
-          <label>
-            Tenor Sudah Dibayar
-            <input type="number" min="0" value={obligationForm.paid_tenor} onChange={(e) => updateObligationField("paid_tenor", e.target.value)} />
-          </label>
-          <label>
-            Dompet Biasa
-            <select value={obligationForm.wallet_id} onChange={(e) => updateObligationField("wallet_id", e.target.value)}>
-              <option value="">Pilih dompet</option>
-              {wallets.map((wallet) => <option key={wallet.wallet_id} value={wallet.wallet_id}>{wallet.wallet_name || wallet.wallet_id}</option>)}
-            </select>
-          </label>
-          <label className="da-form-span-2">
-            Catatan
-            <input value={obligationForm.notes} onChange={(e) => updateObligationField("notes", e.target.value)} />
-          </label>
-          <div className="da-form-footer da-form-span-3">
-            <span className="da-muted">Preview: {text(obligationForm.obligation_name, "Kewajiban baru")} · {formatRupiah(obligationForm.monthly_amount)} per bulan</span>
-            <Button type="submit" disabled={saving}>{saving ? "Menyimpan..." : "Simpan Kewajiban"}</Button>
+          <div className="da-finance-tabs">
+            <button className={activeTab === "obligations" ? "active" : ""} onClick={() => setActiveTab("obligations")}>Kewajiban</button>
+            <button className={activeTab === "payments" ? "active" : ""} onClick={() => setActiveTab("payments")}>Riwayat Pembayaran</button>
           </div>
+          {activeTab === "obligations" ? (
+            <DataTable
+              columns={[
+                ...obligationColumns.slice(0, 3),
+                { key: "due_period", label: "Tagihan Periode", render: (row) => <strong>{formatRupiah(row.period_due_amount ?? row.monthly_amount ?? 0)}</strong> },
+                { key: "remaining", label: "Sisa Tetap", render: (row) => Number(row.is_recurring || 0) === 1 ? <span className="da-muted">Rutin</span> : <strong>{formatRupiah(row.remaining_balance)}</strong> },
+                { key: "status_period", label: "Status", render: (row) => row.is_overdue ? <Badge tone="danger">Terlambat</Badge> : Number(row.period_due_amount || 0) <= 0 ? <Badge tone="success">Periode Lunas</Badge> : <Badge tone="warning">Menunggu Bayar</Badge> },
+              ]}
+              rows={obligations}
+              getRowKey={(row) => row.obligation_id}
+              onRowClick={openObligationDetail}
+            />
+          ) : <DataTable columns={paymentColumns} rows={payments} getRowKey={(row) => row.payment_id} />}
+          {!loading && (activeTab === "obligations" ? obligations.length === 0 : payments.length === 0) ? <div className="da-finance-empty">Belum ada data pada bagian ini.</div> : null}
+        </Card>
+
+        <Card className="da-finance-side-card">
+          <div className="da-page-kicker">Posisi Periode</div>
+          <h2 style={{ margin: "6px 0 6px" }}>Jadwal Pembayaran</h2>
+          <p className="da-muted">Ringkasan kewajiban bulan berjalan setelah pembayaran yang sudah tercatat.</p>
+          <div className="da-finance-hero-number da-finance-hero-number-dark"><span>Sisa yang perlu dibayar</span><strong>{formatRupiah(summary.due_this_month || 0)}</strong><small>{summary.due_count || 0} kewajiban</small></div>
+          <div className="da-finance-metric-list">
+            <div><span>Sudah dibayar</span><strong>{formatRupiah(summary.paid_this_month || 0)}</strong></div>
+            <div><span>Terlambat</span><strong>{formatRupiah(summary.overdue_amount || 0)}</strong></div>
+            <div><span>Riwayat bayar</span><strong>{summary.payment_count || 0}</strong></div>
+            <div><span>Mutasi keluar</span><strong>{summary.wallet_mutation_count || 0}</strong></div>
+          </div>
+          <Button onClick={() => setPayOpen(true)} disabled={!activeObligations.length}>Bayar Kewajiban</Button>
+          <div className="da-finance-note">Tagihan rutin dihitung per periode. Cicilan dengan total pokok tetap tetap menampilkan saldo sisa sampai lunas.</div>
+        </Card>
+      </div>
+
+      <Modal open={createOpen} size="lg" title="Tambah Kewajiban" subtitle="Cicilan usaha atau tagihan rutin" onClose={() => !saving && setCreateOpen(false)}>
+        <form onSubmit={handleCreateObligation} className="da-finance-modal-panel">
+          <div className="da-finance-modal-form">
+            <label className="da-field"><span>Nama Kewajiban</span><input value={obligationForm.obligation_name} onChange={(e) => updateObligationField("obligation_name", e.target.value)} placeholder="Contoh: Angsuran Mobil" /></label>
+            <label className="da-field"><span>Jenis</span><select value={obligationForm.obligation_type} onChange={(e) => updateObligationField("obligation_type", e.target.value)}><option>Cicilan Usaha</option><option>Tagihan Rutin</option><option>Kontrakan</option><option>BPJS</option><option>Wifi</option><option>Listrik</option><option>Parkir</option><option>Lainnya</option></select></label>
+            <label className="da-field"><span>Jatuh Tempo Tanggal</span><input type="number" min="1" max="31" value={obligationForm.due_day} onChange={(e) => updateObligationField("due_day", e.target.value)} /></label>
+            <label className="da-field"><span>Nominal Bulanan</span><input inputMode="numeric" value={obligationForm.monthly_amount} onChange={(e) => updateObligationField("monthly_amount", e.target.value)} /></label>
+            <label className="da-field"><span>Total Pokok / Saldo Awal</span><input inputMode="numeric" value={obligationForm.original_amount} onChange={(e) => updateObligationField("original_amount", e.target.value)} placeholder="0 untuk tagihan rutin" /></label>
+            <label className="da-field"><span>Total Tenor</span><input type="number" min="0" value={obligationForm.total_tenor} onChange={(e) => updateObligationField("total_tenor", e.target.value)} /></label>
+            <label className="da-field"><span>Tenor Sudah Dibayar</span><input type="number" min="0" value={obligationForm.paid_tenor} onChange={(e) => updateObligationField("paid_tenor", e.target.value)} /></label>
+            <label className="da-field"><span>Dompet Default</span><select value={obligationForm.wallet_id} onChange={(e) => updateObligationField("wallet_id", e.target.value)}><option value="">Pilih dompet</option>{wallets.map((wallet) => <option key={wallet.wallet_id} value={wallet.wallet_id}>{wallet.wallet_name || wallet.wallet_id}</option>)}</select></label>
+            <label className="da-field da-finance-span-2"><span>Catatan</span><input value={obligationForm.notes} onChange={(e) => updateObligationField("notes", e.target.value)} /></label>
+          </div>
+          <div className="da-finance-preview-row"><div><span>Nama</span><strong>{text(obligationForm.obligation_name, "Kewajiban baru")}</strong></div><div><span>Per bulan</span><strong>{formatRupiah(obligationForm.monthly_amount)}</strong></div><div><span>Total pokok</span><strong>{formatRupiah(obligationForm.original_amount)}</strong></div></div>
+          <div className="da-form-actions"><Button variant="ghost" type="button" onClick={() => setCreateOpen(false)} disabled={saving}>Batal</Button><Button type="submit" disabled={saving}>{saving ? "Menyimpan..." : "Simpan Kewajiban"}</Button></div>
         </form>
-      </Card>
+      </Modal>
 
-      <Card>
-        <div className="da-card-header-row">
-          <div>
-            <div className="da-kicker">POTONG DOMPET</div>
-            <h2>Bayar Kewajiban</h2>
-            <p className="da-muted">Saat dibayar, sistem mencatat pembayaran, KASOUT, dan mutasi dompet OUT.</p>
+      <Modal open={payOpen} size="lg" title="Bayar Kewajiban" subtitle="Pembayaran akan mengurangi dompet usaha" onClose={() => !saving && setPayOpen(false)}>
+        <form onSubmit={handlePayObligation} className="da-finance-modal-panel">
+          <div className="da-finance-modal-form">
+            <label className="da-field da-finance-span-2"><span>Kewajiban</span><select value={paymentForm.obligation_id} onChange={(e) => updatePaymentField("obligation_id", e.target.value)}><option value="">Pilih kewajiban</option>{activeObligations.map((item) => <option key={item.obligation_id} value={item.obligation_id}>{item.obligation_name} · perlu dibayar {formatRupiah(item.period_due_amount ?? item.remaining_balance ?? item.monthly_amount)}</option>)}</select></label>
+            <label className="da-field"><span>Tanggal Bayar</span><input type="date" value={paymentForm.payment_date} onChange={(e) => updatePaymentField("payment_date", e.target.value)} /></label>
+            <label className="da-field"><span>Nominal Bayar</span><input inputMode="numeric" value={paymentForm.amount} onChange={(e) => updatePaymentField("amount", e.target.value)} /></label>
+            <label className="da-field"><span>Dompet Pembayaran</span><select value={paymentForm.wallet_id} onChange={(e) => { const wallet = wallets.find((item) => String(item.wallet_id) === String(e.target.value)); setPaymentForm((old) => ({ ...old, wallet_id: e.target.value, method: suggestedPaymentMethod(wallet || {}) })); }}><option value="">Pilih dompet</option>{wallets.map((wallet) => <option key={wallet.wallet_id} value={wallet.wallet_id}>{wallet.wallet_name || wallet.wallet_id}</option>)}</select></label>
+            <label className="da-field"><span>Metode</span><select value={paymentForm.method} onChange={(e) => updatePaymentField("method", e.target.value)}>{paymentMethods.map((method) => <option key={method} value={method}>{method}</option>)}</select></label>
+            <label className="da-field da-finance-span-2"><span>Catatan</span><input value={paymentForm.notes} onChange={(e) => updatePaymentField("notes", e.target.value)} /></label>
           </div>
-          <Badge tone="danger">Pembayaran Aktif</Badge>
-        </div>
-        <form onSubmit={handlePayObligation} className="da-form-grid">
-          <label>
-            Pilih Kewajiban
-            <select value={paymentForm.obligation_id} onChange={(e) => updatePaymentField("obligation_id", e.target.value)}>
-              <option value="">Pilih kewajiban</option>
-              {activeObligations.map((item) => <option key={item.obligation_id} value={item.obligation_id}>{item.obligation_name} · sisa {formatRupiah(item.remaining_balance)}</option>)}
-            </select>
-          </label>
-          <label>
-            Tanggal Bayar
-            <input type="date" value={paymentForm.payment_date} onChange={(e) => updatePaymentField("payment_date", e.target.value)} />
-          </label>
-          <label>
-            Nominal Bayar
-            <input value={paymentForm.amount} onChange={(e) => updatePaymentField("amount", e.target.value)} placeholder="0" />
-          </label>
-          <label>
-            Dompet Pembayaran
-            <select value={paymentForm.wallet_id} onChange={(e) => { const wallet = wallets.find((item) => String(item.wallet_id) === String(e.target.value)); setPaymentForm((old) => ({ ...old, wallet_id: e.target.value, method: suggestedPaymentMethod(wallet || {}) })); }}>
-              <option value="">Pilih dompet</option>
-              {wallets.map((wallet) => <option key={wallet.wallet_id} value={wallet.wallet_id}>{wallet.wallet_name || wallet.wallet_id}</option>)}
-            </select>
-          </label>
-          <label>
-            Metode
-            <select value={paymentForm.method} onChange={(e) => updatePaymentField("method", e.target.value)}>
-              {paymentMethods.map((method) => <option key={method} value={method}>{method}</option>)}
-            </select>
-          </label>
-          <label>
-            Catatan
-            <input value={paymentForm.notes} onChange={(e) => updatePaymentField("notes", e.target.value)} />
-          </label>
-          <div className="da-form-footer da-form-span-3">
-            <span className="da-muted">Sisa awal: {formatRupiah(selectedRemaining)} · Dibayar: {formatRupiah(paymentAmount)} · Sisa akhir: {formatRupiah(paymentAfter)}</span>
-            <Button type="submit" disabled={saving || !paymentForm.obligation_id}>{saving ? "Menyimpan..." : "Simpan Pembayaran"}</Button>
-          </div>
+          <div className="da-finance-preview-row"><div><span>Tagihan sekarang</span><strong>{formatRupiah(selectedPayableNow)}</strong></div><div><span>Dibayar</span><strong>{formatRupiah(paymentAmount)}</strong></div><div><span>Sisa periode</span><strong>{formatRupiah(paymentAfter)}</strong></div></div>
+          <div className="da-form-actions"><Button variant="ghost" type="button" onClick={() => setPayOpen(false)} disabled={saving}>Batal</Button><Button type="submit" disabled={saving || !paymentForm.obligation_id || paymentAmount <= 0}>{saving ? "Menyimpan..." : "Simpan Pembayaran"}</Button></div>
         </form>
-      </Card>
+      </Modal>
 
-      <Card>
-        <div className="da-card-header-row">
-          <div>
-            <div className="da-kicker">DAFTAR KEWAJIBAN</div>
-            <h2>Kewajiban Owner yang Dipantau</h2>
-            <p className="da-muted">Klik baris untuk melihat detail, riwayat bayar, KASOUT, dan mutasi dompet.</p>
+      {detail ? <Modal open title="Detail Kewajiban" subtitle={detail?.obligation?.obligation_name || detail?.obligation_name || ""} onClose={() => { setDetail(null); setDetailError(""); }}>
+        {detailLoading ? <div className="da-alert da-alert-warning">Membaca detail...</div> : null}
+        {detailError ? <div className="da-alert da-alert-danger">{detailError}</div> : null}
+        {(() => { const activeDetail = detail.obligation || detail; const detailPayments = detail.payments || payments.filter((row) => row.obligation_id === activeDetail.obligation_id); const detailCash = detail.cash_expenses || []; const detailMutations = detail.wallet_mutations || []; const detailSummary = detail.summary || {}; return (
+          <div className="da-finance-modal-panel">
+            <div className="da-modal-summary"><div><div className="da-mini-title">{text(activeDetail.obligation_type)}</div><div className="da-big-text">{text(activeDetail.obligation_name)}</div><p className="da-muted">Jatuh tempo tanggal {activeDetail.due_day || "-"}</p></div><Badge tone={activeDetail.is_overdue ? "danger" : String(activeDetail.status).toUpperCase() === "LUNAS" ? "success" : "warning"}>{activeDetail.is_overdue ? "Terlambat" : text(activeDetail.status, "Aktif")}</Badge></div>
+            <div className="da-detail-grid"><div className="da-detail-box"><p><strong>Nominal bulanan:</strong> {formatRupiah(activeDetail.monthly_amount)}</p><p><strong>Tagihan periode:</strong> {formatRupiah(activeDetail.period_due_amount ?? activeDetail.monthly_amount)}</p><p><strong>Dibayar periode:</strong> {formatRupiah(activeDetail.period_paid_amount || 0)}</p></div><div className="da-detail-box"><p><strong>Sisa tetap:</strong> {Number(activeDetail.is_recurring || 0) === 1 ? "Tagihan rutin" : formatRupiah(activeDetail.remaining_balance)}</p><p><strong>Total dibayar:</strong> {formatRupiah(detailSummary.paid_total || 0)}</p><p><strong>Mutasi terkait:</strong> {detailSummary.mutation_count || detailMutations.length}</p></div></div>
+            <div className="da-finance-detail-section"><h3>Pembayaran</h3><DataTable columns={paymentColumns} rows={detailPayments} getRowKey={(row) => row.payment_id} /></div>
+            <div className="da-finance-detail-section"><h3>Kas Keluar Terkait</h3><DataTable columns={cashExpenseColumns} rows={detailCash} getRowKey={(row) => row.cash_expense_id} /></div>
+            <div className="da-finance-detail-section"><h3>Mutasi Dompet</h3><DataTable columns={mutationColumns} rows={detailMutations} getRowKey={(row) => row.mutation_id || row.wallet_mutation_id} /></div>
           </div>
-          <Badge tone="success">Data Aktual</Badge>
-        </div>
-        <DataTable columns={obligationColumns} rows={obligations} getRowKey={(row) => row.obligation_id} onRowClick={openObligationDetail} />
-      </Card>
-
-      <Card>
-        <div className="da-card-header-row">
-          <div>
-            <div className="da-kicker">RIWAYAT BAYAR</div>
-            <h2>Pembayaran Kewajiban</h2>
-            <p className="da-muted">Pembayaran yang sudah tercatat sebagai KASOUT dan mutasi OUT.</p>
-          </div>
-          <Badge tone="success">Kas Keluar</Badge>
-        </div>
-        <DataTable columns={paymentColumns} rows={payments} getRowKey={(row) => row.payment_id} />
-      </Card>
-
-      {detail && (
-        <Modal open={!!detail} title="Detail Kewajiban Owner" onClose={() => { setDetail(null); setDetailError(""); }}>
-          {detailLoading && <div className="da-alert da-alert-warning">Membaca rantai detail kewajiban...</div>}
-          {detailError && <div className="da-alert da-alert-danger">{detailError}</div>}
-          {(() => {
-            const activeDetail = detail.obligation || detail;
-            const detailPayments = detail.payments || payments.filter((row) => row.obligation_id === activeDetail.obligation_id);
-            const detailCash = detail.cash_expenses || [];
-            const detailMutations = detail.wallet_mutations || [];
-            const detailTrace = detail.trace || [];
-            const detailSummary = detail.summary || {};
-            return (
-              <>
-                <div className="da-detail-grid">
-                  <div className="da-detail-box da-detail-box-full">
-                    <span className="da-detail-label">Kewajiban</span>
-                    <h2>{text(activeDetail.obligation_name)}</h2>
-                    <Badge tone={String(activeDetail.status).toUpperCase() === "LUNAS" ? "success" : "warning"}>{text(activeDetail.status, "Active")}</Badge>
-                  </div>
-                  <div className="da-detail-box">
-                    <span className="da-detail-label">Nominal Bulanan</span>
-                    <strong>{formatRupiah(activeDetail.monthly_amount)}</strong>
-                  </div>
-                  <div className="da-detail-box">
-                    <span className="da-detail-label">Sisa Kewajiban</span>
-                    <strong>{formatRupiah(activeDetail.remaining_balance)}</strong>
-                  </div>
-                  <div className="da-detail-box">
-                    <span className="da-detail-label">Total Dibayar</span>
-                    <strong>{formatRupiah(detailSummary.paid_total || 0)}</strong>
-                  </div>
-                  <div className="da-detail-box">
-                    <span className="da-detail-label">KASOUT</span>
-                    <strong>{detailSummary.cashout_count || detailCash.length} catatan</strong>
-                  </div>
-                  <div className="da-detail-box">
-                    <span className="da-detail-label">Mutasi OUT</span>
-                    <strong>{detailSummary.mutation_count || detailMutations.length} catatan</strong>
-                  </div>
-                  <div className="da-detail-box da-detail-box-full">
-                    <span className="da-detail-label">Rantai yang harus bisa ditelusuri</span>
-                    <p>Kewajiban Owner → Pembayaran → KASOUT → Mutasi Dompet OUT → Kas & Dompet → Owner Control → Arsip Digital.</p>
-                  </div>
-                </div>
-
-                <h3 className="da-section-title">Peta Rantai</h3>
-                <DataTable columns={traceColumns} rows={detailTrace} getRowKey={(row) => `${row.step}-${row.label}`} />
-
-                <h3 className="da-section-title">Pembayaran Kewajiban</h3>
-                <DataTable columns={paymentColumns} rows={detailPayments} getRowKey={(row) => row.payment_id} />
-
-                <h3 className="da-section-title">Kas Keluar / KASOUT Terkait</h3>
-                <DataTable columns={cashExpenseColumns} rows={detailCash} getRowKey={(row) => row.cash_expense_id} />
-
-                <h3 className="da-section-title">Mutasi Dompet OUT Terkait</h3>
-                <DataTable columns={mutationColumns} rows={detailMutations} getRowKey={(row) => row.mutation_id || row.wallet_mutation_id} />
-              </>
-            );
-          })()}
-        </Modal>
-      )}
+        ); })()}
+      </Modal> : null}
     </div>
   );
 }
