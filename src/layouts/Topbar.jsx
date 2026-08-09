@@ -6,12 +6,12 @@ import {
   LogOut,
   MapPin,
   Menu,
-  PackageSearch,
+  Package,
   Search,
   ShieldCheck,
   Truck,
-  UserRound,
-  UsersRound,
+  User,
+  Users,
   X,
   ArrowRight,
   Loader2,
@@ -40,10 +40,10 @@ function todayLabel() {
 
 function resultIcon(type) {
   const props = { size: 17, strokeWidth: 1.9 };
-  if (type === "customer") return <UserRound {...props} />;
-  if (type === "product") return <PackageSearch {...props} />;
+  if (type === "customer") return <User {...props} />;
+  if (type === "product") return <Package {...props} />;
   if (type === "supplier") return <Truck {...props} />;
-  if (type === "employee") return <UsersRound {...props} />;
+  if (type === "employee") return <Users {...props} />;
   return <FileText {...props} />;
 }
 
