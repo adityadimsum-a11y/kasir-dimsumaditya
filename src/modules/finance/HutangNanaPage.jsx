@@ -9,9 +9,9 @@ import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import DataTable from "../../components/ui/DataTable";
+import FinanceSnapshot from "./FinanceSnapshot";
 import Modal from "../../components/ui/Modal";
 import PageHeader from "../../components/ui/PageHeader";
-import StatCard from "../../components/ui/StatCard";
 
 function asArray(value) {
   return Array.isArray(value) ? value : [];
@@ -540,12 +540,16 @@ export default function HutangNanaPage({ session, onSessionExpired }) {
       {error ? <div className="da-alert da-alert-danger">{error}</div> : null}
       {success ? <div className="da-form-success">{success}</div> : null}
 
-      <div className="da-finance-kpi-grid">
-        <StatCard tone="warning" label="Total Hutang Supplier" value={loading ? "..." : formatRupiah(summary.total_remaining)} description={`${summary.open_count || 0} catatan belum lunas.`} />
-        <StatCard label="Nota Berjalan" value={loading ? "..." : formatRupiah(currentNoteRemaining)} description={`${currentNotePayables.length} nota pembelian ayam.`} />
-        <StatCard label="Hutang Lama" value={loading ? "..." : formatRupiah(oldDebtRemaining)} description="Saldo kewajiban sebelum transaksi baru ERP." />
-        <StatCard tone={summary.needs_mutation_count > 0 ? "warning" : "success"} label="Sudah Dibayar" value={loading ? "..." : formatRupiah(summary.total_paid)} description={`${summary.payment_count || 0} pembayaran tercatat.`} />
-      </div>
+      <FinanceSnapshot
+        eyebrow="Hutang Supplier Ayam"
+        value={loading ? "..." : formatRupiah(summary.total_remaining)}
+        caption={`${summary.open_count || 0} catatan masih perlu diselesaikan.`}
+        metrics={[
+          { label: "Nota Berjalan", value: loading ? "..." : formatRupiah(currentNoteRemaining), helper: `${currentNotePayables.length} nota pembelian`, tone: "warning" },
+          { label: "Saldo Lama", value: loading ? "..." : formatRupiah(oldDebtRemaining), helper: "Saldo awal kewajiban yang masih berjalan" },
+          { label: "Sudah Dibayar", value: loading ? "..." : formatRupiah(summary.total_paid), helper: `${summary.payment_count || 0} pembayaran`, tone: "success" },
+        ]}
+      />
 
       <div className="da-finance-workspace">
         <Card className="da-finance-main-card">
@@ -599,7 +603,7 @@ export default function HutangNanaPage({ session, onSessionExpired }) {
             <label className="da-field"><span>Metode</span><select value={form.payment_method} onChange={(event) => setForm((current) => ({ ...current, payment_method: event.target.value }))} disabled={saving}>{paymentMethods.map((method) => <option key={method} value={method}>{method}</option>)}</select></label>
             <label className="da-field da-finance-span-2"><span>Catatan</span><input value={form.notes} placeholder="Catatan pembayaran" onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} disabled={saving} /></label>
           </div>
-          {!isOldDebtPayable(chosenPayable) && matchedOldDebts.length > 0 ? <div className="da-finance-note">Saldo Lama adalah kewajiban supplier sebelum ERP mulai dipakai. Jika pembayaran nota berjalan lebih besar dari sisa nota, selisih otomatis mengurangi saldo lama supplier yang sama.</div> : null}
+          {!isOldDebtPayable(chosenPayable) && matchedOldDebts.length > 0 ? <div className="da-finance-note">Saldo Lama adalah kewajiban supplier yang sudah ada sebelum pencatatan periode berjalan. Jika pembayaran nota berjalan lebih besar dari sisa nota, selisih otomatis mengurangi saldo lama supplier yang sama.</div> : null}
           <div className={amountTooBig ? "da-alert da-alert-danger" : "da-finance-preview-row"}>
             <div><span>Sisa nota dipilih</span><strong>{chosenPayable ? formatRupiah(chosenPayable.remaining_amount) : "-"}</strong></div>
             <div><span>Untuk nota</span><strong>{formatRupiah(paymentPlan.selectedAmount)}</strong></div>
@@ -613,7 +617,7 @@ export default function HutangNanaPage({ session, onSessionExpired }) {
       <Modal open={Boolean(selectedPayable)} title="Detail Hutang Supplier" subtitle={selectedPayable?.payable_no} onClose={() => setSelectedPayable(null)}>
         {selectedPayable ? <div className="da-finance-modal-panel">
           <div className="da-modal-summary"><div><div className="da-mini-title">{isOldDebtPayable(selectedPayable) ? "Saldo Hutang Lama" : "Nota Berjalan"}</div><div className="da-big-text">{formatRupiah(selectedPayable.remaining_amount)}</div><p className="da-muted">{selectedPayable.vendor_name}</p></div><Badge tone={statusTone(selectedPayable.payment_status, selectedPayable.remaining_amount)}>{selectedPayable.payment_status}</Badge></div>
-          <div className="da-detail-grid"><div className="da-detail-box"><p><strong>Nilai awal:</strong> {formatRupiah(selectedPayable.original_amount)}</p><p><strong>Sudah dibayar:</strong> {formatRupiah(selectedPayable.paid_amount)}</p><p><strong>Tanggal:</strong> {formatDisplayDate(selectedPayable.payable_date)}</p></div><div className="da-detail-box"><p><strong>Sumber:</strong> {safeText(selectedPayable.source_module)}</p><p><strong>Source ID:</strong> {safeText(selectedPayable.source_id)}</p><p><strong>Supplier:</strong> {safeText(selectedPayable.vendor_name)}</p></div></div>
+          <div className="da-detail-grid"><div className="da-detail-box"><p><strong>Nilai awal:</strong> {formatRupiah(selectedPayable.original_amount)}</p><p><strong>Sudah dibayar:</strong> {formatRupiah(selectedPayable.paid_amount)}</p><p><strong>Tanggal:</strong> {formatDisplayDate(selectedPayable.payable_date)}</p></div><div className="da-detail-box"><p><strong>Sumber:</strong> {safeText(selectedPayable.source_module)}</p><p><strong>ID referensi:</strong> {safeText(selectedPayable.source_id)}</p><p><strong>Supplier:</strong> {safeText(selectedPayable.vendor_name)}</p></div></div>
           <div className="da-finance-detail-section"><h3>Riwayat Pembayaran</h3><DataTable rows={chosenPayablePayments} getRowKey={(row) => row.payable_payment_id} columns={[{ key: "payment_date", label: "Tanggal", render: (row) => formatDisplayDate(row.payment_date) }, { key: "payable_payment_no", label: "Payment ID", render: (row) => <strong>{row.payable_payment_no}</strong> }, { key: "wallet_name", label: "Dompet", render: (row) => safeText(row.wallet_name || row.wallet_id) }, { key: "amount", label: "Nominal", render: (row) => formatRupiah(row.amount) }, { key: "status", label: "Status", render: (row) => <Badge tone={hasPaymentMutation(row) ? "success" : "warning"}>{hasPaymentMutation(row) ? row.status : "Perlu Ditelusuri"}</Badge> }]} /></div>
           <div className="da-finance-detail-section"><h3>Mutasi Dompet</h3><DataTable rows={chosenPayableMutations} getRowKey={(row) => row.mutation_id} columns={[{ key: "mutation_date", label: "Tanggal", render: (row) => formatDisplayDate(row.mutation_date) }, { key: "mutation_id", label: "Mutasi ID", render: (row) => <strong>{row.mutation_id}</strong> }, { key: "wallet_name", label: "Dompet", render: (row) => safeText(row.wallet_name || row.wallet_id) }, { key: "amount", label: "Nominal", render: (row) => formatRupiah(row.amount) }, { key: "source_id", label: "Sumber", render: (row) => safeText(row.source_id) }]} /></div>
         </div> : null}
