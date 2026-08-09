@@ -318,6 +318,7 @@ export default function HutangNanaPage({ session, onSessionExpired }) {
   const [success, setSuccess] = useState("");
   const [needsRefresh, setNeedsRefresh] = useState(false);
   const [selectedPayable, setSelectedPayable] = useState(null);
+  const [paymentOpen, setPaymentOpen] = useState(false);
   const [activeFilter, setActiveFilter] = useState("open");
   const [form, setForm] = useState({
     payable_id: "",
@@ -352,6 +353,8 @@ export default function HutangNanaPage({ session, onSessionExpired }) {
   const openPayables = useMemo(() => payables.filter((row) => numberValue(row.remaining_amount) > 0), [payables]);
   const currentNotePayables = useMemo(() => openPayables.filter((row) => !isOldDebtPayable(row)), [openPayables]);
   const oldDebtPayables = useMemo(() => openPayables.filter(isOldDebtPayable), [openPayables]);
+  const currentNoteRemaining = useMemo(() => currentNotePayables.reduce((sum, row) => sum + numberValue(row.remaining_amount), 0), [currentNotePayables]);
+  const oldDebtRemaining = useMemo(() => oldDebtPayables.reduce((sum, row) => sum + numberValue(row.remaining_amount), 0), [oldDebtPayables]);
   const visiblePayables = useMemo(() => {
     if (activeFilter === "paid") return payables.filter((row) => numberValue(row.remaining_amount) <= 0);
     if (activeFilter === "partial") return payables.filter((row) => numberValue(row.paid_amount) > 0 && numberValue(row.remaining_amount) > 0);
@@ -418,7 +421,7 @@ export default function HutangNanaPage({ session, onSessionExpired }) {
     setError("");
 
     const result = await getHutangNanaBootstrap(session?.sessionToken, {
-      source: "frontend_part_4e_hutang_nana",
+      source: "finance_workspace_v12_supplier_debt",
     });
 
     if (!result.success) {
@@ -515,384 +518,105 @@ export default function HutangNanaPage({ session, onSessionExpired }) {
     }
 
     setSuccess(result.message || "Pembayaran Hutang Nana berhasil dicatat.");
-    setForm((current) => ({
-      ...current,
-      amount: "",
-      notes: "",
-    }));
-    setNeedsRefresh(true);
+    setForm((current) => ({ ...current, amount: "", notes: "" }));
+    setPaymentOpen(false);
+    await loadData();
   };
 
   return (
-    <div>
+    <div className="da-finance-page">
       <PageHeader
+        eyebrow="Uang & Kewajiban"
         title="Hutang Nana"
-        description="Pantau sisa hutang ayam, nota berjalan, dan pembayaran supplier. Pembayaran di sini langsung membuat mutasi dompet keluar."
-        badge="Pembayaran Aktif"
+        description="Pantau nota ayam berjalan, saldo hutang lama, dan pembayaran supplier dari dompet usaha."
+        actions={(
+          <div className="da-actions">
+            <Button variant="ghost" onClick={loadData} disabled={loading || saving}>{loading ? "Memuat..." : "Perbarui"}</Button>
+            <Button onClick={() => setPaymentOpen(true)} disabled={!openPayables.length}>+ Bayar Supplier</Button>
+          </div>
+        )}
       />
 
-      <div className="da-dashboard-banner">
-        <div>
-          <div className="da-dashboard-banner-kicker">Supplier Ayam</div>
-          <div className="da-dashboard-banner-title">Nota Ayam → Hutang Nana → Bayar dari Dompet</div>
-          <div className="da-dashboard-banner-desc">
-            DROP ayam yang belum dibayar masuk ke hutang. Saat dibayar, dompet berkurang dan ID pembayaran bisa ditelusuri.
-          </div>
-        </div>
-        <div className="da-dashboard-banner-actions">
-          <Badge tone={error ? "danger" : "success"}>{error ? "Perlu Cek" : "Terhubung"}</Badge>
-          <Button variant="ghost" onClick={loadData} disabled={loading || saving}>
-            Refresh Data
-          </Button>
-        </div>
+      {error ? <div className="da-alert da-alert-danger">{error}</div> : null}
+      {success ? <div className="da-form-success">{success}</div> : null}
+
+      <div className="da-finance-kpi-grid">
+        <StatCard tone="warning" label="Total Hutang Supplier" value={loading ? "..." : formatRupiah(summary.total_remaining)} description={`${summary.open_count || 0} catatan belum lunas.`} />
+        <StatCard label="Nota Berjalan" value={loading ? "..." : formatRupiah(currentNoteRemaining)} description={`${currentNotePayables.length} nota pembelian ayam.`} />
+        <StatCard label="Hutang Lama" value={loading ? "..." : formatRupiah(oldDebtRemaining)} description="Saldo kewajiban sebelum transaksi baru ERP." />
+        <StatCard tone={summary.needs_mutation_count > 0 ? "warning" : "success"} label="Sudah Dibayar" value={loading ? "..." : formatRupiah(summary.total_paid)} description={`${summary.payment_count || 0} pembayaran tercatat.`} />
       </div>
 
-      {error ? <div className="da-form-warning">{error}</div> : null}
-      {success ? (
-        <div className="da-form-success">
-          {success}
-          {needsRefresh ? (
-            <div style={{ marginTop: 6, fontWeight: 700 }}>
-              Data sudah tersimpan cepat. Klik Refresh Data kalau mau tarik ulang hutang, payment, dan mutasi dompet terbaru.
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-      {summary.hidden_rows > 0 ? (
-        <div className="da-form-warning">
-          {summary.hidden_rows} baris kosong/formatting disembunyikan supaya Hutang Nana tidak menampilkan angka yatim.
-        </div>
-      ) : null}
+      <div className="da-finance-workspace">
+        <Card className="da-finance-main-card">
+          <div className="da-section-heading">
+            <div><div className="da-page-kicker">Buku Hutang Supplier</div><h2 style={{ margin: "4px 0 6px" }}>Nota dan Saldo Hutang</h2><p className="da-muted" style={{ margin: 0 }}>Klik baris untuk melihat riwayat pembayaran dan jejak mutasi dompet.</p></div>
+            <Button variant="ghost" onClick={() => setPaymentOpen(true)} disabled={!openPayables.length}>+ Pembayaran</Button>
+          </div>
+          <div className="da-finance-tabs">
+            {[ ["open", "Belum Lunas"], ["partial", "Sebagian Dibayar"], ["paid", "Lunas"], ["needs_mutation", "Perlu Ditelusuri"] ].map(([key, label]) => <button key={key} className={activeFilter === key ? "active" : ""} onClick={() => setActiveFilter(key)}>{label}</button>)}
+          </div>
+          <DataTable
+            rows={visiblePayables}
+            getRowKey={(row) => row.payable_id}
+            onRowClick={setSelectedPayable}
+            columns={[
+              { key: "payable_date", label: "Tanggal", render: (row) => formatDisplayDate(row.payable_date) },
+              { key: "payable_no", label: "Hutang ID", render: (row) => <strong>{row.payable_no}</strong> },
+              { key: "vendor_name", label: "Supplier", render: (row) => safeText(row.vendor_name) },
+              { key: "bucket", label: "Jenis", render: (row) => isOldDebtPayable(row) ? <Badge tone="warning">Saldo Lama</Badge> : <Badge tone="neutral">Nota Berjalan</Badge> },
+              { key: "original_amount", label: "Nilai", render: (row) => formatRupiah(row.original_amount) },
+              { key: "paid_amount", label: "Dibayar", render: (row) => formatRupiah(row.paid_amount) },
+              { key: "remaining_amount", label: "Sisa", render: (row) => <strong>{formatRupiah(row.remaining_amount)}</strong> },
+              { key: "status", label: "Status", render: (row) => <Badge tone={statusTone(row.payment_status, row.remaining_amount)}>{row.payment_status}</Badge> },
+            ]}
+          />
+          {!loading && visiblePayables.length === 0 ? <div className="da-finance-empty">Belum ada hutang pada pilihan ini.</div> : null}
+        </Card>
 
-      <div className="da-grid da-grid-3" style={{ marginBottom: 16 }}>
-        <StatCard
-          label="Sisa Hutang Nana"
-          value={loading ? "..." : formatRupiah(summary.total_remaining)}
-          description="Total hutang ayam yang belum dibayar."
-          tone="danger"
-        />
-        <StatCard
-          label="Sudah Dibayar"
-          value={loading ? "..." : formatRupiah(summary.total_paid)}
-          description="Total pembayaran yang tercatat."
-          tone="primary"
-        />
-        <StatCard
-          label="Pembayaran Perlu Mutasi"
-          value={loading ? "..." : summary.needs_mutation_count}
-          description="Bayar hutang nyata yang belum punya mutasi dompet."
-          tone={summary.needs_mutation_count > 0 ? "warning" : "success"}
-        />
+        <Card className="da-finance-side-card">
+          <div className="da-page-kicker">Posisi Supplier</div>
+          <h2 style={{ margin: "6px 0 6px" }}>Kontrol Hutang Ayam</h2>
+          <p className="da-muted">Pisahkan nota berjalan dari saldo lama agar pembayaran dan jejak supplier mudah dibaca.</p>
+          <div className="da-finance-hero-number da-finance-hero-number-dark"><span>Total outstanding</span><strong>{formatRupiah(summary.total_remaining)}</strong><small>{summary.open_count || 0} catatan terbuka</small></div>
+          <div className="da-finance-metric-list">
+            <div><span>Nota berjalan</span><strong>{formatRupiah(currentNoteRemaining)}</strong></div>
+            <div><span>Hutang lama</span><strong>{formatRupiah(oldDebtRemaining)}</strong></div>
+            <div><span>Total dibayar</span><strong>{formatRupiah(summary.total_paid)}</strong></div>
+            <div><span>Perlu ditelusuri</span><strong>{summary.needs_mutation_count || 0}</strong></div>
+          </div>
+          <Button onClick={() => setPaymentOpen(true)} disabled={!openPayables.length}>Bayar Supplier</Button>
+        </Card>
       </div>
 
-      <Card>
-        <div className="da-section-heading">
-          <div>
-            <div className="da-page-kicker">Bayar Supplier</div>
-            <h2 style={{ margin: "4px 0 6px" }}>Catat Pembayaran Hutang Nana</h2>
-            <p className="da-muted" style={{ margin: 0 }}>
-              Pilih nota terbuka, pilih Cash/BCA/BRI, lalu simpan pembayaran. Sistem akan membuat pembayaran hutang dan mutasi uang keluar.
-            </p>
+      <Modal open={paymentOpen} size="lg" title="Bayar Hutang Supplier" subtitle="Pilih nota, dompet, dan nominal pembayaran" onClose={() => !saving && setPaymentOpen(false)}>
+        <form onSubmit={handleSubmit} className="da-finance-modal-panel">
+          <div className="da-finance-modal-form">
+            <label className="da-field da-finance-span-2"><span>Nota / Hutang</span><select value={form.payable_id} onChange={(event) => setForm((current) => ({ ...current, payable_id: event.target.value, amount: "" }))} disabled={saving}><option value="">Pilih hutang</option>{currentNotePayables.length ? <optgroup label="Nota Berjalan">{currentNotePayables.map((row) => <option key={row.payable_id} value={row.payable_id}>{row.payable_no} · {formatRupiah(row.remaining_amount)} · {row.vendor_name}</option>)}</optgroup> : null}{oldDebtPayables.length ? <optgroup label="Hutang Lama / Saldo Awal">{oldDebtPayables.map((row) => <option key={row.payable_id} value={row.payable_id}>{row.payable_no} · {formatRupiah(row.remaining_amount)} · {row.vendor_name}</option>)}</optgroup> : null}</select></label>
+            <label className="da-field"><span>Dompet Pembayaran</span><select value={form.wallet_id} onChange={(event) => { const wallet = wallets.find((row) => row.wallet_id === event.target.value); setForm((current) => ({ ...current, wallet_id: event.target.value, payment_method: suggestedPaymentMethod(wallet || {}) })); }} disabled={saving}><option value="">Pilih dompet</option>{wallets.map((wallet) => <option key={wallet.wallet_id} value={wallet.wallet_id}>{wallet.wallet_name} · {formatRupiah(wallet.balance)}</option>)}</select></label>
+            <label className="da-field"><span>Tanggal Bayar</span><input type="date" value={form.payment_date} onChange={(event) => setForm((current) => ({ ...current, payment_date: event.target.value }))} disabled={saving} /></label>
+            <label className="da-field"><span>Nominal Bayar</span><input inputMode="numeric" value={form.amount} placeholder={chosenPayable ? String(chosenPayable.remaining_amount) : "0"} onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))} disabled={saving} /></label>
+            <label className="da-field"><span>Metode</span><select value={form.payment_method} onChange={(event) => setForm((current) => ({ ...current, payment_method: event.target.value }))} disabled={saving}>{paymentMethods.map((method) => <option key={method} value={method}>{method}</option>)}</select></label>
+            <label className="da-field da-finance-span-2"><span>Catatan</span><input value={form.notes} placeholder="Catatan pembayaran" onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} disabled={saving} /></label>
           </div>
-          <Badge tone="warning">Potong Dompet</Badge>
-        </div>
-
-        <form onSubmit={handleSubmit}>
-          <div className="da-form-grid">
-            <label className="da-field">
-              Nota / Hutang
-              <select
-                value={form.payable_id}
-                onChange={(event) => setForm((current) => ({ ...current, payable_id: event.target.value }))}
-                disabled={saving}
-              >
-                <option value="">Pilih hutang</option>
-                {currentNotePayables.length > 0 ? (
-                  <optgroup label="Nota Ayam Berjalan">
-                    {currentNotePayables.map((payable) => (
-                      <option key={payable.payable_id} value={payable.payable_id}>
-                        {payable.payable_no} · {formatRupiah(payable.remaining_amount)} · {safeText(payable.vendor_name)}
-                      </option>
-                    ))}
-                  </optgroup>
-                ) : null}
-                {oldDebtPayables.length > 0 ? (
-                  <optgroup label="Hutang Lama (saldo awal / RECON)">
-                    {oldDebtPayables.map((payable) => (
-                      <option key={payable.payable_id} value={payable.payable_id}>
-                        {payable.payable_no} · {formatRupiah(payable.remaining_amount)} · {safeText(payable.vendor_name)}
-                      </option>
-                    ))}
-                  </optgroup>
-                ) : null}
-              </select>
-              <span className="da-muted" style={{ fontSize: 12, marginTop: 6 }}>
-                RECON adalah saldo hutang lama saat cutover. Bila pembayaran nota berjalan lebih besar dari sisa nota,
-                kelebihannya otomatis menjadi selipan untuk mengurangi hutang lama supplier yang sama.
-              </span>
-            </label>
-
-            <label className="da-field">
-              Dompet Pembayaran
-              <select
-                value={form.wallet_id}
-                onChange={(event) => {
-                  const wallet = wallets.find((row) => row.wallet_id === event.target.value);
-                  setForm((current) => ({ ...current, wallet_id: event.target.value, payment_method: suggestedPaymentMethod(wallet || {}) }));
-                }}
-                disabled={saving}
-              >
-                <option value="">Pilih dompet</option>
-                {wallets.map((wallet) => (
-                  <option key={wallet.wallet_id} value={wallet.wallet_id}>
-                    {wallet.wallet_name} · {formatRupiah(wallet.balance)}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="da-field">
-              Tanggal Bayar
-              <input
-                type="date"
-                value={form.payment_date}
-                onChange={(event) => setForm((current) => ({ ...current, payment_date: event.target.value }))}
-                disabled={saving}
-              />
-            </label>
-
-            <label className="da-field">
-              Nominal Bayar
-              <input
-                type="number"
-                min="0"
-                value={form.amount}
-                placeholder={chosenPayable ? String(chosenPayable.remaining_amount) : "0"}
-                onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))}
-                disabled={saving}
-              />
-            </label>
-
-            <label className="da-field">
-              Metode
-              <select
-                value={form.payment_method}
-                onChange={(event) => setForm((current) => ({ ...current, payment_method: event.target.value }))}
-                disabled={saving}
-              >
-                {paymentMethods.map((method) => <option key={method} value={method}>{method}</option>)}
-              </select>
-            </label>
-
-            <label className="da-field">
-              Catatan
-              <input
-                value={form.notes}
-                placeholder="Contoh: bayar nota ayam hari ini"
-                onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
-                disabled={saving}
-              />
-            </label>
+          {!isOldDebtPayable(chosenPayable) && matchedOldDebts.length > 0 ? <div className="da-finance-note">Saldo Lama adalah kewajiban supplier sebelum ERP mulai dipakai. Jika pembayaran nota berjalan lebih besar dari sisa nota, selisih otomatis mengurangi saldo lama supplier yang sama.</div> : null}
+          <div className={amountTooBig ? "da-alert da-alert-danger" : "da-finance-preview-row"}>
+            <div><span>Sisa nota dipilih</span><strong>{chosenPayable ? formatRupiah(chosenPayable.remaining_amount) : "-"}</strong></div>
+            <div><span>Untuk nota</span><strong>{formatRupiah(paymentPlan.selectedAmount)}</strong></div>
+            <div><span>Ke hutang lama</span><strong>{formatRupiah(isOldDebtPayable(chosenPayable) ? 0 : paymentPlan.oldDebtAmount)}</strong></div>
           </div>
-
-          <div className={amountTooBig ? "da-form-warning" : "da-drop-preview-panel"}>
-            <div>
-              <div className="da-stat-label">Sisa Hutang Dipilih</div>
-              <strong>{chosenPayable ? formatRupiah(chosenPayable.remaining_amount) : "-"}</strong>
-            </div>
-            <div>
-              <div className="da-stat-label">Total Bayar</div>
-              <strong>{formatRupiah(amount)}</strong>
-            </div>
-            <div>
-              <div className="da-stat-label">Untuk Nota Dipilih</div>
-              <strong>{formatRupiah(paymentPlan.selectedAmount)}</strong>
-            </div>
-            <div>
-              <div className="da-stat-label">Selipan Hutang Lama</div>
-              <strong>{formatRupiah(
-                isOldDebtPayable(chosenPayable) ? 0 : paymentPlan.oldDebtAmount
-              )}</strong>
-            </div>
-            <div>
-              <div className="da-stat-label">Sisa Nota Setelah Bayar</div>
-              <strong>{chosenPayable ? formatRupiah(paymentPlan.selectedRemainingAfter) : "-"}</strong>
-            </div>
-            {!isOldDebtPayable(chosenPayable) && matchedOldDebts.length > 0 ? (
-              <div>
-                <div className="da-stat-label">Sisa Hutang Lama Setelah Selipan</div>
-                <strong>{formatRupiah(paymentPlan.oldDebtRemainingAfter)}</strong>
-              </div>
-            ) : null}
-            {amountTooBig ? (
-              <div>
-                <div className="da-stat-label">Nominal Tidak Teralokasi</div>
-                <strong>{formatRupiah(paymentPlan.unallocatedAmount)}</strong>
-              </div>
-            ) : null}
-          </div>
-
-          <div className="da-form-actions">
-            <Button
-              variant="ghost"
-              type="button"
-              onClick={() => setForm((current) => ({ ...current, amount: chosenPayable?.remaining_amount || "" }))}
-              disabled={!chosenPayable || saving}
-            >
-              Isi Sisa Nota
-            </Button>
-            <Button type="submit" disabled={!canSubmit || amountTooBig}>
-              {saving ? "Menyimpan..." : "Simpan Pembayaran"}
-            </Button>
-          </div>
+          {amountTooBig ? <div className="da-alert da-alert-danger">Nominal melebihi total hutang yang dapat dialokasikan sebesar {formatRupiah(paymentPlan.unallocatedAmount)}.</div> : null}
+          <div className="da-form-actions"><Button variant="ghost" type="button" onClick={() => setForm((current) => ({ ...current, amount: chosenPayable?.remaining_amount || "" }))} disabled={!chosenPayable || saving}>Isi Sisa Nota</Button><Button type="submit" disabled={!canSubmit || amountTooBig}>{saving ? "Menyimpan..." : "Simpan Pembayaran"}</Button></div>
         </form>
-      </Card>
+      </Modal>
 
-      <Card>
-        <div className="da-section-heading">
-          <div>
-            <div className="da-page-kicker">Buku Hutang</div>
-            <h2 style={{ margin: "4px 0 6px" }}>Nota Hutang Nana</h2>
-            <p className="da-muted" style={{ margin: 0 }}>
-              Klik baris untuk melihat pembayaran, source DROP ayam, dan mutasi dompet terkait.
-            </p>
-          </div>
-          <div className="da-filter-row" style={{ marginBottom: 0 }}>
-            {[
-              ["open", "Belum Lunas"],
-              ["partial", "Partial"],
-              ["paid", "Lunas"],
-              ["needs_mutation", "Perlu Mutasi"],
-            ].map(([key, label]) => (
-              <Button
-                key={key}
-                variant={activeFilter === key ? "primary" : "ghost"}
-                onClick={() => setActiveFilter(key)}
-              >
-                {label}
-              </Button>
-            ))}
-          </div>
-        </div>
-
-        <DataTable
-          rows={visiblePayables}
-          getRowKey={(row) => row.payable_id}
-          onRowClick={(row) => setSelectedPayable(row)}
-          columns={[
-            {
-              key: "payable_date",
-              label: "Tanggal",
-              render: (row) => formatDisplayDate(row.payable_date),
-            },
-            {
-              key: "payable_no",
-              label: "Hutang ID",
-              render: (row) => <strong>{row.payable_no}</strong>,
-            },
-            {
-              key: "vendor_name",
-              label: "Supplier",
-              render: (row) => safeText(row.vendor_name),
-            },
-            {
-              key: "original_amount",
-              label: "Nota",
-              render: (row) => formatRupiah(row.original_amount),
-            },
-            {
-              key: "paid_amount",
-              label: "Dibayar",
-              render: (row) => formatRupiah(row.paid_amount),
-            },
-            {
-              key: "remaining_amount",
-              label: "Sisa",
-              render: (row) => <strong>{formatRupiah(row.remaining_amount)}</strong>,
-            },
-            {
-              key: "status",
-              label: "Status",
-              render: (row) => (
-                <Badge tone={statusTone(row.payment_status, row.remaining_amount)}>{row.payment_status}</Badge>
-              ),
-            },
-          ]}
-        />
-      </Card>
-
-      <Modal
-        open={Boolean(selectedPayable)}
-        title="Detail Hutang Nana"
-        subtitle={selectedPayable?.payable_no}
-        onClose={() => setSelectedPayable(null)}
-      >
-        {selectedPayable ? (
-          <div className="da-grid">
-            <div className="da-detail-grid">
-              <div className="da-detail-box">
-                <div className="da-stat-label">Nota Hutang</div>
-                <h2 style={{ margin: "8px 0" }}>{formatRupiah(selectedPayable.original_amount)}</h2>
-                <p>Supplier: <strong>{selectedPayable.vendor_name}</strong></p>
-                <p>Tanggal: <strong>{formatDisplayDate(selectedPayable.payable_date)}</strong></p>
-                <p>Tipe: <strong>{selectedPayable.payable_type}</strong></p>
-              </div>
-              <div className="da-detail-box">
-                <div className="da-stat-label">Status Bayar</div>
-                <h2 style={{ margin: "8px 0" }}>{formatRupiah(selectedPayable.remaining_amount)}</h2>
-                <p>Dibayar: <strong>{formatRupiah(selectedPayable.paid_amount)}</strong></p>
-                <p>Status: <Badge tone={statusTone(selectedPayable.payment_status, selectedPayable.remaining_amount)}>{selectedPayable.payment_status}</Badge></p>
-                <p>Source: <strong>{safeText(selectedPayable.source_module)} · {safeText(selectedPayable.source_id)}</strong></p>
-              </div>
-            </div>
-
-            <div className="da-form-warning" style={{ marginTop: 0 }}>
-              Rantai ini harus bisa ditelusuri: DROP Ayam / Nota → Hutang Nana → Pembayaran → Mutasi Dompet → 4 Amplop nanti.
-            </div>
-
-            <div>
-              <div className="da-section-heading">
-                <div>
-                  <div className="da-page-kicker">Riwayat Bayar</div>
-                  <h3 style={{ margin: "4px 0" }}>Pembayaran Hutang Ini</h3>
-                </div>
-              </div>
-              <DataTable
-                rows={chosenPayablePayments}
-                getRowKey={(row) => row.payable_payment_id}
-                columns={[
-                  { key: "payment_date", label: "Tanggal", render: (row) => formatDisplayDate(row.payment_date) },
-                  { key: "payable_payment_no", label: "Payment ID", render: (row) => <strong>{row.payable_payment_no}</strong> },
-                  { key: "wallet_name", label: "Dompet", render: (row) => safeText(row.wallet_name || row.wallet_id) },
-                  { key: "amount", label: "Nominal", render: (row) => formatRupiah(row.amount) },
-                  { key: "payment_method", label: "Metode", render: (row) => row.payment_method },
-                  { key: "status", label: "Status", render: (row) => <Badge tone={hasPaymentMutation(row) ? "success" : "warning"}>{hasPaymentMutation(row) ? row.status : "Perlu Mutasi"}</Badge> },
-                ]}
-              />
-            </div>
-
-            <div>
-              <div className="da-section-heading">
-                <div>
-                  <div className="da-page-kicker">Mutasi Dompet</div>
-                  <h3 style={{ margin: "4px 0" }}>Uang Keluar Terkait</h3>
-                </div>
-              </div>
-              <DataTable
-                rows={chosenPayableMutations}
-                getRowKey={(row) => row.mutation_id}
-                columns={[
-                  { key: "mutation_date", label: "Tanggal", render: (row) => formatDisplayDate(row.mutation_date) },
-                  { key: "mutation_id", label: "Mutasi ID", render: (row) => <strong>{row.mutation_id}</strong> },
-                  { key: "wallet_name", label: "Dompet", render: (row) => safeText(row.wallet_name || row.wallet_id) },
-                  { key: "amount", label: "Nominal", render: (row) => formatRupiah(row.amount) },
-                  { key: "source_id", label: "Sumber", render: (row) => safeText(row.source_id) },
-                  { key: "status", label: "Status", render: (row) => <Badge tone="warning">{row.status}</Badge> },
-                ]}
-              />
-            </div>
-          </div>
-        ) : null}
+      <Modal open={Boolean(selectedPayable)} title="Detail Hutang Supplier" subtitle={selectedPayable?.payable_no} onClose={() => setSelectedPayable(null)}>
+        {selectedPayable ? <div className="da-finance-modal-panel">
+          <div className="da-modal-summary"><div><div className="da-mini-title">{isOldDebtPayable(selectedPayable) ? "Saldo Hutang Lama" : "Nota Berjalan"}</div><div className="da-big-text">{formatRupiah(selectedPayable.remaining_amount)}</div><p className="da-muted">{selectedPayable.vendor_name}</p></div><Badge tone={statusTone(selectedPayable.payment_status, selectedPayable.remaining_amount)}>{selectedPayable.payment_status}</Badge></div>
+          <div className="da-detail-grid"><div className="da-detail-box"><p><strong>Nilai awal:</strong> {formatRupiah(selectedPayable.original_amount)}</p><p><strong>Sudah dibayar:</strong> {formatRupiah(selectedPayable.paid_amount)}</p><p><strong>Tanggal:</strong> {formatDisplayDate(selectedPayable.payable_date)}</p></div><div className="da-detail-box"><p><strong>Sumber:</strong> {safeText(selectedPayable.source_module)}</p><p><strong>Source ID:</strong> {safeText(selectedPayable.source_id)}</p><p><strong>Supplier:</strong> {safeText(selectedPayable.vendor_name)}</p></div></div>
+          <div className="da-finance-detail-section"><h3>Riwayat Pembayaran</h3><DataTable rows={chosenPayablePayments} getRowKey={(row) => row.payable_payment_id} columns={[{ key: "payment_date", label: "Tanggal", render: (row) => formatDisplayDate(row.payment_date) }, { key: "payable_payment_no", label: "Payment ID", render: (row) => <strong>{row.payable_payment_no}</strong> }, { key: "wallet_name", label: "Dompet", render: (row) => safeText(row.wallet_name || row.wallet_id) }, { key: "amount", label: "Nominal", render: (row) => formatRupiah(row.amount) }, { key: "status", label: "Status", render: (row) => <Badge tone={hasPaymentMutation(row) ? "success" : "warning"}>{hasPaymentMutation(row) ? row.status : "Perlu Ditelusuri"}</Badge> }]} /></div>
+          <div className="da-finance-detail-section"><h3>Mutasi Dompet</h3><DataTable rows={chosenPayableMutations} getRowKey={(row) => row.mutation_id} columns={[{ key: "mutation_date", label: "Tanggal", render: (row) => formatDisplayDate(row.mutation_date) }, { key: "mutation_id", label: "Mutasi ID", render: (row) => <strong>{row.mutation_id}</strong> }, { key: "wallet_name", label: "Dompet", render: (row) => safeText(row.wallet_name || row.wallet_id) }, { key: "amount", label: "Nominal", render: (row) => formatRupiah(row.amount) }, { key: "source_id", label: "Sumber", render: (row) => safeText(row.source_id) }]} /></div>
+        </div> : null}
       </Modal>
     </div>
   );
