@@ -774,7 +774,7 @@ export default function DropAyamPage({ session, onSessionExpired }) {
         )}
       />
 
-      <ProductionFlowPanel session={session} onSessionExpired={onSessionExpired} compact />
+      <ProductionFlowPanel activeStep={0} />
 
       {error ? <div className="da-prod-public-alert-v6 is-error">{error}</div> : null}
       {submitResult?.success ? <div className="da-prod-public-alert-v6 is-success">{submitResult.message}</div> : null}
