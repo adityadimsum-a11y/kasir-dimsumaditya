@@ -614,48 +614,141 @@ export async function getOwnerControlBootstrap(sessionToken, payload = {}) {
   const receivable = core.receivable_position || {};
   const cash = core.cash_position || {};
   const envelopes = core.envelope_position || {};
+  const serverSummary = core.summary || {};
   const envelopeRows = Array.isArray(envelopes.buckets) ? envelopes.buckets : [];
   const allocatedTotal = envelopeRows.reduce((sum, row) => sum + Number(row.current_balance || 0), 0);
+
+  const alertTitles = {
+    NEGATIVE_ENVELOPE: "Alokasi 4 Amplop perlu diperiksa",
+    AYAM_ENVELOPE_SHORTFALL: "Dana supplier belum mencukupi",
+    PHYSICAL_CASH_BELOW_CURRENT_SUPPLIER_DUE: "Kas tersedia di bawah hutang berjalan",
+    RECEIVABLE_OUTSTANDING: "Piutang pelanggan masih terbuka",
+    NO_ACTIVE_ENVELOPE_PRESET: "Preset 4 Amplop belum aktif",
+    LEGACY_PAYABLE_STATUS_MISMATCH: "Status hutang historis perlu dirapikan",
+    CASH_RECOVERY_GAP: "Modal DROP belum kembali penuh",
+  };
+
+  const alertDescriptions = {
+    NEGATIVE_ENVELOPE: "Pemakaian salah satu alokasi melebihi saldo yang tersedia.",
+    AYAM_ENVELOPE_SHORTFALL: "Dana yang dialokasikan untuk pembayaran supplier belum menutup nota berjalan.",
+    PHYSICAL_CASH_BELOW_CURRENT_SUPPLIER_DUE: "Saldo kas dan bank lebih kecil daripada hutang supplier berjalan.",
+    RECEIVABLE_OUTSTANDING: "Masih ada penjualan yang belum diterima sebagai kas atau bank.",
+    NO_ACTIVE_ENVELOPE_PRESET: "Pengaturan pembagian 4 Amplop belum aktif untuk periode berjalan.",
+    LEGACY_PAYABLE_STATUS_MISMATCH: "Ada catatan hutang historis yang perlu dirapikan statusnya.",
+    CASH_RECOVERY_GAP: "Ada pembelian ayam yang modalnya belum kembali penuh dari penjualan atau pembayaran.",
+  };
+
+  const alertStatus = {
+    CRITICAL: "Mendesak",
+    WARNING: "Perlu Ditinjau",
+    INFO: "Pantau",
+  };
+
+  const normalizedAlerts = (Array.isArray(core.action_queue) ? core.action_queue : (core.alerts || [])).map((row) => {
+    const code = String(row.code || "").toUpperCase();
+    return {
+      ...row,
+      title: row.title || alertTitles[code] || "Perlu ditinjau",
+      description: row.description || alertDescriptions[code] || row.message || "Buka rincian untuk melihat sumber transaksi.",
+    status: row.status || alertStatus[String(row.severity || "").toUpperCase()] || "Pantau",
+    amount_label: row.amount_label || (Number(row.amount || 0) > 0
+      ? `Rp ${Number(row.amount || 0).toLocaleString("id-ID")}`
+      : (row.count ? `${Number(row.count).toLocaleString("id-ID")} item` : "")),
+      support_rows: Array.isArray(row.support_rows) ? row.support_rows : [],
+    };
+  });
+
+  const summary = {
+    wallet: {
+      wallet_balance_total: Number(
+        serverSummary?.wallet?.wallet_balance_total
+        ?? serverSummary?.wallet?.total_balance
+        ?? cash.total_live_wallet_balance
+        ?? 0
+      ),
+      total_balance: Number(
+        serverSummary?.wallet?.total_balance
+        ?? serverSummary?.wallet?.wallet_balance_total
+        ?? cash.total_live_wallet_balance
+        ?? 0
+      ),
+      money_in: Number(serverSummary?.wallet?.money_in ?? 0),
+      money_out: Number(serverSummary?.wallet?.money_out ?? 0),
+      mutation_count: Number(serverSummary?.wallet?.mutation_count ?? 0),
+    },
+    obligations: {
+      hutang_remaining: Number(
+        serverSummary?.obligations?.hutang_remaining
+        ?? supplier.total_outstanding
+        ?? 0
+      ),
+    },
+    stock: {
+      ready_pcs: Number(
+        serverSummary?.stock?.ready_pcs
+        ?? stock.finished_qty_remaining
+        ?? 0
+      ),
+      stock_value: Number(
+        serverSummary?.stock?.stock_value
+        ?? stock.finished_stock_value
+        ?? 0
+      ),
+    },
+    sales: {
+      invoice_total: Number(serverSummary?.sales?.invoice_total ?? sales.invoice_total ?? 0),
+      sales_total: Number(serverSummary?.sales?.sales_total ?? sales.sales_total ?? 0),
+      orders_count: Number(serverSummary?.sales?.orders_count ?? 0),
+      receivable_open: Number(
+        serverSummary?.sales?.receivable_open
+        ?? serverSummary?.receivable?.remaining
+        ?? receivable.outstanding
+        ?? 0
+      ),
+    },
+    receivable: {
+      remaining: Number(serverSummary?.receivable?.remaining ?? receivable.outstanding ?? 0),
+      open_count: Number(serverSummary?.receivable?.open_count ?? receivable.open_count ?? 0),
+    },
+    chicken: {
+      total_drop_kg: Number(serverSummary?.chicken?.total_drop_kg ?? 0),
+      remaining_kg: Number(serverSummary?.chicken?.remaining_kg ?? 0),
+    },
+    production: {
+      batch_count: Number(serverSummary?.production?.batch_count ?? 0),
+      output_pcs: Number(serverSummary?.production?.output_pcs ?? 0),
+    },
+    po: {
+      po_count: Number(serverSummary?.po?.po_count ?? 0),
+      po_qty: Number(serverSummary?.po?.po_qty ?? 0),
+      reserved_qty: Number(serverSummary?.po?.reserved_qty ?? 0),
+      shortage_qty: Number(serverSummary?.po?.shortage_qty ?? 0),
+    },
+    branch: {
+      deposit_pending: Number(serverSummary?.branch?.deposit_pending ?? 0),
+      request_pending_count: Number(serverSummary?.branch?.request_pending_count ?? 0),
+    },
+    owner_obligations: {
+      due_this_month: Number(serverSummary?.owner_obligations?.due_this_month ?? 0),
+    },
+    payroll: {
+      unpaid_total: Number(serverSummary?.payroll?.unpaid_total ?? 0),
+    },
+    amplop: {
+      allocated_total: Number(serverSummary?.amplop?.allocated_total ?? allocatedTotal),
+      unallocated: Number(serverSummary?.amplop?.unallocated ?? 0),
+    },
+  };
 
   return {
     ...php,
     data: {
       ...core,
-      summary: {
-        ...(core.summary || {}),
-        wallet: {
-          ...((core.summary || {}).wallet || {}),
-          money_in: Number(sales.total_cash_in || sales.cash_in_total || cash.total_in || 0),
-          mutation_count: Number(cash.mutation_count || 0),
-          total_balance: Number(cash.total_balance || 0),
-        },
-        obligations: {
-          ...((core.summary || {}).obligations || {}),
-          hutang_remaining: Number(supplier.total_outstanding || supplier.grand_outstanding || supplier.outstanding || 0),
-        },
-        stock: {
-          ...((core.summary || {}).stock || {}),
-          ready_pcs: Number(stock.free_qty || stock.ready_pcs || 0),
-          stock_value: Number(stock.physical_value || stock.stock_value || 0),
-        },
-        sales: {
-          ...((core.summary || {}).sales || {}),
-          invoice_total: Number(sales.invoice_total || sales.total_sales || 0),
-          orders_count: Number(sales.order_count || 0),
-        },
-        amplop: {
-          ...((core.summary || {}).amplop || {}),
-          allocated_total: allocatedTotal,
-          unallocated: Number(envelopes.unallocated || 0),
-        },
-        receivable: {
-          ...((core.summary || {}).receivable || {}),
-          remaining: Number(receivable.total_outstanding || receivable.outstanding || 0),
-        },
-      },
+      summary,
       alerts: core.alerts || [],
       recommendations: core.recommendations || [],
-      action_queue: core.action_queue || core.alerts || [],
+      action_queue: normalizedAlerts,
+      recent_transactions: Array.isArray(core.recent_transactions) ? core.recent_transactions : [],
     },
   };
 }
