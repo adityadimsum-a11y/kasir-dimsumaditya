@@ -165,7 +165,6 @@ export default function App() {
       return (
         <OwnerControlPage
           {...pageProps}
-          onNavigate={handleChangePage}
         />
       );
     }
@@ -426,6 +425,7 @@ export default function App() {
       activePage={activePage}
       onChangePage={handleChangePage}
       onLogout={handleLogout}
+      onSessionExpired={handleSessionExpired}
     >
       <div className="da-page-stack">
         <CrossModuleFocusBanner
