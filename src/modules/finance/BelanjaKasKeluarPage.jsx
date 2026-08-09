@@ -6,9 +6,9 @@ import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import DataTable from "../../components/ui/DataTable";
+import FinanceSnapshot from "./FinanceSnapshot";
 import Modal from "../../components/ui/Modal";
 import PageHeader from "../../components/ui/PageHeader";
-import StatCard from "../../components/ui/StatCard";
 
 function asArray(value) {
   return Array.isArray(value) ? value : [];
@@ -455,12 +455,16 @@ export default function BelanjaKasKeluarPage({ session, onSessionExpired }) {
       {error ? <div className="da-alert da-alert-danger">{error}</div> : null}
       {success ? <div className="da-form-success">{success}</div> : null}
 
-      <div className="da-finance-kpi-grid">
-        <StatCard tone="warning" label="Kas Keluar" value={loading ? "..." : formatRupiah(summary.total_out)} description={`${summary.expense_count} transaksi tercatat.`} />
-        <StatCard label="Item Belanja" value={loading ? "..." : String(summary.item_count)} description={`${summary.master_count} item master tersedia.`} />
-        <StatCard label="Dompet Aktif" value={loading ? "..." : String(summary.wallet_count)} description={`${summary.mutation_out_count} mutasi keluar terkait.`} />
-        <StatCard tone={summary.perlu_source_count > 0 ? "warning" : "success"} label="Perlu Ditelusuri" value={loading ? "..." : String(summary.perlu_source_count)} description="Transaksi yang belum mempunyai jejak mutasi lengkap." />
-      </div>
+      <FinanceSnapshot
+        eyebrow="Pengeluaran Usaha"
+        value={loading ? "..." : formatRupiah(summary.total_out)}
+        caption={`${summary.expense_count} pengeluaran tercatat dan terhubung ke kas/bank.`}
+        metrics={[
+          { label: "Rincian Belanja", value: loading ? "..." : String(summary.item_count), helper: `${summary.master_count} item master` },
+          { label: "Kas / Bank Aktif", value: loading ? "..." : String(summary.wallet_count), helper: `${summary.mutation_out_count} mutasi keluar`, tone: "warning" },
+          { label: "Perlu Ditelusuri", value: loading ? "..." : String(summary.perlu_source_count), helper: "Jejak transaksi belum lengkap", tone: summary.perlu_source_count > 0 ? "warning" : "success" },
+        ]}
+      />
 
       <div className="da-finance-workspace">
         <Card className="da-finance-main-card">
