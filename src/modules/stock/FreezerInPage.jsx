@@ -179,7 +179,7 @@ export default function FreezerInPage({ session, onSessionExpired }) {
         actions={<Button variant="secondary" onClick={loadData} disabled={loading}><RefreshCw size={15} /> {loading ? "Memuat" : "Perbarui"}</Button>}
       />
 
-      <ProductionFlowPanel session={session} onSessionExpired={onSessionExpired} compact />
+      <ProductionFlowPanel activeStep={3} />
       {error ? <div className="da-prod-public-alert-v6 is-error">{error}</div> : null}
 
       <section className="da-prod-kpi-grid-v6">
