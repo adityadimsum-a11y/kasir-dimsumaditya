@@ -146,6 +146,23 @@ function normalizeOrder(row) {
   };
 }
 
+function businessPaymentStatus(status) {
+  const value = String(status || "").toUpperCase();
+  if (["PAID", "LUNAS"].some((item) => value.includes(item))) return "Lunas";
+  if (["PARTIAL", "DP"].some((item) => value.includes(item))) return "Dibayar Sebagian";
+  if (["UNPAID", "BELUM", "PIUTANG", "OPEN"].some((item) => value.includes(item))) return "Belum Lunas";
+  if (["VOID", "BATAL", "CANCEL"].some((item) => value.includes(item))) return "Dibatalkan";
+  return safeText(status, "Tercatat");
+}
+
+function businessFulfillmentStatus(status) {
+  const value = String(status || "").toUpperCase();
+  if (value.includes("FULFILLED")) return "Sudah Diserahkan";
+  if (value.includes("PARTIAL")) return "Diserahkan Sebagian";
+  if (value.includes("CANCEL")) return "Dibatalkan";
+  return value ? "Belum Diserahkan" : "-";
+}
+
 function getStatusTone(status) {
   const value = String(status || "").toUpperCase();
 
@@ -278,14 +295,6 @@ function buildOrderPayload({ form, cart, totals, session, requestId }) {
   };
 }
 
-function PayloadRow({ label, value }) {
-  return (
-    <div className="da-payload-row">
-      <span>{label}</span>
-      <strong>{safeText(value)}</strong>
-    </div>
-  );
-}
 
 export default function OrderPage({ session, onSessionExpired }) {
   const [loading, setLoading] = useState(true);
@@ -294,6 +303,7 @@ export default function OrderPage({ session, onSessionExpired }) {
   const [form, setForm] = useState(initialForm);
   const [cart, setCart] = useState([]);
   const [showValidationErrors, setShowValidationErrors] = useState(false);
+  const [orderFormOpen, setOrderFormOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [needsRefresh, setNeedsRefresh] = useState(false);
@@ -323,18 +333,20 @@ export default function OrderPage({ session, onSessionExpired }) {
   const pricingLock = bootstrap?.pricing_lock || {};
   const pricingLockReady = pricingLock?.ready === true;
   const pricingRulesActive = numberValue(pricingLock?.pricing_rules_active);
+  const cashierReady = bootstrap?.branch_commerce?.cashier_live === true;
   const cutoverPriceReady = pricingRulesActive > 0;
   const cutoverStockReady =
     numberValue(summary.stock_ready_pcs) > 0 &&
     numberValue(summary.product_ready_count) > 0;
   const controlledLiveReady =
-    pricingLockReady && cutoverPriceReady && cutoverStockReady;
+    pricingLockReady && cutoverPriceReady && cutoverStockReady && cashierReady;
   const firstRealOrderReady =
     controlledLiveReady && numberValue(summary.order_count) === 0;
   const cutoverBlockers = [
-    !pricingLockReady ? "Server Price Lock belum siap." : "",
+    !pricingLockReady ? "Aturan harga resmi belum siap." : "",
     !cutoverPriceReady ? "Belum ada harga resmi aktif untuk Kasir." : "",
     !cutoverStockReady ? "Belum ada stok bebas produk jadi." : "",
+    !cashierReady ? "Kasir lokasi belum diaktifkan." : "",
   ].filter(Boolean);
   const totals = useMemo(() => buildCartTotals(cart, form.paid_amount), [cart, form.paid_amount]);
   const livePayload = useMemo(() => buildOrderPayload({ form, cart, totals, session, requestId }), [form, cart, totals, session, requestId]);
@@ -344,7 +356,7 @@ export default function OrderPage({ session, onSessionExpired }) {
   const validationErrors = useMemo(() => {
     const errors = [];
     if (!pricingLockReady) errors.push("Aturan harga resmi belum siap. Periksa Master Produk → Harga lalu refresh data.");
-    if (!cutoverPriceReady) errors.push("Belum ada harga resmi aktif. Kasir masih diblokir.");
+    if (!cutoverPriceReady) errors.push("Belum ada harga resmi aktif untuk transaksi kasir.");
     if (!cutoverStockReady) errors.push("Belum ada stok bebas produk jadi untuk dijual.");
     if (!form.order_date) errors.push("Tanggal order wajib diisi.");
     if (!form.customer_id && !String(form.customer_name || "").trim()) errors.push("Nama customer wajib diisi.");
@@ -373,7 +385,7 @@ export default function OrderPage({ session, onSessionExpired }) {
 
     Object.keys(qtyByProduct).forEach((productKey) => {
       const stock = stockByProduct[productKey] || 0;
-      if (stock > 0 && qtyByProduct[productKey] > stock) {
+      if (qtyByProduct[productKey] > stock + 0.0001) {
         const productName = cart.find((item) => (item.product_id || item.product_code || item.product_name) === productKey)?.product_name || productKey;
         errors.push(`Total qty ${productName} melebihi stok ready.`);
       }
@@ -548,7 +560,7 @@ export default function OrderPage({ session, onSessionExpired }) {
     if (!cutoverPriceReady) {
       setSubmitResult({
         success: false,
-        message: "Belum ada harga resmi aktif. Kasir tetap diblokir dan tidak membuat transaksi.",
+        message: "Belum ada harga resmi aktif. Lengkapi harga sebelum membuat transaksi.",
       });
       return;
     }
@@ -573,7 +585,7 @@ export default function OrderPage({ session, onSessionExpired }) {
     const existingQty = numberValue(existing?.qty);
     const targetQty = existingQty + addQty;
 
-    if (product.stock_pcs > 0 && targetQty > product.stock_pcs) {
+    if (targetQty > product.stock_pcs + 0.0001) {
       setSubmitResult({
         success: false,
         message: `Qty melebihi stok ready. Stok ${product.name}: ${product.stock_pcs.toLocaleString("id-ID")} pcs, sudah di keranjang ${existingQty.toLocaleString("id-ID")} pcs.`,
@@ -735,6 +747,7 @@ export default function OrderPage({ session, onSessionExpired }) {
     });
 
     setConfirmOpen(false);
+    setOrderFormOpen(false);
     setSubmitting(false);
     setForm(initialForm);
     setCart([]);
@@ -814,448 +827,283 @@ export default function OrderPage({ session, onSessionExpired }) {
     {
       key: "payment_status",
       label: "Status Bayar",
-      render: (row) => <Badge tone={getStatusTone(row.payment_status)}>{safeText(row.payment_status)}</Badge>,
+      render: (row) => <Badge tone={getStatusTone(row.payment_status)}>{businessPaymentStatus(row.payment_status)}</Badge>,
     },
   ];
 
   return (
-    <div>
+    <div className="da-sales-page">
       <PageHeader
         title="Kasir / Order"
-        description="Kasir Tangerang untuk transaksi nyata: harga resmi dikunci sistem dan stok keluar memakai HPP historis."
-        badge={controlledLiveReady ? "Kasir Aktif" : "Harga Belum Siap"}
+        description="Penjualan langsung dari stok siap jual dengan harga resmi, pembayaran, piutang, dan HPP yang tercatat otomatis."
+        badge={controlledLiveReady ? "Kasir Siap" : "Perlu Persiapan"}
       />
 
-      <div className="da-dashboard-banner">
-        <div>
-          <div className="da-dashboard-banner-kicker">Penjualan</div>
-          <div className="da-dashboard-banner-title">Stok Jadi → Order → Invoice → Uang Masuk</div>
-          <div className="da-dashboard-banner-desc">
-            Halaman ini khusus jual stok ready. Harga manual diblokir: halaman hanya menampilkan ringkasan, sedangkan sistem memvalidasi ulang aturan harga resmi sebelum membuat Order, Invoice, Payment/Piutang, dan stok keluar.
-          </div>
-        </div>
-
-        <div className="da-dashboard-banner-actions">
-          <Badge tone={error ? "danger" : "success"}>{error ? "Perlu Dicek" : "Terhubung"}</Badge>
-          <Badge tone={pricingLockReady ? "success" : "danger"}>
-            {pricingLockReady ? "Price Lock Ready" : "Price Lock Belum Siap"}
-          </Badge>
-          <Badge tone={pricingRulesActive > 0 ? "success" : "warning"}>
-            {pricingRulesActive} Rule Aktif
-          </Badge>
-          <Badge tone={controlledLiveReady ? "success" : "warning"}>
-            {controlledLiveReady ? "Kasir Siap Live" : "Kasir Diblokir"}
-          </Badge>
+      <div className="da-sales-head-actions">
+        <SalesFlowPanel
+          session={session}
+          onSessionExpired={onSessionExpired}
+          activeStep="order"
+          refreshKey={orders.length}
+        />
+        <div className="da-sales-head-actions-right">
           <Button variant="ghost" onClick={loadData} disabled={loading || submitting || priceResolving}>
-            {loading ? "Membaca..." : "Refresh Data"}
+            {loading ? "Memperbarui..." : "Perbarui"}
+          </Button>
+          <Button onClick={() => setOrderFormOpen(true)} disabled={!controlledLiveReady || loading}>
+            + Buat Order
           </Button>
         </div>
       </div>
 
-      {error ? (
-        <div className="da-login-error" style={{ marginBottom: 16 }}>
-          {error}
-        </div>
-      ) : null}
+      {error ? <div className="da-form-warning">{error}</div> : null}
 
       {!controlledLiveReady && !loading ? (
-        <div className="da-form-warning" style={{ marginBottom: 16 }}>
-          <strong>Kasir masih ditahan oleh kesiapan operasional.</strong>
-          {cutoverBlockers.map((item) => (
-            <div key={item} style={{ marginTop: 4 }}>• {item}</div>
-          ))}
-          <div style={{ marginTop: 8 }}>
-            Tidak ada harga fallback dan tidak ada transaksi yang dibuat selama gate belum siap.
+        <div className="da-sales-readiness-note">
+          <div>
+            <strong>Kasir belum dapat menerima transaksi.</strong>
+            <span>Lengkapi kesiapan berikut agar transaksi tidak salah harga atau stok.</span>
           </div>
-        </div>
-      ) : null}
-
-      {firstRealOrderReady && !loading ? (
-        <div className="da-form-success" style={{ marginBottom: 16 }}>
-          <strong>Kasir Tangerang siap untuk transaksi pelanggan nyata pertama.</strong>
-          <div style={{ marginTop: 6 }}>
-            Pilih customer UMUM atau customer terdaftar, pilih produk dan qty,
-            klik Kunci Harga & Tambah, lalu Preview & Konfirmasi. Sistem tetap
-            resolve ulang harga dan HPP sebelum transaksi disimpan.
+          <div className="da-sales-readiness-items">
+            {cutoverBlockers.map((item) => <span key={item}>• {item}</span>)}
           </div>
         </div>
       ) : null}
 
       {submitResult ? (
-        <div
-          className={submitResult.success ? "da-form-success" : "da-form-warning"}
-          style={{ marginBottom: 16 }}
-        >
+        <div className={submitResult.success ? "da-form-success" : "da-form-warning"}>
           {submitResult.message}
-          {submitResult.success && needsRefresh ? (
-            <div style={{ marginTop: 6, fontWeight: 700 }}>
-              Data sudah tersimpan cepat. Klik Refresh Data kalau mau tarik ulang stok/order terbaru.
-            </div>
-          ) : null}
         </div>
       ) : null}
 
-      <SalesFlowPanel
-        session={session}
-        onSessionExpired={onSessionExpired}
-        compact
-        refreshKey={orders.length}
-      />
-
-      <div style={{ height: 16 }} />
-
-      <div className="da-grid da-grid-3">
+      <div className="da-sales-kpi-grid">
         <StatCard
           tone="primary"
           label="Order Hari Ini"
           value={loading ? "..." : summary.today_order_count}
-          description="Transaksi order yang tercatat hari ini."
+          description="Order yang dibuat hari ini"
         />
         <StatCard
-          label="Uang Masuk Aktual"
+          label="Uang Masuk"
           value={loading ? "..." : formatRupiah(summary.uang_masuk_actual)}
-          description="Hanya dari pembayaran yang benar-benar masuk."
+          description="Pembayaran yang benar-benar diterima"
         />
         <StatCard
           tone="warning"
           label="Piutang Terbuka"
           value={loading ? "..." : formatRupiah(summary.piutang_open)}
-          description="Sisa tagihan customer yang belum lunas."
+          description="Sisa tagihan customer"
         />
-      </div>
-
-      <div style={{ height: 16 }} />
-
-      <div className="da-grid da-grid-3">
         <StatCard
-          label="Stok Ready"
+          label="Stok Siap Jual"
           value={loading ? "..." : `${summary.stock_ready_pcs.toLocaleString("id-ID")} pcs`}
-          description="Stok jadi bebas yang bisa dijual."
-        />
-        <StatCard
-          label="Produk Ready"
-          value={loading ? "..." : summary.product_ready_count}
-          description="Produk dengan stok tersedia."
-        />
-        <StatCard
-          label="Total Order"
-          value={loading ? "..." : summary.order_count}
-          description="Jumlah order aktif yang terbaca."
+          description={`${summary.product_ready_count} produk tersedia`}
         />
       </div>
 
-      <div style={{ height: 16 }} />
-
-      <Card>
-        <div className="da-section-heading">
-          <div>
-            <div className="da-mini-title">Form Kasir</div>
-            <div className="da-big-text">Input Order</div>
-            <p className="da-muted">
-              Pilih produk dan qty. Sistem akan mengambil harga resmi sesuai lokasi, customer, unit, channel, dan tanggal transaksi.
-            </p>
+      <div className="da-sales-workspace da-sales-workspace-8-4">
+        <Card className="da-sales-main-card">
+          <div className="da-section-heading da-sales-section-heading">
+            <div>
+              <div className="da-mini-title">TRANSAKSI</div>
+              <div className="da-big-text">Order Terbaru</div>
+              <p className="da-muted">Klik baris untuk membuka ringkasan order dan pembayaran.</p>
+            </div>
+            <Button variant="ghost" onClick={() => setOrderFormOpen(true)} disabled={!controlledLiveReady}>+ Order Baru</Button>
           </div>
-          <Badge tone="danger">Transaksi Terkunci</Badge>
-        </div>
-
-        <form onSubmit={handlePreviewSubmit}>
-          <div className="da-drop-form-preview">
-            <div className="da-drop-field">
-              <label>Tanggal Order</label>
-              <input
-                type="date"
-                className="da-input"
-                value={form.order_date}
-                onChange={(event) => handleOrderDateChange(event.target.value)}
-                disabled={submitting}
-              />
-            </div>
-
-            <div className="da-drop-field">
-              <label>Customer Terdaftar</label>
-              <select
-                className="da-select"
-                value={form.customer_id}
-                onChange={(event) => handleCustomerChange(event.target.value)}
-                disabled={submitting || loading}
-              >
-                <option value="">Manual / UMUM</option>
-                {customers.map((customer) => (
-                  <option key={customer.id || customer.name} value={customer.id}>
-                    {customer.name}{customer.type ? ` · ${customer.type}` : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="da-drop-field">
-              <label>Nama Customer</label>
-              <input
-                className="da-input"
-                value={form.customer_name}
-                placeholder="Contoh: UMUM / Fajar / Lia"
-                onChange={(event) => handleCustomerNameChange(event.target.value)}
-                disabled={submitting}
-              />
-            </div>
-
-            <div className="da-drop-field">
-              <label>Produk</label>
-              <select
-                className="da-select"
-                value={form.product_id}
-                onChange={(event) => handleProductChange(event.target.value)}
-                disabled={submitting || loading}
-              >
-                <option value="">Pilih produk ready</option>
-                {products.map((product) => (
-                  <option key={product.id || product.code} value={product.id}>
-                    {product.name} · stok {product.stock_pcs.toLocaleString("id-ID")} pcs
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="da-drop-field">
-              <label>Qty Pcs</label>
-              <input
-                className="da-input"
-                inputMode="decimal"
-                value={form.qty}
-                placeholder="Contoh: 50"
-                onChange={(event) => handleQtyChange(event.target.value)}
-                disabled={submitting}
-              />
-            </div>
-
-            <div className="da-drop-field">
-              <label>Harga Sistem / Pcs</label>
-              <input
-                className="da-input"
-                value={
-                  form.unit_price
-                    ? formatRupiah(form.unit_price)
-                    : ""
-                }
-                placeholder="Diisi otomatis oleh Pricing Engine"
-                readOnly
-                disabled
-              />
-            </div>
-          </div>
-
-          {pricePreview && !pricePreview.resolved ? (
-            <div className="da-form-warning" style={{ marginTop: 12 }}>
-              {pricePreview.message || "Belum ada aturan harga yang cocok."}
-            </div>
-          ) : null}
-
-          <div className="da-form-actions" style={{ justifyContent: "flex-start" }}>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={handleAddItem}
-              disabled={
-                submitting ||
-                loading ||
-                priceResolving ||
-                !controlledLiveReady
-              }
-            >
-              {priceResolving ? "Resolve Harga..." : "Kunci Harga & Tambah"}
-            </Button>
-            {selectedProduct ? (
-              <span className="da-muted" style={{ alignSelf: "center" }}>
-                Stok ready: <strong>{selectedProduct.stock_pcs.toLocaleString("id-ID")} pcs</strong>
-              </span>
-            ) : null}
-          </div>
-
-          <div style={{ height: 16 }} />
-
           <DataTable
-            columns={cartColumns}
-            rows={cart}
-            getRowKey={(row) => row.cart_id}
+            columns={orderColumns}
+            rows={loading ? [] : orders}
+            getRowKey={(row, index) => row.order_id || index}
+            onRowClick={setSelectedOrder}
           />
+          {!loading && orders.length === 0 ? <div className="da-sales-empty-copy">Belum ada order yang tercatat.</div> : null}
+        </Card>
 
-          <div style={{ height: 16 }} />
-
-          <div className="da-drop-form-preview">
-            <div className="da-drop-field">
-              <label>Uang Dibayar Sekarang</label>
-              <input
-                className="da-input"
-                inputMode="numeric"
-                value={form.paid_amount}
-                placeholder="0 kalau belum bayar"
-                onChange={(event) => updateForm("paid_amount", event.target.value)}
-                disabled={submitting}
-              />
-            </div>
-
-            <div className="da-drop-field">
-              <label>Dompet / Metode Bayar</label>
-              <select
-                className="da-select"
-                value={form.wallet_id}
-                onChange={(event) => handleWalletChange(event.target.value)}
-                disabled={submitting || numberValue(form.paid_amount) <= 0}
-              >
-                <option value="">Pilih dompet penerimaan</option>
-                {wallets.map((wallet) => (
-                  <option key={wallet.id || wallet.name} value={wallet.id}>
-                    {wallet.name}
-                  </option>
-                ))}
-              </select>
-              {form.wallet_id ? (
-                <div className="da-muted" style={{ marginTop: 6 }}>
-                  Metode otomatis: <strong>{form.payment_method}</strong>
-                </div>
-              ) : null}
-            </div>
-
-            <div className="da-drop-field">
-              <label>Catatan</label>
-              <input
-                className="da-input"
-                value={form.notes}
-                placeholder="Contoh: ambil langsung / nota gantung"
-                onChange={(event) => updateForm("notes", event.target.value)}
-                disabled={submitting}
-              />
+        <Card className="da-sales-side-card">
+          <div className="da-section-heading da-sales-section-heading">
+            <div>
+              <div className="da-mini-title">RINGKASAN KASIR</div>
+              <div className="da-big-text">Posisi Penjualan</div>
+              <p className="da-muted">Informasi utama sebelum menerima order baru.</p>
             </div>
           </div>
+          <div className="da-sales-side-hero">
+            <span>Total Order</span>
+            <strong>{loading ? "..." : summary.order_count.toLocaleString("id-ID")}</strong>
+            <small>{controlledLiveReady ? "Kasir siap digunakan" : "Menunggu kesiapan operasional"}</small>
+          </div>
+          <div className="da-sales-side-list">
+            <div><span>Produk ready</span><strong>{summary.product_ready_count.toLocaleString("id-ID")}</strong></div>
+            <div><span>Stok ready</span><strong>{summary.stock_ready_pcs.toLocaleString("id-ID")} pcs</strong></div>
+            <div><span>Harga resmi</span><strong>{pricingRulesActive.toLocaleString("id-ID")} rule</strong></div>
+            <div><span>Status kasir</span><strong>{cashierReady ? "Aktif" : "Belum aktif"}</strong></div>
+          </div>
+        </Card>
+      </div>
 
-          <div className="da-drop-preview-panel">
-            <div>
-              <div className="da-mini-title">Total Tagihan</div>
-              <div className="da-big-text">{formatRupiah(totals.grand_total)}</div>
-              <p className="da-muted">Dari {cart.length} item di keranjang.</p>
+      <Modal
+        open={orderFormOpen}
+        title="Buat Order Baru"
+        subtitle="Harga ditentukan server sesuai customer, qty, lokasi, dan tanggal transaksi."
+        onClose={() => {
+          if (!submitting && !confirmOpen) setOrderFormOpen(false);
+        }}
+        size="xl"
+      >
+        <form onSubmit={handlePreviewSubmit} className="da-sales-form-shell">
+          <div className="da-sales-form-columns">
+            <section className="da-sales-form-section">
+              <div className="da-sales-form-section-head">
+                <span>01</span>
+                <div><strong>Customer & Tanggal</strong><small>Identitas transaksi penjualan</small></div>
+              </div>
+              <div className="da-drop-form-grid">
+                <div className="da-drop-field">
+                  <label>Tanggal Order</label>
+                  <input type="date" className="da-input" value={form.order_date} onChange={(event) => handleOrderDateChange(event.target.value)} disabled={submitting} />
+                </div>
+                <div className="da-drop-field">
+                  <label>Customer Terdaftar</label>
+                  <select className="da-select" value={form.customer_id} onChange={(event) => handleCustomerChange(event.target.value)} disabled={submitting || loading}>
+                    <option value="">Manual / UMUM</option>
+                    {customers.map((customer) => <option key={customer.id || customer.name} value={customer.id}>{customer.name}{customer.type ? ` · ${customer.type}` : ""}</option>)}
+                  </select>
+                </div>
+                <div className="da-drop-field da-span-2">
+                  <label>Nama Customer</label>
+                  <input className="da-input" value={form.customer_name} placeholder="Nama customer" onChange={(event) => handleCustomerNameChange(event.target.value)} disabled={submitting} />
+                </div>
+              </div>
+            </section>
+
+            <section className="da-sales-form-section">
+              <div className="da-sales-form-section-head">
+                <span>02</span>
+                <div><strong>Tambah Produk</strong><small>Harga dikunci otomatis dari aturan resmi</small></div>
+              </div>
+              <div className="da-drop-form-grid">
+                <div className="da-drop-field da-span-2">
+                  <label>Produk</label>
+                  <select className="da-select" value={form.product_id} onChange={(event) => handleProductChange(event.target.value)} disabled={submitting || loading}>
+                    <option value="">Pilih produk stok ready</option>
+                    {products.map((product) => <option key={product.id || product.code} value={product.id}>{product.name} · tersedia {product.stock_pcs.toLocaleString("id-ID")} pcs</option>)}
+                  </select>
+                </div>
+                <div className="da-drop-field">
+                  <label>Qty / Pcs</label>
+                  <input className="da-input" inputMode="decimal" value={form.qty} placeholder="Contoh: 50" onChange={(event) => handleQtyChange(event.target.value)} disabled={submitting} />
+                </div>
+                <div className="da-drop-field">
+                  <label>Harga / Pcs</label>
+                  <input className="da-input" value={pricePreview?.resolved ? formatRupiah(pricePreview.price_per_unit) : ""} placeholder="Otomatis" readOnly disabled />
+                </div>
+              </div>
+              <div className="da-sales-inline-action">
+                <Button type="button" variant="ghost" onClick={handleAddItem} disabled={submitting || loading || priceResolving || !controlledLiveReady}>
+                  {priceResolving ? "Menentukan Harga..." : "+ Tambah ke Order"}
+                </Button>
+                {selectedProduct ? <span>Tersedia <strong>{selectedProduct.stock_pcs.toLocaleString("id-ID")} pcs</strong></span> : null}
+              </div>
+            </section>
+          </div>
+
+          <section className="da-sales-cart-section">
+            <div className="da-sales-form-section-head">
+              <span>03</span>
+              <div><strong>Daftar Item</strong><small>{cart.length} produk dalam order</small></div>
             </div>
-            <div>
-              <div className="da-mini-title">Uang Masuk</div>
-              <div className="da-big-text">{formatRupiah(totals.paid_amount)}</div>
-              <p className="da-muted">Yang benar-benar masuk dompet.</p>
-            </div>
-            <div>
-              <div className="da-mini-title">Sisa Tagihan</div>
-              <div className="da-big-text">{formatRupiah(totals.remaining_amount)}</div>
-              <p className="da-muted">Status: <strong>{totals.payment_status}</strong></p>
-            </div>
+            <DataTable columns={cartColumns} rows={cart} getRowKey={(row) => row.cart_id} />
+          </section>
+
+          <div className="da-sales-form-columns da-sales-payment-columns">
+            <section className="da-sales-form-section">
+              <div className="da-sales-form-section-head">
+                <span>04</span>
+                <div><strong>Pembayaran</strong><small>Isi hanya uang yang benar-benar diterima</small></div>
+              </div>
+              <div className="da-drop-form-grid">
+                <div className="da-drop-field">
+                  <label>Uang Dibayar Sekarang</label>
+                  <input className="da-input" inputMode="numeric" value={form.paid_amount} placeholder="0" onChange={(event) => updateForm("paid_amount", event.target.value)} disabled={submitting} />
+                </div>
+                <div className="da-drop-field">
+                  <label>Kas / Bank Penerimaan</label>
+                  <select className="da-select" value={form.wallet_id} onChange={(event) => handleWalletChange(event.target.value)} disabled={submitting || numberValue(form.paid_amount) <= 0}>
+                    <option value="">Pilih kas / bank</option>
+                    {wallets.map((wallet) => <option key={wallet.id || wallet.name} value={wallet.id}>{wallet.name}</option>)}
+                  </select>
+                  {form.wallet_id ? <div className="da-muted">Metode: <strong>{form.payment_method}</strong></div> : null}
+                </div>
+                <div className="da-drop-field da-span-2">
+                  <label>Catatan</label>
+                  <input className="da-input" value={form.notes} placeholder="Opsional" onChange={(event) => updateForm("notes", event.target.value)} disabled={submitting} />
+                </div>
+              </div>
+            </section>
+
+            <section className="da-sales-total-panel">
+              <span>Total Tagihan</span>
+              <strong>{formatRupiah(totals.grand_total)}</strong>
+              <div><span>Uang masuk</span><b>{formatRupiah(totals.paid_amount)}</b></div>
+              <div><span>Sisa tagihan</span><b>{formatRupiah(totals.remaining_amount)}</b></div>
+              <div><span>Status</span><b>{businessPaymentStatus(totals.payment_status)}</b></div>
+            </section>
           </div>
 
           {showValidationErrors && validationErrors.length > 0 ? (
-            <div className="da-form-warning">
-              {validationErrors.map((item) => (
-                <div key={item}>• {item}</div>
-              ))}
-            </div>
+            <div className="da-form-warning">{validationErrors.map((item) => <div key={item}>• {item}</div>)}</div>
           ) : null}
+          {submitResult && !submitResult.success ? <div className="da-form-warning">{submitResult.message}</div> : null}
 
-          <div className="da-form-actions">
-            <Button type="button" variant="ghost" onClick={handleResetForm} disabled={submitting}>
-              Reset Form
-            </Button>
-            <Button type="submit" disabled={submitting || loading || priceResolving || !controlledLiveReady}>
-              Preview & Konfirmasi
-            </Button>
+          <div className="da-form-actions da-sales-modal-actions">
+            <Button type="button" variant="ghost" onClick={handleResetForm} disabled={submitting}>Kosongkan</Button>
+            <Button type="submit" disabled={submitting || loading || priceResolving || !controlledLiveReady}>Tinjau Order</Button>
           </div>
         </form>
-      </Card>
-
-      <div style={{ height: 16 }} />
-
-      <Card>
-        <div className="da-section-heading">
-          <div>
-            <div className="da-mini-title">Daftar Order</div>
-            <div className="da-big-text">Order yang Terbaca</div>
-            <p className="da-muted">Klik baris untuk lihat ringkasan transaksi.</p>
-          </div>
-          <Badge tone="warning">Data Aktual</Badge>
-        </div>
-
-        <DataTable
-          columns={orderColumns}
-          rows={loading ? [] : orders}
-          getRowKey={(row, index) => row.order_id || index}
-          onRowClick={setSelectedOrder}
-        />
-      </Card>
+      </Modal>
 
       <Modal
         open={confirmOpen}
-        title="Konfirmasi Simpan Order"
-        subtitle="Konfirmasi transaksi order"
-        onClose={() => {
-          if (!submitting) setConfirmOpen(false);
-        }}
+        title="Tinjau Order"
+        subtitle="Pastikan customer, item, pembayaran, dan total sudah benar sebelum disimpan."
+        onClose={() => { if (!submitting) setConfirmOpen(false); }}
       >
         <div className="da-modal-summary">
           <div>
-            <div className="da-mini-title">Total Tagihan</div>
+            <div className="da-mini-title">TOTAL TAGIHAN</div>
             <div className="da-big-text">{formatRupiah(totals.grand_total)}</div>
-            <p className="da-muted">Customer: <strong>{safeText(form.customer_name, "UMUM")}</strong></p>
+            <p className="da-muted">{safeText(form.customer_name, "UMUM")} · {cart.length} item</p>
           </div>
-          <Badge tone="danger">Simpan Transaksi</Badge>
+          <Badge tone={totals.remaining_amount > 0 ? "warning" : "success"}>{businessPaymentStatus(totals.payment_status)}</Badge>
         </div>
 
         <div className="da-detail-grid">
           <div className="da-detail-box">
-            <div className="da-mini-title">Order</div>
+            <div className="da-mini-title">TRANSAKSI</div>
             <p><strong>Tanggal:</strong> {formatDisplayDate(form.order_date)}</p>
             <p><strong>Customer:</strong> {safeText(form.customer_name, "UMUM")}</p>
-            <p><strong>Item:</strong> {cart.length} item</p>
+            <p><strong>Jumlah item:</strong> {cart.length}</p>
           </div>
           <div className="da-detail-box">
-            <div className="da-mini-title">Pembayaran</div>
-            <p><strong>Tagihan:</strong> {formatRupiah(totals.grand_total)}</p>
+            <div className="da-mini-title">PEMBAYARAN</div>
             <p><strong>Uang masuk:</strong> {formatRupiah(totals.paid_amount)}</p>
-            <p><strong>Sisa:</strong> {formatRupiah(totals.remaining_amount)}</p>
-            <p><strong>Status:</strong> {totals.payment_status}</p>
-          </div>
-          <div className="da-detail-box">
-            <div className="da-mini-title">Hasil Transaksi Sistem</div>
-            <p><strong>Resolve harga ulang:</strong> Wajib</p>
-            <p><strong>Order & Invoice:</strong> Setelah harga cocok</p>
-            <p><strong>Stok Keluar:</strong> Setelah transaksi valid</p>
-            <p><strong>Uang Masuk / Piutang:</strong> Sesuai pembayaran</p>
-          </div>
-          <div className="da-detail-box">
-            <div className="da-mini-title">4 Amplop</div>
-            <p><strong>Sumber:</strong> Uang masuk aktual saja</p>
-            <p><strong>Catatan:</strong> PO/piutang/stok tidak langsung masuk amplop.</p>
+            <p><strong>Sisa tagihan:</strong> {formatRupiah(totals.remaining_amount)}</p>
+            <p><strong>Kas / Bank:</strong> {form.wallet_id ? safeText(wallets.find((row) => row.id === form.wallet_id)?.name) : "Belum ada pembayaran"}</p>
           </div>
         </div>
 
-        <div className="da-payload-preview">
-          <div className="da-mini-title">Payload Live</div>
-          <PayloadRow label="Action" value="Order · Harga Resmi Terkunci" />
-          <PayloadRow label="request_id" value={livePayload.request_id} />
-          <PayloadRow label="customer_name" value={livePayload.order.customer_name} />
-          <PayloadRow label="grand_total" value={formatRupiah(livePayload.order.grand_total)} />
-          <PayloadRow label="paid_amount" value={formatRupiah(livePayload.order.paid_amount)} />
-          <PayloadRow label="remaining_amount" value={formatRupiah(livePayload.order.remaining_amount)} />
-          <PayloadRow label="items" value={`${livePayload.items.length} item`} />
+        <div className="da-sales-confirm-effects">
+          <strong>Saat disimpan sistem akan:</strong>
+          <span>• memvalidasi ulang harga resmi;</span>
+          <span>• membuat Order dan Invoice;</span>
+          <span>• mencatat pembayaran atau Piutang sesuai nominal;</span>
+          <span>• mengeluarkan stok dari layer HPP historis ketika barang diserahkan.</span>
         </div>
-
-        <div className="da-modal-note" style={{ marginTop: 14 }}>
-          Saat tombol simpan ditekan, sistem memvalidasi ulang harga resmi berdasarkan produk, lokasi, customer, qty, unit PCS, channel POS, dan tanggal order. Jika aturan harga berubah atau tidak tersedia, transaksi dibatalkan agar nominal tetap aman.
-        </div>
-
-        {submitResult && !submitResult.success ? (
-          <div className="da-form-warning" style={{ marginTop: 14 }}>{submitResult.message}</div>
-        ) : null}
 
         <div className="da-form-actions">
-          <Button variant="ghost" onClick={() => setConfirmOpen(false)} disabled={submitting}>
-            Koreksi Lagi
-          </Button>
-          <Button type="button" onClick={handleLiveSubmit} disabled={submitting}>
-            {submitting ? "Menyimpan..." : "Simpan Order"}
-          </Button>
+          <Button variant="ghost" onClick={() => setConfirmOpen(false)} disabled={submitting}>Kembali</Button>
+          <Button type="button" onClick={handleLiveSubmit} disabled={submitting}>{submitting ? "Menyimpan..." : "Simpan Order"}</Button>
         </div>
       </Modal>
 
@@ -1269,25 +1117,24 @@ export default function OrderPage({ session, onSessionExpired }) {
           <div>
             <div className="da-modal-summary">
               <div>
-                <div className="da-mini-title">Total Tagihan</div>
+                <div className="da-mini-title">TOTAL TAGIHAN</div>
                 <div className="da-big-text">{formatRupiah(selectedOrder.grand_total)}</div>
                 <p className="da-muted">Customer: <strong>{safeText(selectedOrder.customer_name)}</strong></p>
               </div>
-              <Badge tone={getStatusTone(selectedOrder.payment_status)}>{safeText(selectedOrder.payment_status)}</Badge>
+              <Badge tone={getStatusTone(selectedOrder.payment_status)}>{businessPaymentStatus(selectedOrder.payment_status)}</Badge>
             </div>
-
             <div className="da-detail-grid">
               <div className="da-detail-box">
-                <div className="da-mini-title">Order</div>
+                <div className="da-mini-title">ORDER</div>
                 <p><strong>ID:</strong> {safeText(selectedOrder.order_id)}</p>
                 <p><strong>Tanggal:</strong> {formatDisplayDate(selectedOrder.order_date)}</p>
-                <p><strong>Status barang:</strong> {safeText(selectedOrder.fulfillment_status)}</p>
+                <p><strong>Status barang:</strong> {businessFulfillmentStatus(selectedOrder.fulfillment_status)}</p>
               </div>
               <div className="da-detail-box">
-                <div className="da-mini-title">Pembayaran</div>
+                <div className="da-mini-title">PEMBAYARAN</div>
                 <p><strong>Dibayar:</strong> {formatRupiah(selectedOrder.paid_amount)}</p>
                 <p><strong>Sisa:</strong> {formatRupiah(selectedOrder.remaining_amount)}</p>
-                <p><strong>Status:</strong> {safeText(selectedOrder.payment_status)}</p>
+                <p><strong>Status:</strong> {businessPaymentStatus(selectedOrder.payment_status)}</p>
               </div>
             </div>
           </div>
