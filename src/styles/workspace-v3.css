@@ -767,3 +767,92 @@ button.da-owner-overview-card-v4:hover { transform:translateY(-2px);border-color
   .da-prod-detail-grid-v6{grid-template-columns:1fr;}
   .da-prod-modal-actions-v6{position:sticky;bottom:-16px;margin:0 -16px -16px;padding:12px 16px;background:#fff;box-shadow:0 -10px 24px rgba(16,24,40,.06);}
 }
+
+/* ======================================================
+   V7 — GLOBAL SMART SEARCH
+   Search customer / product / supplier / employee / archive
+   ====================================================== */
+.da-smart-search-v7{position:relative;width:min(430px,36vw);min-width:260px;z-index:1300;}
+.da-smart-search-field-v7{height:40px;display:flex;align-items:center;gap:9px;padding:0 10px 0 12px;border:1px solid #E4E7EC;border-radius:12px;background:#F9FAFB;color:#667085;transition:border-color .16s ease,box-shadow .16s ease,background .16s ease;}
+.da-smart-search-v7[data-open="true"] .da-smart-search-field-v7,.da-smart-search-field-v7:focus-within{border-color:#FDA29B;background:#fff;box-shadow:0 0 0 4px rgba(217,37,28,.06);}
+.da-smart-search-field-v7>svg{flex:0 0 auto;color:#667085;}
+.da-smart-search-field-v7 input{min-width:0;flex:1;height:100%;border:0;outline:0;background:transparent;color:#101828;font:inherit;font-size:10.5px;font-weight:750;}
+.da-smart-search-field-v7 input::placeholder{color:#98A2B3;font-weight:700;}
+.da-smart-search-field-v7 kbd{flex:0 0 auto;padding:2px 6px;border:1px solid #EAECF0;border-radius:6px;background:#fff;color:#98A2B3;font-size:8px;font-family:inherit;font-weight:800;}
+.da-smart-search-clear-v7{width:25px;height:25px;display:grid;place-items:center;flex:0 0 auto;border:0;border-radius:7px;background:transparent;color:#98A2B3;cursor:pointer;}
+.da-smart-search-clear-v7:hover{background:#F2F4F7;color:#344054;}
+.da-search-spin-v7{animation:daSearchSpinV7 .8s linear infinite;}
+@keyframes daSearchSpinV7{to{transform:rotate(360deg)}}
+.da-smart-search-dropdown-v7{position:absolute;top:calc(100% + 9px);left:0;width:min(590px,82vw);max-height:min(660px,76vh);display:flex;flex-direction:column;overflow:hidden;border:1px solid #E4E7EC;border-radius:16px;background:#fff;box-shadow:0 24px 60px rgba(16,24,40,.16),0 8px 20px rgba(16,24,40,.08);}
+.da-smart-search-mobile-head-v7{display:none;}
+.da-smart-search-results-v7{padding:8px;overflow:auto;overscroll-behavior:contain;}
+.da-smart-search-group-v7+.da-smart-search-group-v7{margin-top:5px;padding-top:5px;border-top:1px solid #F2F4F7;}
+.da-smart-search-group-title-v7{height:27px;display:flex;align-items:center;justify-content:space-between;padding:0 8px;color:#98A2B3;font-size:7.4px;font-weight:900;text-transform:uppercase;letter-spacing:.07em;}
+.da-smart-search-group-title-v7 b{min-width:20px;height:19px;display:grid;place-items:center;border-radius:999px;background:#F2F4F7;color:#667085;font-size:7px;}
+.da-smart-search-item-v7{width:100%;min-height:58px;display:grid;grid-template-columns:36px minmax(0,1fr) minmax(90px,auto) 18px;align-items:center;gap:10px;padding:8px 9px;border:0;border-radius:11px;background:#fff;color:#344054;text-align:left;cursor:pointer;transition:background .14s ease,transform .14s ease;}
+.da-smart-search-item-v7:hover,.da-smart-search-item-v7.is-active{background:#FFF5F4;transform:translateX(1px);}
+.da-smart-search-icon-v7{width:34px;height:34px;display:grid;place-items:center;border-radius:10px;background:#F2F4F7;color:#475467;}
+.da-smart-search-icon-v7.is-customer{background:#EFF8FF;color:#175CD3;}
+.da-smart-search-icon-v7.is-product{background:#ECFDF3;color:#027A48;}
+.da-smart-search-icon-v7.is-transaction{background:#FFF7ED;color:#C2410C;}
+.da-smart-search-icon-v7.is-supplier{background:#FEF3F2;color:#B42318;}
+.da-smart-search-icon-v7.is-employee{background:#F4F3FF;color:#5925DC;}
+.da-smart-search-copy-v7{min-width:0;display:flex;flex-direction:column;gap:3px;}
+.da-smart-search-copy-v7 strong{overflow:hidden;color:#101828;font-size:9.2px;font-weight:900;white-space:nowrap;text-overflow:ellipsis;}
+.da-smart-search-copy-v7 small{overflow:hidden;color:#667085;font-size:7.7px;font-weight:700;white-space:nowrap;text-overflow:ellipsis;}
+.da-smart-search-meta-v7{min-width:0;display:flex;flex-direction:column;align-items:flex-end;gap:3px;text-align:right;}
+.da-smart-search-meta-v7 b{color:#101828;font-size:8.5px;font-weight:950;white-space:nowrap;}
+.da-smart-search-meta-v7 small{max-width:150px;overflow:hidden;color:#98A2B3;font-size:7.2px;font-weight:800;white-space:nowrap;text-overflow:ellipsis;}
+.da-smart-search-item-v7>svg:last-child{color:#98A2B3;}
+.da-smart-search-hint-v7{display:flex;align-items:center;gap:12px;padding:24px 18px;color:#98A2B3;}
+.da-smart-search-hint-v7>svg{flex:0 0 auto;}
+.da-smart-search-hint-v7>div{display:flex;flex-direction:column;gap:4px;}
+.da-smart-search-hint-v7 strong{color:#344054;font-size:9.5px;font-weight:900;}
+.da-smart-search-hint-v7 span{color:#98A2B3;font-size:8px;font-weight:700;line-height:1.45;}
+.da-smart-search-state-v7{display:flex;align-items:center;justify-content:center;gap:9px;min-height:88px;padding:20px;color:#667085;font-size:8.5px;font-weight:800;}
+.da-smart-search-state-v7.is-error{color:#B42318;background:#FFFBFA;}
+.da-smart-search-all-v7{min-height:42px;display:grid;grid-template-columns:20px minmax(0,1fr) 18px;align-items:center;gap:8px;padding:0 15px;border:0;border-top:1px solid #EAECF0;background:#FCFCFD;color:#344054;text-align:left;cursor:pointer;}
+.da-smart-search-all-v7:hover:not(:disabled){background:#FFF5F4;color:#B42318;}
+.da-smart-search-all-v7:disabled{opacity:.45;cursor:default;}
+.da-smart-search-all-v7 span{overflow:hidden;font-size:8.3px;font-weight:850;white-space:nowrap;text-overflow:ellipsis;}
+.da-search-master-detail-v7{display:grid;gap:14px;}
+.da-search-master-hero-v7{display:flex;align-items:center;gap:13px;}
+.da-search-master-hero-v7>.da-smart-search-icon-v7{width:46px;height:46px;border-radius:13px;}
+.da-search-master-hero-v7>div{min-width:0;display:flex;flex-direction:column;gap:3px;}
+.da-search-master-hero-v7 span{color:#98A2B3;font-size:7.5px;font-weight:900;text-transform:uppercase;letter-spacing:.06em;}
+.da-search-master-hero-v7 strong{color:#101828;font-size:15px;font-weight:950;letter-spacing:-.03em;}
+.da-search-master-hero-v7 small{color:#667085;font-size:8.2px;font-weight:700;}
+.da-search-master-grid-v7{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:15px;}
+.da-search-master-grid-v7>div{padding:11px 12px;border:1px solid #EAECF0;border-radius:11px;background:#F9FAFB;}
+.da-search-master-grid-v7 span{display:block;color:#98A2B3;font-size:7px;font-weight:850;text-transform:uppercase;letter-spacing:.05em;}
+.da-search-master-grid-v7 strong{display:block;margin-top:5px;color:#344054;font-size:8.6px;font-weight:900;overflow-wrap:anywhere;}
+.da-search-master-actions-v7{display:flex;align-items:center;justify-content:flex-end;gap:8px;}
+
+@media (max-width:1180px){
+  .da-smart-search-v7{width:300px;min-width:220px;}
+  .da-topbar-date-v3{display:none;}
+}
+@media (max-width:900px){
+  .da-smart-search-v7{width:250px;min-width:180px;}
+  .da-smart-search-field-v7 kbd{display:none;}
+  .da-topbar-location-v3{display:none;}
+}
+@media (max-width:640px){
+  .da-topbar-tools-v3{min-width:0;flex:1;}
+  .da-smart-search-v7{position:static;min-width:0;width:100%;flex:1;}
+  .da-smart-search-field-v7{height:38px;}
+  .da-smart-search-field-v7 input{font-size:9px;}
+  .da-smart-search-dropdown-v7{position:fixed;inset:0;width:100vw;max-height:none;border:0;border-radius:0;z-index:2600;background:#F9FAFB;box-shadow:none;padding-top:max(0px,env(safe-area-inset-top));}
+  .da-smart-search-mobile-head-v7{height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid #EAECF0;background:#fff;}
+  .da-smart-search-mobile-head-v7 strong{color:#101828;font-size:13px;font-weight:950;}
+  .da-smart-search-mobile-head-v7 button{width:36px;height:36px;display:grid;place-items:center;border:0;border-radius:10px;background:#F2F4F7;color:#475467;}
+  .da-smart-search-results-v7{padding:8px 10px;}
+  .da-smart-search-item-v7{grid-template-columns:38px minmax(0,1fr) 18px;min-height:64px;}
+  .da-smart-search-meta-v7{display:none;}
+  .da-smart-search-copy-v7 strong{font-size:11px;}
+  .da-smart-search-copy-v7 small{font-size:9px;}
+  .da-smart-search-group-title-v7{font-size:8px;}
+  .da-smart-search-all-v7{min-height:52px;padding-bottom:max(0px,env(safe-area-inset-bottom));background:#fff;}
+  .da-smart-search-all-v7 span{font-size:9.5px;}
+  .da-search-master-grid-v7{grid-template-columns:1fr;}
+}
