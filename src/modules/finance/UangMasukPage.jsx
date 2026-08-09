@@ -6,10 +6,10 @@ import OtherIncomePanel from "./OtherIncomePanel";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import PageHeader from "../../components/ui/PageHeader";
-import StatCard from "../../components/ui/StatCard";
 import Badge from "../../components/ui/Badge";
 import Modal from "../../components/ui/Modal";
 import DataTable from "../../components/ui/DataTable";
+import FinanceSnapshot from "./FinanceSnapshot";
 
 function asArray(value) { return Array.isArray(value) ? value : []; }
 function numberValue(value) { const parsed = Number(String(value ?? "0").replace(/[^0-9.-]/g, "")); return Number.isFinite(parsed) ? parsed : 0; }
@@ -275,12 +275,16 @@ export default function UangMasukPage({ session, onSessionExpired }) {
       {error ? <div className="da-alert da-alert-danger">{error}</div> : null}
       {successMessage ? <div className="da-alert da-alert-success">{successMessage}</div> : null}
 
-      <div className="da-finance-kpi-grid">
-        <StatCard tone="primary" label="Penerimaan Aktual" value={loading ? "..." : formatRupiah(summary.uang_masuk_actual)} description="Wallet IN eksternal aktif." />
-        <StatCard label="Masuk Hari Ini" value={loading ? "..." : formatRupiah(summary.today_uang_masuk)} description="Penerimaan eksternal hari ini." />
-        <StatCard tone="warning" label="Piutang Terbuka" value={loading ? "..." : formatRupiah(summary.piutang_open)} description={`${summary.receivable_count} piutang masih terbuka.`} />
-        <StatCard label="Transaksi Masuk" value={loading ? "..." : summary.wallet_in_count} description={`${summary.payment_count} pembayaran · ${summary.other_income_count} penerimaan lain.`} />
-      </div>
+      <FinanceSnapshot
+        eyebrow="Penerimaan Usaha"
+        value={loading ? "..." : formatRupiah(summary.uang_masuk_actual)}
+        caption="Total penerimaan yang benar-benar masuk ke kas atau bank usaha."
+        metrics={[
+          { label: "Masuk Hari Ini", value: loading ? "..." : formatRupiah(summary.today_uang_masuk), helper: "Penerimaan hari ini", tone: "success" },
+          { label: "Piutang Terbuka", value: loading ? "..." : formatRupiah(summary.piutang_open), helper: `${summary.receivable_count} piutang aktif`, tone: "warning" },
+          { label: "Transaksi Masuk", value: loading ? "..." : String(summary.wallet_in_count), helper: `${summary.payment_count} pembayaran · ${summary.other_income_count} lainnya` },
+        ]}
+      />
 
       <div className="da-finance-workspace da-finance-workspace-main">
         <Card className="da-finance-main-card">
@@ -305,15 +309,14 @@ export default function UangMasukPage({ session, onSessionExpired }) {
 
         <Card className="da-finance-side-card">
           <div className="da-mini-title">POSISI PENERIMAAN</div>
-          <div className="da-finance-hero-number">{formatRupiah(summary.today_uang_masuk)}</div>
-          <div className="da-muted">Masuk hari ini</div>
+          <div className="da-finance-hero-number da-finance-hero-number-dark"><span>Masuk Hari Ini</span><strong>{formatRupiah(summary.today_uang_masuk)}</strong><small>Penerimaan yang tercatat hari ini</small></div>
           <div className="da-finance-metric-list">
             <div><span>Pembayaran tercatat</span><strong>{summary.payment_count}</strong></div>
             <div><span>Piutang aktif</span><strong>{summary.receivable_count}</strong></div>
             <div><span>Penerimaan lain</span><strong>{summary.other_income_count}</strong></div>
             <div><span>Dompet tujuan</span><strong>{wallets.length}</strong></div>
           </div>
-          <div className="da-finance-note">4 Amplop hanya mengambil sumber Wallet IN yang nyata, memiliki source ID, dan belum pernah dialokasikan.</div>
+          <div className="da-finance-note">4 Amplop hanya menggunakan penerimaan yang sudah masuk, memiliki referensi transaksi, dan belum pernah dialokasikan.</div>
         </Card>
       </div>
 
