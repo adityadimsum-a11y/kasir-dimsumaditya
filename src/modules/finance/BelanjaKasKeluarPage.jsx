@@ -254,6 +254,7 @@ export default function BelanjaKasKeluarPage({ session, onSessionExpired }) {
   const [needsRefresh, setNeedsRefresh] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState(null);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("all");
   const [operationId, setOperationId] = useState(() => makeOperationId());
 
@@ -277,7 +278,21 @@ export default function BelanjaKasKeluarPage({ session, onSessionExpired }) {
   const expenses = useMemo(() => rawExpenseRows.filter(isRealCashExpense).map(normalizeCashExpense).filter((row) => !isGhostId(row.expense_id) || row.amount > 0), [rawExpenseRows]);
   const walletMutations = useMemo(() => asArray(bootstrap?.wallet_mutations).map(normalizeWalletMutation).filter((row) => !isGhostId(row.mutation_id) || row.amount > 0), [bootstrap]);
   const hiddenRowsCount = numberValue(bootstrap?.summary?.hidden_rows_count || bootstrap?.hidden_rows_count || Math.max(rawExpenseRows.length - expenses.length, 0));
-  const summary = useMemo(() => buildSummary(expenses, wallets, masterItems, walletMutations, hiddenRowsCount), [expenses, wallets, masterItems, walletMutations, hiddenRowsCount]);
+  const summary = useMemo(() => {
+    const local = buildSummary(expenses, wallets, masterItems, walletMutations, hiddenRowsCount);
+    const remote = bootstrap?.summary || {};
+    return {
+      ...local,
+      total_out: numberValue(remote.total_out ?? local.total_out),
+      expense_count: numberValue(remote.expense_count ?? local.expense_count),
+      item_count: numberValue(remote.item_count ?? local.item_count),
+      master_count: numberValue(remote.master_count ?? local.master_count),
+      wallet_count: numberValue(remote.wallet_count ?? local.wallet_count),
+      mutation_out_count: numberValue(remote.mutation_out_count ?? local.mutation_out_count),
+      perlu_source_count: numberValue(remote.perlu_source_count ?? local.perlu_source_count),
+      hidden_rows_count: numberValue(remote.hidden_rows_count ?? local.hidden_rows_count),
+    };
+  }, [bootstrap, expenses, wallets, masterItems, walletMutations, hiddenRowsCount]);
 
   const selectedWallet = useMemo(() => wallets.find((wallet) => wallet.wallet_id === form.wallet_id) || null, [wallets, form.wallet_id]);
   const paymentMethods = useMemo(() => selectedWallet ? allowedPaymentMethods(selectedWallet) : ["Cash", "Transfer"], [selectedWallet]);
@@ -297,7 +312,7 @@ export default function BelanjaKasKeluarPage({ session, onSessionExpired }) {
     setLoading(true);
     setError("");
     const result = await getKasKeluarBootstrap(session?.sessionToken, {
-      source: "frontend_part_4s_belanja_kas_keluar_trace",
+      source: "finance_workspace_v12_cash_expense",
       clean_rows: true,
     });
 
@@ -396,7 +411,8 @@ export default function BelanjaKasKeluarPage({ session, onSessionExpired }) {
     setSuccess(`Kas keluar berhasil dicatat${expenseId ? `: ${expenseId}` : ""}.`);
     setSaving(false);
     resetForm();
-    setNeedsRefresh(true);
+    setFormOpen(false);
+    await loadData();
   };
 
   const expenseColumns = [
@@ -423,155 +439,126 @@ export default function BelanjaKasKeluarPage({ session, onSessionExpired }) {
   ];
 
   return (
-    <div>
+    <div className="da-finance-page">
       <PageHeader
+        eyebrow="Uang & Kewajiban"
         title="Belanja & Kas Keluar"
-        description="Input belanja harian, biaya operasional, dan uang keluar dari dompet. Setiap kas keluar harus punya ID, item, dompet, mutasi, dan sumber arsip."
-        badge="Tertelusur"
+        description="Catat belanja dan biaya operasional dari dompet usaha. Setiap transaksi tersimpan bersama rincian item dan jejak mutasi uang."
+        actions={(
+          <div className="da-actions">
+            <Button variant="ghost" onClick={loadData} disabled={loading || saving}>{loading ? "Memuat..." : "Perbarui"}</Button>
+            <Button onClick={() => setFormOpen(true)}>+ Catat Pengeluaran</Button>
+          </div>
+        )}
       />
 
-      <div className="da-dashboard-banner">
-        <div>
-          <div className="da-dashboard-banner-kicker">Uang keluar usaha</div>
-          <div className="da-dashboard-banner-title">Belanja → KASOUT → Mutasi Dompet → Arsip</div>
-          <div className="da-dashboard-banner-desc">Belanja jangan dicatat ulang di Laporan Harian. Laporan Harian cukup menarik transaksi dari sini supaya tidak dobel input.</div>
-        </div>
-        <div className="da-dashboard-banner-actions">
-          <Badge tone={error ? "danger" : "success"}>{error ? "Perlu Dicek" : "Terhubung"}</Badge>
-          <Button variant="ghost" onClick={loadData} disabled={loading || saving}>{loading ? "Membaca..." : "Refresh Data"}</Button>
-        </div>
+      {error ? <div className="da-alert da-alert-danger">{error}</div> : null}
+      {success ? <div className="da-form-success">{success}</div> : null}
+
+      <div className="da-finance-kpi-grid">
+        <StatCard tone="warning" label="Kas Keluar" value={loading ? "..." : formatRupiah(summary.total_out)} description={`${summary.expense_count} transaksi tercatat.`} />
+        <StatCard label="Item Belanja" value={loading ? "..." : String(summary.item_count)} description={`${summary.master_count} item master tersedia.`} />
+        <StatCard label="Dompet Aktif" value={loading ? "..." : String(summary.wallet_count)} description={`${summary.mutation_out_count} mutasi keluar terkait.`} />
+        <StatCard tone={summary.perlu_source_count > 0 ? "warning" : "success"} label="Perlu Ditelusuri" value={loading ? "..." : String(summary.perlu_source_count)} description="Transaksi yang belum mempunyai jejak mutasi lengkap." />
       </div>
 
-      {hiddenRowsCount > 0 ? <div className="da-login-error" style={{ marginBottom: 16 }}>{hiddenRowsCount} baris kosong/formatting disembunyikan supaya Kas Keluar tidak menampilkan angka yatim.</div> : null}
-      {error ? <div className="da-login-error" style={{ marginBottom: 16 }}>{error}</div> : null}
-      {success ? (
-        <div className="da-form-success" style={{ marginBottom: 16 }}>
-          {success}
-          {needsRefresh ? (
-            <div style={{ marginTop: 6, fontWeight: 700 }}>
-              Data sudah tersimpan cepat. Klik Refresh Data kalau mau tarik ulang kas keluar dan mutasi dompet terbaru.
+      <div className="da-finance-workspace">
+        <Card className="da-finance-main-card">
+          <div className="da-section-heading">
+            <div>
+              <div className="da-page-kicker">Riwayat Pengeluaran</div>
+              <h2 style={{ margin: "4px 0 6px" }}>Kas Keluar Terbaru</h2>
+              <p className="da-muted" style={{ margin: 0 }}>Klik transaksi untuk melihat item belanja, dompet, dan jejak uangnya.</p>
             </div>
-          ) : null}
-        </div>
-      ) : null}
+            <Button variant="ghost" onClick={() => setFormOpen(true)}>+ Pengeluaran</Button>
+          </div>
+          <div className="da-finance-tabs">
+            <button className={activeTab === "all" ? "active" : ""} onClick={() => setActiveTab("all")}>Semua</button>
+            <button className={activeTab === "hari-ini" ? "active" : ""} onClick={() => setActiveTab("hari-ini")}>Hari Ini</button>
+            <button className={activeTab === "perlu-sumber" ? "active" : ""} onClick={() => setActiveTab("perlu-sumber")}>Perlu Ditelusuri</button>
+          </div>
+          <DataTable columns={expenseColumns} rows={loading ? [] : filteredExpenses} getRowKey={(row, index) => row.expense_id || index} onRowClick={setSelectedExpense} />
+          {!loading && filteredExpenses.length === 0 ? <div className="da-finance-empty">Belum ada pengeluaran pada pilihan ini.</div> : null}
+        </Card>
 
-      <div className="da-grid da-grid-3">
-        <StatCard tone="warning" label="Total Kas Keluar" value={loading ? "..." : formatRupiah(summary.total_out)} description="Total kas keluar tercatat." />
-        <StatCard label="Nota / KASOUT" value={loading ? "..." : summary.expense_count} description="Jumlah kas keluar bersih." />
-        <StatCard label="Item Belanja" value={loading ? "..." : summary.item_count} description="Rincian item yang tercatat." />
-        <StatCard label="Master Belanja" value={loading ? "..." : summary.master_count} description="Item belanja berulang yang terbaca." />
-        <StatCard label="Mutasi OUT" value={loading ? "..." : summary.mutation_out_count} description="Uang keluar yang punya gerak dompet." />
-        <StatCard tone={summary.perlu_source_count ? "warning" : "default"} label="Perlu Dicek" value={loading ? "..." : summary.perlu_source_count} description="KASOUT yang belum punya mutasi ID." />
+        <Card className="da-finance-side-card">
+          <div className="da-page-kicker">Posisi Pengeluaran</div>
+          <h2 style={{ margin: "6px 0 6px" }}>Kontrol Kas Keluar</h2>
+          <p className="da-muted">Ringkasan untuk memastikan setiap rupiah keluar memiliki sumber dan rincian yang jelas.</p>
+          <div className="da-finance-hero-number da-finance-hero-number-dark">
+            <span>Total tercatat</span>
+            <strong>{formatRupiah(summary.total_out)}</strong>
+            <small>{summary.expense_count} transaksi</small>
+          </div>
+          <div className="da-finance-metric-list">
+            <div><span>Rincian item</span><strong>{summary.item_count}</strong></div>
+            <div><span>Mutasi keluar</span><strong>{summary.mutation_out_count}</strong></div>
+            <div><span>Master belanja</span><strong>{summary.master_count}</strong></div>
+            <div><span>Belum tertelusur</span><strong>{summary.perlu_source_count}</strong></div>
+          </div>
+          <div className="da-finance-note">Pengeluaran dicatat sekali dari modul ini. Laporan harian cukup menarik transaksi yang sudah tersimpan agar tidak terjadi input ganda.</div>
+        </Card>
       </div>
 
-      <div style={{ height: 18 }} />
-
-      <Card>
-        <div className="da-section-heading">
-          <div>
-            <div className="da-mini-title">Input Live</div>
-            <div className="da-big-text">Tambah Belanja / Kas Keluar</div>
-            <p className="da-muted">Pilih dompet pembayaran, isi item belanja, lalu cek preview sebelum simpan.</p>
+      <Modal open={formOpen} size="xl" title="Catat Pengeluaran" subtitle="Belanja dan kas keluar usaha" onClose={() => !saving && setFormOpen(false)}>
+        <div className="da-finance-modal-panel">
+          <div className="da-finance-modal-form">
+            <label className="da-field"><span>Tanggal</span><input type="date" value={form.expense_date} onChange={(event) => updateForm("expense_date", event.target.value)} /></label>
+            <label className="da-field"><span>Dompet Pembayaran</span><select value={form.wallet_id} onChange={(event) => { const wallet = wallets.find((row) => row.wallet_id === event.target.value); setForm((current) => ({ ...current, wallet_id: event.target.value, wallet_name: wallet?.wallet_name || "", payment_method: suggestedPaymentMethod(wallet || {}) })); }}><option value="">Pilih dompet</option>{wallets.map((wallet) => <option key={wallet.wallet_id} value={wallet.wallet_id}>{wallet.wallet_name} · {formatRupiah(wallet.balance)}</option>)}</select></label>
+            <label className="da-field"><span>Metode</span><select value={form.payment_method} onChange={(event) => updateForm("payment_method", event.target.value)}>{paymentMethods.map((method) => <option key={method} value={method}>{method}</option>)}</select></label>
+            <label className="da-field"><span>Toko / Penerima</span><input value={form.vendor_name} onChange={(event) => updateForm("vendor_name", event.target.value)} placeholder="Nama toko atau penerima" /></label>
+            <label className="da-field"><span>PIC</span><input value={form.pic_name} onChange={(event) => updateForm("pic_name", event.target.value)} placeholder="Nama yang melakukan belanja" /></label>
+            <label className="da-field"><span>Uang Diberikan</span><input inputMode="numeric" value={form.money_given} onChange={(event) => updateForm("money_given", event.target.value)} placeholder="Opsional" /></label>
           </div>
-          <Badge tone="warning">Potong Dompet</Badge>
-        </div>
 
-        <div className="da-form-grid">
-          <label className="da-field"><span>Tanggal</span><input type="date" value={form.expense_date} onChange={(event) => updateForm("expense_date", event.target.value)} /></label>
-          <label className="da-field">
-            <span>Dompet Pembayaran</span>
-            <select value={form.wallet_id} onChange={(event) => {
-              const wallet = wallets.find((row) => row.wallet_id === event.target.value);
-              setForm((current) => ({ ...current, wallet_id: event.target.value, wallet_name: wallet?.wallet_name || "", payment_method: suggestedPaymentMethod(wallet || {}) }));
-            }}>
-              <option value="">Pilih dompet</option>
-              {wallets.map((wallet) => <option key={wallet.wallet_id} value={wallet.wallet_id}>{wallet.wallet_name} {wallet.balance ? `· ${formatRupiah(wallet.balance)}` : ""}</option>)}
-            </select>
-          </label>
-          <label className="da-field"><span>Metode</span><select value={form.payment_method} onChange={(event) => updateForm("payment_method", event.target.value)}>{paymentMethods.map((method) => <option key={method} value={method}>{method}</option>)}</select></label>
-          <label className="da-field"><span>Toko / Penerima</span><input value={form.vendor_name} onChange={(event) => updateForm("vendor_name", event.target.value)} placeholder="Contoh: Pasar, Haji Muslih" /></label>
-          <label className="da-field"><span>PIC</span><input value={form.pic_name} onChange={(event) => updateForm("pic_name", event.target.value)} placeholder="Nama yang belanja" /></label>
-          <label className="da-field"><span>Uang Diberikan</span><input inputMode="numeric" value={form.money_given} onChange={(event) => updateForm("money_given", event.target.value)} placeholder="Opsional" /></label>
-        </div>
-
-        <div style={{ height: 18 }} />
-        <div className="da-section-heading">
-          <div><div className="da-mini-title">Rincian Item</div><div className="da-muted">Pilih dari Master Belanja atau ketik manual jika belum ada master.</div></div>
-          <Button variant="ghost" onClick={addItemRow}>+ Tambah Item</Button>
-        </div>
-
-        <div className="da-table-card">
-          <table className="da-table">
-            <thead><tr><th>Master</th><th>Nama Item</th><th>Kategori</th><th>Qty</th><th>Satuan</th><th>Harga</th><th>Total</th><th>Aksi</th></tr></thead>
-            <tbody>
-              {items.map((item, index) => {
-                const lineTotal = numberValue(item.qty) * numberValue(item.unit_price);
-                return (
-                  <tr key={`${index}-${item.expense_master_id || "manual"}`}>
-                    <td><select value={item.expense_master_id} onChange={(event) => chooseMasterItem(index, event.target.value)}><option value="">Manual</option>{masterItems.map((master) => <option key={master.expense_master_id} value={master.expense_master_id}>{master.item_name}</option>)}</select></td>
-                    <td><input value={item.item_name} onChange={(event) => updateItem(index, "item_name", event.target.value)} placeholder="Nama belanja" /></td>
-                    <td><input value={item.category} onChange={(event) => updateItem(index, "category", event.target.value)} /></td>
-                    <td><input inputMode="numeric" value={item.qty} onChange={(event) => updateItem(index, "qty", event.target.value)} /></td>
-                    <td><input value={item.unit} onChange={(event) => updateItem(index, "unit", event.target.value)} /></td>
-                    <td><input inputMode="numeric" value={item.unit_price} onChange={(event) => updateItem(index, "unit_price", event.target.value)} /></td>
-                    <td><strong>{formatRupiah(lineTotal)}</strong></td>
-                    <td><Button variant="ghost" onClick={() => removeItemRow(index)} disabled={items.length <= 1}>Hapus</Button></td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        <div style={{ height: 18 }} />
-        <div className="da-form-grid">
-          <label className="da-field"><span>Keterangan Singkat</span><input value={form.description} onChange={(event) => updateForm("description", event.target.value)} placeholder="Otomatis dari item jika kosong" /></label>
-          <label className="da-field"><span>Catatan</span><input value={form.notes} onChange={(event) => updateForm("notes", event.target.value)} placeholder="Catatan tambahan / bukti nanti" /></label>
-        </div>
-        <div className="da-modal-note" style={{ marginTop: 16 }}><strong>Total kas keluar:</strong> {formatRupiah(totalAmount)} · <strong>Kembalian:</strong> {formatRupiah(changeAmount)} · <strong>Dompet:</strong> {safeText(selectedWallet?.wallet_name)}</div>
-        <div className="da-form-actions" style={{ marginTop: 18 }}><Button variant="ghost" onClick={resetForm} disabled={saving}>Reset</Button><Button onClick={() => setShowConfirm(true)} disabled={!canSubmit}>{saving ? "Menyimpan..." : "Preview & Simpan"}</Button></div>
-      </Card>
-
-      <div style={{ height: 18 }} />
-
-      <Card>
-        <div className="da-section-heading">
-          <div><div className="da-mini-title">Riwayat Kas Keluar</div><div className="da-big-text">Belanja yang Sudah Tercatat</div><p className="da-muted">Klik baris untuk melihat detail item, mutasi dompet, dan sumber arsip.</p></div>
-          <Badge tone="success">Data Aktual</Badge>
-        </div>
-        <div className="da-tabs" style={{ marginBottom: 12 }}>
-          <button className={activeTab === "all" ? "active" : ""} onClick={() => setActiveTab("all")}>Semua</button>
-          <button className={activeTab === "hari-ini" ? "active" : ""} onClick={() => setActiveTab("hari-ini")}>Hari Ini</button>
-          <button className={activeTab === "perlu-sumber" ? "active" : ""} onClick={() => setActiveTab("perlu-sumber")}>Perlu Mutasi</button>
-        </div>
-        <DataTable columns={expenseColumns} rows={loading ? [] : filteredExpenses} getRowKey={(row, index) => row.expense_id || index} onRowClick={setSelectedExpense} />
-      </Card>
-
-      <Modal open={showConfirm} title="Konfirmasi Kas Keluar" subtitle="Cek sebelum potong dompet" onClose={() => setShowConfirm(false)}>
-        <div>
-          <div className="da-modal-summary"><div><div className="da-mini-title">Total yang Akan Keluar</div><div className="da-big-text">{formatRupiah(totalAmount)}</div><p className="da-muted">Dompet: <strong>{safeText(selectedWallet?.wallet_name)}</strong></p></div><Badge tone="warning">Uang Keluar</Badge></div>
-          <div className="da-detail-grid">
-            <div className="da-detail-box"><div className="da-mini-title">Header</div><p><strong>Tanggal:</strong> {safeText(form.expense_date)}</p><p><strong>Metode:</strong> {safeText(form.payment_method)}</p><p><strong>Toko/Penerima:</strong> {safeText(form.vendor_name)}</p><p><strong>Keterangan:</strong> {safeText(payloadPreview.description)}</p></div>
-            <div className="da-detail-box"><div className="da-mini-title">Uang</div><p><strong>Total:</strong> {formatRupiah(totalAmount)}</p><p><strong>Uang Diberikan:</strong> {formatRupiah(moneyGiven)}</p><p><strong>Kembalian:</strong> {formatRupiah(changeAmount)}</p><p><strong>Operation ID:</strong> {operationId}</p></div>
+          <div className="da-section-heading da-finance-section-gap">
+            <div><div className="da-mini-title">Rincian Item</div><div className="da-muted">Pilih dari Master Belanja atau isi manual.</div></div>
+            <Button variant="ghost" onClick={addItemRow}>+ Tambah Item</Button>
           </div>
-          <div className="da-modal-note" style={{ marginTop: 14 }}>Setelah disimpan, sistem membuat KASOUT dan mutasi dompet OUT. Data ini muncul di Kas & Dompet, Laporan Harian, dan Arsip Digital.</div>
-          <div className="da-form-actions" style={{ marginTop: 16 }}><Button variant="ghost" onClick={() => setShowConfirm(false)} disabled={saving}>Batal</Button><Button onClick={submitExpense} disabled={saving}>{saving ? "Menyimpan..." : "Ya, Simpan Kas Keluar"}</Button></div>
+          <div className="da-table-card da-finance-scroll-table">
+            <table className="da-table">
+              <thead><tr><th>Master</th><th>Nama Item</th><th>Kategori</th><th>Qty</th><th>Satuan</th><th>Harga</th><th>Total</th><th>Aksi</th></tr></thead>
+              <tbody>{items.map((item, index) => { const lineTotal = numberValue(item.qty) * numberValue(item.unit_price); return (
+                <tr key={`${index}-${item.expense_master_id || "manual"}`}>
+                  <td><select value={item.expense_master_id} onChange={(event) => chooseMasterItem(index, event.target.value)}><option value="">Manual</option>{masterItems.map((master) => <option key={master.expense_master_id} value={master.expense_master_id}>{master.item_name}</option>)}</select></td>
+                  <td><input value={item.item_name} onChange={(event) => updateItem(index, "item_name", event.target.value)} placeholder="Nama item" /></td>
+                  <td><input value={item.category} onChange={(event) => updateItem(index, "category", event.target.value)} /></td>
+                  <td><input inputMode="numeric" value={item.qty} onChange={(event) => updateItem(index, "qty", event.target.value)} /></td>
+                  <td><input value={item.unit} onChange={(event) => updateItem(index, "unit", event.target.value)} /></td>
+                  <td><input inputMode="numeric" value={item.unit_price} onChange={(event) => updateItem(index, "unit_price", event.target.value)} /></td>
+                  <td><strong>{formatRupiah(lineTotal)}</strong></td>
+                  <td><Button variant="ghost" onClick={() => removeItemRow(index)} disabled={items.length <= 1}>Hapus</Button></td>
+                </tr>
+              ); })}</tbody>
+            </table>
+          </div>
+          <div className="da-finance-modal-form da-finance-section-gap">
+            <label className="da-field"><span>Keterangan</span><input value={form.description} onChange={(event) => updateForm("description", event.target.value)} placeholder="Otomatis dari item jika kosong" /></label>
+            <label className="da-field"><span>Catatan</span><input value={form.notes} onChange={(event) => updateForm("notes", event.target.value)} placeholder="Catatan tambahan" /></label>
+          </div>
+          <div className="da-finance-preview-row">
+            <div><span>Total</span><strong>{formatRupiah(totalAmount)}</strong></div>
+            <div><span>Kembalian</span><strong>{formatRupiah(changeAmount)}</strong></div>
+            <div><span>Dompet</span><strong>{safeText(selectedWallet?.wallet_name)}</strong></div>
+          </div>
+          <div className="da-form-actions"><Button variant="ghost" onClick={() => { resetForm(); setFormOpen(false); }} disabled={saving}>Batal</Button><Button onClick={() => setShowConfirm(true)} disabled={!canSubmit}>{saving ? "Menyimpan..." : "Lanjutkan"}</Button></div>
+        </div>
+      </Modal>
+
+      <Modal open={showConfirm} title="Konfirmasi Kas Keluar" subtitle="Periksa sebelum saldo dompet berkurang" onClose={() => setShowConfirm(false)}>
+        <div className="da-finance-modal-panel">
+          <div className="da-modal-summary"><div><div className="da-mini-title">Total Pengeluaran</div><div className="da-big-text">{formatRupiah(totalAmount)}</div><p className="da-muted">{safeText(selectedWallet?.wallet_name)}</p></div><Badge tone="warning">Kas Keluar</Badge></div>
+          <div className="da-detail-grid"><div className="da-detail-box"><p><strong>Tanggal:</strong> {safeText(form.expense_date)}</p><p><strong>Metode:</strong> {safeText(form.payment_method)}</p><p><strong>Penerima:</strong> {safeText(form.vendor_name)}</p></div><div className="da-detail-box"><p><strong>Uang diberikan:</strong> {formatRupiah(moneyGiven)}</p><p><strong>Kembalian:</strong> {formatRupiah(changeAmount)}</p><p><strong>Jumlah item:</strong> {payloadPreview.items.length}</p></div></div>
+          <div className="da-form-actions"><Button variant="ghost" onClick={() => setShowConfirm(false)} disabled={saving}>Kembali</Button><Button onClick={submitExpense} disabled={saving}>{saving ? "Menyimpan..." : "Simpan Pengeluaran"}</Button></div>
         </div>
       </Modal>
 
       <Modal open={Boolean(selectedExpense)} title="Detail Kas Keluar" subtitle={selectedExpense?.expense_id || ""} onClose={() => setSelectedExpense(null)}>
-        {selectedExpense ? (
-          <div>
-            <div className="da-modal-summary"><div><div className="da-mini-title">Nominal Kas Keluar</div><div className="da-big-text">{formatRupiah(selectedExpense.amount)}</div><p className="da-muted">Dompet: <strong>{safeText(selectedExpense.wallet_name)}</strong></p></div><Badge tone={isGhostId(selectedExpense.wallet_mutation_id) ? "warning" : "success"}>{isGhostId(selectedExpense.wallet_mutation_id) ? "Perlu Mutasi" : "Tertelusur"}</Badge></div>
-            <div className="da-detail-grid">
-              <div className="da-detail-box"><div className="da-mini-title">Transaksi</div><p><strong>KASOUT ID:</strong> {safeText(selectedExpense.expense_id)}</p><p><strong>Tanggal:</strong> {formatDisplayDate(selectedExpense.expense_date)}</p><p><strong>Toko/Penerima:</strong> {safeText(selectedExpense.vendor_name)}</p><p><strong>PIC:</strong> {safeText(selectedExpense.pic_name)}</p><p><strong>Metode:</strong> {safeText(selectedExpense.payment_method)}</p></div>
-              <div className="da-detail-box"><div className="da-mini-title">Jejak Uang</div><p><strong>Wallet ID:</strong> {safeText(selectedExpense.wallet_id)}</p><p><strong>Mutasi ID:</strong> {safeText(selectedExpense.wallet_mutation_id)}</p><p><strong>Uang Diberikan:</strong> {formatRupiah(selectedExpense.money_given)}</p><p><strong>Kembalian:</strong> {formatRupiah(selectedExpense.change_amount)}</p><p><strong>Operation ID:</strong> {safeText(selectedExpense.operation_id)}</p></div>
-            </div>
-            <div className="da-modal-note" style={{ marginTop: 14 }}>Rantai ini harus bisa ditelusuri: Belanja/KASOUT → Mutasi Dompet OUT → Kas & Dompet → Laporan Harian → Arsip Digital.</div>
-            <div style={{ height: 14 }} />
-            <DataTable columns={[{ key: "item_name", label: "Item" }, { key: "category", label: "Kategori" }, { key: "qty", label: "Qty", render: (row) => `${row.qty} ${row.unit}` }, { key: "unit_price", label: "Harga", render: (row) => formatRupiah(row.unit_price) }, { key: "line_total", label: "Total", render: (row) => formatRupiah(row.line_total) }]} rows={selectedExpense.items || []} getRowKey={(row, index) => row.expense_item_id || index} />
-          </div>
-        ) : null}
+        {selectedExpense ? <div className="da-finance-modal-panel">
+          <div className="da-modal-summary"><div><div className="da-mini-title">Nominal</div><div className="da-big-text">{formatRupiah(selectedExpense.amount)}</div><p className="da-muted">{safeText(selectedExpense.wallet_name)}</p></div><Badge tone={isGhostId(selectedExpense.wallet_mutation_id) ? "warning" : "success"}>{isGhostId(selectedExpense.wallet_mutation_id) ? "Perlu Ditelusuri" : "Tertelusur"}</Badge></div>
+          <div className="da-detail-grid"><div className="da-detail-box"><p><strong>Tanggal:</strong> {formatDisplayDate(selectedExpense.expense_date)}</p><p><strong>Penerima:</strong> {safeText(selectedExpense.vendor_name)}</p><p><strong>PIC:</strong> {safeText(selectedExpense.pic_name)}</p><p><strong>Metode:</strong> {safeText(selectedExpense.payment_method)}</p></div><div className="da-detail-box"><p><strong>Dompet:</strong> {safeText(selectedExpense.wallet_name)}</p><p><strong>Mutasi:</strong> {safeText(selectedExpense.wallet_mutation_id)}</p><p><strong>Uang diberikan:</strong> {formatRupiah(selectedExpense.money_given)}</p><p><strong>Kembalian:</strong> {formatRupiah(selectedExpense.change_amount)}</p></div></div>
+          <div className="da-finance-detail-section"><h3>Rincian Belanja</h3><DataTable columns={[{ key: "item_name", label: "Item" }, { key: "category", label: "Kategori" }, { key: "qty", label: "Qty", render: (row) => `${row.qty} ${row.unit}` }, { key: "unit_price", label: "Harga", render: (row) => formatRupiah(row.unit_price) }, { key: "line_total", label: "Total", render: (row) => formatRupiah(row.line_total) }]} rows={selectedExpense.items || []} getRowKey={(row, index) => row.expense_item_id || index} /></div>
+        </div> : null}
       </Modal>
     </div>
   );
