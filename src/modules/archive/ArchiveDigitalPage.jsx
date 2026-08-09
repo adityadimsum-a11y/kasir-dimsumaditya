@@ -224,7 +224,19 @@ export default function ArchiveDigitalPage({ session, onSessionExpired }) {
   };
 
   useEffect(() => {
-    loadData();
+    let savedQuery = "";
+    if (typeof window !== "undefined") {
+      savedQuery = String(window.sessionStorage.getItem("da:global-search-query") || "").trim();
+      if (savedQuery) window.sessionStorage.removeItem("da:global-search-query");
+    }
+
+    if (savedQuery) {
+      const nextFilters = { ...filters, query: savedQuery };
+      setFilters(nextFilters);
+      loadData(nextFilters);
+    } else {
+      loadData();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.sessionToken]);
 
