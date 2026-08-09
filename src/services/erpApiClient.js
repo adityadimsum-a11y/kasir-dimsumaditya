@@ -1,83 +1,9 @@
 // Compatibility client for older internal modules.
-// Source of truth after cutover: PHP/MySQL through the same-origin Vercel proxy.
-const API_ENDPOINT = "/api/erp-v2";
-
-const normalizeResponse = (result) => {
-  if (!result) {
-    return { success: false, message: "Response kosong dari mesin ERP.", data: null };
-  }
-
-  if (result.success === true || result.status === "success" || result.ok === true) {
-    return {
-      success: true,
-      message: result.message || "Berhasil.",
-      data: result.data ?? result.result ?? result,
-      meta: result.meta || {},
-      raw: result,
-    };
-  }
-
-  return {
-    success: false,
-    message: result.message || result.error?.message || "Request ditolak mesin ERP.",
-    data: result.data || null,
-    error: result.error || null,
-    raw: result,
-  };
-};
+// Transport source of truth lives in src/lib/api/client.js.
+import { apiRequest as coreApiRequest, getConfiguredApiUrl as coreConfiguredApiUrl } from "../lib/api/client";
 
 export async function apiRequest(action, payload = {}, sessionToken = "") {
-  try {
-    const response = await fetch(API_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({
-        action,
-        route: action,
-        payload,
-        data: payload,
-        sessionToken,
-        session_token: sessionToken,
-        token: sessionToken,
-        operation_id:
-          payload?.operation_id ||
-          payload?.operationId ||
-          payload?.request_id ||
-          payload?.requestId ||
-          "",
-      }),
-    });
-
-    const text = await response.text();
-    let parsed;
-
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      return {
-        success: false,
-        message: "Response backend PHP/MySQL bukan JSON valid.",
-        data: null,
-        error: {
-          code: "INVALID_JSON_RESPONSE",
-          http_status: response.status,
-          raw: text.slice(0, 500),
-        },
-      };
-    }
-
-    return normalizeResponse(parsed);
-  } catch (err) {
-    return {
-      success: false,
-      message: err?.message || "Koneksi backend PHP/MySQL gagal.",
-      data: null,
-      error: { code: "FETCH_ERROR" },
-    };
-  }
+  return coreApiRequest(action, payload, sessionToken);
 }
 
 export async function loginBridge({ username, password }) {
@@ -113,6 +39,7 @@ export async function loginBridge({ username, password }) {
   };
 }
 
+
 export function getConfiguredApiUrl() {
-  return API_ENDPOINT;
+  return coreConfiguredApiUrl();
 }
