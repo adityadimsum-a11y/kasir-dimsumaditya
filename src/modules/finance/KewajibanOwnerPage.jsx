@@ -12,9 +12,9 @@ import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import DataTable from "../../components/ui/DataTable";
+import FinanceSnapshot from "./FinanceSnapshot";
 import Modal from "../../components/ui/Modal";
 import PageHeader from "../../components/ui/PageHeader";
-import StatCard from "../../components/ui/StatCard";
 
 function isAuthRequired(result) {
   const code = String(result?.code || result?.error?.code || "").toUpperCase();
@@ -307,12 +307,16 @@ export default function KewajibanOwnerPage({ session, onSessionExpired }) {
       {error ? <div className="da-alert da-alert-danger">{error}</div> : null}
       {message ? <div className="da-form-success">{message}</div> : null}
 
-      <div className="da-finance-kpi-grid">
-        <StatCard label="Kewajiban Aktif" value={loading ? "..." : String(summary.active_count || 0)} description={`${summary.due_count || 0} perlu dibayar pada periode ini.`} />
-        <StatCard tone="primary" label="Sisa Kewajiban Tetap" value={loading ? "..." : formatRupiah(summary.total_remaining || 0)} description="Saldo cicilan dengan nilai pokok tetap." />
-        <StatCard tone="warning" label="Jatuh Tempo Periode Ini" value={loading ? "..." : formatRupiah(summary.due_this_month || 0)} description={`Sudah dibayar ${formatRupiah(summary.paid_this_month || 0)}.`} />
-        <StatCard tone={Number(summary.overdue_count || 0) > 0 ? "danger" : "success"} label="Lewat Jatuh Tempo" value={loading ? "..." : String(summary.overdue_count || 0)} description={Number(summary.overdue_count || 0) > 0 ? formatRupiah(summary.overdue_amount || 0) : "Tidak ada tagihan terlambat."} />
-      </div>
+      <FinanceSnapshot
+        eyebrow="Kewajiban Usaha"
+        value={loading ? "..." : formatRupiah(summary.total_remaining || 0)}
+        caption={`${summary.active_count || 0} kewajiban aktif · ${summary.due_count || 0} perlu dibayar periode ini.`}
+        metrics={[
+          { label: "Jatuh Tempo Periode Ini", value: loading ? "..." : formatRupiah(summary.due_this_month || 0), helper: `Dibayar ${formatRupiah(summary.paid_this_month || 0)}`, tone: "warning" },
+          { label: "Lewat Jatuh Tempo", value: loading ? "..." : String(summary.overdue_count || 0), helper: Number(summary.overdue_count || 0) > 0 ? formatRupiah(summary.overdue_amount || 0) : "Tidak ada keterlambatan", tone: Number(summary.overdue_count || 0) > 0 ? "danger" : "success" },
+          { label: "Kewajiban Aktif", value: loading ? "..." : String(summary.active_count || 0), helper: "Cicilan dan tagihan yang dipantau" },
+        ]}
+      />
 
       <div className="da-finance-workspace">
         <Card className="da-finance-main-card">
