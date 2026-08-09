@@ -490,6 +490,14 @@ export async function rejectSetoranCabang(sessionToken, payload = {}) {
 }
 
 /**
+ * GLOBAL SMART SEARCH
+ */
+
+export async function globalSmartSearch(sessionToken, payload = {}) {
+  return phpApiRequest("globalSmartSearch", payload, sessionToken);
+}
+
+/**
  * ARSIP DIGITAL
  */
 
