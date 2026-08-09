@@ -4,11 +4,11 @@ import { formatRupiah } from "../../lib/format/money";
 import { allowedPaymentMethods, suggestedPaymentMethod } from "../../lib/finance/walletPolicy.js";
 import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
-import Card from "../../components/ui/Card";
 import Modal from "../../components/ui/Modal";
 
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  const date = new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 function operationId() {
@@ -77,7 +77,7 @@ export default function OtherIncomePanel({ session, wallets = [], onSaved, onSes
       operation_id: op,
       request_id: op,
       idempotency_key: op,
-      source: "package_4_other_income_live",
+      source: "finance_workspace_v12_other_income",
     });
     if (!result?.success) {
       const code = String(result?.error?.code || "").toUpperCase();
@@ -99,23 +99,20 @@ export default function OtherIncomePanel({ session, wallets = [], onSaved, onSes
 
   return (
     <>
-      <Card style={{ marginTop: 18 }}>
+      <div className="da-finance-modal-panel">
         <div className="da-section-heading">
           <div>
-            <div className="da-mini-title">UANG MASUK NON-PENJUALAN</div>
-            <div className="da-big-text">Tambahan Modal, Reimbursement, Refund Vendor, atau Koreksi IN</div>
-            <p className="da-muted">Tidak terkait invoice/order. Tetap membuat Wallet IN, jurnal, Arsip, Audit, dan menjadi sumber 4 Amplop karena uang benar-benar masuk.</p>
+            <div className="da-mini-title">PENERIMAAN NON-PENJUALAN</div>
+            <div className="da-big-text">Catat Uang yang Benar-benar Masuk</div>
+            <p className="da-muted">Gunakan untuk tambahan modal, reimbursement, pengembalian vendor, koreksi kas masuk, atau penerimaan lain yang bukan omzet penjualan.</p>
           </div>
-          <Badge tone="success">PHP/MySQL Live</Badge>
         </div>
 
-        {message ? <div className="da-form-success" style={{ marginBottom: 12 }}>{message}</div> : null}
-        {error ? <div className="da-login-error" style={{ marginBottom: 12 }}>{error}</div> : null}
+        {message ? <div className="da-alert da-alert-success">{message}</div> : null}
+        {error ? <div className="da-alert da-alert-danger">{error}</div> : null}
 
-        <div className="da-form-grid" style={{ gridTemplateColumns: "repeat(3,minmax(0,1fr))" }}>
-          <label className="da-field-label">Tanggal
-            <input className="da-input" type="date" value={form.income_date} onChange={(e) => update("income_date", e.target.value)} />
-          </label>
+        <div className="da-finance-modal-form">
+          <label className="da-field-label">Tanggal<input className="da-input" type="date" value={form.income_date} onChange={(e) => update("income_date", e.target.value)} /></label>
           <label className="da-field-label">Kategori
             <select className="da-input" value={form.category} onChange={(e) => update("category", e.target.value)}>
               <option value="OWNER_CAPITAL">Tambahan Modal / Uang Putaran</option>
@@ -130,43 +127,32 @@ export default function OtherIncomePanel({ session, wallets = [], onSaved, onSes
               {wallets.length ? wallets.map((wallet) => <option key={wallet.wallet_id} value={wallet.wallet_id}>{wallet.wallet_name || wallet.wallet_code}</option>) : <option value="">Belum ada dompet</option>}
             </select>
           </label>
-          <label className="da-field-label">Sumber / Pemberi
-            <input className="da-input" value={form.source_name} onChange={(e) => update("source_name", e.target.value)} placeholder="Contoh: Owner / Nama vendor" />
-          </label>
+          <label className="da-field-label">Sumber / Pemberi<input className="da-input" value={form.source_name} onChange={(e) => update("source_name", e.target.value)} placeholder="Owner / nama vendor / sumber dana" /></label>
           <label className="da-field-label">Metode
-            <select className="da-input" value={form.payment_method} onChange={(e) => update("payment_method", e.target.value)}>
-              {methods.map((method) => <option key={method} value={method}>{method}</option>)}
-            </select>
+            <select className="da-input" value={form.payment_method} onChange={(e) => update("payment_method", e.target.value)}>{methods.map((method) => <option key={method} value={method}>{method}</option>)}</select>
           </label>
-          <label className="da-field-label">Nominal
-            <input className="da-input" type="number" min="0" value={form.amount} onChange={(e) => update("amount", e.target.value)} placeholder="Contoh: 1000000" />
-          </label>
-          <label className="da-field-label">Referensi Bukti
-            <input className="da-input" value={form.reference_no} onChange={(e) => update("reference_no", e.target.value)} placeholder="Nomor transfer / bukti" />
-          </label>
-          <label className="da-field-label" style={{ gridColumn: "span 2" }}>Catatan
-            <input className="da-input" value={form.notes} onChange={(e) => update("notes", e.target.value)} />
-          </label>
+          <label className="da-field-label">Nominal<input className="da-input" type="number" min="0" value={form.amount} onChange={(e) => update("amount", e.target.value)} placeholder="Rp 0" /></label>
+          <label className="da-field-label">Referensi Bukti<input className="da-input" value={form.reference_no} onChange={(e) => update("reference_no", e.target.value)} placeholder="Nomor transfer / bukti" /></label>
+          <label className="da-field-label da-finance-span-2">Catatan<input className="da-input" value={form.notes} onChange={(e) => update("notes", e.target.value)} /></label>
         </div>
-        <div className="da-modal-note" style={{ marginTop: 12 }}>
-          Preview: {selectedWallet?.wallet_name || "Pilih dompet"} menerima <strong>{formatRupiah(amount)}</strong>. Transaksi ini bukan omzet penjualan, tetapi uang aktual dan dapat masuk pembagian 4 Amplop.
+        <div className="da-finance-preview-row">
+          <div><span>Dompet</span><strong>{selectedWallet?.wallet_name || "-"}</strong></div>
+          <div><span>Nominal</span><strong>{formatRupiah(amount)}</strong></div>
+          <div><span>Status</span><strong>Uang masuk aktual</strong></div>
         </div>
-        <div className="da-form-actions" style={{ marginTop: 12 }}>
+        <div className="da-form-actions">
           <Button type="button" variant="ghost" onClick={() => setForm({ ...baseForm, income_date: today(), wallet_id: selectedWallet?.wallet_id || "", payment_method: suggestedPaymentMethod(selectedWallet || {}) })}>Reset</Button>
-          <Button type="button" onClick={() => { const problem = validate(); if (problem) setError(problem); else setConfirmOpen(true); }} disabled={saving}>{saving ? "Menyimpan..." : "Preview & Simpan"}</Button>
+          <Button type="button" onClick={() => { const problem = validate(); if (problem) setError(problem); else setConfirmOpen(true); }} disabled={saving}>{saving ? "Menyimpan..." : "Tinjau Penerimaan"}</Button>
         </div>
-      </Card>
+      </div>
 
-      <Modal open={confirmOpen} title="Konfirmasi Uang Masuk Lain" subtitle={form.category.replaceAll("_", " ")} onClose={() => setConfirmOpen(false)}>
-        <div className="da-modal-summary">
-          <div><div className="da-mini-title">Masuk ke Dompet</div><div className="da-big-text">{formatRupiah(amount)}</div><p className="da-muted">{selectedWallet?.wallet_name || "-"}</p></div>
-          <Badge tone="success">WALLET IN</Badge>
-        </div>
+      <Modal open={confirmOpen} title="Konfirmasi Penerimaan" subtitle={form.category.replaceAll("_", " ")} onClose={() => setConfirmOpen(false)}>
+        <div className="da-modal-summary"><div><div className="da-mini-title">Masuk ke Dompet</div><div className="da-big-text">{formatRupiah(amount)}</div><p className="da-muted">{selectedWallet?.wallet_name || "-"}</p></div><Badge tone="success">Uang Masuk</Badge></div>
         <div className="da-detail-grid">
           <div className="da-detail-box"><p><strong>Sumber:</strong> {form.source_name || "-"}</p><p><strong>Metode:</strong> {form.payment_method}</p><p><strong>Referensi:</strong> {form.reference_no || "-"}</p></div>
-          <div className="da-detail-box"><p><strong>Catatan:</strong> {form.notes}</p><p><strong>4 Amplop:</strong> Eligible setelah mutasi tersimpan.</p></div>
+          <div className="da-detail-box"><p><strong>Catatan:</strong> {form.notes}</p><p><strong>Alokasi:</strong> Setelah tersimpan, sumber yang memenuhi syarat dapat dibagi melalui menu 4 Amplop.</p></div>
         </div>
-        <div className="da-form-actions" style={{ marginTop: 16 }}><Button variant="ghost" onClick={() => setConfirmOpen(false)}>Batal</Button><Button onClick={submit} disabled={saving}>{saving ? "Menyimpan..." : "Simpan Uang Masuk"}</Button></div>
+        <div className="da-form-actions"><Button variant="ghost" onClick={() => setConfirmOpen(false)}>Batal</Button><Button onClick={submit} disabled={saving}>{saving ? "Menyimpan..." : "Simpan Penerimaan"}</Button></div>
       </Modal>
     </>
   );
