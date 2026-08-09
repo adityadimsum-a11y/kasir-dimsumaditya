@@ -182,15 +182,9 @@ export default function OwnerControlPage({ session, onSessionExpired, onNavigate
   const requestPending = numberValue(summary?.branch?.request_pending_count);
   const unallocated = numberValue(summary?.amplop?.unallocated);
 
-  const priorityRows = actions.length ? actions.slice(0, 5) : [{
-    title: "Operasional terkendali",
-    description: "Belum ada transaksi yang memerlukan tindak lanjut khusus.",
-    amount_label: "-",
-    status: "Aman",
-    support_rows: [],
-  }];
-
+  const priorityRows = actions.slice(0, 5);
   const selectedSupportRows = asArray(selectedAction?.support_rows);
+  const netCashFlow = moneyIn - moneyOut;
 
   return (
     <div className="da-page da-owner-control-v5">
@@ -207,7 +201,7 @@ export default function OwnerControlPage({ session, onSessionExpired, onNavigate
       {error ? <Card tone="danger"><Badge tone="danger">Data belum tersedia</Badge><p className="da-muted" style={{ marginTop: 10 }}>{error}</p></Card> : null}
 
       <section className="da-owner-v5-metric-grid">
-        <MetricCard label="Kas & Bank" value={loading ? "..." : formatRupiah(walletBalance)} helper={`Masuk ${formatRupiah(moneyIn)} · Keluar ${formatRupiah(moneyOut)}`} icon={Wallet} onClick={() => onNavigate?.("kas-dompet")} />
+        <MetricCard label="Kas & Bank" value={loading ? "..." : formatRupiah(walletBalance)} helper={`Arus bersih ${formatRupiah(netCashFlow)} · ${formatNumber(summary?.wallet?.mutation_count || 0)} mutasi`} icon={Wallet} onClick={() => onNavigate?.("kas-dompet")} />
         <MetricCard label="Penjualan" value={loading ? "..." : formatRupiah(salesTotal)} helper={`Piutang ${formatRupiah(receivable)}`} icon={ShoppingCart} onClick={() => onNavigate?.("kasir-order")} />
         <MetricCard label="Hutang Supplier" value={loading ? "..." : formatRupiah(hutangNana)} helper="Posisi Hutang Nana" icon={Banknote} tone={hutangNana > 0 ? "warning" : "success"} onClick={() => onNavigate?.("hutang-nana")} />
         <MetricCard label="Jatuh Tempo" value={loading ? "..." : formatRupiah(ownerDue + payrollDue)} helper={`Kewajiban ${formatRupiah(ownerDue)} · Payroll ${formatRupiah(payrollDue)}`} icon={Activity} tone={(ownerDue + payrollDue) > 0 ? "warning" : "success"} onClick={() => onNavigate?.("kewajiban-owner")} />
@@ -267,7 +261,19 @@ export default function OwnerControlPage({ session, onSessionExpired, onNavigate
 
         <Card className="da-owner-v5-priority-card" title="Prioritas Owner" description="Tindak lanjut yang perlu diperiksa berdasarkan transaksi usaha.">
           <div className="da-owner-v5-priority-list">
-            {priorityRows.map((item, index) => <PriorityRow key={`${item.title}-${index}`} item={item} onClick={setSelectedAction} />)}
+            {priorityRows.length ? (
+              priorityRows.map((item, index) => (
+                <PriorityRow key={`${item.code || item.title}-${index}`} item={item} onClick={setSelectedAction} />
+              ))
+            ) : (
+              <div className="da-owner-v8-empty-priority">
+                <span className="da-owner-v8-empty-dot" />
+                <div>
+                  <strong>Belum ada prioritas yang perlu ditindak</strong>
+                  <small>Daftar ini akan terisi otomatis saat transaksi nyata memerlukan perhatian Owner.</small>
+                </div>
+              </div>
+            )}
           </div>
         </Card>
       </section>
@@ -308,17 +314,24 @@ export default function OwnerControlPage({ session, onSessionExpired, onNavigate
           <div><span>Status</span><strong>{selectedAction?.status || "-"}</strong></div>
           <div><span>Nilai</span><strong>{selectedAction?.amount_label || "-"}</strong></div>
         </div>
-        <DataTable
-          columns={[
-            { key: "date", label: "Tanggal", render: (row) => formatDate(row.date) },
-            { key: "id", label: "ID" },
-            { key: "name", label: "Sumber" },
-            { key: "amount", label: "Nominal", render: (row) => formatRupiah(row.amount || 0) },
-            { key: "status", label: "Status" },
-          ]}
-          rows={selectedSupportRows}
-          getRowKey={(row, index) => `${row.id}-${index}`}
-        />
+        {selectedSupportRows.length ? (
+          <DataTable
+            columns={[
+              { key: "date", label: "Tanggal", render: (row) => formatDate(row.date) },
+              { key: "id", label: "ID" },
+              { key: "name", label: "Sumber" },
+              { key: "amount", label: "Nominal", render: (row) => formatRupiah(row.amount || 0) },
+              { key: "status", label: "Status" },
+            ]}
+            rows={selectedSupportRows}
+            getRowKey={(row, index) => `${row.id}-${index}`}
+          />
+        ) : (
+          <div className="da-owner-v8-action-note">
+            <strong>Ringkasan tindakan</strong>
+            <p>{selectedAction?.description || "Belum ada rincian transaksi tambahan untuk prioritas ini."}</p>
+          </div>
+        )}
       </Modal>
     </div>
   );
