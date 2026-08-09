@@ -856,3 +856,143 @@ button.da-owner-overview-card-v4:hover { transform:translateY(-2px);border-color
   .da-smart-search-all-v7 span{font-size:9.5px;}
   .da-search-master-grid-v7{grid-template-columns:1fr;}
 }
+
+/* =========================================================
+   KENDALI USAHA V8 — LIVE DATA + EXECUTIVE POLISH
+   Keeps business dashboard compact and removes synthetic empty rows.
+   ========================================================= */
+.da-owner-control-v5{
+  --owner-surface:#ffffff;
+  --owner-border:#E6E9EE;
+  --owner-soft:#F7F8FA;
+  --owner-text:#101828;
+  --owner-muted:#667085;
+}
+.da-owner-control-v5 .da-page-header{
+  padding-bottom:2px;
+}
+.da-owner-v5-metric-grid{
+  gap:12px;
+}
+.da-owner-v5-metric{
+  min-height:126px;
+  padding:16px 17px 15px;
+  border-color:var(--owner-border);
+  border-radius:16px;
+  box-shadow:0 3px 12px rgba(16,24,40,.025);
+}
+.da-owner-v5-metric>strong{
+  margin-top:14px;
+  font-size:24px;
+}
+.da-owner-v5-metric>small{
+  margin-top:7px;
+  color:#7C8799;
+}
+.da-owner-v5-main-grid{
+  grid-template-columns:minmax(0,1.78fr) minmax(320px,.68fr);
+  gap:12px;
+}
+.da-owner-v5-business-grid{gap:12px;}
+.da-owner-v5-business-card{
+  padding:16px;
+  border-color:var(--owner-border);
+  border-radius:16px;
+  box-shadow:0 3px 12px rgba(16,24,40,.022);
+}
+.da-owner-v5-business-metrics>div{
+  background:#FAFBFC;
+  border-color:#EEF1F4;
+}
+.da-owner-v5-priority-card{
+  top:76px;
+  border-color:var(--owner-border)!important;
+  box-shadow:0 3px 12px rgba(16,24,40,.025)!important;
+}
+.da-owner-v8-empty-priority{
+  min-height:112px;
+  padding:18px;
+  display:flex;
+  align-items:center;
+  gap:13px;
+  border:1px dashed #D6DAE1;
+  border-radius:14px;
+  background:linear-gradient(145deg,#FCFCFD 0%,#fff 100%);
+}
+.da-owner-v8-empty-dot{
+  width:11px;
+  height:11px;
+  flex:0 0 11px;
+  border-radius:999px;
+  background:#12B76A;
+  box-shadow:0 0 0 5px #ECFDF3;
+}
+.da-owner-v8-empty-priority>div{
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+}
+.da-owner-v8-empty-priority strong{
+  color:#344054;
+  font-size:10px;
+  font-weight:900;
+}
+.da-owner-v8-empty-priority small{
+  margin-top:5px;
+  color:#98A2B3;
+  font-size:8px;
+  line-height:1.45;
+  font-weight:700;
+}
+.da-owner-v5-lower-grid{
+  grid-template-columns:minmax(0,1.72fr) minmax(300px,.62fr);
+  gap:12px;
+  align-items:start;
+}
+.da-owner-v5-lower-grid>.da-card{
+  align-self:start;
+  min-height:0!important;
+}
+.da-owner-v5-flow-stage{
+  min-height:72px;
+  background:#FAFBFC;
+  border-color:#EEF1F4;
+}
+.da-owner-v5-flow-stage>div>strong{font-size:11px;}
+.da-owner-v5-cash-list button{
+  min-height:42px;
+  background:#FAFBFC;
+  border-color:#EEF1F4;
+}
+.da-owner-v5-recent{
+  border-color:var(--owner-border)!important;
+  box-shadow:0 3px 12px rgba(16,24,40,.025)!important;
+}
+.da-owner-v8-action-note{
+  padding:16px;
+  border:1px solid #EAECF0;
+  border-radius:14px;
+  background:#F9FAFB;
+}
+.da-owner-v8-action-note strong{
+  display:block;
+  color:#101828;
+  font-size:12px;
+  font-weight:900;
+}
+.da-owner-v8-action-note p{
+  margin:7px 0 0;
+  color:#667085;
+  font-size:10px;
+  line-height:1.55;
+  font-weight:650;
+}
+
+@media (max-width:1280px){
+  .da-owner-v5-main-grid,.da-owner-v5-lower-grid{grid-template-columns:1fr;}
+  .da-owner-v5-priority-card{position:static;}
+}
+@media (max-width:640px){
+  .da-owner-v5-metric{min-height:116px;}
+  .da-owner-v8-empty-priority{min-height:96px;padding:15px;}
+}
