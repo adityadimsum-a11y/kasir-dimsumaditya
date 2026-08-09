@@ -8,9 +8,9 @@ import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import DataTable from "../../components/ui/DataTable";
+import FinanceSnapshot from "./FinanceSnapshot";
 import Modal from "../../components/ui/Modal";
 import PageHeader from "../../components/ui/PageHeader";
-import StatCard from "../../components/ui/StatCard";
 
 const DEFAULT_ENVELOPES = [
   { envelope_code: "AYAM", envelope_name: "Amplop Ayam", percentage: 0, amount: 0 },
@@ -318,12 +318,16 @@ export default function EmpatAmplopPage({ session, onSessionExpired }) {
       {error ? <div className="da-alert da-alert-danger">{error}</div> : null}
       {success ? <div className="da-form-success">{success}</div> : null}
 
-      <div className="da-finance-kpi-grid">
-        <StatCard tone="warning" label="Belum Dibagi" value={loading ? "..." : formatRupiah(bootstrap.summary.unallocated_income)} description={`${bootstrap.summary.source_count || 0} sumber siap dialokasikan.`} />
-        <StatCard tone="primary" label="Saldo 4 Amplop" value={loading ? "..." : formatRupiah(bootstrap.summary.envelope_balance)} description="Saldo catatan seluruh amplop." />
-        <StatCard label="Sudah Dialokasikan" value={loading ? "..." : formatRupiah(bootstrap.summary.allocated_income)} description={`${bootstrap.summary.allocation_count || 0} sumber sudah dibagi.`} />
-        <StatCard tone={bootstrap.summary.need_source_count > 0 ? "warning" : "success"} label="Perlu Sumber" value={loading ? "..." : formatRupiah(bootstrap.summary.income_need_source)} description={`${bootstrap.summary.need_source_count || 0} mutasi belum dapat dibagi.`} />
-      </div>
+      <FinanceSnapshot
+        eyebrow="Dana Siap Dialokasikan"
+        value={loading ? "..." : formatRupiah(bootstrap.summary.unallocated_income)}
+        caption={`${bootstrap.summary.source_count || 0} sumber uang masuk siap dibagi berdasarkan preset aktif.`}
+        metrics={[
+          { label: "Saldo 4 Amplop", value: loading ? "..." : formatRupiah(bootstrap.summary.envelope_balance), helper: "Saldo catatan seluruh pos", tone: "success" },
+          { label: "Sudah Dialokasikan", value: loading ? "..." : formatRupiah(bootstrap.summary.allocated_income), helper: `${bootstrap.summary.allocation_count || 0} sumber sudah dibagi` },
+          { label: "Perlu Referensi", value: loading ? "..." : formatRupiah(bootstrap.summary.income_need_source), helper: `${bootstrap.summary.need_source_count || 0} transaksi perlu dilengkapi`, tone: bootstrap.summary.need_source_count > 0 ? "warning" : "success" },
+        ]}
+      />
 
       <div className="da-envelope-balance-grid">
         {bootstrap.envelope_balances.map((row) => <Card key={row.envelope_code} className="da-envelope-balance-card"><div className="da-page-kicker">{row.envelope_name}</div><div className="da-big-text">{formatRupiah(row.balance)}</div><div className="da-muted">Masuk {formatRupiah(row.allocated_amount || row.amount)} · Terpakai {formatRupiah(row.used_amount)}</div></Card>)}
