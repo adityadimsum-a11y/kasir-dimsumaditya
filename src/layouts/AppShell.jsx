@@ -8,6 +8,7 @@ export default function AppShell({
   activePage,
   onChangePage,
   onLogout,
+  onSessionExpired,
   children,
 }) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -55,6 +56,7 @@ export default function AppShell({
         <Topbar
           session={session}
           onLogout={onLogout}
+          onSessionExpired={onSessionExpired}
           onOpenSidebar={() => setMobileSidebarOpen(true)}
           onNavigate={handleChangePage}
           pageTitle={activeMeta.pageTitle}
