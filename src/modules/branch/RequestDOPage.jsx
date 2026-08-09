@@ -15,6 +15,7 @@ import DataTable from "../../components/ui/DataTable";
 import Modal from "../../components/ui/Modal";
 import PageHeader from "../../components/ui/PageHeader";
 import StatCard from "../../components/ui/StatCard";
+import SalesFlowPanel from "../sales/SalesFlowPanel";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const num = (value) => {
@@ -54,6 +55,22 @@ const statusTone = (status) => {
 };
 const pcs = (value) => `${num(value).toLocaleString("id-ID")} pcs`;
 
+const statusLabel = (status) => {
+  const value = String(status || "").toUpperCase();
+  const labels = {
+    PENDING: "Menunggu",
+    APPROVED: "Disetujui",
+    IN_TRANSIT: "Dalam Perjalanan",
+    PARTIAL_RECEIVED: "Diterima Sebagian",
+    RECEIVED: "Diterima",
+    RECEIVED_WITH_DIFFERENCE: "Diterima dengan Selisih",
+    REJECTED: "Ditolak",
+    CANCELLED: "Dibatalkan",
+    POSTED: "Tercatat",
+  };
+  return labels[value] || text(status);
+};
+
 function normalizePayload(payload) {
   const data = payload?.data || payload || {};
   return {
@@ -67,6 +84,8 @@ function normalizePayload(payload) {
       total_requested_pcs: num(data.summary?.total_requested_pcs),
       total_shipped_pcs: num(data.summary?.total_shipped_pcs),
       total_received_pcs: num(data.summary?.total_received_pcs),
+      total_difference_pcs: num(data.summary?.total_difference_pcs),
+      total_in_transit_pcs: num(data.summary?.total_in_transit_pcs),
       total_stock_free_pcs: num(data.summary?.total_stock_free_pcs),
     },
     stock: asArray(data.finished_stock || data.stock_ready).map((row) => ({
@@ -131,11 +150,14 @@ export default function RequestDOPage({ session, onSessionExpired }) {
     needed_date: currentDate,
     source_location: "TGR",
     destination_location: "",
-    notes: "Request barang cabang.",
+    notes: "",
   });
   const [itemDraft, setItemDraft] = useState({ product_id: "", qty: "" });
   const [requestItems, setRequestItems] = useState([]);
   const [selectedRequest, setSelectedRequest] = useState(null);
+  const [requestFormOpen, setRequestFormOpen] = useState(false);
+  const [activeView, setActiveView] = useState("requests");
+  const [decisionReason, setDecisionReason] = useState("");
   const [selectedDO, setSelectedDO] = useState(null);
   const [approvalQty, setApprovalQty] = useState({});
   const [receiveQty, setReceiveQty] = useState({});
@@ -144,7 +166,7 @@ export default function RequestDOPage({ session, onSessionExpired }) {
     close_delivery: false,
     discrepancy_reason: "",
     proof_reference: "",
-    notes: "Barang diterima cabang.",
+    notes: "",
   });
 
   const isGlobal = Boolean(data.access?.is_global)
@@ -290,12 +312,14 @@ export default function RequestDOPage({ session, onSessionExpired }) {
     );
     if (ok) {
       setRequestItems([]);
-      setRequestDraft((current) => ({ ...current, notes: "Request barang cabang." }));
+      setRequestDraft((current) => ({ ...current, notes: "" }));
+      setRequestFormOpen(false);
     }
   };
 
   const openRequest = (row) => {
     setSelectedRequest(row);
+    setDecisionReason("");
     setApprovalQty(Object.fromEntries(
       row.items.map((item) => [item.request_item_id, String(num(item.qty_requested))])
     ));
@@ -311,7 +335,7 @@ export default function RequestDOPage({ session, onSessionExpired }) {
           request_item_id: item.request_item_id,
           qty_approved: num(approvalQty[item.request_item_id]),
         })),
-        notes: "Disetujui Tangerang.",
+        notes: "Disetujui untuk diproses pengiriman.",
         operation_id: makeOperationId("BRANCH-APPROVE"),
       }),
       "Request berhasil disetujui."
@@ -322,8 +346,11 @@ export default function RequestDOPage({ session, onSessionExpired }) {
   const rejectRequest = async () => {
     const row = selectedRequest;
     if (!row) return;
-    const reason = window.prompt("Tuliskan alasan penolakan request:", "Stok atau jadwal pengiriman belum memungkinkan.");
-    if (!reason) return;
+    const reason = decisionReason.trim();
+    if (!reason) {
+      setError("Alasan penolakan wajib diisi.");
+      return;
+    }
     const ok = await runWrite(
       () => rejectBranchGoodsRequest(sessionToken, {
         request_id: row.request_id,
@@ -332,36 +359,41 @@ export default function RequestDOPage({ session, onSessionExpired }) {
       }),
       "Request berhasil ditolak."
     );
-    if (ok) setSelectedRequest(null);
+    if (ok) { setSelectedRequest(null); setDecisionReason(""); }
   };
 
   const cancelRequest = async () => {
     const row = selectedRequest;
-    if (!row || !window.confirm(`Batalkan request ${row.request_id}?`)) return;
+    if (!row) return;
+    const reason = decisionReason.trim();
+    if (!reason) {
+      setError("Alasan pembatalan wajib diisi.");
+      return;
+    }
     const ok = await runWrite(
       () => cancelBranchGoodsRequest(sessionToken, {
         request_id: row.request_id,
-        reason: "Dibatalkan sebelum approval.",
+        reason,
         operation_id: makeOperationId("BRANCH-CANCEL"),
       }),
       "Request dibatalkan."
     );
-    if (ok) setSelectedRequest(null);
+    if (ok) { setSelectedRequest(null); setDecisionReason(""); }
   };
 
   const createDO = async () => {
     const row = selectedRequest;
-    if (!row || !window.confirm(`Buat dan kirim DO dari ${row.request_id}? Stok sumber akan berkurang.`)) return;
+    if (!row) return;
     const ok = await runWrite(
       () => createDeliveryOrderFromRequest(sessionToken, {
         request_id: row.request_id,
         do_date: currentDate,
-        notes: "DO dibuat dari request barang cabang.",
+        notes: "Pengiriman barang antar lokasi.",
         operation_id: makeOperationId("DELIVERY-ORDER"),
       }),
-      "DO berhasil dibuat dan dikirim."
+      "DO berhasil dibuat dan barang keluar dari stok sumber."
     );
-    if (ok) setSelectedRequest(null);
+    if (ok) { setSelectedRequest(null); setActiveView("delivery"); }
   };
 
   const openDO = (row) => {
@@ -377,7 +409,7 @@ export default function RequestDOPage({ session, onSessionExpired }) {
       close_delivery: false,
       discrepancy_reason: "",
       proof_reference: "",
-      notes: "Barang diterima cabang.",
+      notes: "",
     });
   };
 
@@ -402,7 +434,6 @@ export default function RequestDOPage({ session, onSessionExpired }) {
         return;
       }
     }
-    if (!window.confirm(`Konfirmasi penerimaan ${row.do_id}? Stok lokasi tujuan akan bertambah.`)) return;
     const ok = await runWrite(
       () => receiveDeliveryOrder(sessionToken, {
         do_id: row.do_id,
@@ -429,7 +460,7 @@ export default function RequestDOPage({ session, onSessionExpired }) {
     { key: "items", label: "Produk", render: (row) => `${row.items.length} produk` },
     { key: "qty", label: "Diminta", render: (row) => pcs(row.qty_pcs) },
     { key: "approved", label: "Disetujui", render: (row) => pcs(row.approved_qty_pcs) },
-    { key: "status", label: "Status", render: (row) => <Badge tone={statusTone(row.status)}>{row.status}</Badge> },
+    { key: "status", label: "Status", render: (row) => <Badge tone={statusTone(row.status)}>{statusLabel(row.status)}</Badge> },
   ];
   const doColumns = [
     { key: "do_date", label: "Tanggal", render: (row) => displayDate(row.do_date) },
@@ -437,7 +468,7 @@ export default function RequestDOPage({ session, onSessionExpired }) {
     { key: "route", label: "Rute", render: (row) => `${row.source_location} → ${row.destination_location}` },
     { key: "shipped", label: "Dikirim", render: (row) => pcs(row.qty_pcs) },
     { key: "received", label: "Diterima", render: (row) => pcs(row.received_qty_pcs) },
-    { key: "status", label: "Status", render: (row) => <Badge tone={statusTone(row.status)}>{row.status}</Badge> },
+    { key: "status", label: "Status", render: (row) => <Badge tone={statusTone(row.status)}>{statusLabel(row.status)}</Badge> },
   ];
   const stockColumns = [
     { key: "product_name", label: "Produk", render: (row) => <strong>{row.product_name}</strong> },
@@ -454,236 +485,199 @@ export default function RequestDOPage({ session, onSessionExpired }) {
     isGlobal || selectedDO.destination_location_id === userLocationId
   );
 
+  const requestCount = data.requests.length;
+  const deliveryCount = data.deliveryOrders.length;
+  const sourceFree = data.summary.total_stock_free_pcs;
+  const inTransit = data.summary.in_transit_do_count;
+  const inTransitQty = data.summary.total_in_transit_pcs;
+
   return (
-    <>
+    <div className="da-sales-page">
       <PageHeader
-        eyebrow="DIMSUM ADITYA"
+        eyebrow="PENJUALAN & DISTRIBUSI"
         title="Request Barang & DO"
-        description="Cabang meminta barang, Tangerang menyetujui dan mengirim, lalu stok cabang bertambah hanya setelah penerimaan dikonfirmasi. Bukan penjualan dan bukan uang masuk."
-        badge="Distribusi Aktif"
+        description="Kelola permintaan cabang, persetujuan, pengiriman, dan penerimaan stok antar lokasi dalam satu ruang kerja."
       />
 
-      <Card>
-        <div className="da-card-header-inline">
-          <div>
-            <div className="da-section-eyebrow">ANTAR-LOKASI</div>
-            <h2 className="da-section-title">Request → Approval → DO → In Transit → Receive</h2>
-            <p className="da-section-desc">
-              HPP historis mengikuti cost layer sumber. Barang In Transit tidak dihitung sebagai stok tujuan.
-            </p>
-          </div>
-          <div className="da-header-actions">
-            <Badge tone={data.health?.ready ? "success" : "danger"}>
-              {data.health?.ready ? "DO Live Ready" : "Migration 018 Belum Siap"}
-            </Badge>
-            <Badge tone="warning">Bukan Omzet</Badge>
-            <Button variant="secondary" onClick={loadData} disabled={loading || saving}>Refresh Data</Button>
-          </div>
-        </div>
-        {error ? <div className="da-form-error">{error}</div> : null}
-        {success ? <div className="da-form-success">{success}</div> : null}
-        {data.warnings.map((warning) => <div className="da-alert-note" key={warning}>{warning}</div>)}
-      </Card>
+      <div className="da-sales-head-actions">
+        <SalesFlowPanel
+          session={session}
+          onSessionExpired={onSessionExpired}
+          activeStep="distribution"
+          refreshKey={requestCount + deliveryCount}
+        />
+        <Button variant="secondary" onClick={loadData} disabled={loading || saving}>
+          {loading ? "Memuat..." : "Perbarui"}
+        </Button>
+        <Button onClick={() => setRequestFormOpen(true)}>+ Buat Request</Button>
+      </div>
 
-      <section className="da-stat-grid da-stat-grid-3">
-        <StatCard label="Request Pending" value={data.summary.pending_request_count.toLocaleString("id-ID")} tone="warning" description="Menunggu Tangerang." />
-        <StatCard label="Request Approved" value={data.summary.approved_request_count.toLocaleString("id-ID")} tone="success" description="Siap dibuat DO." />
-        <StatCard label="DO In Transit" value={data.summary.in_transit_do_count.toLocaleString("id-ID")} tone="warning" description="Belum menjadi stok cabang." />
-        <StatCard label="DO Diterima" value={data.summary.received_do_count.toLocaleString("id-ID")} tone="success" description="Sudah masuk stok tujuan." />
-        <StatCard label="Qty Dikirim" value={pcs(data.summary.total_shipped_pcs)} description="Total dalam periode." />
-        <StatCard label="Stok Bisa Dikirim" value={pcs(data.summary.total_stock_free_pcs)} description="Stok bebas sumber." />
+      {error ? <div className="da-form-error">{error}</div> : null}
+      {success ? <div className="da-form-success">{success}</div> : null}
+      {data.warnings.map((warning) => <div className="da-alert-note" key={warning}>{warning}</div>)}
+
+      <section className="da-sales-kpi-grid">
+        <StatCard onClick={() => setActiveView("requests")} label="Request Pending" value={data.summary.pending_request_count.toLocaleString("id-ID")} tone="warning" description="Menunggu persetujuan pusat." />
+        <StatCard onClick={() => setActiveView("requests")} label="Siap Dikirim" value={data.summary.approved_request_count.toLocaleString("id-ID")} tone="success" description="Request approved yang dapat dibuatkan DO." />
+        <StatCard onClick={() => setActiveView("delivery")} label="Dalam Perjalanan" value={inTransit.toLocaleString("id-ID")} tone="warning" description="Sudah keluar sumber, belum diterima tujuan." />
+        <StatCard onClick={() => setActiveView("stock")} label="Stok Bisa Dikirim" value={pcs(sourceFree)} description="Persediaan bebas pada lokasi sumber." />
       </section>
 
-      <Card>
-        <div className="da-card-header-inline">
-          <div>
-            <div className="da-section-eyebrow">REQUEST CABANG</div>
-            <h2 className="da-section-title">Buat Permintaan Barang</h2>
-            <p className="da-section-desc">Request boleh dibuat saat stok masih 0. Approval dan DO baru bisa berjalan ketika stok sumber cukup.</p>
+      <section className="da-sales-workspace-8-4">
+        <Card className="da-sales-main-panel">
+          <div className="da-sales-tabs">
+            <button type="button" className={activeView === "requests" ? "active" : ""} onClick={() => setActiveView("requests")}>Request <span>{requestCount}</span></button>
+            <button type="button" className={activeView === "delivery" ? "active" : ""} onClick={() => setActiveView("delivery")}>Delivery Order <span>{deliveryCount}</span></button>
+            <button type="button" className={activeView === "stock" ? "active" : ""} onClick={() => setActiveView("stock")}>Stok Sumber</button>
           </div>
-          <Badge tone="warning">Belum Potong Stok</Badge>
-        </div>
 
-        <div className="da-form-grid da-form-grid-4">
-          <label className="da-form-field">
-            <span>Tanggal Request</span>
-            <input type="date" value={requestDraft.request_date} onChange={(event) => setRequestDraft((current) => ({ ...current, request_date: event.target.value }))} />
-          </label>
-          <label className="da-form-field">
-            <span>Dibutuhkan Tanggal</span>
-            <input type="date" value={requestDraft.needed_date} onChange={(event) => setRequestDraft((current) => ({ ...current, needed_date: event.target.value }))} />
-          </label>
-          <label className="da-form-field">
-            <span>Lokasi Sumber</span>
-            <select value={requestDraft.source_location} disabled>
-              <option value={tangerangLocation?.location_id || "TGR"}>Tangerang HO · TGR</option>
-            </select>
-          </label>
-          <label className="da-form-field">
-            <span>Lokasi Tujuan</span>
-            <select
-              value={requestDraft.destination_location}
-              disabled={!isGlobal}
-              onChange={(event) => setRequestDraft((current) => ({ ...current, destination_location: event.target.value }))}
-            >
-              <option value="">Pilih lokasi</option>
-              {destinationOptions.map((location) => (
-                <option key={location.location_id} value={location.location_id}>
-                  {location.location_name} · {location.location_code}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+          <div className="da-sales-filterbar da-sales-filterbar-wide">
+            <label><span>Mulai</span><input className="da-input" type="date" value={filter.date_start} onChange={(event) => setFilter((current) => ({ ...current, date_start: event.target.value }))} /></label>
+            <label><span>Sampai</span><input className="da-input" type="date" value={filter.date_end} onChange={(event) => setFilter((current) => ({ ...current, date_end: event.target.value }))} /></label>
+            <label>
+              <span>Tujuan</span>
+              <select className="da-select" value={filter.destination_location} disabled={!isGlobal} onChange={(event) => setFilter((current) => ({ ...current, destination_location: event.target.value }))}>
+                <option value="ALL">Semua lokasi</option>
+                {destinationOptions.map((location) => <option key={location.location_id} value={location.location_id}>{location.location_name}</option>)}
+              </select>
+            </label>
+            <label>
+              <span>Status</span>
+              <select className="da-select" value={filter.status} onChange={(event) => setFilter((current) => ({ ...current, status: event.target.value }))}>
+                <option value="ALL">Semua</option>
+                <option value="PENDING">Pending</option>
+                <option value="APPROVED">Approved</option>
+                <option value="IN_TRANSIT">Dalam perjalanan</option>
+                <option value="PARTIAL_RECEIVED">Diterima sebagian</option>
+                <option value="RECEIVED">Diterima</option>
+                <option value="REJECTED">Ditolak</option>
+                <option value="CANCELLED">Dibatalkan</option>
+              </select>
+            </label>
+            <Button variant="secondary" onClick={loadData} disabled={loading}>Terapkan</Button>
+          </div>
 
-        <div className="da-form-grid da-form-grid-4">
-          <label className="da-form-field da-form-field-wide">
-            <span>Produk</span>
-            <select value={itemDraft.product_id} onChange={(event) => setItemDraft((current) => ({ ...current, product_id: event.target.value }))}>
-              <option value="">Pilih produk</option>
-              {data.products.map((product) => (
-                <option key={product.product_id} value={product.product_id}>
-                  {product.product_name} · stok bebas TGR {pcs(data.stock.find((row) => row.product_id === product.product_id)?.free_pcs || 0)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="da-form-field">
-            <span>Qty / Pcs</span>
-            <input type="number" min="1" step="1" value={itemDraft.qty} onChange={(event) => setItemDraft((current) => ({ ...current, qty: event.target.value }))} placeholder="Contoh: 500" />
-          </label>
-          <div className="da-form-field">
-            <span>&nbsp;</span>
-            <Button variant="secondary" onClick={addRequestItem} disabled={saving}>Tambah ke Request</Button>
+          {activeView === "requests" ? (
+            <>
+              <div className="da-section-heading"><div><div className="da-mini-title">PERMINTAAN CABANG</div><div className="da-big-text">Request Barang</div><p className="da-muted">Klik baris untuk approval, penolakan, pembatalan, atau pembuatan DO.</p></div><Button variant="secondary" onClick={() => setRequestFormOpen(true)}>Request Baru</Button></div>
+              <DataTable columns={requestColumns} rows={data.requests} getRowKey={(row) => row.request_id} onRowClick={openRequest} />
+              {!loading && data.requests.length === 0 ? <div className="da-sales-empty">Belum ada request barang pada periode ini.</div> : null}
+            </>
+          ) : null}
+
+          {activeView === "delivery" ? (
+            <>
+              <div className="da-section-heading"><div><div className="da-mini-title">PENGIRIMAN ANTAR LOKASI</div><div className="da-big-text">Delivery Order</div><p className="da-muted">Barang keluar dari lokasi sumber saat DO dibuat dan masuk ke tujuan saat penerimaan dikonfirmasi.</p></div></div>
+              <DataTable columns={doColumns} rows={data.deliveryOrders} getRowKey={(row) => row.do_id} onRowClick={openDO} />
+              {!loading && data.deliveryOrders.length === 0 ? <div className="da-sales-empty">Belum ada pengiriman pada periode ini.</div> : null}
+            </>
+          ) : null}
+
+          {activeView === "stock" ? (
+            <>
+              <div className="da-section-heading"><div><div className="da-mini-title">PERSEDIAAN SUMBER</div><div className="da-big-text">Stok yang Bisa Dikirim</div><p className="da-muted">Stok bebas setelah dikurangi reservasi PO aktif.</p></div></div>
+              <DataTable columns={stockColumns} rows={data.stock} getRowKey={(row) => `${row.location_id}-${row.product_id}`} />
+              {!loading && data.stock.length === 0 ? <div className="da-sales-empty">Belum ada stok sumber yang tersedia.</div> : null}
+            </>
+          ) : null}
+        </Card>
+
+        <Card className="da-sales-side-panel">
+          <div className="da-mini-title">POSISI DISTRIBUSI</div>
+          <div className="da-sales-side-hero">
+            <span>Barang dalam perjalanan</span>
+            <strong>{pcs(inTransitQty)}</strong>
+            <small>{inTransit.toLocaleString("id-ID")} DO masih berjalan</small>
+          </div>
+          <div className="da-sales-side-list">
+            <div><span>Request pending</span><strong>{data.summary.pending_request_count.toLocaleString("id-ID")}</strong></div>
+            <div><span>Request approved</span><strong>{data.summary.approved_request_count.toLocaleString("id-ID")}</strong></div>
+            <div><span>Sudah diterima</span><strong>{pcs(data.summary.total_received_pcs)}</strong></div>
+            <div><span>Stok bebas sumber</span><strong>{pcs(sourceFree)}</strong></div>
+          </div>
+          <p className="da-sales-footnote">Transfer antar lokasi tidak membentuk omzet atau uang masuk. Nilai persediaan mengikuti HPP historis dari cost layer sumber.</p>
+        </Card>
+      </section>
+
+      <Modal
+        open={requestFormOpen}
+        title="Buat Request Barang"
+        subtitle="Request mencatat kebutuhan cabang. Stok baru keluar setelah DO dibuat."
+        size="xl"
+        onClose={() => { if (!saving) setRequestFormOpen(false); }}
+      >
+        <div className="da-sales-form-stack">
+          <section className="da-sales-form-section">
+            <div className="da-sales-form-section-title"><span>01</span><div><strong>Jadwal & Rute</strong><small>Tentukan sumber, tujuan, dan tanggal kebutuhan.</small></div></div>
+            <div className="da-drop-form-grid">
+              <div className="da-drop-field"><label>Tanggal Request</label><input className="da-input" type="date" value={requestDraft.request_date} onChange={(event) => setRequestDraft((current) => ({ ...current, request_date: event.target.value }))} /></div>
+              <div className="da-drop-field"><label>Dibutuhkan Tanggal</label><input className="da-input" type="date" value={requestDraft.needed_date} onChange={(event) => setRequestDraft((current) => ({ ...current, needed_date: event.target.value }))} /></div>
+              <div className="da-drop-field"><label>Lokasi Sumber</label><input className="da-input" value={tangerangLocation?.location_name || "Tangerang HO"} disabled /></div>
+              <div className="da-drop-field"><label>Lokasi Tujuan</label><select className="da-select" value={requestDraft.destination_location} disabled={!isGlobal} onChange={(event) => setRequestDraft((current) => ({ ...current, destination_location: event.target.value }))}>{destinationOptions.map((location) => <option key={location.location_id} value={location.location_id}>{location.location_name}</option>)}</select></div>
+            </div>
+          </section>
+
+          <section className="da-sales-form-section">
+            <div className="da-sales-form-section-title"><span>02</span><div><strong>Barang yang Diminta</strong><small>Request boleh dibuat walau stok sumber belum mencukupi; approval dan pengiriman tetap divalidasi backend.</small></div></div>
+            <div className="da-sales-product-row">
+              <label><span>Produk</span><select className="da-select" value={itemDraft.product_id} onChange={(event) => setItemDraft((current) => ({ ...current, product_id: event.target.value }))}>{data.products.map((product) => <option key={product.product_id} value={product.product_id}>{product.product_name}{data.stock.find((row) => row.product_id === product.product_id) ? ` · tersedia ${pcs(data.stock.find((row) => row.product_id === product.product_id)?.free_pcs)}` : ""}</option>)}</select></label>
+              <label><span>Qty / Pcs</span><input className="da-input" inputMode="numeric" value={itemDraft.qty} onChange={(event) => setItemDraft((current) => ({ ...current, qty: event.target.value }))} placeholder="Jumlah pcs" /></label>
+              <Button variant="secondary" onClick={addRequestItem}>Tambah Barang</Button>
+            </div>
+            <DataTable
+              columns={[
+                { key: "product_name", label: "Produk", render: (row) => <strong>{row.product_name}</strong> },
+                { key: "qty", label: "Diminta", render: (row) => pcs(row.qty) },
+                { key: "free", label: "Stok Bebas Saat Ini", render: (row) => pcs(row.free_pcs) },
+                { key: "action", label: "Aksi", render: (row) => <Button variant="ghost" onClick={() => setRequestItems((current) => current.filter((item) => item.product_id !== row.product_id))}>Hapus</Button> },
+              ]}
+              rows={requestItems}
+              getRowKey={(row) => row.product_id}
+            />
+          </section>
+
+          <section className="da-sales-form-section">
+            <div className="da-sales-form-section-title"><span>03</span><div><strong>Catatan Permintaan</strong><small>Catatan operasional untuk tim pusat dan cabang.</small></div></div>
+            <div className="da-drop-field"><label>Catatan</label><textarea className="da-input" rows="3" value={requestDraft.notes} onChange={(event) => setRequestDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Opsional" /></div>
+            <div className="da-sales-total-grid">
+              <div><span>Produk</span><strong>{requestItems.length}</strong></div>
+              <div><span>Total diminta</span><strong>{pcs(requestItems.reduce((sum, row) => sum + num(row.qty), 0))}</strong></div>
+              <div className="highlight"><span>Tujuan</span><strong>{selectedDestination?.location_name || "-"}</strong></div>
+            </div>
+          </section>
+
+          <div className="da-form-actions da-sales-sticky-actions">
+            <Button variant="ghost" onClick={() => setRequestItems([])} disabled={saving}>Reset Item</Button>
+            <Button onClick={submitRequest} disabled={saving || requestItems.length === 0}>{saving ? "Menyimpan..." : "Simpan Request"}</Button>
           </div>
         </div>
-
-        <DataTable
-          columns={[
-            { key: "product_name", label: "Produk" },
-            { key: "qty", label: "Diminta", render: (row) => pcs(row.qty) },
-            { key: "free_pcs", label: "Stok Bebas Saat Ini", render: (row) => pcs(row.free_pcs) },
-            {
-              key: "action",
-              label: "Aksi",
-              render: (row) => <Button variant="primary" onClick={(event) => {
-                event.stopPropagation();
-                setRequestItems((current) => current.filter((item) => item.product_id !== row.product_id));
-              }}>Hapus</Button>,
-            },
-          ]}
-          rows={requestItems}
-          getRowKey={(row) => row.product_id}
-        />
-
-        <div className="da-form-grid">
-          <label className="da-form-field da-form-field-wide">
-            <span>Catatan Request</span>
-            <input value={requestDraft.notes} onChange={(event) => setRequestDraft((current) => ({ ...current, notes: event.target.value }))} />
-          </label>
-        </div>
-        <div className="da-preview-strip">
-          Tujuan: <strong>{selectedDestination?.location_name || "belum dipilih"}</strong> · {requestItems.length} produk · total {pcs(requestItems.reduce((sum, row) => sum + num(row.qty), 0))} · belum memengaruhi omzet, dompet, atau stok.
-        </div>
-        <div className="da-form-actions">
-          <Button variant="secondary" onClick={() => setRequestItems([])} disabled={saving}>Reset Item</Button>
-          <Button onClick={submitRequest} disabled={saving || loading || !data.health?.ready}>
-            {saving ? "Menyimpan..." : "Simpan Request Barang"}
-          </Button>
-        </div>
-      </Card>
-
-      <Card>
-        <div className="da-card-header-inline">
-          <div>
-            <div className="da-section-eyebrow">FILTER & MONITOR</div>
-            <h2 className="da-section-title">Request Barang yang Tercatat</h2>
-            <p className="da-section-desc">Klik ID untuk approval, penolakan, pembatalan, atau pembuatan DO sesuai hak akun.</p>
-          </div>
-          <Badge tone="success">Data Aktual</Badge>
-        </div>
-        <div className="da-form-grid da-form-grid-4">
-          <label className="da-form-field"><span>Mulai</span><input type="date" value={filter.date_start} onChange={(event) => setFilter((current) => ({ ...current, date_start: event.target.value }))} /></label>
-          <label className="da-form-field"><span>Sampai</span><input type="date" value={filter.date_end} onChange={(event) => setFilter((current) => ({ ...current, date_end: event.target.value }))} /></label>
-          <label className="da-form-field">
-            <span>Tujuan</span>
-            <select value={filter.destination_location} disabled={!isGlobal} onChange={(event) => setFilter((current) => ({ ...current, destination_location: event.target.value }))}>
-              <option value="ALL">Semua lokasi</option>
-              {destinationOptions.map((location) => <option key={location.location_id} value={location.location_id}>{location.location_name}</option>)}
-            </select>
-          </label>
-          <label className="da-form-field">
-            <span>Status</span>
-            <select value={filter.status} onChange={(event) => setFilter((current) => ({ ...current, status: event.target.value }))}>
-              <option value="ALL">Semua</option>
-              <option value="PENDING">Pending</option>
-              <option value="APPROVED">Approved</option>
-              <option value="IN_TRANSIT">In Transit</option>
-              <option value="PARTIAL_RECEIVED">Diterima Sebagian</option>
-              <option value="RECEIVED">Diterima</option>
-              <option value="REJECTED">Ditolak</option>
-              <option value="CANCELLED">Dibatalkan</option>
-            </select>
-          </label>
-        </div>
-        <div className="da-form-actions"><Button variant="secondary" onClick={loadData} disabled={loading}>Tarik Data</Button></div>
-        <DataTable columns={requestColumns} rows={data.requests} getRowKey={(row) => row.request_id} onRowClick={openRequest} />
-      </Card>
-
-      <Card>
-        <div className="da-card-header-inline">
-          <div>
-            <div className="da-section-eyebrow">DELIVERY ORDER</div>
-            <h2 className="da-section-title">Kirim Barang & Penerimaan Cabang</h2>
-            <p className="da-section-desc">Stock OUT terjadi ketika DO dibuat. Stock IN tujuan terjadi ketika cabang menekan terima.</p>
-          </div>
-          <Badge tone="warning">In Transit Tidak Dihitung Stok Cabang</Badge>
-        </div>
-        <DataTable columns={doColumns} rows={data.deliveryOrders} getRowKey={(row) => row.do_id} onRowClick={openDO} />
-      </Card>
-
-      <Card>
-        <div className="da-card-header-inline">
-          <div>
-            <div className="da-section-eyebrow">STOK SUMBER</div>
-            <h2 className="da-section-title">Stok Tangerang yang Bisa Dikirim</h2>
-            <p className="da-section-desc">Stok bebas adalah stok fisik dikurangi alokasi PO aktif.</p>
-          </div>
-          <Badge tone="success">Cost Layer PHP/MySQL</Badge>
-        </div>
-        <DataTable columns={stockColumns} rows={data.stock} getRowKey={(row) => `${row.location_id}-${row.product_id}`} />
-      </Card>
+      </Modal>
 
       <Modal
         open={Boolean(selectedRequest)}
-        title="Detail Request Barang"
-        subtitle={selectedRequest?.request_id}
-        onClose={() => setSelectedRequest(null)}
+        title={selectedRequest ? `Request ${selectedRequest.request_id}` : "Detail Request"}
+        subtitle={selectedRequest ? `${selectedRequest.source_location} → ${selectedRequest.destination_location}` : ""}
+        size="xl"
+        onClose={() => { setSelectedRequest(null); setDecisionReason(""); }}
       >
         {selectedRequest ? (
-          <div className="da-detail-stack">
-            <div className="da-detail-grid">
-              <div className="da-detail-box">
-                <div className="da-detail-label">Rute Barang</div>
-                <div className="da-detail-value">{selectedRequest.source_location} → {selectedRequest.destination_location}</div>
-                <p>Dibuat: <strong>{displayDate(selectedRequest.request_date)}</strong></p>
-                <p>Dibutuhkan: <strong>{displayDate(selectedRequest.needed_date)}</strong></p>
-              </div>
-              <div className="da-detail-box">
-                <div className="da-detail-label">Status</div>
-                <div className="da-detail-value"><Badge tone={statusTone(selectedRequest.status)}>{selectedRequest.status}</Badge></div>
-                <p>DO terkait: <strong>{text(selectedRequest.delivery_order_id)}</strong></p>
-              </div>
+          <div className="da-sales-form-stack">
+            <div className="da-sales-detail-summary">
+              <div><span>Status</span><Badge tone={statusTone(selectedRequest.status)}>{statusLabel(selectedRequest.status)}</Badge></div>
+              <div><span>Dibuat</span><strong>{displayDate(selectedRequest.request_date)}</strong></div>
+              <div><span>Dibutuhkan</span><strong>{displayDate(selectedRequest.needed_date)}</strong></div>
+              <div><span>DO terkait</span><strong>{text(selectedRequest.delivery_order_id)}</strong></div>
             </div>
+
             <DataTable
               columns={[
                 { key: "product_name", label: "Produk" },
                 { key: "requested", label: "Diminta", render: (row) => pcs(row.qty_requested) },
                 {
                   key: "approved",
-                  label: "Qty Approval",
+                  label: "Qty Disetujui",
                   render: (row) => selectedRequest.status === "PENDING" && canApprove
-                    ? <input type="number" min="1" max={num(row.qty_requested)} value={approvalQty[row.request_item_id] || ""} onChange={(event) => setApprovalQty((current) => ({ ...current, [row.request_item_id]: event.target.value }))} />
+                    ? <input className="da-input da-inline-number" type="number" min="0" max={num(row.qty_requested)} value={approvalQty[row.request_item_id] || ""} onChange={(event) => setApprovalQty((current) => ({ ...current, [row.request_item_id]: event.target.value }))} />
                     : pcs(row.qty_approved),
                 },
                 { key: "fulfilled", label: "Diterima", render: (row) => pcs(row.qty_fulfilled) },
@@ -691,38 +685,48 @@ export default function RequestDOPage({ session, onSessionExpired }) {
               rows={selectedRequest.items}
               getRowKey={(row) => row.request_item_id}
             />
+
             {selectedRequest.rejection_reason ? <div className="da-form-error">Alasan: {selectedRequest.rejection_reason}</div> : null}
-            <div className="da-alert-note">Request bukan transaksi jual. Approval belum memotong stok. Stok baru keluar ketika DO dibuat.</div>
-            <div className="da-form-actions">
-              {selectedRequest.status === "PENDING" && canApprove ? <Button onClick={approveRequest} disabled={saving}>Approve Request</Button> : null}
-              {selectedRequest.status === "PENDING" && canApprove ? <Button variant="primary" onClick={rejectRequest} disabled={saving}>Tolak</Button> : null}
-              {selectedRequest.status === "PENDING" && !canApprove ? <Button variant="primary" onClick={cancelRequest} disabled={saving}>Batalkan Request</Button> : null}
-              {selectedRequest.status === "APPROVED" && canCreateDO && !selectedRequest.delivery_order_id ? <Button onClick={createDO} disabled={saving}>Buat & Kirim DO</Button> : null}
-            </div>
+
+            {selectedRequest.status === "PENDING" ? (
+              <section className="da-sales-form-section">
+                <div className="da-sales-form-section-title"><span>01</span><div><strong>Keputusan Request</strong><small>Approval belum mengurangi stok. Stok keluar hanya ketika DO dibuat.</small></div></div>
+                <div className="da-form-actions">
+                  {canApprove ? <Button onClick={approveRequest} disabled={saving}>Setujui Request</Button> : null}
+                </div>
+                <div className="da-drop-field"><label>{canApprove ? "Alasan bila ditolak" : "Alasan pembatalan"}</label><textarea className="da-input" rows="3" value={decisionReason} onChange={(event) => setDecisionReason(event.target.value)} placeholder="Wajib diisi untuk menolak atau membatalkan" /></div>
+                <div className="da-form-actions">
+                  {canApprove ? <Button variant="ghost" onClick={rejectRequest} disabled={saving}>Tolak Request</Button> : <Button variant="ghost" onClick={cancelRequest} disabled={saving}>Batalkan Request</Button>}
+                </div>
+              </section>
+            ) : null}
+
+            {selectedRequest.status === "APPROVED" && canCreateDO && !selectedRequest.delivery_order_id ? (
+              <section className="da-sales-form-section">
+                <div className="da-sales-form-section-title"><span>02</span><div><strong>Buat Delivery Order</strong><small>Stok sumber akan keluar dan nilainya berpindah ke Persediaan Dalam Perjalanan.</small></div></div>
+                <div className="da-form-actions"><Button onClick={createDO} disabled={saving}>{saving ? "Memproses..." : "Buat & Kirim DO"}</Button></div>
+              </section>
+            ) : null}
           </div>
         ) : null}
       </Modal>
 
       <Modal
         open={Boolean(selectedDO)}
-        title="Detail Delivery Order"
-        subtitle={selectedDO?.do_id}
+        title={selectedDO ? `Delivery Order ${selectedDO.do_id}` : "Detail Delivery Order"}
+        subtitle={selectedDO ? `${selectedDO.source_location} → ${selectedDO.destination_location}` : ""}
+        size="xl"
         onClose={() => setSelectedDO(null)}
       >
         {selectedDO ? (
-          <div className="da-detail-stack">
-            <div className="da-detail-grid">
-              <div className="da-detail-box">
-                <div className="da-detail-label">Rute Barang</div>
-                <div className="da-detail-value">{selectedDO.source_location} → {selectedDO.destination_location}</div>
-                <p>Request: <strong>{selectedDO.request_id}</strong></p>
-              </div>
-              <div className="da-detail-box">
-                <div className="da-detail-label">Status</div>
-                <div className="da-detail-value"><Badge tone={statusTone(selectedDO.status)}>{selectedDO.status}</Badge></div>
-                <p>Jumlah receipt: <strong>{selectedDO.receipts.length}</strong></p>
-              </div>
+          <div className="da-sales-form-stack">
+            <div className="da-sales-detail-summary">
+              <div><span>Status</span><Badge tone={statusTone(selectedDO.status)}>{statusLabel(selectedDO.status)}</Badge></div>
+              <div><span>Dikirim</span><strong>{pcs(selectedDO.qty_pcs)}</strong></div>
+              <div><span>Diterima</span><strong>{pcs(selectedDO.received_qty_pcs)}</strong></div>
+              <div><span>Request</span><strong>{selectedDO.request_id}</strong></div>
             </div>
+
             <DataTable
               columns={[
                 { key: "product_name", label: "Produk" },
@@ -733,33 +737,45 @@ export default function RequestDOPage({ session, onSessionExpired }) {
                   key: "receive_now",
                   label: "Terima Sekarang",
                   render: (row) => canReceiveSelectedDO && ["IN_TRANSIT", "PARTIAL_RECEIVED"].includes(selectedDO.status)
-                    ? <input type="number" min="0" max={Math.max(num(row.qty_shipped) - num(row.qty_received) - num(row.qty_difference), 0)} value={receiveQty[row.do_item_id] || "0"} onChange={(event) => setReceiveQty((current) => ({ ...current, [row.do_item_id]: event.target.value }))} />
-                    : pcs(0),
+                    ? <input className="da-input da-inline-number" type="number" min="0" max={Math.max(num(row.qty_shipped) - num(row.qty_received) - num(row.qty_difference), 0)} value={receiveQty[row.do_item_id] || "0"} onChange={(event) => setReceiveQty((current) => ({ ...current, [row.do_item_id]: event.target.value }))} />
+                    : "-",
                 },
               ]}
               rows={selectedDO.items}
               getRowKey={(row) => row.do_item_id}
             />
+
             {canReceiveSelectedDO && ["IN_TRANSIT", "PARTIAL_RECEIVED"].includes(selectedDO.status) ? (
-              <>
-                <div className="da-form-grid da-form-grid-4">
-                  <label className="da-form-field"><span>Tanggal Terima</span><input type="date" value={receiveForm.receipt_date} onChange={(event) => setReceiveForm((current) => ({ ...current, receipt_date: event.target.value }))} /></label>
-                  <label className="da-form-field"><span>Bukti / Foto Referensi</span><input value={receiveForm.proof_reference} onChange={(event) => setReceiveForm((current) => ({ ...current, proof_reference: event.target.value }))} placeholder="Opsional: nama file / nomor bukti" /></label>
-                  <label className="da-form-field da-form-field-wide"><span>Catatan</span><input value={receiveForm.notes} onChange={(event) => setReceiveForm((current) => ({ ...current, notes: event.target.value }))} /></label>
+              <section className="da-sales-form-section">
+                <div className="da-sales-form-section-title"><span>01</span><div><strong>Konfirmasi Penerimaan</strong><small>Stok tujuan bertambah sesuai qty diterima. Sisa tetap berada dalam perjalanan sampai diterima atau ditutup sebagai selisih.</small></div></div>
+                <div className="da-drop-form-grid">
+                  <div className="da-drop-field"><label>Tanggal Terima</label><input className="da-input" type="date" value={receiveForm.receipt_date} onChange={(event) => setReceiveForm((current) => ({ ...current, receipt_date: event.target.value }))} /></div>
+                  <div className="da-drop-field"><label>Referensi Bukti</label><input className="da-input" value={receiveForm.proof_reference} onChange={(event) => setReceiveForm((current) => ({ ...current, proof_reference: event.target.value }))} placeholder="Nomor/nama bukti (opsional)" /></div>
+                  <div className="da-drop-field da-drop-field-wide"><label>Catatan</label><input className="da-input" value={receiveForm.notes} onChange={(event) => setReceiveForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Opsional" /></div>
                 </div>
-                <label className="da-form-field">
-                  <span><input type="checkbox" checked={receiveForm.close_delivery} onChange={(event) => setReceiveForm((current) => ({ ...current, close_delivery: event.target.checked }))} /> Tutup DO meskipun ada kekurangan</span>
-                </label>
-                {receiveForm.close_delivery ? (
-                  <label className="da-form-field da-form-field-wide"><span>Alasan Selisih</span><input value={receiveForm.discrepancy_reason} onChange={(event) => setReceiveForm((current) => ({ ...current, discrepancy_reason: event.target.value }))} placeholder="Wajib bila jumlah diterima kurang" /></label>
-                ) : null}
-                <div className="da-form-actions"><Button onClick={receiveDO} disabled={saving}>Konfirmasi Penerimaan</Button></div>
-              </>
+                <label className="da-sales-check-row"><input type="checkbox" checked={receiveForm.close_delivery} onChange={(event) => setReceiveForm((current) => ({ ...current, close_delivery: event.target.checked }))} /><span>Tutup pengiriman setelah penerimaan ini.</span></label>
+                {receiveForm.close_delivery ? <div className="da-drop-field"><label>Alasan Selisih</label><textarea className="da-input" rows="3" value={receiveForm.discrepancy_reason} onChange={(event) => setReceiveForm((current) => ({ ...current, discrepancy_reason: event.target.value }))} placeholder="Wajib bila masih ada kekurangan" /></div> : null}
+                <div className="da-form-actions"><Button onClick={receiveDO} disabled={saving}>{saving ? "Memproses..." : "Konfirmasi Penerimaan"}</Button></div>
+              </section>
             ) : null}
-            <div className="da-alert-note">Rantai arsip: Request ID → DO ID → Stock OUT sumber → Receipt ID → Stock IN tujuan. HPP historis tidak dihitung ulang.</div>
+
+            {selectedDO.receipts.length ? (
+              <section className="da-sales-form-section">
+                <div className="da-sales-form-section-title"><span>02</span><div><strong>Riwayat Penerimaan</strong><small>Jejak receipt yang sudah diposting untuk DO ini.</small></div></div>
+                <DataTable
+                  columns={[
+                    { key: "receipt_date", label: "Tanggal", render: (row) => displayDate(row.receipt_date) },
+                    { key: "receipt_id", label: "Receipt ID" },
+                    { key: "status", label: "Status", render: (row) => <Badge tone={statusTone(row.status)}>{statusLabel(row.status)}</Badge> },
+                  ]}
+                  rows={selectedDO.receipts}
+                  getRowKey={(row) => row.receipt_id}
+                />
+              </section>
+            ) : null}
           </div>
         ) : null}
       </Modal>
-    </>
+    </div>
   );
 }
