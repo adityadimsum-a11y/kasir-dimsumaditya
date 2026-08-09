@@ -8,10 +8,10 @@ import WalletTransferPanel from "./WalletTransferPanel";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import PageHeader from "../../components/ui/PageHeader";
-import StatCard from "../../components/ui/StatCard";
 import Badge from "../../components/ui/Badge";
 import Modal from "../../components/ui/Modal";
 import DataTable from "../../components/ui/DataTable";
+import FinanceSnapshot from "./FinanceSnapshot";
 
 function asArray(value) {
   return Array.isArray(value) ? value : [];
@@ -277,12 +277,16 @@ export default function KasDompetPage({ session, onSessionExpired }) {
 
       {error ? <div className="da-alert da-alert-danger">{error}</div> : null}
 
-      <div className="da-finance-kpi-grid">
-        <StatCard tone="primary" label="Saldo Kas & Bank" value={loading ? "..." : formatRupiah(summary.total_balance)} description={`${summary.wallet_count} dompet aktif.`} />
-        <StatCard label="Penerimaan Usaha" value={loading ? "..." : formatRupiah(summary.total_in)} description={`Hari ini ${formatRupiah(summary.today_in)}.`} />
-        <StatCard tone="warning" label="Pengeluaran Usaha" value={loading ? "..." : formatRupiah(summary.total_out)} description={`Hari ini ${formatRupiah(summary.today_out)}.`} />
-        <StatCard tone={needSourceCount > 0 ? "warning" : "success"} label="Perlu Ditelusuri" value={loading ? "..." : String(needSourceCount)} description="Mutasi eksternal tanpa ID sumber." />
-      </div>
+      <FinanceSnapshot
+        eyebrow="Likuiditas Usaha"
+        value={loading ? "..." : formatRupiah(summary.total_balance)}
+        caption={`${summary.wallet_count} kas/bank aktif · posisi saldo usaha saat ini.`}
+        metrics={[
+          { label: "Penerimaan Usaha", value: loading ? "..." : formatRupiah(summary.total_in), helper: `Hari ini ${formatRupiah(summary.today_in)}`, tone: "success" },
+          { label: "Pengeluaran Usaha", value: loading ? "..." : formatRupiah(summary.total_out), helper: `Hari ini ${formatRupiah(summary.today_out)}`, tone: "warning" },
+          { label: "Perlu Ditelusuri", value: loading ? "..." : String(needSourceCount), helper: "Transaksi tanpa referensi lengkap", tone: needSourceCount > 0 ? "warning" : "success" },
+        ]}
+      />
 
       <div className="da-finance-workspace da-finance-wallet-layout">
         <Card className="da-finance-main-card">
@@ -308,7 +312,7 @@ export default function KasDompetPage({ session, onSessionExpired }) {
       <Modal open={transferOpen} title="Pindahkan Saldo Antar-Dompet" subtitle="Transfer internal tidak mengubah total uang usaha" onClose={() => setTransferOpen(false)}><div className="da-finance-embedded"><WalletTransferPanel session={session} wallets={wallets} onSaved={async () => { await loadData(); setTransferOpen(false); }} onSessionExpired={onSessionExpired} /></div></Modal>
 
       <Modal open={Boolean(selectedMutation)} title="Detail Mutasi Uang" subtitle={selectedMutation?.mutation_id || ""} onClose={() => setSelectedMutation(null)}>
-        {selectedMutation ? <div className="da-finance-modal-panel"><div className="da-modal-summary"><div><div className="da-mini-title">Nominal Mutasi</div><div className="da-big-text">{formatRupiah(selectedMutation.amount)}</div><p className="da-muted">{safeText(selectedMutation.wallet_name)}</p></div><Badge tone={getDirectionTone(selectedMutation.direction, selectedMutation.signed_amount)}>{selectedMutation.direction_label}</Badge></div><div className="da-detail-grid"><div className="da-detail-box"><p><strong>Tanggal:</strong> {formatDisplayDate(selectedMutation.date)}</p><p><strong>Status:</strong> {safeText(selectedMutation.status)}</p><p><strong>Catatan:</strong> {safeText(selectedMutation.description)}</p></div><div className="da-detail-box"><p><strong>Sumber:</strong> {safeText(selectedMutation.source_type)}</p><p><strong>Source ID:</strong> {safeText(selectedMutation.source_id)}</p><p><strong>Detail:</strong> {detailLoading ? "Membaca..." : detailError ? detailError : detail?.source?.rows?.length ? "Tertelusur" : "Ringkasan mutasi"}</p></div></div><div className="da-finance-detail-section"><h3>Sumber Terkait</h3><SourceRows rows={detail?.source?.rows || []} /></div>{detail?.related_ids?.length ? <div className="da-finance-note"><strong>ID terkait:</strong> {detail.related_ids.join(" → ")}</div> : null}</div> : null}
+        {selectedMutation ? <div className="da-finance-modal-panel"><div className="da-modal-summary"><div><div className="da-mini-title">Nominal Mutasi</div><div className="da-big-text">{formatRupiah(selectedMutation.amount)}</div><p className="da-muted">{safeText(selectedMutation.wallet_name)}</p></div><Badge tone={getDirectionTone(selectedMutation.direction, selectedMutation.signed_amount)}>{selectedMutation.direction_label}</Badge></div><div className="da-detail-grid"><div className="da-detail-box"><p><strong>Tanggal:</strong> {formatDisplayDate(selectedMutation.date)}</p><p><strong>Status:</strong> {safeText(selectedMutation.status)}</p><p><strong>Catatan:</strong> {safeText(selectedMutation.description)}</p></div><div className="da-detail-box"><p><strong>Sumber:</strong> {safeText(selectedMutation.source_type)}</p><p><strong>ID referensi:</strong> {safeText(selectedMutation.source_id)}</p><p><strong>Detail:</strong> {detailLoading ? "Membaca..." : detailError ? detailError : detail?.source?.rows?.length ? "Tertelusur" : "Ringkasan mutasi"}</p></div></div><div className="da-finance-detail-section"><h3>Sumber Terkait</h3><SourceRows rows={detail?.source?.rows || []} /></div>{detail?.related_ids?.length ? <div className="da-finance-note"><strong>ID terkait:</strong> {detail.related_ids.join(" → ")}</div> : null}</div> : null}
       </Modal>
     </div>
   );
