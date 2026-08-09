@@ -47,6 +47,10 @@ function safePreview(text, maxLength = 1200) {
     .slice(0, maxLength);
 }
 
+function isBotProtectionResponse(text) {
+  return /imunify360|bot[- ]protection|automation should be whitelisted/i.test(String(text || ""));
+}
+
 function getTarget() {
   return String(process.env.ERP_PHP_API_URL || DEFAULT_TARGET).trim();
 }
@@ -105,6 +109,15 @@ export default async function handler(req, res) {
     const parsed = parseUpstreamJson(text);
 
     if (!parsed.json) {
+      if (isBotProtectionResponse(text)) {
+        sendJson(res, 503, {
+          success: false,
+          message: "Jalur server-to-server ditahan proteksi hosting. Gunakan koneksi browser langsung.",
+          error: { code: "HOSTING_BOT_PROTECTION", upstream_status: upstream.status },
+        });
+        return;
+      }
+
       const requestBody = parseBody(req);
       const hasSession = Boolean(
         requestBody?.sessionToken || requestBody?.session_token || requestBody?.token
