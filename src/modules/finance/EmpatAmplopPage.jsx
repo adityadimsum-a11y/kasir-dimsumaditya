@@ -82,8 +82,8 @@ function normalizeEnvelope(row) {
     envelope_name: row.envelope_name || row.name || row.label || "Amplop",
     percentage: numberValue(row.percentage || row.percent || 0),
     amount: numberValue(row.amount || row.saldo || row.balance || 0),
-    allocated_amount: numberValue(row.allocated_amount || row.masuk || row.amount || 0),
-    used_amount: numberValue(row.used_amount || row.keluar || 0),
+    allocated_amount: numberValue(row.allocated_amount || row.total_in || row.masuk || row.amount || 0),
+    used_amount: numberValue(row.used_amount || row.total_out || row.keluar || 0),
     balance: numberValue(row.balance || row.saldo || row.amount || 0),
   };
 }
@@ -221,69 +221,22 @@ export default function EmpatAmplopPage({ session, onSessionExpired }) {
   const [bootstrap, setBootstrap] = useState(() => normalizeBootstrap({}));
   const [activeDetail, setActiveDetail] = useState(null);
   const [filter, setFilter] = useState("all");
-
-  const [form, setForm] = useState({
-    allocation_date: todayInputValue(),
-    period: currentMonthValue(),
-    total_amount: 0,
-    notes: "Pembagian uang masuk aktual ke 4 amplop",
-  });
-
-  const [lines, setLines] = useState(DEFAULT_ENVELOPES);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [selectedSourceIds, setSelectedSourceIds] = useState([]);
+  const [form, setForm] = useState({ allocation_date: todayInputValue(), period: currentMonthValue(), notes: "Pembagian uang masuk aktual ke 4 amplop" });
   const sessionToken = session?.sessionToken || "";
-
-  const selectedSourceIds = useMemo(() => {
-    return bootstrap.eligible_income.map((row) => row.mutation_id).filter(Boolean);
-  }, [bootstrap.eligible_income]);
-
-  const splitTotal = useMemo(() => {
-    return lines.reduce((total, row) => total + numberValue(row.amount), 0);
-  }, [lines]);
-
-  const remainingSplit = numberValue(form.total_amount) - splitTotal;
-  const canSave =
-    numberValue(form.total_amount) > 0 &&
-    selectedSourceIds.length > 0 &&
-    Math.abs(remainingSplit) <= 1 &&
-    !saving;
 
   const loadData = async () => {
     setLoading(true);
     setError("");
     try {
       const result = await getAmplopBootstrap(sessionToken, { period: form.period });
-
-      if (isAuthRequired(result)) {
-        onSessionExpired?.();
-        return;
-      }
-
-      if (!result?.success) {
-        setError(result?.message || "Gagal membaca data 4 Amplop.");
-        return;
-      }
-
+      if (isAuthRequired(result)) { onSessionExpired?.(); return; }
+      if (!result?.success) { setError(result?.message || "Gagal membaca data 4 Amplop."); return; }
       const normalized = normalizeBootstrap(result.data || result);
       setBootstrap(normalized);
-
-      setForm((current) => ({
-        ...current,
-        total_amount:
-          numberValue(current.total_amount) > 0
-            ? current.total_amount
-            : normalized.summary.unallocated_income,
-      }));
-
-      setLines((current) => {
-        const hasInput = current.some((row) => numberValue(row.amount) > 0 || numberValue(row.percentage) > 0);
-        if (hasInput) return current;
-        return normalized.envelope_templates.map((row) => ({
-          envelope_code: row.envelope_code,
-          envelope_name: row.envelope_name,
-          percentage: numberValue(row.percentage || 0),
-          amount: 0,
-        }));
-      });
+      const validIds = new Set(normalized.eligible_income.map((row) => row.mutation_id));
+      setSelectedSourceIds((current) => current.filter((id) => validIds.has(id)));
     } catch (err) {
       setError(err?.message || "Gagal membaca data 4 Amplop.");
     } finally {
@@ -291,93 +244,53 @@ export default function EmpatAmplopPage({ session, onSessionExpired }) {
     }
   };
 
-  useEffect(() => {
-    if (sessionToken) loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionToken]);
+  useEffect(() => { if (sessionToken) loadData(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [sessionToken]);
 
-  const updateLine = (index, key, value) => {
-    setLines((current) => current.map((row, rowIndex) => {
-      if (rowIndex !== index) return row;
-      const next = { ...row, [key]: value };
-      if (key === "percentage") {
-        const percentage = numberValue(value);
-        next.percentage = percentage;
-        next.amount = Math.round((numberValue(form.total_amount) * percentage) / 100);
-      }
-      if (key === "amount") {
-        next.amount = numberValue(value);
-      }
-      return next;
-    }));
-  };
+  const selectedSources = useMemo(() => bootstrap.eligible_income.filter((row) => selectedSourceIds.includes(row.mutation_id)), [bootstrap.eligible_income, selectedSourceIds]);
+  const selectedTotal = useMemo(() => selectedSources.reduce((sum, row) => sum + numberValue(row.amount), 0), [selectedSources]);
+  const previewLines = useMemo(() => {
+    const templates = bootstrap.envelope_templates;
+    const totals = templates.map((row) => ({ ...row, amount: 0 }));
+    const round2 = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+    selectedSources.forEach((source) => {
+      let running = 0;
+      const amounts = templates.map((line) => { const amount = round2(numberValue(source.amount) * numberValue(line.percentage) / 100); running = round2(running + amount); return amount; });
+      if (amounts.length) amounts[amounts.length - 1] = round2(amounts[amounts.length - 1] + round2(numberValue(source.amount) - running));
+      amounts.forEach((amount, index) => { if (totals[index]) totals[index].amount = round2(numberValue(totals[index].amount) + amount); });
+    });
+    return totals;
+  }, [bootstrap.envelope_templates, selectedSources]);
 
-  const resetDraft = () => {
-    setForm((current) => ({
-      ...current,
-      allocation_date: todayInputValue(),
-      total_amount: bootstrap.summary.unallocated_income,
-      notes: "Pembagian uang masuk aktual ke 4 amplop",
-    }));
-    setLines(bootstrap.envelope_templates.map((row) => ({
-      envelope_code: row.envelope_code,
-      envelope_name: row.envelope_name,
-      percentage: numberValue(row.percentage || 0),
-      amount: 0,
-    })));
-    setSuccess("");
-    setError("");
-  };
+  const toggleSource = (id) => setSelectedSourceIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  const selectAll = () => setSelectedSourceIds((current) => current.length === bootstrap.eligible_income.length ? [] : bootstrap.eligible_income.map((row) => row.mutation_id));
+  const presetTotal = useMemo(() => bootstrap.envelope_templates.reduce((sum, row) => sum + numberValue(row.percentage), 0), [bootstrap.envelope_templates]);
+  const presetReady = bootstrap.envelope_templates.length > 0 && Math.abs(presetTotal - 100) < 0.0001;
+  const canSave = selectedSourceIds.length > 0 && selectedTotal > 0 && presetReady && !saving;
 
   const handleSubmit = async () => {
-    setError("");
-    setSuccess("");
-
+    setError(""); setSuccess("");
     if (!canSave) {
-      if (selectedSourceIds.length === 0) {
-        setError("Belum ada uang masuk aktual yang siap dibagi. Uang masuk tanpa source ID harus dibereskan dulu di Kas & Dompet/Uang Masuk.");
-      } else {
-        setError("Total pembagian harus sama dengan total uang yang akan dibagi.");
-      }
+      setError(!presetReady ? "Preset 4 Amplop aktif belum siap atau total persentasenya belum 100%." : "Pilih minimal satu sumber uang masuk yang akan dibagi.");
+      setConfirmOpen(false);
       return;
     }
-
     setSaving(true);
     try {
       const result = await createAmplopAllocation(sessionToken, {
         operation_id: buildOperationId(),
         allocation_date: form.allocation_date,
         period: form.period,
-        total_amount: numberValue(form.total_amount),
         source_mutation_ids: selectedSourceIds,
-        envelopes: lines.map((row) => ({
-          envelope_code: row.envelope_code,
-          envelope_name: row.envelope_name,
-          percentage: numberValue(row.percentage),
-          amount: numberValue(row.amount),
-        })),
         notes: form.notes,
       });
-
-      if (isAuthRequired(result)) {
-        onSessionExpired?.();
-        return;
-      }
-
-      if (!result?.success) {
-        setError(result?.message || "Gagal menyimpan pembagian 4 Amplop.");
-        return;
-      }
-
+      if (isAuthRequired(result)) { onSessionExpired?.(); return; }
+      if (!result?.success) { setError(result?.message || "Gagal menyimpan pembagian 4 Amplop."); return; }
       setSuccess(result.message || "Pembagian 4 Amplop berhasil disimpan.");
-      setForm((current) => ({ ...current, total_amount: 0 }));
-      setLines((current) => current.map((row) => ({ ...row, amount: 0 })));
+      setSelectedSourceIds([]);
+      setConfirmOpen(false);
       await loadData();
-    } catch (err) {
-      setError(err?.message || "Gagal menyimpan pembagian 4 Amplop.");
-    } finally {
-      setSaving(false);
-    }
+    } catch (err) { setError(err?.message || "Gagal menyimpan pembagian 4 Amplop."); }
+    finally { setSaving(false); }
   };
 
   const filteredAllocations = useMemo(() => {
@@ -389,265 +302,76 @@ export default function EmpatAmplopPage({ session, onSessionExpired }) {
     return rows;
   }, [bootstrap.allocations, filter]);
 
-  const incomeRows = bootstrap.eligible_income.slice(0, 10);
-  const needSourceRows = bootstrap.income_need_source.slice(0, 8);
-
   const detailSourceIds = activeDetail ? splitIdText(activeDetail.source_mutation_ids) : [];
-  const detailSourceRows = activeDetail
-    ? bootstrap.income_mutations.filter((row) => detailSourceIds.includes(row.mutation_id))
-    : [];
-  const detailLedgerRows = activeDetail
-    ? bootstrap.ledger.filter((row) => row.allocation_id === activeDetail.allocation_id)
-    : [];
+  const detailSourceRows = activeDetail ? bootstrap.income_mutations.filter((row) => detailSourceIds.includes(row.mutation_id)) : [];
+  const detailLedgerRows = activeDetail ? bootstrap.ledger.filter((row) => row.allocation_id === activeDetail.allocation_id) : [];
 
   return (
-    <div>
+    <div className="da-finance-page">
       <PageHeader
+        eyebrow="Uang & Kewajiban"
         title="4 Amplop"
-        description="Bagi uang masuk aktual ke Amplop Ayam, Operasional, Cicilan/Hutang, dan Owner. Sumbernya hanya mutasi uang masuk yang sudah benar-benar masuk dompet pusat/Tangerang."
-        badge="Tertelusur"
+        description="Alokasikan uang yang benar-benar sudah masuk ke empat pos pengelolaan usaha. Persentase mengikuti preset aktif dan tidak diubah dari transaksi pembagian."
+        actions={<div className="da-actions"><Button variant="ghost" onClick={loadData} disabled={loading || saving}>{loading ? "Memuat..." : "Perbarui"}</Button><Button onClick={() => setConfirmOpen(true)} disabled={!canSave}>Bagi Uang Terpilih</Button></div>}
       />
 
-      <div className="da-dashboard-banner">
-        <div>
-          <div className="da-dashboard-banner-kicker">Uang Aktual</div>
-          <div className="da-dashboard-banner-title">Uang Masuk → Dompet → 4 Amplop</div>
-          <div className="da-dashboard-banner-desc">
-            Tidak mengambil dari PO, piutang, nilai stok, atau transfer internal antar-dompet. Uang tanpa source ID tidak boleh masuk bahan 4 Amplop.
-          </div>
-        </div>
-        <div className="da-dashboard-banner-actions">
-          <Badge tone="success">Terhubung</Badge>
-          <Button variant="ghost" onClick={loadData} disabled={loading || saving}>Refresh Data</Button>
-        </div>
-      </div>
-
-      {bootstrap.summary.hidden_rows > 0 ? (
-        <div className="da-form-warning">
-          {bootstrap.summary.hidden_rows} baris kosong/formatting disembunyikan supaya 4 Amplop tidak menampilkan angka yatim.
-        </div>
-      ) : null}
-      {error ? <div className="da-form-warning">{error}</div> : null}
+      {error ? <div className="da-alert da-alert-danger">{error}</div> : null}
       {success ? <div className="da-form-success">{success}</div> : null}
 
-      <div className="da-grid da-grid-3" style={{ marginBottom: 16 }}>
-        <StatCard label="Uang Masuk Aktual" value={formatRupiah(bootstrap.summary.total_income)} description="Mutasi IN bersih dari dompet." tone="success" />
-        <StatCard label="Belum Dibagi" value={formatRupiah(bootstrap.summary.unallocated_income)} description="Uang masuk yang siap dibagi." tone="warning" />
-        <StatCard label="Perlu Sumber" value={formatRupiah(bootstrap.summary.income_need_source)} description={`${bootstrap.summary.need_source_count} mutasi perlu source ID.`} tone={bootstrap.summary.need_source_count > 0 ? "warning" : undefined} />
-        <StatCard label="Sudah Dibagi" value={formatRupiah(bootstrap.summary.allocated_income)} description={`${bootstrap.summary.allocation_count} pembagian tercatat.`} />
-        <StatCard label="Saldo 4 Amplop" value={formatRupiah(bootstrap.summary.envelope_balance)} description="Saldo catatan amplop saat ini." />
+      <div className="da-finance-kpi-grid">
+        <StatCard tone="warning" label="Belum Dibagi" value={loading ? "..." : formatRupiah(bootstrap.summary.unallocated_income)} description={`${bootstrap.summary.source_count || 0} sumber siap dialokasikan.`} />
+        <StatCard tone="primary" label="Saldo 4 Amplop" value={loading ? "..." : formatRupiah(bootstrap.summary.envelope_balance)} description="Saldo catatan seluruh amplop." />
+        <StatCard label="Sudah Dialokasikan" value={loading ? "..." : formatRupiah(bootstrap.summary.allocated_income)} description={`${bootstrap.summary.allocation_count || 0} sumber sudah dibagi.`} />
+        <StatCard tone={bootstrap.summary.need_source_count > 0 ? "warning" : "success"} label="Perlu Sumber" value={loading ? "..." : formatRupiah(bootstrap.summary.income_need_source)} description={`${bootstrap.summary.need_source_count || 0} mutasi belum dapat dibagi.`} />
       </div>
 
-      <Card>
-        <div className="da-section-heading">
-          <div>
-            <div className="da-page-kicker">Pembagian Uang</div>
-            <h2>Tambah Pembagian ke 4 Amplop</h2>
-            <p className="da-muted" style={{ margin: 0 }}>
-              Isi nominal per amplop. Total uang dibagi otomatis dari uang masuk aktual yang belum masuk 4 Amplop.
-            </p>
-          </div>
-          <Badge tone="warning">Tidak Potong Dompet</Badge>
-        </div>
+      <div className="da-envelope-balance-grid">
+        {bootstrap.envelope_balances.map((row) => <Card key={row.envelope_code} className="da-envelope-balance-card"><div className="da-page-kicker">{row.envelope_name}</div><div className="da-big-text">{formatRupiah(row.balance)}</div><div className="da-muted">Masuk {formatRupiah(row.allocated_amount || row.amount)} · Terpakai {formatRupiah(row.used_amount)}</div></Card>)}
+      </div>
 
-        <div className="da-form-grid">
-          <label className="da-field">
-            <span>Tanggal Pembagian</span>
-            <input type="date" value={form.allocation_date} onChange={(event) => setForm((current) => ({ ...current, allocation_date: event.target.value }))} />
-          </label>
-          <label className="da-field">
-            <span>Periode</span>
-            <input type="month" value={form.period} onChange={(event) => setForm((current) => ({ ...current, period: event.target.value }))} />
-          </label>
-          <label className="da-field">
-            <span>Total Uang Dibagi</span>
-            <input type="number" min="0" value={formatNumberInput(form.total_amount)} readOnly />
-          </label>
-          <label className="da-field">
-            <span>Catatan</span>
-            <input value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Catatan singkat" />
-          </label>
-        </div>
-
-        <div className="da-table-card" style={{ marginTop: 14 }}>
-          <table className="da-table">
-            <thead>
-              <tr>
-                <th>Amplop</th>
-                <th>Persen Bantu Hitung</th>
-                <th>Nominal Masuk</th>
-                <th>Catatan</th>
-              </tr>
-            </thead>
-            <tbody>
-              {lines.map((line, index) => (
-                <tr key={line.envelope_code || index}>
-                  <td><strong>{line.envelope_name}</strong><div className="da-muted">{line.envelope_code}</div></td>
-                  <td><input type="number" min="0" max="100" value={formatNumberInput(line.percentage)} onChange={(event) => updateLine(index, "percentage", event.target.value)} style={{ width: 120 }} /></td>
-                  <td><input type="number" min="0" value={formatNumberInput(line.amount)} onChange={(event) => updateLine(index, "amount", event.target.value)} style={{ width: 180 }} /></td>
-                  <td className="da-muted">Nominal ini menjadi saldo catatan amplop, bukan saldo bank terpisah.</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className={Math.abs(remainingSplit) <= 1 ? "da-drop-preview-panel" : "da-form-warning"}>
-          <strong>Total split: {formatRupiah(splitTotal)}</strong>
-          <span style={{ marginLeft: 12 }}>Sisa belum pas: {formatRupiah(remainingSplit)}</span>
-          <span style={{ marginLeft: 12 }}>Sumber uang masuk: {selectedSourceIds.length} mutasi</span>
-        </div>
-
-        <div className="da-form-actions">
-          <Button variant="ghost" onClick={resetDraft} disabled={saving}>Reset Draft</Button>
-          <Button onClick={handleSubmit} disabled={!canSave}>{saving ? "Menyimpan..." : "Simpan Pembagian"}</Button>
-        </div>
-      </Card>
-
-      <div className="da-grid da-grid-2" style={{ marginTop: 16 }}>
-        <Card>
+      <div className="da-finance-workspace">
+        <Card className="da-finance-main-card">
           <div className="da-section-heading">
-            <div><div className="da-page-kicker">Saldo Amplop</div><h2>Posisi 4 Amplop</h2></div>
+            <div><div className="da-page-kicker">Sumber Uang Masuk</div><h2 style={{ margin: "4px 0 6px" }}>Pilih Uang yang Akan Dibagi</h2><p className="da-muted" style={{ margin: 0 }}>Hanya uang masuk yang mempunyai sumber transaksi dan belum pernah dialokasikan.</p></div>
+            <Button variant="ghost" onClick={selectAll} disabled={!bootstrap.eligible_income.length}>{selectedSourceIds.length === bootstrap.eligible_income.length && bootstrap.eligible_income.length ? "Kosongkan Pilihan" : "Pilih Semua"}</Button>
           </div>
-          <DataTable
-            columns={[
-              { key: "name", label: "Amplop", render: (row) => <strong>{row.envelope_name}</strong> },
-              { key: "allocated", label: "Masuk", render: (row) => formatRupiah(row.allocated_amount || row.amount) },
-              { key: "used", label: "Keluar", render: (row) => formatRupiah(row.used_amount) },
-              { key: "saldo", label: "Saldo", render: (row) => <strong>{formatRupiah(row.balance)}</strong> },
-            ]}
-            rows={bootstrap.envelope_balances}
-            getRowKey={(row) => row.envelope_code}
-          />
+          <div className="da-envelope-source-list">
+            {bootstrap.eligible_income.map((row) => <label key={row.mutation_id} className={`da-envelope-source-item ${selectedSourceIds.includes(row.mutation_id) ? "selected" : ""}`}><input type="checkbox" checked={selectedSourceIds.includes(row.mutation_id)} onChange={() => toggleSource(row.mutation_id)} /><div><strong>{safeText(row.source_id || row.source_module)}</strong><span>{formatDisplayDate(row.mutation_date)} · {safeText(row.wallet_name)}</span></div><strong>{formatRupiah(row.amount)}</strong></label>)}
+            {!loading && bootstrap.eligible_income.length === 0 ? <div className="da-finance-empty">Belum ada uang masuk yang siap dibagi.</div> : null}
+          </div>
+          {bootstrap.income_need_source.length ? <div className="da-alert da-alert-warning">Ada {bootstrap.income_need_source.length} mutasi uang masuk yang belum mempunyai sumber transaksi. Mutasi tersebut belum dapat masuk 4 Amplop.</div> : null}
         </Card>
 
-        <Card>
-          <div className="da-section-heading">
-            <div>
-              <div className="da-page-kicker">Bahan Pembagian</div>
-              <h2>Uang Masuk Belum Dibagi</h2>
-              <p className="da-muted" style={{ margin: 0 }}>Yang tampil di sini sudah punya source ID dan belum pernah dibagi.</p>
-            </div>
-          </div>
-          <DataTable
-            columns={[
-              { key: "tanggal", label: "Tanggal", render: (row) => formatDisplayDate(row.mutation_date) },
-              { key: "dompet", label: "Dompet", render: (row) => safeText(row.wallet_name, "Dompet") },
-              { key: "nominal", label: "Nominal", render: (row) => formatRupiah(row.amount) },
-              { key: "sumber", label: "Sumber", render: (row) => <strong>{safeText(row.source_id || row.source_module)}</strong> },
-            ]}
-            rows={incomeRows}
-            getRowKey={(row, index) => row.mutation_id || index}
-          />
+        <Card className="da-finance-side-card">
+          <div className="da-page-kicker">Preview Preset Aktif</div><h2 style={{ margin: "6px 0 6px" }}>Pembagian Otomatis</h2><p className="da-muted">Persentase dikunci oleh preset Owner. Sistem membagi setiap sumber secara otomatis saat disimpan.</p>{!presetReady ? <div className="da-alert da-alert-warning">Preset aktif belum siap. Atur total persentase menjadi 100% sebelum melakukan pembagian.</div> : null}
+          <div className="da-finance-hero-number da-finance-hero-number-dark"><span>Total dipilih</span><strong>{formatRupiah(selectedTotal)}</strong><small>{selectedSourceIds.length} sumber uang masuk</small></div>
+          <div className="da-envelope-preview-list">{previewLines.map((row) => <div key={row.envelope_code}><span><strong>{row.envelope_name}</strong><small>{numberValue(row.percentage)}%</small></span><strong>{formatRupiah(row.amount)}</strong></div>)}</div>
+          <div className="da-finance-note">Nilai akhir mengikuti pembulatan backend per sumber. Tidak ada saldo bank baru yang dibuat; 4 Amplop adalah ledger alokasi dari uang yang sudah masuk.</div>
+          <Button onClick={() => setConfirmOpen(true)} disabled={!canSave}>Bagi Uang Terpilih</Button>
         </Card>
       </div>
 
-      {needSourceRows.length ? (
-        <Card style={{ marginTop: 16 }}>
-          <div className="da-section-heading">
-            <div>
-              <div className="da-page-kicker">Perlu Dibereskan</div>
-              <h2>Uang Masuk Tanpa Source ID</h2>
-              <p className="da-muted" style={{ margin: 0 }}>Mutasi ini belum boleh masuk 4 Amplop sampai sumbernya jelas.</p>
-            </div>
-            <Badge tone="warning">Perlu Sumber</Badge>
-          </div>
-          <DataTable
-            columns={[
-              { key: "tanggal", label: "Tanggal", render: (row) => formatDisplayDate(row.mutation_date) },
-              { key: "id", label: "Mutasi ID", render: (row) => <strong>{row.mutation_id}</strong> },
-              { key: "dompet", label: "Dompet", render: (row) => safeText(row.wallet_name, "Dompet") },
-              { key: "nominal", label: "Nominal", render: (row) => formatRupiah(row.amount) },
-              { key: "status", label: "Status", render: () => <Badge tone="warning">Perlu Sumber</Badge> },
-            ]}
-            rows={needSourceRows}
-            getRowKey={(row, index) => row.mutation_id || index}
-          />
-        </Card>
-      ) : null}
-
-      <Card style={{ marginTop: 16 }}>
-        <div className="da-section-heading">
-          <div>
-            <div className="da-page-kicker">Riwayat</div>
-            <h2>Pembagian yang Sudah Dicatat</h2>
-            <p className="da-muted" style={{ margin: 0 }}>Klik baris untuk melihat sumber mutasi uang masuk dan ledger amplop.</p>
-          </div>
-          <Badge tone="success">Data Aktual</Badge>
-        </div>
-
-        <div className="da-tabs" style={{ marginBottom: 12 }}>
-          <button className={filter === "all" ? "da-tab active" : "da-tab"} onClick={() => setFilter("all")}>Semua</button>
-          <button className={filter === "ayam" ? "da-tab active" : "da-tab"} onClick={() => setFilter("ayam")}>Ayam</button>
-          <button className={filter === "operasional" ? "da-tab active" : "da-tab"} onClick={() => setFilter("operasional")}>Operasional</button>
-          <button className={filter === "cicilan" ? "da-tab active" : "da-tab"} onClick={() => setFilter("cicilan")}>Cicilan</button>
-          <button className={filter === "owner" ? "da-tab active" : "da-tab"} onClick={() => setFilter("owner")}>Owner</button>
-        </div>
-
-        <DataTable
-          columns={[
-            { key: "tanggal", label: "Tanggal", render: (row) => formatDisplayDate(row.allocation_date) },
-            { key: "id", label: "Allocation ID", render: (row) => <strong>{row.allocation_id}</strong> },
-            { key: "amplop", label: "Amplop", render: (row) => row.envelope_name },
-            { key: "nominal", label: "Nominal", render: (row) => formatRupiah(row.amount) },
-            { key: "sumber", label: "Sumber", render: (row) => `${splitIdText(row.source_mutation_ids).length} mutasi` },
-            { key: "status", label: "Status", render: (row) => <Badge tone="success">{row.status}</Badge> },
-          ]}
-          rows={filteredAllocations}
-          getRowKey={(row, index) => row.allocation_line_id || `${row.allocation_id}-${index}`}
-          onRowClick={setActiveDetail}
-        />
+      <Card className="da-finance-ledger-card">
+        <div className="da-section-heading"><div><div className="da-page-kicker">Riwayat Pembagian</div><h2 style={{ margin: "4px 0 6px" }}>Alokasi yang Sudah Dicatat</h2><p className="da-muted" style={{ margin: 0 }}>Klik baris untuk melihat sumber uang dan ledger amplop.</p></div></div>
+        <div className="da-finance-tabs">{[["all","Semua"],["ayam","Ayam"],["operasional","Operasional"],["cicilan","Cicilan"],["owner","Owner"]].map(([key,label]) => <button key={key} className={filter === key ? "active" : ""} onClick={() => setFilter(key)}>{label}</button>)}</div>
+        <DataTable columns={[{ key: "tanggal", label: "Tanggal", render: (row) => formatDisplayDate(row.allocation_date) }, { key: "id", label: "Allocation ID", render: (row) => <strong>{row.allocation_id}</strong> }, { key: "amplop", label: "Amplop", render: (row) => row.envelope_name }, { key: "persen", label: "%", render: (row) => `${numberValue(row.percentage)}%` }, { key: "nominal", label: "Nominal", render: (row) => formatRupiah(row.amount) }, { key: "status", label: "Status", render: (row) => <Badge tone="success">{row.status}</Badge> }]} rows={filteredAllocations} getRowKey={(row, index) => row.allocation_line_id || `${row.allocation_id}-${index}`} onRowClick={setActiveDetail} />
+        {!loading && filteredAllocations.length === 0 ? <div className="da-finance-empty">Belum ada riwayat pembagian.</div> : null}
       </Card>
+
+      <Modal open={confirmOpen} title="Konfirmasi Pembagian 4 Amplop" subtitle={`${selectedSourceIds.length} sumber · ${formatRupiah(selectedTotal)}`} onClose={() => !saving && setConfirmOpen(false)}>
+        <div className="da-finance-modal-panel">
+          <div className="da-finance-modal-form"><label className="da-field"><span>Tanggal Pembagian</span><input type="date" value={form.allocation_date} onChange={(event) => setForm((current) => ({ ...current, allocation_date: event.target.value }))} /></label><label className="da-field"><span>Periode</span><input type="month" value={form.period} onChange={(event) => setForm((current) => ({ ...current, period: event.target.value }))} /></label><label className="da-field da-finance-span-2"><span>Catatan</span><input value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} /></label></div>
+          <div className="da-envelope-preview-list da-finance-section-gap">{previewLines.map((row) => <div key={row.envelope_code}><span><strong>{row.envelope_name}</strong><small>{numberValue(row.percentage)}%</small></span><strong>{formatRupiah(row.amount)}</strong></div>)}</div>
+          <div className="da-form-actions"><Button variant="ghost" onClick={() => setConfirmOpen(false)} disabled={saving}>Batal</Button><Button onClick={handleSubmit} disabled={!canSave}>{saving ? "Menyimpan..." : "Simpan Pembagian"}</Button></div>
+        </div>
+      </Modal>
 
       <Modal open={Boolean(activeDetail)} title="Detail Pembagian 4 Amplop" subtitle={activeDetail?.allocation_id} onClose={() => setActiveDetail(null)}>
-        {activeDetail ? (
-          <div className="da-grid">
-            <div className="da-detail-grid">
-              <div className="da-detail-box"><div className="da-stat-label">Amplop</div><strong>{activeDetail.envelope_name}</strong><div>{formatRupiah(activeDetail.amount)}</div></div>
-              <div className="da-detail-box"><div className="da-stat-label">Sumber Total</div><strong>{formatRupiah(activeDetail.source_total_amount)}</strong><div>Periode: {safeText(activeDetail.period)}</div></div>
-              <div className="da-detail-box"><div className="da-stat-label">Tanggal</div><strong>{formatDisplayDate(activeDetail.allocation_date)}</strong><div>{safeText(activeDetail.status)}</div></div>
-            </div>
-
-            <div className="da-form-warning" style={{ marginTop: 0 }}>
-              Rantai ini harus bisa ditelusuri: Uang Masuk Aktual → Mutasi Dompet → 4 Amplop → nanti Bayar Ayam / Belanja / Cicilan.
-            </div>
-
-            <div className="da-detail-box">
-              <div className="da-stat-label">Source Mutation IDs</div>
-              <p style={{ wordBreak: "break-word", margin: 0 }}>{safeText(activeDetail.source_mutation_ids)}</p>
-            </div>
-
-            <Card>
-              <div className="da-section-heading"><div><div className="da-page-kicker">Sumber Uang</div><h2>Mutasi Dompet Dipakai</h2></div></div>
-              <DataTable
-                columns={[
-                  { key: "tanggal", label: "Tanggal", render: (row) => formatDisplayDate(row.mutation_date) },
-                  { key: "id", label: "Mutasi ID", render: (row) => <strong>{row.mutation_id}</strong> },
-                  { key: "dompet", label: "Dompet", render: (row) => safeText(row.wallet_name, "Dompet") },
-                  { key: "nominal", label: "Nominal", render: (row) => formatRupiah(row.amount) },
-                  { key: "sumber", label: "Sumber", render: (row) => safeText(row.source_id || row.source_module) },
-                ]}
-                rows={detailSourceRows}
-                getRowKey={(row, index) => row.mutation_id || index}
-              />
-            </Card>
-
-            <Card>
-              <div className="da-section-heading"><div><div className="da-page-kicker">Ledger Amplop</div><h2>Catatan Masuk/Keluar Amplop</h2></div></div>
-              <DataTable
-                columns={[
-                  { key: "tanggal", label: "Tanggal", render: (row) => formatDisplayDate(row.ledger_date) },
-                  { key: "id", label: "Ledger ID", render: (row) => <strong>{row.ledger_id}</strong> },
-                  { key: "amplop", label: "Amplop", render: (row) => row.envelope_name },
-                  { key: "arah", label: "Arah", render: (row) => <Badge tone={row.direction === "OUT" ? "warning" : "success"}>{row.direction}</Badge> },
-                  { key: "nominal", label: "Nominal", render: (row) => formatRupiah(row.amount) },
-                ]}
-                rows={detailLedgerRows}
-                getRowKey={(row, index) => row.ledger_id || index}
-              />
-            </Card>
-          </div>
-        ) : null}
+        {activeDetail ? <div className="da-finance-modal-panel">
+          <div className="da-modal-summary"><div><div className="da-mini-title">{activeDetail.envelope_name}</div><div className="da-big-text">{formatRupiah(activeDetail.amount)}</div><p className="da-muted">{numberValue(activeDetail.percentage)}% · {formatDisplayDate(activeDetail.allocation_date)}</p></div><Badge tone="success">{activeDetail.status}</Badge></div>
+          <div className="da-finance-detail-section"><h3>Sumber Uang</h3><DataTable columns={[{ key: "tanggal", label: "Tanggal", render: (row) => formatDisplayDate(row.mutation_date) }, { key: "id", label: "Mutasi ID", render: (row) => <strong>{row.mutation_id}</strong> }, { key: "dompet", label: "Dompet", render: (row) => safeText(row.wallet_name) }, { key: "nominal", label: "Nominal", render: (row) => formatRupiah(row.amount) }, { key: "sumber", label: "Sumber", render: (row) => safeText(row.source_id || row.source_module) }]} rows={detailSourceRows} getRowKey={(row, index) => row.mutation_id || index} /></div>
+          <div className="da-finance-detail-section"><h3>Ledger Amplop</h3><DataTable columns={[{ key: "tanggal", label: "Tanggal", render: (row) => formatDisplayDate(row.ledger_date) }, { key: "id", label: "Ledger ID", render: (row) => <strong>{row.ledger_id}</strong> }, { key: "amplop", label: "Amplop", render: (row) => row.envelope_name }, { key: "arah", label: "Arah", render: (row) => <Badge tone={row.direction === "OUT" ? "warning" : "success"}>{row.direction}</Badge> }, { key: "nominal", label: "Nominal", render: (row) => formatRupiah(row.amount) }]} rows={detailLedgerRows} getRowKey={(row, index) => row.ledger_id || index} /></div>
+        </div> : null}
       </Modal>
     </div>
   );
