@@ -25,6 +25,8 @@ const initialForm = {
   output_product_name: "",
   total_adukan: "",
   actual_output_pcs: "",
+  support_cost_total: "",
+  support_cost_note: "",
   note: "",
 };
 
@@ -366,6 +368,10 @@ function normalizeProduct(row) {
     name: String(name || "").trim(),
     category: row.category || row.product_category || row.type || row.product_type || "",
     status: row.status || row.is_active || "ACTIVE",
+    adukan_conversion_active: Number(row.adukan_conversion_active ?? row.uses_adukan ?? 0) === 1,
+    chicken_kg_per_adukan: numberValue(row.chicken_kg_per_adukan || row.ayam_kg_per_adukan),
+    default_yield_pcs: numberValue(row.default_yield_pcs || row.estimated_pcs_per_adukan || row.target_pcs_per_adukan),
+    chicken_bag_kg: numberValue(row.chicken_bag_kg || row.ayam_kg_per_kantong),
     raw: row,
   };
 }
@@ -391,6 +397,14 @@ function uniqueProductsById(products) {
       code: product.code || existing.code,
       name: product.name || existing.name,
       category: product.category || existing.category,
+      adukan_conversion_active:
+        product.adukan_conversion_active || existing.adukan_conversion_active,
+      chicken_kg_per_adukan:
+        product.chicken_kg_per_adukan || existing.chicken_kg_per_adukan,
+      default_yield_pcs:
+        product.default_yield_pcs || existing.default_yield_pcs,
+      chicken_bag_kg:
+        product.chicken_bag_kg || existing.chicken_bag_kg,
     });
   });
 
@@ -426,6 +440,15 @@ function getProductionProductsFromData(data) {
     });
 
   const uniqueProducts = uniqueProductsById(products);
+
+  const configured = uniqueProducts.filter(
+    (product) =>
+      product.adukan_conversion_active &&
+      product.chicken_kg_per_adukan > 0 &&
+      product.default_yield_pcs > 0
+  );
+
+  if (configured.length > 0) return configured;
 
   const productionLike = uniqueProducts.filter((product) => {
     const text = `${product.name} ${product.code} ${product.category}`.toUpperCase();
@@ -488,7 +511,7 @@ function buildSummary(data) {
   };
 }
 
-function buildProductionPreview(form, lots, people, products) {
+function buildProductionPreview(form, lots, people, products, fallbackConversion = {}) {
   const selectedLot = lots.find((lot) => lot.id === form.chicken_lot_id);
   const selectedPic = people.find((person) => person.id === form.production_pic_id);
   const selectedProduct = products.find((product) => product.id === form.output_product_id);
@@ -507,16 +530,27 @@ function buildProductionPreview(form, lots, people, products) {
 
   const totalAdukan = numberValue(form.total_adukan);
 
-  const kgPerAdukan = 30;
-  const pcsPerAdukan = 1000;
+  const kgPerAdukan =
+    numberValue(selectedProduct?.chicken_kg_per_adukan) ||
+    numberValue(fallbackConversion?.chicken_kg_per_adukan);
+  const pcsPerAdukan =
+    numberValue(selectedProduct?.default_yield_pcs) ||
+    numberValue(fallbackConversion?.estimated_pcs_per_adukan);
+  const bagKg =
+    numberValue(selectedProduct?.chicken_bag_kg) ||
+    numberValue(fallbackConversion?.chicken_bag_kg);
 
   const plannedChickenKg = totalAdukan * kgPerAdukan;
   const plannedOutputPcs = totalAdukan * pcsPerAdukan;
-  const actualOutputPcs = numberValue(form.actual_output_pcs) || plannedOutputPcs;
+  const actualOutputPcs = numberValue(form.actual_output_pcs);
+  const supportCostTotal = numberValue(form.support_cost_total);
 
   const modalAyam = selectedLot ? plannedChickenKg * selectedLot.unit_cost : 0;
+  const totalBatchCost = modalAyam + supportCostTotal;
   const hppAyamPerPcs =
     actualOutputPcs > 0 ? modalAyam / actualOutputPcs : 0;
+  const hppBatchPerPcs =
+    actualOutputPcs > 0 ? totalBatchCost / actualOutputPcs : 0;
 
   const remainingAfterUse = selectedLot
     ? selectedLot.remaining_kg - plannedChickenKg
@@ -529,12 +563,18 @@ function buildProductionPreview(form, lots, people, products) {
     production_date: form.production_date,
     total_adukan: totalAdukan,
     kg_per_adukan: kgPerAdukan,
+    chicken_bag_kg: bagKg,
     pcs_per_adukan: pcsPerAdukan,
     planned_chicken_kg: plannedChickenKg,
     planned_output_pcs: plannedOutputPcs,
     actual_output_pcs: actualOutputPcs,
+    variance_pcs: actualOutputPcs - plannedOutputPcs,
     modal_ayam: modalAyam,
+    support_cost_total: supportCostTotal,
+    support_cost_note: String(form.support_cost_note || "").trim(),
+    total_batch_cost: totalBatchCost,
     hpp_ayam_per_pcs: hppAyamPerPcs,
+    hpp_batch_per_pcs: hppBatchPerPcs,
     remaining_after_use: remainingAfterUse,
     note: form.note,
   };
@@ -553,7 +593,7 @@ function buildLiveProductionPayload({ preview, session }) {
   const chickenLotId = preview.selectedLot?.id || "";
 
   const totalAdukan = Number(preview.total_adukan || 0);
-  const kgPerAdukan = Number(preview.kg_per_adukan || 30);
+  const kgPerAdukan = Number(preview.kg_per_adukan || 0);
   const chickenKgUsed = Number(preview.planned_chicken_kg || 0);
   const plannedOutputPcs = Number(preview.planned_output_pcs || 0);
   const actualOutputPcs = Number(preview.actual_output_pcs || 0);
@@ -595,6 +635,9 @@ function buildLiveProductionPayload({ preview, session }) {
     modal_ayam: chickenCost,
     batch_chicken_cost: chickenCost,
     estimated_chicken_cost_per_pcs: chickenCostPerPcs,
+    support_cost_total: Number(preview.support_cost_total || 0),
+    support_cost_note: preview.support_cost_note || "",
+    total_batch_cost: Number(preview.total_batch_cost || 0),
 
     product_id: productId,
     product_code: productCode,
@@ -664,6 +707,9 @@ function buildLiveProductionPayload({ preview, session }) {
     modal_ayam: chickenCost,
     batch_chicken_cost: chickenCost,
     estimated_chicken_cost_per_pcs: chickenCostPerPcs,
+    support_cost_total: Number(preview.support_cost_total || 0),
+    support_cost_note: preview.support_cost_note || "",
+    total_batch_cost: Number(preview.total_batch_cost || 0),
 
     production_pic_id: picId,
     production_pic_name: picName,
@@ -707,11 +753,17 @@ function validateForm(form, preview) {
     errors.push("Produk hasil adukan wajib dipilih.");
   }
   if (preview.total_adukan <= 0) errors.push("Jumlah adukan harus lebih dari 0.");
+  if (preview.kg_per_adukan <= 0 || preview.pcs_per_adukan <= 0 || preview.chicken_bag_kg <= 0) {
+    errors.push("Standar produksi produk belum lengkap di Master Produk.");
+  }
   if (preview.planned_chicken_kg <= 0) errors.push("Kg ayam dipakai harus lebih dari 0.");
   if (preview.selectedLot && preview.planned_chicken_kg > preview.selectedLot.remaining_kg) {
     errors.push("Kg ayam dipakai melebihi sisa kg di lot ayam.");
   }
-  if (preview.actual_output_pcs <= 0) errors.push("Hasil pcs aktual harus lebih dari 0.");
+  if (preview.actual_output_pcs <= 0) errors.push("Hasil fisik aktual wajib diisi dan harus lebih dari 0 pcs.");
+  if (preview.support_cost_total > 0 && !preview.support_cost_note) {
+    errors.push("Catatan biaya pendukung wajib diisi jika ada biaya pendukung.");
+  }
 
   return errors;
 }
@@ -785,8 +837,14 @@ export default function AdukanPage({ session, onSessionExpired }) {
   }, [bootstrap, productionBatches]);
 
   const preview = useMemo(() => {
-    return buildProductionPreview(form, lots, productionPeople, productionProducts);
-  }, [form, lots, productionPeople, productionProducts]);
+    return buildProductionPreview(
+      form,
+      lots,
+      productionPeople,
+      productionProducts,
+      bootstrap?.conversion || {}
+    );
+  }, [form, lots, productionPeople, productionProducts, bootstrap?.conversion]);
 
   const livePayload = useMemo(() => {
     return buildLiveProductionPayload({ preview, session });
@@ -801,7 +859,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
     setError("");
 
     const result = await getProductionBootstrap(session?.sessionToken, {
-      source: "frontend_part_3b_2c_produk_hasil_adukan_fallback",
+      source: "production_workspace",
     });
 
     if (!result.success) {
@@ -964,7 +1022,13 @@ export default function AdukanPage({ session, onSessionExpired }) {
     },
   ];
 
-  const estimatedBatchCapacity = Math.floor(summary.totalKgAvailable / 30);
+  const primaryKgPerAdukan =
+    numberValue(productionProducts[0]?.chicken_kg_per_adukan) ||
+    numberValue(bootstrap?.conversion?.chicken_kg_per_adukan);
+  const estimatedBatchCapacity =
+    primaryKgPerAdukan > 0
+      ? Math.floor(summary.totalKgAvailable / primaryKgPerAdukan)
+      : 0;
   const recentColumns = [
     { key: "production_date", label: "Tanggal", render: (row) => formatDisplayDate(row.production_date || row.date) },
     { key: "product", label: "Produk", render: (row) => <strong>{safeText(row.product_name || row.output_product_name || row.item_name, "Hasil produksi")}</strong> },
@@ -988,7 +1052,7 @@ export default function AdukanPage({ session, onSessionExpired }) {
         )}
       />
 
-      <ProductionFlowPanel session={session} onSessionExpired={onSessionExpired} compact />
+      <ProductionFlowPanel activeStep={2} />
 
       {error ? <div className="da-prod-public-alert-v6 is-error">{error}</div> : null}
       {submitResult?.success ? <div className="da-prod-public-alert-v6 is-success">{submitResult.message}</div> : null}
@@ -1051,16 +1115,20 @@ export default function AdukanPage({ session, onSessionExpired }) {
               <div className="da-drop-field"><label>PIC Produksi</label>{productionPeople.length > 0 ? <select className="da-select" value={form.production_pic_id} onChange={(event) => { updateForm("production_pic_id", event.target.value); updateForm("production_pic_name", ""); }} disabled={submitting}><option value="">Pilih PIC produksi</option>{productionPeople.map((person) => <option key={person.id || person.name} value={person.id}>{person.name}{person.role ? ` · ${person.role}` : ""}</option>)}</select> : <input className="da-input" value={form.production_pic_name} placeholder="Nama PIC produksi" onChange={(event) => { updateForm("production_pic_name", event.target.value); updateForm("production_pic_id", ""); }} disabled={submitting} />}</div>
               <div className="da-drop-field"><label>Produk Hasil</label><select className="da-select" value={form.output_product_id} onChange={(event) => { const product = productionProducts.find((item) => item.id === event.target.value); updateForm("output_product_id", event.target.value); updateForm("output_product_code", product?.code || ""); updateForm("output_product_name", product?.name || ""); }} disabled={submitting || loading}><option value="">Pilih produk hasil</option>{productionProducts.map((product) => <option key={product.id || product.code} value={product.id}>{product.name}{product.code ? ` · ${product.code}` : ""}</option>)}</select></div>
               <div className="da-drop-field"><label>Jumlah Adukan</label><input className="da-input" inputMode="decimal" value={form.total_adukan} placeholder="0" onChange={(event) => updateForm("total_adukan", event.target.value)} disabled={submitting} /></div>
-              <div className="da-drop-field"><label>Hasil Aktual</label><input className="da-input" inputMode="numeric" value={form.actual_output_pcs} placeholder="Jumlah pcs" onChange={(event) => updateForm("actual_output_pcs", event.target.value)} disabled={submitting} /></div>
+              <div className="da-drop-field"><label>Hasil Fisik Aktual</label><input className="da-input" inputMode="numeric" value={form.actual_output_pcs} placeholder="Wajib isi jumlah pcs nyata" onChange={(event) => updateForm("actual_output_pcs", event.target.value)} disabled={submitting} /></div>
+              <div className="da-drop-field"><label>Biaya Pendukung Terpakai</label><input className="da-input" inputMode="numeric" value={form.support_cost_total} placeholder="0 (opsional)" onChange={(event) => updateForm("support_cost_total", event.target.value)} disabled={submitting} /><small className="da-prod-field-help-v9">Tidak memotong dompet lagi. Isi hanya biaya nyata yang dikapitalisasi ke batch.</small></div>
+              <div className="da-drop-field"><label>Dasar Biaya Pendukung</label><input className="da-input" value={form.support_cost_note} placeholder="Contoh: bahan pendukung produksi hari ini" onChange={(event) => updateForm("support_cost_note", event.target.value)} disabled={submitting} /></div>
               <div className="da-drop-field da-drop-field-wide"><label>Catatan Produksi</label><input className="da-input" value={form.note} placeholder="Catatan produksi" onChange={(event) => updateForm("note", event.target.value)} disabled={submitting} /></div>
             </div>
 
             <div className="da-prod-production-preview-v6">
               <span>Ringkasan Produksi</span>
               <strong>{preview.actual_output_pcs.toLocaleString("id-ID")} pcs</strong>
+              <div><span>Target hasil</span><b>{preview.planned_output_pcs.toLocaleString("id-ID")} pcs</b></div>
               <div><span>Ayam dipakai</span><b>{preview.planned_chicken_kg.toLocaleString("id-ID")} kg</b></div>
-              <div><span>Jumlah adukan</span><b>{preview.total_adukan.toLocaleString("id-ID")}</b></div>
-              <div><span>Modal ayam</span><b>{formatRupiah(preview.modal_ayam)}</b></div>
+              <div><span>Standar batch</span><b>{preview.kg_per_adukan || 0} kg → {preview.pcs_per_adukan || 0} pcs</b></div>
+              <div><span>Modal batch</span><b>{formatRupiah(preview.total_batch_cost)}</b></div>
+              <div><span>HPP / pcs</span><b>{formatRupiah(preview.hpp_batch_per_pcs)}</b></div>
               <div><span>Produk</span><b>{safeText(preview.outputProduct?.name, "Belum dipilih")}</b></div>
             </div>
           </div>
@@ -1074,9 +1142,14 @@ export default function AdukanPage({ session, onSessionExpired }) {
           <div className="da-modal-summary"><div><div className="da-mini-title">Hasil Produksi</div><div className="da-big-text">{preview.actual_output_pcs.toLocaleString("id-ID")} pcs</div><p className="da-muted">{safeText(preview.outputProduct?.name, "Produk belum dipilih")}</p></div><Badge tone="warning">Siap Disimpan</Badge></div>
           <div className="da-prod-detail-grid-v6">
             <div><span>Ayam dipakai</span><strong>{preview.planned_chicken_kg.toLocaleString("id-ID")} kg</strong></div>
+            <div><span>Target hasil</span><strong>{preview.planned_output_pcs.toLocaleString("id-ID")} pcs</strong></div>
+            <div><span>Selisih hasil</span><strong>{preview.variance_pcs.toLocaleString("id-ID")} pcs</strong></div>
             <div><span>Lot ayam</span><strong>{safeText(preview.selectedLot?.label)}</strong></div>
             <div><span>PIC produksi</span><strong>{safeText(preview.productionPic?.name)}</strong></div>
-            <div><span>Modal ayam batch</span><strong>{formatRupiah(preview.modal_ayam)}</strong></div>
+            <div><span>Modal ayam</span><strong>{formatRupiah(preview.modal_ayam)}</strong></div>
+            <div><span>Biaya pendukung</span><strong>{formatRupiah(preview.support_cost_total)}</strong></div>
+            <div><span>Total modal batch</span><strong>{formatRupiah(preview.total_batch_cost)}</strong></div>
+            <div><span>HPP / pcs</span><strong>{formatRupiah(preview.hpp_batch_per_pcs)}</strong></div>
           </div>
           <div className="da-prod-confirm-note-v6">Setelah disimpan, persediaan ayam akan berkurang dan hasil produksi akan masuk ke stok barang jadi secara otomatis.</div>
           {submitResult && !submitResult.success ? <div className="da-prod-public-alert-v6 is-error">{submitResult.message}</div> : null}
