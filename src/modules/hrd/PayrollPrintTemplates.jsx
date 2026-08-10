@@ -32,12 +32,55 @@ function brandHtml(subtitle = "") {
   return `<div class="brand"><span class="mark-wrap">${logo ? `<img class="brand-logo" src="${logo}" alt="Logo Dimsum Aditya" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">` : ""}<span class="mark mark-fallback" style="${logo ? "display:none" : "display:flex"}">DA</span></span><div><h1>DIMSUM ADITYA</h1><p>${esc(subtitle)}</p></div></div>`;
 }
 
+function waitForPrintAssets(win) {
+  const doc = win?.document;
+  if (!doc) return Promise.resolve();
+
+  const imageJobs = Array.from(doc.images || []).map((image) => {
+    if (image.complete) return Promise.resolve();
+    return new Promise((resolve) => {
+      const done = () => resolve();
+      image.addEventListener("load", done, { once: true });
+      image.addEventListener("error", done, { once: true });
+    });
+  });
+
+  const fontJob = doc.fonts?.ready ? Promise.resolve(doc.fonts.ready).catch(() => undefined) : Promise.resolve();
+  const assetsReady = Promise.all([fontJob, ...imageJobs]);
+  const safetyTimeout = new Promise((resolve) => window.setTimeout(resolve, 1200));
+  return Promise.race([assetsReady, safetyTimeout]);
+}
+
 function printWindow(title, body, css, autoPrint = true) {
-  const win = window.open("", "_blank", "noopener,noreferrer");
-  if (!win) throw new Error("Popup cetak diblokir browser.");
+  // Harus dipanggil langsung dari event click. Popup kosong dibuat sinkron,
+  // lalu konten ditulis sebelum pekerjaan async lain seperti audit/log print.
+  const win = window.open("", "_blank");
+  if (!win) throw new Error("Popup cetak diblokir browser. Izinkan popup untuk ERP Dimsum Aditya.");
+
+  const baseHref = esc(document?.baseURI || window.location.href || "");
   win.document.open();
-  win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>${css}</style></head><body>${body}<script>${autoPrint ? "window.onload=()=>{window.print();};" : ""}<\/script></body></html>`);
+  win.document.write(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><base href="${baseHref}"><title>${esc(title)}</title><style>${css}</style></head><body>${body}</body></html>`);
   win.document.close();
+
+  if (autoPrint) {
+    let started = false;
+    const startPrint = async () => {
+      if (started || win.closed) return;
+      started = true;
+      await waitForPrintAssets(win);
+      // Beri browser satu frame untuk layout/paint sebelum membuka print preview.
+      win.setTimeout(() => {
+        if (win.closed) return;
+        try { void win.document.body?.offsetHeight; } catch { /* force layout best-effort */ }
+        try { win.focus(); } catch { /* noop */ }
+        win.print();
+      }, 180);
+    };
+
+    if (win.document.readyState === "complete") startPrint();
+    else win.addEventListener("load", startPrint, { once: true });
+  }
+
   return win;
 }
 
