@@ -6,8 +6,6 @@ import {
   createHRDLoanNote,
   getHRDPayrollBootstrap,
   hrdPayrollHealth,
-  importHRDPayrollV32Backup,
-  previewHRDPayrollV32Import,
 } from "../../lib/api/actions";
 import { formatRupiah } from "../../lib/format/money";
 import { formatDate } from "../../lib/format/date";
@@ -111,7 +109,7 @@ function SectionTabs({ active, onChange, fullPayrollAccess }) {
     ["employees", "Data Karyawan"],
     ["attendance", "Absensi & Izin"],
     ["ledger", "Kasbon & Pinjaman"],
-    ...(fullPayrollAccess ? [["process", "Proses Gaji"], ["payment", "Pembayaran"], ["history", "Riwayat Payroll"], ["import", "Import V32"]] : []),
+    ...(fullPayrollAccess ? [["process", "Proses Gaji"], ["payment", "Pembayaran"], ["history", "Riwayat Payroll"]] : []),
   ];
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
@@ -152,7 +150,6 @@ export default function HRDPayrollPage({ session, onSessionExpired, viewMode = "
   const [attendanceModalOpen, setAttendanceModalOpen] = useState(false);
   const [advanceModalOpen, setAdvanceModalOpen] = useState(false);
   const [loanModalOpen, setLoanModalOpen] = useState(false);
-  const [importModalOpen, setImportModalOpen] = useState(false);
   const [payrollSubMode, setPayrollSubMode] = useState("process");
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [detailTab, setDetailTab] = useState("overview");
@@ -165,7 +162,6 @@ export default function HRDPayrollPage({ session, onSessionExpired, viewMode = "
     salary_mode: "BULANAN",
     base_salary: "0",
     daily_salary: "0",
-    fixed_allowance: "0",
     employment_status: "ACTIVE",
     effective_period: monthInput(),
     notes: "Karyawan aktif.",
@@ -174,11 +170,6 @@ export default function HRDPayrollPage({ session, onSessionExpired, viewMode = "
   const [advanceForm, setAdvanceForm] = useState({ employee_id: "", wallet_id: "", date: todayInput(), amount: "0", notes: "Kasbon karyawan." });
   const [loanForm, setLoanForm] = useState({ employee_id: "", wallet_id: "", loan_date: todayInput(), amount: "0", tenor_total: "0", installment_amount: "0", start_period: monthInput(), payment_mode: "AUTO_PAYROLL", notes: "Pinjaman karyawan." });
 
-  const [backupFileName, setBackupFileName] = useState("");
-  const [backupObject, setBackupObject] = useState(null);
-  const [importPreview, setImportPreview] = useState(null);
-  const [importConfirmation, setImportConfirmation] = useState("");
-  const [importing, setImporting] = useState(false);
 
   const access = data?.access || {};
   const fullPayrollAccess = Boolean(access.full_payroll_access);
@@ -189,7 +180,6 @@ export default function HRDPayrollPage({ session, onSessionExpired, viewMode = "
   const advances = useMemo(() => asArray(data?.kasbon_rows), [data]);
   const loans = useMemo(() => asArray(data?.loan_rows), [data]);
   const payrollRows = useMemo(() => asArray(data?.payroll_recaps), [data]);
-  const importBatches = useMemo(() => asArray(data?.import_batches), [data]);
   const summary = data?.summary || {};
 
   const selectedAttendance = useMemo(() => attendanceRows.filter((row) => String(row.employee_id) === String(selectedEmployee?.employee_id)), [attendanceRows, selectedEmployee]);
@@ -269,7 +259,7 @@ export default function HRDPayrollPage({ session, onSessionExpired, viewMode = "
   async function submitEmployee(event) {
     event.preventDefault();
     const ok = await runWrite(createHRDEmployee, employeeForm, "EMP", "Karyawan berhasil dibuat.");
-    if (ok) setEmployeeForm((prev) => ({ ...prev, employee_name: "", base_salary: "0", daily_salary: "0", fixed_allowance: "0", notes: "Karyawan aktif." }));
+    if (ok) setEmployeeForm((prev) => ({ ...prev, employee_name: "", base_salary: "0", daily_salary: "0", notes: "Karyawan aktif." }));
     return ok;
   }
 
@@ -290,76 +280,6 @@ export default function HRDPayrollPage({ session, onSessionExpired, viewMode = "
     const ok = await runWrite(createHRDLoanNote, loanForm, "LOAN", "Pinjaman berhasil dibuat.");
     if (ok) setLoanForm((prev) => ({ ...prev, amount: "0", tenor_total: "0", installment_amount: "0", notes: "Pinjaman karyawan." }));
     return ok;
-  }
-
-  async function handleBackupFile(event) {
-    const file = event.target.files?.[0];
-    setBackupObject(null);
-    setImportPreview(null);
-    setImportConfirmation("");
-    if (!file) return;
-    try {
-      const text = await file.text();
-      const parsed = JSON.parse(text);
-      setBackupFileName(file.name);
-      setBackupObject(parsed);
-      setNotice(`File ${file.name} berhasil dibaca. Klik Preview Import.`);
-      setError("");
-    } catch (err) {
-      setError(`File backup tidak valid: ${err?.message || "JSON gagal dibaca"}`);
-    }
-  }
-
-  async function previewImport() {
-    if (!backupObject) {
-      setError("Pilih file Backup Payroll JSON terlebih dahulu.");
-      return;
-    }
-    setImporting(true);
-    setError("");
-    try {
-      const result = await previewHRDPayrollV32Import(token, { backup: backupObject, file_name: backupFileName });
-      if (isAuthRequired(result)) {
-        onSessionExpired?.();
-        return;
-      }
-      if (!result?.success) throw new Error(result?.message || "Preview import gagal.");
-      setImportPreview(result.data || null);
-      setNotice("Preview selesai. Belum ada satu pun row yang ditulis.");
-    } catch (err) {
-      setError(err?.message || "Preview import gagal.");
-    } finally {
-      setImporting(false);
-    }
-  }
-
-  async function executeImport() {
-    if (!backupObject || !importPreview) return;
-    setImporting(true);
-    setError("");
-    setNotice("");
-    try {
-      const result = await importHRDPayrollV32Backup(token, {
-        backup: backupObject,
-        file_name: backupFileName,
-        confirmation: importConfirmation,
-        operation_id: makeOperationId("HRDIMP"),
-        request_id: makeOperationId("REQ"),
-      });
-      if (isAuthRequired(result)) {
-        onSessionExpired?.();
-        return;
-      }
-      if (!result?.success) throw new Error(result?.message || "Import gagal.");
-      setNotice(result?.message || "Import berhasil.");
-      setImportPreview(null);
-      setImportConfirmation("");
-      await loadData({ quiet: true });
-    } catch (err) {
-      setError(err?.message || "Import gagal.");
-    } finally {
-      setImporting(false);
-    }
   }
 
   const employeeColumns = [
@@ -430,7 +350,7 @@ export default function HRDPayrollPage({ session, onSessionExpired, viewMode = "
         {fullPayrollAccess ? <label className="da-field"><span>Lokasi</span><select value={locationId} onChange={(event) => setLocationId(event.target.value)}><option value="ALL">Semua lokasi</option>{locations.map((row) => <option key={row.location_id} value={row.location_id}>{row.location_name} · {row.location_code}</option>)}</select></label> : <div />}
       </div>
       <div className="da-hrd-toolbar-actions-v3">
-        <Badge tone={data?.health?.ready ? "success" : "danger"}>{data?.health?.ready ? "HRD Siap" : "HRD Belum Siap"}</Badge>
+        <Badge tone={data?.health?.ready ? "success" : "danger"}>{data?.health?.ready ? "Data HRD Langsung" : "HRD Belum Siap"}</Badge>
         <Button variant="secondary" onClick={() => loadData()}>Refresh Data</Button>
       </div>
     </div>
@@ -443,6 +363,7 @@ export default function HRDPayrollPage({ session, onSessionExpired, viewMode = "
       </div>
 
       <Card className="da-full-width">{toolbar}{error ? <NoticeBox tone="danger">{error}</NoticeBox> : null}{notice ? <NoticeBox tone="success">{notice}</NoticeBox> : null}</Card>
+      {(viewMode === "dashboard" || viewMode === "payroll") ? <FlowCard /> : null}
 
       {viewMode === "dashboard" ? <>
         <div className="da-stat-grid">
@@ -534,9 +455,9 @@ export default function HRDPayrollPage({ session, onSessionExpired, viewMode = "
           <StatCard label="Closing" value={summary.payroll_closed_count || 0} helper={`Periode ${period}.`} tone="success" />
           <StatCard label="Draft" value={summary.payroll_draft_count || 0} helper="Belum dikunci." tone="warning" />
           <StatCard label="Total THP" value={formatRupiah(summary.payroll_total_net_pay || 0)} helper="Rekap histori periode." tone="success" />
-          <StatCard label="Import Histori" value={importBatches.length} helper="Batch migrasi V32 tercatat." />
+          <StatCard label="Sumber Data" value="Live" helper="HRD langsung dari PHP/MySQL." tone="success" />
         </div>
-        <Card className="da-full-width" title="Rekap & Histori Payroll" description="Klik baris untuk membuka profil payroll karyawan. Cetak A4 tersedia pada pusat rekap." action={<Button variant="secondary" onClick={() => setImportModalOpen(true)}>Import V32</Button>}>
+        <Card className="da-full-width" title="Rekap & Histori Payroll" description="Klik baris untuk membuka profil payroll karyawan. Data lama sudah menjadi ledger database; tidak ada proses import harian.">
           <PayrollFinalPanel session={session} period={period} locationId={locationId} baseEmployees={employees} mode="report" onSessionExpired={onSessionExpired} onChanged={() => loadData({ quiet: true })} />
         </Card>
       </> : null}
@@ -551,7 +472,6 @@ export default function HRDPayrollPage({ session, onSessionExpired, viewMode = "
             <label className="da-field"><span>Mode Gaji</span><select value={employeeForm.salary_mode} onChange={(e) => setEmployeeForm({ ...employeeForm, salary_mode: e.target.value })}><option value="BULANAN">Bulanan</option><option value="HARIAN">Harian</option></select></label>
             <label className="da-field"><span>Gaji Pokok</span><input inputMode="numeric" value={employeeForm.base_salary} onChange={(e) => setEmployeeForm({ ...employeeForm, base_salary: e.target.value })} /></label>
             <label className="da-field"><span>Gaji Harian</span><input inputMode="numeric" value={employeeForm.daily_salary} onChange={(e) => setEmployeeForm({ ...employeeForm, daily_salary: e.target.value })} /></label>
-            <label className="da-field"><span>Tunjangan Tetap</span><input inputMode="numeric" value={employeeForm.fixed_allowance} onChange={(e) => setEmployeeForm({ ...employeeForm, fixed_allowance: e.target.value })} /></label>
           </div><div className="da-form-actions"><Button type="submit" disabled={saving}>Simpan Karyawan</Button></div>
         </form>
       </Modal>
@@ -591,10 +511,6 @@ export default function HRDPayrollPage({ session, onSessionExpired, viewMode = "
             <label className="da-field"><span>Keterangan</span><input value={loanForm.notes} onChange={(e) => setLoanForm({ ...loanForm, notes: e.target.value })} /></label>
           </div><div className="da-form-actions"><Button type="submit" disabled={saving}>Buat Pinjaman</Button></div>
         </form>
-      </Modal>
-
-      <Modal open={importModalOpen} title="Import Backup Payroll V32" subtitle="Admin tool — histori tidak membuat mutasi uang baru" onClose={() => setImportModalOpen(false)} size="xl">
-        <div className="da-hrd-modal-form-v3"><input type="file" accept="application/json,.json" onChange={handleBackupFile} /><Button variant="secondary" onClick={previewImport} disabled={!backupObject || importing}>{importing ? "Memeriksa…" : "Preview Import"}</Button>{importPreview ? <><div className="da-stat-grid"><StatCard label="Karyawan" value={importPreview.summary?.employee_count || 0} /><StatCard label="Payroll Closing" value={importPreview.summary?.payroll_closed_count || 0} tone="success" /><StatCard label="Baris Kasbon" value={importPreview.summary?.advance_entry_count || 0} tone="warning" /><StatCard label="Gerakan Pinjaman" value={importPreview.summary?.loan_movement_count || 0} tone="warning" /></div>{asArray(importPreview.warnings).map((warning) => <NoticeBox key={warning}>{warning}</NoticeBox>)}{asArray(importPreview.errors).map((item) => <NoticeBox key={item} tone="danger">{item}</NoticeBox>)}{!importPreview.already_imported && importPreview.ready_to_import ? <><label className="da-field"><span>Ketik persis: IMPORT PAYROLL V32</span><input value={importConfirmation} onChange={(e) => setImportConfirmation(e.target.value)} /></label><Button onClick={executeImport} disabled={importing || importConfirmation !== "IMPORT PAYROLL V32"}>Import Riwayat</Button></> : null}</> : null}</div>
       </Modal>
 
       <Modal open={Boolean(selectedEmployee)} title={selectedEmployee?.employee_name || "Detail Karyawan"} subtitle={`${selectedEmployee?.location_name || ""} · Tanggal gajian ${selectedEmployee?.payroll_day || "-"}`} onClose={() => setSelectedEmployee(null)} size="xl">
