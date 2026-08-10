@@ -1689,3 +1689,78 @@ button.da-owner-overview-card-v4:hover { transform:translateY(-2px);border-color
   .da-app-v3 .da-branch-command-metrics strong{font-size:16px;}
   .da-app-v3 .da-branch-detail-summary{grid-template-columns:1fr;}
 }
+
+
+/* ================================================================
+   PACKAGE 14B — CABANG FINAL POLISH
+   Executive hierarchy, progress timeline, queue tabs, role-aware UX
+   ================================================================ */
+.da-app-v3 .da-branch-page>.da-page-header{padding-bottom:13px;border-bottom:1px solid #e5e8ee;}
+.da-app-v3 .da-branch-page .da-page-actions{gap:7px;align-items:center;}
+.da-app-v3 .da-branch-flow-trigger{min-width:0!important;padding-inline:11px!important;border-radius:10px!important;color:#475467!important;background:#fff!important;border-color:#e3e7ed!important;}
+.da-app-v3 .da-branch-flow-trigger:hover{border-color:#cfd5df!important;background:#f9fafb!important;}
+.da-app-v3 .da-branch-filterbar{background:#fff;box-shadow:none;border-color:#e1e5eb;}
+.da-app-v3 .da-branch-command{min-height:176px;border-radius:22px;box-shadow:0 14px 36px rgba(15,23,42,.055);}
+.da-app-v3 .da-branch-command-main{padding:23px 27px;}
+.da-app-v3 .da-branch-command-main>strong{font-size:40px;}
+.da-app-v3 .da-branch-command-metrics>div{padding:18px 20px;}
+.da-app-v3 .da-branch-workspace{grid-template-columns:minmax(0,1.78fr) minmax(310px,.72fr);gap:15px;}
+.da-app-v3 .da-branch-status-card-v14b,.da-app-v3 .da-branch-readiness-card{background:linear-gradient(180deg,#ffffff 0%,#fbfcfd 100%);}
+.da-app-v3 .da-branch-status-heading{align-items:flex-start;}
+.da-app-v3 .da-branch-status-heading h2{margin-top:2px;font-size:17px;}
+.da-app-v3 .da-branch-timeline{display:grid;gap:0;margin:2px 0 3px;padding:2px 0;}
+.da-app-v3 .da-branch-timeline-step{position:relative;display:grid;grid-template-columns:28px minmax(0,1fr);gap:9px;min-height:47px;align-items:start;}
+.da-app-v3 .da-branch-timeline-step:not(:last-child):before{content:"";position:absolute;left:13px;top:27px;bottom:-1px;width:2px;background:#e7eaf0;}
+.da-app-v3 .da-branch-timeline-step.is-done:not(:last-child):before{background:#9eddbd;}
+.da-app-v3 .da-branch-timeline-dot{position:relative;z-index:1;display:grid;place-items:center;width:27px;height:27px;border-radius:50%;border:1px solid #dfe3e9;background:#fff;color:#98a2b3;font-size:9px;font-weight:900;}
+.da-app-v3 .da-branch-timeline-step.is-done .da-branch-timeline-dot{border-color:#9eddbd;background:#ecf9f1;color:#10824a;}
+.da-app-v3 .da-branch-timeline-step.is-current .da-branch-timeline-dot{border-color:#e9a39c;background:#fff1ef;color:#c6291d;box-shadow:0 0 0 4px rgba(217,45,32,.07);}
+.da-app-v3 .da-branch-timeline-step.is-danger .da-branch-timeline-dot{border-color:#efb0a9;background:#fff2f0;color:#b42318;}
+.da-app-v3 .da-branch-timeline-step>div{display:flex;flex-direction:column;gap:2px;padding-top:2px;}
+.da-app-v3 .da-branch-timeline-step strong{font-size:10.5px;font-weight:900;color:#344054;}
+.da-app-v3 .da-branch-timeline-step small{font-size:9px;color:#98a2b3;}
+.da-app-v3 .da-branch-timeline-step.is-current strong{color:#b42318;}
+.da-app-v3 .da-branch-status-hero-compact{padding:11px 12px;border-radius:12px;}
+.da-app-v3 .da-branch-status-list-compact{grid-template-columns:1fr 1fr 1fr;gap:6px;}
+.da-app-v3 .da-branch-status-list-compact>div{grid-template-columns:18px 1fr;gap:5px;padding:9px;border-radius:10px;}
+.da-app-v3 .da-branch-status-list-compact>div strong{grid-column:2;font-size:10.5px;}
+.da-app-v3 .da-branch-empty-state{display:flex;min-height:158px;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:28px 18px;text-align:center;color:#98a2b3;}
+.da-app-v3 .da-branch-empty-state svg{color:#c4cad4;}
+.da-app-v3 .da-branch-empty-state strong{font-size:13px;color:#344054;}
+.da-app-v3 .da-branch-empty-state span{max-width:430px;font-size:10px;line-height:1.55;color:#98a2b3;}
+.da-app-v3 .da-branch-settlement-card{min-width:0;}
+.da-app-v3 .da-branch-tabs{display:inline-flex;gap:4px;margin:12px 0 13px;padding:4px;border:1px solid #e5e8ee;border-radius:12px;background:#f5f6f8;}
+.da-app-v3 .da-branch-tabs button{display:flex;align-items:center;gap:7px;min-height:34px;padding:0 12px;border:0;border-radius:8px;background:transparent;color:#667085;font:inherit;font-size:10px;font-weight:850;cursor:pointer;}
+.da-app-v3 .da-branch-tabs button span{display:grid;place-items:center;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:#fff;color:#667085;font-size:8.5px;border:1px solid #e5e8ee;}
+.da-app-v3 .da-branch-tabs button.is-active{background:#fff;color:#b42318;box-shadow:0 2px 8px rgba(15,23,42,.07);}
+.da-app-v3 .da-branch-tabs button.is-active span{background:#fff0ee;border-color:#f0c7c2;color:#b42318;}
+.da-app-v3 .da-branch-ready-compact{display:flex;align-items:flex-start;gap:11px;padding:14px;border:1px solid #bfe6cf;border-radius:14px;background:linear-gradient(145deg,#effaf4,#f8fffb);color:#08783e;}
+.da-app-v3 .da-branch-ready-compact>div{display:flex;flex-direction:column;gap:4px;}
+.da-app-v3 .da-branch-ready-compact strong{font-size:12px;font-weight:950;color:#08783e;}
+.da-app-v3 .da-branch-ready-compact span{font-size:9.5px;line-height:1.45;color:#5b7868;}
+.da-app-v3 .da-branch-ready-stats{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
+.da-app-v3 .da-branch-ready-stats span{display:flex;flex-direction:column;gap:4px;padding:10px 11px;border:1px solid #e8ebef;border-radius:11px;background:#fff;font-size:9px;color:#98a2b3;}
+.da-app-v3 .da-branch-ready-stats strong{font-size:11px;color:#344054;}
+.da-app-v3 .da-branch-readiness-card.is-all-ready{align-self:start;}
+.da-app-v3 .da-branch-source-card,.da-app-v3 .da-branch-settlement-card{box-shadow:0 8px 24px rgba(15,23,42,.035);}
+
+@media (max-width:1100px){
+  .da-app-v3 .da-branch-workspace{grid-template-columns:1fr;}
+  .da-app-v3 .da-branch-status-card,.da-app-v3 .da-branch-readiness-card{order:-1;}
+}
+@media (max-width:760px){
+  .da-app-v3 .da-branch-page>.da-page-header{gap:12px;}
+  .da-app-v3 .da-branch-page .da-page-actions{width:100%;display:grid;grid-template-columns:auto auto minmax(0,1fr);gap:7px;}
+  .da-app-v3 .da-branch-page .da-page-actions>.da-button:last-child{width:100%;justify-content:center;}
+  .da-app-v3 .da-branch-command-main>strong{font-size:32px;}
+  .da-app-v3 .da-branch-status-list-compact{grid-template-columns:1fr;}
+  .da-app-v3 .da-branch-tabs{display:grid;grid-template-columns:1fr 1fr;width:100%;}
+  .da-app-v3 .da-branch-tabs button{justify-content:center;}
+}
+@media (max-width:480px){
+  .da-app-v3 .da-branch-page .da-page-actions{grid-template-columns:1fr 1fr;}
+  .da-app-v3 .da-branch-page .da-page-actions>.da-button:last-child{grid-column:1/-1;}
+  .da-app-v3 .da-branch-command{border-radius:17px;}
+  .da-app-v3 .da-branch-command-main{padding:18px 16px;}
+  .da-app-v3 .da-branch-command-main>strong{font-size:29px;}
+}
