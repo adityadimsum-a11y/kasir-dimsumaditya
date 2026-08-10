@@ -121,7 +121,7 @@ export default function TangerangGoLiveCutoverPanel({
 
       setBootstrap(null);
       setError(
-        result?.message || "Kesiapan Real Go-Live belum bisa dibaca."
+        result?.message || "Kesiapan aktivasi penjualan belum bisa dibaca."
       );
       setLoading(false);
       return;
@@ -168,14 +168,14 @@ export default function TangerangGoLiveCutoverPanel({
 
     if (!foundationReady) {
       errors.push(
-        "Pondasi Part 2F belum siap. Pastikan migration 016 sudah di-import."
+        "Konfigurasi aktivasi belum lengkap. Perbarui sistem atau hubungi administrator."
       );
     }
     if (!form.product_id) {
       errors.push("Produk wajib dipilih.");
     }
     if (alreadyActivated) {
-      errors.push("Produk ini sudah pernah diaktifkan melalui Real Go-Live.");
+      errors.push("Produk ini sudah pernah diaktifkan untuk penjualan.");
     }
     if (numberValue(form.official_price_per_unit) <= 0) {
       errors.push("Harga jual resmi per pcs wajib lebih dari Rp0.");
@@ -282,7 +282,7 @@ export default function TangerangGoLiveCutoverPanel({
         return;
       }
 
-      setError(result?.message || "Aktivasi Real Go-Live gagal.");
+      setError(result?.message || "Aktivasi penjualan gagal.");
       setSaving(false);
       return;
     }
@@ -302,7 +302,7 @@ export default function TangerangGoLiveCutoverPanel({
   const rows = products.map((row) => ({
     ...row,
     status_label: row.order_ready
-      ? "Kasir Live"
+      ? "Kasir Aktif"
       : row.cutover_id
       ? "Aktif, Perlu Stok/Harga"
       : "Belum Diaktifkan",
@@ -372,12 +372,10 @@ export default function TangerangGoLiveCutoverPanel({
       <Card>
         <div className="da-section-heading">
           <div>
-            <span>Part 2F · Real Go-Live</span>
-            <h2>Aktifkan Kasir Tangerang</h2>
+            <span>OPENING PRODUK</span>
+            <h2>Opening Stok & Aktivasi Penjualan</h2>
             <p>
-              Aktivasi nyata satu kali: harga resmi, stok freezer awal,
-              HPP historis, jurnal pembukaan, arsip, dan audit ditulis
-              bersama dalam satu transaksi PHP/MySQL.
+              Siapkan harga resmi dan stok awal produk sebelum dipakai transaksi. HPP pembukaan dan histori tetap terkunci setelah disimpan.
             </p>
           </div>
 
@@ -390,24 +388,22 @@ export default function TangerangGoLiveCutoverPanel({
             }}
           >
             <Badge tone={foundationReady ? "success" : "warning"}>
-              {foundationReady ? "Fondasi Siap" : "Migration 016 Dibutuhkan"}
+              {foundationReady ? "Siap Diproses" : "Konfigurasi Belum Lengkap"}
             </Badge>
-            <Badge tone="danger">Real Write</Badge>
+            <Badge tone="danger">Permanen</Badge>
             <Button
               type="button"
               variant="ghost"
               onClick={loadData}
               disabled={loading || saving}
             >
-              {loading ? "Membaca..." : "Refresh Go-Live"}
+              {loading ? "Membaca..." : "Perbarui"}
             </Button>
           </div>
         </div>
 
         <div className="da-form-warning" style={{ marginTop: 14 }}>
-          <strong>Ini bukan tes.</strong> Nilai yang dikonfirmasi menjadi
-          data produksi nyata. Pastikan stok fisik freezer dan HPP sudah
-          diperiksa sebelum aktivasi.
+          <strong>Periksa sebelum menyimpan.</strong> Harga dan stok pembukaan harus sesuai kondisi fisik dan keputusan Owner.
         </div>
 
         {error ? (
@@ -436,7 +432,7 @@ export default function TangerangGoLiveCutoverPanel({
             value={numberValue(
               bootstrap?.counts?.active_products
             ).toLocaleString("id-ID")}
-            description="Produk yang dapat dipilih untuk aktivasi nyata."
+            description="Produk aktif yang dapat disiapkan untuk penjualan."
           />
           <StatCard
             label="Sudah Diaktifkan"
@@ -448,7 +444,7 @@ export default function TangerangGoLiveCutoverPanel({
                 ? "success"
                 : "warning"
             }
-            description="Satu cutover permanen per produk dan lokasi."
+            description="Satu aktivasi pembukaan per produk dan lokasi."
           />
           <StatCard
             label="Siap Transaksi"
@@ -468,11 +464,10 @@ export default function TangerangGoLiveCutoverPanel({
       <Card>
         <div className="da-section-heading">
           <div>
-            <span>Owner · Tangerang HO</span>
-            <h2>Data Aktivasi Nyata</h2>
+            <span>OPENING & AKTIVASI</span>
+            <h2>Siapkan Produk untuk Penjualan</h2>
             <p>
-              Nominal tidak diisi otomatis. Masukkan hanya angka yang sudah
-              disetujui dan sesuai kondisi fisik usaha.
+              Masukkan hanya harga resmi dan stok fisik yang sudah diperiksa.
             </p>
           </div>
           <Badge tone={alreadyActivated ? "success" : "warning"}>
@@ -515,7 +510,7 @@ export default function TangerangGoLiveCutoverPanel({
             </label>
 
             <label className="da-field">
-              Mulai Live
+              Tanggal Mulai
               <input
                 type="date"
                 value={form.cutover_date}
@@ -611,9 +606,7 @@ export default function TangerangGoLiveCutoverPanel({
 
           {existingStock ? (
             <div className="da-form-success" style={{ marginTop: 14 }}>
-              Stok barang jadi sudah tersedia di PHP/MySQL. Part 2F tidak
-              akan menambah opening stock lagi; aktivasi hanya mengunci
-              harga dan status go-live.
+              Stok barang jadi sudah tersedia. Sistem tidak akan menambah stok pembukaan lagi; aktivasi hanya menetapkan harga dan status penjualan.
             </div>
           ) : null}
 
@@ -629,7 +622,7 @@ export default function TangerangGoLiveCutoverPanel({
             <div className="da-form-success" style={{ marginTop: 14 }}>
               <strong>Kasir sudah diaktifkan.</strong>
               <div style={{ marginTop: 8 }}>
-                Cutover ID: {safeText(selectedProduct?.cutover_id)}
+                Aktivasi ID: {safeText(selectedProduct?.cutover_id)}
               </div>
               <div>
                 Rule harga: {safeText(selectedProduct?.price_rule_id)}
@@ -675,13 +668,13 @@ export default function TangerangGoLiveCutoverPanel({
         <div className="da-section-heading">
           <div>
             <span>Status Produk Tangerang</span>
-            <h2>Peta Go-Live</h2>
+            <h2>Daftar Produk & Kesiapan</h2>
             <p>
               Produk baru dianggap siap transaksi ketika harga resmi dan
               stok bebas sama-sama tersedia.
             </p>
           </div>
-          <Badge tone="success">PHP/MySQL</Badge>
+          <Badge tone="success">Data Terpusat</Badge>
         </div>
 
         <DataTable
@@ -698,15 +691,15 @@ export default function TangerangGoLiveCutoverPanel({
               <span>Aktivasi Berhasil</span>
               <h2>Benang Merah Sudah Tersambung</h2>
               <p>
-                Buka Kasir / Order, klik Refresh Data, lalu jalankan
+                Buka Kasir / Order, perbarui data, lalu jalankan
                 transaksi pelanggan nyata pertama.
               </p>
             </div>
-            <Badge tone="success">Kasir Live</Badge>
+            <Badge tone="success">Kasir Aktif</Badge>
           </div>
 
           <div className="da-payload-list">
-            <InfoRow label="Cutover ID" value={activationResult.cutover_id} />
+            <InfoRow label="Aktivasi ID" value={activationResult.cutover_id} />
             <InfoRow label="Rule Harga" value={activationResult.price_rule_id} />
             <InfoRow label="Layer Stok" value={activationResult.stock_layer_id} />
             <InfoRow label="Mutasi Stok" value={activationResult.stock_movement_id} />
@@ -722,8 +715,8 @@ export default function TangerangGoLiveCutoverPanel({
 
       <Modal
         open={confirmOpen}
-        title="Konfirmasi Real Go-Live Tangerang"
-        subtitle="Data ini akan ditulis permanen ke PHP/MySQL."
+        title="Konfirmasi Aktivasi Penjualan"
+        subtitle="Harga dan stok pembukaan akan disimpan permanen."
         onClose={() => {
           if (!saving) {
             setConfirmOpen(false);
@@ -740,7 +733,7 @@ export default function TangerangGoLiveCutoverPanel({
             label="Lokasi"
             value={bootstrap?.location?.location_name}
           />
-          <InfoRow label="Mulai Live" value={form.cutover_date} />
+          <InfoRow label="Tanggal Mulai" value={form.cutover_date} />
           <InfoRow
             label="Harga Resmi / Pcs"
             value={formatRupiah(form.official_price_per_unit)}
@@ -807,7 +800,7 @@ export default function TangerangGoLiveCutoverPanel({
             }
             onClick={handleActivate}
           >
-            {saving ? "Mengaktifkan..." : "Aktifkan Kasir Tangerang"}
+            {saving ? "Mengaktifkan..." : "Opening Stok & Aktivasi Penjualan"}
           </Button>
         </div>
       </Modal>
