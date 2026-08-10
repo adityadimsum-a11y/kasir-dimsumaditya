@@ -13,6 +13,7 @@ import DataTable from "../../components/ui/DataTable";
 import Modal from "../../components/ui/Modal";
 import PageHeader from "../../components/ui/PageHeader";
 import StatCard from "../../components/ui/StatCard";
+import Tabs from "../../components/ui/Tabs";
 
 function asArray(value) {
   return Array.isArray(value) ? value : [];
@@ -78,6 +79,8 @@ export default function PermissionRoleCheckPage({ session, onSessionExpired }) {
   const [selected, setSelected] = useState(null);
   const [editDraft, setEditDraft] = useState({ full_name: "", role_id: "", location_id: "" });
   const [newPassword, setNewPassword] = useState("");
+  const [activeTab, setActiveTab] = useState("accounts");
+  const [createOpen, setCreateOpen] = useState(false);
 
   const availableLocations = useMemo(
     () => data.locations.filter((row) => roleMatchesLocation(draft.role_id, row)),
@@ -176,6 +179,7 @@ export default function PermissionRoleCheckPage({ session, onSessionExpired }) {
         return;
       }
       setSuccess(result?.message || "Akun operasional berhasil dibuat.");
+      setCreateOpen(false);
       setDraft((current) => ({ ...EMPTY_DRAFT, role_id: current.role_id }));
       await loadData();
     } catch (err) {
@@ -207,6 +211,7 @@ export default function PermissionRoleCheckPage({ session, onSessionExpired }) {
         ...editDraft,
         operation_id: makeOperationId("UPDATE"),
       });
+      if (isAuthRequired(result)) { onSessionExpired?.(); return; }
       if (!result?.success) {
         setError(result?.message || "Profil akun belum berhasil diperbarui.");
         return;
@@ -233,6 +238,7 @@ export default function PermissionRoleCheckPage({ session, onSessionExpired }) {
         notes: "Diubah Owner dari Permission & Role.",
         operation_id: makeOperationId("STATUS"),
       });
+      if (isAuthRequired(result)) { onSessionExpired?.(); return; }
       if (!result?.success) {
         setError(result?.message || "Status akun belum berhasil diubah.");
         return;
@@ -257,6 +263,7 @@ export default function PermissionRoleCheckPage({ session, onSessionExpired }) {
         password: newPassword,
         operation_id: makeOperationId("PASSWORD"),
       });
+      if (isAuthRequired(result)) { onSessionExpired?.(); return; }
       if (!result?.success) {
         setError(result?.message || "Password belum berhasil direset.");
         return;
@@ -298,54 +305,125 @@ export default function PermissionRoleCheckPage({ session, onSessionExpired }) {
     },
   ];
 
+  const roleDescriptions = {
+    "ROLE-HO-ADMIN": "Admin operasional HO dengan cakupan global, tanpa hak kebijakan Owner.",
+    "ROLE-PRODUCTION-ADMIN": "Admin produksi pada lokasi sendiri untuk produksi, stok, cabang, dan HRD operasional.",
+    "ROLE-OUTLET-ADMIN": "Admin outlet/resto pada lokasi sendiri untuk penjualan, stok, cabang, dan HRD operasional.",
+    "ROLE-BRANCH-STAFF": "Staff cabang dengan akses operasional terbatas sesuai lokasi kerja.",
+  };
+
   return (
-    <div className="da-page-stack">
+    <main className="da-page system-control-page system-access-v17">
       <PageHeader
-        title="Permission & Akun Cabang"
-        description="Kelola akun HO, produksi, resto/outlet, dan staff. Setiap akun mengikuti lokasi kerja dan hak akses yang ditetapkan."
-        badge={health.branch_login_ready ? "Cabang Siap Login" : health.foundation_ready ? "Fondasi Siap" : "Belum Siap"}
-        badgeTone={health.branch_login_ready ? "success" : "warning"}
-      />
-
-      {error ? <div className="da-alert da-alert-error">{error}</div> : null}
-      {success ? <div className="da-alert da-alert-success">{success}</div> : null}
-
-      <Card
-        title="Akun Cabang"
-        description="Tidak ada password contoh. Owner mengisi nama, username, role, lokasi, dan password awal secara manual."
-        action={
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <Badge tone={health.migration_017_applied ? "success" : "warning"}>Hak Akses Sistem</Badge>
-            <Badge tone={health.roles_ready ? "success" : "warning"}>Role Matrix</Badge>
-            <Button variant="secondary" disabled={loading} onClick={loadData}>Refresh Data</Button>
-          </div>
-        }
-      >
-        <div className="da-stat-grid">
-          <StatCard label="Akun Operasional" value={data.summary.total_users || 0} description="Tidak termasuk akun Owner." />
-          <StatCard label="Aktif" value={data.summary.active_users || 0} description="Bisa login sesuai lokasi." tone="success" />
-          <StatCard label="Nonaktif" value={data.summary.inactive_users || 0} description="Session lama dicabut." tone="warning" />
-          <StatCard label="Lokasi Aktif" value={data.summary.locations || 0} description="Sumber dari Master Lokasi." />
-        </div>
-
-        {blockers.length ? (
-          <div className="da-form-warning" style={{ marginTop: 14 }}>
-            <b>Yang masih perlu disiapkan:</b>
-            <div style={{ marginTop: 6 }}>{blockers.map((item) => <div key={item}>• {item}</div>)}</div>
-          </div>
-        ) : (
-          <div className="da-alert da-alert-success" style={{ marginTop: 14 }}>
-            Role, lokasi, dan akun operasional sudah siap untuk login cabang.
+        eyebrow="Sistem · Owner Control"
+        title="Hak Akses & Akun"
+        description="Kelola akun operasional, lokasi kerja, role, session, dan batas akses sistem. Halaman ini khusus Owner."
+        actions={(
+          <div className="da-actions">
+            <Button variant="secondary" disabled={loading} onClick={loadData}>{loading ? "Membaca..." : "Perbarui"}</Button>
+            <Button onClick={() => setCreateOpen(true)}>+ Buat Akun</Button>
           </div>
         )}
-      </Card>
+      />
 
-      <Card
+      {error ? <div className="da-alert da-alert-danger">{error}</div> : null}
+      {success ? <div className="da-alert da-alert-success">{success}</div> : null}
+
+      <section className="system-access-hero">
+        <div className="system-access-hero-copy">
+          <span className="system-eyebrow">Kontrol Akses</span>
+          <h2>{health.branch_login_ready ? "Akun cabang siap digunakan" : "Lengkapi akun operasional sebelum cabang login"}</h2>
+          <p>Password disimpan sebagai hash. Perubahan role, lokasi, status, atau password mencabut session lama agar hak akses baru langsung berlaku saat login berikutnya.</p>
+          <div className="system-chip-row">
+            <Badge tone={health.foundation_ready ? "success" : "warning"}>Fondasi {health.foundation_ready ? "Siap" : "Belum"}</Badge>
+            <Badge tone={health.roles_ready ? "success" : "warning"}>Role {health.roles_ready ? "Lengkap" : "Belum"}</Badge>
+            <Badge tone="success">Owner Only</Badge>
+          </div>
+        </div>
+        <div className="system-access-summary">
+          <div><span>Akun operasional</span><strong>{data.summary.total_users || 0}</strong></div>
+          <div><span>Akun aktif</span><strong>{data.summary.active_users || 0}</strong></div>
+          <div><span>Lokasi aktif</span><strong>{data.summary.locations || 0}</strong></div>
+        </div>
+      </section>
+
+      <section className="system-kpi-grid system-kpi-grid-4">
+        <StatCard label="Akun Operasional" value={data.summary.total_users || 0} description="Tidak termasuk akun Owner." />
+        <StatCard label="Aktif" value={data.summary.active_users || 0} description="Bisa login sesuai role dan lokasi." tone="success" />
+        <StatCard label="Nonaktif" value={data.summary.inactive_users || 0} description="Session operasional tidak aktif." tone={data.summary.inactive_users ? "warning" : "default"} />
+        <StatCard label="Lokasi Aktif" value={data.summary.locations || 0} description="Sumber dari Master Lokasi." />
+      </section>
+
+      {blockers.length ? (
+        <div className="system-blocker-strip">
+          <strong>Yang masih perlu disiapkan</strong>
+          <div>{blockers.map((item) => <span key={item}>{item}</span>)}</div>
+        </div>
+      ) : null}
+
+      <div className="system-tabs-wrap">
+        <Tabs
+          items={[{ key: "accounts", label: "Akun Operasional" }, { key: "roles", label: "Role & Batas Akses" }]}
+          activeKey={activeTab}
+          onChange={setActiveTab}
+        />
+      </div>
+
+      {activeTab === "accounts" ? (
+        <div className="system-workspace-grid system-access-grid">
+          <Card
+            title="Akun yang Terdaftar"
+            description="Klik akun untuk mengubah profil, reset password, atau aktif/nonaktifkan."
+            action={<Badge tone="success">Data Aktual</Badge>}
+          >
+            <div className="system-toolbar">
+              <label className="system-search-field">
+                <span className="sr-only">Cari akun</span>
+                <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari nama, username, lokasi..." />
+              </label>
+              <div className="system-filter-pills">
+                {[{ key: "ALL", label: "Semua" }, { key: "ACTIVE", label: "Aktif" }, { key: "INACTIVE", label: "Nonaktif" }].map((item) => (
+                  <button key={item.key} type="button" className={statusFilter === item.key ? "is-active" : ""} onClick={() => setStatusFilter(item.key)}>{item.label}</button>
+                ))}
+              </div>
+            </div>
+            <DataTable columns={columns} rows={filteredUsers} getRowKey={(row) => row.user_id} onRowClick={openDetail} />
+          </Card>
+
+          <Card title="Prinsip Akses" description="Aturan yang berlaku untuk seluruh akun selain Owner.">
+            <div className="system-rule-list">
+              <div><strong>Lokasi mengikuti akun</strong><span>Admin cabang hanya bekerja pada lokasi yang ditetapkan kecuali role HO yang memang bersifat global.</span></div>
+              <div><strong>Payroll sensitif tetap terlindungi</strong><span>Akses nominal gaji mengikuti permission payroll, bukan sekadar lokasi.</span></div>
+              <div><strong>Perubahan akses mencabut session</strong><span>User wajib login ulang setelah role, lokasi, status, atau password diubah.</span></div>
+              <div><strong>Menu Sistem tidak diberikan ke cabang</strong><span>Kesiapan Operasional, Integritas Data, Hak Akses, dan Cetak & Backup hanya ditampilkan untuk Owner.</span></div>
+            </div>
+          </Card>
+        </div>
+      ) : null}
+
+      {activeTab === "roles" ? (
+        <Card title="Role Operasional" description="Role disediakan backend dan digunakan bersama location scope. Owner tidak dibuat dari halaman ini.">
+          <div className="system-role-grid">
+            {data.roles.map((role) => (
+              <div className="system-role-card" key={role.role_id}>
+                <div><Badge tone="default">Level {safeText(role.level, "-")}</Badge></div>
+                <h3>{safeText(role.role_name)}</h3>
+                <code>{safeText(role.role_id)}</code>
+                <p>{roleDescriptions[role.role_id] || "Hak akses mengikuti konfigurasi permission aktif di server."}</p>
+              </div>
+            ))}
+          </div>
+        </Card>
+      ) : null}
+
+      <Modal
+        open={createOpen}
         title="Buat Akun Operasional"
-        description="Akun baru tersimpan aman di sistem, password di-hash, dan pembuatan akun masuk Arsip serta Audit."
-        action={<Badge tone="success">Owner Only</Badge>}
+        subtitle="Owner menentukan identitas, role, lokasi kerja, dan password awal."
+        onClose={() => !saving && setCreateOpen(false)}
+        size="md"
       >
-        <form onSubmit={handleCreate}>
+        <form onSubmit={handleCreate} className="system-modal-stack">
           <div className="da-form-grid">
             <label className="da-field">
               Nama Lengkap
@@ -366,9 +444,7 @@ export default function PermissionRoleCheckPage({ session, onSessionExpired }) {
               Lokasi Kerja
               <select value={draft.location_id} onChange={(e) => updateDraft("location_id", e.target.value)} disabled={saving || !availableLocations.length}>
                 <option value="">{availableLocations.length ? "Pilih lokasi" : "Belum ada lokasi yang cocok"}</option>
-                {availableLocations.map((location) => (
-                  <option key={location.location_id} value={location.location_id}>{location.location_name} — {location.location_code}</option>
-                ))}
+                {availableLocations.map((location) => <option key={location.location_id} value={location.location_id}>{location.location_name} — {location.location_code}</option>)}
               </select>
             </label>
             <label className="da-field">
@@ -380,34 +456,12 @@ export default function PermissionRoleCheckPage({ session, onSessionExpired }) {
               <input type="password" value={draft.confirm_password} onChange={(e) => updateDraft("confirm_password", e.target.value)} placeholder="Ketik ulang password" disabled={saving} />
             </label>
           </div>
-          <div className="da-form-actions">
-            <Button type="button" variant="secondary" disabled={saving} onClick={() => setDraft(EMPTY_DRAFT)}>Reset</Button>
-            <Button type="submit" disabled={saving || !health.foundation_ready}>{saving ? "Menyimpan..." : "Buat Akun Cabang"}</Button>
+          <div className="da-form-actions system-modal-actions">
+            <Button type="button" variant="secondary" disabled={saving} onClick={() => setCreateOpen(false)}>Batal</Button>
+            <Button type="submit" disabled={saving || !health.foundation_ready}>{saving ? "Menyimpan..." : "Buat Akun"}</Button>
           </div>
         </form>
-      </Card>
-
-      <Card
-        title="Akun Operasional yang Terdaftar"
-        description="Klik baris untuk edit nama/role/lokasi, reset password, atau aktif/nonaktifkan akun."
-        action={<Badge tone="success">Data Aktual</Badge>}
-      >
-        <div className="da-form-grid" style={{ marginBottom: 12 }}>
-          <label className="da-field">
-            Cari Akun
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Nama, username, lokasi..." />
-          </label>
-          <label className="da-field">
-            Status
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              <option value="ALL">Semua status</option>
-              <option value="ACTIVE">Aktif</option>
-              <option value="INACTIVE">Nonaktif</option>
-            </select>
-          </label>
-        </div>
-        <DataTable columns={columns} rows={filteredUsers} getRowKey={(row) => row.user_id} onRowClick={openDetail} />
-      </Card>
+      </Modal>
 
       <Modal
         open={Boolean(selected)}
@@ -416,7 +470,11 @@ export default function PermissionRoleCheckPage({ session, onSessionExpired }) {
         onClose={() => setSelected(null)}
       >
         {selected ? (
-          <div className="da-page-stack">
+          <div className="system-modal-stack">
+            <div className="system-account-statusbar">
+              <Badge tone={String(selected.status).toUpperCase() === "ACTIVE" ? "success" : "warning"}>{safeText(selected.status)}</Badge>
+              <span>{Number(selected.active_sessions || 0)} session aktif</span>
+            </div>
             <div className="da-form-grid">
               <label className="da-field">
                 Nama Lengkap
@@ -440,20 +498,17 @@ export default function PermissionRoleCheckPage({ session, onSessionExpired }) {
                 <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Isi hanya saat reset password" disabled={saving} />
               </label>
             </div>
-            <div className="da-form-actions">
-              <Button variant="secondary" disabled={saving} onClick={() => setSelected(null)}>Tutup</Button>
+            <div className="system-modal-warning">Perubahan role/lokasi dan reset password otomatis mencabut session lama. Staff harus login ulang.</div>
+            <div className="da-form-actions system-modal-actions">
               <Button variant="secondary" disabled={saving || !newPassword} onClick={handleResetPassword}>Reset Password</Button>
               <Button variant={String(selected.status).toUpperCase() === "ACTIVE" ? "danger" : "secondary"} disabled={saving} onClick={handleStatus}>
                 {String(selected.status).toUpperCase() === "ACTIVE" ? "Nonaktifkan" : "Aktifkan"}
               </Button>
               <Button disabled={saving || !editDraft.location_id} onClick={handleUpdate}>Simpan Profil</Button>
             </div>
-            <div className="da-form-warning">
-              Perubahan role/lokasi dan reset password otomatis mencabut session lama. Staff harus login ulang agar permission baru berlaku.
-            </div>
           </div>
         ) : null}
       </Modal>
-    </div>
+    </main>
   );
 }
