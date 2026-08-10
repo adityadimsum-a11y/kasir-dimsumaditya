@@ -14,6 +14,7 @@ import DataTable from "../../components/ui/DataTable";
 import Modal from "../../components/ui/Modal";
 import PageHeader from "../../components/ui/PageHeader";
 import UniversalTransactionDetailModal from "../../components/archive/UniversalTransactionDetailModal";
+import { printOwnerPeriodReportA4 } from "../../lib/print/reportPrint";
 
 function isAuthRequired(result) {
   const code = String(result?.code || result?.error?.code || "").toUpperCase();
@@ -56,10 +57,6 @@ function formatPcs(value) {
 
 function makeOperationId(prefix = "OP-CLOSE") {
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
-}
-
-function printOwnerReport() {
-  window.print();
 }
 
 const TABS = [
@@ -268,7 +265,7 @@ export default function ClosingOwnerPage({ session, onSessionExpired }) {
         actions={(
           <div className="da-report16-header-actions">
             <Button variant="secondary" onClick={() => loadData(filters)} disabled={loading}>{loading ? "Memuat..." : "Perbarui"}</Button>
-            <Button variant="secondary" onClick={printOwnerReport}>Cetak A4</Button>
+            <Button variant="secondary" onClick={() => printOwnerPeriodReportA4({ data, periodLabel, locationLabel })}>Cetak A4</Button>
             {isLocked ? (
               <Button onClick={() => setRevisionOpen(true)}>Catat Revisi</Button>
             ) : (
