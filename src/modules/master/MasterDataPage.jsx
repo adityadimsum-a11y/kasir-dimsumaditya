@@ -1,4 +1,23 @@
 import { useEffect, useMemo, useState } from "react";
+import {
+  AlertTriangle,
+  Boxes,
+  Building2,
+  ChevronRight,
+  DollarSign,
+  Edit2,
+  MapPin,
+  Package,
+  Plus,
+  Power,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  ShoppingCart,
+  Truck,
+  Users,
+  Wallet,
+} from "lucide-react";
 
 import {
   createMasterDataCoreRecord,
@@ -13,7 +32,6 @@ import Card from "../../components/ui/Card";
 import DataTable from "../../components/ui/DataTable";
 import Modal from "../../components/ui/Modal";
 import PageHeader from "../../components/ui/PageHeader";
-import StatCard from "../../components/ui/StatCard";
 
 import ProductPricingPanel from "./ProductPricingPanel";
 import PricingCutoverPanel from "./PricingCutoverPanel";
@@ -30,29 +48,15 @@ const PROTECTED_IDS = {
 const MODULE_CONFIG = {
   produk: {
     title: "Master Produk",
-    badge: "Master Aktif",
-
+    singular: "Produk",
+    eyebrow: "Master Data · Produk",
     description:
-      "Data produk/menu yang dipakai oleh produksi, stok, order, PO, dan laporan.",
-
-    introTitle:
-      "Produk Jadi & Menu Usaha",
-
-    introFlow:
-      "Produk → Harga → Stok → Order → Arsip",
-
-    introDesc:
-      "Nama dan kode produk harus konsisten supaya kabel stok, kasir, PO, dan HPP tidak putus.",
-
-    tableTitle:
-      "Produk yang Terdaftar",
-
-    emptyText:
-      "Belum ada produk terbaca.",
-
-    idKey:
-      "product_id",
-
+      "Kelola identitas produk, aturan produksi, harga jual, dan kesiapan produk untuk transaksi.",
+    icon: Package,
+    heroLabel: "Produk Aktif",
+    tableTitle: "Daftar Produk",
+    tableDescription: "Produk yang dipakai oleh produksi, stok, PO, kasir, harga, dan laporan.",
+    idKey: "product_id",
     defaultDraft: {
       product_code: "",
       product_name: "",
@@ -62,37 +66,19 @@ const MODULE_CONFIG = {
       chicken_kg_per_adukan: "30",
       default_yield_pcs: "1000",
       chicken_bag_kg: "10",
-      notes:
-        "Produk aktif untuk transaksi ERP.",
+      notes: "",
     },
-
     fields: [
-      {
-        key: "product_code",
-        label: "Kode Produk",
-        placeholder: "DIMSUM",
-        lockedOnEdit: true,
-      },
-
-      {
-        key: "product_name",
-        label: "Nama Produk",
-        placeholder: "Dimsum Ayam Mix",
-        required: true,
-      },
-
-      {
-        key: "category",
-        label: "Kategori",
-        placeholder: "Barang Jadi",
-      },
-
+      { key: "product_code", label: "Kode Produk", placeholder: "DIMSUM", lockedOnEdit: true },
+      { key: "product_name", label: "Nama Produk", placeholder: "Dimsum Ayam Mix", required: true },
+      { key: "category", label: "Kategori", placeholder: "Barang Jadi" },
       {
         key: "unit",
-        label: "Satuan",
-        placeholder: "pcs",
+        label: "Satuan Transaksi",
+        type: "unit-type",
+        required: true,
+        placeholder: "pcs / pack / box / kg",
       },
-
       {
         key: "adukan_conversion_active",
         label: "Diproduksi lewat Adukan",
@@ -102,2054 +88,985 @@ const MODULE_CONFIG = {
           { value: "1", label: "Ya" },
         ],
       },
-
       {
         key: "chicken_kg_per_adukan",
         label: "Ayam per Adukan (kg)",
         type: "number",
+        productionOnly: true,
         placeholder: "30",
       },
-
       {
         key: "default_yield_pcs",
-        label: "Target Hasil per Adukan (pcs)",
+        label: "Target Hasil / Adukan (pcs)",
         type: "number",
+        productionOnly: true,
         placeholder: "1000",
       },
-
       {
         key: "chicken_bag_kg",
         label: "Berat per Kantong Ayam (kg)",
         type: "number",
+        productionOnly: true,
         placeholder: "10",
       },
-
-      {
-        key: "notes",
-        label: "Catatan",
-        placeholder: "Catatan produk",
-      },
+      { key: "notes", label: "Catatan", placeholder: "Catatan produk", wide: true },
     ],
-
-    columns: [
-      {
-        key: "product_code",
-        label: "Kode",
-      },
-
-      {
-        key: "product_name",
-        label: "Produk",
-      },
-
-      {
-        key: "category",
-        label: "Kategori",
-      },
-
-      {
-        key: "unit",
-        label: "Satuan",
-      },
-
-      {
-        key: "price_rule_count",
-        label: "Aturan Harga",
-
-        render: (row) =>
-          `${Number(
-            row.price_rule_count || 0
-          )} aturan`,
-      },
-
-      {
-        key: "status",
-        label: "Status",
-
-        render: (row) => (
-          <Badge
-            tone={
-              row.active
-                ? "success"
-                : "warning"
-            }
-          >
-            {row.active
-              ? "Aktif"
-              : "Nonaktif"}
-          </Badge>
-        ),
-      },
+    tabs: [
+      ["data", "Produk"],
+      ["pricing", "Harga & Rule"],
+      ["activation", "Opening & Aktivasi"],
+      ["readiness", "Kesiapan Penjualan"],
     ],
-
-    detailFields: [
-      [
-        "product_id",
-        "ID Produk",
-      ],
-
-      [
-        "product_code",
-        "Kode Produk",
-      ],
-
-      [
-        "product_name",
-        "Nama Produk",
-      ],
-
-      [
-        "category",
-        "Kategori",
-      ],
-
-      [
-        "unit",
-        "Satuan",
-      ],
-
-      [
-        "price_rule_count",
-        "Aturan Harga",
-      ],
-
-      [
-        "adukan_rule_label",
-        "Proses Adukan",
-      ],
-
-      [
-        "chicken_kg_per_adukan_display",
-        "Ayam / Adukan",
-      ],
-
-      [
-        "default_yield_pcs_display",
-        "Target / Adukan",
-      ],
-
-      [
-        "chicken_bag_kg_display",
-        "Kg / Kantong",
-      ],
-
-      [
-        "status",
-        "Status",
-      ],
-
-      [
-        "notes",
-        "Catatan",
-      ],
-    ],
-
-    formNote:
-      "Untuk produk hasil Adukan, aktifkan proses Adukan lalu isi standar ayam dan target hasil. Perubahan standar hanya berlaku untuk produksi berikutnya; HPP batch lama tetap terkunci.",
   },
-
   customer: {
-    title:
-      "Master Customer",
-
-    badge:
-      "Customer Aktif",
-
+    title: "Master Customer",
+    singular: "Customer",
+    eyebrow: "Master Data · Customer",
     description:
-      "Data pelanggan untuk kasir/order, harga khusus, piutang, riwayat pembelian, dan follow-up.",
-
-    introTitle:
-      "Pelanggan & Riwayat Order",
-
-    introFlow:
-      "Customer → Order → Piutang → Uang Masuk → Arsip",
-
-    introDesc:
-      "Customer yang sama jangan dibuat berulang supaya riwayat pembelian dan piutang tetap menyatu.",
-
-    tableTitle:
-      "Customer yang Terdaftar",
-
-    emptyText:
-      "Belum ada customer terbaca.",
-
-    idKey:
-      "customer_id",
-
+      "Satu identitas pelanggan untuk order, harga khusus, piutang, pembayaran, dan riwayat pembelian.",
+    icon: Users,
+    heroLabel: "Customer Aktif",
+    tableTitle: "Daftar Customer",
+    tableDescription: "Klik customer untuk melihat posisi order, piutang, lokasi, dan status penggunaan.",
+    idKey: "customer_id",
     defaultDraft: {
       customer_name: "",
       phone: "",
       area: "",
+      location_id: "",
       price_type: "NORMAL",
-      notes: "Customer aktif.",
+      notes: "",
     },
-
     fields: [
-      {
-        key: "customer_name",
-        label: "Nama Customer",
-        placeholder: "Nama pelanggan",
-        required: true,
-      },
-
-      {
-        key: "phone",
-        label: "No HP / WA",
-        placeholder: "08xxx",
-      },
-
-      {
-        key: "area",
-        label: "Area",
-        placeholder:
-          "Tangerang / Bogor",
-      },
-
+      { key: "customer_name", label: "Nama Customer", placeholder: "Nama pelanggan", required: true },
+      { key: "phone", label: "No HP / WhatsApp", placeholder: "08xxx" },
+      { key: "area", label: "Area", placeholder: "Tangerang / Bogor" },
+      { key: "location_id", label: "Lokasi Utama", type: "location-select" },
       {
         key: "price_type",
         label: "Tipe Harga",
-        placeholder:
-          "NORMAL / RESELLER / KHUSUS",
+        type: "select",
+        options: [
+          { value: "NORMAL", label: "Normal" },
+          { value: "RESELLER", label: "Reseller" },
+          { value: "KHUSUS", label: "Khusus" },
+        ],
       },
-
-      {
-        key: "notes",
-        label: "Catatan",
-        placeholder:
-          "Catatan customer",
-      },
+      { key: "notes", label: "Catatan", placeholder: "Catatan customer", wide: true },
     ],
-
-    columns: [
-      {
-        key: "customer_name",
-        label: "Customer",
-      },
-
-      {
-        key: "phone",
-        label: "Kontak",
-      },
-
-      {
-        key: "area",
-        label: "Area",
-      },
-
-      {
-        key: "price_type",
-        label: "Tipe Harga",
-      },
-
-      {
-        key: "status",
-        label: "Status",
-
-        render: (row) => (
-          <Badge
-            tone={
-              row.active
-                ? "success"
-                : "warning"
-            }
-          >
-            {row.active
-              ? "Aktif"
-              : "Nonaktif"}
-          </Badge>
-        ),
-      },
-    ],
-
-    detailFields: [
-      [
-        "customer_id",
-        "ID Customer",
-      ],
-
-      [
-        "customer_code",
-        "Kode Customer",
-      ],
-
-      [
-        "customer_name",
-        "Nama Customer",
-      ],
-
-      [
-        "phone",
-        "No HP / WA",
-      ],
-
-      [
-        "area",
-        "Area",
-      ],
-
-      [
-        "price_type",
-        "Tipe Harga",
-      ],
-
-      [
-        "status",
-        "Status",
-      ],
-
-      [
-        "notes",
-        "Catatan",
-      ],
-    ],
-
-    formNote:
-      "Customer tidak dibuat otomatis. Buat hanya customer nyata supaya order, piutang, pembayaran, dan riwayat pembelian tidak terpecah.",
+    tabs: [["data", "Customer"]],
   },
-
   supplier: {
-    title:
-      "Master Supplier",
-
-    badge:
-      "Supplier Aktif",
-
+    title: "Master Supplier",
+    singular: "Supplier",
+    eyebrow: "Master Data · Supplier",
     description:
-      "Data supplier untuk pembelian, hutang, pembayaran, dan arsip.",
-
-    introTitle:
-      "Supplier & Kewajiban",
-
-    introFlow:
-      "Supplier → Nota → Hutang → Bayar → Mutasi Dompet",
-
-    introDesc:
-      "Supplier harus konsisten supaya nota, hutang, pembayaran, dan arsip bisa ditelusuri.",
-
-    tableTitle:
-      "Supplier yang Terdaftar",
-
-    emptyText:
-      "Belum ada supplier terbaca.",
-
-    idKey:
-      "supplier_id",
-
+      "Kelola supplier pembelian agar nota, hutang, lot bahan, pembayaran, dan arsip tetap satu rantai.",
+    icon: Truck,
+    heroLabel: "Supplier Aktif",
+    tableTitle: "Daftar Supplier",
+    tableDescription: "Klik supplier untuk melihat hutang terbuka, pembelian, lot aktif, dan status.",
+    idKey: "supplier_id",
     defaultDraft: {
       supplier_name: "",
-      supplier_type:
-        "Bahan Baku",
+      supplier_type: "Bahan Baku",
       phone: "",
       default_wallet: "",
-      notes:
-        "Supplier aktif.",
+      notes: "",
     },
-
     fields: [
-      {
-        key: "supplier_name",
-        label: "Nama Supplier",
-        placeholder:
-          "Nama supplier",
-        required: true,
-      },
-
-      {
-        key: "supplier_type",
-        label: "Jenis Supplier",
-        placeholder:
-          "Ayam / Bahan Baku / Packaging",
-      },
-
-      {
-        key: "phone",
-        label: "Kontak",
-        placeholder: "08xxx",
-      },
-
-      {
-        key: "default_wallet",
-        label: "Jalur Bayar Biasa",
-        placeholder:
-          "BCA / BRI / Cash",
-      },
-
-      {
-        key: "notes",
-        label: "Catatan",
-        placeholder:
-          "Catatan supplier",
-      },
+      { key: "supplier_name", label: "Nama Supplier", placeholder: "Nama supplier", required: true },
+      { key: "supplier_type", label: "Jenis Supplier", placeholder: "Bahan Baku / Packaging / Logistik / Jasa" },
+      { key: "phone", label: "Kontak", placeholder: "08xxx" },
+      { key: "default_wallet", label: "Jalur Bayar Biasa", placeholder: "BCA / BRI / Cash" },
+      { key: "notes", label: "Catatan", placeholder: "Catatan supplier", wide: true },
     ],
-
-    columns: [
-      {
-        key: "supplier_name",
-        label: "Supplier",
-      },
-
-      {
-        key: "supplier_type",
-        label: "Jenis",
-      },
-
-      {
-        key: "phone",
-        label: "Kontak",
-      },
-
-      {
-        key: "default_wallet",
-        label: "Jalur Bayar",
-      },
-
-      {
-        key: "status",
-        label: "Status",
-
-        render: (row) => (
-          <Badge
-            tone={
-              row.active
-                ? "success"
-                : "warning"
-            }
-          >
-            {row.active
-              ? "Aktif"
-              : "Nonaktif"}
-          </Badge>
-        ),
-      },
-    ],
-
-    detailFields: [
-      [
-        "supplier_id",
-        "ID Supplier",
-      ],
-
-      [
-        "supplier_code",
-        "Kode Supplier",
-      ],
-
-      [
-        "supplier_name",
-        "Nama Supplier",
-      ],
-
-      [
-        "supplier_type",
-        "Jenis Supplier",
-      ],
-
-      [
-        "phone",
-        "Kontak",
-      ],
-
-      [
-        "default_wallet",
-        "Jalur Bayar",
-      ],
-
-      [
-        "status",
-        "Status",
-      ],
-
-      [
-        "notes",
-        "Catatan",
-      ],
-    ],
-
-    formNote:
-      "SUP-001 NANA CHICKEN adalah supplier inti. Jangan membuat Nana kedua. Master inti dilindungi dari nonaktif.",
+    tabs: [["data", "Supplier"]],
   },
-
   lokasi: {
-    title:
-      "Master Lokasi",
-
-    badge:
-      "Lokasi Aktif",
-
+    title: "Master Lokasi",
+    singular: "Lokasi",
+    eyebrow: "Master Data · Lokasi",
     description:
-      "Data lokasi kerja, cabang, outlet, produksi, gudang, dan titik stok.",
-
-    introTitle:
-      "Lokasi Operasional & Titik Stok",
-
-    introFlow:
-      "Lokasi → Permission → Stok → Setoran → Monitoring",
-
-    introDesc:
-      "Setiap lokasi punya identitas sendiri. Owner/Tangerang tetap menjadi pusat monitoring dan kontrol.",
-
-    tableTitle:
-      "Lokasi yang Terdaftar",
-
-    emptyText:
-      "Belum ada lokasi terbaca.",
-
-    idKey:
-      "location_id",
-
+      "Kelola HO, produksi, outlet, gudang, akun kerja, dompet, harga, dan kesiapan operasional per lokasi.",
+    icon: Building2,
+    heroLabel: "Lokasi Aktif",
+    tableTitle: "Daftar Lokasi",
+    tableDescription: "Setiap lokasi menjadi ruang kerja dan titik stok tersendiri di ERP.",
+    idKey: "location_id",
     defaultDraft: {
       location_code: "",
       location_name: "",
-      location_type:
-        "BRANCH",
-      parent_location: "TGR",
-      notes:
-        "Lokasi aktif.",
+      location_type: "BRANCH",
+      parent_location: "LOC-TGR-001",
+      notes: "",
     },
-
     fields: [
-      {
-        key: "location_code",
-        label: "Kode Lokasi",
-        placeholder:
-          "TGR / PML / CBN",
-        required: true,
-        lockedOnEdit: true,
-      },
-
-      {
-        key: "location_name",
-        label: "Nama Lokasi",
-        placeholder:
-          "Nama cabang / lokasi",
-        required: true,
-      },
-
+      { key: "location_code", label: "Kode Lokasi", placeholder: "PML", required: true, lockedOnEdit: true },
+      { key: "location_name", label: "Nama Lokasi", placeholder: "Produksi Pemalang", required: true },
       {
         key: "location_type",
-        label: "Tipe",
-        placeholder:
-          "HQ / PRODUCTION / OUTLET / BRANCH / WAREHOUSE",
+        label: "Tipe Lokasi",
+        type: "location-type",
+        placeholder: "HQ / PRODUCTION / OUTLET / WAREHOUSE / tipe lain",
       },
-
-      {
-        key: "parent_location",
-        label: "Induk",
-        placeholder: "TGR",
-      },
-
-      {
-        key: "notes",
-        label: "Catatan",
-        placeholder:
-          "Catatan lokasi",
-      },
+      { key: "parent_location", label: "Lokasi Induk", type: "parent-location-select" },
+      { key: "notes", label: "Catatan", placeholder: "Catatan lokasi", wide: true },
     ],
-
-    columns: [
-      {
-        key: "location_code",
-        label: "Kode",
-      },
-
-      {
-        key: "location_name",
-        label: "Lokasi",
-      },
-
-      {
-        key: "location_type",
-        label: "Tipe",
-      },
-
-      {
-        key: "parent_location",
-        label: "Induk",
-      },
-
-      {
-        key: "status",
-        label: "Status",
-
-        render: (row) => (
-          <Badge
-            tone={
-              row.active
-                ? "success"
-                : "warning"
-            }
-          >
-            {row.active
-              ? "Aktif"
-              : "Nonaktif"}
-          </Badge>
-        ),
-      },
+    tabs: [
+      ["data", "Lokasi"],
+      ["commerce", "Kesiapan Cabang"],
     ],
-
-    detailFields: [
-      [
-        "location_id",
-        "ID Lokasi",
-      ],
-
-      [
-        "location_code",
-        "Kode Lokasi",
-      ],
-
-      [
-        "location_name",
-        "Nama Lokasi",
-      ],
-
-      [
-        "location_type",
-        "Tipe",
-      ],
-
-      [
-        "parent_location",
-        "Induk",
-      ],
-
-      [
-        "status",
-        "Status",
-      ],
-
-      [
-        "notes",
-        "Catatan",
-      ],
-    ],
-
-    formNote:
-      "LOC-TGR-001 Tangerang HO adalah lokasi inti. Lokasi baru hanya dibuat untuk operasi nyata dan nantinya akun/permission mengikuti lokasi tersebut.",
   },
 };
 
 function asArray(value) {
-  return Array.isArray(value)
-    ? value
-    : [];
+  return Array.isArray(value) ? value : [];
 }
 
 function numberValue(value) {
-  const parsed = Number(
-    String(
-      value ?? "0"
-    ).replace(
-      /[^0-9.-]/g,
-      ""
-    )
-  );
-
-  return Number.isFinite(
-    parsed
-  )
-    ? parsed
-    : 0;
-}
-
-function safeText(
-  value,
-  fallback = "-"
-) {
-  const text = String(
-    value ?? ""
-  ).trim();
-
-  return text || fallback;
+  const parsed = Number(String(value ?? "0").replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function cleanValue(value) {
-  return String(
-    value ?? ""
-  ).trim();
+  return String(value ?? "").trim();
 }
 
-function makeOperationId(
-  moduleType,
-  action
-) {
+function safeText(value, fallback = "-") {
+  const text = cleanValue(value);
+  return text || fallback;
+}
+
+function formatRupiah(value) {
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(numberValue(value));
+}
+
+function formatQty(value, unit = "pcs") {
+  return `${numberValue(value).toLocaleString("id-ID", {
+    maximumFractionDigits: 2,
+  })} ${unit}`;
+}
+
+function makeOperationId(moduleType, action) {
   return [
     "OP-MASTER",
-    String(
-      moduleType || "MASTER"
-    ).toUpperCase(),
+    String(moduleType || "MASTER").toUpperCase(),
     action,
     Date.now(),
-    Math.random()
-      .toString(16)
-      .slice(2),
+    Math.random().toString(16).slice(2),
   ].join("-");
 }
 
-function isAuthRequired(
-  result
-) {
-  const message = String(
-    result?.message ||
-      result?.error?.message ||
-      ""
-  ).toUpperCase();
-
-  const code = String(
-    result?.error?.code ||
-      result?.code ||
-      ""
-  ).toUpperCase();
-
+function isAuthRequired(result) {
+  const message = String(result?.message || result?.error?.message || "").toUpperCase();
+  const code = String(result?.error?.code || result?.code || "").toUpperCase();
   return (
-    code.includes(
-      "AUTH_REQUIRED"
-    ) ||
-    message.includes(
-      "AUTH_REQUIRED"
-    ) ||
-    (
-      message.includes(
-        "SESSION"
-      ) &&
-      message.includes(
-        "TIDAK AKTIF"
-      )
-    )
+    code.includes("AUTH_REQUIRED") ||
+    message.includes("AUTH_REQUIRED") ||
+    (message.includes("SESSION") &&
+      (message.includes("TIDAK AKTIF") || message.includes("KADALUWARSA")))
   );
 }
 
-function normalizeRow(
-  row,
-  moduleType
-) {
-  const activeRaw =
-    row?.active ??
-    row?.is_active ??
-    row?.status ??
-    "TRUE";
+function isActiveValue(value) {
+  return ![
+    "FALSE",
+    "NO",
+    "0",
+    "NONAKTIF",
+    "INACTIVE",
+    "DELETED",
+    "DISABLED",
+    "VOID",
+  ].includes(String(value ?? "TRUE").trim().toUpperCase());
+}
 
-  const activeText =
-    String(
-      activeRaw
-    )
-      .trim()
-      .toUpperCase();
+function normalizeRow(row, moduleType) {
+  const active = isActiveValue(row?.active ?? row?.is_active ?? row?.status ?? "TRUE");
 
-  const active =
-    ![
-      "FALSE",
-      "NO",
-      "0",
-      "NONAKTIF",
-      "INACTIVE",
-      "DELETED",
-      "DISABLED",
-      "VOID",
-    ].includes(
-      activeText
-    );
-
-  if (
-    moduleType === "produk"
-  ) {
-    const productId =
-      cleanValue(
-        row.product_id ||
-          row.id
-      );
-
+  if (moduleType === "produk") {
+    const id = cleanValue(row.product_id || row.id || row.product_code);
     return {
       ...row,
-
-      id:
-        productId ||
-        cleanValue(
-          row.product_code
-        ),
-
-      master_id:
-        productId,
-
-      product_id:
-        productId,
-
-      product_code:
-        cleanValue(
-          row.product_code
-        ),
-
-      product_name:
-        cleanValue(
-          row.product_name
-        ),
-
-      category:
-        cleanValue(
-          row.category
-        ),
-
-      unit:
-        cleanValue(
-          row.unit
-        ),
-
-      price_rule_count:
-        numberValue(
-          row.price_rule_count
-        ),
-
+      id,
+      master_id: id,
+      product_id: id,
+      product_code: cleanValue(row.product_code),
+      product_name: cleanValue(row.product_name),
+      category: cleanValue(row.category),
+      unit: cleanValue(row.unit),
+      price_rule_count: numberValue(row.price_rule_count),
+      stock_qty: numberValue(row.stock_qty),
+      reserved_qty: numberValue(row.reserved_qty),
+      production_count: numberValue(row.production_count),
+      order_line_count: numberValue(row.order_line_count),
       active,
-
-      notes:
-        cleanValue(
-          row.notes
-        ),
+      notes: cleanValue(row.notes),
     };
   }
 
-  if (
-    moduleType === "customer"
-  ) {
-    const customerId =
-      cleanValue(
-        row.customer_id ||
-          row.id
-      );
-
+  if (moduleType === "customer") {
+    const id = cleanValue(row.customer_id || row.id || row.customer_code);
     return {
       ...row,
-
-      id:
-        customerId ||
-        cleanValue(
-          row.customer_name
-        ),
-
-      master_id:
-        customerId,
-
-      customer_id:
-        customerId,
-
-      customer_name:
-        cleanValue(
-          row.customer_name
-        ),
-
-      phone:
-        cleanValue(
-          row.phone
-        ),
-
-      area:
-        cleanValue(
-          row.area
-        ),
-
-      price_type:
-        cleanValue(
-          row.price_type
-        ),
-
+      id,
+      master_id: id,
+      customer_id: id,
+      customer_name: cleanValue(row.customer_name),
+      phone: cleanValue(row.phone),
+      area: cleanValue(row.area),
+      location_id: cleanValue(row.location_id),
+      location_name: cleanValue(row.location_name),
+      location_code: cleanValue(row.location_code),
+      price_type: cleanValue(row.price_type || "NORMAL").toUpperCase(),
+      order_count: numberValue(row.order_count),
+      purchase_value: numberValue(row.purchase_value),
+      open_receivable_amount: numberValue(row.open_receivable_amount),
+      active_po_count: numberValue(row.active_po_count),
       active,
-
-      notes:
-        cleanValue(
-          row.notes
-        ),
+      notes: cleanValue(row.notes),
     };
   }
 
-  if (
-    moduleType === "supplier"
-  ) {
-    const supplierId =
-      cleanValue(
-        row.supplier_id ||
-          row.id
-      );
-
+  if (moduleType === "supplier") {
+    const id = cleanValue(row.supplier_id || row.id || row.supplier_code);
     return {
       ...row,
-
-      id:
-        supplierId ||
-        cleanValue(
-          row.supplier_name
-        ),
-
-      master_id:
-        supplierId,
-
-      supplier_id:
-        supplierId,
-
-      supplier_code:
-        cleanValue(
-          row.supplier_code
-        ),
-
-      supplier_name:
-        cleanValue(
-          row.supplier_name
-        ),
-
-      supplier_type:
-        cleanValue(
-          row.supplier_type
-        ),
-
-      phone:
-        cleanValue(
-          row.phone
-        ),
-
-      default_wallet:
-        cleanValue(
-          row.default_wallet
-        ),
-
+      id,
+      master_id: id,
+      supplier_id: id,
+      supplier_code: cleanValue(row.supplier_code),
+      supplier_name: cleanValue(row.supplier_name),
+      supplier_type: cleanValue(row.supplier_type),
+      phone: cleanValue(row.phone),
+      default_wallet: cleanValue(row.default_wallet),
+      purchase_count: numberValue(row.purchase_count),
+      open_payable_amount: numberValue(row.open_payable_amount),
+      active_chicken_kg: numberValue(row.active_chicken_kg),
       active,
-
-      notes:
-        cleanValue(
-          row.notes
-        ),
+      notes: cleanValue(row.notes),
     };
   }
 
-  const locationId =
-    cleanValue(
-      row.location_id ||
-        row.id
-    );
-
+  const id = cleanValue(row.location_id || row.id || row.location_code);
   return {
     ...row,
-
-    id:
-      locationId ||
-      cleanValue(
-        row.location_code
-      ),
-
-    master_id:
-      locationId,
-
-    location_id:
-      locationId,
-
-    location_code:
-      cleanValue(
-        row.location_code
-      ),
-
-    location_name:
-      cleanValue(
-        row.location_name
-      ),
-
-    location_type:
-      cleanValue(
-        row.location_type
-      ),
-
-    parent_location:
-      cleanValue(
-        row.parent_location
-      ),
-
+    id,
+    master_id: id,
+    location_id: id,
+    location_code: cleanValue(row.location_code),
+    location_name: cleanValue(row.location_name),
+    location_type: cleanValue(row.location_type),
+    parent_location: cleanValue(row.parent_location),
+    parent_location_name: cleanValue(row.parent_location_name),
+    active_user_count: numberValue(row.active_user_count),
+    wallet_count: numberValue(row.wallet_count),
+    stock_qty: numberValue(row.stock_qty),
+    priced_product_count: numberValue(row.priced_product_count),
+    open_report_count: numberValue(row.open_report_count),
+    pending_deposit_count: numberValue(row.pending_deposit_count),
+    live_commerce_count: numberValue(row.live_commerce_count),
     active,
-
-    notes:
-      cleanValue(
-        row.notes
-      ),
+    notes: cleanValue(row.notes),
   };
 }
 
-function normalizePayload(
-  payload,
-  moduleType
-) {
-  const data =
-    payload?.data ||
-    payload ||
-    {};
-
-  const rows =
-    asArray(
-      data.rows ||
-        data.items ||
-        data[moduleType] ||
-        []
-    ).map(
-      (row) =>
-        normalizeRow(
-          row,
-          moduleType
-        )
-    );
+function normalizePayload(payload, moduleType) {
+  const data = payload?.data || payload || {};
+  const rows = asArray(data.rows || data.items || data[moduleType] || []).map((row) =>
+    normalizeRow(row, moduleType)
+  );
 
   return {
     rows,
-
-    source_of_truth:
-      data.source_of_truth ||
-      "PHP_MYSQL",
-
+    source_of_truth: data.source_of_truth || "PHP_MYSQL",
     summary: {
-      total_rows:
-        numberValue(
-          data.summary
-            ?.total_rows ??
-            rows.length
-        ),
-
-      active_rows:
-        numberValue(
-          data.summary
-            ?.active_rows ??
-            rows.filter(
-              (row) =>
-                row.active
-            ).length
-        ),
-
-      inactive_rows:
-        numberValue(
-          data.summary
-            ?.inactive_rows ??
-            rows.filter(
-              (row) =>
-                !row.active
-            ).length
-        ),
-
-      missing_id_rows:
-        numberValue(
-          data.summary
-            ?.missing_id_rows ??
-            rows.filter(
-              (row) =>
-                !row.master_id
-            ).length
-        ),
+      total_rows: numberValue(data.summary?.total_rows ?? rows.length),
+      active_rows: numberValue(data.summary?.active_rows ?? rows.filter((row) => row.active).length),
+      inactive_rows: numberValue(data.summary?.inactive_rows ?? rows.filter((row) => !row.active).length),
+      missing_id_rows: numberValue(data.summary?.missing_id_rows ?? rows.filter((row) => !row.master_id).length),
     },
-
+    business_summary: data.business_summary || {},
+    reference_data: {
+      locations: asArray(data.reference_data?.locations),
+    },
     write_policy: {
-      writes_enabled:
-        Boolean(
-          data.write_policy
-            ?.writes_enabled
-        ),
-
-      legacy_seed_enabled:
-        Boolean(
-          data.write_policy
-            ?.legacy_seed_enabled
-        ),
-
-      physical_delete_allowed:
-        Boolean(
-          data.write_policy
-            ?.physical_delete_allowed
-        ),
+      writes_enabled: Boolean(data.write_policy?.writes_enabled),
+      legacy_seed_enabled: Boolean(data.write_policy?.legacy_seed_enabled),
+      physical_delete_allowed: Boolean(data.write_policy?.physical_delete_allowed),
     },
   };
 }
 
-function rowToDraft(
-  row,
-  config
-) {
-  const next = {
-    ...config.defaultDraft,
-  };
-
-  for (
-    const field
-    of config.fields
-  ) {
-    if (
-      row?.[field.key] !==
-        undefined &&
-      row?.[field.key] !==
-        null
-    ) {
-      next[field.key] =
-        String(
-          row[field.key]
-        );
+function rowToDraft(row, config) {
+  const next = { ...config.defaultDraft };
+  for (const field of config.fields) {
+    if (row?.[field.key] !== undefined && row?.[field.key] !== null) {
+      next[field.key] = String(row[field.key]);
     }
   }
-
   return next;
 }
 
-export default function MasterDataPage({
-  moduleType = "produk",
-  session,
-  onSessionExpired,
-}) {
-  const config =
-    MODULE_CONFIG[
-      moduleType
-    ] ||
-    MODULE_CONFIG.produk;
+function moduleName(row, moduleType) {
+  if (moduleType === "produk") return safeText(row?.product_name);
+  if (moduleType === "customer") return safeText(row?.customer_name);
+  if (moduleType === "supplier") return safeText(row?.supplier_name);
+  return safeText(row?.location_name);
+}
 
-  const sessionToken =
-    session?.sessionToken ||
-    "";
+function dependencyBlockers(row, moduleType) {
+  const blockers = [];
+  if (moduleType === "produk") {
+    if (numberValue(row.stock_qty) > 0) blockers.push("stok aktif");
+    if (numberValue(row.reserved_qty) > 0) blockers.push("reservasi PO/order");
+    if (numberValue(row.price_rule_count) > 0) blockers.push("aturan harga aktif");
+    if (numberValue(row.open_order_count) > 0) blockers.push("order/PO belum selesai");
+    if (numberValue(row.open_transfer_count) > 0) blockers.push("request barang belum selesai");
+  } else if (moduleType === "customer") {
+    if (numberValue(row.open_receivable_amount) > 0) blockers.push("piutang terbuka");
+    if (numberValue(row.active_po_count) > 0) blockers.push("PO aktif");
+    if (numberValue(row.open_order_count) > 0) blockers.push("order belum selesai");
+  } else if (moduleType === "supplier") {
+    if (numberValue(row.open_payable_amount) > 0) blockers.push("hutang terbuka");
+    if (numberValue(row.active_chicken_kg) > 0) blockers.push("lot ayam aktif");
+  } else {
+    if (numberValue(row.active_user_count) > 0) blockers.push("akun aktif");
+    if (numberValue(row.wallet_count) > 0) blockers.push("dompet aktif");
+    if (numberValue(row.stock_qty) > 0) blockers.push("stok barang jadi");
+    if (numberValue(row.raw_chicken_kg) > 0) blockers.push("stok ayam");
+    if (numberValue(row.active_price_rule_count) > 0) blockers.push("aturan harga aktif");
+    if (numberValue(row.active_child_count) > 0) blockers.push("lokasi turunan aktif");
+    if (numberValue(row.live_commerce_count) > 0) blockers.push("kasir aktif");
+    if (numberValue(row.open_transfer_count) > 0) blockers.push("request/DO belum selesai");
+    if (numberValue(row.open_report_count) > 0) blockers.push("laporan cabang aktif");
+    if (numberValue(row.pending_deposit_count) > 0) blockers.push("setoran pending");
+  }
+  return blockers;
+}
 
-  const [
-    loading,
-    setLoading,
-  ] = useState(true);
+function metricValue(moduleType, kind, value) {
+  if (moduleType === "produk") {
+    if (kind === "primary" || kind === "secondary") return formatQty(value, "pcs");
+    return numberValue(value).toLocaleString("id-ID");
+  }
+  if (moduleType === "customer") {
+    if (kind === "primary" || kind === "secondary") return formatRupiah(value);
+    return numberValue(value).toLocaleString("id-ID");
+  }
+  if (moduleType === "supplier") {
+    if (kind === "primary") return formatRupiah(value);
+    if (kind === "secondary") return formatQty(value, "kg");
+    return numberValue(value).toLocaleString("id-ID");
+  }
+  if (kind === "tertiary") return formatQty(value, "pcs");
+  return numberValue(value).toLocaleString("id-ID");
+}
 
-  const [
-    saving,
-    setSaving,
-  ] = useState(false);
+function usageCards(row, moduleType) {
+  if (moduleType === "produk") {
+    return [
+      ["Stok tersedia", formatQty(row.stock_qty, "pcs"), Boxes],
+      ["Direservasi", formatQty(row.reserved_qty, "pcs"), ShoppingCart],
+      ["Rule harga", `${numberValue(row.price_rule_count)} aktif`, DollarSign],
+      ["Produksi", `${numberValue(row.production_count)} batch`, Package],
+      ["Order aktif", `${numberValue(row.open_order_count)}`, ShoppingCart],
+      ["Request barang", `${numberValue(row.open_transfer_count)}`, Truck],
+    ];
+  }
+  if (moduleType === "customer") {
+    return [
+      ["Total order", `${numberValue(row.order_count)} transaksi`, ShoppingCart],
+      ["Nilai order", formatRupiah(row.purchase_value), DollarSign],
+      ["Piutang", formatRupiah(row.open_receivable_amount), Wallet],
+      ["PO aktif", `${numberValue(row.active_po_count)}`, Package],
+      ["Order belum selesai", `${numberValue(row.open_order_count)}`, ShoppingCart],
+    ];
+  }
+  if (moduleType === "supplier") {
+    return [
+      ["Pembelian", `${numberValue(row.purchase_count)} transaksi`, ShoppingCart],
+      ["Hutang terbuka", formatRupiah(row.open_payable_amount), Wallet],
+      ["Lot ayam aktif", formatQty(row.active_chicken_kg, "kg"), Boxes],
+      ["Pembelian terakhir", safeText(row.last_purchase_date), Truck],
+    ];
+  }
+  return [
+    ["Akun aktif", `${numberValue(row.active_user_count)}`, Users],
+    ["Dompet", `${numberValue(row.wallet_count)}`, Wallet],
+    ["Stok jadi", formatQty(row.stock_qty, "pcs"), Boxes],
+    ["Stok ayam", formatQty(row.raw_chicken_kg, "kg"), Boxes],
+    ["Produk berharga", `${numberValue(row.priced_product_count)}`, DollarSign],
+    ["Kasir aktif", `${numberValue(row.live_commerce_count)}`, ShoppingCart],
+    ["Lokasi turunan", `${numberValue(row.active_child_count)}`, Building2],
+    ["Request/DO aktif", `${numberValue(row.open_transfer_count)}`, Truck],
+  ];
+}
 
-  const [
-    statusSaving,
-    setStatusSaving,
-  ] = useState(false);
+export default function MasterDataPage({ moduleType = "produk", session, onSessionExpired }) {
+  const config = MODULE_CONFIG[moduleType] || MODULE_CONFIG.produk;
+  const ModuleIcon = config.icon;
+  const sessionToken = session?.sessionToken || "";
 
-  const [
-    error,
-    setError,
-  ] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [statusSaving, setStatusSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [activeTab, setActiveTab] = useState("data");
+  const [bootstrap, setBootstrap] = useState(() => normalizePayload({}, moduleType));
+  const [draft, setDraft] = useState(() => ({ ...config.defaultDraft }));
+  const [editingId, setEditingId] = useState("");
+  const [formOpen, setFormOpen] = useState(false);
+  const [selected, setSelected] = useState(null);
+  const [statusTarget, setStatusTarget] = useState(null);
+  const [pricingRefreshKey, setPricingRefreshKey] = useState(0);
 
-  const [
-    success,
-    setSuccess,
-  ] = useState("");
+  const writeEnabled = bootstrap.write_policy.writes_enabled === true;
+  const references = bootstrap.reference_data || { locations: [] };
 
-  const [
-    search,
-    setSearch,
-  ] = useState("");
+  const filteredRows = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return bootstrap.rows.filter((row) => {
+      if (statusFilter === "ACTIVE" && !row.active) return false;
+      if (statusFilter === "INACTIVE" && row.active) return false;
+      if (!term) return true;
+      return JSON.stringify(row).toLowerCase().includes(term);
+    });
+  }, [bootstrap.rows, search, statusFilter]);
 
-  const [
-    bootstrap,
-    setBootstrap,
-  ] = useState(
-    () =>
-      normalizePayload(
-        {},
-        moduleType
-      )
-  );
+  const columns = useMemo(() => {
+    if (moduleType === "produk") {
+      return [
+        {
+          key: "product_name",
+          label: "Produk",
+          render: (row) => (
+            <div className="da-master-table-primary">
+              <strong>{safeText(row.product_name)}</strong>
+              <span>{safeText(row.product_code)} · {safeText(row.category)}</span>
+            </div>
+          ),
+        },
+        { key: "stock_qty", label: "Stok", render: (row) => formatQty(row.stock_qty, "pcs") },
+        { key: "reserved_qty", label: "Reservasi", render: (row) => formatQty(row.reserved_qty, "pcs") },
+        { key: "price_rule_count", label: "Harga", render: (row) => `${numberValue(row.price_rule_count)} rule` },
+        { key: "unit", label: "Satuan", render: (row) => safeText(row.unit) },
+        {
+          key: "status",
+          label: "Status",
+          render: (row) => <Badge tone={row.active ? "success" : "warning"}>{row.active ? "Aktif" : "Nonaktif"}</Badge>,
+        },
+      ];
+    }
 
-  const [
-    draft,
-    setDraft,
-  ] = useState(
-    () => ({
-      ...config.defaultDraft,
-    })
-  );
+    if (moduleType === "customer") {
+      return [
+        {
+          key: "customer_name",
+          label: "Customer",
+          render: (row) => (
+            <div className="da-master-table-primary">
+              <strong>{safeText(row.customer_name)}</strong>
+              <span>{safeText(row.phone, "Tanpa nomor")} · {safeText(row.area, "Area belum diisi")}</span>
+            </div>
+          ),
+        },
+        { key: "location_name", label: "Lokasi", render: (row) => safeText(row.location_name, "Semua lokasi") },
+        { key: "order_count", label: "Order", render: (row) => numberValue(row.order_count).toLocaleString("id-ID") },
+        { key: "last_order_date", label: "Order Terakhir", render: (row) => safeText(row.last_order_date, "Belum pernah") },
+        { key: "open_receivable_amount", label: "Piutang", render: (row) => formatRupiah(row.open_receivable_amount) },
+        { key: "price_type", label: "Harga", render: (row) => safeText(row.price_type, "NORMAL") },
+        {
+          key: "status",
+          label: "Status",
+          render: (row) => <Badge tone={row.active ? "success" : "warning"}>{row.active ? "Aktif" : "Nonaktif"}</Badge>,
+        },
+      ];
+    }
 
-  const [
-    editingId,
-    setEditingId,
-  ] = useState("");
+    if (moduleType === "supplier") {
+      return [
+        {
+          key: "supplier_name",
+          label: "Supplier",
+          render: (row) => (
+            <div className="da-master-table-primary">
+              <strong>{safeText(row.supplier_name)}</strong>
+              <span>{safeText(row.supplier_code)} · {safeText(row.supplier_type)}</span>
+            </div>
+          ),
+        },
+        { key: "purchase_count", label: "Pembelian", render: (row) => numberValue(row.purchase_count).toLocaleString("id-ID") },
+        { key: "open_payable_amount", label: "Hutang", render: (row) => formatRupiah(row.open_payable_amount) },
+        { key: "active_chicken_kg", label: "Lot Aktif", render: (row) => formatQty(row.active_chicken_kg, "kg") },
+        { key: "phone", label: "Kontak", render: (row) => safeText(row.phone) },
+        {
+          key: "status",
+          label: "Status",
+          render: (row) => <Badge tone={row.active ? "success" : "warning"}>{row.active ? "Aktif" : "Nonaktif"}</Badge>,
+        },
+      ];
+    }
 
-  const [
-    selected,
-    setSelected,
-  ] = useState(null);
-
-  const [
-    pricingRefreshKey,
-    setPricingRefreshKey,
-  ] = useState(0);
-
-  const writeEnabled =
-    bootstrap
-      .write_policy
-      .writes_enabled ===
-    true;
-
-  const viewColumns =
-    useMemo(
-      () =>
-        (
-          config.columns ||
-          []
-        ).map(
-          (column) =>
-            column.render
-              ? column
-              : {
-                  ...column,
-
-                  render:
-                    (row) =>
-                      safeText(
-                        row[
-                          column
-                            .key
-                        ]
-                      ),
-                }
+    return [
+      {
+        key: "location_name",
+        label: "Lokasi",
+        render: (row) => (
+          <div className="da-master-table-primary">
+            <strong>{safeText(row.location_name)}</strong>
+            <span>{safeText(row.location_code)} · {safeText(row.location_type)}</span>
+          </div>
         ),
-
-      [config.columns]
-    );
-
-  const filteredRows =
-    useMemo(
-      () => {
-        const term =
-          search
-            .trim()
-            .toLowerCase();
-
-        if (!term) {
-          return bootstrap.rows;
-        }
-
-        return (
-          bootstrap.rows ||
-          []
-        ).filter(
-          (row) =>
-            JSON.stringify(
-              row
-            )
-              .toLowerCase()
-              .includes(
-                term
-              )
-        );
       },
-
-      [
-        bootstrap.rows,
-        search,
-      ]
-    );
+      { key: "active_user_count", label: "Akun", render: (row) => numberValue(row.active_user_count).toLocaleString("id-ID") },
+      { key: "wallet_count", label: "Dompet", render: (row) => numberValue(row.wallet_count).toLocaleString("id-ID") },
+      { key: "stock_qty", label: "Stok", render: (row) => formatQty(row.stock_qty, "pcs") },
+      { key: "priced_product_count", label: "Produk Berharga", render: (row) => numberValue(row.priced_product_count).toLocaleString("id-ID") },
+      {
+        key: "status",
+        label: "Status",
+        render: (row) => <Badge tone={row.active ? "success" : "warning"}>{row.active ? "Aktif" : "Nonaktif"}</Badge>,
+      },
+    ];
+  }, [moduleType]);
 
   async function loadData() {
     setLoading(true);
     setError("");
-
     try {
-      const result =
-        await getMasterDataCoreBootstrap(
-          sessionToken,
-          {
-            module_type:
-              moduleType,
-          }
-        );
-
-      if (
-        isAuthRequired(
-          result
-        )
-      ) {
+      const result = await getMasterDataCoreBootstrap(sessionToken, { module_type: moduleType });
+      if (isAuthRequired(result)) {
         onSessionExpired?.();
         return;
       }
-
-      if (
-        !result?.success
-      ) {
-        setError(
-          result?.message ||
-            "Data master belum bisa dibaca."
-        );
-
+      if (!result?.success) {
+        setError(result?.message || "Master data belum bisa dibaca.");
         return;
       }
-
-      setBootstrap(
-        normalizePayload(
-          result,
-          moduleType
-        )
-      );
+      setBootstrap(normalizePayload(result, moduleType));
     } catch (err) {
-      setError(
-        err?.message ||
-          "Gagal membaca master data."
-      );
+      setError(err?.message || "Gagal membaca master data.");
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(
-    () => {
-      setDraft({
-        ...config.defaultDraft,
-      });
-
-      setEditingId("");
-      setSearch("");
-      setSelected(null);
-      setSuccess("");
-      setError("");
-
-      loadData();
-
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    },
-    [moduleType]
-  );
-
-  function updateDraft(
-    key,
-    value
-  ) {
-    setDraft(
-      (current) => ({
-        ...current,
-        [key]: value,
-      })
-    );
-  }
-
-  function resetDraft() {
-    setDraft({
-      ...config.defaultDraft,
-    });
-
+  useEffect(() => {
+    setDraft({ ...config.defaultDraft });
     setEditingId("");
+    setFormOpen(false);
+    setSearch("");
+    setStatusFilter("ALL");
+    setActiveTab("data");
+    setSelected(null);
+    setStatusTarget(null);
     setSuccess("");
     setError("");
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [moduleType]);
+
+  function updateDraft(key, value) {
+    setDraft((current) => ({ ...current, [key]: value }));
   }
 
-  function isProtected(
-    row
-  ) {
-    const id = String(
-      row?.master_id ||
-        row?.id ||
-        ""
-    );
-
-    return (
-      PROTECTED_IDS[
-        moduleType
-      ] ||
-      []
-    ).includes(id);
-  }
-
-  function startEdit(row) {
-    if (
-      !row?.master_id
-    ) {
-      return;
-    }
-
-    setEditingId(
-      row.master_id
-    );
-
-    setDraft(
-      rowToDraft(
-        row,
-        config
-      )
-    );
-
+  function openCreate() {
+    setDraft({ ...config.defaultDraft });
+    setEditingId("");
     setSelected(null);
     setError("");
     setSuccess("");
-
-    requestAnimationFrame(
-      () => {
-        document
-          .getElementById(
-            "master-live-form"
-          )
-          ?.scrollIntoView({
-            behavior:
-              "smooth",
-
-            block:
-              "start",
-          });
-      }
-    );
+    setFormOpen(true);
   }
 
-  async function handleSubmit(
-    event
-  ) {
-    event.preventDefault();
+  function startEdit(row) {
+    if (!row?.master_id) return;
+    setEditingId(row.master_id);
+    setDraft(rowToDraft(row, config));
+    setSelected(null);
+    setError("");
+    setSuccess("");
+    setFormOpen(true);
+  }
 
+  function closeForm() {
+    if (saving) return;
+    setFormOpen(false);
+    setEditingId("");
+    setDraft({ ...config.defaultDraft });
+  }
+
+  function isProtected(row) {
+    const id = String(row?.master_id || row?.id || "");
+    return (PROTECTED_IDS[moduleType] || []).includes(id);
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault();
     setError("");
     setSuccess("");
 
-    if (
-      !writeEnabled
-    ) {
-      setError(
-        "Penyimpanan master belum siap. Refresh halaman lalu cek Data Health."
-      );
-
+    if (!writeEnabled) {
+      setError("Penyimpanan master belum tersedia. Perbarui data dan periksa kesiapan sistem.");
       return;
     }
 
-    const requiredField =
-      config.fields.find(
-        (field) =>
-          field.required &&
-          !String(
-            draft[
-              field.key
-            ] ||
-              ""
-          ).trim()
-      );
-
-    if (
-      requiredField
-    ) {
-      setError(
-        `${requiredField.label} wajib diisi.`
-      );
-
+    const visibleFields = config.fields.filter((field) => {
+      if (field.productionOnly && String(draft.adukan_conversion_active) !== "1") return false;
+      return true;
+    });
+    const requiredField = visibleFields.find(
+      (field) => field.required && !String(draft[field.key] || "").trim()
+    );
+    if (requiredField) {
+      setError(`${requiredField.label} wajib diisi.`);
       return;
     }
 
-    const operationId =
-      makeOperationId(
-        moduleType,
-
-        editingId
-          ? "UPDATE"
-          : "CREATE"
-      );
-
+    const operationId = makeOperationId(moduleType, editingId ? "UPDATE" : "CREATE");
     const payload = {
-      module_type:
-        moduleType,
-
+      module_type: moduleType,
       ...draft,
-
-      operation_id:
-        operationId,
-
-      request_id:
-        operationId,
-
-      idempotency_key:
-        operationId,
+      operation_id: operationId,
+      request_id: operationId,
+      idempotency_key: operationId,
     };
-
     if (editingId) {
-      payload.master_id =
-        editingId;
-
-      payload[
-        config.idKey
-      ] = editingId;
+      payload.master_id = editingId;
+      payload[config.idKey] = editingId;
     }
 
     setSaving(true);
-
     try {
-      const result =
-        editingId
-          ? await updateMasterDataCoreRecord(
-              sessionToken,
-              payload
-            )
-          : await createMasterDataCoreRecord(
-              sessionToken,
-              payload
-            );
+      const result = editingId
+        ? await updateMasterDataCoreRecord(sessionToken, payload)
+        : await createMasterDataCoreRecord(sessionToken, payload);
 
-      if (
-        isAuthRequired(
-          result
-        )
-      ) {
+      if (isAuthRequired(result)) {
         onSessionExpired?.();
         return;
       }
-
-      if (
-        !result?.success
-      ) {
-        setError(
-          result?.message ||
-            "Master data belum bisa disimpan."
-        );
-
+      if (!result?.success) {
+        setError(result?.message || "Master data belum bisa disimpan.");
         return;
       }
 
-      setSuccess(
-        result?.message ||
-          (
-            editingId
-              ? "Master data berhasil diperbarui."
-              : "Master data berhasil dibuat."
-          )
-      );
-
-      setDraft({
-        ...config.defaultDraft,
-      });
-
+      setSuccess(result?.message || `${config.singular} berhasil disimpan.`);
+      setFormOpen(false);
       setEditingId("");
-
+      setDraft({ ...config.defaultDraft });
       await loadData();
     } catch (err) {
-      setError(
-        err?.message ||
-          "Gagal menyimpan master data."
-      );
+      setError(err?.message || "Gagal menyimpan master data.");
     } finally {
       setSaving(false);
     }
   }
 
-  async function handleStatus(
-    row
-  ) {
-    if (
-      !row?.master_id ||
-      statusSaving
-    ) {
-      return;
-    }
+  async function confirmStatusChange() {
+    const row = statusTarget;
+    if (!row?.master_id || statusSaving) return;
+    const nextActive = !row.active;
 
-    const nextActive =
-      !row.active;
-
-    if (
-      !nextActive &&
-      isProtected(row)
-    ) {
-      setError(
-        "Master inti ini dilindungi dan tidak boleh dinonaktifkan."
-      );
-
-      return;
-    }
-
-    const displayName =
-      row.product_name ||
-      row.customer_name ||
-      row.supplier_name ||
-      row.location_name ||
-      row.master_id;
-
-    const confirmed =
-      window.confirm(
-        nextActive
-          ? `Aktifkan kembali ${displayName}?`
-          : `Nonaktifkan ${displayName}?\n\nData tidak dihapus. Riwayat lama tetap tersimpan.`
-      );
-
-    if (!confirmed) {
-      return;
-    }
-
-    const operationId =
-      makeOperationId(
-        moduleType,
-
-        nextActive
-          ? "ACTIVATE"
-          : "DEACTIVATE"
-      );
-
-    setStatusSaving(
-      true
-    );
-
+    setStatusSaving(true);
     setError("");
     setSuccess("");
-
     try {
-      const result =
-        await setMasterDataCoreStatus(
-          sessionToken,
-          {
-            module_type:
-              moduleType,
+      const operationId = makeOperationId(moduleType, nextActive ? "ACTIVATE" : "DEACTIVATE");
+      const result = await setMasterDataCoreStatus(sessionToken, {
+        module_type: moduleType,
+        master_id: row.master_id,
+        [config.idKey]: row.master_id,
+        active: nextActive,
+        reason: nextActive
+          ? "Diaktifkan kembali dari Master Data"
+          : "Dinonaktifkan dari Master Data",
+        operation_id: operationId,
+        request_id: operationId,
+        idempotency_key: operationId,
+      });
 
-            master_id:
-              row.master_id,
-
-            [
-              config.idKey
-            ]:
-              row.master_id,
-
-            active:
-              nextActive,
-
-            reason:
-              nextActive
-                ? "Diaktifkan kembali dari Master Data"
-                : "Dinonaktifkan dari Master Data",
-
-            operation_id:
-              operationId,
-
-            request_id:
-              operationId,
-
-            idempotency_key:
-              operationId,
-          }
-        );
-
-      if (
-        isAuthRequired(
-          result
-        )
-      ) {
+      if (isAuthRequired(result)) {
         onSessionExpired?.();
         return;
       }
-
-      if (
-        !result?.success
-      ) {
+      if (!result?.success) {
+        const blockers = asArray(result?.error?.details?.blockers || result?.details?.blockers);
         setError(
-          result?.message ||
-            "Status master belum bisa diubah."
+          blockers.length
+            ? `${result?.message || "Master belum bisa dinonaktifkan."} ${blockers.join(" ")}`
+            : result?.message || "Status master belum bisa diubah."
         );
-
         return;
       }
 
-      setSuccess(
-        result?.message ||
-          "Status master berhasil diubah."
-      );
-
+      setSuccess(result?.message || "Status master berhasil diubah.");
       setSelected(null);
-
+      setStatusTarget(null);
       await loadData();
     } catch (err) {
-      setError(
-        err?.message ||
-          "Gagal mengubah status master."
-      );
+      setError(err?.message || "Gagal mengubah status master.");
     } finally {
-      setStatusSaving(
-        false
-      );
+      setStatusSaving(false);
     }
   }
 
+  const business = bootstrap.business_summary || {};
+  const blockersForSelected = selected ? dependencyBlockers(selected, moduleType) : [];
+  const protectedSelected = selected ? isProtected(selected) : false;
+
+  function renderField(field) {
+    if (field.productionOnly && String(draft.adukan_conversion_active) !== "1") return null;
+    const locked = Boolean(editingId && field.lockedOnEdit);
+    let control = null;
+
+    if (field.type === "select") {
+      control = (
+        <select
+          value={String(draft[field.key] ?? "")}
+          disabled={saving || locked || !writeEnabled}
+          onChange={(event) => updateDraft(field.key, event.target.value)}
+        >
+          {(field.options || []).map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
+        </select>
+      );
+    } else if (field.type === "unit-type" || field.type === "location-type") {
+      const listId = field.type === "unit-type" ? "master-unit-options" : "master-location-type-options";
+      const values = field.type === "unit-type"
+        ? ["pcs", "pack", "box", "porsi", "kg", "gram", "liter", "unit"]
+        : ["HQ", "PRODUCTION", "OUTLET", "WAREHOUSE", "BRANCH", "RUKO", "KITCHEN"];
+      control = (
+        <>
+          <input
+            list={listId}
+            value={draft[field.key] ?? ""}
+            placeholder={field.placeholder || ""}
+            disabled={saving || locked || !writeEnabled}
+            onChange={(event) => updateDraft(field.key, event.target.value)}
+          />
+          <datalist id={listId}>
+            {values.map((value) => <option key={value} value={value} />)}
+          </datalist>
+        </>
+      );
+    } else if (field.type === "location-select" || field.type === "parent-location-select") {
+      const options = asArray(references.locations).filter((location) => {
+        if (field.type !== "parent-location-select") return true;
+        return !editingId || cleanValue(location.location_id) !== editingId;
+      });
+      control = (
+        <select
+          value={String(draft[field.key] ?? "")}
+          disabled={saving || locked || !writeEnabled}
+          onChange={(event) => updateDraft(field.key, event.target.value)}
+        >
+          <option value="">{field.type === "location-select" ? "Semua lokasi / belum ditentukan" : "Tanpa induk"}</option>
+          {options.map((location) => (
+            <option key={location.location_id} value={location.location_id}>
+              {location.location_name} · {location.location_code}
+            </option>
+          ))}
+        </select>
+      );
+    } else {
+      control = (
+        <input
+          type={field.type || "text"}
+          value={draft[field.key] ?? ""}
+          placeholder={field.placeholder || ""}
+          disabled={saving || locked || !writeEnabled}
+          onChange={(event) => updateDraft(field.key, event.target.value)}
+        />
+      );
+    }
+
+    return (
+      <label key={field.key} className={`da-field ${field.wide ? "da-field-wide" : ""}`}>
+        {field.label}{field.required ? " *" : ""}
+        {control}
+        {locked ? <small className="da-muted">Dikunci agar referensi transaksi lama tidak berubah.</small> : null}
+      </label>
+    );
+  }
+
   return (
-    <div>
+    <div className={`da-master-control-center da-master-${moduleType}`}>
       <PageHeader
-        title={
-          config.title
-        }
-
-        description={
-          config.description
-        }
-
-        badge={
-          config.badge
-        }
+        eyebrow={config.eyebrow}
+        title={config.title}
+        description={config.description}
+        actions={(
+          <>
+            <Button variant="ghost" onClick={loadData} disabled={loading}>
+              <RefreshCw size={16} /> {loading ? "Memuat" : "Perbarui"}
+            </Button>
+            <Button onClick={openCreate} disabled={!writeEnabled}>
+              <Plus size={16} /> Tambah {config.singular}
+            </Button>
+          </>
+        )}
       />
 
-      <Card>
-        <div className="da-backend-panel">
+      {error ? <div className="da-form-warning da-master-message">{error}</div> : null}
+      {success ? <div className="da-form-success da-master-message">{success}</div> : null}
+
+      <section className="da-master-hero">
+        <div className="da-master-hero-main">
+          <div className="da-master-hero-icon"><ModuleIcon size={22} /></div>
+          <div className="da-master-hero-copy">
+            <span>{config.heroLabel}</span>
+            <strong>{bootstrap.summary.active_rows.toLocaleString("id-ID")}</strong>
+            <small>{bootstrap.summary.total_rows.toLocaleString("id-ID")} total master · {bootstrap.summary.inactive_rows.toLocaleString("id-ID")} nonaktif</small>
+          </div>
+          <Badge tone={writeEnabled ? "success" : "warning"}>{writeEnabled ? "Siap digunakan" : "Pantau"}</Badge>
+        </div>
+
+        <div className="da-master-hero-metrics">
           <div>
-            <div className="da-dashboard-banner-kicker">
-              Master Data Hidup
-            </div>
-
-            <div className="da-dashboard-banner-title">
-              {
-                config.introTitle
-              }
-            </div>
-
-            <div className="da-dashboard-banner-desc">
-              {
-                config.introFlow
-              }
-            </div>
-
-            <p className="da-muted">
-              {
-                config.introDesc
-              }
-            </p>
+            <span>{safeText(business.primary_label, "Penggunaan")}</span>
+            <strong>{metricValue(moduleType, "primary", business.primary_value)}</strong>
           </div>
-
-          <div className="da-dashboard-banner-actions">
-            <Badge
-              tone={
-                error
-                  ? "danger"
-                  : "success"
-              }
-            >
-              {error
-                ? "Perlu Cek"
-                : "Terhubung"}
-            </Badge>
-
-            <Button
-              variant="ghost"
-
-              onClick={
-                loadData
-              }
-
-              disabled={
-                loading
-              }
-            >
-              {loading
-                ? "Memuat..."
-                : "Refresh Data"}
-            </Button>
-
-            <Badge
-              tone={
-                writeEnabled
-                  ? "success"
-                  : "warning"
-              }
-            >
-              {writeEnabled
-                ? "Penyimpanan Aktif"
-                : "Pantau"}
-            </Badge>
+          <div>
+            <span>{safeText(business.secondary_label, "Posisi aktif")}</span>
+            <strong>{metricValue(moduleType, "secondary", business.secondary_value)}</strong>
+          </div>
+          <div>
+            <span>{safeText(business.tertiary_label, "Terkait")}</span>
+            <strong>{metricValue(moduleType, "tertiary", business.tertiary_value)}</strong>
           </div>
         </div>
-      </Card>
+      </section>
 
-      {error ? (
-        <div className="da-form-warning">
-          {error}
+      {config.tabs.length > 1 ? (
+        <div className="da-master-tabs" role="tablist">
+          {config.tabs.map(([key, label]) => (
+            <button
+              type="button"
+              key={key}
+              className={activeTab === key ? "is-active" : ""}
+              onClick={() => setActiveTab(key)}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       ) : null}
 
-      {success ? (
-        <div className="da-form-success">
-          {success}
-        </div>
-      ) : null}
+      {activeTab === "data" ? (
+        <div className="da-master-workspace">
+          <Card className="da-master-list-card">
+            <div className="da-section-heading da-master-list-heading">
+              <div>
+                <span>Data Utama</span>
+                <h2>{config.tableTitle}</h2>
+                <p>{config.tableDescription}</p>
+              </div>
+              <Badge tone="success">{filteredRows.length} data</Badge>
+            </div>
 
-      <div className="da-grid da-grid-3">
-        <StatCard
-          label="Total Data"
+            <div className="da-master-toolbar">
+              <label className="da-master-search">
+                <Search size={17} />
+                <input
+                  value={search}
+                  placeholder={`Cari ${config.singular.toLowerCase()}...`}
+                  onChange={(event) => setSearch(event.target.value)}
+                />
+              </label>
+              <div className="da-master-status-filter">
+                {[
+                  ["ALL", "Semua"],
+                  ["ACTIVE", "Aktif"],
+                  ["INACTIVE", "Nonaktif"],
+                ].map(([key, label]) => (
+                  <button
+                    type="button"
+                    key={key}
+                    className={statusFilter === key ? "is-active" : ""}
+                    onClick={() => setStatusFilter(key)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-          value={
-            bootstrap
-              .summary
-              .total_rows
-          }
+            <DataTable
+              columns={columns}
+              rows={filteredRows}
+              getRowKey={(row, index) => row.id || `${moduleType}-${index}`}
+              onRowClick={setSelected}
+            />
 
-          description="Master resmi yang tersimpan di sistem."
-        />
+            {!loading && filteredRows.length === 0 ? (
+              <div className="da-master-empty">
+                <ModuleIcon size={25} />
+                <strong>Belum ada data yang cocok</strong>
+                <span>{search ? "Ubah kata pencarian atau filter status." : `Tambahkan ${config.singular.toLowerCase()} pertama saat sudah dibutuhkan operasional.`}</span>
+              </div>
+            ) : null}
+          </Card>
 
-        <StatCard
-          label="Aktif"
+          <aside className="da-master-side">
+            <Card>
+              <div className="da-section-heading">
+                <div>
+                  <span>Kualitas Data</span>
+                  <h2>Kontrol Master</h2>
+                </div>
+                <ShieldCheck size={20} />
+              </div>
+              <div className="da-master-quality-list">
+                <div>
+                  <span>ID master lengkap</span>
+                  <strong>{bootstrap.summary.missing_id_rows === 0 ? "Aman" : `${bootstrap.summary.missing_id_rows} perlu cek`}</strong>
+                </div>
+                <div>
+                  <span>Penyimpanan</span>
+                  <strong>{writeEnabled ? "Aktif" : "Terkunci"}</strong>
+                </div>
+                <div>
+                  <span>Hapus permanen</span>
+                  <strong>Tidak digunakan</strong>
+                </div>
+                <div>
+                  <span>Master inti dilindungi</span>
+                  <strong>{(PROTECTED_IDS[moduleType] || []).length}</strong>
+                </div>
+              </div>
+            </Card>
 
-          value={
-            bootstrap
-              .summary
-              .active_rows
-          }
-
-          description="Data yang bisa dipakai transaksi."
-        />
-
-        <StatCard
-          tone={
-            bootstrap
-              .summary
-              .inactive_rows
-              ? "warning"
-              : "default"
-          }
-
-          label="Nonaktif"
-
-          value={
-            bootstrap
-              .summary
-              .inactive_rows
-          }
-
-          description="Tetap tersimpan untuk riwayat lama."
-        />
-      </div>
-
-      <div id="master-live-form">
-        <Card>
-          <div className="da-section-heading">
-            <div>
-              <span>
-                Master Data Terpusat
-              </span>
-
-              <h2>
-                {editingId
-                  ? `Edit ${config.title}`
-                  : `Tambah ${config.title}`}
-              </h2>
-
-              <p>
-                {editingId
-                  ? `ID ${editingId} sedang diedit. ID/kode inti dikunci supaya hubungan transaksi tetap aman.`
-                  : "Data baru langsung menjadi master hidup untuk transaksi berikutnya."}
+            <Card>
+              <div className="da-section-heading">
+                <div>
+                  <span>Aturan Operasional</span>
+                  <h2>Sebelum Nonaktif</h2>
+                </div>
+                <AlertTriangle size={20} />
+              </div>
+              <p className="da-muted">
+                Master yang masih membawa saldo, stok, order/PO, piutang, hutang, aturan harga, akun, dompet, atau proses antar-lokasi aktif akan ditahan oleh backend sampai ketergantungannya selesai.
               </p>
-            </div>
-
-            <Badge
-              tone={
-                writeEnabled
-                  ? "success"
-                  : "warning"
-              }
-            >
-              {editingId
-                ? "Mode Edit"
-                : writeEnabled
-                ? "Penyimpanan Aktif"
-                : "Terkunci"}
-            </Badge>
-          </div>
-
-          <div className="da-form-warning">
-            {
-              config.formNote
-            }
-          </div>
-
-          <form
-            onSubmit={
-              handleSubmit
-            }
-          >
-            <div className="da-form-grid">
-              {config.fields.map(
-                (field) => {
-                  const locked =
-                    Boolean(
-                      editingId &&
-                        field.lockedOnEdit
-                    );
-
-                  return (
-                    <label
-                      key={
-                        field.key
-                      }
-
-                      className="da-field"
-                    >
-                      {
-                        field.label
-                      }
-
-                      {field.type === "select" ? (
-                        <select
-                          value={String(draft[field.key] ?? "")}
-                          disabled={saving || locked || !writeEnabled}
-                          onChange={(event) => updateDraft(field.key, event.target.value)}
-                        >
-                          {(field.options || []).map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <input
-                          type={field.type || "text"}
-                          value={draft[field.key] ?? ""}
-                          placeholder={field.placeholder || ""}
-                          disabled={saving || locked || !writeEnabled}
-                          onChange={(event) => updateDraft(field.key, event.target.value)}
-                        />
-                      )}
-
-                      {locked ? (
-                        <small className="da-muted">
-                          Dikunci
-                          saat edit
-                          supaya
-                          referensi
-                          transaksi
-                          tidak
-                          berubah.
-                        </small>
-                      ) : null}
-                    </label>
-                  );
-                }
-              )}
-            </div>
-
-            <div className="da-form-actions">
-              <Button
-                type="button"
-
-                variant="ghost"
-
-                onClick={
-                  resetDraft
-                }
-
-                disabled={
-                  saving
-                }
-              >
-                {editingId
-                  ? "Batal Edit"
-                  : "Reset"}
-              </Button>
-
-              <Button
-                type="submit"
-
-                disabled={
-                  saving ||
-                  !writeEnabled
-                }
-              >
-                {saving
-                  ? "Menyimpan..."
-                  : editingId
-                  ? "Simpan Perubahan"
-                  : "Tambah Master"}
-              </Button>
-            </div>
-          </form>
-        </Card>
-      </div>
-
-      <Card>
-        <div className="da-section-heading">
-          <div>
-            <span>
-              Daftar Master
-            </span>
-
-            <h2>
-              {
-                config.tableTitle
-              }
-            </h2>
-
-            <p>
-              Klik baris
-              untuk lihat
-              detail, edit,
-              atau
-              aktif/nonaktifkan.
-            </p>
-          </div>
-
-          <Badge tone="success">
-            Data Aktual
-          </Badge>
+              <div className="da-master-rule-note">
+                Riwayat lama tidak dihapus. Perubahan master hanya memengaruhi transaksi berikutnya.
+              </div>
+            </Card>
+          </aside>
         </div>
-
-        <div className="da-filter-row">
-          <input
-            className="da-input"
-
-            value={
-              search
-            }
-
-            placeholder="Cari nama, kode, area, supplier..."
-
-            onChange={(
-              event
-            ) =>
-              setSearch(
-                event.target
-                  .value
-              )
-            }
-          />
-
-          <Button
-            variant="ghost"
-
-            onClick={() =>
-              setSearch("")
-            }
-          >
-            Reset
-          </Button>
-        </div>
-
-        <DataTable
-          columns={
-            viewColumns
-          }
-
-          rows={
-            filteredRows
-          }
-
-          getRowKey={(
-            row,
-            index
-          ) =>
-            row.id ||
-            `${moduleType}-${index}`
-          }
-
-          onRowClick={(
-            row
-          ) =>
-            setSelected(
-              row
-            )
-          }
-        />
-
-        {!loading &&
-        filteredRows.length ===
-          0 ? (
-          <p
-            className="da-muted"
-
-            style={{
-              marginTop: 12,
-            }}
-          >
-            {
-              config.emptyText
-            }
-          </p>
-        ) : null}
-      </Card>
-
-      {moduleType === "produk" ? (
-        <TangerangGoLiveCutoverPanel
-          sessionToken={sessionToken}
-          onSessionExpired={onSessionExpired}
-          onCutoverChanged={async () => {
-            await loadData();
-            setPricingRefreshKey((value) => value + 1);
-          }}
-        />
       ) : null}
 
-      {moduleType === "produk" ? (
+      {moduleType === "produk" && activeTab === "pricing" ? (
         <ProductPricingPanel
           key={`product-pricing-${pricingRefreshKey}`}
           sessionToken={sessionToken}
@@ -2160,7 +1077,18 @@ export default function MasterDataPage({
         />
       ) : null}
 
-      {moduleType === "produk" ? (
+      {moduleType === "produk" && activeTab === "activation" ? (
+        <TangerangGoLiveCutoverPanel
+          sessionToken={sessionToken}
+          onSessionExpired={onSessionExpired}
+          onCutoverChanged={async () => {
+            await loadData();
+            setPricingRefreshKey((value) => value + 1);
+          }}
+        />
+      ) : null}
+
+      {moduleType === "produk" && activeTab === "readiness" ? (
         <PricingCutoverPanel
           key={`pricing-readiness-${pricingRefreshKey}`}
           sessionToken={sessionToken}
@@ -2168,204 +1096,164 @@ export default function MasterDataPage({
         />
       ) : null}
 
-      {moduleType === "lokasi" ? (
-        <BranchCommercePanel
-          sessionToken={sessionToken}
-          onSessionExpired={onSessionExpired}
-        />
+      {moduleType === "lokasi" && activeTab === "commerce" ? (
+        <BranchCommercePanel sessionToken={sessionToken} onSessionExpired={onSessionExpired} />
       ) : null}
 
       <Modal
-        open={
-          Boolean(
-            selected
-          )
-        }
+        open={formOpen}
+        title={`${editingId ? "Edit" : "Tambah"} ${config.singular}`}
+        subtitle={editingId ? `ID ${editingId} · ID inti tidak berubah` : "Master baru untuk transaksi berikutnya"}
+        onClose={closeForm}
+        size="xl"
+      >
+        <form onSubmit={handleSubmit} className="da-master-form-modal">
+          <div className="da-master-form-intro">
+            <div className="da-master-form-icon"><ModuleIcon size={20} /></div>
+            <div>
+              <strong>{editingId ? `Perbarui ${moduleName(draft, moduleType)}` : `Data ${config.singular} baru`}</strong>
+              <span>
+                {moduleType === "produk"
+                  ? "Standar produksi baru hanya berlaku untuk batch berikutnya; HPP historis tetap terkunci."
+                  : "Gunakan identitas yang benar agar transaksi, arsip, dan laporan tidak terpecah."}
+              </span>
+            </div>
+          </div>
 
-        title={`Detail ${config.title}`}
+          <div className="da-form-grid da-master-form-grid">
+            {config.fields.map(renderField)}
+          </div>
 
-        subtitle={
-          safeText(
-            selected?.master_id ||
-              selected?.id
-          )
-        }
+          <div className="da-modal-sticky-actions da-master-modal-actions">
+            <Button type="button" variant="ghost" onClick={closeForm} disabled={saving}>Batal</Button>
+            <Button type="submit" disabled={saving || !writeEnabled}>
+              {saving ? "Menyimpan..." : editingId ? "Simpan Perubahan" : `Simpan ${config.singular}`}
+            </Button>
+          </div>
+        </form>
+      </Modal>
 
-        onClose={() =>
-          setSelected(
-            null
-          )
-        }
+      <Modal
+        open={Boolean(selected)}
+        title={selected ? moduleName(selected, moduleType) : `Detail ${config.singular}`}
+        subtitle={selected ? safeText(selected.master_id || selected.id) : ""}
+        onClose={() => setSelected(null)}
+        size="xl"
       >
         {selected ? (
-          <div>
-            <div className="da-section-heading">
+          <div className="da-master-detail">
+            <div className="da-master-detail-head">
               <div>
-                <span>
-                  Data Hidup
-                </span>
-
-                <h2>
-                  {safeText(
-                    selected.product_name ||
-                      selected.customer_name ||
-                      selected.supplier_name ||
-                      selected.location_name
-                  )}
-                </h2>
+                <span>{config.singular}</span>
+                <h2>{moduleName(selected, moduleType)}</h2>
+                <p>{safeText(selected.notes, "Tidak ada catatan tambahan.")}</p>
               </div>
-
-              <div className="da-dashboard-banner-actions">
-                {isProtected(
-                  selected
-                ) ? (
-                  <Badge tone="warning">
-                    Master
-                    Inti
-                  </Badge>
-                ) : null}
-
-                <Badge
-                  tone={
-                    selected.active
-                      ? "success"
-                      : "warning"
-                  }
-                >
-                  {selected.active
-                    ? "Aktif"
-                    : "Nonaktif"}
-                </Badge>
+              <div className="da-master-detail-status">
+                {protectedSelected ? <Badge tone="warning">Master Inti</Badge> : null}
+                <Badge tone={selected.active ? "success" : "warning"}>{selected.active ? "Aktif" : "Nonaktif"}</Badge>
               </div>
             </div>
 
-            <div className="da-detail-grid">
-              {config.detailFields.map(
-                ([
-                  key,
-                  label,
-                ]) => (
-                  <div
-                    className="da-detail-box"
-
-                    key={
-                      key
-                    }
-                  >
-                    <div className="da-mini-info-label">
-                      {
-                        label
-                      }
-                    </div>
-
-                    <div className="da-mini-info-value">
-                      {safeText(
-                        selected[
-                          key
-                        ]
-                      )}
-                    </div>
-                  </div>
-                )
-              )}
-
-              <div
-                className="da-modal-note da-detail-box"
-
-                style={{
-                  gridColumn:
-                    "1 / -1",
-                }}
-              >
-                Tidak ada
-                hapus permanen.
-                Nonaktif hanya
-                menghentikan
-                pemakaian untuk
-                transaksi baru.
-                Riwayat lama
-                tetap tersimpan.
-              </div>
+            <div className="da-master-usage-grid">
+              {usageCards(selected, moduleType).map(([label, value, Icon]) => (
+                <div key={label}>
+                  <Icon size={17} />
+                  <span>{label}</span>
+                  <strong>{value}</strong>
+                </div>
+              ))}
             </div>
 
-            <div
-              className="da-form-actions"
+            <div className="da-master-detail-grid">
+              {moduleType === "produk" ? (
+                <>
+                  <div><span>Kode</span><strong>{safeText(selected.product_code)}</strong></div>
+                  <div><span>Kategori</span><strong>{safeText(selected.category)}</strong></div>
+                  <div><span>Satuan</span><strong>{safeText(selected.unit)}</strong></div>
+                  <div><span>Produksi Adukan</span><strong>{selected.uses_adukan ? "Ya" : "Tidak"}</strong></div>
+                  <div><span>Ayam / Adukan</span><strong>{safeText(selected.chicken_kg_per_adukan_display)}</strong></div>
+                  <div><span>Target / Adukan</span><strong>{safeText(selected.default_yield_pcs_display)}</strong></div>
+                </>
+              ) : null}
+              {moduleType === "customer" ? (
+                <>
+                  <div><span>Kontak</span><strong>{safeText(selected.phone)}</strong></div>
+                  <div><span>Area</span><strong>{safeText(selected.area)}</strong></div>
+                  <div><span>Lokasi Utama</span><strong>{safeText(selected.location_name, "Semua lokasi")}</strong></div>
+                  <div><span>Tipe Harga</span><strong>{safeText(selected.price_type)}</strong></div>
+                  <div><span>Order Terakhir</span><strong>{safeText(selected.last_order_date)}</strong></div>
+                </>
+              ) : null}
+              {moduleType === "supplier" ? (
+                <>
+                  <div><span>Kode</span><strong>{safeText(selected.supplier_code)}</strong></div>
+                  <div><span>Jenis</span><strong>{safeText(selected.supplier_type)}</strong></div>
+                  <div><span>Kontak</span><strong>{safeText(selected.phone)}</strong></div>
+                  <div><span>Jalur Bayar</span><strong>{safeText(selected.default_wallet)}</strong></div>
+                </>
+              ) : null}
+              {moduleType === "lokasi" ? (
+                <>
+                  <div><span>Kode</span><strong>{safeText(selected.location_code)}</strong></div>
+                  <div><span>Tipe</span><strong>{safeText(selected.location_type)}</strong></div>
+                  <div><span>Induk</span><strong>{safeText(selected.parent_location_name, "Pusat / mandiri")}</strong></div>
+                  <div><span>Laporan Aktif</span><strong>{numberValue(selected.open_report_count)}</strong></div>
+                  <div><span>Setoran Pending</span><strong>{numberValue(selected.pending_deposit_count)}</strong></div>
+                </>
+              ) : null}
+            </div>
 
-              style={{
-                marginTop: 16,
-              }}
-            >
-              <Button
-                type="button"
+            {selected.active && (protectedSelected || blockersForSelected.length) ? (
+              <div className="da-master-dependency-alert">
+                <AlertTriangle size={18} />
+                <div>
+                  <strong>{protectedSelected ? "Master inti dilindungi" : "Masih dipakai proses aktif"}</strong>
+                  <span>
+                    {protectedSelected
+                      ? "Master ini tidak dapat dinonaktifkan dari halaman ini."
+                      : `Selesaikan ${blockersForSelected.join(", ")} sebelum menonaktifkan.`}
+                  </span>
+                </div>
+              </div>
+            ) : null}
 
-                variant="ghost"
-
-                onClick={() =>
-                  setSelected(
-                    null
-                  )
-                }
-              >
-                Tutup
+            <div className="da-modal-sticky-actions">
+              <Button type="button" variant="ghost" onClick={() => setSelected(null)}>Tutup</Button>
+              <Button type="button" variant="ghost" onClick={() => startEdit(selected)} disabled={!writeEnabled || statusSaving}>
+                <Edit2 size={16} /> Edit Data
               </Button>
-
               <Button
                 type="button"
-
-                variant="ghost"
-
-                onClick={() =>
-                  startEdit(
-                    selected
-                  )
-                }
-
-                disabled={
-                  !writeEnabled ||
-                  statusSaving
-                }
+                onClick={() => setStatusTarget(selected)}
+                disabled={!writeEnabled || statusSaving || (selected.active && protectedSelected)}
               >
-                Edit Data
+                <Power size={16} /> {selected.active ? "Nonaktifkan" : "Aktifkan"}
               </Button>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
 
-              <Button
-                type="button"
-
-                onClick={() =>
-                  handleStatus(
-                    selected
-                  )
-                }
-
-                disabled={
-                  !writeEnabled ||
-                  statusSaving ||
-                  (
-                    selected.active &&
-                    isProtected(
-                      selected
-                    )
-                  )
-                }
-
-                title={
-                  selected.active &&
-                  isProtected(
-                    selected
-                  )
-                    ? "Master inti dilindungi dan tidak boleh dinonaktifkan."
-                    : ""
-                }
-              >
-                {statusSaving
-                  ? "Memproses..."
-                  : selected.active
-                  ? isProtected(
-                      selected
-                    )
-                    ? "Dilindungi"
-                    : "Nonaktifkan"
-                  : "Aktifkan"}
+      <Modal
+        open={Boolean(statusTarget)}
+        title={statusTarget?.active ? `Nonaktifkan ${config.singular}?` : `Aktifkan ${config.singular}?`}
+        subtitle={statusTarget ? moduleName(statusTarget, moduleType) : ""}
+        onClose={() => !statusSaving && setStatusTarget(null)}
+        size="md"
+      >
+        {statusTarget ? (
+          <div className="da-master-status-confirm">
+            <div className="da-master-confirm-icon"><AlertTriangle size={22} /></div>
+            <div>
+              <h3>{statusTarget.active ? "Transaksi baru tidak lagi memakai master ini." : "Master kembali tersedia untuk transaksi baru."}</h3>
+              <p>
+                Riwayat transaksi lama tidak dihapus. Backend akan menolak penonaktifan jika masih ada saldo, stok, PO, piutang, hutang, rule harga, akun, dompet, atau proses aktif yang terkait.
+              </p>
+            </div>
+            <div className="da-modal-sticky-actions">
+              <Button type="button" variant="ghost" onClick={() => setStatusTarget(null)} disabled={statusSaving}>Batal</Button>
+              <Button type="button" onClick={confirmStatusChange} disabled={statusSaving}>
+                {statusSaving ? "Memproses..." : statusTarget.active ? "Ya, Nonaktifkan" : "Ya, Aktifkan"}
               </Button>
             </div>
           </div>
