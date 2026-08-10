@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Edit2, Printer, Trash2 } from "lucide-react";
 import {
   createHRDPayrollClosing,
   createHRDPayrollDraft,
@@ -265,16 +266,27 @@ export default function PayrollFinalPanel({
     } catch { /* Print should remain available even if logging is interrupted. */ }
   }
 
-  async function printSlip(row = selectedRun || preview) {
+  function printSlip(row = selectedRun || preview) {
     if (!row) return setError("Preview atau pilih payroll terlebih dahulu.");
     const printable = { ...row, employee_name_snapshot: row.employee_name_snapshot || selectedEmployee?.employee_name, location_name_snapshot: row.location_name_snapshot || selectedEmployee?.location_name_snapshot };
-    await recordPrint(row, printable?.absence_notice?.enabled ? "SLIP_AND_NOTICE_A5" : "SLIP_A5", printable);
-    printPayrollSlipV32(printable);
+    try {
+      // Buka jendela print langsung dari klik user. Jangan menunggu API log,
+      // karena await sebelum window.open dapat dianggap popup non-user-initiated
+      // dan pada beberapa browser menghasilkan tab/preview putih.
+      printPayrollSlipV32(printable);
+      void recordPrint(row, printable?.absence_notice?.enabled ? "SLIP_AND_NOTICE_A5" : "SLIP_A5", printable);
+    } catch (err) {
+      setError(err?.message || "Jendela cetak gagal dibuka. Izinkan popup untuk ERP Dimsum Aditya.");
+    }
   }
 
-  async function printRecap() {
-    await recordPrint(null, "RECAP_A4", { row_count: rows.length, period });
-    printPayrollRecapA4V32(rows, period);
+  function printRecap() {
+    try {
+      printPayrollRecapA4V32(rows, period);
+      void recordPrint(null, "RECAP_A4", { row_count: rows.length, period });
+    } catch (err) {
+      setError(err?.message || "Jendela cetak gagal dibuka. Izinkan popup untuk ERP Dimsum Aditya.");
+    }
   }
 
   async function payPayroll() {
@@ -328,7 +340,7 @@ export default function PayrollFinalPanel({
     { key: "net_pay", label: "THP", render: (row) => <strong>{formatRupiah(num(row.net_pay))}</strong> },
     { key: "status", label: "Status", render: (row) => <Badge tone={tone(row.status)}>{row.status}</Badge> },
     { key: "payment_status", label: "Bayar", render: (row) => <Badge tone={tone(row.payment_status)}>{row.payment_status}</Badge> },
-    { key: "actions", label: "Aksi", render: (row) => <div className="da-hrd-row-actions-v4"><button type="button" className="da-hrd-action-btn-v4" onClick={(event) => { event.stopPropagation(); openEditor(row); }}>Edit</button><button type="button" className="da-hrd-action-btn-v4 is-danger" disabled={String(row.status || "").toUpperCase() !== "DRAFT"} title={String(row.status || "").toUpperCase() !== "DRAFT" ? "Hanya draft yang boleh dihapus" : ""} onClick={(event) => { event.stopPropagation(); deleteDraft(row); }}>Hapus</button><button type="button" className="da-hrd-action-btn-v4" onClick={(event) => { event.stopPropagation(); printSlip(row); }}>Print</button></div> },
+    { key: "actions", label: "Aksi", render: (row) => <div className="da-hrd-row-actions-v4"><button type="button" className="da-hrd-action-btn-v4 is-icon" title="Edit payroll" aria-label="Edit payroll" onClick={(event) => { event.stopPropagation(); openEditor(row); }}><Edit2 size={14} /></button><button type="button" className="da-hrd-action-btn-v4 is-danger is-icon" disabled={String(row.status || "").toUpperCase() !== "DRAFT"} title={String(row.status || "").toUpperCase() !== "DRAFT" ? "Hanya draft yang boleh dihapus" : "Hapus draft payroll"} aria-label="Hapus draft payroll" onClick={(event) => { event.stopPropagation(); deleteDraft(row); }}><Trash2 size={14} /></button><button type="button" className="da-hrd-action-btn-v4 is-icon" title="Print slip gaji" aria-label="Print slip gaji" onClick={(event) => { event.stopPropagation(); printSlip(row); }}><Printer size={14} /></button></div> },
   ];
 
   if (loading) return <div className="da-muted">Memuat Payroll Final…</div>;
@@ -340,7 +352,7 @@ export default function PayrollFinalPanel({
     { key: "wallet_name", label: "Dompet" },
     { key: "amount", label: "Nominal", render: (row) => <strong>{formatRupiah(num(row.amount))}</strong> },
     { key: "status", label: "Status", render: (row) => <Badge tone="success">{row.status}</Badge> },
-    { key: "print", label: "Cetak", render: (row) => <button type="button" onClick={(event) => { event.stopPropagation(); printPayrollPaymentReceiptV32(row); }}>Bukti</button> },
+    { key: "print", label: "Cetak", render: (row) => <button type="button" className="da-hrd-action-btn-v4 is-icon" title="Print bukti pembayaran gaji" aria-label="Print bukti pembayaran gaji" onClick={(event) => { event.stopPropagation(); printPayrollPaymentReceiptV32(row); }}><Printer size={14} /></button> },
   ];
 
   const openEditor = (row = null) => {
@@ -366,7 +378,7 @@ export default function PayrollFinalPanel({
           <div className="da-hrd-panel-head-v3">
             <div><h3>Payroll Periode {period}</h3><p>Klik karyawan untuk membuka workspace THP dan slip dalam popup.</p></div>
             <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
-              <Button variant="secondary" onClick={printRecap}>Cetak Rekap A4</Button>
+              <Button className="da-hrd-icon-label-btn-v6" variant="secondary" onClick={printRecap}><Printer size={15} /> Cetak Rekap A4</Button>
               <Button onClick={() => openEditor()}>+ Proses Payroll</Button>
             </div>
           </div>
@@ -387,7 +399,7 @@ export default function PayrollFinalPanel({
       {["report", "history"].includes(mode) ? (
         <div className="da-hrd-split-list-v3" style={{marginTop:14}}>
           <section className="da-hrd-panel-v3">
-            <div className="da-hrd-panel-head-v3"><div><h3>Status Payroll</h3><p>Draft, closing dan status pembayaran periode {period}.</p></div><Button variant="secondary" onClick={printRecap}>Cetak A4</Button></div>
+            <div className="da-hrd-panel-head-v3"><div><h3>Status Payroll</h3><p>Draft, closing dan status pembayaran periode {period}.</p></div><Button className="da-hrd-icon-label-btn-v6" variant="secondary" onClick={printRecap}><Printer size={15} /> Cetak A4</Button></div>
             <DataTable columns={processColumns} rows={rows} getRowKey={(row) => row.payroll_run_id} onRowClick={(row) => openEditor(row)} />
           </section>
           <section className="da-hrd-panel-v3">
@@ -426,7 +438,7 @@ export default function PayrollFinalPanel({
           <div className="da-form-actions" style={{display:"flex",gap:7,flexWrap:"wrap"}}>
             <Button variant="secondary" onClick={previewServer} disabled={saving || !form.employee_id}>Cek THP Backend</Button>
             <Button onClick={saveDraft} disabled={saving || !form.employee_id}>Simpan Draft</Button>
-            <Button variant="secondary" onClick={() => printSlip()} disabled={!preview}>Cetak Slip Gaji</Button>
+            <Button className="da-hrd-icon-label-btn-v6" variant="secondary" onClick={() => printSlip()} disabled={!preview}><Printer size={15} /> Cetak Slip Gaji</Button>
             <Button onClick={closePayroll} disabled={saving || !form.payroll_run_id || String(selectedRun?.status).toUpperCase() === "CLOSED"}>Closing Payroll</Button>
             <Button variant="secondary" onClick={resetForm}>Reset</Button>
           </div>
