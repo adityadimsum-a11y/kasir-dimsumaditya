@@ -8,6 +8,7 @@ import {
   previewHRDPayrollFinal,
   recordHRDPayrollPrint,
   reopenHRDPayroll,
+  voidHRDPayrollDraft,
 } from "../../lib/api/actions";
 import { formatRupiah } from "../../lib/format/money";
 import Badge from "../../components/ui/Badge";
@@ -72,6 +73,7 @@ export default function PayrollFinalPanel({
   mode = "process",
   onSessionExpired,
   onChanged,
+  onOpenEmployee,
 }) {
   const token = session?.sessionToken || session?.session_token || "";
   const [loading, setLoading] = useState(true);
@@ -266,7 +268,7 @@ export default function PayrollFinalPanel({
   async function printSlip(row = selectedRun || preview) {
     if (!row) return setError("Preview atau pilih payroll terlebih dahulu.");
     const printable = { ...row, employee_name_snapshot: row.employee_name_snapshot || selectedEmployee?.employee_name, location_name_snapshot: row.location_name_snapshot || selectedEmployee?.location_name_snapshot };
-    await recordPrint(row, printable?.absence_notice?.enabled ? "SLIP_GAJI_DAN_SURAT" : "SLIP_GAJI", printable);
+    await recordPrint(row, printable?.absence_notice?.enabled ? "SLIP_AND_NOTICE_A5" : "SLIP_A5", printable);
     printPayrollSlipV32(printable);
   }
 
@@ -296,8 +298,29 @@ export default function PayrollFinalPanel({
     finally { setSaving(false); }
   }
 
+  async function deleteDraft(row) {
+    if (String(row?.status || "").toUpperCase() !== "DRAFT") return setError("Hanya draft payroll yang dapat dihapus.");
+    if (!window.confirm(`Hapus draft payroll ${row?.employee_name_snapshot || "karyawan"}? Ledger dan dompet tidak akan berubah.`)) return;
+    setSaving(true); setError(""); setNotice("");
+    try {
+      const result = await voidHRDPayrollDraft(token, {
+        payroll_run_id: row.payroll_run_id,
+        reason: "Hapus draft dari workspace HRD",
+        operation_id: operationId("PAYVOID"),
+        idempotency_key: operationId("IDEMP"),
+      });
+      if (authRequired(result)) return onSessionExpired?.();
+      if (!result?.success) throw new Error(result?.message || "Draft gagal dihapus.");
+      setNotice(result.message || "Draft payroll dihapus.");
+      if (String(form.payroll_run_id) === String(row.payroll_run_id)) resetForm();
+      await load({ quiet: true });
+      await onChanged?.();
+    } catch (err) { setError(err?.message || "Draft gagal dihapus."); }
+    finally { setSaving(false); }
+  }
+
   const processColumns = [
-    { key: "employee_name_snapshot", label: "Karyawan" },
+    { key: "employee_name_snapshot", label: "Karyawan", render: (row) => <button type="button" className="da-hrd-employee-link-v4" onClick={(event) => { event.stopPropagation(); onOpenEmployee?.(row.employee_id); }}>{row.employee_name_snapshot}</button> },
     { key: "location_name_snapshot", label: "Lokasi" },
     { key: "schedule", label: "Jadwal", render: (row) => row.pay_cycle === "MINGGUAN" ? `Minggu ${row.week_no || "-"}` : `Tgl ${row.payroll_day || "-"}` },
     { key: "total_income", label: "Pendapatan", render: (row) => formatRupiah(num(row.total_income)) },
@@ -305,6 +328,7 @@ export default function PayrollFinalPanel({
     { key: "net_pay", label: "THP", render: (row) => <strong>{formatRupiah(num(row.net_pay))}</strong> },
     { key: "status", label: "Status", render: (row) => <Badge tone={tone(row.status)}>{row.status}</Badge> },
     { key: "payment_status", label: "Bayar", render: (row) => <Badge tone={tone(row.payment_status)}>{row.payment_status}</Badge> },
+    { key: "actions", label: "Aksi", render: (row) => <div className="da-hrd-row-actions-v4"><button type="button" className="da-hrd-action-btn-v4" onClick={(event) => { event.stopPropagation(); openEditor(row); }}>Edit</button><button type="button" className="da-hrd-action-btn-v4 is-danger" disabled={String(row.status || "").toUpperCase() !== "DRAFT"} title={String(row.status || "").toUpperCase() !== "DRAFT" ? "Hanya draft yang boleh dihapus" : ""} onClick={(event) => { event.stopPropagation(); deleteDraft(row); }}>Hapus</button><button type="button" className="da-hrd-action-btn-v4" onClick={(event) => { event.stopPropagation(); printSlip(row); }}>Print</button></div> },
   ];
 
   if (loading) return <div className="da-muted">Memuat Payroll Final…</div>;
@@ -312,7 +336,7 @@ export default function PayrollFinalPanel({
   const paymentColumns = [
     { key: "payment_date", label: "Tanggal" },
     { key: "payment_id", label: "Payment ID" },
-    { key: "employee_name_snapshot", label: "Karyawan" },
+    { key: "employee_name_snapshot", label: "Karyawan", render: (row) => <button type="button" className="da-hrd-employee-link-v4" onClick={(event) => { event.stopPropagation(); onOpenEmployee?.(row.employee_id); }}>{row.employee_name_snapshot}</button> },
     { key: "wallet_name", label: "Dompet" },
     { key: "amount", label: "Nominal", render: (row) => <strong>{formatRupiah(num(row.amount))}</strong> },
     { key: "status", label: "Status", render: (row) => <Badge tone="success">{row.status}</Badge> },
@@ -360,7 +384,7 @@ export default function PayrollFinalPanel({
         </section>
       ) : null}
 
-      {mode === "report" ? (
+      {["report", "history"].includes(mode) ? (
         <div className="da-hrd-split-list-v3" style={{marginTop:14}}>
           <section className="da-hrd-panel-v3">
             <div className="da-hrd-panel-head-v3"><div><h3>Status Payroll</h3><p>Draft, closing dan status pembayaran periode {period}.</p></div><Button variant="secondary" onClick={printRecap}>Cetak A4</Button></div>
