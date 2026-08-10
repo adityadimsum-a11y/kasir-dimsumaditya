@@ -671,6 +671,10 @@ export default function MasterDataPage({ moduleType = "produk", session, onSessi
     setStatusTarget(null);
     setSuccess("");
     setError("");
+    // Jangan membawa angka/row modul sebelumnya ketika user berpindah tab master.
+    // Jika request baru gagal, layar harus tetap kosong dan jujur, bukan menampilkan
+    // data Produk sebagai Customer/Supplier/Lokasi.
+    setBootstrap(normalizePayload({}, moduleType));
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [moduleType]);
