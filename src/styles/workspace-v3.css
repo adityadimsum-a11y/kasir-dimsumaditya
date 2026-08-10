@@ -3800,6 +3800,19 @@ button.da-owner-overview-card-v4:hover { transform:translateY(-2px);border-color
   color:#A11A13;
   transform:translateY(-1px);
 }
+.da-app-v3 .da-hrd-action-btn-v4.is-icon{
+  width:30px;
+  min-width:30px;
+  height:30px;
+  min-height:30px;
+  padding:0;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}
+.da-app-v3 .da-hrd-action-btn-v4.is-icon svg{display:block;pointer-events:none;}
+.da-app-v3 .da-hrd-icon-label-btn-v6{display:inline-flex;align-items:center;justify-content:center;gap:7px;}
+.da-app-v3 .da-hrd-icon-label-btn-v6 svg{display:block;pointer-events:none;}
 .da-app-v3 .da-hrd-action-btn-v4.is-danger{border-color:#fecaca;color:#b42318;background:#fffafa;}
 .da-app-v3 .da-hrd-action-btn-v4.is-danger:hover:not(:disabled){border-color:#f04438;background:#fef3f2;color:#b42318;}
 .da-app-v3 .da-hrd-action-btn-v4:disabled{opacity:.38;cursor:not-allowed;transform:none;}
