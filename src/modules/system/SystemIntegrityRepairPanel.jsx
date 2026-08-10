@@ -49,10 +49,10 @@ function caseTone(status) {
 
 function labelOf(row) {
   if (row.check_code === "RAW_MATERIAL_PRODUCT_REFERENCE") {
-    return "Histori bahan baku RAW-AYAM";
+    return "Riwayat stok bahan ayam";
   }
   if (row.check_code === "INACTIVE_LEGACY_PAYROLL_DRAFT") {
-    return "Draft payroll legacy Rp0";
+    return "Draft payroll lama bernilai Rp0";
   }
   return row.label || row.check_code || "Temuan integritas";
 }
@@ -80,7 +80,7 @@ export default function SystemIntegrityRepairPanel({
   const [data, setData] = useState({});
   const [confirmation, setConfirmation] = useState("");
   const [reason, setReason] = useState(
-    "Klasifikasi histori bahan baku sah dan arsip draft payroll legacy Rp0 setelah audit Data Health."
+    "Klasifikasi riwayat stok bahan sah dan arsip draft payroll lama bernilai Rp0 setelah pemeriksaan Integritas Data."
   );
   const [detail, setDetail] = useState(null);
 
@@ -109,14 +109,14 @@ export default function SystemIntegrityRepairPanel({
         return;
       }
       if (!healthResponse?.success) {
-        throw new Error(healthResponse?.message || "Pusat Perbaikan Data belum siap.");
+        throw new Error(healthResponse?.message || "Pusat Perbaikan Aman belum siap.");
       }
       if (!bootstrapResponse?.success) {
         throw new Error(bootstrapResponse?.message || "Kasus integritas gagal dibaca.");
       }
       setData(bootstrapResponse.data || {});
     } catch (caught) {
-      setError(caught?.message || "Pusat Perbaikan Data gagal dibaca.");
+      setError(caught?.message || "Pusat Perbaikan Aman gagal dibaca.");
       setData({});
     } finally {
       setLoading(false);
@@ -135,7 +135,7 @@ export default function SystemIntegrityRepairPanel({
     try {
       const opId = operationId("INTEGRITY-SCAN");
       const response = await scanSystemIntegrityCases(sessionToken, {
-        notes: "Scan manual Part 6B sebelum perbaikan.",
+        notes: "Scan manual Integritas Data sebelum perbaikan.",
         operation_id: opId,
         request_id: opId,
         idempotency_key: opId,
@@ -174,14 +174,14 @@ export default function SystemIntegrityRepairPanel({
         return;
       }
       if (!response?.success) {
-        throw new Error(response?.message || "Perbaikan aman gagal diterapkan.");
+        throw new Error(response?.message || "Perbaikan aman belum berhasil diterapkan.");
       }
       setNotice(response.message || "Perbaikan aman selesai.");
       setConfirmation("");
       await load();
       await onRepairComplete?.();
     } catch (caught) {
-      setError(caught?.message || "Perbaikan aman gagal diterapkan.");
+      setError(caught?.message || "Perbaikan aman belum berhasil diterapkan.");
     } finally {
       setWorking(false);
     }
@@ -192,19 +192,19 @@ export default function SystemIntegrityRepairPanel({
       <Card>
         <div className="da-section-header">
           <div>
-            <p className="da-kicker">Part 6B · Owner Only</p>
-            <h2>Pusat Perbaikan Data & Integritas</h2>
+            <p className="da-kicker">Perbaikan Aman · Owner Only</p>
+            <h2>Pusat Perbaikan Aman</h2>
             <p className="da-muted">
               Tidak menghapus histori. Scan hanya mencatat kasus; repair baru berjalan setelah konfirmasi Owner.
             </p>
           </div>
           <div className="da-actions">
             <Badge tone={health.ready ? "success" : "warning"}>
-              {health.ready ? "Repair Center Ready" : "Migration 024 Belum Siap"}
+              {health.ready ? "Perbaikan Siap" : "Fondasi Perbaikan Belum Siap"}
             </Badge>
-            <Badge tone="success">No Delete</Badge>
+            <Badge tone="success">Tanpa Hapus Histori</Badge>
             <Button variant="secondary" onClick={load} disabled={loading || working}>
-              Refresh Repair
+              Perbarui
             </Button>
           </div>
         </div>
@@ -213,8 +213,8 @@ export default function SystemIntegrityRepairPanel({
         {notice ? <div className="da-form-success">{notice}</div> : null}
 
         <div className="da-grid da-grid-3">
-          <StatCard label="Preview Temuan" value={n(summary.preview_total)} tone={n(summary.preview_total) ? "warning" : "success"} />
-          <StatCard label="Kasus Open" value={n(summary.open_cases)} tone={n(summary.open_cases) ? "warning" : "success"} />
+          <StatCard label="Temuan Potensial" value={n(summary.preview_total)} tone={n(summary.preview_total) ? "warning" : "success"} />
+          <StatCard label="Kasus Terbuka" value={n(summary.open_cases)} tone={n(summary.open_cases) ? "warning" : "success"} />
           <StatCard label="Sudah Diselesaikan" value={n(summary.resolved_cases)} tone="success" />
           <StatCard label="Backup 24 Jam" value={guards.backup_ready ? "Siap" : "Belum"} tone={guards.backup_ready ? "success" : "danger"} />
           <StatCard label="Snapshot 24 Jam" value={guards.snapshot_ready ? "Siap" : "Belum"} tone={guards.snapshot_ready ? "success" : "danger"} />
@@ -224,10 +224,10 @@ export default function SystemIntegrityRepairPanel({
       <Card>
         <div className="da-section-header">
           <div>
-            <p className="da-kicker">Preview Read-Only</p>
-            <h2>Rencana Perbaikan Aman</h2>
+            <p className="da-kicker">Pratinjau Read-Only</p>
+            <h2>Rencana Penanganan</h2>
             <p className="da-muted">
-              Database saat ini diperkirakan memiliki {n(summary.preview_raw_material)} histori RAW-AYAM dan {n(summary.preview_legacy_payroll)} draft payroll legacy Rp0.
+              Pemeriksaan menemukan {n(summary.preview_raw_material)} riwayat stok bahan yang perlu klasifikasi dan {n(summary.preview_legacy_payroll)} draft payroll lama bernilai Rp0 yang perlu diarsipkan.
             </p>
           </div>
           <Button onClick={scan} disabled={working || loading || !health.ready}>
@@ -238,16 +238,16 @@ export default function SystemIntegrityRepairPanel({
         <div className="da-grid da-grid-2">
           <div className="da-soft-panel">
             <Badge tone="success">Tanpa Ubah Stok</Badge>
-            <h3>Histori Bahan Baku RAW-AYAM</h3>
+            <h3>Riwayat Stok Bahan Ayam</h3>
             <p className="da-muted">
-              DROP ayam dan opening stock tetap memakai identitas bahan baku. Sistem hanya mencatat bahwa referensinya sah, bukan membuat produk jual baru.
+              DROP ayam dan stok awal tetap memakai identitas bahan baku. Sistem hanya mengklasifikasikan referensi historis yang sah tanpa membuat produk jual baru.
             </p>
           </div>
           <div className="da-soft-panel">
             <Badge tone="warning">Blokir Bayar</Badge>
-            <h3>Draft Payroll Legacy Rp0</h3>
+            <h3>Draft Payroll Lama Rp0</h3>
             <p className="da-muted">
-              Hanya draft V32 bernilai nol milik karyawan nonaktif/ending yang diubah menjadi ARCHIVED_LEGACY dan NOT_PAYABLE_LEGACY.
+              Hanya draft bernilai nol milik karyawan nonaktif/ending yang diarsipkan dan ditandai tidak dapat dibayar. Nominal payroll nyata tidak diubah.
             </p>
           </div>
         </div>
@@ -282,7 +282,7 @@ export default function SystemIntegrityRepairPanel({
         <div className="da-section-header">
           <div>
             <p className="da-kicker">Kasus Tercatat</p>
-            <h2>Daftar Integrity Case</h2>
+            <h2>Daftar Kasus Integritas</h2>
             <p className="da-muted">Kasus harus ditarik terlebih dahulu sebelum repair dapat diterapkan.</p>
           </div>
           <Badge tone={openCases.length ? "warning" : "success"}>{openCases.length} Open</Badge>
@@ -319,7 +319,7 @@ export default function SystemIntegrityRepairPanel({
           <div className="da-actions">
             <Badge tone={guards.backup_ready ? "success" : "danger"}>Backup {guards.backup_ready ? "Siap" : "Belum"}</Badge>
             <Badge tone={guards.snapshot_ready ? "success" : "danger"}>Snapshot {guards.snapshot_ready ? "Siap" : "Belum"}</Badge>
-            <Badge tone="danger">Irreversible Status Update</Badge>
+            <Badge tone="danger">Perubahan Status Tercatat</Badge>
           </div>
         </div>
 
@@ -345,7 +345,7 @@ export default function SystemIntegrityRepairPanel({
 
       <Card>
         <div className="da-section-header">
-          <div><p className="da-kicker">Riwayat</p><h2>Tindakan Integrity Cleanup</h2></div>
+          <div><p className="da-kicker">Riwayat</p><h2>Riwayat Perbaikan Data</h2></div>
           <Badge tone="success">Audit & Arsip</Badge>
         </div>
         <div className="da-table-wrap">
@@ -356,7 +356,7 @@ export default function SystemIntegrityRepairPanel({
                 <tr key={row.action_id}>
                   <td>{row.created_at}</td><td>{row.action_id}</td><td>{row.case_id}</td><td>{row.action_type}</td><td>{row.entity_id}</td><td>{row.archive_id || "-"}</td>
                 </tr>
-              )) : <tr><td colSpan="6">Belum ada tindakan repair.</td></tr>}
+              )) : <tr><td colSpan="6">Belum ada tindakan perbaikan.</td></tr>}
             </tbody>
           </table>
         </div>
