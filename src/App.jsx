@@ -329,6 +329,7 @@ export default function App() {
       return (
         <LaporanHarianPage
           {...pageProps}
+          onNavigate={handleChangePage}
         />
       );
     }
@@ -338,6 +339,7 @@ export default function App() {
       return (
         <SetoranCabangPage
           {...pageProps}
+          onNavigate={handleChangePage}
         />
       );
     }
