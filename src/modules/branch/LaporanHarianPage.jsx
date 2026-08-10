@@ -38,7 +38,7 @@ const statusTone = (status) => {
 };
 const statusLabel = (status) => {
   const value = String(status || "").toUpperCase();
-  if (value === "SUBMITTED") return "Menunggu Tangerang";
+  if (value === "SUBMITTED") return "Menunggu Review Pusat";
   if (value === "APPROVED") return "Disetujui";
   if (value === "REJECTED") return "Perlu Revisi";
   if (value === "PARTIAL") return "Setoran Sebagian";
@@ -134,7 +134,7 @@ function statusMessage(report) {
   if (status === "PARTIAL") return { tone: "warning", title: "Setoran belum lengkap", text: "Sebagian setoran sudah diterima pusat dan masih ada sisa yang perlu diselesaikan." };
   if (status === "SETTLED") return { tone: "success", title: "Laporan selesai", text: "Laporan dan setoran sudah selesai diproses." };
   if (status === "REJECTED") return { tone: "danger", title: "Perlu perbaikan", text: report?.rejection_reason || "Periksa transaksi sumber lalu kirim ulang laporan." };
-  return { tone: "default", title: "Belum dikirim", text: "Tarik transaksi hari ini, periksa ringkasan, lalu kirim laporan ke Tangerang." };
+  return { tone: "default", title: "Belum dikirim", text: "Tarik transaksi hari ini, periksa ringkasan, lalu kirim laporan ke pusat." };
 }
 
 export default function LaporanHarianPage({ session, onSessionExpired, onNavigate }) {
@@ -188,6 +188,11 @@ export default function LaporanHarianPage({ session, onSessionExpired, onNavigat
   useEffect(() => { loadData(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
   const submitReport = async () => {
+    if (canApprove) {
+      setSuccess("");
+      setError("Laporan cabang harus dikirim oleh akun cabang. Owner/HO hanya melakukan review dan persetujuan.");
+      return;
+    }
     setSaving(true); setError(""); setSuccess("");
     try {
       const result = await submitBranchDailyReport(token, {
@@ -214,7 +219,7 @@ export default function LaporanHarianPage({ session, onSessionExpired, onNavigat
       const fn = action === "approve" ? approveBranchDailyReport : rejectBranchDailyReport;
       const result = await fn(token, {
         report_id: selectedReport.report_id,
-        notes: reviewNote.trim() || "Laporan telah diperiksa Tangerang.",
+        notes: reviewNote.trim() || "Laporan telah diperiksa Owner/HO Tangerang.",
         reason: action === "reject" ? reviewNote.trim() : "",
       });
       if (authRequired(result)) return onSessionExpired?.();
@@ -229,19 +234,104 @@ export default function LaporanHarianPage({ session, onSessionExpired, onNavigat
   };
 
   const currentReport = data.reports[0] || data.activeReport || null;
-  const workflow = statusMessage(currentReport);
+  const baseWorkflow = statusMessage(currentReport);
+  const workflow = canApprove && !currentReport
+    ? { tone: "default", title: "Menunggu laporan cabang", text: "Belum ada laporan yang dikirim oleh cabang untuk periode ini. Data transaksi tetap dapat dipantau tanpa membuat laporan atas nama cabang." }
+    : canApprove && String(currentReport?.status || "").toUpperCase() === "SUBMITTED"
+      ? { tone: "warning", title: "Siap direview", text: "Laporan sudah dikirim oleh cabang dan menunggu keputusan Owner/HO." }
+      : baseWorkflow;
   const periodLabel = data.summary.period_label || requestPayload.date_start;
+  const currentStatus = String(currentReport?.status || "").toUpperCase();
+  const selectedLocationName = safeText(data.summary.location_name, "Cabang");
+
+  const ownerHeaderTitle = selectedLocationName !== "Cabang"
+    ? `Laporan Harian — ${selectedLocationName}`
+    : "Laporan Harian Cabang";
+
+  const headerTitle = canApprove ? ownerHeaderTitle : "Laporan Harian";
+  const headerDescription = canApprove
+    ? `Pantau dan review ringkasan operasional ${selectedLocationName}. Laporan dikirim oleh akun cabang; Owner/HO tidak membuat laporan atas nama cabang.`
+    : "Ringkas transaksi operasional periode ini dan kirim laporan ke pusat untuk direview.";
+
+  const renderPrimaryAction = () => {
+    if (canApprove) {
+      if (currentStatus === "SUBMITTED") {
+        return (
+          <Button variant="primary" onClick={() => { setSelectedReport(currentReport); setReviewNote(""); }} disabled={saving || loading}>
+            <FileText size={16} /> Review Laporan
+          </Button>
+        );
+      }
+      if (["APPROVED", "PARTIAL"].includes(currentStatus) && onNavigate) {
+        return (
+          <Button variant="primary" onClick={() => onNavigate("setoran-cabang")} disabled={loading}>
+            Lanjut ke Setoran <ArrowRight size={16} />
+          </Button>
+        );
+      }
+      if (currentStatus === "SETTLED") {
+        return (
+          <Button variant="ghost" disabled>
+            <CheckCircle2 size={16} /> Laporan Selesai
+          </Button>
+        );
+      }
+      if (currentStatus === "REJECTED") {
+        return (
+          <Button variant="ghost" disabled>
+            <AlertCircle size={16} /> Menunggu Perbaikan Cabang
+          </Button>
+        );
+      }
+      return (
+        <Button variant="ghost" disabled>
+          <FileText size={16} /> Menunggu Laporan Cabang
+        </Button>
+      );
+    }
+
+    if (currentStatus === "SUBMITTED") {
+      return (
+        <Button variant="ghost" disabled>
+          <FileText size={16} /> Menunggu Review Pusat
+        </Button>
+      );
+    }
+    if (["APPROVED", "PARTIAL"].includes(currentStatus) && onNavigate) {
+      return (
+        <Button variant="primary" onClick={() => onNavigate("setoran-cabang")} disabled={loading}>
+          Lanjut ke Setoran <ArrowRight size={16} />
+        </Button>
+      );
+    }
+    if (currentStatus === "SETTLED") {
+      return (
+        <Button variant="ghost" disabled>
+          <CheckCircle2 size={16} /> Laporan Selesai
+        </Button>
+      );
+    }
+    return (
+      <Button
+        variant="primary"
+        onClick={submitReport}
+        disabled={saving || loading || !data.health?.ready || data.locations.length === 0}
+      >
+        <Send size={16} /> {saving ? "Mengirim..." : "Kirim Laporan ke Pusat"}
+      </Button>
+    );
+  };
 
   return (
     <div className="da-page-stack da-branch-page">
       <PageHeader
-        title="Laporan Harian"
-        description="Ringkasan operasional cabang yang ditarik otomatis dari transaksi sumber. Tidak ada input penjualan atau pengeluaran ulang di halaman ini."
-        eyebrow="Cabang · Kontrol Harian"
+        title={headerTitle}
+        description={headerDescription}
+        eyebrow={canApprove ? "Cabang · Review Pusat" : "Cabang · Laporan Harian"}
         actions={<>
           <BranchFlowButton current="report" onNavigate={onNavigate} />
           <Button variant="ghost" onClick={loadData} disabled={loading}><RefreshCw size={16} /> {loading ? "Memuat..." : "Perbarui"}</Button>
-          <Button variant="primary" onClick={submitReport} disabled={saving || loading || !data.health?.ready || data.locations.length === 0}><Send size={16} /> {saving ? "Mengirim..." : "Kirim ke Tangerang"}</Button>
+          {renderPrimaryAction()}
         </>}
       />
 
@@ -251,7 +341,7 @@ export default function LaporanHarianPage({ session, onSessionExpired, onNavigat
           <label><span>Mulai</span><input type="date" value={filter.date_start} onChange={(e) => setFilter((v) => ({ ...v, date_start: e.target.value }))} /></label>
           <label><span>Sampai</span><input type="date" value={filter.date_end} onChange={(e) => setFilter((v) => ({ ...v, date_end: e.target.value }))} /></label>
         </> : <label><span>Tanggal</span><input type="date" value={filter.report_date} onChange={(e) => setFilter((v) => ({ ...v, report_date: e.target.value }))} /></label>}
-        <label className="da-branch-filter-location"><span>Cabang</span><select value={filter.location_code} onChange={(e) => setFilter((v) => ({ ...v, location_code: e.target.value }))}>{data.locations.length === 0 ? <option value="">Belum ada cabang aktif</option> : data.locations.map((loc) => <option key={loc.location_id} value={loc.location_code}>{loc.location_name} · {loc.location_code}</option>)}</select></label>
+        <label className="da-branch-filter-location"><span>{canApprove ? "Cabang" : "Lokasi Anda"}</span><select value={filter.location_code} onChange={(e) => setFilter((v) => ({ ...v, location_code: e.target.value }))} disabled={!canApprove}>{data.locations.length === 0 ? <option value="">Belum ada cabang aktif</option> : data.locations.map((loc) => <option key={loc.location_id} value={loc.location_code}>{loc.location_name} · {loc.location_code}</option>)}</select></label>
         <Button variant="ghost" onClick={loadData} disabled={loading}>Terapkan</Button>
       </div>
 
