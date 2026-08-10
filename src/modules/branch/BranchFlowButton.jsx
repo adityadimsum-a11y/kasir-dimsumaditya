@@ -18,7 +18,7 @@ export default function BranchFlowButton({ current = "report", onNavigate }) {
   return (
     <>
       <Button variant="ghost" onClick={() => setOpen(true)} className="da-branch-flow-trigger">
-        Alur Cabang <ArrowRight size={15} />
+        Alur <ArrowRight size={14} />
       </Button>
       <Modal open={open} title="Alur Cabang" subtitle="Dari transaksi harian sampai dana diterima Tangerang" onClose={() => setOpen(false)}>
         <div className="da-branch-flow-list">
