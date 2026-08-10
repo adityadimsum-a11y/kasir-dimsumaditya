@@ -216,29 +216,29 @@ export const MENU_GROUPS = [
   {
     key: "sistem",
     title: "Sistem",
-    visibleFor: ["OWNER", "TANGERANG"],
+    visibleFor: ["OWNER"],
     defaultOpen: false,
     systemGroup: true,
     items: [
       {
         key: "go-live-check",
         label: "Kesiapan Operasional",
-        description: "Kelola data awal, kesiapan lokasi, dan status pembukaan operasional.",
+        description: "Pantau data awal, kesiapan lokasi, dan siklus operasional pertama.",
       },
       {
         key: "system-health",
         label: "Integritas Data",
-        description: "Periksa konsistensi data, hubungan transaksi, dan kelengkapan arsip.",
+        description: "Periksa konsistensi data, hubungan transaksi, snapshot, dan perbaikan aman.",
       },
       {
         key: "permission-role-check",
         label: "Hak Akses",
-        description: "Atur hak akses Owner, Tangerang, Pemalang, Cibinong, dan staff.",
+        description: "Kelola akun operasional, role, lokasi kerja, session, dan batas akses.",
       },
       {
         key: "print-backup",
         label: "Cetak & Backup",
-        description: "Kelola format cetak, ekspor data, dan backup sistem.",
+        description: "Ekspor kontrol sistem dan catat bukti backup SQL yang sudah dibuat.",
       },
     ],
   },
