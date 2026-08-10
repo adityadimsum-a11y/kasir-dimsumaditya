@@ -12,8 +12,10 @@ import { getGoLiveControlBootstrap } from "../../lib/api/actions";
 import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
+import Modal from "../../components/ui/Modal";
 import PageHeader from "../../components/ui/PageHeader";
 import StatCard from "../../components/ui/StatCard";
+import Tabs from "../../components/ui/Tabs";
 import { openFocusRoute } from "../../lib/navigation/focusRouter";
 import GoLiveFirstCyclePanel from "./GoLiveFirstCyclePanel";
 import "../../styles/golive-control.css";
@@ -29,7 +31,7 @@ const clampPercent = (value) => Math.max(0, Math.min(100, numberValue(value)));
 const authRequired = (result) => {
   const code = String(result?.error?.code || result?.code || "").toUpperCase();
   const message = String(result?.message || result?.error?.message || "").toUpperCase();
-  return code.includes("AUTH_REQUIRED") || message.includes("AUTH_REQUIRED") || (message.includes("SESSION") && message.includes("TIDAK AKTIF"));
+  return code.includes("AUTH_REQUIRED") || code.includes("UNAUTHORIZED") || message.includes("AUTH_REQUIRED") || (message.includes("SESSION") && message.includes("TIDAK AKTIF"));
 };
 
 const stageLabel = (stage) => {
@@ -46,25 +48,14 @@ const stageLabel = (stage) => {
   return labels[String(stage || "").toUpperCase()] || safeText(stage, "Belum Siap");
 };
 
-const stageTone = (row) => {
-  if (row?.cycle_complete) return "success";
-  const stage = String(row?.stage || "").toUpperCase();
-  if (["READY_TO_ACTIVATE", "READY_FOR_PRODUCTION", "CASHIER_LIVE", "FIRST_ORDER_DONE", "FIRST_PRODUCTION_DONE", "FIRST_CLOSING_DONE"].includes(stage)) {
-    return "warning";
-  }
-  return "danger";
-};
-
 const stepTone = (step) => {
   if (!step?.applicable) return "default";
   return step?.ready ? "success" : "warning";
 };
 
-const migrationLabel = (key) => String(key || "").replace(/^0+/, "").replace(/_/g, " ");
-
 function ReadinessItem({ label, value, ready }) {
   return (
-    <div className={`golive-readiness-item ${ready ? "is-ready" : "is-pending"}`}>
+    <div className={`system-readiness-pill ${ready ? "is-ready" : "is-pending"}`}>
       {ready ? <CheckCircle2 size={15} /> : <AlertTriangle size={15} />}
       <span>{label}</span>
       <strong>{value}</strong>
@@ -72,12 +63,19 @@ function ReadinessItem({ label, value, ready }) {
   );
 }
 
+const TABS = [
+  { key: "overview", label: "Ringkasan" },
+  { key: "locations", label: "Per Lokasi" },
+  { key: "cycle", label: "Siklus Pertama" },
+];
+
 export default function GoLiveChecklistPage({ session, onSessionExpired }) {
   const token = session?.sessionToken || "";
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [data, setData] = useState(null);
   const [selectedLocationId, setSelectedLocationId] = useState("");
+  const [activeTab, setActiveTab] = useState("overview");
 
   const locations = useMemo(() => asArray(data?.locations), [data]);
   const actions = useMemo(() => asArray(data?.next_actions), [data]);
@@ -90,6 +88,12 @@ export default function GoLiveChecklistPage({ session, onSessionExpired }) {
     () => locations.find((row) => row.location_id === selectedLocationId) || null,
     [locations, selectedLocationId]
   );
+  const targetCount = numberValue(summary.target_location_count);
+  const fullyOperational = numberValue(summary.fully_operational_count);
+  const allOperational = targetCount > 0 && missingLocations.length === 0 && progress >= 100 && fullyOperational >= targetCount;
+  const readyLocations = locations.filter((row) => clampPercent(row.progress_percent) >= 100 || row.cycle_complete).length;
+  const migrationEntries = Object.entries(health.migrations || {});
+  const activeFoundationCount = migrationEntries.filter(([, ready]) => Boolean(ready)).length;
 
   const loadData = async () => {
     setLoading(true);
@@ -101,13 +105,13 @@ export default function GoLiveChecklistPage({ session, onSessionExpired }) {
         return;
       }
       if (!result?.success) {
-        setError(result?.message || "Go-Live Control belum dapat dibaca.");
+        setError(result?.message || "Kesiapan Operasional belum dapat dibaca.");
         setData(null);
         return;
       }
       setData(result.data || {});
     } catch (err) {
-      setError(err?.message || "Go-Live Control belum dapat dibaca.");
+      setError(err?.message || "Kesiapan Operasional belum dapat dibaca.");
       setData(null);
     } finally {
       setLoading(false);
@@ -115,7 +119,7 @@ export default function GoLiveChecklistPage({ session, onSessionExpired }) {
   };
 
   useEffect(() => {
-    loadData();
+    if (token) loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
@@ -131,227 +135,169 @@ export default function GoLiveChecklistPage({ session, onSessionExpired }) {
   };
 
   return (
-    <main className="da-page golive-page">
+    <main className="da-page system-control-page system-golive-v17">
       <PageHeader
-        title="Go-Live & Data Awal"
-        description="Pusat kendali kesiapan data awal dan siklus operasional pertama untuk setiap lokasi."
-        badge={health.ready ? "Siap Operasional" : "Perlu Dilengkapi"}
-        badgeTone={health.ready ? "success" : "warning"}
+        eyebrow="Sistem · Owner Control"
+        title="Kesiapan Operasional"
+        description="Pantau data awal, kesiapan lokasi, dan siklus transaksi pertama sebelum setiap cabang dinyatakan siap beroperasi penuh."
+        actions={(
+          <div className="da-actions">
+            <Button variant="secondary" onClick={loadData} disabled={loading}>
+              <RefreshCw size={15} /> {loading ? "Membaca..." : "Perbarui"}
+            </Button>
+          </div>
+        )}
       />
 
       {error ? <div className="da-alert da-alert-danger">{error}</div> : null}
 
-      <section className="golive-command-card">
-        <div className="golive-command-main">
-          <div className="golive-command-icon"><Gauge size={25} /></div>
-          <div className="golive-command-copy">
-            <div className="golive-eyebrow">Pusat Aktivasi Operasional</div>
-            <h2>{progress >= 100 ? "Semua lokasi siap dioperasikan" : `Kesiapan opening data & siklus pertama ${progress}%`}</h2>
-            <p>Kesiapan sistem inti dibaca otomatis. Angka {progress}% dihitung dari akun, harga, saldo awal dompet, STO/stok, aktivasi kasir, order, closing, dan setoran nyata di setiap lokasi.</p>
-            <div className="golive-status-row">
-              <Badge tone="success">Read Only</Badge>
-              <Badge tone="success">Data Terpusat</Badge>
-              <Badge tone={health.opening_migration_016_applied ? "success" : "warning"}>
-                Opening Data {health.opening_migration_016_applied ? "Aktif" : "Belum"}
-              </Badge>
-              <Badge tone={health.period_write_lock_ready ? "success" : "danger"}>
-                Kunci Periode {health.period_write_lock_ready ? "Aktif" : "Belum"}
-              </Badge>
-              <Badge tone="default">Tanpa Data Contoh</Badge>
+      <section className="system-golive-hero">
+        <div className="system-golive-copy">
+          <div className="system-golive-icon"><Gauge size={24} /></div>
+          <div>
+            <span className="system-eyebrow">Status Aktivasi</span>
+            <h2>{allOperational ? "Seluruh lokasi siap operasional" : `${progress}% menuju operasional penuh`}</h2>
+            <p>Progress berasal dari akun, harga, dompet dan saldo awal, stok nyata, aktivitas utama, closing, dan setoran sesuai tipe lokasi. Ini bukan indikator kelengkapan kode.</p>
+            <div className="system-chip-row">
+              <Badge tone={allOperational ? "success" : "warning"}>{allOperational ? "Siap Operasional" : "Belum Siap Penuh"}</Badge>
+              <Badge tone="success">Data Nyata</Badge>
+              <Badge tone={health.period_write_lock_ready ? "success" : "danger"}>Kunci Periode {health.period_write_lock_ready ? "Aktif" : "Belum"}</Badge>
             </div>
           </div>
         </div>
-
-        <div className="golive-command-side">
-          <div className="golive-progress-head">
-            <span>Progress opening & siklus</span>
-            <strong>{progress}%</strong>
-          </div>
-          <div className="golive-progress-track" aria-label={`Progress Go-Live ${progress}%`}>
-            <span style={{ width: `${progress}%` }} />
-          </div>
+        <div className="system-golive-progressbox">
+          <div className="system-progress-value"><strong>{progress}%</strong><span>{fullyOperational}/{targetCount || locations.length} lokasi GREEN</span></div>
+          <div className="system-progress-track"><span style={{ width: `${progress}%` }} /></div>
           {primaryAction ? (
-            <button type="button" className="golive-next-action" onClick={() => openPage(primaryAction.page_key)}>
-              <span>
-                <small>Prioritas berikutnya</small>
-                <strong>{safeText(primaryAction.title)}</strong>
-                <em>{safeText(primaryAction.scope, "GLOBAL")}</em>
-              </span>
-              <ChevronRight size={20} />
+            <button type="button" className="system-next-action" onClick={() => openPage(primaryAction.page_key)}>
+              <span><small>Prioritas berikutnya</small><strong>{safeText(primaryAction.title)}</strong><em>{safeText(primaryAction.scope, "GLOBAL")}</em></span>
+              <ChevronRight size={18} />
             </button>
           ) : (
-            <div className="golive-next-action is-complete">
-              <span>
-                <small>Status</small>
-                <strong>Tidak ada tugas pembuka tertunda</strong>
-              </span>
-              <CheckCircle2 size={20} />
-            </div>
+            <div className="system-next-action is-done"><span><small>Status</small><strong>Tidak ada pekerjaan pembuka tertunda</strong></span><CheckCircle2 size={18} /></div>
           )}
-          <Button variant="secondary" onClick={loadData} disabled={loading} className="golive-refresh-button">
-            <RefreshCw size={15} /> {loading ? "Membaca..." : "Refresh Control"}
-          </Button>
         </div>
       </section>
 
-      <div className="golive-kpi-grid">
-        <StatCard label="Kesiapan Opening Data" value={`${progress}%`} description="Rata-rata opening data dan siklus pertama seluruh lokasi target." tone="primary" />
-        <StatCard label="Lokasi Terbaca" value={summary.location_count || 0} description={`Target ${summary.target_location_count || 0} lokasi.`} />
-        <StatCard label="Kasir Live" value={summary.cashier_live_count || 0} description="Hanya lokasi penjualan; lokasi produksi memakai bukti batch produksi." tone="success" />
-        <StatCard label="Siklus Lengkap" value={summary.fully_operational_count || 0} description="Order, closing, dan setoran pertama selesai." tone="success" />
-      </div>
+      <section className="system-kpi-grid system-kpi-grid-4">
+        <StatCard label="Lokasi Terbaca" value={summary.location_count || 0} description={`Target ${targetCount || 0} lokasi.`} />
+        <StatCard label="Lokasi Siap" value={readyLocations} description="Opening data/siklus sudah lengkap." tone={readyLocations === targetCount && targetCount ? "success" : "default"} />
+        <StatCard label="Kasir Live" value={summary.cashier_live_count || 0} description="Hanya lokasi penjualan yang membutuhkan kasir." />
+        <StatCard label="Siklus GREEN" value={fullyOperational} description="Siklus transaksi pertama sudah dikunci." tone={fullyOperational ? "success" : "default"} />
+      </section>
 
-      {missingLocations.length ? (
-        <Card className="golive-warning-card" title="Lokasi target belum lengkap" description="Tambahkan lokasi nyata sebelum menyiapkan akun, dompet, harga, dan stok.">
-          <div className="golive-missing-grid">
-            {missingLocations.map((row) => (
-              <button key={row.location_code} type="button" className="golive-missing-item" onClick={() => openPage(row.page_key)}>
-                <MapPin size={18} />
-                <span><strong>{row.location_name}</strong><small>{row.location_code} · {row.location_type}</small></span>
-                <ChevronRight size={18} />
-              </button>
-            ))}
+      <div className="system-tabs-wrap"><Tabs items={TABS} activeKey={activeTab} onChange={setActiveTab} /></div>
+
+      {activeTab === "overview" ? (
+        <div className="system-workspace-grid system-golive-overview">
+          <Card title="Prioritas Owner" description="Urutan berikut berubah otomatis setelah data nyata masuk dari modul sumber." action={<Badge tone={actions.length ? "warning" : "success"}>{actions.length} langkah</Badge>}>
+            {actions.length ? (
+              <div className="system-action-list">
+                {actions.slice(0, 6).map((row, index) => (
+                  <button type="button" key={`${row.scope}-${row.title}-${index}`} onClick={() => openPage(row.page_key)}>
+                    <span className="system-action-no">{index + 1}</span>
+                    <span><small>{safeText(row.scope, "GLOBAL")}</small><strong>{safeText(row.title)}</strong><em>{safeText(row.detail)}</em></span>
+                    <ChevronRight size={18} />
+                  </button>
+                ))}
+              </div>
+            ) : <div className="system-empty-success"><strong>Tidak ada prioritas opening data yang tertunda.</strong><span>Operasional dapat dilanjutkan sesuai modul sumber.</span></div>}
+          </Card>
+
+          <Card title="Pagar Pengaman" description="Aturan yang tidak boleh dilewati sebelum live.">
+            <div className="system-rule-list">
+              <div><strong>STO fisik wajib</strong><span>Stok awal hanya dari hitungan nyata.</span></div>
+              <div><strong>Saldo awal nyata</strong><span>Kas dan rekening mengikuti saldo fisik/bank.</span></div>
+              <div><strong>Harga disetujui Owner</strong><span>Tidak ada harga fallback atau contoh.</span></div>
+              <div><strong>HPP historis terkunci</strong><span>Harga master baru tidak mengubah transaksi lama.</span></div>
+            </div>
+            <details className="system-technical-details">
+              <summary>Fondasi sistem ({activeFoundationCount}/{migrationEntries.length || 0} aktif)</summary>
+              <div className="system-foundation-list">
+                {migrationEntries.map(([key, ready]) => (
+                  <div key={key}><span>{String(key).replace(/^0+/, "").replace(/_/g, " ")}</span><Badge tone={ready ? "success" : "warning"}>{ready ? "Aktif" : "Belum"}</Badge></div>
+                ))}
+              </div>
+            </details>
+          </Card>
+
+          {missingLocations.length ? (
+            <Card title="Lokasi Target Belum Lengkap" description="Tambahkan lokasi nyata sebelum menyiapkan akun, dompet, harga, dan stok.">
+              <div className="system-location-missing-list">
+                {missingLocations.map((row) => (
+                  <button key={row.location_code} type="button" onClick={() => openPage(row.page_key)}>
+                    <MapPin size={17} /><span><strong>{row.location_name}</strong><small>{row.location_code} · {row.location_type}</small></span><ChevronRight size={17} />
+                  </button>
+                ))}
+              </div>
+            </Card>
+          ) : null}
+        </div>
+      ) : null}
+
+      {activeTab === "locations" ? (
+        <Card title="Kesiapan per Lokasi" description="Klik lokasi untuk melihat blocker dan langkah berikutnya.">
+          <div className="system-location-grid">
+            {locations.map((row) => {
+              const rowProgress = clampPercent(row.progress_percent);
+              const isReady = rowProgress >= 100 || row.cycle_complete;
+              return (
+                <button key={row.location_id} type="button" className="system-location-card" onClick={() => setSelectedLocationId(row.location_id)}>
+                  <div className="system-location-card-head">
+                    <span><strong>{safeText(row.location_name)}</strong><small>{safeText(row.location_code)} · {safeText(row.location_type)}</small></span>
+                    <Badge tone={isReady ? "success" : "warning"}>{isReady ? "Siap" : `${rowProgress}%`}</Badge>
+                  </div>
+                  <div className="system-progress-track"><span style={{ width: `${rowProgress}%` }} /></div>
+                  <div className="system-readiness-grid">
+                    <ReadinessItem label="Akun" value={row.active_account_count || 0} ready={row.account_ready} />
+                    <ReadinessItem label="Harga" value={row.price_required === false ? "Tidak wajib" : (row.priced_product_count || 0)} ready={row.price_ready} />
+                    <ReadinessItem label="Dompet" value={`${numberValue(row.wallet_opening_count)}/${numberValue(row.wallet_count)}`} ready={row.wallet_ready} />
+                    <ReadinessItem label={row.is_production_location ? "Stok Bahan" : "Stok Jadi"} value={row.is_production_location ? `${numberValue(row.raw_stock_qty)} kg` : `${numberValue(row.free_stock_pcs)} pcs`} ready={row.stock_ready} />
+                  </div>
+                  <div className="system-location-next"><span>{row.next_step ? safeText(row.next_step.label) : "Selesai"}</span><ChevronRight size={17} /></div>
+                </button>
+              );
+            })}
           </div>
         </Card>
       ) : null}
 
-      <Card className="golive-location-section" title="Kesiapan per Lokasi" description="Ringkasan opening data dan langkah berikutnya. Klik kartu untuk melihat detail blocker.">
-        <div className="golive-location-grid">
-          {locations.map((row) => {
-            const rowProgress = clampPercent(row.progress_percent);
-            const active = selectedLocationId === row.location_id;
-            return (
-              <button
-                key={row.location_id}
-                type="button"
-                className={`golive-location-card ${active ? "is-active" : ""}`}
-                onClick={() => setSelectedLocationId(active ? "" : row.location_id)}
-              >
-                <div className="golive-location-card-head">
-                  <div>
-                    <span className="golive-location-code">{safeText(row.location_code)}</span>
-                    <strong>{safeText(row.location_name)}</strong>
-                    <small>{safeText(row.location_type)}</small>
-                  </div>
-                  <Badge tone={stageTone(row)}>{stageLabel(row.stage)}</Badge>
-                </div>
+      {activeTab === "cycle" ? (
+        <GoLiveFirstCyclePanel session={session} onSessionExpired={onSessionExpired} onChanged={loadData} />
+      ) : null}
 
-                <div className="golive-location-progress">
-                  <div><span>Progress</span><strong>{rowProgress}%</strong></div>
-                  <div className="golive-progress-track"><span style={{ width: `${rowProgress}%` }} /></div>
-                </div>
-
-                <div className="golive-readiness-grid">
-                  <ReadinessItem label="Akun" value={row.active_account_count || 0} ready={row.account_ready} />
-                  <ReadinessItem
-                    label="Harga"
-                    value={row.price_required === false ? "Tidak wajib" : (row.priced_product_count || 0)}
-                    ready={row.price_ready}
-                  />
-                  <ReadinessItem label="Dompet & Saldo" value={`${numberValue(row.wallet_opening_count)}/${numberValue(row.wallet_count)}`} ready={row.wallet_ready} />
-                  <ReadinessItem
-                    label={row.is_production_location ? "Stok Bahan" : "Stok Jadi"}
-                    value={row.is_production_location ? `${numberValue(row.raw_stock_qty)} kg` : `${numberValue(row.free_stock_pcs)} pcs`}
-                    ready={row.stock_ready}
-                  />
-                </div>
-
-                <div className="golive-location-next">
-                  <span>{row.next_step ? safeText(row.next_step.label) : "Selesai"}</span>
-                  <ChevronRight size={17} />
-                </div>
-              </button>
-            );
-          })}
-        </div>
-
+      <Modal
+        open={Boolean(selectedLocation)}
+        title={selectedLocation ? selectedLocation.location_name : "Detail Lokasi"}
+        subtitle={selectedLocation ? `${selectedLocation.location_code} · ${stageLabel(selectedLocation.stage)}` : ""}
+        onClose={() => setSelectedLocationId("")}
+      >
         {selectedLocation ? (
-          <div className="golive-location-detail">
-            <div className="golive-location-detail-head">
-              <div>
-                <span className="golive-eyebrow">Detail Lokasi</span>
-                <h3>{selectedLocation.location_name}</h3>
-                <p>{selectedLocation.location_code} · Progress {clampPercent(selectedLocation.progress_percent)}% · {stageLabel(selectedLocation.stage)}</p>
-              </div>
-              <div className="golive-detail-actions">
-                {selectedLocation.next_step ? (
-                  <Button variant="secondary" onClick={() => openPage(selectedLocation.next_step.page_key)}>
-                    Buka {selectedLocation.next_step.label}
-                  </Button>
-                ) : null}
-                <Button variant="secondary" onClick={() => setSelectedLocationId("")}>Tutup</Button>
-              </div>
+          <div className="system-modal-stack">
+            <div className="system-location-modal-summary">
+              <div><span>Progress</span><strong>{clampPercent(selectedLocation.progress_percent)}%</strong></div>
+              <div><span>Status</span><strong>{stageLabel(selectedLocation.stage)}</strong></div>
+              <div><span>Blocker</span><strong>{asArray(selectedLocation.blockers).length}</strong></div>
             </div>
-
-            <div className="golive-step-grid">
+            <div className="system-step-grid">
               {asArray(selectedLocation.steps).filter((step) => step.applicable).map((step) => (
-                <button key={step.code} type="button" className={`golive-step-card ${step.ready ? "is-ready" : "is-pending"}`} onClick={() => openPage(step.page_key)}>
+                <button key={step.code} type="button" onClick={() => step.page_key && openPage(step.page_key)}>
                   {step.ready ? <CheckCircle2 size={17} /> : <AlertTriangle size={17} />}
                   <span><strong>{step.label}</strong><small>{step.ready ? "Sudah siap" : "Perlu dilengkapi"}</small></span>
                   <Badge tone={stepTone(step)}>{step.ready ? "Siap" : "Belum"}</Badge>
                 </button>
               ))}
             </div>
-
             {asArray(selectedLocation.blockers).length ? (
-              <div className="golive-blocker-box">
-                <AlertTriangle size={20} />
-                <div>
-                  <strong>Yang masih menghambat</strong>
-                  <ul>{asArray(selectedLocation.blockers).map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}</ul>
-                </div>
-              </div>
-            ) : (
-              <div className="golive-ready-box"><CheckCircle2 size={20} /><span>Opening data lokasi ini sudah lengkap.</span></div>
-            )}
+              <div className="system-modal-warning"><strong>Yang masih menghambat:</strong> {asArray(selectedLocation.blockers).join(" · ")}</div>
+            ) : <div className="system-empty-success"><strong>Opening data lokasi ini lengkap.</strong><span>Lanjutkan siklus transaksi pertama bila belum GREEN.</span></div>}
+            <div className="da-form-actions system-modal-actions">
+              <Button variant="secondary" onClick={() => setSelectedLocationId("")}>Tutup</Button>
+              {selectedLocation.next_step ? <Button onClick={() => openPage(selectedLocation.next_step.page_key)}>Buka {selectedLocation.next_step.label}</Button> : null}
+            </div>
           </div>
         ) : null}
-      </Card>
-
-      <GoLiveFirstCyclePanel session={session} onSessionExpired={onSessionExpired} onChanged={loadData} />
-
-      <Card className="golive-owner-actions" title="Urutan Kerja Owner" description="Prioritas otomatis berubah setelah data nyata masuk dari modul sumber.">
-        {actions.length ? (
-          <div className="golive-action-list">
-            {actions.map((row, index) => (
-              <div className="golive-action-item" key={`${row.scope}-${row.title}-${index}`}>
-                <span className="golive-action-number">{index + 1}</span>
-                <div className="golive-action-copy">
-                  <div><Badge tone="default">{safeText(row.scope, "GLOBAL")}</Badge></div>
-                  <strong>{safeText(row.title)}</strong>
-                  <p>{safeText(row.detail)}</p>
-                </div>
-                <Button variant="secondary" onClick={() => openPage(row.page_key)}>{safeText(row.action_label, "Buka Modul")}</Button>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="golive-ready-box"><CheckCircle2 size={20} /><span>Tidak ada pekerjaan opening data yang tertunda.</span></div>
-        )}
-      </Card>
-
-      <div className="golive-footer-grid">
-        <Card className="golive-policy-card" title="Pagar Pengaman Opening Data" description="Aturan yang tidak boleh dilewati sebelum live.">
-          <div className="golive-policy-list">
-            <div><ShieldCheck size={18} /><span><strong>STO fisik wajib</strong><small>Stok awal hanya dari hitungan nyata.</small></span></div>
-            <div><ShieldCheck size={18} /><span><strong>Saldo awal nyata</strong><small>Kas dan rekening mengikuti saldo fisik/bank.</small></span></div>
-            <div><ShieldCheck size={18} /><span><strong>Harga disetujui Owner</strong><small>Tidak ada harga fallback atau contoh.</small></span></div>
-            <div><ShieldCheck size={18} /><span><strong>HPP historis terkunci</strong><small>Harga master baru tidak mengubah transaksi lama.</small></span></div>
-          </div>
-        </Card>
-
-        <Card className="golive-migration-card" title="Status Sistem Inti" description="Status teknis hanya dibaca, tidak mengubah schema.">
-          <div className="golive-migration-list">
-            {Object.entries(health.migrations || {}).map(([key, ready]) => (
-              <div key={key} className={ready ? "is-ready" : "is-pending"}>
-                {ready ? <CheckCircle2 size={17} /> : <AlertTriangle size={17} />}
-                <span>{migrationLabel(key)}</span>
-                <Badge tone={ready ? "success" : "warning"}>{ready ? "Aktif" : "Belum"}</Badge>
-              </div>
-            ))}
-          </div>
-        </Card>
-      </div>
+      </Modal>
     </main>
   );
 }
