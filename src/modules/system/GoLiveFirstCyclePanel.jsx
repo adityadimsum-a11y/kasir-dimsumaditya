@@ -16,6 +16,7 @@ import Badge from "../../components/ui/Badge";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import DataTable from "../../components/ui/DataTable";
+import Modal from "../../components/ui/Modal";
 import { openFocusRoute } from "../../lib/navigation/focusRouter";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -43,7 +44,7 @@ const statusLabel = (status) => {
   const labels = {
     NOT_STARTED: "Belum Dimulai",
     IN_PROGRESS: "Berjalan",
-    GREEN: "GREEN",
+    GREEN: "Selesai",
     HOLD: "Ditahan",
     PASS: "Selesai",
     WAITING: "Menunggu",
@@ -62,6 +63,7 @@ export default function GoLiveFirstCyclePanel({ session, onSessionExpired, onCha
   const [selectedId, setSelectedId] = useState("");
   const [reason, setReason] = useState("");
   const [confirmation, setConfirmation] = useState("");
+  const [pendingMode, setPendingMode] = useState("");
 
   const locations = useMemo(() => asArray(data?.locations), [data]);
   const selected = useMemo(
@@ -83,7 +85,7 @@ export default function GoLiveFirstCyclePanel({ session, onSessionExpired, onCha
       }
       if (!result?.success) {
         setData(null);
-        setError(result?.message || "Go-Live Gate belum dapat dibaca.");
+        setError(result?.message || "Siklus operasional belum dapat dibaca.");
         return;
       }
       const next = result.data || {};
@@ -94,7 +96,7 @@ export default function GoLiveFirstCyclePanel({ session, onSessionExpired, onCha
       }
     } catch (err) {
       setData(null);
-      setError(err?.message || "Go-Live Gate belum dapat dibaca.");
+      setError(err?.message || "Siklus operasional belum dapat dibaca.");
     } finally {
       setLoading(false);
     }
@@ -110,7 +112,7 @@ export default function GoLiveFirstCyclePanel({ session, onSessionExpired, onCha
     setConfirmation("");
   }, [selectedId, selected?.cycle_status]);
 
-  const runWrite = async (mode) => {
+  const requestWrite = (mode) => {
     if (!selected || busy) return;
     const isStart = mode === "start";
     const expected = isStart ? selected.start_confirmation : selected.complete_confirmation;
@@ -122,14 +124,14 @@ export default function GoLiveFirstCyclePanel({ session, onSessionExpired, onCha
       setError(isStart ? "Alasan mulai live wajib diisi." : "Catatan penyelesaian wajib diisi.");
       return;
     }
+    setError("");
+    setPendingMode(mode);
+  };
 
-    const ok = window.confirm(
-      isStart
-        ? `Mulai siklus live pertama untuk ${selected.location_name}? Sistem tidak membuat transaksi contoh.`
-        : `Kunci siklus ${selected.location_name} sebagai GREEN berdasarkan bukti transaksi hidup?`
-    );
-    if (!ok) return;
-
+  const runWrite = async (mode) => {
+    if (!selected || busy) return;
+    const isStart = mode === "start";
+    setPendingMode("");
     setBusy(true);
     setError("");
     setSuccess("");
@@ -154,17 +156,17 @@ export default function GoLiveFirstCyclePanel({ session, onSessionExpired, onCha
         setError(
           blockers.length
             ? `${result?.message || "Tindakan ditolak."} ${blockers.join(" · ")}`
-            : result?.message || "Tindakan Go-Live belum berhasil."
+            : result?.message || "Tindakan kesiapan operasional belum berhasil."
         );
         return;
       }
-      setSuccess(result?.message || "Status Go-Live berhasil diperbarui.");
+      setSuccess(result?.message || "Status kesiapan operasional berhasil diperbarui.");
       setReason("");
       setConfirmation("");
       await load();
       onChanged?.();
     } catch (err) {
-      setError(err?.message || "Tindakan Go-Live belum berhasil.");
+      setError(err?.message || "Tindakan kesiapan operasional belum berhasil.");
     } finally {
       setBusy(false);
     }
@@ -172,7 +174,7 @@ export default function GoLiveFirstCyclePanel({ session, onSessionExpired, onCha
 
   const recentColumns = [
     { key: "cycle_date", label: "Tanggal" },
-    { key: "cycle_no", label: "Cycle ID" },
+    { key: "cycle_no", label: "Siklus ID" },
     {
       key: "location_name",
       label: "Lokasi",
@@ -195,26 +197,26 @@ export default function GoLiveFirstCyclePanel({ session, onSessionExpired, onCha
   return (
     <Card
       className="golive-cycle-card"
-      title="Gerbang Operasional & Siklus Pertama"
-      description="Buka siklus hanya setelah opening data siap. Bukti mengikuti tipe lokasi: penjualan memakai order/uang, sedangkan produksi memakai batch Produksi/Adukan. Semua bukti harus berasal dari transaksi nyata."
+      title="Siklus Operasional Pertama"
+      description="Mulai siklus hanya setelah data awal siap. Bukti mengikuti tipe lokasi: penjualan memakai order/uang, sedangkan produksi memakai batch Produksi/Adukan. Semua bukti berasal dari transaksi nyata."
       action={(
         <Button variant="secondary" onClick={load} disabled={loading || busy}>
-          <RefreshCw size={15} /> {loading ? "Membaca..." : "Refresh Gate"}
+          <RefreshCw size={15} /> {loading ? "Membaca..." : "Perbarui"}
         </Button>
       )}
     >
       <div className="golive-cycle-health">
         <div className={health.ready ? "is-ready" : "is-pending"}>
-          <ShieldCheck size={17} /><span>Migration 025</span><strong>{health.ready ? "Aktif" : "Belum"}</strong>
+          <ShieldCheck size={17} /><span>Fondasi Siklus</span><strong>{health.ready ? "Aktif" : "Belum"}</strong>
         </div>
         <div className={globalGate.health_ready ? "is-ready" : "is-pending"}>
-          <ShieldCheck size={17} /><span>Data Health</span><strong>{num(globalGate.health_score)}/100</strong>
+          <ShieldCheck size={17} /><span>Integritas Data</span><strong>{num(globalGate.health_score)}/100</strong>
         </div>
         <div className={globalGate.backup_ready ? "is-ready" : "is-pending"}>
           <ShieldCheck size={17} /><span>Backup 24 Jam</span><strong>{globalGate.backup_ready ? "Siap" : "Belum"}</strong>
         </div>
         <div className="is-neutral">
-          <ShieldCheck size={17} /><span>Transaksi Contoh</span><strong>Tidak Ada</strong>
+          <ShieldCheck size={17} /><span>Data Contoh</span><strong>Tidak Ada</strong>
         </div>
       </div>
 
@@ -222,13 +224,13 @@ export default function GoLiveFirstCyclePanel({ session, onSessionExpired, onCha
       {success ? <div className="da-alert da-alert-success golive-cycle-alert">{success}</div> : null}
 
       <div className="golive-cycle-summary">
-        <div className="is-ready"><span>Gate Siap</span><strong>{summary.gate_ready_count || 0}</strong><small>Boleh memulai siklus</small></div>
+        <div className="is-ready"><span>Siap Dimulai</span><strong>{summary.gate_ready_count || 0}</strong><small>Boleh memulai siklus</small></div>
         <div className="is-warning"><span>Sedang Berjalan</span><strong>{summary.in_progress_count || 0}</strong><small>Menunggu bukti nyata</small></div>
-        <div className="is-ready"><span>Sudah GREEN</span><strong>{summary.green_count || 0}</strong><small>Siklus sudah dikunci</small></div>
-        <div className="is-danger"><span>Masih Diblokir</span><strong>{summary.blocked_count || 0}</strong><small>Opening data belum lengkap</small></div>
+        <div className="is-ready"><span>Sudah Selesai</span><strong>{summary.green_count || 0}</strong><small>Siklus sudah ditutup</small></div>
+        <div className="is-danger"><span>Belum Siap</span><strong>{summary.blocked_count || 0}</strong><small>Opening data belum lengkap</small></div>
       </div>
 
-      <div className="golive-cycle-tabs" role="tablist" aria-label="Pilih lokasi Go-Live">
+      <div className="golive-cycle-tabs" role="tablist" aria-label="Pilih lokasi operasional">
         {locations.map((row) => {
           const active = selected?.location_id === row.location_id;
           const blockers = asArray(row.gate?.blockers).length;
@@ -304,7 +306,7 @@ export default function GoLiveFirstCyclePanel({ session, onSessionExpired, onCha
 
           {selected.can_start ? (
             <div className="golive-cycle-form">
-              <div className="golive-cycle-form-head"><PlayCircle size={21} /><div><strong>Mulai siklus live pertama</strong><small>Tidak membuat transaksi atau nominal contoh.</small></div></div>
+              <div className="golive-cycle-form-head"><PlayCircle size={21} /><div><strong>Mulai siklus operasional pertama</strong><small>Tidak membuat transaksi atau nominal contoh.</small></div></div>
               <div className="golive-cycle-form-grid">
                 <label className="da-field golive-cycle-form-note">
                   <span>Alasan / catatan pembukaan</span>
@@ -315,17 +317,17 @@ export default function GoLiveFirstCyclePanel({ session, onSessionExpired, onCha
                   <input value={confirmation} onChange={(event) => setConfirmation(event.target.value)} />
                 </label>
               </div>
-              <div className="golive-cycle-form-actions"><Button onClick={() => runWrite("start")} disabled={busy}>Mulai Siklus Live</Button></div>
+              <div className="golive-cycle-form-actions"><Button onClick={() => requestWrite("start")} disabled={busy}>Mulai Siklus</Button></div>
             </div>
           ) : null}
 
           {selected.cycle_status === "IN_PROGRESS" ? (
             <div className="golive-cycle-form">
-              <div className="golive-cycle-form-head"><PlayCircle size={21} /><div><strong>Cycle ID: {text(selected.cycle?.cycle_id)}</strong><small>Mulai {text(selected.cycle?.started_at)}</small></div></div>
+              <div className="golive-cycle-form-head"><PlayCircle size={21} /><div><strong>Siklus ID: {text(selected.cycle?.cycle_id)}</strong><small>Mulai {text(selected.cycle?.started_at)}</small></div></div>
               {!selected.evidence?.complete ? (
                 <div className="da-alert da-alert-warning">Masih menunggu: {asArray(selected.evidence?.blockers).join(" · ")}</div>
               ) : (
-                <div className="da-alert da-alert-success">Semua bukti lengkap. Siklus dapat dikunci GREEN.</div>
+                <div className="da-alert da-alert-success">Semua bukti lengkap. Siklus dapat diselesaikan.</div>
               )}
               <div className="golive-cycle-form-grid">
                 <label className="da-field golive-cycle-form-note">
@@ -337,22 +339,49 @@ export default function GoLiveFirstCyclePanel({ session, onSessionExpired, onCha
                   <input value={confirmation} onChange={(event) => setConfirmation(event.target.value)} />
                 </label>
               </div>
-              <div className="golive-cycle-form-actions"><Button onClick={() => runWrite("complete")} disabled={busy || !selected.can_complete}>Kunci Siklus GREEN</Button></div>
+              <div className="golive-cycle-form-actions"><Button onClick={() => requestWrite("complete")} disabled={busy || !selected.can_complete}>Selesaikan Siklus</Button></div>
             </div>
           ) : null}
 
           {selected.cycle_status === "GREEN" ? (
-            <div className="golive-ready-box"><CheckCircle2 size={20} /><span>Siklus live pertama lokasi ini sudah GREEN. Operasional berikutnya berjalan normal.</span></div>
+            <div className="golive-ready-box"><CheckCircle2 size={20} /><span>Siklus operasional pertama lokasi ini sudah selesai. Operasional berikutnya berjalan normal.</span></div>
           ) : null}
         </div>
       ) : null}
 
       {asArray(data?.recent_cycles).length ? (
         <details className="golive-cycle-history">
-          <summary>Riwayat Siklus Live ({asArray(data.recent_cycles).length})</summary>
+          <summary>Riwayat Siklus Operasional ({asArray(data.recent_cycles).length})</summary>
           <div><DataTable columns={recentColumns} rows={asArray(data.recent_cycles)} getRowKey={(row) => row.cycle_id} /></div>
         </details>
       ) : null}
+
+      <Modal
+        open={Boolean(pendingMode)}
+        title={pendingMode === "start" ? "Mulai Siklus Operasional" : "Selesaikan Siklus Operasional"}
+        subtitle={selected ? `${selected.location_name} · ${selected.location_code}` : ""}
+        onClose={() => !busy && setPendingMode("")}
+        size="md"
+      >
+        <div className="system-modal-stack">
+          <div className="system-modal-warning">
+            {pendingMode === "start"
+              ? "Siklus akan mulai memantau bukti transaksi nyata. Sistem tidak membuat transaksi contoh."
+              : "Siklus akan ditandai selesai berdasarkan bukti transaksi yang sudah terbaca. Riwayat tetap tersimpan."}
+          </div>
+          <div className="system-modal-summary">
+            <div><span>Lokasi</span><strong>{selected?.location_code || "-"}</strong></div>
+            <div><span>Bukti siap</span><strong>{passedEvidence}/{applicableEvidence.length}</strong></div>
+            <div><span>Status</span><strong>{statusLabel(selected?.cycle_status)}</strong></div>
+          </div>
+          <div className="da-form-actions system-modal-actions">
+            <Button variant="secondary" onClick={() => setPendingMode("")} disabled={busy}>Batal</Button>
+            <Button onClick={() => runWrite(pendingMode)} disabled={busy}>
+              {busy ? "Memproses..." : pendingMode === "start" ? "Ya, Mulai Siklus" : "Ya, Selesaikan Siklus"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </Card>
   );
 }
