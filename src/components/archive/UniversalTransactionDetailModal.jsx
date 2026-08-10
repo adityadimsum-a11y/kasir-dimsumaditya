@@ -82,6 +82,7 @@ export default function UniversalTransactionDetailModal({
   const timeline = asArray(detail?.timeline || detail?.related_records);
   const audit = asArray(detail?.audit_trail);
   const relationIds = asArray(detail?.relation_ids);
+  const attachments = asArray(detail?.attachments);
   const displayId = safeText(main.source_id || main.id || activeId);
   const displayModule = moduleLabel(main.source_label || main.source_module || activeModule || "Arsip Digital");
   const raw = main.raw || main.record || main;
@@ -181,7 +182,7 @@ export default function UniversalTransactionDetailModal({
           <div className="da-transaction-toolbar-v2">
             <Button type="button" variant="secondary" onClick={onRefresh}><RefreshCw size={15} /> Refresh</Button>
             <Button type="button" onClick={handleOperationalPrint} disabled={printing || !displayId}><Printer size={15} /> {printing ? "Mencatat Cetak..." : "Cetak Dokumen"}</Button>
-            <Button type="button" variant="secondary" onClick={onOpenArchive}><FileText size={15} /> Buka Arsip</Button>
+            {onOpenArchive ? <Button type="button" variant="secondary" onClick={onOpenArchive}><FileText size={15} /> Buka Arsip</Button> : null}
           </div>
 
           <div className="da-transaction-tabs-v2" role="tablist">
@@ -190,7 +191,7 @@ export default function UniversalTransactionDetailModal({
               ["chain", `Rantai Transaksi (${timeline.length})`],
               ["money", `Uang & Jurnal (${moneyTimeline.length})`],
               ["stock", `Stok / HPP (${stockTimeline.length})`],
-              ["docs", `Dokumen (${relationIds.length})`],
+              ["docs", `Dokumen (${relationIds.length + attachments.length})`],
               ["audit", `Audit (${audit.length})`],
             ].map(([key, label]) => (
               <button key={key} type="button" role="tab" aria-selected={tab === key} className={tab === key ? "active" : ""} onClick={() => setTab(key)}>
@@ -252,8 +253,21 @@ export default function UniversalTransactionDetailModal({
                   )) : <p className="da-muted">Belum ada ID terkait.</p>}
                 </div>
               </Card>
-              <Card title="Pencetakan" description="Cetak dari arsip membuat Print Log dan Audit, tidak mengubah ledger.">
-                <div className="da-print-preview-card-v2">
+              <Card title="Dokumen & Pencetakan" description="Lampiran dan jejak cetak tetap terhubung ke ID transaksi tanpa mengubah ledger.">
+                {attachments.length ? (
+                  <div className="da-archive-attachment-list">
+                    {attachments.slice(0, 30).map((item, index) => (
+                      <div key={item.attachment_id || `${item.file_name}-${index}`} className="da-archive-attachment-row">
+                        <div>
+                          <span>{safeText(item.file_name, "Lampiran")}</span>
+                          <small>{safeText(item.mime_type, "File")} · {item.file_size_bytes ? `${Number(item.file_size_bytes).toLocaleString("id-ID")} byte` : "Ukuran tidak tercatat"}</small>
+                        </div>
+                        <Badge tone={String(item.status || "ACTIVE").toUpperCase() === "ACTIVE" ? "success" : "default"}>{safeText(item.status, "Aktif")}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                ) : <p className="da-muted">Belum ada lampiran pada transaksi ini.</p>}
+                <div className="da-print-preview-card-v2" style={{ marginTop: 14 }}>
                   <div><span>Dokumen</span><strong>{displayModule}</strong></div>
                   <div><span>ID</span><strong>{displayId}</strong></div>
                   <Button onClick={handleOperationalPrint} disabled={printing}>{printing ? "Mencatat Cetak..." : "Preview & Cetak"}</Button>
@@ -266,7 +280,7 @@ export default function UniversalTransactionDetailModal({
             <Card title="Audit Trail" description="Jejak sistem, approval, revisi, print, dan perubahan yang tercatat.">
               <DataTable
                 columns={[
-                  { key: "created_at", label: "Waktu", render: (row) => formatDate(row.created_at || row.date) },
+                  { key: "created_at", label: "Waktu", render: (row) => formatDate(row.timestamp || row.created_at || row.date) },
                   { key: "action", label: "Aksi", render: (row) => safeText(row.action || row.event || row.status) },
                   { key: "actor", label: "Pengguna", render: (row) => safeText(row.actor_name || row.username || row.created_by || row.user_id) },
                   { key: "reason", label: "Catatan", render: (row) => safeText(row.reason || row.description || row.notes || row.message) },
