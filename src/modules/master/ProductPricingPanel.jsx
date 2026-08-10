@@ -454,6 +454,8 @@ export default function ProductPricingPanel({
   const [resolverResult, setResolverResult] = useState(null);
   const [editingId, setEditingId] = useState("");
   const [selected, setSelected] = useState(null);
+  const [statusTarget, setStatusTarget] = useState(null);
+  const [formOpen, setFormOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [productFilter, setProductFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -705,13 +707,7 @@ export default function ProductPricingPanel({
     setSelected(null);
     setError("");
     setSuccess("");
-
-    requestAnimationFrame(() => {
-      document.getElementById("product-pricing-live-form")?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    });
+    setFormOpen(true);
   }
 
   function validateDraft() {
@@ -822,6 +818,7 @@ export default function ProductPricingPanel({
       );
       setEditingId("");
       setDraft({ ...EMPTY_DRAFT });
+      setFormOpen(false);
       setResolverResult(null);
       await loadPricing();
       await onPricingChanged?.();
@@ -838,16 +835,6 @@ export default function ProductPricingPanel({
     }
 
     const nextActive = !rule.active;
-    const confirmed = window.confirm(
-      nextActive
-        ? `Aktifkan kembali aturan ${rule.price_id}?`
-        : `Nonaktifkan aturan ${rule.price_id}?\n\nRiwayat tetap tersimpan.`
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
     setStatusSaving(true);
     setError("");
     setSuccess("");
@@ -879,6 +866,7 @@ export default function ProductPricingPanel({
 
       setSuccess(result?.message || "Status aturan berhasil diubah.");
       setSelected(null);
+      setStatusTarget(null);
       await loadPricing();
       await onPricingChanged?.();
     } catch (err) {
@@ -1010,7 +998,7 @@ export default function ProductPricingPanel({
       <Card>
         <div className="da-section-heading">
           <div>
-            <span>Product Pricing Engine</span>
+            <span>HARGA JUAL</span>
             <h2>Aturan Harga Jual Bertingkat</h2>
             <p>
               Produk → Lokasi → Tipe Harga → Satuan → Qty → Harga Jual. HPP
@@ -1018,7 +1006,7 @@ export default function ProductPricingPanel({
             </p>
           </div>
           <Badge tone={health.ready ? "success" : "warning"}>
-            {health.ready ? "Engine Ready" : "Perlu Dicek"}
+            {health.ready ? "Siap Dikelola" : "Perlu Dilengkapi"}
           </Badge>
         </div>
 
@@ -1030,15 +1018,25 @@ export default function ProductPricingPanel({
             alignItems: "center",
           }}
         >
-          <Badge tone="success">{health.source_of_truth}</Badge>
+          
           <Badge tone={writeEnabled ? "success" : "warning"}>
-            {writeEnabled ? "Penyimpanan Harga" : "Write Belum Siap"}
+            {writeEnabled ? "Penyimpanan Aktif" : "Belum Siap Disimpan"}
           </Badge>
           <Badge tone={health.migration_applied ? "success" : "warning"}>
-            Mesin Harga {health.migration_applied ? "Aktif" : "Belum Aktif"}
+            Harga Sistem {health.migration_applied ? "Aktif" : "Belum Aktif"}
           </Badge>
           <Button variant="ghost" onClick={loadPricing} disabled={loading}>
-            {loading ? "Memuat..." : "Refresh Harga"}
+            {loading ? "Memuat..." : "Perbarui"}
+          </Button>
+          <Button
+            type="button"
+            onClick={() => {
+              resetDraft();
+              setFormOpen(true);
+            }}
+            disabled={!writeEnabled || saving}
+          >
+            + Tambah Aturan Harga
           </Button>
         </div>
 
@@ -1055,7 +1053,7 @@ export default function ProductPricingPanel({
         <StatCard
           label="Aktif"
           value={bootstrap.summary.active_rules}
-          description="Rule yang dapat dipilih resolver."
+          description="Aturan yang dapat dipakai transaksi."
           tone="success"
         />
         <StatCard
@@ -1069,249 +1067,13 @@ export default function ProductPricingPanel({
       <Card>
         <div className="da-section-heading">
           <div>
-            <span>Harga Terpusat</span>
-            <h2>{editingId ? "Edit Aturan Harga" : "Tambah Aturan Harga"}</h2>
-            <p>
-              Form memakai struktur harga resmi: price_name, price_tier,
-              unit_type, price_per_unit, location_id, dan effective date.
-            </p>
-          </div>
-          <Badge tone={writeEnabled ? "success" : "warning"}>
-            {writeEnabled ? "Siap Disimpan" : "Pantau"}
-          </Badge>
-        </div>
-
-        {bootstrap.rules.length === 0
-          ? messageBox(
-              "Belum ada harga nyata yang tersimpan. Jangan menambahkan rule sampai harga resmi disetujui.",
-              "warning"
-            )
-          : null}
-
-        <form id="product-pricing-live-form" onSubmit={handleSubmit}>
-          <div className="da-form-grid" style={{ marginTop: 14 }}>
-            <label className="da-field">
-              Nama Aturan Harga
-              <input
-                type="text"
-                value={draft.price_name}
-                placeholder="Contoh nama internal setelah disetujui"
-                disabled={saving || !writeEnabled}
-                onChange={(event) =>
-                  updateDraft("price_name", event.target.value)
-                }
-              />
-            </label>
-
-            <label className="da-field">
-              Produk
-              <select
-                className="da-input"
-                value={draft.product_id}
-                disabled={saving || !writeEnabled}
-                onChange={(event) => {
-                  const productId = event.target.value;
-                  const product = productOptions.find(
-                    (row) => row.product_id === productId
-                  );
-                  setDraft((current) => ({
-                    ...current,
-                    product_id: productId,
-                    unit_type: product?.unit || current.unit_type || "PCS",
-                  }));
-                }}
-              >
-                <option value="">Pilih produk</option>
-                {productOptions.map((row) => (
-                  <option key={row.product_id} value={row.product_id}>
-                    {safeText(row.product_name, row.product_id)}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="da-field">
-              Lokasi Wajib
-              <select
-                className="da-input"
-                value={draft.location_id}
-                disabled={saving || !writeEnabled}
-                onChange={(event) =>
-                  updateDraft("location_id", event.target.value)
-                }
-              >
-                <option value="">Pilih lokasi</option>
-                {locationOptions.map((row) => (
-                  <option key={row.location_id} value={row.location_id}>
-                    {safeText(row.location_name, row.location_id)}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="da-field">
-              Tipe Harga
-              <select
-                className="da-input"
-                value={draft.price_tier}
-                disabled={saving || !writeEnabled}
-                onChange={(event) =>
-                  updateDraft("price_tier", event.target.value)
-                }
-              >
-                {bootstrap.price_tiers.map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="da-field">
-              Satuan
-              <select
-                className="da-input"
-                value={draft.unit_type}
-                disabled={saving || !writeEnabled}
-                onChange={(event) =>
-                  updateDraft("unit_type", event.target.value)
-                }
-              >
-                {bootstrap.units.map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="da-field">
-              Minimal Qty
-              <input
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={draft.min_qty}
-                disabled={saving || !writeEnabled}
-                onChange={(event) =>
-                  updateDraft("min_qty", event.target.value)
-                }
-              />
-            </label>
-
-            <label className="da-field">
-              Customer Khusus
-              <select
-                className="da-input"
-                value={draft.customer_id}
-                disabled={saving || !writeEnabled}
-                onChange={(event) =>
-                  updateDraft("customer_id", event.target.value)
-                }
-              >
-                <option value="">Umum / tidak khusus customer</option>
-                {customerOptions.map((row) => (
-                  <option key={row.customer_id} value={row.customer_id}>
-                    {safeText(row.customer_name, row.customer_id)}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="da-field">
-              Channel Khusus
-              <input
-                type="text"
-                value={draft.channel_code}
-                placeholder="Opsional, mis. POS / WA / OUTLET"
-                disabled={saving || !writeEnabled}
-                onChange={(event) =>
-                  updateDraft("channel_code", event.target.value.toUpperCase())
-                }
-              />
-            </label>
-
-            <label className="da-field">
-              Harga Jual per Satuan
-              <input
-                type="number"
-                min="1"
-                step="1"
-                value={draft.price_per_unit}
-                placeholder="Kosong sampai harga resmi disetujui"
-                disabled={saving || !writeEnabled}
-                onChange={(event) =>
-                  updateDraft("price_per_unit", event.target.value)
-                }
-              />
-            </label>
-
-            <label className="da-field">
-              Mulai Berlaku
-              <input
-                type="date"
-                value={draft.effective_from}
-                disabled={saving || !writeEnabled}
-                onChange={(event) =>
-                  updateDraft("effective_from", event.target.value)
-                }
-              />
-            </label>
-
-            <label className="da-field">
-              Selesai Berlaku
-              <input
-                type="date"
-                value={draft.effective_to}
-                disabled={saving || !writeEnabled}
-                onChange={(event) =>
-                  updateDraft("effective_to", event.target.value)
-                }
-              />
-            </label>
-
-            <label className="da-field" style={{ gridColumn: "1 / -1" }}>
-              Catatan
-              <input
-                type="text"
-                value={draft.notes}
-                placeholder="Catatan internal aturan harga"
-                disabled={saving || !writeEnabled}
-                onChange={(event) => updateDraft("notes", event.target.value)}
-              />
-            </label>
-          </div>
-
-          <div className="da-form-actions">
-            <Button
-              variant="ghost"
-              onClick={resetDraft}
-              disabled={saving}
-            >
-              {editingId ? "Batal Edit" : "Reset"}
-            </Button>
-            <Button type="submit" disabled={saving || !writeEnabled}>
-              {saving
-                ? "Menyimpan..."
-                : editingId
-                ? "Simpan Perubahan"
-                : "Tambah Aturan"}
-            </Button>
-          </div>
-        </form>
-      </Card>
-
-      <Card>
-        <div className="da-section-heading">
-          <div>
             <span>Simulasi Harga</span>
-            <h2>Cek Rule yang Akan Terpilih</h2>
+            <h2>Simulasi Harga Transaksi</h2>
             <p>
-              Resolver hanya membaca. Tidak membuat harga fallback dan tidak
-              menulis transaksi.
+              Simulasikan harga yang akan dipilih sistem tanpa membuat transaksi.
             </p>
           </div>
-          <Badge tone="success">Safe Read</Badge>
+          <Badge tone="success">Simulasi</Badge>
         </div>
 
         <form onSubmit={handleResolve}>
@@ -1533,11 +1295,244 @@ export default function ProductPricingPanel({
 
         {bootstrap.rules.length === 0 ? (
           <p className="da-muted" style={{ marginTop: 10 }}>
-            Belum ada aturan harga tersimpan. Kondisi 0 rule sesuai checkpoint
-            sebelum harga nyata dimasukkan.
+            Belum ada aturan harga resmi. Tambahkan aturan saat harga operasional sudah ditetapkan.
           </p>
         ) : null}
       </Card>
+
+      <Modal
+        open={formOpen}
+        title={editingId ? "Edit Aturan Harga" : "Tambah Aturan Harga"}
+        subtitle="Harga resmi per produk, lokasi, tipe harga, qty, customer, dan periode berlaku."
+        onClose={() => {
+          if (saving) return;
+          resetDraft();
+          setFormOpen(false);
+        }}
+        size="lg"
+      >
+        {bootstrap.rules.length === 0
+          ? messageBox(
+              "Belum ada aturan harga resmi. Tambahkan hanya setelah harga operasional disetujui.",
+              "warning"
+            )
+          : null}
+        <form id="product-pricing-live-form" onSubmit={handleSubmit}>
+          <div className="da-form-grid" style={{ marginTop: 14 }}>
+            <label className="da-field">
+              Nama Aturan Harga
+              <input
+                type="text"
+                value={draft.price_name}
+                placeholder="Contoh nama internal setelah disetujui"
+                disabled={saving || !writeEnabled}
+                onChange={(event) =>
+                  updateDraft("price_name", event.target.value)
+                }
+              />
+            </label>
+
+            <label className="da-field">
+              Produk
+              <select
+                className="da-input"
+                value={draft.product_id}
+                disabled={saving || !writeEnabled}
+                onChange={(event) => {
+                  const productId = event.target.value;
+                  const product = productOptions.find(
+                    (row) => row.product_id === productId
+                  );
+                  setDraft((current) => ({
+                    ...current,
+                    product_id: productId,
+                    unit_type: product?.unit || current.unit_type || "PCS",
+                  }));
+                }}
+              >
+                <option value="">Pilih produk</option>
+                {productOptions.map((row) => (
+                  <option key={row.product_id} value={row.product_id}>
+                    {safeText(row.product_name, row.product_id)}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="da-field">
+              Lokasi Wajib
+              <select
+                className="da-input"
+                value={draft.location_id}
+                disabled={saving || !writeEnabled}
+                onChange={(event) =>
+                  updateDraft("location_id", event.target.value)
+                }
+              >
+                <option value="">Pilih lokasi</option>
+                {locationOptions.map((row) => (
+                  <option key={row.location_id} value={row.location_id}>
+                    {safeText(row.location_name, row.location_id)}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="da-field">
+              Tipe Harga
+              <select
+                className="da-input"
+                value={draft.price_tier}
+                disabled={saving || !writeEnabled}
+                onChange={(event) =>
+                  updateDraft("price_tier", event.target.value)
+                }
+              >
+                {bootstrap.price_tiers.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="da-field">
+              Satuan
+              <select
+                className="da-input"
+                value={draft.unit_type}
+                disabled={saving || !writeEnabled}
+                onChange={(event) =>
+                  updateDraft("unit_type", event.target.value)
+                }
+              >
+                {bootstrap.units.map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="da-field">
+              Minimal Qty
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={draft.min_qty}
+                disabled={saving || !writeEnabled}
+                onChange={(event) =>
+                  updateDraft("min_qty", event.target.value)
+                }
+              />
+            </label>
+
+            <label className="da-field">
+              Customer Khusus
+              <select
+                className="da-input"
+                value={draft.customer_id}
+                disabled={saving || !writeEnabled}
+                onChange={(event) =>
+                  updateDraft("customer_id", event.target.value)
+                }
+              >
+                <option value="">Umum / tidak khusus customer</option>
+                {customerOptions.map((row) => (
+                  <option key={row.customer_id} value={row.customer_id}>
+                    {safeText(row.customer_name, row.customer_id)}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="da-field">
+              Channel Khusus
+              <input
+                type="text"
+                value={draft.channel_code}
+                placeholder="Opsional, mis. POS / WA / OUTLET"
+                disabled={saving || !writeEnabled}
+                onChange={(event) =>
+                  updateDraft("channel_code", event.target.value.toUpperCase())
+                }
+              />
+            </label>
+
+            <label className="da-field">
+              Harga Jual per Satuan
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={draft.price_per_unit}
+                placeholder="Kosong sampai harga resmi disetujui"
+                disabled={saving || !writeEnabled}
+                onChange={(event) =>
+                  updateDraft("price_per_unit", event.target.value)
+                }
+              />
+            </label>
+
+            <label className="da-field">
+              Mulai Berlaku
+              <input
+                type="date"
+                value={draft.effective_from}
+                disabled={saving || !writeEnabled}
+                onChange={(event) =>
+                  updateDraft("effective_from", event.target.value)
+                }
+              />
+            </label>
+
+            <label className="da-field">
+              Selesai Berlaku
+              <input
+                type="date"
+                value={draft.effective_to}
+                disabled={saving || !writeEnabled}
+                onChange={(event) =>
+                  updateDraft("effective_to", event.target.value)
+                }
+              />
+            </label>
+
+            <label className="da-field" style={{ gridColumn: "1 / -1" }}>
+              Catatan
+              <input
+                type="text"
+                value={draft.notes}
+                placeholder="Catatan internal aturan harga"
+                disabled={saving || !writeEnabled}
+                onChange={(event) => updateDraft("notes", event.target.value)}
+              />
+            </label>
+          </div>
+
+          <div className="da-modal-sticky-actions">
+            <Button
+              variant="ghost"
+              type="button"
+              onClick={() => {
+                resetDraft();
+                setFormOpen(false);
+              }}
+              disabled={saving}
+            >
+              Batal
+            </Button>
+            <Button type="submit" disabled={saving || !writeEnabled}>
+              {saving
+                ? "Menyimpan..."
+                : editingId
+                ? "Simpan Perubahan"
+                : "Tambah Aturan"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
 
       <Modal
         open={Boolean(selected)}
@@ -1579,7 +1574,7 @@ export default function ProductPricingPanel({
               </Button>
               <Button
                 variant={selected.active ? "ghost" : "primary"}
-                onClick={() => handleStatus(selected)}
+                onClick={() => setStatusTarget(selected)}
                 disabled={!writeEnabled || statusSaving}
               >
                 {statusSaving
@@ -1587,6 +1582,32 @@ export default function ProductPricingPanel({
                   : selected.active
                   ? "Nonaktifkan"
                   : "Aktifkan"}
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
+
+      <Modal
+        open={Boolean(statusTarget)}
+        title={statusTarget?.active ? "Nonaktifkan Aturan Harga?" : "Aktifkan Aturan Harga?"}
+        subtitle={safeText(statusTarget?.price_id)}
+        onClose={() => !statusSaving && setStatusTarget(null)}
+        size="md"
+      >
+        {statusTarget ? (
+          <div style={{ display: "grid", gap: 16 }}>
+            <div className="da-modal-note">
+              {statusTarget.active
+                ? "Aturan ini tidak lagi dipilih untuk transaksi baru. Riwayat harga pada transaksi lama tetap terkunci."
+                : "Aturan ini kembali tersedia untuk transaksi sesuai lokasi, tipe harga, satuan, customer, qty, dan tanggal berlaku."}
+            </div>
+            <div className="da-modal-sticky-actions">
+              <Button variant="ghost" onClick={() => setStatusTarget(null)} disabled={statusSaving}>
+                Batal
+              </Button>
+              <Button onClick={() => handleStatus(statusTarget)} disabled={statusSaving}>
+                {statusSaving ? "Memproses..." : statusTarget.active ? "Ya, Nonaktifkan" : "Ya, Aktifkan"}
               </Button>
             </div>
           </div>
