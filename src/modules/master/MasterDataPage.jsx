@@ -921,10 +921,10 @@ export default function MasterDataPage({ moduleType = "produk", session, onSessi
       {error ? <div className="da-form-warning da-master-message">{error}</div> : null}
       {success ? <div className="da-form-success da-master-message">{success}</div> : null}
 
-      <section className="da-master-hero">
-        <div className="da-master-hero-main">
-          <div className="da-master-hero-icon"><ModuleIcon size={22} /></div>
-          <div className="da-master-hero-copy">
+      <section className="da-registry-overview">
+        <div className="da-registry-overview-main">
+          <div className="da-registry-overview-icon"><ModuleIcon size={22} /></div>
+          <div className="da-registry-overview-copy">
             <span>{config.heroLabel}</span>
             <strong>{bootstrap.summary.active_rows.toLocaleString("id-ID")}</strong>
             <small>{bootstrap.summary.total_rows.toLocaleString("id-ID")} total master · {bootstrap.summary.inactive_rows.toLocaleString("id-ID")} nonaktif</small>
@@ -932,7 +932,7 @@ export default function MasterDataPage({ moduleType = "produk", session, onSessi
           <Badge tone={writeEnabled ? "success" : "warning"}>{writeEnabled ? "Siap digunakan" : "Pantau"}</Badge>
         </div>
 
-        <div className="da-master-hero-metrics">
+        <div className="da-registry-overview-metrics">
           <div>
             <span>{safeText(business.primary_label, "Penggunaan")}</span>
             <strong>{metricValue(moduleType, "primary", business.primary_value)}</strong>
@@ -1105,7 +1105,7 @@ export default function MasterDataPage({ moduleType = "produk", session, onSessi
         title={`${editingId ? "Edit" : "Tambah"} ${config.singular}`}
         subtitle={editingId ? `ID ${editingId} · ID inti tidak berubah` : "Master baru untuk transaksi berikutnya"}
         onClose={closeForm}
-        size="xl"
+        size="lg"
       >
         <form onSubmit={handleSubmit} className="da-master-form-modal">
           <div className="da-master-form-intro">
@@ -1138,7 +1138,7 @@ export default function MasterDataPage({ moduleType = "produk", session, onSessi
         title={selected ? moduleName(selected, moduleType) : `Detail ${config.singular}`}
         subtitle={selected ? safeText(selected.master_id || selected.id) : ""}
         onClose={() => setSelected(null)}
-        size="xl"
+        size="lg"
       >
         {selected ? (
           <div className="da-master-detail">
@@ -1217,7 +1217,7 @@ export default function MasterDataPage({ moduleType = "produk", session, onSessi
               </div>
             ) : null}
 
-            <div className="da-modal-sticky-actions">
+            <div className="da-modal-sticky-actions da-master-detail-actions">
               <Button type="button" variant="ghost" onClick={() => setSelected(null)}>Tutup</Button>
               <Button type="button" variant="ghost" onClick={() => startEdit(selected)} disabled={!writeEnabled || statusSaving}>
                 <Edit2 size={16} /> Edit Data
@@ -1250,7 +1250,7 @@ export default function MasterDataPage({ moduleType = "produk", session, onSessi
                 Riwayat transaksi lama tidak dihapus. Backend akan menolak penonaktifan jika masih ada saldo, stok, PO, piutang, hutang, rule harga, akun, dompet, atau proses aktif yang terkait.
               </p>
             </div>
-            <div className="da-modal-sticky-actions">
+            <div className="da-modal-sticky-actions da-master-confirm-actions">
               <Button type="button" variant="ghost" onClick={() => setStatusTarget(null)} disabled={statusSaving}>Batal</Button>
               <Button type="button" onClick={confirmStatusChange} disabled={statusSaving}>
                 {statusSaving ? "Memproses..." : statusTarget.active ? "Ya, Nonaktifkan" : "Ya, Aktifkan"}
