@@ -905,6 +905,42 @@ export async function createHRDLoanNote(sessionToken, payload = {}) {
   return phpApiRequest("createHRDLoanNote", payload, sessionToken);
 }
 
+export async function getHRDEmployeeProfile(sessionToken, payload = {}) {
+  return phpApiRequest("getHRDEmployeeProfile", payload, sessionToken);
+}
+
+export async function updateHRDEmployee(sessionToken, payload = {}) {
+  return phpApiRequest("updateHRDEmployee", payload, sessionToken);
+}
+
+export async function voidHRDEmployee(sessionToken, payload = {}) {
+  return phpApiRequest("voidHRDEmployee", payload, sessionToken);
+}
+
+export async function updateHRDAttendance(sessionToken, payload = {}) {
+  return phpApiRequest("updateHRDAttendance", payload, sessionToken);
+}
+
+export async function voidHRDAttendance(sessionToken, payload = {}) {
+  return phpApiRequest("voidHRDAttendance", payload, sessionToken);
+}
+
+export async function updateHRDKasbonNote(sessionToken, payload = {}) {
+  return phpApiRequest("updateHRDKasbonNote", payload, sessionToken);
+}
+
+export async function voidHRDKasbonNote(sessionToken, payload = {}) {
+  return phpApiRequest("voidHRDKasbonNote", payload, sessionToken);
+}
+
+export async function updateHRDLoanNote(sessionToken, payload = {}) {
+  return phpApiRequest("updateHRDLoanNote", payload, sessionToken);
+}
+
+export async function voidHRDLoanNote(sessionToken, payload = {}) {
+  return phpApiRequest("voidHRDLoanNote", payload, sessionToken);
+}
+
 // Part 5B akan memindahkan draft, closing, reopen, payment, dan print final.
 export async function hrdPayrollFinalHealth(sessionToken, payload = {}) {
   return phpApiRequest("hrdPayrollFinalHealth", payload, sessionToken);
@@ -924,6 +960,10 @@ export async function createHRDPayrollDraft(sessionToken, payload = {}) {
 
 export async function createHRDPayrollClosing(sessionToken, payload = {}) {
   return phpApiRequest("closeHRDPayroll", payload, sessionToken);
+}
+
+export async function voidHRDPayrollDraft(sessionToken, payload = {}) {
+  return phpApiRequest("voidHRDPayrollDraft", payload, sessionToken);
 }
 
 export async function reopenHRDPayroll(sessionToken, payload = {}) {
