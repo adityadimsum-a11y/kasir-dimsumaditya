@@ -2238,3 +2238,149 @@ button.da-owner-overview-card-v4:hover { transform:translateY(-2px);border-color
   .da-app-v3 .da-master-detail-actions,
   .da-app-v3 .da-master-confirm-actions{grid-template-columns:1fr;}
 }
+
+/* ================================================================
+   PACKAGE 15B — MASTER TOOLBAR PRECISION
+   Fix nested input collision caused by the global .da-content input
+   rule and tighten the master list toolbar / popup field alignment.
+   ================================================================ */
+.da-app-v3 .da-master-list-card .da-master-toolbar{
+  display:grid!important;
+  grid-template-columns:minmax(260px,1fr) auto!important;
+  align-items:center!important;
+  gap:12px!important;
+  margin:2px 0 14px!important;
+}
+.da-app-v3 .da-master-list-card .da-master-search{
+  position:relative;
+  display:grid!important;
+  grid-template-columns:18px minmax(0,1fr)!important;
+  align-items:center!important;
+  gap:8px!important;
+  width:100%!important;
+  min-width:0!important;
+  height:42px!important;
+  min-height:42px!important;
+  padding:0 12px!important;
+  margin:0!important;
+  overflow:hidden!important;
+  border:1px solid #dfe3e8!important;
+  border-radius:11px!important;
+  background:#fff!important;
+  color:#98a2b3!important;
+  box-shadow:none!important;
+}
+.da-app-v3 .da-master-list-card .da-master-search:focus-within{
+  border-color:rgba(217,45,32,.48)!important;
+  box-shadow:0 0 0 3px rgba(217,45,32,.065)!important;
+}
+.da-app-v3 .da-master-list-card .da-master-search>svg{
+  position:static!important;
+  width:17px!important;
+  height:17px!important;
+  flex:0 0 17px!important;
+  color:#98a2b3!important;
+  pointer-events:none!important;
+}
+.da-app-v3 .da-master-list-card .da-master-search>input{
+  display:block!important;
+  width:100%!important;
+  min-width:0!important;
+  height:40px!important;
+  min-height:0!important;
+  max-height:40px!important;
+  padding:0!important;
+  margin:0!important;
+  border:0!important;
+  border-radius:0!important;
+  outline:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  font:inherit!important;
+  font-size:10.5px!important;
+  font-weight:700!important;
+  color:#101828!important;
+  line-height:40px!important;
+  appearance:none!important;
+}
+.da-app-v3 .da-master-list-card .da-master-search>input:focus,
+.da-app-v3 .da-master-list-card .da-master-search>input:focus-visible{
+  border:0!important;
+  outline:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+}
+.da-app-v3 .da-master-list-card .da-master-search>input::placeholder{
+  color:#98a2b3!important;
+  opacity:1!important;
+}
+.da-app-v3 .da-master-list-card .da-master-status-filter{
+  display:inline-grid!important;
+  grid-auto-flow:column!important;
+  grid-auto-columns:minmax(72px,auto)!important;
+  align-items:center!important;
+  gap:4px!important;
+  min-height:42px!important;
+  padding:4px!important;
+  margin:0!important;
+  border:1px solid #e4e7ec!important;
+  border-radius:11px!important;
+  background:#f7f8fa!important;
+}
+.da-app-v3 .da-master-list-card .da-master-status-filter button{
+  width:auto!important;
+  min-width:72px!important;
+  height:32px!important;
+  min-height:32px!important;
+  padding:0 12px!important;
+  border-radius:8px!important;
+  line-height:32px!important;
+  white-space:nowrap!important;
+}
+.da-app-v3 .da-master-list-card .da-table-card-v2{
+  margin-top:0!important;
+  overflow:hidden;
+  border-radius:12px!important;
+}
+
+/* Master modal field precision: keep the global input rule from
+   creating a second visual shell inside selects/inputs in this module. */
+.da-app-v3 .da-modal:has(.da-master-form-modal) .da-field>input,
+.da-app-v3 .da-modal:has(.da-master-form-modal) .da-field>select,
+.da-app-v3 .da-modal:has(.da-master-form-modal) .da-field>textarea{
+  width:100%!important;
+  min-width:0!important;
+  box-sizing:border-box!important;
+  border:1px solid #dfe3e8!important;
+  outline:0!important;
+  box-shadow:none!important;
+}
+.da-app-v3 .da-modal:has(.da-master-form-modal) .da-field>input:focus,
+.da-app-v3 .da-modal:has(.da-master-form-modal) .da-field>select:focus,
+.da-app-v3 .da-modal:has(.da-master-form-modal) .da-field>textarea:focus{
+  border-color:rgba(217,45,32,.48)!important;
+  box-shadow:0 0 0 3px rgba(217,45,32,.065)!important;
+}
+
+@media (max-width:980px){
+  .da-app-v3 .da-master-list-card .da-master-toolbar{
+    grid-template-columns:1fr!important;
+    gap:9px!important;
+  }
+  .da-app-v3 .da-master-list-card .da-master-status-filter{
+    justify-self:start!important;
+  }
+}
+@media (max-width:560px){
+  .da-app-v3 .da-master-list-card .da-master-status-filter{
+    width:100%!important;
+    grid-template-columns:repeat(3,minmax(0,1fr))!important;
+    grid-auto-flow:initial!important;
+    grid-auto-columns:initial!important;
+  }
+  .da-app-v3 .da-master-list-card .da-master-status-filter button{
+    min-width:0!important;
+    width:100%!important;
+    padding:0 8px!important;
+  }
+}
