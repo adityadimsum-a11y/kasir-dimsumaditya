@@ -25,6 +25,13 @@ const today = () => {
   const date = new Date();
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 };
+const BRANCH_LOCATION_KEY = "da_branch_last_location";
+const readStoredBranchLocation = () => {
+  try { return typeof window !== "undefined" ? String(window.localStorage.getItem(BRANCH_LOCATION_KEY) || "") : ""; } catch { return ""; }
+};
+const storeBranchLocation = (value) => {
+  try { if (typeof window !== "undefined" && value) window.localStorage.setItem(BRANCH_LOCATION_KEY, value); } catch {}
+};
 const authRequired = (result) => {
   const code = String(result?.error?.code || result?.code || "").toUpperCase();
   const message = String(result?.message || result?.error?.message || "").toUpperCase();
@@ -141,7 +148,7 @@ export default function LaporanHarianPage({ session, onSessionExpired, onNavigat
   const currentDate = today();
   const roleId = String(session?.user?.role_id || "").toUpperCase();
   const canApprove = roleId === "ROLE-OWNER" || roleId === "ROLE-HO-ADMIN";
-  const defaultLocation = canApprove ? "" : (session?.user?.location_code || "");
+  const defaultLocation = canApprove ? readStoredBranchLocation() : (session?.user?.location_code || "");
   const [filter, setFilter] = useState({
     report_mode: "daily",
     report_date: currentDate,
@@ -177,6 +184,7 @@ export default function LaporanHarianPage({ session, onSessionExpired, onNavigat
       setData(next);
       if (!filter.location_code && next.summary.location_code) {
         setFilter((value) => ({ ...value, location_code: next.summary.location_code }));
+        storeBranchLocation(next.summary.location_code);
       }
     } catch (err) {
       setError(err?.message || "Gagal membaca laporan cabang.");
@@ -243,6 +251,20 @@ export default function LaporanHarianPage({ session, onSessionExpired, onNavigat
   const periodLabel = data.summary.period_label || requestPayload.date_start;
   const currentStatus = String(currentReport?.status || "").toUpperCase();
   const selectedLocationName = safeText(data.summary.location_name, "Cabang");
+  const workflowIndex = currentStatus === "SETTLED" ? 5
+    : currentStatus === "PARTIAL" ? 4
+      : currentStatus === "APPROVED" ? 3
+        : currentStatus === "SUBMITTED" ? 2
+          : currentStatus === "REJECTED" ? 2
+            : data.summary.transaction_count > 0 ? 1 : 0;
+  const workflowSteps = [
+    { label: "Transaksi", hint: "Sumber tercatat" },
+    { label: "Ringkasan", hint: "Siap diperiksa" },
+    { label: "Review", hint: currentStatus === "REJECTED" ? "Perlu revisi" : "Pusat memeriksa" },
+    { label: "Disetujui", hint: "Periode dikunci" },
+    { label: "Setoran", hint: currentStatus === "PARTIAL" ? "Sebagian" : "Dana dikirim" },
+    { label: "Selesai", hint: "Dana diterima" },
+  ];
 
   const ownerHeaderTitle = selectedLocationName !== "Cabang"
     ? `Laporan Harian — ${selectedLocationName}`
@@ -341,7 +363,7 @@ export default function LaporanHarianPage({ session, onSessionExpired, onNavigat
           <label><span>Mulai</span><input type="date" value={filter.date_start} onChange={(e) => setFilter((v) => ({ ...v, date_start: e.target.value }))} /></label>
           <label><span>Sampai</span><input type="date" value={filter.date_end} onChange={(e) => setFilter((v) => ({ ...v, date_end: e.target.value }))} /></label>
         </> : <label><span>Tanggal</span><input type="date" value={filter.report_date} onChange={(e) => setFilter((v) => ({ ...v, report_date: e.target.value }))} /></label>}
-        <label className="da-branch-filter-location"><span>{canApprove ? "Cabang" : "Lokasi Anda"}</span><select value={filter.location_code} onChange={(e) => setFilter((v) => ({ ...v, location_code: e.target.value }))} disabled={!canApprove}>{data.locations.length === 0 ? <option value="">Belum ada cabang aktif</option> : data.locations.map((loc) => <option key={loc.location_id} value={loc.location_code}>{loc.location_name} · {loc.location_code}</option>)}</select></label>
+        <label className="da-branch-filter-location"><span>{canApprove ? "Cabang" : "Lokasi Anda"}</span><select value={filter.location_code} onChange={(e) => { const code = e.target.value; setFilter((v) => ({ ...v, location_code: code })); storeBranchLocation(code); }} disabled={!canApprove}>{data.locations.length === 0 ? <option value="">Belum ada cabang aktif</option> : data.locations.map((loc) => <option key={loc.location_id} value={loc.location_code}>{loc.location_name} · {loc.location_code}</option>)}</select></label>
         <Button variant="ghost" onClick={loadData} disabled={loading}>Terapkan</Button>
       </div>
 
@@ -380,27 +402,51 @@ export default function LaporanHarianPage({ session, onSessionExpired, onNavigat
           </div>
         </Card>
 
-        <Card className="da-branch-status-card">
-          <div className="da-section-kicker">Status Penutupan</div>
-          <div className={`da-branch-status-hero tone-${workflow.tone}`}>
-            {workflow.tone === "success" ? <CheckCircle2 size={24} /> : <AlertCircle size={24} />}
+        <Card className="da-branch-status-card da-branch-status-card-v14b">
+          <div className="da-card-header-row da-branch-status-heading">
+            <div><div className="da-section-kicker">Progres Penutupan</div><h2>{statusLabel(currentReport?.status)}</h2></div>
+            <Badge tone={statusTone(currentReport?.status)}>{currentReport ? statusLabel(currentReport.status) : "Belum Dikirim"}</Badge>
+          </div>
+          <div className="da-branch-timeline" aria-label="Progres laporan cabang">
+            {workflowSteps.map((step, index) => {
+              const done = index < workflowIndex || currentStatus === "SETTLED";
+              const current = index === workflowIndex && currentStatus !== "SETTLED";
+              const danger = currentStatus === "REJECTED" && index === 2;
+              return (
+                <div key={step.label} className={`da-branch-timeline-step ${done ? "is-done" : ""} ${current ? "is-current" : ""} ${danger ? "is-danger" : ""}`}>
+                  <span className="da-branch-timeline-dot">{done ? <CheckCircle2 size={13} /> : index + 1}</span>
+                  <div><strong>{step.label}</strong><small>{step.hint}</small></div>
+                </div>
+              );
+            })}
+          </div>
+          <div className={`da-branch-status-hero da-branch-status-hero-compact tone-${workflow.tone}`}>
+            {workflow.tone === "success" ? <CheckCircle2 size={20} /> : <AlertCircle size={20} />}
             <div><strong>{workflow.title}</strong><span>{workflow.text}</span></div>
           </div>
-          <div className="da-branch-status-list">
-            <div><FileText size={16} /><span>Transaksi sumber</span><strong>{data.summary.transaction_count}</strong></div>
-            <div><Banknote size={16} /><span>Dana di cabang</span><strong>{formatRupiah(data.summary.depositable_income)}</strong></div>
-            <div><Wallet size={16} /><span>Pengeluaran</span><strong>{formatRupiah(data.summary.total_expense)}</strong></div>
+          <div className="da-branch-status-list da-branch-status-list-compact">
+            <div><FileText size={15} /><span>Transaksi</span><strong>{data.summary.transaction_count}</strong></div>
+            <div><Banknote size={15} /><span>Dana Cabang</span><strong>{formatRupiah(data.summary.depositable_income)}</strong></div>
+            <div><Wallet size={15} /><span>Pengeluaran</span><strong>{formatRupiah(data.summary.total_expense)}</strong></div>
           </div>
           {data.warnings.length ? <div className="da-branch-warning-list">{data.warnings.map((warning) => <p key={warning}>{warning}</p>)}</div> : null}
           {currentReport && ["APPROVED", "PARTIAL"].includes(String(currentReport.status).toUpperCase()) && onNavigate ? (
-            <Button variant="ghost" onClick={() => onNavigate("setoran-cabang")}>Lanjut ke Setoran <ArrowRight size={15} /></Button>
+            <Button variant="ghost" onClick={() => onNavigate("setoran-cabang")}>Buka Setoran <ArrowRight size={15} /></Button>
           ) : null}
         </Card>
       </div>
 
       <Card>
         <div className="da-card-header-row"><div><div className="da-section-kicker">Riwayat Laporan</div><h2>Laporan yang Tercatat</h2><p className="da-muted">Klik laporan untuk melihat snapshot, transaksi sumber, dan hasil review Tangerang.</p></div><Badge tone="success">Data Aktual</Badge></div>
-        <DataTable columns={REPORT_COLUMNS} rows={data.reports} getRowKey={(row) => row.report_id} onRowClick={(row) => { setSelectedReport(row); setReviewNote(""); }} />
+        {data.reports.length ? (
+          <DataTable columns={REPORT_COLUMNS} rows={data.reports} getRowKey={(row) => row.report_id} onRowClick={(row) => { setSelectedReport(row); setReviewNote(""); }} />
+        ) : (
+          <div className="da-branch-empty-state">
+            <FileText size={24} />
+            <strong>{canApprove ? `Belum ada laporan dari ${selectedLocationName}` : "Belum ada laporan pada periode ini"}</strong>
+            <span>{canApprove ? "Laporan akan muncul setelah akun cabang mengirimkannya ke pusat." : "Tarik transaksi, periksa ringkasan, lalu kirim laporan ke pusat saat siap."}</span>
+          </div>
+        )}
       </Card>
 
       <Modal open={Boolean(selectedCategory)} title={selectedCategory?.title || "Transaksi Sumber"} subtitle={`${selectedCategory?.count || 0} transaksi · ${formatRupiah(selectedCategory?.amount || 0)}`} onClose={() => setSelectedCategory(null)} size="xl">
