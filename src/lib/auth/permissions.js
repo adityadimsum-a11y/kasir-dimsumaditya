@@ -26,12 +26,21 @@ export function canSeeGroup(group, session) {
   return visibleFor.includes(scope);
 }
 
+
+export function canSeeItem(item, group, session) {
+  const scope = getUserScope(session);
+  const visibleFor = item?.visibleFor || group?.visibleFor || ["OWNER"];
+  if (visibleFor.includes("ALL")) return true;
+  if (scope === "OWNER") return true;
+  return visibleFor.includes(scope);
+}
+
 export function getAllowedMenuGroups(menuGroups, session) {
   return menuGroups
     .filter((group) => canSeeGroup(group, session))
     .map((group) => ({
       ...group,
-      items: group.items || [],
+      items: (group.items || []).filter((item) => canSeeItem(item, group, session)),
     }))
     .filter((group) => group.items.length > 0);
 }
