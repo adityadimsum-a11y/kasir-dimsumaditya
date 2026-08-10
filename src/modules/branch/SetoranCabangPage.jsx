@@ -13,6 +13,9 @@ import BranchFlowButton from "./BranchFlowButton";
 const asArray = (value) => Array.isArray(value) ? value : [];
 const num = (value) => { const parsed = Number(String(value ?? 0).replace(/[^0-9.-]/g, "")); return Number.isFinite(parsed) ? parsed : 0; };
 const today = () => { const date = new Date(); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`; };
+const BRANCH_LOCATION_KEY="da_branch_last_location";
+const readStoredBranchLocation=()=>{try{return typeof window!=="undefined"?String(window.localStorage.getItem(BRANCH_LOCATION_KEY)||""):"";}catch{return "";}};
+const storeBranchLocation=(value)=>{try{if(typeof window!=="undefined"&&value)window.localStorage.setItem(BRANCH_LOCATION_KEY,value);}catch{}};
 const authRequired = (result) => String(result?.error?.code || result?.message || "").toUpperCase().includes("AUTH_REQUIRED");
 const tone = (status) => { const value=String(status||"").toUpperCase(); if(value==="APPROVED") return "success"; if(value==="REJECTED") return "danger"; return "warning"; };
 const depositStatus = (status) => { const value=String(status||"").toUpperCase(); if(value==="APPROVED") return "Diterima Pusat"; if(value==="REJECTED") return "Perlu Revisi"; if(value==="PENDING_OWNER") return "Menunggu Tangerang"; return status || "-"; };
@@ -56,7 +59,7 @@ export default function SetoranCabangPage({ session, onSessionExpired, onNavigat
   const token=session?.sessionToken||"";
   const role=String(session?.user?.role_id||"").toUpperCase();
   const canApprove=role==="ROLE-OWNER"||role==="ROLE-HO-ADMIN";
-  const defaultLocation=canApprove?"":(session?.user?.location_code||"");
+  const defaultLocation=canApprove?readStoredBranchLocation():(session?.user?.location_code||"");
   const [filter,setFilter]=useState({report_mode:"daily",report_date:date,date_start:date,date_end:date,location_code:defaultLocation});
   const [data,setData]=useState(()=>normalize({}));
   const [loading,setLoading]=useState(true);
@@ -66,6 +69,7 @@ export default function SetoranCabangPage({ session, onSessionExpired, onNavigat
   const [createOpen,setCreateOpen]=useState(false);
   const [selected,setSelected]=useState(null);
   const [reviewNote,setReviewNote]=useState("");
+  const [queueTab,setQueueTab]=useState("pending");
   const [draft,setDraft]=useState({report_id:"",source_wallet_id:"",destination_wallet_id:"",deposit_amount:"0",deposit_date:date,payment_method:"TRANSFER",proof_reference:"",notes:""});
   const request=useMemo(()=>({...filter,report_date:filter.report_mode==="period"?filter.date_start:filter.report_date,date_start:filter.report_mode==="period"?filter.date_start:filter.report_date,date_end:filter.report_mode==="period"?filter.date_end:filter.report_date}),[filter]);
   const selectedReport=data.reports.find((item)=>item.report_id===draft.report_id)||null;
@@ -80,7 +84,12 @@ export default function SetoranCabangPage({ session, onSessionExpired, onNavigat
     {label:"Dompet Tangerang",ready:data.destinationWallets.length>0,detail:data.destinationWallets.length?`${data.destinationWallets.length} dompet tujuan`:"Dompet pusat belum tersedia"},
     {label:"Sisa setoran",ready:totalReady>0,detail:totalReady>0?formatRupiah(totalReady):"Tidak ada setoran yang perlu dikirim"},
   ];
-  const canCreate=data.health?.ready&&readiness.every((item)=>item.ready);
+  const readinessReady=data.health?.ready&&readiness.every((item)=>item.ready);
+  const canCreate=!canApprove&&readinessReady;
+  const pendingDeposits=data.deposits.filter((item)=>["PENDING_OWNER","REJECTED"].includes(String(item.status||"").toUpperCase()));
+  const visibleDeposits=queueTab==="pending"?pendingDeposits:data.deposits;
+  const pendingReview=data.deposits.find((item)=>String(item.status||"").toUpperCase()==="PENDING_OWNER")||null;
+  const selectedLocation=data.locations.find((item)=>item.location_code===filter.location_code)||null;
 
   const applyDefaults=(next)=>{
     const firstReport=next.reports.find((item)=>reportRemaining(item)>0)||next.reports[0]||null;
@@ -101,7 +110,7 @@ export default function SetoranCabangPage({ session, onSessionExpired, onNavigat
       if(!result?.success)return setError(result?.message||"Gagal membaca setoran cabang.");
       const next=normalize(result.data||result);
       setData(next);applyDefaults(next);
-      if(!filter.location_code&&next.locations[0]?.location_code){setFilter((value)=>({...value,location_code:next.locations[0].location_code}));}
+      if(!filter.location_code&&next.locations[0]?.location_code){setFilter((value)=>({...value,location_code:next.locations[0].location_code}));storeBranchLocation(next.locations[0].location_code);}
     }catch(err){setError(err?.message||"Gagal membaca setoran cabang.");}
     finally{setLoading(false);}
   };
@@ -144,22 +153,37 @@ export default function SetoranCabangPage({ session, onSessionExpired, onNavigat
     finally{setSaving(false);}
   };
 
+  const renderPrimaryAction=()=>{
+    if(canApprove){
+      if(pendingReview){
+        return <Button variant="primary" onClick={()=>{setSelected(pendingReview);setReviewNote("");}} disabled={loading}><CheckCircle2 size={16}/> Review Setoran</Button>;
+      }
+      return <Button variant="ghost" disabled><Wallet size={16}/> Menunggu Setoran Cabang</Button>;
+    }
+    return <Button variant="primary" onClick={openCreate} disabled={!canCreate}><Send size={16}/> Ajukan Setoran</Button>;
+  };
+
+  const headerTitle=canApprove&&selectedLocation?.location_name?`Setoran Cabang — ${selectedLocation.location_name}`:"Setoran Cabang";
+  const headerDescription=canApprove
+    ? `Pantau dan validasi setoran ${selectedLocation?.location_name||"cabang"}. Setoran dibuat oleh akun cabang dari laporan yang sudah disetujui.`
+    : "Ajukan dana cabang berdasarkan laporan yang sudah disetujui pusat. Saldo berpindah hanya setelah validasi Owner/HO.";
+
   return <div className="da-page-stack da-branch-page">
     <PageHeader
-      title="Setoran Cabang"
-      description="Kirim dana cabang berdasarkan laporan yang sudah disetujui. Validasi Tangerang memindahkan saldo cabang ke pusat tanpa membuat omzet baru."
-      eyebrow="Cabang · Settlement"
+      title={headerTitle}
+      description={headerDescription}
+      eyebrow={canApprove?"Cabang · Validasi Pusat":"Cabang · Setoran"}
       actions={<>
         <BranchFlowButton current="deposit" onNavigate={onNavigate}/>
         <Button variant="ghost" onClick={load} disabled={loading}><RefreshCw size={16}/>{loading?"Memuat...":"Perbarui"}</Button>
-        <Button variant="primary" onClick={openCreate} disabled={!canCreate}><Send size={16}/> Ajukan Setoran</Button>
+        {renderPrimaryAction()}
       </>}
     />
 
     <div className="da-branch-filterbar">
       <label><span>Mode</span><select value={filter.report_mode} onChange={(e)=>setFilter((value)=>({...value,report_mode:e.target.value}))}><option value="daily">Harian</option><option value="period">Periode</option></select></label>
       {filter.report_mode==="period"?<><label><span>Mulai</span><input type="date" value={filter.date_start} onChange={(e)=>setFilter((value)=>({...value,date_start:e.target.value}))}/></label><label><span>Sampai</span><input type="date" value={filter.date_end} onChange={(e)=>setFilter((value)=>({...value,date_end:e.target.value}))}/></label></>:<label><span>Tanggal</span><input type="date" value={filter.report_date} onChange={(e)=>setFilter((value)=>({...value,report_date:e.target.value}))}/></label>}
-      <label className="da-branch-filter-location"><span>Cabang</span><select value={filter.location_code} onChange={(e)=>setFilter((value)=>({...value,location_code:e.target.value}))}>{data.locations.length===0?<option value="">Belum ada cabang aktif</option>:data.locations.map((location)=><option key={location.location_id} value={location.location_code}>{location.location_name} · {location.location_code}</option>)}</select></label>
+      <label className="da-branch-filter-location"><span>Cabang</span><select value={filter.location_code} onChange={(e)=>{const code=e.target.value;setFilter((value)=>({...value,location_code:code}));storeBranchLocation(code);}} disabled={!canApprove}>{data.locations.length===0?<option value="">Belum ada cabang aktif</option>:data.locations.map((location)=><option key={location.location_id} value={location.location_code}>{location.location_name} · {location.location_code}</option>)}</select></label>
       <Button variant="ghost" onClick={load} disabled={loading}>Terapkan</Button>
     </div>
 
@@ -181,18 +205,31 @@ export default function SetoranCabangPage({ session, onSessionExpired, onNavigat
     </section>
 
     <div className="da-branch-workspace">
-      <Card>
-        <div className="da-card-header-row"><div><div className="da-section-kicker">Antrean Settlement</div><h2>Setoran yang Tercatat</h2><p className="da-muted">Klik baris untuk melihat sumber laporan, dompet, dan hasil validasi.</p></div><Badge tone="default">{data.deposits.length} setoran</Badge></div>
-        <DataTable columns={DEPOSIT_COLUMNS} rows={data.deposits} getRowKey={(row)=>row.deposit_id} onRowClick={(row)=>{setSelected(row);setReviewNote("");}}/>
+      <Card className="da-branch-settlement-card">
+        <div className="da-card-header-row"><div><div className="da-section-kicker">Antrean Setoran</div><h2>{queueTab==="pending"?"Perlu Diproses":"Riwayat Setoran"}</h2><p className="da-muted">Klik baris untuk melihat sumber laporan, dompet, dan hasil validasi.</p></div><Badge tone="default">{queueTab==="pending"?pendingDeposits.length:data.deposits.length} setoran</Badge></div>
+        <div className="da-branch-tabs" role="tablist" aria-label="Filter setoran">
+          <button type="button" className={queueTab==="pending"?"is-active":""} onClick={()=>setQueueTab("pending")}>Perlu Diproses <span>{pendingDeposits.length}</span></button>
+          <button type="button" className={queueTab==="history"?"is-active":""} onClick={()=>setQueueTab("history")}>Riwayat <span>{data.deposits.length}</span></button>
+        </div>
+        {visibleDeposits.length?(
+          <DataTable columns={DEPOSIT_COLUMNS} rows={visibleDeposits} getRowKey={(row)=>row.deposit_id} onRowClick={(row)=>{setSelected(row);setReviewNote("");}}/>
+        ):(
+          <div className="da-branch-empty-state"><Wallet size={24}/><strong>{queueTab==="pending"?"Tidak ada setoran yang perlu diproses":"Belum ada riwayat setoran"}</strong><span>{canApprove?"Setoran dari cabang akan muncul di sini setelah diajukan.":"Setoran akan tercatat setelah laporan disetujui dan dana diajukan ke pusat."}</span></div>
+        )}
       </Card>
 
-      <Card className="da-branch-readiness-card">
+      <Card className={`da-branch-readiness-card ${readinessReady?"is-all-ready":""}`}>
         <div className="da-section-kicker">Kesiapan Setoran</div>
-        <h2>{canCreate?"Siap diajukan":"Lengkapi sebelum setoran"}</h2>
-        <p className="da-muted">Sistem memeriksa laporan, dompet sumber, dompet tujuan, dan sisa nominal.</p>
-        <div className="da-branch-readiness-list">
-          {readiness.map((item)=><div key={item.label} className={item.ready?"is-ready":"is-waiting"}>{item.ready?<CheckCircle2 size={18}/>:<AlertCircle size={18}/>}<div><strong>{item.label}</strong><span>{item.detail}</span></div></div>)}
-        </div>
+        {readinessReady?<>
+          <div className="da-branch-ready-compact"><CheckCircle2 size={22}/><div><strong>{canApprove?"Syarat setoran lengkap":"Siap diajukan"}</strong><span>{canApprove?"Cabang memiliki laporan dan dompet yang siap untuk proses setoran.":"Laporan, dompet, dan sisa nominal sudah lengkap."}</span></div></div>
+          <div className="da-branch-ready-stats"><span>Laporan siap <strong>{data.reports.length}</strong></span><span>Sisa <strong>{formatRupiah(totalReady)}</strong></span></div>
+        </>:<>
+          <h2>{canApprove?"Menunggu kesiapan cabang":"Lengkapi sebelum setoran"}</h2>
+          <p className="da-muted">Sistem memeriksa laporan, dompet sumber, dompet tujuan, dan sisa nominal.</p>
+          <div className="da-branch-readiness-list">
+            {readiness.map((item)=><div key={item.label} className={item.ready?"is-ready":"is-waiting"}>{item.ready?<CheckCircle2 size={18}/>:<AlertCircle size={18}/>}<div><strong>{item.label}</strong><span>{item.detail}</span></div></div>)}
+          </div>
+        </>}
         {!data.reports.length&&onNavigate?<Button variant="ghost" onClick={()=>onNavigate("laporan-harian")}>Buka Laporan Harian <ArrowRight size={15}/></Button>:null}
       </Card>
     </div>
@@ -214,7 +251,7 @@ export default function SetoranCabangPage({ session, onSessionExpired, onNavigat
       </div>
       <label className="da-modal-note"><span>Catatan / Selisih</span><textarea rows="3" value={draft.notes} onChange={(e)=>setDraft((value)=>({...value,notes:e.target.value}))} placeholder="Wajib diisi jika nominal berbeda dari sisa laporan."/></label>
       <div className="da-branch-transfer-preview"><div><Wallet size={18}/><span>{source?.name||"Dompet cabang"}</span><strong>OUT {formatRupiah(num(draft.deposit_amount))}</strong></div><ArrowRight size={18}/><div><Landmark size={18}/><span>{destination?.name||"Dompet Tangerang"}</span><strong>IN {formatRupiah(num(draft.deposit_amount))}</strong></div></div>
-      <div className="da-form-actions"><Button variant="ghost" onClick={()=>setCreateOpen(false)} disabled={saving}>Batal</Button><Button variant="primary" onClick={create} disabled={saving}>{saving?"Mengirim...":"Ajukan ke Tangerang"}</Button></div>
+      <div className="da-form-actions"><Button variant="ghost" onClick={()=>setCreateOpen(false)} disabled={saving}>Batal</Button><Button variant="primary" onClick={create} disabled={saving}>{saving?"Mengirim...":"Ajukan ke Pusat"}</Button></div>
     </Modal>
 
     <Modal open={Boolean(selected)} title="Detail Setoran Cabang" subtitle={selected?.deposit_id||""} onClose={()=>{setSelected(null);setReviewNote("");}} size="xl">
