@@ -266,7 +266,7 @@ export default function PayrollFinalPanel({
   async function printSlip(row = selectedRun || preview) {
     if (!row) return setError("Preview atau pilih payroll terlebih dahulu.");
     const printable = { ...row, employee_name_snapshot: row.employee_name_snapshot || selectedEmployee?.employee_name, location_name_snapshot: row.location_name_snapshot || selectedEmployee?.location_name_snapshot };
-    await recordPrint(row, printable?.absence_notice?.enabled ? "SLIP_AND_NOTICE_A5" : "SLIP_A5", printable);
+    await recordPrint(row, printable?.absence_notice?.enabled ? "SLIP_GAJI_DAN_SURAT" : "SLIP_GAJI", printable);
     printPayrollSlipV32(printable);
   }
 
@@ -402,7 +402,7 @@ export default function PayrollFinalPanel({
           <div className="da-form-actions" style={{display:"flex",gap:7,flexWrap:"wrap"}}>
             <Button variant="secondary" onClick={previewServer} disabled={saving || !form.employee_id}>Cek THP Backend</Button>
             <Button onClick={saveDraft} disabled={saving || !form.employee_id}>Simpan Draft</Button>
-            <Button variant="secondary" onClick={() => printSlip()} disabled={!preview}>Cetak Slip A5</Button>
+            <Button variant="secondary" onClick={() => printSlip()} disabled={!preview}>Cetak Slip Gaji</Button>
             <Button onClick={closePayroll} disabled={saving || !form.payroll_run_id || String(selectedRun?.status).toUpperCase() === "CLOSED"}>Closing Payroll</Button>
             <Button variant="secondary" onClick={resetForm}>Reset</Button>
           </div>
