@@ -525,37 +525,71 @@ export async function getArchiveUniversalBootstrap(sessionToken, payload = {}) {
   const result = await phpApiRequest("searchArchive", {
     q: payload.query || payload.keyword || payload.search || "",
     module: payload.source_module || payload.module || "",
+    status: payload.status || "",
+    date_from: payload.date_from || "",
+    date_to: payload.date_to || "",
     limit: payload.limit || 50,
-    offset: 0,
+    offset: Number(payload.offset || 0),
   }, sessionToken);
 
   if (!result.success) return result;
   const items = result.data?.items || result.data?.results || [];
-  const moduleCounts = new Map();
+  const localModuleCounts = new Map();
 
   const rows = items.map((row) => {
     const module = row.module || row.source_module || "TRANSAKSI";
-    moduleCounts.set(module, (moduleCounts.get(module) || 0) + 1);
+    localModuleCounts.set(module, (localModuleCounts.get(module) || 0) + 1);
     return {
       ...row,
       source_id: row.transaction_id || row.source_id || row.archive_id,
       source_module: module,
+      source_label: row.source_label || module,
       date: row.transaction_date || row.created_at,
+      description: row.summary || row.description || "",
       reference_number: row.transaction_id || row.archive_id,
     };
   });
 
+  const backendModuleStats = Array.isArray(result.data?.module_stats)
+    ? result.data.module_stats.map((row) => ({
+        ...row,
+        source_module: row.source_module || row.module || "TRANSAKSI",
+        source_label: row.source_label || row.source_module || row.module || "TRANSAKSI",
+        count: Number(row.count || 0),
+      }))
+    : [];
+
+  const moduleStats = backendModuleStats.length
+    ? backendModuleStats
+    : Array.from(localModuleCounts.entries()).map(([module, count]) => ({
+        source_module: module,
+        source_label: module,
+        count,
+      }));
+
+  const backendSummary = result.data?.summary || {};
+  const pagination = result.data?.pagination || {};
+
   return {
     ...result,
     data: {
+      ...result.data,
       results: rows,
       recent_records: rows,
       summary: {
-        total_records: Number(result.data?.pagination?.total || rows.length),
-        filtered_records: rows.length,
-        modules_count: moduleCounts.size,
+        ...backendSummary,
+        total_records: Number(backendSummary.total_records ?? pagination.total ?? rows.length),
+        filtered_records: Number(backendSummary.filtered_records ?? rows.length),
+        modules_count: Number(backendSummary.modules_count ?? moduleStats.length),
+        rows_without_transaction_id: Number(backendSummary.rows_without_transaction_id || 0),
       },
-      module_stats: Array.from(moduleCounts.entries()).map(([module, count]) => ({ module, count })),
+      module_stats: moduleStats,
+      status_stats: Array.isArray(result.data?.status_stats) ? result.data.status_stats : [],
+      pagination: {
+        total: Number(pagination.total || 0),
+        limit: Number(pagination.limit || payload.limit || 50),
+        offset: Number(pagination.offset || payload.offset || 0),
+      },
     },
   };
 }
@@ -576,8 +610,48 @@ export async function getArchiveUniversalDetail(sessionToken, payload = {}) {
   if (!result.success) return result;
   const data = result.data || {};
   const archive = data.archive || data.main || {};
-  const links = [...(data.outgoing_links || []), ...(data.incoming_links || [])];
-  const audits = data.timeline || data.audit_trail || [];
+  const outgoing = Array.isArray(data.links?.outgoing)
+    ? data.links.outgoing
+    : Array.isArray(data.outgoing_links)
+      ? data.outgoing_links
+      : [];
+  const incoming = Array.isArray(data.links?.incoming)
+    ? data.links.incoming
+    : Array.isArray(data.incoming_links)
+      ? data.incoming_links
+      : [];
+
+  const normalizeLink = (row, direction) => {
+    const sourceId = direction === "out"
+      ? row.to_transaction_id
+      : row.from_transaction_id;
+    return {
+      ...row,
+      source_id: sourceId || row.transaction_id || row.source_id || "",
+      source_module: row.linked_module || row.source_module || row.module || "TRANSAKSI",
+      source_label: row.linked_module || row.source_label || row.source_module || row.module || "TRANSAKSI",
+      date: row.linked_transaction_date || row.created_at,
+      title: row.linked_title || row.title || row.relationship_type || "Transaksi terkait",
+      description: row.notes || row.description || "",
+      status: row.linked_status || row.status || "TERCATAT",
+      amount: Number(row.linked_amount ?? row.amount ?? 0),
+      currency: row.linked_currency || row.currency || "IDR",
+      relationship_direction: direction,
+      relationship_type: row.relationship_type || "RELATED_TO",
+    };
+  };
+
+  const relatedRecords = [
+    ...outgoing.map((row) => normalizeLink(row, "out")),
+    ...incoming.map((row) => normalizeLink(row, "in")),
+  ].filter((row) => row.source_id);
+
+  const relationIds = Array.from(new Set(relatedRecords.map((row) => row.source_id).filter(Boolean)));
+  const audits = Array.isArray(data.timeline)
+    ? data.timeline
+    : Array.isArray(data.audit_trail)
+      ? data.audit_trail
+      : [];
 
   return {
     ...result,
@@ -587,13 +661,17 @@ export async function getArchiveUniversalDetail(sessionToken, payload = {}) {
         ...archive,
         source_id: archive.transaction_id || transactionId,
         source_module: archive.module || archive.source_module,
+        source_label: archive.module || archive.source_label || archive.source_module,
         date: archive.transaction_date || archive.created_at,
+        description: archive.summary || archive.description || "",
         reference_number: archive.transaction_id || archive.archive_id,
+        raw: archive.snapshot || archive.raw || archive.record || {},
       },
-      relation_ids: links,
-      related_records: links,
-      timeline: [...links, ...audits],
+      relation_ids: relationIds,
+      related_records: relatedRecords,
+      timeline: relatedRecords,
       audit_trail: audits,
+      attachments: Array.isArray(data.attachments) ? data.attachments : [],
     },
   };
 }
