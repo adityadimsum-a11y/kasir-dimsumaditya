@@ -63,9 +63,16 @@ export default function App() {
   }, [allowedMenuGroups]);
 
   useEffect(() => {
+    const allowedKeys = new Set(flatPages.map((item) => item.key));
+    const canOpen = (pageKey) => Boolean(pageKey && allowedKeys.has(pageKey));
+
     const applyFocus = (event) => {
       const nextFocus = event?.detail || readFocusFromLocation();
       if (!nextFocus?.pageKey) return;
+      if (!canOpen(nextFocus.pageKey)) {
+        clearFocusUrl();
+        return;
+      }
 
       setFocusRequest({ ...nextFocus, createdAt: Date.now() });
       setActivePage(nextFocus.pageKey);
@@ -73,11 +80,12 @@ export default function App() {
 
     const handlePopState = () => {
       const nextFocus = readFocusFromLocation();
-      if (nextFocus?.pageKey) {
+      if (nextFocus?.pageKey && canOpen(nextFocus.pageKey)) {
         setFocusRequest({ ...nextFocus, createdAt: Date.now() });
         setActivePage(nextFocus.pageKey);
       } else {
         setFocusRequest(null);
+        if (nextFocus?.pageKey) clearFocusUrl();
       }
     };
 
@@ -88,7 +96,16 @@ export default function App() {
       window.removeEventListener(FOCUS_EVENT_NAME, applyFocus);
       window.removeEventListener("popstate", handlePopState);
     };
-  }, []);
+  }, [flatPages]);
+
+  useEffect(() => {
+    if (!session || !flatPages.length) return;
+    if (flatPages.some((item) => item.key === activePage)) return;
+
+    setFocusRequest(null);
+    clearFocusUrl();
+    setActivePage(flatPages[0]?.key || "papan-pusat");
+  }, [session, flatPages, activePage]);
 
   const selectedPage = PAGE_META[activePage] || PAGE_META["papan-pusat"];
 
@@ -329,7 +346,6 @@ export default function App() {
       return (
         <LaporanHarianPage
           {...pageProps}
-          onNavigate={handleChangePage}
         />
       );
     }
@@ -339,7 +355,6 @@ export default function App() {
       return (
         <SetoranCabangPage
           {...pageProps}
-          onNavigate={handleChangePage}
         />
       );
     }
