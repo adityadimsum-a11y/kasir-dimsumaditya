@@ -21,6 +21,14 @@ function safeText(value, fallback = "-") {
   return text || fallback;
 }
 
+function localDateString() {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function isAuthRequired(result) {
   const message = String(
     result?.message || result?.error?.message || ""
@@ -41,7 +49,7 @@ function isAuthRequired(result) {
 function statusLabel(status) {
   switch (String(status || "").toUpperCase()) {
     case "READY_FOR_CONTROLLED_LIVE":
-      return "Siap Live Terkontrol";
+      return "Siap Digunakan";
     case "WAITING_ORDER_STOCK":
       return "Menunggu Stok Ready";
     case "WAITING_OFFICIAL_PRICE":
@@ -84,7 +92,7 @@ export default function PricingCutoverPanel({
     setError("");
 
     const result = await getPricingCutoverReadiness(sessionToken, {
-      price_date: new Date().toISOString().slice(0, 10),
+      price_date: localDateString(),
       source: "frontend_part_2e_pricing_cutover_readiness",
     });
 
@@ -97,7 +105,7 @@ export default function PricingCutoverPanel({
       setReadiness(null);
       setError(
         result.message ||
-          "Gagal membaca kesiapan cutover harga."
+          "Gagal membaca kesiapan harga dan stok."
       );
       setLoading(false);
       return;
@@ -225,9 +233,9 @@ export default function PricingCutoverPanel({
           <Badge tone={statusTone(currentStatus)}>
             {statusLabel(currentStatus)}
           </Badge>
-          <Badge tone="success">Read Only</Badge>
+          <Badge tone="success">Pantau</Badge>
           <Button type="button" onClick={loadData} disabled={loading}>
-            {loading ? "Mengecek..." : "Refresh Readiness"}
+            {loading ? "Mengecek..." : "Perbarui"}
           </Button>
         </div>
       </div>
@@ -250,10 +258,10 @@ export default function PricingCutoverPanel({
           label="Pondasi Harga"
           value={readyForPriceEntry ? "SIAP" : "BELUM"}
           tone={readyForPriceEntry ? "success" : "warning"}
-          description="Migration 014, 015, Pricing Engine, dan Server Price Lock."
+          description="Komponen harga resmi tersedia dan dapat dipakai transaksi."
         />
         <StatCard
-          label="Rule Harga Aktif"
+          label="Aturan Harga Aktif"
           value={numberValue(counts.active_valid_price_rules).toLocaleString("id-ID")}
           tone={numberValue(counts.active_valid_price_rules) > 0 ? "success" : "warning"}
           description="Harga resmi yang berlaku pada tanggal pemeriksaan."
@@ -261,10 +269,10 @@ export default function PricingCutoverPanel({
         <StatCard
           label="Kombinasi Siap Harga"
           value={`${numberValue(counts.price_ready_combinations).toLocaleString("id-ID")} / ${numberValue(counts.product_location_combinations).toLocaleString("id-ID")}`}
-          description="Produk dan lokasi yang sudah dapat di-resolve Kasir."
+          description="Produk dan lokasi yang sudah memiliki harga yang dapat dipilih kasir."
         />
         <StatCard
-          label="Kasir Siap Live"
+          label="Kasir Siap Digunakan"
           value={readyForOrderLive ? "SIAP" : "DIBLOKIR"}
           tone={readyForOrderLive ? "success" : "warning"}
           description="Membutuhkan harga resmi aktif dan stok bebas."
