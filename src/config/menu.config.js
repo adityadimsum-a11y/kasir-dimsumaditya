@@ -132,37 +132,43 @@ export const MENU_GROUPS = [
   {
     key: "hrd-payroll",
     title: "HRD & Payroll",
-    visibleFor: ["OWNER", "TANGERANG"],
+    visibleFor: ["OWNER", "TANGERANG", "PEMALANG", "CIBINONG"],
     defaultOpen: false,
     items: [
       {
         key: "hrd-dashboard",
         label: "Dashboard HRD",
+        visibleFor: ["OWNER", "TANGERANG", "PEMALANG", "CIBINONG"],
         description: "Ringkasan karyawan, absensi, kasbon, cicilan, payroll, dan status closing.",
       },
       {
         key: "hrd-employees",
         label: "Data Karyawan",
+        visibleFor: ["OWNER", "TANGERANG", "PEMALANG", "CIBINONG"],
         description: "Profil karyawan, lokasi, jadwal gajian, status kerja, dan riwayat personal.",
       },
       {
         key: "hrd-attendance",
         label: "Absensi & Izin",
+        visibleFor: ["OWNER", "TANGERANG", "PEMALANG", "CIBINONG"],
         description: "Kehadiran, izin, sakit, cuti, tidak masuk, lembur, dan dampak payroll.",
       },
       {
         key: "hrd-loans",
         label: "Kasbon & Cicilan",
+        visibleFor: ["OWNER", "TANGERANG", "PEMALANG", "CIBINONG"],
         description: "Kasbon bulanan, pinjaman panjang, cicilan, limit, dan saldo outstanding.",
       },
       {
         key: "hrd-payroll",
         label: "Payroll & Slip Gaji",
-        description: "Proses gaji, slip A5, closing payroll, dan pembayaran karyawan.",
+        visibleFor: ["OWNER", "TANGERANG"],
+        description: "Proses gaji, slip gaji, closing payroll, dan pembayaran karyawan.",
       },
       {
         key: "hrd-payroll-report",
         label: "Rekap Payroll",
+        visibleFor: ["OWNER", "TANGERANG"],
         description: "Rekap payroll per periode/lokasi, status closing, histori, dan cetak A4.",
       },
     ],
