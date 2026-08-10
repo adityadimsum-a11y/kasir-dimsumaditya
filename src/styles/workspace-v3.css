@@ -1906,3 +1906,335 @@ button.da-owner-overview-card-v4:hover { transform:translateY(-2px);border-color
   .da-app-v3 .da-master-tabs{grid-template-columns:1fr;}
   .da-app-v3 .da-master-modal-actions,.da-app-v3 .da-modal-sticky-actions{grid-template-columns:1fr;}
 }
+
+/* ================================================================
+   PACKAGE 15A — MASTER DATA VISUAL PRECISION
+   Neutral-first palette, collision-safe overview, refined modal rhythm
+   ================================================================ */
+.da-app-v3 .da-registry-overview{
+  display:grid;
+  grid-template-columns:minmax(330px,1.05fr) minmax(0,1.35fr);
+  overflow:hidden;
+  border:1px solid #e4e7ec;
+  border-radius:18px;
+  background:#fff;
+  box-shadow:0 10px 28px rgba(16,24,40,.04);
+}
+.da-app-v3 .da-registry-overview-main{
+  position:relative;
+  display:grid;
+  grid-template-columns:46px minmax(0,1fr) auto;
+  gap:13px;
+  align-items:center;
+  min-height:118px;
+  padding:20px 22px;
+  border-right:1px solid #eef0f3;
+  background:linear-gradient(145deg,#ffffff 0%,#fbfcfd 100%);
+  color:#101828;
+}
+.da-app-v3 .da-registry-overview-main:before{
+  content:"";
+  position:absolute;
+  left:0;
+  top:20px;
+  bottom:20px;
+  width:3px;
+  border-radius:0 999px 999px 0;
+  background:#d92d20;
+}
+.da-app-v3 .da-registry-overview-icon{
+  display:grid;
+  place-items:center;
+  width:46px;
+  height:46px;
+  border:1px solid #ffd8d4;
+  border-radius:14px;
+  background:#fff3f1;
+  color:#d92d20;
+}
+.da-app-v3 .da-registry-overview-copy{
+  display:flex;
+  min-width:0;
+  flex-direction:column;
+  gap:4px;
+}
+.da-app-v3 .da-registry-overview-copy>span{
+  font-size:8.5px;
+  font-weight:900;
+  letter-spacing:.075em;
+  text-transform:uppercase;
+  color:#b42318;
+}
+.da-app-v3 .da-registry-overview-copy>strong{
+  font-size:34px;
+  line-height:1;
+  font-weight:950;
+  letter-spacing:-.04em;
+  color:#101828;
+}
+.da-app-v3 .da-registry-overview-copy>small{
+  font-size:9.2px;
+  line-height:1.45;
+  color:#667085;
+}
+.da-app-v3 .da-registry-overview-main>.da-badge{
+  align-self:start;
+  border-color:#ccebd8;
+  background:#effaf3;
+  color:#08783c;
+}
+.da-app-v3 .da-registry-overview-metrics{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  min-width:0;
+  background:#fff;
+}
+.da-app-v3 .da-registry-overview-metrics>div{
+  display:flex;
+  min-width:0;
+  flex-direction:column;
+  justify-content:center;
+  gap:7px;
+  padding:19px 18px;
+  border-left:1px solid #eef0f3;
+}
+.da-app-v3 .da-registry-overview-metrics>div:first-child{border-left:0;}
+.da-app-v3 .da-registry-overview-metrics span{
+  font-size:8.5px;
+  font-weight:850;
+  line-height:1.35;
+  text-transform:uppercase;
+  letter-spacing:.045em;
+  color:#98a2b3;
+}
+.da-app-v3 .da-registry-overview-metrics strong{
+  overflow:hidden;
+  font-size:18px;
+  line-height:1.15;
+  font-weight:950;
+  color:#101828;
+  text-overflow:ellipsis;
+}
+
+/* Tabs are intentionally flatter so the workspace does not look nested/template-heavy. */
+.da-app-v3 .da-master-tabs{
+  display:flex;
+  justify-self:stretch;
+  gap:22px;
+  width:100%;
+  padding:0;
+  border:0;
+  border-bottom:1px solid #e4e7ec;
+  border-radius:0;
+  background:transparent;
+}
+.da-app-v3 .da-master-tabs button{
+  position:relative;
+  min-height:39px;
+  padding:0 1px 10px;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  color:#667085;
+  font:inherit;
+  font-size:10px;
+  font-weight:850;
+  cursor:pointer;
+  transition:color .16s ease;
+}
+.da-app-v3 .da-master-tabs button:hover{background:transparent;color:#344054;}
+.da-app-v3 .da-master-tabs button.is-active{
+  background:transparent;
+  color:#b42318;
+  box-shadow:none;
+}
+.da-app-v3 .da-master-tabs button.is-active:after{
+  content:"";
+  position:absolute;
+  left:0;
+  right:0;
+  bottom:-1px;
+  height:2px;
+  border-radius:999px;
+  background:#d92d20;
+}
+
+/* Master workspace: cleaner lines and less card-on-card visual noise. */
+.da-app-v3 .da-master-workspace{gap:16px;}
+.da-app-v3 .da-master-list-card{
+  border-color:#e4e7ec;
+  box-shadow:0 8px 22px rgba(16,24,40,.032);
+}
+.da-app-v3 .da-master-side{gap:12px;}
+.da-app-v3 .da-master-side>.da-card{
+  border-color:#e6e9ee;
+  background:#fbfcfd;
+  box-shadow:none;
+}
+.da-app-v3 .da-master-side .da-section-heading{padding-bottom:10px;border-bottom:1px solid #eceef2;}
+.da-app-v3 .da-master-quality-list>div{
+  padding:9px 10px;
+  border-color:#e9ebef;
+  border-radius:9px;
+  background:#fff;
+}
+.da-app-v3 .da-master-rule-note{
+  border-left-color:#e7a818;
+  background:#fffaf0;
+  color:#765916;
+}
+.da-app-v3 .da-master-search{height:40px;border-color:#dfe3e8;border-radius:10px;background:#fbfcfd;}
+.da-app-v3 .da-master-status-filter{border-color:#e4e7ec;background:#f6f7f9;}
+.da-app-v3 .da-master-list-card .da-table{border-color:#e4e7ec;}
+.da-app-v3 .da-master-list-card .da-table th{background:#f8f9fb;border-bottom-color:#e4e7ec;}
+.da-app-v3 .da-master-list-card .da-table td{border-bottom-color:#eef0f3;}
+
+/* Create/edit modal — precise field rhythm and reliable sticky actions. */
+.da-app-v3 .da-master-form-modal{gap:16px;}
+.da-app-v3 .da-master-form-intro{
+  padding:12px 13px;
+  border:0;
+  border-left:3px solid #d92d20;
+  border-radius:10px;
+  background:#f8f9fb;
+}
+.da-app-v3 .da-master-form-icon{
+  width:36px;
+  height:36px;
+  border:1px solid #ffd8d4;
+  border-radius:10px;
+  background:#fff3f1;
+  color:#d92d20;
+}
+.da-app-v3 .da-master-form-grid{gap:14px 16px;}
+.da-app-v3 .da-master-form-grid .da-field{gap:6px;}
+.da-app-v3 .da-master-form-grid .da-field>input,
+.da-app-v3 .da-master-form-grid .da-field>select,
+.da-app-v3 .da-master-form-grid .da-field>textarea{
+  min-height:42px;
+  border-color:#dfe3e8;
+  border-radius:10px;
+  background:#fff;
+}
+.da-app-v3 .da-master-form-grid .da-field>input:focus,
+.da-app-v3 .da-master-form-grid .da-field>select:focus,
+.da-app-v3 .da-master-form-grid .da-field>textarea:focus{
+  border-color:#e78b83;
+  box-shadow:0 0 0 3px rgba(217,45,32,.07);
+}
+.da-app-v3 .da-master-form-grid .da-field small{line-height:1.45;}
+.da-app-v3 .da-master-modal-actions,
+.da-app-v3 .da-master-detail-actions,
+.da-app-v3 .da-master-confirm-actions{
+  bottom:0;
+  z-index:40;
+  margin:8px -16px -16px;
+  padding:12px 16px max(12px,env(safe-area-inset-bottom));
+  border-top:1px solid #e4e7ec;
+  background:rgba(255,255,255,.98);
+  backdrop-filter:blur(12px);
+  box-shadow:0 -8px 20px rgba(16,24,40,.045);
+}
+
+/* Detail modal: fewer competing borders, stronger information hierarchy. */
+.da-app-v3 .da-master-detail{gap:13px;}
+.da-app-v3 .da-master-detail-head{
+  padding:14px 15px;
+  border-color:#e4e7ec;
+  border-radius:12px;
+  background:#fbfcfd;
+}
+.da-app-v3 .da-master-detail-head h2{font-size:19px;}
+.da-app-v3 .da-master-usage-grid{gap:8px;}
+.da-app-v3 .da-master-usage-grid>div{
+  grid-template-columns:30px minmax(0,1fr);
+  padding:10px 11px;
+  border-color:#e6e9ee;
+  border-radius:10px;
+  background:#fff;
+}
+.da-app-v3 .da-master-usage-grid svg{
+  width:30px;
+  height:30px;
+  padding:7px;
+  border-radius:9px;
+  background:#fff3f1;
+  color:#d92d20;
+}
+.da-app-v3 .da-master-detail-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+.da-app-v3 .da-master-detail-grid>div{
+  display:grid;
+  grid-template-columns:minmax(92px,.72fr) minmax(0,1fr);
+  align-items:center;
+  gap:10px;
+  padding:10px 11px;
+  border:0;
+  border-bottom:1px solid #eceef2;
+  border-radius:0;
+  background:#fff;
+}
+.da-app-v3 .da-master-detail-grid span{font-size:8.2px;color:#98a2b3;}
+.da-app-v3 .da-master-detail-grid strong{text-align:right;color:#344054;}
+.da-app-v3 .da-master-dependency-alert{border-color:#f0c8c4;border-radius:10px;background:#fff7f6;}
+
+/* Master-specific modal sizing/readability. */
+.da-app-v3 .da-modal:has(.da-master-form-modal),
+.da-app-v3 .da-modal:has(.da-master-detail){
+  width:min(900px,calc(100vw - 48px))!important;
+  max-width:900px!important;
+  border-radius:18px!important;
+}
+.da-app-v3 .da-modal:has(.da-master-status-confirm){
+  width:min(560px,calc(100vw - 48px))!important;
+  max-width:560px!important;
+}
+.da-app-v3 .da-modal:has(.da-master-form-modal) .da-modal-header,
+.da-app-v3 .da-modal:has(.da-master-detail) .da-modal-header,
+.da-app-v3 .da-modal:has(.da-master-status-confirm) .da-modal-header{
+  min-height:64px;
+  padding:12px 16px;
+  border-bottom-color:#e4e7ec;
+}
+.da-app-v3 .da-modal:has(.da-master-form-modal) .da-modal-body,
+.da-app-v3 .da-modal:has(.da-master-detail) .da-modal-body,
+.da-app-v3 .da-modal:has(.da-master-status-confirm) .da-modal-body{
+  padding:16px;
+  background:#fff;
+}
+
+@media (max-width:1100px){
+  .da-app-v3 .da-registry-overview{grid-template-columns:1fr;}
+  .da-app-v3 .da-registry-overview-main{border-right:0;border-bottom:1px solid #eef0f3;}
+  .da-app-v3 .da-registry-overview-metrics>div:first-child{border-left:0;}
+}
+@media (max-width:760px){
+  .da-app-v3 .da-registry-overview-metrics{grid-template-columns:repeat(3,minmax(0,1fr));}
+  .da-app-v3 .da-registry-overview-metrics>div{padding:14px 12px;}
+  .da-app-v3 .da-registry-overview-copy>strong{font-size:30px;}
+  .da-app-v3 .da-master-tabs{gap:16px;overflow-x:auto;scrollbar-width:none;}
+  .da-app-v3 .da-master-tabs::-webkit-scrollbar{display:none;}
+  .da-app-v3 .da-master-tabs button{flex:0 0 auto;white-space:nowrap;}
+  .da-app-v3 .da-master-detail-grid{grid-template-columns:1fr;}
+  .da-app-v3 .da-modal:has(.da-master-form-modal),
+  .da-app-v3 .da-modal:has(.da-master-detail),
+  .da-app-v3 .da-modal:has(.da-master-status-confirm){
+    width:100vw!important;
+    max-width:100vw!important;
+    height:100dvh!important;
+    max-height:100dvh!important;
+    border-radius:0!important;
+  }
+}
+@media (max-width:520px){
+  .da-app-v3 .da-registry-overview-main{grid-template-columns:42px minmax(0,1fr);padding:17px 15px;}
+  .da-app-v3 .da-registry-overview-main>.da-badge{grid-column:1/-1;justify-self:start;}
+  .da-app-v3 .da-registry-overview-icon{width:42px;height:42px;}
+  .da-app-v3 .da-registry-overview-metrics{grid-template-columns:1fr;}
+  .da-app-v3 .da-registry-overview-metrics>div{border-left:0;border-top:1px solid #eef0f3;}
+  .da-app-v3 .da-registry-overview-metrics>div:first-child{border-top:0;}
+  .da-app-v3 .da-master-detail-grid>div{grid-template-columns:1fr;gap:4px;}
+  .da-app-v3 .da-master-detail-grid strong{text-align:left;}
+  .da-app-v3 .da-master-modal-actions,
+  .da-app-v3 .da-master-detail-actions,
+  .da-app-v3 .da-master-confirm-actions{grid-template-columns:1fr;}
+}
