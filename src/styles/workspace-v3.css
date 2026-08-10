@@ -3542,3 +3542,142 @@ button.da-owner-overview-card-v4:hover { transform:translateY(-2px);border-color
     box-shadow: none !important;
   }
 }
+
+/* ================================================================
+   PACKAGE 18 — HRD / PAYROLL V32 LIVE WORKSPACE
+   Visual benchmark: Dimsum Aditya Payroll V32 (Inter + Grab-like cards)
+   ================================================================ */
+.da-app-v3 .da-hrd-v3{
+  --hrd-red:#D9251C;
+  --hrd-red-dark:#A11A13;
+  --hrd-red-light:#FF5A50;
+  --hrd-gold:#FCD34D;
+  --hrd-green:#00B14F;
+  --hrd-bg:#F3F4F6;
+  --hrd-line:#E5E7EB;
+  --hrd-muted:#6B7280;
+  gap:18px;
+}
+.da-app-v3 .da-hrd-v3>.da-card{
+  border-color:#e4e7ec;
+  border-radius:20px;
+  box-shadow:0 7px 22px rgba(16,24,40,.035);
+}
+.da-app-v3 .da-hrd-toolbar-v3{
+  align-items:center;
+  min-height:58px;
+}
+.da-app-v3 .da-hrd-toolbar-fields-v3{grid-template-columns:190px 260px;}
+.da-app-v3 .da-hrd-toolbar-v3 .da-field>span{
+  color:#667085;
+  font-size:8.5px;
+  font-weight:850;
+  text-transform:uppercase;
+  letter-spacing:.055em;
+}
+.da-app-v3 .da-hrd-panel-v3{
+  padding:20px;
+  border:1px solid #e4e7ec;
+  border-radius:21px;
+  box-shadow:0 8px 24px rgba(16,24,40,.035);
+}
+.da-app-v3 .da-hrd-panel-head-v3{
+  align-items:center;
+  margin-bottom:15px;
+  padding-bottom:12px;
+  border-bottom:1px solid #eef0f3;
+}
+.da-app-v3 .da-hrd-panel-head-v3 h3{font-size:15px;letter-spacing:-.035em;color:#101828;}
+.da-app-v3 .da-hrd-panel-head-v3 p{font-size:9.7px;line-height:1.5;color:#667085;}
+.da-app-v3 .da-hrd-attention-row-v3{
+  min-height:48px;
+  padding:11px 13px;
+  border-color:#eaecf0;
+  background:#fcfcfd;
+}
+.da-app-v3 .da-hrd-attention-row-v3 strong{font-size:14px;}
+.da-app-v3 .da-payroll-final-v3>.da-stat-grid{
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:11px;
+}
+.da-app-v3 .da-payroll-final-v3>.da-stat-grid .da-stat-card{
+  min-height:108px;
+  border-radius:18px;
+}
+.da-app-v3 .da-payroll-final-v3 .da-hrd-panel-v3{
+  border-radius:20px;
+}
+.da-app-v3 .da-payroll-final-v3 .da-table-wrap{
+  border-radius:14px;
+  overflow:auto;
+}
+.da-app-v3 .da-hrd-modal-form-v3{
+  gap:16px;
+}
+.da-app-v3 .da-hrd-modal-form-v3 .da-modal-summary{
+  border:1px solid #f0d0cd;
+  border-radius:18px;
+  background:linear-gradient(135deg,#fff 0%,#fff8f7 100%);
+  padding:16px 18px;
+}
+.da-app-v3 .da-hrd-modal-form-v3 .da-field input,
+.da-app-v3 .da-hrd-modal-form-v3 .da-field select,
+.da-app-v3 .da-hrd-modal-form-v3 .da-field textarea{
+  min-height:44px;
+  border-radius:12px;
+  border-color:#dfe3e8;
+  background:#f9fafb;
+}
+.da-app-v3 .da-hrd-modal-form-v3 .da-field input:focus,
+.da-app-v3 .da-hrd-modal-form-v3 .da-field select:focus,
+.da-app-v3 .da-hrd-modal-form-v3 .da-field textarea:focus{
+  border-color:#D9251C;
+  background:#fff;
+  box-shadow:0 0 0 3px rgba(217,37,28,.08);
+}
+.da-app-v3 .da-hrd-v3 .da-stat-grid{gap:11px;}
+.da-app-v3 .da-hrd-v3 .da-stat-card{
+  border-radius:18px;
+  border-color:#e4e7ec;
+  box-shadow:0 5px 16px rgba(16,24,40,.025);
+}
+.da-app-v3 .da-hrd-v3 .da-detail-box{
+  border-radius:15px;
+  border-color:#eaecf0;
+  background:#fcfcfd;
+}
+.da-app-v3 .da-hrd-v3 .da-data-table tbody tr{cursor:pointer;}
+.da-app-v3 .da-hrd-v3 .da-data-table tbody tr:hover td{background:#fff8f7;}
+.da-app-v3 .da-hrd-v3 .da-button.da-button--primary{
+  background:#D9251C;
+  border-color:#D9251C;
+}
+.da-app-v3 .da-hrd-v3 .da-button.da-button--primary:hover{background:#A11A13;border-color:#A11A13;}
+.da-app-v3 .da-hrd-modal-form-v3>.da-form-actions{
+  position:sticky;
+  bottom:-12px;
+  z-index:5;
+  margin:3px -12px -12px;
+  padding:12px;
+  border-top:1px solid #e5e7eb;
+  background:rgba(255,255,255,.96);
+  backdrop-filter:blur(10px);
+}
+.da-app-v3 .da-hrd-modal-form-v3>.da-form-actions .da-button{min-width:132px;}
+
+@media (max-width:1100px){
+  .da-app-v3 .da-payroll-final-v3>.da-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+@media (max-width:760px){
+  .da-app-v3 .da-hrd-toolbar-fields-v3{grid-template-columns:1fr;}
+  .da-app-v3 .da-payroll-final-v3>.da-stat-grid{grid-template-columns:1fr 1fr;}
+  .da-app-v3 .da-hrd-panel-v3{padding:15px;border-radius:17px;}
+  .da-app-v3 .da-hrd-panel-head-v3{align-items:flex-start;flex-direction:column;}
+  .da-app-v3 .da-hrd-panel-head-v3>.da-button{width:100%;justify-content:center;}
+  .da-app-v3 .da-hrd-modal-form-v3>.da-form-actions{bottom:-11px;margin:4px -11px -11px;padding:11px 11px max(11px,env(safe-area-inset-bottom));display:grid;grid-template-columns:1fr;}
+  .da-app-v3 .da-hrd-modal-form-v3>.da-form-actions .da-button{width:100%;min-width:0;}
+}
+@media (max-width:520px){
+  .da-app-v3 .da-payroll-final-v3>.da-stat-grid{grid-template-columns:1fr;}
+  .da-app-v3 .da-hrd-v3 .da-stat-grid{grid-template-columns:1fr 1fr!important;}
+}
