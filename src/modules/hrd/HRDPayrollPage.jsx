@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Edit2, Printer, Trash2, UserRound } from "lucide-react";
 import {
   createHRDAttendance,
   createHRDEmployee,
@@ -85,8 +86,8 @@ function NoticeBox({ children, tone = "warning" }) {
 }
 
 function ActionButtons({ children }) { return <div className="da-hrd-row-actions-v4">{children}</div>; }
-function ActionButton({ children, tone = "default", disabled = false, title = "", onClick }) {
-  return <button type="button" className={`da-hrd-action-btn-v4 is-${tone}`} disabled={disabled} title={title} onClick={(event) => { event.stopPropagation(); onClick?.(event); }}>{children}</button>;
+function ActionButton({ children, tone = "default", disabled = false, title = "", onClick, iconOnly = false }) {
+  return <button type="button" className={`da-hrd-action-btn-v4 is-${tone}${iconOnly ? " is-icon" : ""}`} disabled={disabled} title={title} aria-label={title || undefined} onClick={(event) => { event.stopPropagation(); onClick?.(event); }}>{children}</button>;
 }
 
 function PagedDataTable({ columns = [], rows = [], getRowKey, onRowClick, pageSize = 20, resetKey = "" }) {
@@ -280,7 +281,7 @@ export default function HRDPayrollPage({ session, onSessionExpired, viewMode = "
     { key: "advance_balance", label: "Sisa Kasbon", render: (row) => <strong className={row.advance_balance > 0 ? "da-text-danger-v4" : "da-text-success-v4"}>{formatRupiah(row.advance_balance)}</strong> },
     { key: "loan_balance", label: "Sisa Pinjaman", render: (row) => <strong className={row.loan_balance > 0 ? "da-text-danger-v4" : "da-text-success-v4"}>{formatRupiah(row.loan_balance)}</strong> },
     { key: "status", label: "Status", render: (row) => <Badge tone={badgeTone(row.employment_status)}>{row.employment_status}</Badge> },
-    { key: "actions", label: "Aksi", render: (row) => <ActionButtons><ActionButton onClick={() => openEmployeeProfile(row)}>Profil</ActionButton>{fullPayrollAccess ? <ActionButton onClick={() => openEditEmployee(row)}>Edit</ActionButton> : null}{fullPayrollAccess ? <ActionButton tone="danger" onClick={() => deleteEmployee(row)}>Hapus</ActionButton> : null}<ActionButton onClick={() => printHRDEmployeeRecordV32(row.raw || row)}>Print</ActionButton></ActionButtons> },
+    { key: "actions", label: "Aksi", render: (row) => <ActionButtons><ActionButton iconOnly title="Buka profil karyawan" onClick={() => openEmployeeProfile(row)}><UserRound size={14} /></ActionButton>{fullPayrollAccess ? <ActionButton iconOnly title="Edit data karyawan" onClick={() => openEditEmployee(row)}><Edit2 size={14} /></ActionButton> : null}{fullPayrollAccess ? <ActionButton iconOnly tone="danger" title="Hapus / nonaktifkan data karyawan" onClick={() => deleteEmployee(row)}><Trash2 size={14} /></ActionButton> : null}<ActionButton iconOnly title="Print data karyawan" onClick={() => printHRDEmployeeRecordV32(row.raw || row)}><Printer size={14} /></ActionButton></ActionButtons> },
   ];
 
   const attendanceColumns = [
@@ -291,7 +292,7 @@ export default function HRDPayrollPage({ session, onSessionExpired, viewMode = "
     { key: "deduct_salary", label: "Potong Gaji", render: (row) => Number(row.deduct_salary) === 1 ? "Ya" : "Tidak" },
     { key: "overtime_amount", label: "Lembur", render: (row) => formatRupiah(numberValue(row.overtime_amount)) },
     { key: "notes", label: "Catatan" },
-    { key: "actions", label: "Aksi", render: (row) => <ActionButtons><ActionButton onClick={() => openEditAttendance(row)}>Edit</ActionButton><ActionButton tone="danger" onClick={() => deleteAttendance(row)}>Hapus</ActionButton><ActionButton onClick={() => printHRDAttendanceV32(row)}>Print</ActionButton></ActionButtons> },
+    { key: "actions", label: "Aksi", render: (row) => <ActionButtons><ActionButton iconOnly title="Edit absensi / izin" onClick={() => openEditAttendance(row)}><Edit2 size={14} /></ActionButton><ActionButton iconOnly tone="danger" title="Hapus absensi / izin" onClick={() => deleteAttendance(row)}><Trash2 size={14} /></ActionButton><ActionButton iconOnly title="Print catatan absensi" onClick={() => printHRDAttendanceV32(row)}><Printer size={14} /></ActionButton></ActionButtons> },
   ];
 
   const advanceColumns = [
@@ -299,7 +300,7 @@ export default function HRDPayrollPage({ session, onSessionExpired, viewMode = "
     { key: "employee_name", label: "Karyawan", render: (row) => employeeLink(row) },
     { key: "amount", label: "Nominal", render: (row) => <strong>{formatRupiah(numberValue(row.amount))}</strong> },
     { key: "notes", label: "Catatan", render: (row) => <div className="da-hrd-cell-note-v4">{row.notes || "-"}{String(row.source_system || "").includes("DIRECT_SEED") ? <small>Histori lama · nominal terkunci</small> : null}</div> },
-    { key: "actions", label: "Aksi", render: (row) => <ActionButtons><ActionButton disabled={Number(row.locked) === 1} title={Number(row.locked) === 1 ? "Sudah terkunci payroll" : ""} onClick={() => openEditAdvance(row)}>Edit</ActionButton><ActionButton tone="danger" disabled={Number(row.locked) === 1 || String(row.source_system || "").toUpperCase() !== "ERP_LIVE"} title={String(row.source_system || "").toUpperCase() !== "ERP_LIVE" ? "Histori migrasi tidak boleh dihapus" : ""} onClick={() => deleteAdvance(row)}>Hapus</ActionButton><ActionButton onClick={() => printHRDAdvanceV32(row)}>Print</ActionButton></ActionButtons> },
+    { key: "actions", label: "Aksi", render: (row) => <ActionButtons><ActionButton iconOnly disabled={Number(row.locked) === 1} title={Number(row.locked) === 1 ? "Sudah terkunci payroll" : "Edit kasbon"} onClick={() => openEditAdvance(row)}><Edit2 size={14} /></ActionButton><ActionButton iconOnly tone="danger" disabled={Number(row.locked) === 1 || String(row.source_system || "").toUpperCase() !== "ERP_LIVE"} title={String(row.source_system || "").toUpperCase() !== "ERP_LIVE" ? "Histori migrasi tidak boleh dihapus" : Number(row.locked) === 1 ? "Sudah terkunci payroll" : "Hapus kasbon"} onClick={() => deleteAdvance(row)}><Trash2 size={14} /></ActionButton><ActionButton iconOnly title="Print bukti kasbon" onClick={() => printHRDAdvanceV32(row)}><Printer size={14} /></ActionButton></ActionButtons> },
   ];
 
   const loanColumns = [
@@ -308,7 +309,7 @@ export default function HRDPayrollPage({ session, onSessionExpired, viewMode = "
     { key: "remaining_amount", label: "Sisa", render: (row) => <strong>{formatRupiah(numberValue(row.remaining_amount))}</strong> },
     { key: "installment", label: "Cicilan", render: (row) => <div>{formatRupiah(numberValue(row.installment_amount))}<small className="da-muted">{numberValue(row.tenor_paid)} / {numberValue(row.tenor_total)} tenor</small></div> },
     { key: "status", label: "Status", render: (row) => <Badge tone={badgeTone(row.status)}>{row.status}</Badge> },
-    { key: "actions", label: "Aksi", render: (row) => <ActionButtons><ActionButton onClick={() => openEditLoan(row)}>Edit</ActionButton><ActionButton tone="danger" disabled={String(row.source_system || "").toUpperCase() !== "ERP_LIVE" || numberValue(row.tenor_paid) > 0} title={String(row.source_system || "").toUpperCase() !== "ERP_LIVE" ? "Histori migrasi tidak boleh dihapus" : numberValue(row.tenor_paid) > 0 ? "Sudah memiliki cicilan" : ""} onClick={() => deleteLoan(row)}>Hapus</ActionButton><ActionButton onClick={() => printHRDLoanV32(row)}>Print</ActionButton></ActionButtons> },
+    { key: "actions", label: "Aksi", render: (row) => <ActionButtons><ActionButton iconOnly title="Edit pinjaman / cicilan" onClick={() => openEditLoan(row)}><Edit2 size={14} /></ActionButton><ActionButton iconOnly tone="danger" disabled={String(row.source_system || "").toUpperCase() !== "ERP_LIVE" || numberValue(row.tenor_paid) > 0} title={String(row.source_system || "").toUpperCase() !== "ERP_LIVE" ? "Histori migrasi tidak boleh dihapus" : numberValue(row.tenor_paid) > 0 ? "Sudah memiliki cicilan" : "Hapus pinjaman"} onClick={() => deleteLoan(row)}><Trash2 size={14} /></ActionButton><ActionButton iconOnly title="Print bukti pinjaman" onClick={() => printHRDLoanV32(row)}><Printer size={14} /></ActionButton></ActionButtons> },
   ];
 
   const payrollColumns = [
@@ -391,7 +392,7 @@ export default function HRDPayrollPage({ session, onSessionExpired, viewMode = "
 
     <Modal open={Boolean(selectedEmployee)} title="Profil & Riwayat Karyawan" subtitle={`${selectedEmployee?.employee_name || "-"} · ${selectedEmployee?.location_name || ""} · ${selectedEmployee?.position || ""}`} onClose={() => { setSelectedEmployee(null); setEmployeeProfile(null); }} size="xl">
       <div className="da-hrd-profile-shell-v5">
-      <div className="da-hrd-profile-head-v4"><div><span className="da-eyebrow">PROFIL & RIWAYAT KARYAWAN</span><h2>{selectedEmployee?.employee_name}</h2><p>{selectedEmployee?.employee_code} · {selectedEmployee?.location_name} · Gajian tgl {selectedEmployee?.payroll_day || "-"}</p></div><div className="da-hrd-profile-controls-v4"><label><span>Tahun</span><select value={profileYear} onChange={(e)=>setProfileYear(e.target.value)}>{Array.from({length:7},(_,i)=>String(new Date().getFullYear()-i)).map((year)=><option key={year} value={year}>{year}</option>)}</select></label><Button variant="secondary" onClick={() => employeeProfile && printHRDEmployeeProfileV32(employeeProfile)} disabled={!employeeProfile}>Print Profil</Button>{fullPayrollAccess ? <Button variant="secondary" onClick={() => { const row = selectedEmployee; setSelectedEmployee(null); setEmployeeProfile(null); openEditEmployee(row); }}>Edit</Button> : null}</div></div>
+      <div className="da-hrd-profile-head-v4"><div><span className="da-eyebrow">PROFIL & RIWAYAT KARYAWAN</span><h2>{selectedEmployee?.employee_name}</h2><p>{selectedEmployee?.employee_code} · {selectedEmployee?.location_name} · Gajian tgl {selectedEmployee?.payroll_day || "-"}</p></div><div className="da-hrd-profile-controls-v4"><label><span>Tahun</span><select value={profileYear} onChange={(e)=>setProfileYear(e.target.value)}>{Array.from({length:7},(_,i)=>String(new Date().getFullYear()-i)).map((year)=><option key={year} value={year}>{year}</option>)}</select></label><Button className="da-hrd-icon-label-btn-v6" variant="secondary" onClick={() => employeeProfile && printHRDEmployeeProfileV32(employeeProfile)} disabled={!employeeProfile}><Printer size={15} /> Print Profil</Button>{fullPayrollAccess ? <Button className="da-hrd-icon-label-btn-v6" variant="secondary" onClick={() => { const row = selectedEmployee; setSelectedEmployee(null); setEmployeeProfile(null); openEditEmployee(row); }}><Edit2 size={15} /> Edit</Button> : null}</div></div>
       {profileLoading ? <div className="da-hrd-profile-loading-v4">Memuat riwayat karyawan…</div> : null}
       {!profileLoading && employeeProfile ? <>
         <div className="da-hrd-profile-kpis-v4">{fullPayrollAccess ? <><StatCard label={`Gaji Diterima ${profileYear}`} value={formatRupiah(numberValue(employeeProfile?.totals?.salary_received_year))} helper="Hanya payment PAID di tahun terpilih." tone="success" /><StatCard label="Gaji Diterima s.d. Kemarin" value={formatRupiah(numberValue(employeeProfile?.totals?.salary_received_to_yesterday))} helper={`Sampai ${formatDate(employeeProfile?.yesterday)}.`} tone="success" /><StatCard label={`Bonus Dibayar ${profileYear}`} value={formatRupiah(numberValue(employeeProfile?.totals?.bonus_paid_year))} helper="Dari payroll yang sudah dibayar." /><StatCard label={`Lembur Dibayar ${profileYear}`} value={formatRupiah(numberValue(employeeProfile?.totals?.overtime_paid_year))} helper="Dari payroll yang sudah dibayar." /></> : null}<StatCard label="Sisa Kasbon" value={formatRupiah(numberValue(employeeProfile?.totals?.advance_balance))} helper={`Diambil ${profileYear}: ${formatRupiah(numberValue(employeeProfile?.totals?.kasbon_taken_year))}`} tone="warning" /><StatCard label="Sisa Pinjaman" value={formatRupiah(numberValue(employeeProfile?.totals?.loan_balance))} helper={`Cicilan ${profileYear}: ${formatRupiah(numberValue(employeeProfile?.totals?.loan_installments_year))}`} tone="warning" /></div>
