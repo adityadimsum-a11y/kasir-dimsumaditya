@@ -13,7 +13,15 @@ import DataTable from "../../components/ui/DataTable";
 import Modal from "../../components/ui/Modal";
 import StatCard from "../../components/ui/StatCard";
 
-const today = new Date().toISOString().slice(0, 10);
+function localDateString() {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+const today = localDateString();
 
 const initialWalletForm = {
   location_id: "",
@@ -64,7 +72,7 @@ function readinessTone(row) {
 }
 
 function readinessLabel(row) {
-  if (row.cashier_live) return "Kasir Live";
+  if (row.cashier_live) return "Kasir Aktif";
   if (row.ready_for_activation) return "Siap Diaktifkan";
   if (String(row.profile_status || "").toUpperCase() === "SUSPENDED") return "Ditangguhkan";
   return "Belum Siap";
@@ -77,9 +85,11 @@ export default function BranchCommercePanel({ sessionToken, onSessionExpired }) 
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
   const [walletForm, setWalletForm] = useState(initialWalletForm);
+  const [walletOpen, setWalletOpen] = useState(false);
   const [activationRow, setActivationRow] = useState(null);
   const [activationText, setActivationText] = useState("");
   const [activationNotes, setActivationNotes] = useState("");
+  const [suspendRow, setSuspendRow] = useState(null);
 
   const locations = useMemo(() => asArray(data?.locations), [data]);
   const readiness = useMemo(() => asArray(data?.readiness), [data]);
@@ -160,6 +170,7 @@ export default function BranchCommercePanel({ sessionToken, onSessionExpired }) 
       ...initialWalletForm,
       location_id: current.location_id,
     }));
+    setWalletOpen(false);
     setSubmitting(false);
     await loadData();
   };
@@ -203,10 +214,7 @@ export default function BranchCommercePanel({ sessionToken, onSessionExpired }) 
   };
 
   const handleSuspend = async (row) => {
-    if (submitting) return;
-    const confirmed = window.confirm(`Tangguhkan Kasir ${row.location_name}? Order baru akan diblokir.`);
-    if (!confirmed) return;
-
+    if (submitting || !row) return;
     setSubmitting(true);
     const opId = operationId("BRC-SUSPEND", row.location_id);
     const response = await setBranchCommerceStatus(sessionToken, {
@@ -229,6 +237,7 @@ export default function BranchCommercePanel({ sessionToken, onSessionExpired }) 
     }
 
     setResult({ success: true, message: response.message || "Kasir cabang ditangguhkan." });
+    setSuspendRow(null);
     setSubmitting(false);
     await loadData();
   };
@@ -284,7 +293,7 @@ export default function BranchCommercePanel({ sessionToken, onSessionExpired }) 
               Aktifkan
             </Button>
           ) : (
-            <Button type="button" variant="ghost" disabled={submitting} onClick={() => handleSuspend(row)}>
+            <Button type="button" variant="ghost" disabled={submitting} onClick={() => setSuspendRow(row)}>
               Tangguhkan
             </Button>
           )}
@@ -316,7 +325,7 @@ export default function BranchCommercePanel({ sessionToken, onSessionExpired }) 
       <Card>
         <div className="da-section-heading">
           <div>
-            <div className="da-mini-title">Part 3C · Multi-Lokasi</div>
+            <div className="da-mini-title">KESIAPAN OPERASIONAL</div>
             <div className="da-big-text">Kasir, Harga, Stok & Uang Cabang</div>
             <p className="da-muted">
               Owner menyiapkan dompet secara manual. Kasir hanya aktif jika akun, harga lokasi, stok bebas, dan dompet sudah siap.
@@ -324,11 +333,11 @@ export default function BranchCommercePanel({ sessionToken, onSessionExpired }) 
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
             <Badge tone={health.ready ? "success" : "danger"}>
-              {health.ready ? "Gerbang Cabang Aktif" : "Gerbang Cabang Belum Siap"}
+              {health.ready ? "Pemeriksaan Aktif" : "Perlu Dilengkapi"}
             </Badge>
-            <Badge tone="warning">Tanpa Seed Otomatis</Badge>
+            
             <Button type="button" variant="ghost" onClick={loadData} disabled={loading || submitting}>
-              {loading ? "Membaca..." : "Refresh Data"}
+              {loading ? "Membaca..." : "Perbarui"}
             </Button>
           </div>
         </div>
@@ -343,8 +352,8 @@ export default function BranchCommercePanel({ sessionToken, onSessionExpired }) 
         <div style={{ height: 14 }} />
         <div className="da-grid da-grid-3">
           <StatCard label="Lokasi Terbaca" value={loading ? "..." : numberValue(summary.location_count)} description="Sumber dari Master Lokasi." />
-          <StatCard tone="success" label="Kasir Live" value={loading ? "..." : numberValue(summary.live_count)} description="Lokasi yang sudah aktif dan tetap memenuhi syarat." />
-          <StatCard tone="warning" label="Siap Diaktifkan" value={loading ? "..." : numberValue(summary.ready_to_activate_count)} description="Menunggu konfirmasi Owner." />
+          <StatCard tone="success" label="Kasir Aktif" value={loading ? "..." : numberValue(summary.live_count)} description="Lokasi yang sudah aktif dan tetap memenuhi syarat." />
+          <StatCard tone="warning" label="Siap Diaktifkan" value={loading ? "..." : numberValue(summary.ready_to_activate_count)} description="Siap diaktifkan setelah pemeriksaan Owner." />
         </div>
 
         <div style={{ height: 16 }} />
@@ -373,14 +382,45 @@ export default function BranchCommercePanel({ sessionToken, onSessionExpired }) 
         <div className="da-section-heading">
           <div>
             <div className="da-mini-title">Dompet Pembayaran Cabang</div>
-            <div className="da-big-text">Tambah Dompet Secara Manual</div>
+            <div className="da-big-text">Dompet Pembayaran Cabang</div>
             <p className="da-muted">
               Buat hanya dompet nyata: kas laci, rekening bank, e-wallet, atau merchant. Pembayaran order akan masuk ke dompet lokasi yang sama.
             </p>
           </div>
-          <Badge tone="success">Owner Only</Badge>
+          <Badge tone="success">Khusus Owner</Badge>
         </div>
 
+        <div className="da-master-inline-action">
+          <div>
+            <strong>{wallets.length} dompet tercatat</strong>
+            <span>Tambah hanya kas, bank, e-wallet, atau merchant yang benar-benar digunakan.</span>
+          </div>
+          <Button
+            type="button"
+            onClick={() => {
+              setResult(null);
+              setWalletOpen(true);
+            }}
+            disabled={submitting || !health.ready}
+          >
+            + Tambah Dompet
+          </Button>
+        </div>
+
+        <div style={{ height: 16 }} />
+        <DataTable columns={walletColumns} rows={loading ? [] : wallets} getRowKey={(row) => row.wallet_id} />
+      </Card>
+
+      <Modal
+        open={walletOpen}
+        title="Tambah Dompet Cabang"
+        subtitle="Kas, bank, e-wallet, atau merchant nyata untuk lokasi cabang."
+        onClose={() => {
+          if (submitting) return;
+          setWalletOpen(false);
+        }}
+        size="lg"
+      >
         <form onSubmit={handleCreateWallet}>
           <div className="da-drop-form-preview">
             <div className="da-drop-field">
@@ -449,9 +489,12 @@ export default function BranchCommercePanel({ sessionToken, onSessionExpired }) 
             </div>
           ) : null}
 
-          <div className="da-form-actions">
-            <Button type="button" variant="ghost" onClick={() => setWalletForm((current) => ({ ...initialWalletForm, location_id: current.location_id }))} disabled={submitting}>
-              Reset
+          <div className="da-modal-sticky-actions">
+            <Button type="button" variant="ghost" onClick={() => {
+              setWalletForm((current) => ({ ...initialWalletForm, location_id: current.location_id }));
+              setWalletOpen(false);
+            }} disabled={submitting}>
+              Batal
             </Button>
             <Button type="submit" disabled={submitting || !health.ready}>
               {submitting ? "Menyimpan..." : "Buat Dompet Cabang"}
@@ -459,9 +502,7 @@ export default function BranchCommercePanel({ sessionToken, onSessionExpired }) 
           </div>
         </form>
 
-        <div style={{ height: 16 }} />
-        <DataTable columns={walletColumns} rows={loading ? [] : wallets} getRowKey={(row) => row.wallet_id} />
-      </Card>
+      </Modal>
 
       <Modal
         open={Boolean(activationRow)}
@@ -508,7 +549,29 @@ export default function BranchCommercePanel({ sessionToken, onSessionExpired }) 
             <div className="da-form-actions">
               <Button type="button" variant="ghost" onClick={() => setActivationRow(null)} disabled={submitting}>Batal</Button>
               <Button type="button" onClick={handleActivate} disabled={submitting || activationText !== `AKTIFKAN KASIR ${activationRow.location_code}`}>
-                {submitting ? "Mengaktifkan..." : "Aktifkan Kasir Live"}
+                {submitting ? "Mengaktifkan..." : "Aktifkan Kasir"}
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
+
+      <Modal
+        open={Boolean(suspendRow)}
+        title="Tangguhkan Kasir Cabang?"
+        subtitle={safeText(suspendRow?.location_name)}
+        onClose={() => !submitting && setSuspendRow(null)}
+        size="md"
+      >
+        {suspendRow ? (
+          <div style={{ display: "grid", gap: 16 }}>
+            <div className="da-modal-note">
+              Order baru pada lokasi ini akan diblokir sampai Owner mengaktifkannya kembali. Data transaksi dan histori tidak dihapus.
+            </div>
+            <div className="da-modal-sticky-actions">
+              <Button variant="ghost" onClick={() => setSuspendRow(null)} disabled={submitting}>Batal</Button>
+              <Button onClick={() => handleSuspend(suspendRow)} disabled={submitting}>
+                {submitting ? "Memproses..." : "Ya, Tangguhkan"}
               </Button>
             </div>
           </div>
