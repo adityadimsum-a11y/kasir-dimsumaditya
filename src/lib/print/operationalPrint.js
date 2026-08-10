@@ -26,6 +26,40 @@ function printableValue(value) {
   return String(value);
 }
 
+
+function parseMaybeJson(value) {
+  if (Array.isArray(value) || (value && typeof value === "object")) return value;
+  if (typeof value !== "string") return value;
+  const text = value.trim();
+  if (!text || !["[", "{"].includes(text[0])) return value;
+  try { return JSON.parse(text); } catch { return value; }
+}
+
+function extractLineItems(source = {}) {
+  const candidates = [
+    source.items, source.order_items, source.invoice_items, source.delivery_items, source.request_items,
+    source.lines, source.details, source.products, source.items_json, source.line_items_json,
+  ];
+  for (const candidate of candidates) {
+    const parsed = parseMaybeJson(candidate);
+    if (Array.isArray(parsed) && parsed.length) return parsed;
+  }
+  return [];
+}
+
+function lineItemRows(rows = []) {
+  if (!rows.length) return "";
+  const body = rows.slice(0, 120).map((row, index) => {
+    const name = row.product_name || row.item_name || row.name || row.product || row.description || row.sku || `Item ${index + 1}`;
+    const qty = row.qty ?? row.quantity ?? row.pcs ?? row.requested_qty ?? row.shipped_qty ?? "-";
+    const unit = row.unit || row.uom || row.satuan || "pcs";
+    const price = row.unit_price ?? row.price ?? row.harga ?? row.price_per_pcs ?? 0;
+    const total = row.total ?? row.line_total ?? row.subtotal ?? (Number(qty) * Number(price) || 0);
+    return `<tr><td>${index + 1}</td><td><b>${escapeHtml(name)}</b></td><td class="right">${escapeHtml(qty)} ${escapeHtml(unit)}</td><td class="amount">${rupiah(price)}</td><td class="amount">${rupiah(total)}</td></tr>`;
+  }).join("");
+  return `<div class="section-head">Rincian Item</div><table class="item-table"><colgroup><col style="width:7%"><col style="width:43%"><col style="width:16%"><col style="width:17%"><col style="width:17%"></colgroup><thead><tr><th>No</th><th>Produk / Item</th><th>Qty</th><th>Harga</th><th>Total</th></tr></thead><tbody>${body}</tbody></table>`;
+}
+
 function prettyKey(key = "") {
   return String(key)
     .replaceAll("_", " ")
@@ -33,7 +67,7 @@ function prettyKey(key = "") {
 }
 
 function fieldBlocks(source = {}) {
-  const blocked = new Set(["raw", "record", "payload", "metadata"]);
+  const blocked = new Set(["raw", "record", "payload", "metadata", "items", "order_items", "invoice_items", "delivery_items", "request_items", "lines", "details", "products", "items_json", "line_items_json"]);
   const entries = Object.entries(source || {})
     .filter(([key, value]) => !blocked.has(String(key).toLowerCase()) && value !== null && value !== undefined && String(value).trim() !== "")
     .slice(0, 42);
@@ -67,10 +101,10 @@ function printProfile(moduleName = "", transactionType = "") {
   const key = `${moduleName} ${transactionType}`.toUpperCase();
 
   if (key.includes("INVOICE") || key.includes("ORDER") || key.includes("PAYMENT") || key.includes("RECEIVABLE")) {
-    return { title: "INVOICE / NOTA TRANSAKSI", pageSize: "8.5in 5.5in", compact: true, subtitle: "Penjualan & Pembayaran" };
+    return { title: "INVOICE / NOTA PENJUALAN", pageSize: "8.5in 5.5in", compact: true, subtitle: "Penjualan & Pembayaran" };
   }
   if (key.includes("DELIVERY") || key.includes("REQUEST") || key.includes(" DO")) {
-    return { title: "DELIVERY ORDER", pageSize: "A5", compact: true, subtitle: "Pengiriman & Penerimaan Barang" };
+    return { title: "SURAT JALAN / DELIVERY ORDER", pageSize: "A5", compact: true, subtitle: "Pengiriman & Penerimaan Barang" };
   }
   if (key.includes("PRODUCTION") || key.includes("ADUKAN")) {
     return { title: "SPK / HASIL PRODUKSI", pageSize: "A4", compact: false, subtitle: "Produksi & HPP Historis" };
@@ -101,6 +135,7 @@ export function printOperationalDetail({ detail = {}, activeId = "", activeModul
   const main = detail?.main || {};
   const raw = main.raw || main.record || main;
   const timeline = detail?.timeline || detail?.related_records || [];
+  const lineItems = extractLineItems(raw);
   const transactionId = main.source_id || main.transaction_id || main.id || activeId || "-";
   const moduleName = main.source_module || main.module || activeModule || "ARSIP DIGITAL";
   const transactionType = main.transaction_type || main.type || "";
@@ -170,6 +205,7 @@ export function printOperationalDetail({ detail = {}, activeId = "", activeModul
 
   <div class="headline"><h3>${escapeHtml(title)}</h3><span>Dokumen dari Arsip Digital</span></div>
   <div class="detail-grid">${fieldBlocks(raw)}</div>
+  ${lineItemRows(lineItems)}
 
   ${profile.compact ? "" : `
   <div class="section-head">Rantai Transaksi & Audit</div>
