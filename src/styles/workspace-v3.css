@@ -3918,3 +3918,196 @@ button.da-owner-overview-card-v4:hover { transform:translateY(-2px);border-color
 .da-app-v3 .da-hrd-ledger-toolbar-v4>div>span{color:#667085;font-size:9px;font-weight:700;line-height:1.4;}
 .da-app-v3 .da-hrd-ledger-toolbar-v4>input{width:min(380px,100%);}
 @media (max-width:860px){.da-app-v3 .da-hrd-ledger-toolbar-v4>input{width:100%;}}
+
+/* =====================================================================
+   PACKAGE 19B — HRD popup precision + pagination (20 rows/page)
+   ===================================================================== */
+.da-app-v3 .da-modal-header{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  gap:14px!important;
+}
+.da-app-v3 .da-modal-header-left{
+  flex:1 1 auto!important;
+  min-width:0!important;
+}
+.da-app-v3 .da-modal-close{
+  flex:0 0 auto!important;
+  margin:0!important;
+}
+
+.da-app-v3 .da-modal:has(.da-hrd-profile-shell-v5){
+  width:min(1320px,calc(100vw - 36px))!important;
+  max-width:1320px!important;
+  height:min(860px,calc(100dvh - 36px))!important;
+  max-height:calc(100dvh - 36px)!important;
+  display:grid!important;
+  grid-template-rows:auto minmax(0,1fr)!important;
+  border-radius:22px!important;
+}
+.da-app-v3 .da-modal:has(.da-hrd-profile-shell-v5) .da-modal-header{
+  min-height:64px!important;
+  padding:12px 18px!important;
+}
+.da-app-v3 .da-modal:has(.da-hrd-profile-shell-v5) .da-modal-body{
+  min-height:0!important;
+  max-height:none!important;
+  height:100%!important;
+  padding:16px 18px 18px!important;
+  overflow:auto!important;
+  scroll-behavior:smooth;
+  scrollbar-gutter:stable;
+}
+.da-app-v3 .da-hrd-profile-shell-v5{
+  min-width:0;
+  width:100%;
+}
+.da-app-v3 .da-hrd-profile-shell-v5 .da-hrd-profile-head-v4{
+  gap:14px;
+  padding:2px 0 14px;
+}
+.da-app-v3 .da-hrd-profile-shell-v5 .da-hrd-profile-kpis-v4{
+  margin-top:14px;
+}
+.da-app-v3 .da-hrd-profile-shell-v5 .da-hrd-profile-tabs-v4{
+  position:sticky;
+  top:-16px;
+  z-index:12;
+  margin:14px 0 12px;
+  padding:6px;
+  background:rgba(249,250,251,.96);
+  backdrop-filter:blur(12px);
+  box-shadow:0 8px 18px rgba(16,24,40,.045);
+}
+.da-app-v3 .da-hrd-profile-shell-v5 .da-table-card-v2{
+  overflow:hidden;
+  border:1px solid #e4e7ec;
+  background:#fff;
+}
+.da-app-v3 .da-hrd-profile-shell-v5 .da-table-scroll{
+  max-width:100%;
+  overflow-x:auto;
+}
+
+.da-app-v3 .da-hrd-paged-table-v5{
+  min-width:0;
+  width:100%;
+}
+.da-app-v3 .da-hrd-pagination-v5{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  min-height:52px;
+  padding:9px 10px 8px;
+  border:1px solid #e4e7ec;
+  border-top:0;
+  border-radius:0 0 13px 13px;
+  background:#fff;
+}
+.da-app-v3 .da-hrd-paged-table-v5>.da-table-card-v2{
+  border-radius:13px 13px 0 0;
+}
+.da-app-v3 .da-hrd-paged-table-v5>.da-table-card-v2:last-child{
+  border-radius:13px;
+}
+.da-app-v3 .da-hrd-pagination-v5.is-single-page{
+  min-height:36px;
+  justify-content:flex-start;
+  padding-top:6px;
+  padding-bottom:6px;
+}
+.da-app-v3 .da-hrd-pagination-copy-v5{
+  display:flex;
+  align-items:baseline;
+  flex-wrap:wrap;
+  gap:5px;
+  color:#667085;
+  font-size:9px;
+  font-weight:750;
+}
+.da-app-v3 .da-hrd-pagination-copy-v5 strong{
+  color:#344054;
+  font-size:9.5px;
+  font-weight:950;
+}
+.da-app-v3 .da-hrd-pagination-actions-v5{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  flex-wrap:wrap;
+  gap:5px;
+}
+.da-app-v3 .da-hrd-pagination-actions-v5>span{
+  min-width:88px;
+  color:#667085;
+  font-size:8.8px;
+  font-weight:800;
+  text-align:center;
+}
+.da-app-v3 .da-hrd-pagination-actions-v5>button{
+  min-height:30px;
+  padding:0 9px;
+  border:1px solid #dfe3e8;
+  border-radius:8px;
+  background:#fff;
+  color:#344054;
+  font:inherit;
+  font-size:8.8px;
+  font-weight:900;
+  cursor:pointer;
+}
+.da-app-v3 .da-hrd-pagination-actions-v5>button:hover:not(:disabled){
+  border-color:#D9251C;
+  background:#fff7f6;
+  color:#A11A13;
+}
+.da-app-v3 .da-hrd-pagination-actions-v5>button:disabled{
+  opacity:.38;
+  cursor:not-allowed;
+}
+
+@media (max-width:860px){
+  .da-app-v3 .da-modal:has(.da-hrd-profile-shell-v5){
+    width:100vw!important;
+    max-width:100vw!important;
+    height:100dvh!important;
+    max-height:100dvh!important;
+    border-radius:0!important;
+  }
+  .da-app-v3 .da-modal:has(.da-hrd-profile-shell-v5) .da-modal-header{
+    min-height:58px!important;
+    padding:9px 11px!important;
+  }
+  .da-app-v3 .da-modal:has(.da-hrd-profile-shell-v5) .da-modal-body{
+    padding:11px!important;
+  }
+  .da-app-v3 .da-hrd-profile-shell-v5 .da-hrd-profile-tabs-v4{
+    top:-11px;
+  }
+  .da-app-v3 .da-hrd-pagination-v5{
+    align-items:stretch;
+    flex-direction:column;
+  }
+  .da-app-v3 .da-hrd-pagination-actions-v5{
+    justify-content:space-between;
+  }
+  .da-app-v3 .da-hrd-pagination-actions-v5>span{
+    order:-1;
+    width:100%;
+    padding:2px 0 4px;
+  }
+}
+
+@media (max-width:560px){
+  .da-app-v3 .da-hrd-pagination-actions-v5>button{
+    flex:1 1 auto;
+    min-width:0;
+    padding:0 6px;
+  }
+  .da-app-v3 .da-hrd-pagination-actions-v5>button:first-child,
+  .da-app-v3 .da-hrd-pagination-actions-v5>button:last-child{
+    flex:0 0 34px;
+  }
+}
