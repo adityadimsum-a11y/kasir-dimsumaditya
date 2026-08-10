@@ -127,3 +127,121 @@ export function printPayrollPaymentReceiptV32(payment) {
   const css = `${commonCss}@page{size:A5 portrait;margin:8mm}body{background:#fff}.receipt{width:132mm;margin:0 auto;border:1px solid #d1d5db;border-radius:14px;padding:10mm}.receipt header{display:flex;justify-content:space-between;border-bottom:3px solid #ef2b22;padding-bottom:10px}.receipt table{margin-top:12px}.amount{margin-top:12px;background:#ecfdf5;color:#047857;border-radius:12px;padding:12px;display:flex;justify-content:space-between;align-items:center}.amount strong{font-size:22px}`;
   return printWindow(`Bukti Bayar Gaji ${payment?.employee_name_snapshot || ""}`, body, css);
 }
+
+function simpleRecordShell(title, subtitle, badge, rows, footerNote = "Dokumen HRD Dimsum Aditya.") {
+  const lines = rows.map(([label, value]) => `<tr><td class="muted">${esc(label)}</td><td class="bold">${esc(value ?? "-")}</td></tr>`).join("");
+  return `<main class="record"><header>${brandHtml(subtitle)}<span class="pill">${esc(badge)}</span></header><h2>${esc(title)}</h2><table>${lines}</table><p class="muted footnote">${esc(footerNote)}</p><div class="signs"><div>HRD / Admin<div class="sign-space"></div><strong>Dimsum Aditya</strong></div><div>Penerima / Karyawan<div class="sign-space"></div><strong>________________</strong></div></div></main>`;
+}
+
+const simpleRecordCss = `${commonCss}@page{size:A5 portrait;margin:9mm}body{background:#fff}.record{width:132mm;margin:0 auto;border:1px solid #e5e7eb;border-radius:15px;padding:10mm}.record header{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #ef2b22;padding-bottom:10px}.record h2{font-size:16px;margin:14px 0 8px}.record td{padding:8px}.footnote{margin-top:12px;line-height:1.5}`;
+
+export function printHRDEmployeeRecordV32(employee) {
+  const body = simpleRecordShell(
+    "Data Karyawan",
+    "HRD · Profil Karyawan",
+    employee?.employment_status || "ACTIVE",
+    [
+      ["Employee ID", employee?.employee_id],
+      ["Nama", employee?.employee_name],
+      ["Kode", employee?.employee_code],
+      ["Lokasi", employee?.location_name_snapshot || employee?.location_name || employee?.location_code],
+      ["Jabatan", employee?.position_name || employee?.position],
+      ["Tanggal Gajian", employee?.payroll_day ? `Tanggal ${employee.payroll_day}` : "-"],
+      ["Sistem Gaji", employee?.salary_mode],
+      ["Siklus", employee?.pay_cycle],
+      ["Status Kerja", employee?.employment_status],
+    ],
+    "Nominal gaji hanya tampil pada profil/print Owner-HRD yang memiliki hak payroll."
+  );
+  return printWindow(`Data Karyawan ${employee?.employee_name || ""}`, body, simpleRecordCss);
+}
+
+export function printHRDAttendanceV32(row) {
+  const body = simpleRecordShell(
+    "Catatan Absensi / Izin",
+    "HRD · Absensi & Izin",
+    String(row?.attendance_type || "ABSENSI").replaceAll("_", " "),
+    [
+      ["Attendance ID", row?.attendance_id],
+      ["Karyawan", row?.employee_name],
+      ["Tanggal", row?.attendance_date],
+      ["Status", String(row?.attendance_type || "").replaceAll("_", " ")],
+      ["Nilai Hari", row?.day_fraction],
+      ["Potong Gaji", Number(row?.deduct_salary) === 1 ? "Ya" : "Tidak"],
+      ["Uang Lembur", money(row?.overtime_amount)],
+      ["Catatan", row?.notes || "-"],
+    ],
+    "Perubahan data setelah payroll closing dibatasi agar riwayat gaji tetap konsisten."
+  );
+  return printWindow(`Absensi ${row?.employee_name || ""}`, body, simpleRecordCss);
+}
+
+export function printHRDAdvanceV32(row) {
+  const body = simpleRecordShell(
+    "Bukti Kasbon Karyawan",
+    "HRD · Kasbon Karyawan",
+    row?.locked ? "TERKUNCI" : "AKTIF",
+    [
+      ["Kasbon ID", row?.advance_entry_id],
+      ["Karyawan", row?.employee_name],
+      ["Tanggal", row?.entry_date],
+      ["Jenis", row?.entry_type],
+      ["Nominal", money(row?.amount)],
+      ["Dampak Saldo", money(row?.balance_effect)],
+      ["Sumber", row?.source_system || "ERP_LIVE"],
+      ["Catatan", row?.notes || "-"],
+    ],
+    "Kasbon ERP_LIVE terhubung ke dompet lokasi. Histori migrasi lama tidak membuat ulang efek kas."
+  );
+  return printWindow(`Kasbon ${row?.employee_name || ""}`, body, simpleRecordCss);
+}
+
+export function printHRDLoanV32(row) {
+  const body = simpleRecordShell(
+    "Bukti Pinjaman / Cicilan",
+    "HRD · Pinjaman Karyawan",
+    row?.status || "OPEN",
+    [
+      ["Loan ID", row?.loan_id],
+      ["Karyawan", row?.employee_name],
+      ["Tanggal Pinjaman", row?.loan_date],
+      ["Nominal Awal", money(row?.original_amount)],
+      ["Sisa Pinjaman", money(row?.remaining_amount)],
+      ["Tenor", `${Number(row?.tenor_paid || 0)} / ${Number(row?.tenor_total || 0)}`],
+      ["Cicilan", money(row?.installment_amount)],
+      ["Mulai Potong", row?.start_period],
+      ["Cara Bayar", row?.payment_mode],
+      ["Catatan", row?.notes || "-"],
+    ],
+    "Pinjaman yang sudah memiliki cicilan/closing tidak dapat dihapus agar jejak pembayaran tetap utuh."
+  );
+  return printWindow(`Pinjaman ${row?.employee_name || ""}`, body, simpleRecordCss);
+}
+
+export function printHRDEmployeeProfileV32(profile) {
+  const employee = profile?.employee || {};
+  const totals = profile?.totals || {};
+  const fullAccess = Boolean(profile?.access?.full_payroll_access);
+  const payrollRows = Array.isArray(profile?.payroll_rows) ? profile.payroll_rows : [];
+  const advances = Array.isArray(profile?.kasbon_rows) ? profile.kasbon_rows : [];
+  const loans = Array.isArray(profile?.loan_rows) ? profile.loan_rows : [];
+  const attendance = Array.isArray(profile?.attendance_rows) ? profile.attendance_rows : [];
+  const payrollHtml = payrollRows.map((row) => `<tr><td>${esc(periodText(row.period))}</td><td>${esc(row.status)}</td><td>${esc(row.payment_status)}</td><td class="right">${money(row.bonus_amount)}</td><td class="right">${money(row.overtime_amount)}</td><td class="right bold">${money(row.net_pay)}</td></tr>`).join("");
+  const advanceHtml = advances.map((row) => `<tr><td>${esc(row.entry_date)}</td><td>${esc(row.entry_type)}</td><td class="right">${money(row.amount)}</td><td>${esc(row.notes || "-")}</td></tr>`).join("");
+  const loanHtml = loans.map((row) => `<tr><td>${esc(row.loan_date)}</td><td class="right">${money(row.original_amount)}</td><td class="right bold">${money(row.remaining_amount)}</td><td>${esc(row.status)}</td></tr>`).join("");
+  const body = `<main class="profile-print"><header>${brandHtml(`Profil & Riwayat Karyawan · Tahun ${esc(profile?.year || "-")}`)}<span class="pill">${esc(employee?.employment_status || "ACTIVE")}</span></header>
+    <section class="identity"><div><span>Nama</span><strong>${esc(employee?.employee_name)}</strong></div><div><span>Lokasi</span><strong>${esc(employee?.location_name_snapshot || employee?.location_code)}</strong></div><div><span>Jabatan</span><strong>${esc(employee?.position_name || "-")}</strong></div><div><span>Employee ID</span><strong>${esc(employee?.employee_id)}</strong></div></section>
+    <section class="profile-kpis">
+      ${fullAccess ? `<div><span>Gaji Diterima ${esc(profile?.year)}</span><b>${money(totals.salary_received_year)}</b></div><div><span>Gaji s.d. Kemarin</span><b>${money(totals.salary_received_to_yesterday)}</b></div><div><span>Bonus Dibayar</span><b>${money(totals.bonus_paid_year)}</b></div><div><span>Lembur Dibayar</span><b>${money(totals.overtime_paid_year)}</b></div>` : ""}
+      <div><span>Sisa Kasbon</span><b>${money(totals.advance_balance)}</b></div><div><span>Kasbon Diambil Tahun Ini</span><b>${money(totals.kasbon_taken_year)}</b></div><div><span>Sisa Pinjaman</span><b>${money(totals.loan_balance)}</b></div><div><span>Cicilan Dibayar Tahun Ini</span><b>${money(totals.loan_installments_year)}</b></div>
+    </section>
+    <p class="data-note">${esc(profile?.data_note || "")}</p>
+    ${fullAccess ? `<h2>Riwayat Payroll</h2><table><thead><tr><th>Periode</th><th>Status</th><th>Bayar</th><th>Bonus</th><th>Lembur</th><th>THP</th></tr></thead><tbody>${payrollHtml || `<tr><td colspan="6">Belum ada payroll live pada tahun ini.</td></tr>`}</tbody></table>` : ""}
+    <h2>Kasbon</h2><table><thead><tr><th>Tanggal</th><th>Jenis</th><th>Nominal</th><th>Catatan</th></tr></thead><tbody>${advanceHtml || `<tr><td colspan="4">Tidak ada data.</td></tr>`}</tbody></table>
+    <h2>Pinjaman / Cicilan</h2><table><thead><tr><th>Tanggal</th><th>Awal</th><th>Sisa</th><th>Status</th></tr></thead><tbody>${loanHtml || `<tr><td colspan="4">Tidak ada data.</td></tr>`}</tbody></table>
+    <h2>Absensi</h2><p>${attendance.length} catatan absensi/izin tahun ${esc(profile?.year || "-")} · uang lembur dari absensi ${money(totals.overtime_attendance_year)}</p>
+    <div class="signs"><div>HRD / Admin<div class="sign-space"></div><strong>Dimsum Aditya</strong></div><div>Karyawan<div class="sign-space"></div><strong>${esc(employee?.employee_name)}</strong></div></div>
+  </main>`;
+  const css = `${commonCss}@page{size:A4 portrait;margin:9mm}body{background:#fff}.profile-print{width:190mm;margin:0 auto}.profile-print header{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #ef2b22;padding-bottom:10px}.identity{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0}.identity div,.profile-kpis div{background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;padding:9px}.identity span,.profile-kpis span{display:block;color:#64748b;font-size:9px;text-transform:uppercase;font-weight:900}.profile-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}.profile-kpis b{display:block;font-size:14px;margin-top:3px}.profile-print h2{font-size:13px;margin:15px 0 6px;color:#b91c1c}.profile-print table{font-size:10px}.data-note{background:#fff7ed;border:1px solid #fed7aa;color:#92400e;border-radius:9px;padding:8px;font-weight:700}`;
+  return printWindow(`Profil HRD ${employee?.employee_name || "Karyawan"}`, body, css);
+}
