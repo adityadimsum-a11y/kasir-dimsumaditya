@@ -137,9 +137,9 @@ export const MENU_GROUPS = [
     items: [
       {
         key: "hrd-dashboard",
-        label: "Dashboard HRD",
+        label: "Dashboard Payroll",
         visibleFor: ["OWNER", "TANGERANG", "PEMALANG", "CIBINONG"],
-        description: "Ringkasan karyawan, absensi, kasbon, cicilan, payroll, dan status closing.",
+        description: "Pusat kontrol payroll, jadwal gajian, kasbon, cicilan, closing, rekap, dan cetak.",
       },
       {
         key: "hrd-employees",
@@ -161,9 +161,9 @@ export const MENU_GROUPS = [
       },
       {
         key: "hrd-payroll",
-        label: "Payroll & Slip Gaji",
+        label: "Buat Slip Gaji",
         visibleFor: ["OWNER", "TANGERANG"],
-        description: "Proses gaji, slip gaji, closing payroll, dan pembayaran karyawan.",
+        description: "Buat slip, cek THP, closing, cetak, dan pembayaran gaji karyawan.",
       },
       {
         key: "hrd-payroll-report",
