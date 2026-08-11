@@ -4688,3 +4688,530 @@ button.da-owner-overview-card-v4:hover { transform:translateY(-2px);border-color
 .da-app-v3[data-page^="hrd-"]{--da-sidebar-width:280px}
 .da-app-v3[data-page^="hrd-"] .da-content{padding-top:28px}
 @media(max-width:1080px){.da-app-v3[data-page^="hrd-"]{--da-sidebar-width:252px}}
+
+/* =====================================================================
+   PACKAGE 20A — HRD / PAYROLL VISUAL REFINEMENT
+   Goal: closer to Payroll V32 local look — cleaner, calmer, more professional,
+   brand red as accent instead of flooding the whole page.
+   ===================================================================== */
+.da-app-v3 .da-hrd-page-v4 .da-page-heading{
+  margin-bottom:2px;
+  padding-bottom:16px;
+}
+.da-app-v3 .da-hrd-page-v4 .da-page-heading h1{
+  font-size:30px;
+  letter-spacing:-.055em;
+}
+.da-app-v3 .da-hrd-page-v4 .da-page-heading p{
+  max-width:900px;
+  color:#667085;
+}
+
+/* Shared HRD card language */
+.da-app-v3 .da-hrd-page-v4 .da-card,
+.da-app-v3 .da-hrd-page-v4 .da-table-card,
+.da-app-v3 .da-hrd-page-v4 .da-hrd-panel-v3,
+.da-app-v3 .da-hrd-page-v4 .da-hrd-ledger-workspace-v7,
+.da-app-v3 .da-hrd-page-v4 .da-payroll-v32-card{
+  border:1px solid #e7ebf1;
+  border-radius:18px;
+  background:#fff;
+  box-shadow:0 10px 28px rgba(16,24,40,.045);
+}
+.da-app-v3 .da-hrd-page-v4 .da-card:hover,
+.da-app-v3 .da-hrd-page-v4 .da-payroll-v32-card:hover{
+  border-color:#dde3ea;
+}
+.da-app-v3 .da-hrd-page-v4 .da-card-padding,
+.da-app-v3 .da-hrd-page-v4 .da-payroll-v32-card{
+  padding:18px;
+}
+
+/* Top filter / toolbar blocks — cream, calm, not too saturated */
+.da-app-v3 .da-hrd-page-v4 > .da-card.da-full-width:first-of-type,
+.da-app-v3 .da-payroll-v32-root .da-payroll-v32-card:first-of-type{
+  border-color:#ecd8a8;
+  background:linear-gradient(180deg,#fffdf8 0%,#fffaf1 100%);
+  box-shadow:0 8px 20px rgba(146,84,18,.06);
+}
+
+/* Stat cards across HRD */
+.da-app-v3 .da-hrd-page-v4 .da-stat-card.da-stat-card-v2{
+  position:relative;
+  overflow:hidden;
+  min-height:112px;
+  border:1px solid #e6e9ef;
+  border-radius:16px;
+  background:#fff;
+  box-shadow:0 8px 20px rgba(16,24,40,.03);
+}
+.da-app-v3 .da-hrd-page-v4 .da-stat-card.da-stat-card-v2::before{
+  content:"";
+  position:absolute;
+  inset:0 auto auto 0;
+  width:100%;
+  height:3px;
+  background:#e5e7eb;
+}
+.da-app-v3 .da-hrd-page-v4 .da-stat-card.da-stat-card-v2 .da-stat-accent{display:none;}
+.da-app-v3 .da-hrd-page-v4 .da-stat-card.da-stat-card-v2 .da-stat-label{
+  color:#667085;
+  font-size:9px;
+  font-weight:900;
+  letter-spacing:.05em;
+}
+.da-app-v3 .da-hrd-page-v4 .da-stat-card.da-stat-card-v2 .da-stat-value{
+  margin-top:8px;
+  color:#101828;
+  font-size:24px;
+  font-weight:950;
+  letter-spacing:-.045em;
+}
+.da-app-v3 .da-hrd-page-v4 .da-stat-card.da-stat-card-v2 .da-stat-desc{
+  margin-top:6px;
+  color:#667085;
+  font-size:9px;
+  font-weight:700;
+  line-height:1.45;
+}
+.da-app-v3 .da-hrd-page-v4 .da-stat-card-success.da-stat-card-v2{
+  background:linear-gradient(180deg,#ffffff 0%,#f7fdf9 100%);
+  border-color:#cfead8;
+}
+.da-app-v3 .da-hrd-page-v4 .da-stat-card-success.da-stat-card-v2::before{background:#16a34a;}
+.da-app-v3 .da-hrd-page-v4 .da-stat-card-success.da-stat-card-v2 .da-stat-value{color:#0f9f57;}
+.da-app-v3 .da-hrd-page-v4 .da-stat-card-warning.da-stat-card-v2{
+  background:linear-gradient(180deg,#ffffff 0%,#fffdf7 100%);
+  border-color:#ecd9ab;
+}
+.da-app-v3 .da-hrd-page-v4 .da-stat-card-warning.da-stat-card-v2::before{background:#d4a72c;}
+.da-app-v3 .da-hrd-page-v4 .da-stat-card-warning.da-stat-card-v2 .da-stat-value{color:#9a6700;}
+.da-app-v3 .da-hrd-page-v4 .da-stat-card-danger.da-stat-card-v2{
+  background:linear-gradient(180deg,#ffffff 0%,#fff8f7 100%);
+  border-color:#f0d2ce;
+}
+.da-app-v3 .da-hrd-page-v4 .da-stat-card-danger.da-stat-card-v2::before{background:#d92d20;}
+.da-app-v3 .da-hrd-page-v4 .da-stat-card-danger.da-stat-card-v2 .da-stat-value{color:#b42318;}
+
+/* Dashboard secondary panels */
+.da-app-v3 .da-hrd-dashboard-grid-v3{gap:14px;}
+.da-app-v3 .da-hrd-panel-v3{
+  padding:18px;
+}
+.da-app-v3 .da-hrd-panel-head-v3 h3{
+  margin:0;
+  color:#101828;
+  font-size:15px;
+  font-weight:950;
+  letter-spacing:-.03em;
+}
+.da-app-v3 .da-hrd-panel-head-v3 p{
+  margin-top:5px;
+  color:#667085;
+  font-size:9.5px;
+  font-weight:700;
+  line-height:1.45;
+}
+.da-app-v3 .da-hrd-mini-grid-v3{
+  gap:10px;
+}
+.da-app-v3 .da-hrd-attention-v3{
+  display:grid;
+  gap:9px;
+}
+.da-app-v3 .da-hrd-attention-row-v3{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  min-height:48px;
+  padding:11px 13px;
+  border:1px solid #eef1f4;
+  border-radius:13px;
+  background:#fbfcfd;
+}
+.da-app-v3 .da-hrd-attention-row-v3 span{color:#475467;font-size:9px;font-weight:800;}
+.da-app-v3 .da-hrd-attention-row-v3 strong{color:#101828;font-size:13px;font-weight:950;}
+
+/* Payroll V32 pages */
+.da-app-v3 .da-payroll-v32-root{gap:16px;}
+.da-app-v3 .da-payroll-v32-page-title h1{font-size:31px;letter-spacing:-.055em;}
+.da-app-v3 .da-payroll-v32-page-title p{margin-top:7px;color:#667085;font-size:11px;line-height:1.5;}
+.da-app-v3 .da-payroll-v32-top-actions{gap:10px;}
+.da-app-v3 .da-payroll-v32-action{
+  min-height:42px;
+  padding:0 15px;
+  border-radius:12px;
+  border:1px solid transparent;
+  font-size:10px;
+  font-weight:900;
+  box-shadow:none;
+}
+.da-app-v3 .da-payroll-v32-action.is-primary{background:#dd2a1f;border-color:#dd2a1f;color:#fff;}
+.da-app-v3 .da-payroll-v32-action.is-dark{background:#0f172a;border-color:#0f172a;color:#fff;}
+.da-app-v3 .da-payroll-v32-action.is-green{background:#12b76a;border-color:#12b76a;color:#fff;}
+
+/* Hero / command center */
+.da-app-v3 .da-payroll-v32-command{
+  gap:10px;
+  padding:16px;
+  border-radius:20px;
+  background:linear-gradient(135deg,#b01c14 0%,#d9251c 58%,#f35449 100%);
+  box-shadow:0 14px 34px rgba(217,37,28,.16);
+}
+.da-app-v3 .da-payroll-v32-command>div,
+.da-app-v3 .da-payroll-v32-command>label{
+  border:1px solid rgba(255,255,255,.28);
+  border-radius:14px;
+  background:rgba(255,255,255,.13);
+  backdrop-filter:blur(8px);
+}
+.da-app-v3 .da-payroll-v32-command .main{
+  padding-left:6px;
+}
+.da-app-v3 .da-payroll-v32-command .main h2{font-size:17px;line-height:1.15;}
+.da-app-v3 .da-payroll-v32-command .main p{font-size:8px;line-height:1.45;color:rgba(255,255,255,.88);}
+.da-app-v3 .da-payroll-v32-command>label span,
+.da-app-v3 .da-payroll-v32-command>div>span{
+  color:rgba(255,255,255,.82);
+}
+.da-app-v3 .da-payroll-v32-command input,
+.da-app-v3 .da-payroll-v32-command select{
+  min-height:37px;
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:10px;
+  background:#fff;
+}
+
+/* KPI cards under dashboard / report / ledger */
+.da-app-v3 .da-payroll-v32-kpi-grid{gap:11px;}
+.da-app-v3 .da-payroll-v32-kpi{
+  position:relative;
+  overflow:hidden;
+  min-height:92px;
+  padding:13px;
+  border:1px solid #e6e9ef;
+  border-radius:15px;
+  background:#fff !important;
+  color:#101828;
+  box-shadow:0 6px 18px rgba(16,24,40,.03);
+}
+.da-app-v3 .da-payroll-v32-kpi::before{
+  content:"";
+  position:absolute;
+  inset:0 auto auto 0;
+  width:100%;
+  height:3px;
+  background:#e7eaee;
+}
+.da-app-v3 .da-payroll-v32-kpi>span{color:#667085;font-size:7.4px;font-weight:900;}
+.da-app-v3 .da-payroll-v32-kpi>strong{margin-top:7px;color:#101828;font-size:17px;font-weight:950;}
+.da-app-v3 .da-payroll-v32-kpi>small{margin-top:5px;color:#667085;font-size:6.95px;font-weight:700;line-height:1.4;}
+.da-app-v3 .da-payroll-v32-kpi.is-success{background:linear-gradient(180deg,#ffffff 0%,#f7fdf9 100%) !important;border-color:#cfead8;}
+.da-app-v3 .da-payroll-v32-kpi.is-success::before{background:#16a34a;}
+.da-app-v3 .da-payroll-v32-kpi.is-success>strong{color:#0f9f57;font-size:18px;}
+.da-app-v3 .da-payroll-v32-kpi.is-warning{background:linear-gradient(180deg,#ffffff 0%,#fffdf7 100%) !important;border-color:#ecd9ab;}
+.da-app-v3 .da-payroll-v32-kpi.is-warning::before{background:#d4a72c;}
+.da-app-v3 .da-payroll-v32-kpi.is-warning>strong{color:#9a6700;}
+.da-app-v3 .da-payroll-v32-kpi.is-danger{background:linear-gradient(180deg,#ffffff 0%,#fff8f7 100%) !important;border-color:#f0d2ce;}
+.da-app-v3 .da-payroll-v32-kpi.is-danger::before{background:#d92d20;}
+.da-app-v3 .da-payroll-v32-kpi.is-danger>strong{color:#b42318;}
+.da-app-v3 .da-payroll-v32-kpi.is-clickable{cursor:pointer;}
+.da-app-v3 .da-payroll-v32-kpi.is-clickable:hover{transform:translateY(-1px);border-color:#d8dde5;}
+
+/* Form sections */
+.da-app-v3 .da-payroll-v32-card>h3,
+.da-app-v3 .da-payroll-v32-section-head h3{font-size:14px;}
+.da-app-v3 .da-payroll-v32-card>h3 svg,
+.da-app-v3 .da-payroll-v32-section-head h3 svg{color:#d92d20;}
+.da-app-v3 .da-payroll-v32-form-grid{gap:16px;margin-top:18px;}
+.da-app-v3 .da-payroll-v32-form-grid label,
+.da-app-v3 .da-payroll-v32-notice-fields label,
+.da-app-v3 .da-payroll-v32-week-control label,
+.da-app-v3 .da-payroll-v32-print-center label,
+.da-app-v3 .da-payroll-v32-recap-center label{gap:7px;}
+.da-app-v3 .da-payroll-v32-form-grid label>span,
+.da-app-v3 .da-payroll-v32-notice-fields label>span,
+.da-app-v3 .da-payroll-v32-week-control label>span,
+.da-app-v3 .da-payroll-v32-print-center label>span,
+.da-app-v3 .da-payroll-v32-recap-center label>span{font-size:8px;color:#475467;}
+.da-app-v3 .da-payroll-v32-form-grid input,
+.da-app-v3 .da-payroll-v32-form-grid select,
+.da-app-v3 .da-payroll-v32-notice-fields input,
+.da-app-v3 .da-payroll-v32-notice-fields select,
+.da-app-v3 .da-payroll-v32-week-control input,
+.da-app-v3 .da-payroll-v32-week-control select,
+.da-app-v3 .da-payroll-v32-print-center select,
+.da-app-v3 .da-payroll-v32-recap-center select{
+  min-height:42px;
+  border:1px solid #d8dee8;
+  border-radius:12px;
+  background:#fff;
+  font-size:9.5px;
+  font-weight:800;
+}
+.da-app-v3 .da-payroll-v32-form-grid input:focus,
+.da-app-v3 .da-payroll-v32-form-grid select:focus,
+.da-app-v3 .da-payroll-v32-notice-fields input:focus,
+.da-app-v3 .da-payroll-v32-notice-fields select:focus,
+.da-app-v3 .da-payroll-v32-print-center select:focus,
+.da-app-v3 .da-payroll-v32-recap-center select:focus{
+  border-color:#e58b84;
+  box-shadow:0 0 0 4px rgba(217,37,28,.08);
+}
+.da-app-v3 .da-payroll-v32-form-grid label small{font-size:7.3px;color:#667085;line-height:1.45;}
+.da-app-v3 .da-payroll-v32-form-grid label.deduction{padding-top:14px;}
+.da-app-v3 .da-payroll-v32-form-grid label.deduction>span{color:#b42318;}
+.da-app-v3 .da-payroll-v32-form-grid .money-input>b{left:12px;}
+.da-app-v3 .da-payroll-v32-form-grid .money-input>input{padding-left:36px;}
+.da-app-v3 .da-payroll-v32-form-grid .money-input.danger>input{
+  background:#fff7f7;
+  color:#b42318;
+  border-color:#f4c7c3;
+}
+
+.da-app-v3 .da-payroll-v32-week-control{
+  border-color:#f3d69b;
+  background:linear-gradient(180deg,#fffdf8 0%,#fff9ef 100%);
+}
+.da-app-v3 .da-payroll-v32-week-control label.check span{color:#92400e;}
+.da-app-v3 .da-payroll-v32-absence-notice{
+  min-height:56px;
+  border-color:#f2d0cb;
+  border-radius:15px;
+  background:#fff9f8;
+}
+.da-app-v3 .da-payroll-v32-absence-notice strong{font-size:9.7px;}
+.da-app-v3 .da-payroll-v32-absence-notice span{font-size:7.4px;}
+.da-app-v3 .da-payroll-v32-notice-fields{
+  border-color:#f2d0cb;
+  border-radius:15px;
+  background:#fff;
+}
+.da-app-v3 .da-payroll-v32-thp-summary{
+  gap:14px;
+  padding:14px;
+  border:1px solid #e5e9ef;
+  border-radius:18px;
+  background:#fff;
+}
+.da-app-v3 .da-payroll-v32-thp-summary>div{
+  border:1px solid #e8ecf2;
+  border-radius:14px;
+  background:#fbfcfd;
+}
+.da-app-v3 .da-payroll-v32-thp-summary>div.green{
+  border-color:#b8e7cc;
+  background:#f1fcf5;
+}
+.da-app-v3 .da-payroll-v32-status{
+  min-height:44px;
+  border-radius:12px;
+  font-size:8.3px;
+}
+.da-app-v3 .da-payroll-v32-main-actions{gap:10px;}
+.da-app-v3 .da-payroll-v32-main-actions button{
+  min-height:47px;
+  border-radius:12px;
+  font-size:10px;
+  font-weight:950;
+}
+.da-app-v3 .da-payroll-v32-main-actions button.print{background:#12b76a;}
+.da-app-v3 .da-payroll-v32-main-actions button.close{background:#0f172a;}
+.da-app-v3 .da-payroll-v32-print-helper{
+  border-color:#ecd8a8;
+  border-radius:12px;
+  background:#fff9ef;
+  color:#9a6700;
+}
+.da-app-v3 .da-payroll-v32-reopen input{
+  border-color:#f3d69b;
+  border-radius:11px;
+}
+.da-app-v3 .da-payroll-v32-reopen button{
+  border-color:#f3d69b;
+  border-radius:11px;
+  background:#fff6d7;
+}
+.da-app-v3 .da-payroll-v32-alert{border:1px solid transparent;border-radius:12px;}
+.da-app-v3 .da-payroll-v32-alert.danger{background:#fff7f7;border-color:#f3cfca;color:#b42318;}
+.da-app-v3 .da-payroll-v32-alert.warning{background:#fffaf1;border-color:#ecd8a8;color:#9a6700;}
+.da-app-v3 .da-payroll-v32-alert.success{background:#f2fcf5;border-color:#c8e8d3;color:#067647;}
+
+/* Payroll board / tables */
+.da-app-v3 .da-payroll-v32-board-grid{gap:14px;}
+.da-app-v3 .da-payroll-v32-board-card{
+  padding:13px;
+  border:1px solid #e7ebf0;
+  border-radius:14px;
+  background:#fbfcfd;
+}
+.da-app-v3 .da-payroll-v32-board-card .chips span{background:#f2fcf5;color:#067647;}
+.da-app-v3 .da-payroll-v32-board-card .actions button{font-size:7.6px;border-radius:9px;}
+.da-app-v3 .da-payroll-v32-board-card .actions button:last-child{border-color:#cae9d6;background:#f2fcf5;color:#067647;}
+.da-app-v3 .da-payroll-v32-ledger-card{
+  border-color:#d7e7fb;
+  border-radius:14px;
+  background:#f5f9ff;
+}
+.da-app-v3 .da-payroll-v32-ledger-card.neutral{border-color:#e6eaef;background:#fbfcfd;}
+.da-app-v3 .da-payroll-v32-table-scroll{
+  border:1px solid #e6e9ef;
+  border-radius:14px;
+}
+.da-app-v3 .da-payroll-v32-table{
+  min-width:940px;
+  font-size:8.2px;
+}
+.da-app-v3 .da-payroll-v32-table th{
+  padding:9px 8px;
+  background:#f8fafc;
+  color:#667085;
+  font-size:6.9px;
+  letter-spacing:.045em;
+  border-bottom:1px solid #edf1f4;
+}
+.da-app-v3 .da-payroll-v32-table td{
+  padding:10px 8px;
+  border-top:1px solid #edf1f4;
+  color:#344054;
+  font-weight:750;
+}
+.da-app-v3 .da-payroll-v32-table tbody tr:nth-child(even) td{background:#fcfdff;}
+.da-app-v3 .da-payroll-v32-table tbody tr:hover td{background:#fffaf9;}
+.da-app-v3 .da-payroll-v32-table .money{font-weight:900;}
+.da-app-v3 .da-payroll-v32-table .green{color:#0f9f57;}
+.da-app-v3 .da-payroll-v32-name{font-size:8.7px;}
+.da-app-v3 .da-payroll-v32-icon-actions{gap:6px;}
+.da-app-v3 .da-payroll-v32-icon-actions button,
+.da-app-v3 .da-payroll-v32-print-icon{
+  width:34px;
+  height:34px;
+  border:1px solid #d8dee6;
+  border-radius:10px;
+  background:#fff;
+}
+.da-app-v3 .da-payroll-v32-icon-actions button:hover,
+.da-app-v3 .da-payroll-v32-print-icon:hover{
+  border-color:#d92d20;
+  background:#fff7f6;
+  color:#d92d20;
+}
+.da-app-v3 .da-payroll-v32-icon-actions button.danger{
+  border-color:#f0d1cc;
+  background:#fff8f7;
+  color:#b42318;
+}
+.da-app-v3 .da-payroll-v32-pagination{
+  min-height:48px;
+  padding:10px 12px;
+  border:1px solid #e6e9ef;
+  border-top:0;
+  border-radius:0 0 14px 14px;
+  background:#fff;
+}
+.da-app-v3 .da-payroll-v32-pagination button{
+  min-height:30px;
+  padding:0 10px;
+  border:1px solid #d8dee6;
+  border-radius:9px;
+  background:#fff;
+  color:#344054;
+}
+.da-app-v3 .da-payroll-v32-pagination button:hover:not(:disabled){border-color:#d92d20;background:#fff7f6;color:#d92d20;}
+
+/* HRD loans/kasbon workspace */
+.da-app-v3 .da-hrd-ledger-hero-v7{
+  padding:18px 18px 16px;
+  border-bottom:1px solid #eef1f4;
+  background:linear-gradient(180deg,#fffdf8 0%,#fffaf3 100%);
+}
+.da-app-v3 .da-hrd-ledger-heading-v7 h3{font-size:17px;}
+.da-app-v3 .da-hrd-ledger-search-v7 input{
+  min-height:41px;
+  border-radius:12px;
+  border-color:#d8dee6;
+}
+.da-app-v3 .da-hrd-ledger-search-v7 input:focus{
+  border-color:#e58b84;
+  box-shadow:0 0 0 4px rgba(217,37,28,.08);
+}
+.da-app-v3 .da-hrd-ledger-switch-v7{padding-top:12px;gap:7px;}
+.da-app-v3 .da-hrd-ledger-switch-v7 button{
+  min-height:40px;
+  padding:0 14px;
+  border-radius:11px 11px 0 0;
+}
+.da-app-v3 .da-hrd-ledger-switch-v7 button:hover{background:#fffaf7;color:#a11a13;}
+.da-app-v3 .da-hrd-ledger-switch-v7 button.is-active{
+  border-bottom-color:#d92d20;
+  background:#fff7f5;
+}
+.da-app-v3 .da-hrd-ledger-switch-v7 button.is-active strong{background:#d92d20;}
+.da-app-v3 .da-hrd-ledger-content-v7{padding:15px 18px 18px;}
+.da-app-v3 .da-hrd-ledger-content-head-v7 h4{font-size:13.5px;}
+.da-app-v3 .da-hrd-ledger-content-head-v7>.da-button{min-height:40px;padding-inline:15px;}
+.da-app-v3 .da-hrd-ledger-table-v7 .da-table-card-v2{border-radius:14px 14px 0 0;}
+.da-app-v3 .da-hrd-ledger-table-v7 .da-table-scroll{border-radius:14px;}
+.da-app-v3 .da-hrd-ledger-table-v7 .da-table th{height:44px;background:#f8fafc;color:#667085;}
+.da-app-v3 .da-hrd-ledger-table-v7 .da-table tbody tr:hover td{background:#fffaf9;}
+.da-app-v3 .da-hrd-row-actions-v4{gap:6px;}
+.da-app-v3 .da-hrd-action-btn-v4{
+  border-color:#d8dee6;
+  border-radius:10px;
+  color:#475467;
+}
+.da-app-v3 .da-hrd-action-btn-v4:hover:not(:disabled){border-color:#d92d20;background:#fff7f6;color:#a11a13;}
+.da-app-v3 .da-hrd-action-btn-v4.is-profile{border-color:#f2d0cb;background:#fff8f7;color:#a11a13;}
+.da-app-v3 .da-hrd-action-btn-v4.is-edit{background:#fff;color:#475467;}
+.da-app-v3 .da-hrd-action-btn-v4.is-print{border-color:#ecd8a8;background:#fffaf0;color:#9a6700;}
+.da-app-v3 .da-hrd-action-btn-v4.is-danger{border-color:#f2d0cb;background:#fff8f7;color:#b42318;}
+
+/* Employee local tables */
+.da-app-v3 .da-employee-local-card-v20 .da-table th,
+.da-app-v3 .da-employee-local-card-v20 .da-table td{white-space:nowrap;}
+.da-app-v3 .da-employee-local-filter-v20{
+  gap:10px;
+  margin-bottom:10px;
+}
+.da-app-v3 .da-employee-local-filter-v20 label,
+.da-app-v3 .da-employee-local-filter-v20 input,
+.da-app-v3 .da-employee-local-filter-v20 select{
+  font-size:9px;
+}
+.da-app-v3 .da-employee-local-counts-v20{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+  margin:0 0 10px;
+}
+.da-app-v3 .da-employee-local-counts-v20 span{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  min-height:28px;
+  padding:0 10px;
+  border:1px solid #ecd8a8;
+  border-radius:999px;
+  background:#fffaf0;
+  color:#9a6700;
+  font-size:8px;
+  font-weight:900;
+}
+
+/* Responsive cleanup */
+@media (max-width:860px){
+  .da-app-v3 .da-hrd-page-v4 .da-page-heading h1,
+  .da-app-v3 .da-payroll-v32-page-title h1{font-size:26px;}
+  .da-app-v3 .da-payroll-v32-command{padding:14px;border-radius:18px;}
+  .da-app-v3 .da-payroll-v32-card,
+  .da-app-v3 .da-hrd-panel-v3,
+  .da-app-v3 .da-hrd-ledger-workspace-v7{padding:15px;}
+}
+@media (max-width:560px){
+  .da-app-v3 .da-hrd-page-v4 .da-page-heading h1,
+  .da-app-v3 .da-payroll-v32-page-title h1{font-size:23px;}
+  .da-app-v3 .da-hrd-page-v4 .da-stat-card.da-stat-card-v2,
+  .da-app-v3 .da-payroll-v32-kpi{min-height:86px;}
+}
