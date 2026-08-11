@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Edit2, Printer, Trash2, UserRound } from "lucide-react";
+import { Edit2, Printer, Trash2, User } from "lucide-react";
 import {
   createHRDAttendance,
   createHRDEmployee,
@@ -281,7 +281,7 @@ export default function HRDPayrollPage({ session, onSessionExpired, viewMode = "
     { key: "advance_balance", label: "Sisa Kasbon", render: (row) => <strong className={row.advance_balance > 0 ? "da-text-danger-v4" : "da-text-success-v4"}>{formatRupiah(row.advance_balance)}</strong> },
     { key: "loan_balance", label: "Sisa Pinjaman", render: (row) => <strong className={row.loan_balance > 0 ? "da-text-danger-v4" : "da-text-success-v4"}>{formatRupiah(row.loan_balance)}</strong> },
     { key: "status", label: "Status", render: (row) => <Badge tone={badgeTone(row.employment_status)}>{row.employment_status}</Badge> },
-    { key: "actions", label: "Aksi", render: (row) => <ActionButtons><ActionButton iconOnly title="Buka profil karyawan" onClick={() => openEmployeeProfile(row)}><UserRound size={14} /></ActionButton>{fullPayrollAccess ? <ActionButton iconOnly title="Edit data karyawan" onClick={() => openEditEmployee(row)}><Edit2 size={14} /></ActionButton> : null}{fullPayrollAccess ? <ActionButton iconOnly tone="danger" title="Hapus / nonaktifkan data karyawan" onClick={() => deleteEmployee(row)}><Trash2 size={14} /></ActionButton> : null}<ActionButton iconOnly title="Print data karyawan" onClick={() => printHRDEmployeeRecordV32(row.raw || row)}><Printer size={14} /></ActionButton></ActionButtons> },
+    { key: "actions", label: "Aksi", render: (row) => <ActionButtons><ActionButton iconOnly title="Buka profil karyawan" onClick={() => openEmployeeProfile(row)}><User size={14} /></ActionButton>{fullPayrollAccess ? <ActionButton iconOnly title="Edit data karyawan" onClick={() => openEditEmployee(row)}><Edit2 size={14} /></ActionButton> : null}{fullPayrollAccess ? <ActionButton iconOnly tone="danger" title="Hapus / nonaktifkan data karyawan" onClick={() => deleteEmployee(row)}><Trash2 size={14} /></ActionButton> : null}<ActionButton iconOnly title="Print data karyawan" onClick={() => printHRDEmployeeRecordV32(row.raw || row)}><Printer size={14} /></ActionButton></ActionButtons> },
   ];
 
   const attendanceColumns = [
