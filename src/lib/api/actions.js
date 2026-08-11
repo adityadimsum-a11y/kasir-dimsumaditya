@@ -905,6 +905,10 @@ export async function createHRDLoanNote(sessionToken, payload = {}) {
   return phpApiRequest("createHRDLoanNote", payload, sessionToken);
 }
 
+export async function createHRDLoanInstallment(sessionToken, payload = {}) {
+  return phpApiRequest("createHRDLoanInstallment", payload, sessionToken);
+}
+
 export async function getHRDEmployeeProfile(sessionToken, payload = {}) {
   return phpApiRequest("getHRDEmployeeProfile", payload, sessionToken);
 }
